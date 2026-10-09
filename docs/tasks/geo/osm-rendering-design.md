@@ -434,15 +434,17 @@ Instead (`MapLabelLayer`, `MapLabelAtlas`):
   by `Osm::MapGeometry` with the geometry (a keys filter over the node blocks;
   converted files keep tagged nodes only) and handed to the label layer by
   `OsmMapLayer::labels()`.
-  - Ranked among the Country Places: city (bold) as region seats, town,
-    station, village, halt, suburb, hamlet, each by its `population` tag;
+  - Ranked below the route's names and any marker set shown (Map > Markers,
+    off by default, is turned on for a purpose): city (bold), town, station,
+    village, halt, suburb, hamlet, each by its `population` tag;
     shown from 200 m/px for towns, 60 stations, 40 villages, 20 halts,
     15 suburbs, 10 hamlets, cities always. The overview levels hold what each
     scale needs (national: cities and towns; regional: villages and
     stations too).
   - A name already placed within 120 pixels is not placed again, so a town in
-    both the Country Places and OSM shows once. Different spellings (GeoNames
-    "Warsaw", OSM "Warszawa") are not matched.
+    both the Country Places and OSM shows once (the marker's). Different
+    spellings (GeoNames "Warsaw", OSM "Warszawa") are not matched; overlapping
+    sources are not a concern (user, 2026-10-09).
   - Palette colours `place` and `osmStation` for the dots.
   - Captures (`map-labels.json`, osm-* views): Poland's cities at 450 m/px,
     Kraków's towns and stations at 60 m/px, its districts and every station

@@ -147,7 +147,8 @@ Phase 1 core, as built:
 - **Labels** (Map > Markers, 2026-10-09; `src/tsre/map/MapLabelLayer`): the
   Navi window's marker set (for example Route > Generate Country Places) as
   a dot and a name each, at a fixed screen size and upright whatever the
-  heading.
+  heading. Off by default, as in 3D: a marker set is shown for a purpose
+  (user, 2026-10-09).
   - Names are painted once by QPainter into shared atlas pages (1024 px,
     shelves, up to four pages, started again when full) and drawn as one
     mesh a page; the halo is the text mask grown by a few pixels (about
@@ -171,7 +172,7 @@ Phase 1 core, as built:
     (`TrackItemMapLayer::itemPlaces`, shared with the track objects);
   - location event names (Map > Activity);
   - ranked events, stations (more platforms first), platforms, sidings,
-    then marker sets; dots in the kind's palette colour.
+    marker sets, then OSM names; dots in the kind's palette colour.
   - Rebuilt when a source or its size changes and wherever the activity layer
     is invalidated by edits.
   - Captures: `tests/renderer/map-route-labels.json` (EUROPE1, winterun).

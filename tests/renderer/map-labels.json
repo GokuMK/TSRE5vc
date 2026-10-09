@@ -25,7 +25,8 @@
       "latLon": [
         52.0,
         19.3
-      ]
+      ],
+      "markers": true
     },
     {
       "name": "silesia",
@@ -34,7 +35,8 @@
       "latLon": [
         50.6,
         17.5
-      ]
+      ],
+      "markers": true
     },
     {
       "name": "walbrzych",
@@ -43,7 +45,8 @@
       "latLon": [
         50.77,
         16.3
-      ]
+      ],
+      "markers": true
     },
     {
       "name": "turned",
@@ -53,7 +56,8 @@
         50.6,
         17.5
       ],
-      "bearing": 35
+      "bearing": 35,
+      "markers": true
     },
     {
       "name": "over-osm",
@@ -63,17 +67,8 @@
         50.6,
         17.5
       ],
-      "osmData": true
-    },
-    {
-      "name": "no-markers",
-      "mode": "map",
-      "metresPerPixel": 120,
-      "latLon": [
-        50.6,
-        17.5
-      ],
-      "markers": false
+      "osmData": true,
+      "markers": true
     },
     {
       "name": "osm-poland",
@@ -83,8 +78,7 @@
         52.0,
         19.3
       ],
-      "osmData": true,
-      "markers": false
+      "osmData": true
     },
     {
       "name": "osm-region",
@@ -94,8 +88,7 @@
         50.06,
         19.94
       ],
-      "osmData": true,
-      "markers": false
+      "osmData": true
     },
     {
       "name": "osm-town",
@@ -105,8 +98,7 @@
         50.06,
         19.94
       ],
-      "osmData": true,
-      "markers": false
+      "osmData": true
     },
     {
       "name": "osm-close",
@@ -116,8 +108,7 @@
         50.77,
         16.29
       ],
-      "osmData": true,
-      "markers": false
+      "osmData": true
     },
     {
       "name": "osm-and-places",
@@ -127,7 +118,8 @@
         50.06,
         19.94
       ],
-      "osmData": true
+      "osmData": true,
+      "markers": true
     }
   ]
 }

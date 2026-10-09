@@ -20,9 +20,10 @@ enum class MapLayer {
 
 struct MapLayers {
     // Faded Overlay is off: painting needs the true colours. OSM data is off: it needs
-    // an OSM directory and may ask to convert files.
+    // an OSM directory and may ask to convert files. Markers are off, as in 3D: a marker
+    // set is shown for a purpose.
     bool visible[int(MapLayer::Count)] = {true, true, true, true, true, true, true, true, false,
-                                          true, false, false, true};
+                                          true, false, false, false};
     bool shows(MapLayer layer) const { return visible[int(layer)]; }
     void set(MapLayer layer, bool show) { visible[int(layer)] = show; }
 };

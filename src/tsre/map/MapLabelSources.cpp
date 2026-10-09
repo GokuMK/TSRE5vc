@@ -27,6 +27,9 @@ constexpr double EventPriority = 4e12;
 constexpr double StationPriority = 3e12;
 constexpr double PlatformPriority = 1e12;
 constexpr double SidingPriority = 9e11;
+// A marker set is shown for a purpose: above OSM names (placeLabelPriority, up to
+// about 6e10), below the route's own names.
+constexpr double MarkerPriority = 1e11;
 
 // Points in the view's tile convention, averaged: x and z relative to the first
 // point's tile, so tiles do not lose precision.
@@ -66,7 +69,7 @@ void appendMarkers(std::vector<MapLabel> &out, const Coords *markers) {
         label.x = float(m.x[0]);
         label.z = float(m.z[0]);
         label.text = m.name;
-        label.priority = placeLabelPriority(m.featureCode, m.population, &label.major);
+        label.priority = MarkerPriority + placeLabelPriority(m.featureCode, m.population, &label.major);
         label.kind = MapLabelKind::Marker;
         out.push_back(std::move(label));
     }

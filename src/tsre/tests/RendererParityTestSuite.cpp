@@ -87,7 +87,7 @@ struct ViewSpec {
     bool osmTransparentAreas = false;
     // Centred on a latitude and longitude through the route's projection, instead of
     // tile and pos (map views of OSM data).
-    bool markers = true;  // Map > Markers
+    bool markers = false;  // Map > Markers
     bool viewMarkers = false;  // 3D View > Markers
     bool hasLatLon = false;
     double lat = 0.0, lon = 0.0;
@@ -260,7 +260,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
-        view.markers = object.value("markers").toBool(true);
+        view.markers = object.value("markers").toBool(false);
         view.viewMarkers = object.value("viewMarkers").toBool(false);
         const QJsonArray latLon = object.value("latLon").toArray();
         view.hasLatLon = latLon.size() == 2;

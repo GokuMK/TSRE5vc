@@ -20,7 +20,7 @@ class TDB;
 
 // The names the map labels, by source (MapLabelLayer places them all together, so
 // they never overlap one another). Ranked: location events, stations, platforms,
-// sidings, then marker sets (places by feature code and population).
+// sidings, marker sets (places by feature code and population), then OSM names.
 namespace MapLabelSources {
 
 // Platform and siding names show from this resolution in (metres per pixel); station
