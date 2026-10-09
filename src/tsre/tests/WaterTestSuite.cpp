@@ -228,6 +228,10 @@ int TsreTests::runWaterGlSuite(bool verbose) {
           "the main and fast programs draw water with it; selection does not");
     check(GLUU::animationSeconds() == 0.0f, "frozen animation stands at zero");
     check(water->waterWind >= 0, "the water program has the wind");
+    check(water->waterScene >= 0 && water->waterDepthRange >= 0
+          && water->uniformLocation("waterSceneColor") >= 0
+          && water->uniformLocation("waterSceneDepth") >= 0,
+          "the water program reads the frame and depth under the water");
     WaterWaveTexture waveTexture;
     GLint bound = 0;
     check(waveTexture.bind(f, 15, 0.0, breeze, true), "the wave cascades are created");

@@ -97,6 +97,8 @@ public:
     int waterLayers = -1;
     int waterReflectionView = -1;
     int waterWind = -1;
+    int waterScene = -1;
+    int waterDepthRange = -1;
     int waterReflectionPlane = -1;
     int clipPlane = -1;
 private:

@@ -916,6 +916,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only."
                 QT_TRID_NOOP("settings.core.rendering.water.reflection.description")).inGroup("rendering").inSubgroup("water"),
         "waterReflection", "Game::waterReflection", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.water.depth", true)
+            .withNameId(
+                //% "See into shallow water"
+                QT_TRID_NOOP("settings.core.rendering.water.depth.name")).withDescriptionId(
+                //% "Shaded water shows the ground under it where it is shallow, bent by the waves, and turns to the route's water colour with depth; shores blend into the water. Uses a copy of the frame drawn before the water."
+                QT_TRID_NOOP("settings.core.rendering.water.depth.description")).inGroup("rendering").inSubgroup("water"),
+        "", "", "Renderer", false, "hot-cache");
     ADD(SettingsDefinition::floating("core.rendering.water.windSpeed", 3.0)
             .withNameId(
                 //% "Wind speed"

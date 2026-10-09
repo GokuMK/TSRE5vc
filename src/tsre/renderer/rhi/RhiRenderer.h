@@ -248,6 +248,22 @@ private:
     float copyFrameForTransmission();
     QRhiTexture *sceneCopy = nullptr;
     float sceneCopyLevels = 0.0f;
+    // The frame and its depth for the water pass (the colour in sceneCopy);
+    // returns the colour mipmap levels, 0 when water does not see the bed
+    // (secondary views, core.rendering.water.depth off).
+    float copyFrameForWater();
+    bool copyDepthForWater();
+    void releaseWaterDepth();
+    float waterSceneLevels = 0.0f;
+    struct WaterDepth {
+        QRhiTexture *copy = nullptr;
+        QRhiTextureRenderTarget *target = nullptr;
+        QRhiRenderPassDescriptor *pass = nullptr;
+        QRhiSampler *sampler = nullptr;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        QRhiTexture *boundDepth = nullptr;
+        QRhiGraphicsPipeline *pipeline = nullptr;
+    } waterDepth;
     // HDR and bloom (task 24, RhiImage.cpp). The view draws into floats
     // when a tone curve is chosen; present() applies exposure, adds bloom
     // and maps the result to the frame. Bloom is made only from the glow

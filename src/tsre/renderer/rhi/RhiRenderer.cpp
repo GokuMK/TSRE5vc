@@ -23,6 +23,7 @@
 #include <rhi/qshaderbaker.h>
 #include <rhi/qshaderdescription.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Mesh.h>
@@ -34,6 +35,10 @@
 
 static QHash<QString, int> debugCounts;
 static const bool traceDraws = qEnvironmentVariableIsSet("TSRE_RHI_TRACE");
+// The frame copy and its depth water sees the bed through (as GLUU assigns
+// them: units of PBR maps, unused by the water program).
+static const int WaterSceneColorUnit = 11;
+static const int WaterSceneDepthUnit = 12;
 static void debugCount(const QString &key) { if (traceDraws) debugCounts[key]++; }
 
 // The present pass's fragment shader (RhiImage.cpp).
@@ -258,6 +263,7 @@ void RhiRenderer::releaseResources() {
     delete waterWaveArray;
     waterWaveArray = nullptr;
     releaseDepthProbe();
+    releaseWaterDepth();
     releaseLights();
     releaseAttachments(view);
     releaseAttachments(selection);
@@ -611,6 +617,86 @@ float RhiRenderer::copyFrameForTransmission() {
     batch->generateMips(sceneCopy);
     s->frame().commandBuffer->resourceUpdate(batch);
     return 1.0f + std::floor(std::log2(float(std::max(view.size.width(), view.size.height()))));
+}
+
+float RhiRenderer::copyFrameForWater() {
+    // Secondary views and the selection program draw water without the
+    // bed, as does the setting.
+    if (!Settings::boolean("core.rendering.water.depth"))
+        return 0.0f;
+    const float levels = copyFrameForTransmission();
+    if (levels <= 0.0f || !copyDepthForWater())
+        return 0.0f;
+    return levels;
+}
+
+bool RhiRenderer::copyDepthForWater() {
+    // The depth texture is the view's depth attachment, so water reads a
+    // copy: a pass of its own after the frame so far (flushed by the colour
+    // copy) writes each texel's depth to a float texture.
+    RhiRenderSurface *s = surface();
+    QRhiCommandBuffer *cb = s->frame().commandBuffer;
+    WaterDepth &copy = waterDepth;
+    if (copy.copy != nullptr && copy.copy->pixelSize() != view.size)
+        releaseWaterDepth();
+    if (copy.copy == nullptr) {
+        static const char *fragment = R"(#version 440
+layout(location = 0) out vec4 result;
+layout(binding = 0) uniform sampler2D depthTexture;
+void main() {
+    result = vec4(texelFetch(depthTexture, ivec2(gl_FragCoord.xy), 0).r);
+}
+)";
+        copy.copy = rhi->newTexture(QRhiTexture::R32F, view.size, 1, QRhiTexture::RenderTarget);
+        copy.sampler = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
+                                       QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+        if (!copy.copy->create() || !copy.sampler->create()) {
+            releaseWaterDepth();
+            return false;
+        }
+        copy.target = rhi->newTextureRenderTarget({QRhiColorAttachment(copy.copy)});
+        copy.pass = copy.target->newCompatibleRenderPassDescriptor();
+        copy.target->setRenderPassDescriptor(copy.pass);
+        copy.bindings = rhi->newShaderResourceBindings();
+        copy.bindings->setBindings({QRhiShaderResourceBinding::sampledTexture(
+                0, QRhiShaderResourceBinding::FragmentStage, view.depth, copy.sampler)});
+        copy.boundDepth = view.depth;
+        copy.pipeline = rhi->newGraphicsPipeline();
+        copy.pipeline->setShaderStages(
+                {{QRhiShaderStage::Vertex, bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi)},
+                 {QRhiShaderStage::Fragment, bakeInline(fragment, QShader::FragmentStage, rhi)}});
+        copy.pipeline->setShaderResourceBindings(copy.bindings);
+        copy.pipeline->setRenderPassDescriptor(copy.pass);
+        if (!copy.target->create() || !copy.bindings->create() || !copy.pipeline->create()) {
+            releaseWaterDepth();
+            return false;
+        }
+    }
+    if (copy.boundDepth != view.depth) {
+        // The view was recreated.
+        copy.bindings->setBindings({QRhiShaderResourceBinding::sampledTexture(
+                0, QRhiShaderResourceBinding::FragmentStage, view.depth, copy.sampler)});
+        copy.bindings->create();
+        copy.boundDepth = view.depth;
+    }
+    cb->beginPass(copy.target, Qt::black, {1.0f, 0});
+    cb->setGraphicsPipeline(copy.pipeline);
+    cb->setViewport(QRhiViewport(0, 0, view.size.width(), view.size.height()));
+    cb->setShaderResources(copy.bindings);
+    cb->draw(3);
+    cb->endPass();
+    return true;
+}
+
+void RhiRenderer::releaseWaterDepth() {
+    WaterDepth &copy = waterDepth;
+    delete copy.pipeline;
+    delete copy.bindings;
+    delete copy.target;
+    delete copy.pass;
+    delete copy.sampler;
+    delete copy.copy;
+    copy = WaterDepth();
 }
 
 void RhiRenderer::beginFrameIfNeeded() {
@@ -1580,14 +1666,31 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                        && slot.binding == PlanarReflection::TextureUnit && reflectionSampled != nullptr) {
                 texture = reflectionSampled;
                 slotSampler = sampler(true, true);
+            } else if (program->kind == RhiProgram::WATER && slot.binding == WaterSceneColorUnit
+                       && waterSceneLevels > 0.0f && sceneCopy != nullptr) {
+                texture = sceneCopy;
+                slotSampler = sampler(true, true);
+            } else if (program->kind == RhiProgram::WATER && slot.binding == WaterSceneDepthUnit
+                       && waterSceneLevels > 0.0f && waterDepth.copy != nullptr) {
+                texture = waterDepth.copy;
+                slotSampler = sampler(false, true, true);
             }
             break;
         }
         bindingKey.textures.push_back(texture);
         bindingKey.samplers.push_back(slotSampler);
     }
-    if (program->kind == RhiProgram::WATER)
+    if (program->kind == RhiProgram::WATER) {
         program->setInt("waterLayers", waterLayers);
+        // The bed under the water: the frame copy, its size and mipmap
+        // levels, and the scene band (its slice of the depth range and its
+        // near and far planes).
+        const bool bed = waterSceneLevels > 0.0f;
+        program->setVec("waterScene", bed ? 1.0f / view.size.width() : 0.0f,
+                        bed ? 1.0f / view.size.height() : 0.0f, waterSceneLevels, bed ? 1.0f : 0.0f);
+        program->setVec("waterDepthRange", sceneDepthRange[0], sceneDepthRange[1],
+                        sceneProjection[2], sceneProjection[3]);
+    }
 
     DrawCommand draw;
     draw.uniformOffset = appendUniforms(program);
@@ -1701,6 +1804,9 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
             applyAmbientOcclusion();
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();
+        // Water sees the bed: the frame and its depth so far.
+        if (pass == PASS_WATER)
+            waterSceneLevels = copyFrameForWater();
         recordInstances(queue.ordered, pass, false);
         if (pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
             sortBackToFront(queue.grouped);
@@ -1708,6 +1814,7 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
             sortByTexture(queue.grouped);
         recordInstances(queue.grouped, pass, true);
         sceneCopyLevels = 0.0f;
+        waterSceneLevels = 0.0f;
         if (consume)
             consumePass(queue);
     }

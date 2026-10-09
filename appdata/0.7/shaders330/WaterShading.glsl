@@ -23,6 +23,14 @@ uniform vec4 waterWind;
 uniform sampler2D waterReflectionMap;
 uniform vec4 waterReflectionView;
 uniform vec4 waterReflectionPlane;
+// The frame drawn before the water and its depth, read at the screen
+// position: inverse viewport size, colour mipmap levels, and 1 in w when
+// they are there (0: water does not see the bed). The scene band's slice
+// of the depth range (x, y) and its near and far planes (z, w).
+uniform sampler2D waterSceneColor;
+uniform sampler2D waterSceneDepth;
+uniform vec4 waterScene;
+uniform vec4 waterDepthRange;
 
 #include "EnvironmentLighting.glsl"
 
@@ -43,6 +51,13 @@ const float WaterBodyShare = 0.6;
 // of blur at roughness 1.
 const float WaterReflectionDistortion = 0.08;
 const float WaterReflectionBlur = 4.0;
+// Light lost per metre of water, red first: water with some silt, the bed
+// clear under a few decimetres and gone under about two metres.
+const vec3 WaterExtinction = vec3(1.6, 1.1, 1.0);
+// Screen offset of the bed per unit of slope, and the depth (m) below
+// which the surface fades into the bed at the shore.
+const float WaterRefraction = 0.03;
+const float WaterShoreDepth = 0.15;
 
 // Mean slope over the pixel and its variance, from one cascade, scaled by
 // the gusts.
@@ -110,6 +125,39 @@ vec3 waterReflection(vec3 r, vec2 slope, float roughness) {
     return mix(far, mirrored, inPlane);
 }
 
+// Distance along the view axis of a depth in the scene band; far away for
+// what lies behind it (distant terrain, sky).
+float waterViewDistance(float depth) {
+    if (depth >= waterDepthRange.y)
+        return 1e6;
+    float z = (depth - waterDepthRange.x) / (waterDepthRange.y - waterDepthRange.x) * 2.0 - 1.0;
+    float near = waterDepthRange.z, far = waterDepthRange.w;
+    return 2.0 * near * far / ((far + near) - z * (far - near));
+}
+
+// What is seen through the water: the bed, refracted by the waves and
+// fading into the deep colour with the path through the water. Also the
+// water's depth under the surface, in metres.
+vec3 waterUnderwater(vec3 deep, vec2 slope, vec3 v, out vec3 transmittance, out float below) {
+    vec2 uv = gl_FragCoord.xy * waterScene.xy;
+    float surface = waterViewDistance(gl_FragCoord.z);
+    // Metres along the view ray per metre along the view axis.
+    float stretch = length(cameraPosition - vWorldPosition) / max(surface, 1e-3);
+    float path = max(waterViewDistance(texture(waterSceneDepth, uv).r) - surface, 0.0) * stretch;
+    below = path * clamp(v.y, 0.0, 1.0);
+    // Refraction grows with the depth, so the shore line stays put; what
+    // stands in front of the water is not refracted into it.
+    vec2 refracted = uv + slope * WaterRefraction * clamp(below, 0.0, 1.0);
+    float refractedPath = (waterViewDistance(texture(waterSceneDepth, refracted).r) - surface) * stretch;
+    if (refractedPath > 0.0) {
+        uv = refracted;
+        path = refractedPath;
+    }
+    vec3 bed = toLinear(textureLod(waterSceneColor, uv, 0.0).rgb);
+    transmittance = exp(-WaterExtinction * min(path, 100.0));
+    return mix(deep, bed, transmittance);
+}
+
 vec4 waterShade() {
     // The layers stacked as the route draws them: bottom, middle, top.
     vec4 top = texture(uSampler, vTextureCoord);
@@ -141,16 +189,31 @@ vec4 waterShade() {
     r.y = abs(r.y);
     float fresnel = 0.02 + 0.98 * pow(1.0 - nDotV, 5.0);
     // The layer textures include the sky they usually reflect; the body
-    // keeps the rest, and the reflection is added for the actual view.
-    vec3 color = mix(toLinear(body) * WaterBodyShare,
-                     waterReflection(r, slope, roughness) * colorBrightness, fresnel);
+    // keeps the rest as the colour of deep water, and the reflection is
+    // added for the actual view.
+    vec3 deep = toLinear(body) * WaterBodyShare;
+    vec3 under = deep;
+    // Share of the bed in the colour, already fogged in the frame copy.
+    float bedShare = 0.0;
+    // The surface (reflection and glints) fades in over the first
+    // centimetres of depth, so the shore meets the bed without a line.
+    float surface = 1.0;
+    if (waterScene.w > 0.0) {
+        vec3 transmittance;
+        float below;
+        under = waterUnderwater(deep, slope, v, transmittance, below);
+        surface = smoothstep(0.0, WaterShoreDepth, below);
+        fresnel *= surface;
+        bedShare = dot(transmittance, vec3(1.0 / 3.0)) * (1.0 - fresnel);
+    }
+    vec3 color = mix(under, waterReflection(r, slope, roughness) * colorBrightness, fresnel);
 
     float nDotL = max(dot(n, l), 0.0);
     if (nDotL > 0.0) {
         vec3 sunFresnel;
         vec3 sun = PbrPi * toLinear(diffuseColor.rgb) * shadow;
         color += ggxSpecular(n, v, l, roughness, vec3(0.02), sunFresnel) * sun * nDotL
-                * colorBrightness;
+                * colorBrightness * surface;
     }
-    return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor), 1.0);
+    return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor * (1.0 - bedShare)), 1.0);
 }

@@ -55,6 +55,24 @@ textures (`Environment::lowerWaterLayers`), and draw with the
   - Gusts: two sizes of value noise (9 and 23 cells per tile) drifting with
     the wind scale the short waves 0.3 to 1.7 times and the long ones 0.8
     to 1.2 times.
+- Depth (2026-10-09, `core.rendering.water.depth`): before the water pass
+  the renderer copies the frame and its depth (OpenGL: a blit into a depth
+  texture of the frame's own format, colour alone if the driver refuses;
+  QRhi: a pass writing the view's depth into an R32F texture, as it is the
+  water pass's depth attachment). The shader turns both depths into view
+  distances (the scene band's slice and planes, as ambient occlusion
+  does) and takes the path through the water along the ray:
+  - the bed (the frame copy) fades into the deep colour, the route's
+    layers, by Beer-Lambert extinction per channel (1.6, 1.1, 1.0 per m:
+    the bed shows under a few decimetres, gone under about 2 m);
+  - refraction: the bed offset by the wave slope, growing with the depth
+    so the shore line stays; objects in front of the water are not taken;
+  - soft shores: reflection and glints fade in over the first 15 cm of
+    depth, so the water meets the bank in the bank's own colour;
+  - the bed is already fogged in the copy, so its share takes less fog.
+  Secondary views (reflection, environment faces) draw water as before.
+  On CMK the lake is about 17 m deep with steep banks, so only the edges
+  change; with the extinction near zero the bed shows on both renderers.
 - Reflection: Fresnel (F0 0.02) between the colour and the surroundings:
   - the mirrored scene (below) where the water lies in its plane;
   - otherwise the environment cube (task 17) when it is on;
@@ -124,6 +142,7 @@ drawing about as many draw calls as the main view.
 | 4, 5 | bottom and middle layers (terrain material units elsewhere) |
 | 6 | planar reflection |
 | 10 | environment cube |
+| 11, 12 | frame copy and its depth (PBR map units elsewhere) |
 | 15 | wave cascades (array) |
 
 ## Settings
@@ -136,12 +155,11 @@ Under Rendering > Water, applied while running:
 | `core.rendering.water.reflection` | on | Mirror the scene in water in view |
 | `core.rendering.water.windSpeed` | 3 m/s | Wind making the waves (0-20) |
 | `core.rendering.water.windDirection` | 45° | The way the wind blows, from north towards east |
+| `core.rendering.water.depth` | on | See the bed through shallow water; soft shores |
 
 ## Not Done
 
 - ENV wave height and speed, layer UV animation.
-- Refraction or depth-based colour: the bottom is a texture, not the
-  terrain under the water.
 - Water at a different level from the fitted plane (a lake above a river)
   reflects the cube or gradient instead of the mirrored scene.
 - Cheaper reflections if hardware needs them: a smaller target, leaving out
@@ -294,3 +312,8 @@ and QRhi.
   the gust strength.
 - User, 2026-10-09: shore foam would also hide the sky that the reflection
   shows along banks (behind the terrain at the water line is sky).
+- 2026-10-09: step 2 done: the bed through shallow water, refraction,
+  absorption and soft shores (see "Depth" under Design), both renderers.
+  The extinction is a constant (`WaterExtinction`); per-route water
+  clarity could come later. Next: step 3 (foam, light through crests),
+  step 4 (river flow).
