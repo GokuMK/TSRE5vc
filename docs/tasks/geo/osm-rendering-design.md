@@ -5,8 +5,12 @@ on the local OSM data ([design](osm-data-design.md)) and the Route Editor's map
 mode ([task editor 04](../editor/04-map-mode.md)). The measurements are in
 [evidence/2026-10-08-osm-rendering](evidence/2026-10-08-osm-rendering/results.md).
 
-Status (2026-10-08): steps 1 to 5 done, step 6 measured on TEST_PROFILES
-(Lower Silesia) with OpenGL and QRhi; see "Implementation status" at the end.
+Status (2026-10-09): the OSM layer, forest generalization, country-scale
+speed work, the Windows thread fix and map labels (markers, route data, OSM
+places and stations) are done and on `main` up to `c0c8ccc`; the labels
+(`3fccc45` to `227207f`) are on `feature/osm-rendering`, not merged yet. The
+user's test on a GPU is pending. See "Implementation status" and "Open
+items" at the end.
 
 ## Goal
 
@@ -453,6 +457,34 @@ Instead (`MapLabelLayer`, `MapLabelAtlas`):
 - Street names along roads would need a glyph atlas (QTextLayout shaping,
   QRawFont glyph images) and are left for later.
 
-Still open: the line shader, labels and points, selection of OSM features, a
-dark style for the dark palette, the multipolygon cache, and an option to
-start with the layer on.
+## Open items (2026-10-09)
+
+In rough order of what the user asked about:
+
+1. **The user's test on a GPU** (Windows, Steam Deck): frame rate at country
+   scale, transparency and the fade, both renderers, the labels.
+2. **Merge the labels to `main`** after that test.
+3. **KML marker files need redoing** (`CoordsKml`, the 3D marker lines); the
+   findings and a first example file are in the map-mode task
+   ([04-map-mode.md](../editor/04-map-mode.md), "KML marker files need
+   redoing"). A real development-project file is wanted as test data.
+   With it: draw KML lines and areas on the map, rank custom files from
+   `ExtendedData` (`priority`, `population`).
+4. **"Route: Stations" / "Route: Sidings" marker sets** (`CoordsRoutePlaces`)
+   probably mirror their markers within the tile (z not negated); to check in
+   3D.
+5. **Selecting OSM features** on the map (through the selection pass), the
+   start of procedural tools that use OSM data (for example track along an
+   OSM railway).
+6. **Street names along roads**: a glyph atlas (QTextLayout shaping, QRawFont
+   glyph images) placing letters along lines.
+7. **Line shader** (instanced segments): 3.5 to 9 times less line memory, no
+   rebuild on zoom; needs instancing in both renderers.
+8. Smaller: a dark style for the OSM colours (now toned by the palette's fade
+   only), an option to start with OSM Data on, the multipolygon cache (little
+   gain since the speed work), the detail read just below the regional switch
+   (about 1 s at 19 m/px over a big city; or move the switch to about
+   10 m/px), names in a chosen language (GeoNames vs OSM spellings).
+9. Not OSM, found on the way: terrain texture painting calls only
+   `Texture::update()`, which does nothing on QRhi, so painted textures may
+   not refresh there; to check.

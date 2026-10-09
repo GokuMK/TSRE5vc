@@ -201,7 +201,8 @@ Phase 1 core, as built:
     point, a line with a `StyleMap`, an area, a two-part line, near the
     TEST_PROFILES start). A real development-project file would be better.
 
-Next: phase 2 layers (tile grid, scale ruler).
+Next: phase 2 layers (tile grid, scale ruler). OSM and label follow-ups:
+[OSM rendering, open items](../geo/osm-rendering-design.md).
 
 Phase 0, in three batches, each to be tested once in the editor:
 
