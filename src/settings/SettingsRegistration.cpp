@@ -362,7 +362,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Frame-rate limit"
                 QT_TRID_NOOP("settings.core.system.fps.limit.name")).withDescriptionId(
-                //% "Set the Route Editor render timer interval to 1000 divided by this value. Zero uses the built-in 15 ms interval (about 67 updates per second)."
+                //% "The most frames per second the Route Editor draws, for example 30 or 60. 0: the default, about 67. Applies after a restart."
                 QT_TRID_NOOP("settings.core.system.fps.limit.description")).withRange(0, 1000, 1).withUnit("fps").inGroup("rendering").inSubgroup("performance"),
         "fpsLimit", "Game::fpsLimit", "RouteEditorGLWidget", false, "startup");
     ADD(SettingsDefinition::boolean("core.system.soundEnabled", false)

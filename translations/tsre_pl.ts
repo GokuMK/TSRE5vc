@@ -1705,7 +1705,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Kliknij prawym przyciskiem kwadrat edytowanego drzewa terenu, aby wybrać akcję: podziel, zaznacz jako zajęty, utwórz lub usuń jego kafel.</translation>
     </message>
     <message id="route.editor.geo.tools.label.quad.tree">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="115"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="126"/>
         <source>Quad Tree:</source>
         <translation>Drzewo quadtree:</translation>
     </message>
@@ -1740,82 +1740,82 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Nakładka kafla terenu:</translation>
     </message>
     <message id="route.editor.geo.tools.label.overlay.opacity">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="83"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="89"/>
         <source>Opacity:</source>
         <translation>Krycie:</translation>
     </message>
     <message id="route.editor.geo.tools.label.texture">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="95"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="106"/>
         <source>Terrain Tile Texture:</source>
         <translation>Tekstura kafla terenu:</translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.2">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="107"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="118"/>
         <source>Terrain Heightmap:</source>
         <translation>Mapa wysokości terenu:</translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.3">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="123"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="134"/>
         <source>Auto tile generation:</source>
         <translation>Automatyczne generowanie kafli:</translation>
     </message>
     <message id="route.editor.geo.tools.option.ch.auto.create.tile">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="129"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="140"/>
         <source>Create new tiles if not exist.</source>
         <translation>Twórz nowe kafle, jeśli nie istnieją.</translation>
     </message>
     <message id="route.editor.geo.tools.option.ch.auto.geo.terrain">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="133"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="144"/>
         <source>Create terrain from Geodata. </source>
         <translation>Utwórz teren z geodanych. </translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.4">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="140"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="151"/>
         <source>Default Terrain Profile:</source>
         <translation>Domyślny profil terenu:</translation>
     </message>
     <message id="route.editor.geo.tools.button.select.terrain.profile">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="152"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="163"/>
         <source>Select terrain profile...</source>
         <translation>Wybierz profil terenu…</translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.5">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="159"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="170"/>
         <source>Tiles from marker file:</source>
         <translation>Kafle z pliku markerów:</translation>
     </message>
     <message id="route.editor.geo.tools.label.radius">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="170"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="181"/>
         <source>Radius:</source>
         <translation>Promień:</translation>
     </message>
     <message id="route.editor.geo.tools.button.check.geodata.files">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="176"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="187"/>
         <source>Check if geodata files available.</source>
         <translation>Sprawdź dostępność plików geodanych.</translation>
     </message>
     <message id="route.editor.geo.tools.button.generate.tiles">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="183"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="194"/>
         <source>Generate tiles.</source>
         <translation>Generuj kafle.</translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.6">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="190"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="201"/>
         <source>Distant Terrain:</source>
         <translation>Teren odległy:</translation>
     </message>
     <message id="route.editor.geo.tools.button.check.geodata.lo.files">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="195"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="206"/>
         <source>Check if geodata files available.</source>
         <translation>Sprawdź dostępność plików geodanych.</translation>
     </message>
     <message id="route.editor.geo.tools.button.generate.lo.tiles">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="202"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="213"/>
         <source>Generate tiles using MKR.</source>
         <translation>Generuj kafle na podstawie MKR.</translation>
     </message>
     <message id="route.editor.geo.tools.button.generate.lo.tiles.from.tdb">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="208"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="219"/>
         <source>Generate tiles using TDB.</source>
         <translation>Generuj kafle na podstawie TDB.</translation>
     </message>
@@ -8363,8 +8363,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="settings.core.system.fps.limit.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="366"/>
-        <source>Set the Route Editor render timer interval to 1000 divided by this value. Zero uses the built-in 15 ms interval (about 67 updates per second).</source>
-        <translation>Ustaw interwał timera renderowania Edytora tras na 1000 podzielone przez tę wartość. Zero używa wbudowanego interwału 15 ms (około 67 aktualizacji na sekundę).</translation>
+        <source>The most frames per second the Route Editor draws, for example 30 or 60. 0: the default, about 67. Applies after a restart.</source>
+        <translation>Największa liczba klatek na sekundę rysowanych przez Edytor tras, na przykład 30 lub 60. 0: domyślnie, około 67. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.system.sound.enabled.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="371"/>
