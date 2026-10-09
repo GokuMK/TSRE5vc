@@ -111,9 +111,10 @@ protected:
     // lights scaled by exposure and emissive ones by emissiveGain, with
     // ranges derived where missing (task 21). emittersOnly keeps only the
     // emissive ones, also those too dim to light anything (their glow,
-    // task 24).
+    // task 24), with signal lights scaled by signalGain (task 26); signal
+    // lights are left out otherwise.
     void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
-                      float emissiveGain, bool emittersOnly = false) const;
+                      float emissiveGain, bool emittersOnly = false, float signalGain = 0.0f) const;
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> shadowCasters;

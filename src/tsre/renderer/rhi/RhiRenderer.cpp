@@ -356,9 +356,6 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     // Pixels per unit at distance 1 in the main view: emissive surfaces
     // fade their glow into the glow splats as they shrink (task 24).
     program->setFloat("glowFocal", sceneProjection[1] * float(std::max(1, view.size.height())) * 0.5f);
-    // Glow follows the lamps' light (task 21): it fades by day and goes
-    // with local lights turned off; the lenses' colour stays.
-    program->setFloat("glowScale", Game::localLightsEnabled ? gluu->localLightAdaptation : 0.0f);
     program->setUint("selectionId", 0);
     program->setFloat("shadow1Res", gluu->shadow1Res);
     program->setFloat("shadow2Res", gluu->shadow2Res);
@@ -438,6 +435,11 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
                 ++emitters;
             }
         program->setFloat("pbrGlowRadius", emitters > 0 ? glowRadius / emitters : 0.0f);
+        // Glow follows the lamps' light (task 21): it fades by day and goes
+        // with local lights turned off; the lenses' colour stays. Signal
+        // lights keep more of it by day (task 26).
+        const float daylight = p.signalGlow ? gluu->signalLightAdaptation : gluu->localLightAdaptation;
+        program->setFloat("pbrGlowScale", Game::localLightsEnabled ? daylight : 0.0f);
         program->setFloat("pbrNormalScale", p.normalScale);
         program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
         program->setFloat("pbrAlphaCutoff", p.alphaCutoff);

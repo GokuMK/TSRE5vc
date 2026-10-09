@@ -372,7 +372,8 @@ void RhiRenderer::gatherGlowSplats() {
     glowSplats.gathered = true;
     glowSplats.emitters.clear();
     if (bloomEnabled() && Game::localLightsEnabled)
-        gatherLights(glowSplats.emitters, 0.0f, gluu->localLightAdaptation, true);
+        gatherLights(glowSplats.emitters, 0.0f, gluu->localLightAdaptation, true,
+                     gluu->signalLightAdaptation);
 }
 
 // At the end of the main view: its scene band's projection, fog and

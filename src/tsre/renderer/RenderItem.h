@@ -125,6 +125,9 @@ public:
         float thickness = 0.0f;
         float attenuationDistance = 0.0f;
         float attenuationColor[3] = {1.0f, 1.0f, 1.0f};
+        // A signal light (task 26): its glow follows the signal lights'
+        // daylight scale instead of the lamps'.
+        bool signalGlow = false;
         int textures[MAP_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
         // Texture coordinate set (0 or 1) of each map.
         unsigned char texCoords[MAP_COUNT] = {};
@@ -201,6 +204,9 @@ public:
         // Made from an emissive surface (scaled by the emissive gain) rather
         // than a light source (scaled by the exposure).
         bool emissive = false;
+        // An emissive signal light (task 26): only its glow splat, scaled by
+        // the signal lights' daylight scale; it lights nothing.
+        bool signal = false;
     };
 
     // Sphere enclosing the packet in the space of the submission transform

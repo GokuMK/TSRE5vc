@@ -56,9 +56,9 @@ uniform sampler2D pbrSpecularColorMap;
 // the main view's pixels per unit at distance 1 (glow splats, task 24).
 uniform float pbrGlowRadius;
 uniform float glowFocal;
-// The lamps' daylight scale (task 21), 0 with local lights off: glow
-// follows their light.
-uniform float glowScale;
+// The daylight scale of this surface's glow, 0 with local lights off: the
+// lamps' (task 21), or the signal lights' for signals (task 26).
+uniform float pbrGlowScale;
 #endif
 #include "EnvironmentLighting.glsl"
 
@@ -276,7 +276,7 @@ vec4 pbrShade() {
                 / max(distance(cameraPosition, vWorldPosition), 0.001);
         glowShare = smoothstep(16.0, 32.0, pixels);
     }
-    pbrGlowOut = vec4(emissive * (1.0 - fogFactor) * glowShare * glowScale, alpha);
+    pbrGlowOut = vec4(emissive * (1.0 - fogFactor) * glowShare * pbrGlowScale, alpha);
     // The display-space share of the environment light, after fog.
     pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
                          * (1.0 - fogFactor), alpha);

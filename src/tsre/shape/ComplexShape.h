@@ -83,7 +83,18 @@ public:
     virtual void getFloorBorderLinePoints(float *&points);
     virtual bool isSnapable() const;
     virtual void addSnapablePoints(QVector<float> &out);
+    // The 4x4 transform of the matrix with this name (any case), with its
+    // parents, in the static pose of the most detailed level: the space the
+    // shape's vertices are drawn in. False when the shape is not loaded or
+    // has no such matrix.
+    virtual bool matrixByName(const QString &name, float *out) const;
 };
+
+inline bool ComplexShape::matrixByName(const QString &name, float *out) const {
+    (void)name;
+    (void)out;
+    return false;
+}
 
 inline const QString& ComplexShape::getTexPath() const {
     static const QString empty;

@@ -29,9 +29,13 @@ struct Light {
     // Scale of lamp and glow light (task 21): eyes and cameras adapt to
     // daylight, which outshines lamps; full at night, DayLocalLights by day.
     float localLights = 1.0f;
+    // Scale of signal lights' glow (task 26): signals must stay visible by
+    // day, so they keep DaySignalLights; full at night.
+    float signalLights = 1.0f;
 };
 
 constexpr float DayLocalLights = 0.03f;
+constexpr float DaySignalLights = 0.5f;
 
 // daySky and dayFog: the colours of a high sun (the sky and fog settings).
 Light forElevation(double elevationDegrees, const float *daySky, const float *dayFog);

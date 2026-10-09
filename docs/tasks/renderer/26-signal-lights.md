@@ -123,6 +123,30 @@ index.
 - Captures on QRhi and OpenGL, day and night: lights on the right heads,
   in the default aspect's colours, on the front of the heads only.
 
+## Implementation status (2026-10-09)
+
+| Step | Commit | Notes |
+|---|---|---|
+| 1. Parser | `594511e` | `sigcfg` suite; CMK 82 types, 192 shapes, 401 heads all with a type, 205 lights all with a colour; PeakRail and the route template clean. A truncated file still fails to load (`tdb-load`). |
+| 2. Signal lights | this commit | `SignalLights`, `ComplexShape::matrixByName`, `Daylight::signalLights`, per-item `pbrGlowScale`. |
+
+- **Placement** follows Open Rails: a light at sigcfg (x, y, z) sits at
+  (-x, y, -z) in the head's MSTS frame, 1.5 cm towards -z. Captured on CMK
+  (Warszawa Wschodnia, `PS_5k_BC.s`, tile -5308, -14961): the red light of
+  the STOP aspect on the head's front, nothing from behind, an edge from
+  the sides.
+- **Discs are double-sided**: the shape's mirrored root turns the winding
+  over; the head hides them from behind.
+- **Brightness**: emission 4 times the light's linear colour, glow at the
+  signal scale (50% by day). Midday: lit with a small glow; night: glowing
+  through the bloom. OpenGL and local lights off: plain discs.
+- Heads without a TDB link (signal unit) show no lights, as in Open Rails.
+- **Open**: the shapes' own hoods and lenses stand in front of the discs and
+  cover part of them (CMK: radius 0.21 m at z 0, a dark crescent over the
+  light). Open Rails has the same overlap; its glow quad, further out and
+  growing with distance, hides it. Light textures (future work) or a
+  larger offset are the options.
+
 ## Future work
 
 - Flashing lights (`SigFlashDuration`, `FLASHING` draw lights).
@@ -134,3 +158,15 @@ index.
 - `ORTSDayLight false` (lights off by day) and the Open Rails day and night
   glow values.
 - Signal scripts and aspects from the route's state.
+
+## Open questions
+
+- **Draw states sharing a name** (user, 2026-10-09). CMK has 109 of them
+  (`pkp_sem_*` signal types, for example several `v40a`). The reader follows
+  Open Rails: the first keeps the name, the others are renamed `dst<n>` and
+  logged, so an aspect naming one finds the first. MSTS probably does no
+  such renaming and these signals work there; Open Rails handles signals
+  quite differently from MSTS, so its rule may not be MSTS's. To examine:
+  how MSTS resolves an aspect's draw state name and a script's draw state
+  (by name, first or last match, or by index), then match it here and in
+  the default draw state, and stop logging these if they are valid.

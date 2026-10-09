@@ -97,6 +97,9 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
           "at night the sun is gone and the sky dark");
     check(light.localLights == 1.0f && near(Daylight::forElevation(60.0, sky, fog).localLights, Daylight::DayLocalLights, 1e-6),
           "lamps count fully at night and little by day");
+    check(light.signalLights == 1.0f && near(Daylight::forElevation(60.0, sky, fog).signalLights, Daylight::DaySignalLights, 1e-6)
+              && Daylight::forElevation(10.0, sky, fog).signalLights > Daylight::forElevation(10.0, sky, fog).localLights,
+          "signal lights count fully at night and half by day");
     const float sunsetLamps = Daylight::forElevation(0.0, sky, fog).localLights;
     const float lowSunLamps = Daylight::forElevation(10.0, sky, fog).localLights;
     check(near(sunsetLamps, 1.0, 1e-6) && lowSunLamps > 0.1f && lowSunLamps < 0.3f,
