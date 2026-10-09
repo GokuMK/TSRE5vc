@@ -78,10 +78,18 @@ void MapDataOSM::addItem(Item item) {
     items.push_back(std::move(item));
 }
 
+void MapDataOSM::setClasses(const Osm::FeatureClasses &table) {
+    classes = &table;
+}
+
+const Osm::FeatureClasses &MapDataOSM::styles() const {
+    return classes != nullptr ? *classes : Osm::FeatureClasses::standard();
+}
+
 size_t MapDataOSM::loadFrom(const Osm::OsmStore &store) {
     using namespace Osm;
     items.clear();
-    const FeatureClasses &classes = FeatureClasses::standard();
+    const FeatureClasses &classes = styles();
     const double margin = 0.0005;  // degrees, keeps wide strokes at the tile edge
     const Box area = Box::fromDegrees(minlon - margin, minlat - margin, maxlon + margin, maxlat + margin);
     std::vector<RelationData> relations;
@@ -284,7 +292,7 @@ size_t MapDataOSM::loadFromApiXml(const QList<QByteArray> &responses){
 
 void MapDataOSM::buildApiItems(){
     using namespace Osm;
-    const FeatureClasses &classes = FeatureClasses::standard();
+    const FeatureClasses &classes = styles();
     std::vector<int64_t> ids;
     for (const auto &w : apiWays) ids.push_back(w.first);
     std::sort(ids.begin(), ids.end());
@@ -359,7 +367,7 @@ void MapDataOSM::paint(QPainter &painter, const QRectF &unitArea) const {
 
 bool MapDataOSM::draw(QImage* myImage) {
     if (!hasData) return false;
-    const QColor background = QColor::fromRgba(Osm::FeatureClasses::standard().background());
+    const QColor background = QColor::fromRgba(styles().background());
     const double scale = myImage->height() / level;  // pixels per tile unit, as in the legacy drawing
     const int w = myImage->width(), h = myImage->height(), hw = w / 2, hh = h / 2;
     const QRect quadrants[4] = {QRect(0, 0, hw, hh), QRect(hw, 0, w - hw, hh), QRect(0, hh, hw, h - hh), QRect(hw, hh, w - hw, h - hh)};

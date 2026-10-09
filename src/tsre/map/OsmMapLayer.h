@@ -54,7 +54,8 @@ public:
     void setReadyCallback(std::function<void()> callback);
     // Draws what is built and asks for a new build when the view needs one. directory is
     // the OSM directory setting; transparentAreas draws fills at the palette's
-    // osmAreaAlpha.
+    // osmAreaAlpha. The dark palette draws the dark styles; switching palettes loads
+    // again.
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
                          const QString &directory, bool transparentAreas);
     // Loads again on the next draw (the directory's files changed).
@@ -85,7 +86,7 @@ private:
     class Worker;
     struct Drawn;
     void apply(Result &result, const MapPalette &palette, bool transparentAreas);
-    void request(const MapView &view, const QString &directory);
+    void request(const MapView &view, const QString &directory, bool dark);
 
     std::unique_ptr<Worker> worker;
     std::unique_ptr<Drawn> drawn;
@@ -93,6 +94,7 @@ private:
     bool requested = false;
     bool invalid = true;
     QString requestedDirectory;
+    bool requestedDark = false;
     int requestedTile[2] = {0, 0};
     float requestedRect[4] = {0, 0, 0, 0};
     double requestedScale = 0;

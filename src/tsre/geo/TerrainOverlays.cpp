@@ -20,6 +20,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/MapDataOSM.h>
+#include <tsre/geo/osm/OsmClasses.h>
 #include <tsre/texture/TexLib.h>
 
 namespace TerrainOverlays {
@@ -131,6 +132,8 @@ bool createFromOsm(int x, int z, int tileSize, std::function<void(bool, const QS
     if (job.data == nullptr)
         job.data = std::make_unique<MapDataOSM>();
     MapDataOSM &data = *job.data;
+    // The map palette's styles, shared with the map's OSM layer.
+    data.setClasses(Osm::FeatureClasses::forPalette(Game::mapPalette));
     data.tileX = x;
     data.tileZ = -z;
     data.level = tileSize / 2048.0;

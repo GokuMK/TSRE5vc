@@ -35,8 +35,9 @@ QString diskPath(int x, int z);
 bool loadFromDisk(int x, int z);
 bool saveToDisk(int x, int z, QString &error);
 
-// Draws the tile's OSM data at core.maps.imageResolution and stores it: from the
-// OSM directory (offering to convert its downloads), else from the OSM web API.
+// Draws the tile's OSM data at core.maps.imageResolution, in the map palette's
+// styles (light or dark, as the map's OSM layer), and stores it: from the OSM
+// directory (offering to convert its downloads), else from the OSM web API.
 // done(ok, error) runs when the image is stored or the data failed: at once for
 // local data, after the requests for the web. False (with error) when another
 // web request is still running.

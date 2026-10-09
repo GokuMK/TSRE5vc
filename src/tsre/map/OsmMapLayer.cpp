@@ -78,6 +78,7 @@ struct OsmMapLayer::Job {
     double metresPerPixel = 1;
     int level = -1;
     bool whole = false;  // Load: all the level's data, not just rect
+    bool dark = false;   // Load: the dark styles (the dark map palette)
     std::shared_ptr<const Osm::MapGeometry> geometry;  // Strokes: what to stroke
 };
 
@@ -239,7 +240,8 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
     // A whole level is much larger than the view: in chunks, so those off screen are not drawn.
     if (job.whole)
         options.chunkMeters = WholeChunkMeters;
-    const auto geometry = std::make_shared<Osm::MapGeometry>();
+    const auto geometry = std::make_shared<Osm::MapGeometry>(job.dark ? Osm::FeatureClasses::dark()
+                                                                       : Osm::FeatureClasses::standard());
     if (!geometry->load(store, area, job.metresPerPixel, project,
                         options, r.error, &cancel))
         return r;
@@ -429,7 +431,7 @@ void OsmMapLayer::apply(Result &result, const MapPalette &palette, bool transpar
     upload(drawn->strokes, result.strokes, 1.0f);
 }
 
-void OsmMapLayer::request(const MapView &view, const QString &directory) {
+void OsmMapLayer::request(const MapView &view, const QString &directory, bool dark) {
     float rect[4];
     viewRect(view, rect);
     const double mpp = view.metresPerPixel;
@@ -445,7 +447,7 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
     // scale. The view alone loads first, as it is ready sooner; the whole level follows.
     const bool whole = level >= 0 && level + 1 == int(Osm::OverviewConfig::standard().levels.size());
     const bool asked = requestedWhole || wholeNext;
-    const bool reload = !requested || invalid || directory != requestedDirectory
+    const bool reload = !requested || invalid || directory != requestedDirectory || dark != requestedDark
             || level != requestedLevel || whole != asked
             || (!whole && !covered) || scale > ReloadScale || scale < 1.0 / ReloadScale
             || !sameStyles(mpp, requestedScale);
@@ -456,6 +458,7 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
         job.kind = Job::Load;
         job.id = ++nextId;
         job.directory = directory;
+        job.dark = requestedDark;
         job.tileX = requestedTile[0];
         job.tileZ = requestedTile[1];
         job.metresPerPixel = requestedScale;
@@ -472,6 +475,7 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
         job.kind = Job::Load;
         job.id = ++nextId;
         job.directory = directory;
+        job.dark = dark;
         job.tileX = view.tileX;
         job.tileZ = view.tileZ;
         const float mx = Margin * (rect[1] - rect[0]), mz = Margin * (rect[3] - rect[2]);
@@ -488,6 +492,7 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
         wholeNext = whole && !asWhole;
         invalid = false;
         requestedDirectory = directory;
+        requestedDark = dark;
         requestedTile[0] = view.tileX;
         requestedTile[1] = view.tileZ;
         std::copy(built, built + 4, requestedRect);
@@ -516,7 +521,8 @@ void OsmMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view, const
     Result result;
     while (worker->take(result))
         apply(result, palette, transparentAreas);
-    request(view, directory);
+    // The dark map palette draws the dark styles (FeatureClasses::dark).
+    request(view, directory, palette.name == QLatin1String("dark"));
 
     const float alpha = transparentAreas ? palette.osmAreaAlpha : 1.0f;
     if (alpha != drawn->fillAlpha) {

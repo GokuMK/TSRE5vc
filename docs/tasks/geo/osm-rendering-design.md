@@ -190,8 +190,8 @@ Renames:
   twice. A whole-layer opacity would need an off-screen pass; it is not part
   of this work.
 - **Colours** come from the class table, which uses light, OSM-style colours.
-  A dark style for the dark palette is a later addition; until then the
-  Faded Overlay toggle tones OSM down.
+  The dark map palette draws its dark colours (added 2026-10-09; see "Dark
+  styles" below).
 
 ### 6. Menu, settings and conversion
 
@@ -457,6 +457,34 @@ Instead (`MapLabelLayer`, `MapLabelAtlas`):
 - Street names along roads would need a glyph atlas (QTextLayout shaping,
   QRawFont glyph images) and are left for later.
 
+### Dark styles (2026-10-09)
+
+The user's colour "invert" option of the old Load Map dialog is replaced by
+dark styles, shared by the map's OSM layer and the 3D tile overlays (Create
+from OSM), chosen by the map palette (`core.interface.routeEditor.mapPalette`
+= dark):
+
+- Inverting colours flips hues (forests purple, water orange); inverting only
+  lightness keeps hues but turns everything olive and makes roads darker than
+  the land. So the dark colours are derived by role, in OKLab with hues kept
+  (`scripts/osm_dark_palette.py`, which writes the `"dark"` block of
+  `osm-map-classes.json`: background, default, one entry a style):
+  - areas dark and toned down, paler (less important) ones darkest, near the
+    background (#1e2227); colour strength capped by lightness, and
+    yellow-greens (allotments, heath, grass) turned a little greener and
+    calmer, as they go muddy olive when dark; water a fixed deep blue;
+  - roads light and dimmed, their class colour kept; grey lines (railways)
+    turned light; lines of no class mid grey;
+  - casings dark, black ones (bridge edges) light.
+- `FeatureClasses::dark()` merges the dark colours over the styles, so classes,
+  scale ranges and widths stay the same (checked in the osm tests);
+  `forPalette(name)` picks the table. The OSM layer loads again when the
+  palette changes; Create from OSM takes the palette when it starts.
+- Seen on TEST_PROFILES at 1, 4, 40 and 300 m/px and in 3D; QRhi matches
+  OpenGL. Where OSM maps no land use the route's own terrain shows, light on
+  the dark map, and a dark overlay under a daylight sky looks heavy; the user
+  accepted both.
+
 ## Open items (2026-10-09)
 
 In rough order of what the user asked about:
@@ -517,8 +545,8 @@ In rough order of what the user asked about:
      ID buffer unless drawn wider for the pass;
    - on OpenGL and QRhi; measured on the Deck (frame time, memory, upload
      time) to choose the vertex layout and line method.
-8. Smaller: a dark style for the OSM colours (now toned by the palette's fade
-   only), an option to start with OSM Data on, the multipolygon cache (little
+8. Smaller (the dark style is done, 2026-10-09): an option to start with OSM
+   Data on, the multipolygon cache (little
    gain since the speed work), the detail read just below the regional switch
    (about 1 s at 19 m/px over a big city; or move the switch to about
    10 m/px), names in a chosen language (GeoNames vs OSM spellings).
