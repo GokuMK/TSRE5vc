@@ -137,6 +137,8 @@ bool GeoPlacePresetIndex::load(const QString &path, QString *error) {
         value.latitude = columns[4].toDouble(&latitudeOk);
         value.longitude = columns[5].toDouble(&longitudeOk);
         value.countryCode = QString::fromLatin1(columns[8]).trimmed().toUpper();
+        value.featureCode = QString::fromLatin1(columns[7]).trimmed().toUpper();
+        if (columns.size() > 14) value.population = columns[14].trimmed().toLongLong();
         if (!idOk || !latitudeOk || !longitudeOk || value.name.isEmpty())
             continue;
 

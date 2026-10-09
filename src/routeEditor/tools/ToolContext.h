@@ -13,6 +13,7 @@
 
 #include <QString>
 #include "EditorTool.h"
+#include <tsre/map/MapView.h>
 
 class Brush;
 class GameObj;
@@ -97,6 +98,11 @@ public:
     virtual bool placeContinuousRulerPoint(const float *rotation) = 0;
     virtual void startTelepole(TelepoleObj *telepole) = 0;
 
+    // Map mode's distance measurement (MapMeasureTool): a line between two ground
+    // points with its length; clearMapMeasurement hides it.
+    virtual void setMapMeasurement(const MapGroundPoint &from, const MapGroundPoint &to) = 0;
+    virtual void clearMapMeasurement() = 0;
+
     virtual void activateTool(const QString &id) = 0;
     // Messages to the panels (RouteEditorGLWidget::sendMsg).
     virtual void message(const QString &name) = 0;
@@ -107,9 +113,11 @@ public:
     // terrain tools panel (setBrushTextureId, terrainMaterialPicked).
     virtual void reportTextureId(int textureId) = 0;
     virtual void reportMaterialPicked() = 0;
-    // Geo data windows for a loaded terrain tile: map tiles and imagery.
-    virtual void openMapTileWindow(Terrain *terrain) = 0;
+    // The imagery window for a loaded terrain tile (Create from Imagery).
     virtual void openImageryWindow(Terrain *terrain) = 0;
+    // Terrain changed outside a mouse action (an overlay made later, after a
+    // download): the map builds its terrain again.
+    virtual void terrainChanged() = 0;
 };
 
 #endif

@@ -25,6 +25,7 @@ class ToolRegistry {
 public:
     // With every tool of the editor.
     ToolRegistry();
+    // By id, or by a name that carries an action ("tool:action").
     EditorTool *find(const QString &id) const;
     // Whether a tool name may be active in a view mode: no tool, or a tool
     // that supports the mode. Names without a tool count as 3D only.

@@ -346,6 +346,9 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     push(detailed);
     for (Procedural &tile : procedural)
         tile.square->push(queue, terrain->getTerrainByXY(tile.tileX, tile.tileZ, false));
+    // TODO(renderer): blend these at TerrainOverlays::opacity() over the terrain
+    // textures under them; they draw opaque yet (docs/tasks/editor/04-map-mode.md,
+    // "Terrain tile overlay opacity").
     push(overlays);
     missing->pushRenderItem(queue);
     quadLines->pushRenderItem(queue);

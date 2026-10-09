@@ -9,7 +9,7 @@
  */
 
 #include <tsre/texture/MapLib.h>
-#include <tsre/geo/MapWindow.h>
+#include <tsre/geo/TerrainOverlays.h>
 #include <QDebug>
 #include <QString>
 #include <QImage>
@@ -25,11 +25,12 @@ void MapLib::run(){
     int hash = hashName.toInt();
     qDebug() << hash;
     QImage image;
-    const auto found=MapWindow::mapTileImages.find(hash);
-    if(found==MapWindow::mapTileImages.end() || found->second==nullptr){
+    if(const QImage *overlay=TerrainOverlays::image(hash))
+        image=*overlay;
+    else{
         image=QImage(16,16,QImage::Format_RGB888);
         image.fill(QColor(255,0,0));
-    }else image=*found->second;
+    }
 
     texture->loaded=false;
     delete[] texture->imageData;

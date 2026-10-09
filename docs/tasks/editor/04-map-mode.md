@@ -56,7 +56,9 @@ Phase 1 core, as built:
     round (the start marker drawn from or to the line).
 - **Map view** (`src/tsre/map/MapView`, `src/tsre/camera/CameraMap`):
   - centre, scale and heading, with an orthographic projection;
-  - left drag pans, right drag turns, the wheel zooms about the mouse;
+  - left and right drag pan, middle drag turns (2026-10-09; it was right
+    drag, which a right click for a context menu could trigger), the wheel
+    zooms about the mouse;
   - W, A, S, D and the arrows move, Q and E turn, N returns to north up.
 - **Track layer** (`src/tsre/map/TrackMapLayer`):
   - the track and road databases as lines 2 pixels wide;
@@ -144,7 +146,104 @@ Phase 1 core, as built:
   are real data: double track, and roads with one database node per
   lane.
 
-Next: phase 2 layers (tile grid, scale ruler, labels).
+- **Labels** (Map > Markers, 2026-10-09; `src/tsre/map/MapLabelLayer`): the
+  Navi window's marker set (for example Route > Generate Country Places) as
+  a dot and a name each, at a fixed screen size and upright whatever the
+  heading. Off by default, as in 3D: a marker set is shown for a purpose
+  (user, 2026-10-09).
+  - Names are painted once by QPainter into shared atlas pages (1024 px,
+    shelves, up to four pages, started again when full) and drawn as one
+    mesh a page; the halo is the text mask grown by a few pixels (about
+    0.1 ms a new name; stroking the text outline took 0.7 ms).
+  - Placement by priority: each name tried above, right of, below and left
+    of its dot, left out when it would overlap (a grid of taken rectangles).
+    Places rank by GeoNames feature code and population.
+  - Palette colours `label`, `labelHalo`, `marker`.
+  - Captures: `tests/renderer/map-labels.json` (writes Polish Country Places
+    into TEST_PROFILES through the harness's `countryPlaces` option). QRhi
+    matches OpenGL.
+  - Design and the next steps (OSM places and stations, street names with
+    a glyph atlas): [OSM rendering](../geo/osm-rendering-design.md).
+- **Route data labels** (2026-10-09, `src/tsre/map/MapLabelSources`), placed
+  with the markers so no two names overlap:
+  - station names once each, among their platforms, bold (Map > Track
+    Objects);
+  - platform names (when not the station's) from 2 m/px, siding names from
+    4 m/px, between their two ends (`platformTrItemData[1]` is the other
+    end), at the items' positions on their track nodes
+    (`TrackItemMapLayer::itemPlaces`, shared with the track objects);
+  - location event names (Map > Activity);
+  - ranked events, stations (more platforms first), platforms, sidings,
+    marker sets, then OSM names; dots in the kind's palette colour.
+  - Rebuilt when a source or its size changes and wherever the activity layer
+    is invalidated by edits.
+  - Captures: `tests/renderer/map-route-labels.json` (EUROPE1, winterun).
+    EUROPE1's `SettleCa.mkr` markers lie off its track: they are the real
+    Settle-Carlisle line's, the route only roughly follows it.
+  - Not yet: the "Route: Stations" marker sets (`CoordsRoutePlaces`) copy item
+    positions without negating z, so those markers are probably mirrored
+    within their tile; to check in 3D.
+- **Capture keys** added with the labels: `countryPlaces` (writes and selects
+  Country Places), `markerSet` (selects a marker set by its Navi window name),
+  per view `markers` (Map > Markers) and `viewMarkers` (3D View > Markers).
+- **KML marker files need redoing** (2026-10-09; `CoordsKml`, the 3D marker
+  lines in `Coords::pushRenderItems`). Seen in the code, most not yet
+  confirmed in captures:
+  - colours read as `#aarrggbb` while KML writes `aabbggrr` (red and blue
+    swapped); `StyleMap` not followed; within a `Style` the last `color`
+    wins (icon, line or polygon);
+  - each point allocates two converter results never freed; a point the
+    projection cannot convert would crash; coordinates read as floats;
+  - 3D lines take the terrain height of a segment's first point, computed
+    once (wrong if the terrain was not loaded yet), and ask for 2-pixel
+    lines that QRhi and core OpenGL draw 1 pixel wide;
+  - no `ExtendedData` read (ranking of custom files); the map shows a line's
+    or area's name at its first point and does not draw the line.
+  - A first data example: `tests/renderer/kml/test-project-lines.kml` (a
+    point, a line with a `StyleMap`, an area, a two-part line, near the
+    TEST_PROFILES start). A real development-project file would be better.
+
+- **Imagery** (2026-10-09, Map > Imagery, off by default): the imagery
+  catalogue's world source (ESA WorldCover) as streamed Web Mercator tiles at
+  height 40, between the terrain and the OSM data, with its attribution in the
+  bottom right corner. Shares Load Imagery's cache and requests
+  (`Imagery::fetchTiles`). Capture key `imagery`,
+  `tests/renderer/map-imagery.json`. Design, measurements and open items:
+  [Imagery in map mode](../geo/imagery-map-layer.md).
+
+- **Measure Distance** (2026-10-09; `mapMeasureTool`, `MapTools` and
+  `MapMeasureLayer`, named apart from the 3D Ruler object and its ruler tools):
+  - the first entry of the map's right-click menu, always there whatever the
+    tool; checking it starts the tool, unchecking returns to the tool before it.
+    The active map tool's own actions follow it (the menu used to appear only
+    for a map tool);
+  - a left drag measures from the press to the pointer (the right button still
+    moves the map); the line stays until the next drag, a click, Escape, Clear
+    Measurement in the menu, or another tool. Map tools now get keys first in
+    map mode;
+  - a line in the pointer's colour on a halo, labelled at its end in whole
+    metres, ranked above every other label;
+  - the map has no heights, so lengths are across the ground. The game length
+    is in route coordinates. The geo length is between the ends' latitudes and
+    longitudes on the WGS84 ellipsoid (Vincenty; the 3D Ruler's Geo Length uses
+    a local approximation, the same to centimetres over short lengths). Both
+    are shown, "1942 m (geo 1940 m)", when they differ by 1 m or more: rounding
+    alone would switch the label between one and two values while dragging.
+    Measured: TEST_PROFILES (Transverse Mercator, PL-1992 scale) 1942 against
+    1940 m; EUROPE1 (MSTS Goode projection, 54 N) 31906 against 26820 m for a
+    mostly east-west line;
+  - capture key `measure` (metres from the view's centre),
+    `tests/renderer/map-measure.json`; QRhi matches OpenGL.
+
+- **Scale bar** (2026-10-09; Map > Scale Bar, on; `MapScaleBar`): bottom
+  left, a bar of a round length (1, 2 or 5 times a power of ten) up to 120
+  logical pixels, "500 m" or "2 km" above it; upright whatever the heading,
+  drawn on the ground like the labels (heights 850 to 852) with the label
+  atlas's text and halo. In route (game) metres, as the map is drawn; Measure
+  Distance gives the geo length of a line.
+
+Next: phase 2 layers (tile grid). OSM and label follow-ups:
+[OSM rendering, open items](../geo/osm-rendering-design.md).
 
 Phase 0, in three batches, each to be tested once in the editor:
 
@@ -451,6 +550,8 @@ Map > Faded Overlay, formerly Faded Terrain):
   missing-tile tint), which moved above the OSM band (heights 50 to 79); see
   [OSM rendering](../geo/osm-rendering-design.md). It is drawn by `paintMap`
   (`MapOverlayFade`), so it also fades OSM with terrain hidden.
+  Default `overlayFade` 0.55 in both palettes (2026-10-09, was 0.3: the
+  user found the difference too small; 0.7 washed the base out).
 - Measured builds: under 3 ms at 16 km on USA2 (16 tiles, 12 textures);
   3D captures identical on EUROPE1, USA2 and PROCEDURAL.
 - **Terrain painting** works on the map (2026-10-08) with the texture
@@ -463,7 +564,7 @@ Map > Faded Overlay, formerly Faded Terrain):
   - It also refuses edits the map would not show: static textures need
     the Detailed level (16 km), procedural ones the Procedural level.
   - Tools that edit by dragging (`EditorTool::editsByDragging`: painting,
-    put texture) take the left drag; the middle button moves the map.
+    put texture) take the left drag; the right button moves the map.
     Other tools act on a click, and the left drag pans.
   - Patch squares use the tile's own textures (`Terrain::mapPatchTexture`
     fills `texid` as the 3D draw does), so painted and unique textures
@@ -479,6 +580,63 @@ Map > Faded Overlay, formerly Faded Terrain):
   (`showBlob`) gets its map texture over its terrain
   (`Terrain::mapOverlayTexture`), mapped across the tile as the 3D view
   maps it; the layer builds again while that texture still loads.
+- **Tools with actions** (2026-10-09, user's design): a tool has one
+  subject and may have several actions (`ToolAction`: id, text, menu
+  section, enabled, checked; `EditorTool::actions`, `run`). The context
+  menu lists them for the place under the pointer (the default
+  `EditorTool::contextMenu`), and panel buttons choose the one a left
+  click runs by naming the tool as `tool:action` (`enableTool` sets
+  `defaultAction`; `ToolRegistry::find` takes the part before the colon;
+  the "toolEnabled" message carries the whole name, so the panel checks
+  the right button). View-wide entries such as Measure Distance stay
+  first in the map's menu, the tool's actions follow.
+  - The first: `terrainOverlayTool` (F3 Terrain Tile Overlay: Show/Hide
+    Loaded Overlay, Create from OSM, Create from Imagery; Terrain Tile
+    Texture: Make from Overlay | Remove), replacing five click tools
+    (`mapTileShowTool`, `mapTileLoadTool`, `imageryTileLoadTool`,
+    `makeTileTextureTool`, `removeTileTextureTool`). The Quad Tree tool
+    has its own menu and could move to actions too.
+  - Its menu also has Save Overlay to Disk (`ROUTES/<route>/TERRAIN_MAPS/
+    <key>.png`; Show loads it when no overlay is in memory).
+- **Terrain tile overlays** (2026-10-09; `src/tsre/geo/TerrainOverlays`,
+  replacing the Load Map dialog `MapWindow`, whose static image store it
+  takes over):
+  - Create from OSM draws the tile at once, without a dialog: from the OSM
+    directory (offering to convert its downloads), else from the OSM web
+    API (`MapDataOSM` now reports a failed download with `failed`), and
+    shows it. Create from Imagery shows the overlay once applied. The
+    dialog's colour "invert" option is gone (a darker OSM palette shared by
+    the map and 3D is planned instead).
+  - Overlay images are opaque (RGB888) wherever they come from (OSM,
+    imagery, saved PNGs); nothing writes alpha into them, so Make from
+    Overlay always gives an opaque terrain texture.
+  - F3 Opacity (0 to 100 %, for the session) is
+    `TerrainOverlays::opacity()`. At 100 % the overlay replaces the
+    terrain's textures (the terrain draw is skipped, as before); below,
+    the terrain is drawn and the overlay 0.35 m over it (the former
+    translucent path).
+  - Capture key `overlay` (terrainOverlayTool actions at the view's
+    centre) and `overlayOpacity`; `tests/renderer/map-overlay.json`
+    (TEST_PROFILES, local OSM data; QRhi matches OpenGL).
+
+### Terrain tile overlay opacity (to do, renderer)
+
+Everything up to drawing is in place; the renderer does not apply the
+opacity yet (left for the renderer work on `main`, to avoid conflicts).
+Below 100 % the overlay is drawn where a translucent one would be, but
+opaque. To do:
+
+- a per-item opacity for textured draws, multiplied into the texture's
+  alpha, on OpenGL and QRhi (today `RenderItem::Material::color` applies to
+  untextured items only, and the vertex alpha is an alpha floor or test);
+- 3D: the overlay packets of `Terrain::pushRenderItem` (paged terrain,
+  `terrainMapPass`, and the legacy `terrainBlob`) drawn blended at
+  `TerrainOverlays::opacity()`; marked `TODO(renderer)` there;
+- map mode: the overlay squares of `TerrainMapLayer` (its `overlays`
+  groups, at `OverlayHeight` over the terrain textures) the same; marked
+  `TODO(renderer)` there;
+- then check `tests/renderer/map-overlay.json`'s `half-map` and `half-3d`
+  views, which run at 50 %.
 - **Auto-created tiles** (F3, "Create new tiles if not exist"): the 3D
   scene draw creates the camera's tile when it has none, writing terrain
   and world files to disk at once (`Route::newTile`, with heights from
@@ -540,7 +698,8 @@ longer side, as for track objects):
     for a recovery tree. No undo.
   - `QuadTree::quadAt` gives the smallest quad under a tile, following
     split quadrants; outside every TD block, the block's 256-tile quad.
-  - The map gets right-click menus for map tools; right drags still turn.
+  - The map gets right-click menus for map tools; right drags move the map
+    (middle drags turn it, since 2026-10-09).
 - **Tile coordinates**: `Game::check_coords` moved a position by one tile
   at most, enough for the 3D pointer but not for the map's, which can lie
   several tiles from the view's tile: painting, geo and activity tools
@@ -574,7 +733,7 @@ longer side, as for track objects):
 - **Lighting**: neutral and fixed, not the time of day, so terrain does
   not darken at night in the editor.
 - **Faded terrain**: a Map menu toggle blends terrain towards the
-  background (the amount a palette value, `terrainFade`, default 30%),
+  background (the amount a palette value, `overlayFade`, default 55%),
   so lines and markers stay readable when working on track. Off by
   default, as painting needs the true colours; terrain can also be
   hidden altogether with its own toggle.

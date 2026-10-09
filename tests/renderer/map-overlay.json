@@ -1,0 +1,56 @@
+{
+  "notes": "Terrain tile overlays (F3 Terrain Tile Overlay) on TEST_PROFILES: Create from OSM at the view's centre through terrainOverlayTool (the harness's overlay key), drawn from the local OSM directory (--set core.paths.osmData=<converted Poland files>), shown on the map and in 3D. Then at 50 % opacity: the terrain is drawn under the overlay (the renderer does not blend it yet, so it looks the same; TODO in docs/tasks/editor/04-map-mode.md).",
+  "output": "build/renderer-map-overlay",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 8,
+    "stableFrames": 3,
+    "maxFrames": 300,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "osm-map",
+      "mode": "map",
+      "metresPerPixel": 2,
+      "overlay": [
+        "osm"
+      ]
+    },
+    {
+      "name": "osm-map-wide",
+      "mode": "map",
+      "metresPerPixel": 6
+    },
+    {
+      "name": "osm-3d",
+      "aboveGround": 400,
+      "rot": [
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "name": "half-map",
+      "mode": "map",
+      "metresPerPixel": 6,
+      "overlayOpacity": 0.5
+    },
+    {
+      "name": "half-3d",
+      "aboveGround": 400,
+      "rot": [
+        1.0,
+        0.0
+      ]
+    }
+  ]
+}

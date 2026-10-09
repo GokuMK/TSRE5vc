@@ -184,3 +184,11 @@ if(TSRE_BUILD_OSM_TESTS)
     enable_testing()
     add_subdirectory(tests/osm)
 endif()
+
+# The translation catalogues: IDs only, English complete, Polish consistent.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    enable_testing()
+    add_test(NAME translations
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/validate_translations.py)
+endif()

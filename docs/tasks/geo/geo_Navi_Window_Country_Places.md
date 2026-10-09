@@ -41,9 +41,17 @@ repetitive KML `Data/value` representation and allow aliases to be repeated:
 <ExtendedData>
   <tsre:placeId>756135</tsre:placeId>
   <tsre:asciiName>Warsaw</tsre:asciiName>
+  <tsre:featureCode>PPLC</tsre:featureCode>
+  <tsre:population>1702139</tsre:population>
   <tsre:alias>Warschau</tsre:alias>
 </ExtendedData>
 ```
+
+`featureCode` (GeoNames: PPLC capital, PPLA region seat, PPLA2..4, PPL...)
+and `population` (2026-10-09) rank place names on the map (Map > Markers):
+capitals, region seats and lower seats first, then by population. Files
+generated before carry neither; their names keep file order until the places
+are generated again.
 
 The document-level metadata records the format version and country code. Each
 placemark retains the source ID, native display name, ASCII name, aliases, and

@@ -28,6 +28,7 @@ class QPainter;
 class LatitudeLongitudeCoordinate;
 
 namespace Osm {
+class FeatureClasses;
 class OsmStore;
 struct Style;
 }
@@ -42,6 +43,9 @@ public:
     virtual ~MapDataOSM();
     bool draw(QImage* myImage);
     void load();
+    // The styles drawn with (light by default; the dark ones for the dark map
+    // palette), taken by the next load.
+    void setClasses(const Osm::FeatureClasses &classes);
     // Fills the tile from a store; used by load() and by tests. Returns the number of drawable items.
     size_t loadFrom(const Osm::OsmStore &store);
     // Fills the tile from OSM API responses (api/0.6/map XML); used by the network path and by tests.
@@ -50,6 +54,8 @@ public:
 signals:
     void loaded();
     void statusInfo(QString val);
+    // The web data could not be had (no answer, an error, too little data).
+    void failed(QString message);
 
 public slots:
     void isData(QNetworkReply* r);
@@ -78,6 +84,9 @@ private:
     QNetworkAccessManager *network = nullptr;
     int loadCount = 0;
     int totalLoadCount = 0;
+    bool requestFailed = false;
+    const Osm::FeatureClasses *classes = nullptr;  // null: FeatureClasses::standard()
+    const Osm::FeatureClasses &styles() const;  // one of the web requests failed: the others are ignored
     std::unordered_map<int64_t, std::pair<double, double>> apiNodes;
     std::unordered_map<int64_t, ApiWay> apiWays;
 };

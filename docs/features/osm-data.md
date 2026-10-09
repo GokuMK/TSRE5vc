@@ -147,6 +147,14 @@ is off by default.
 - **Map > Transparent OSM Areas** draws areas half transparent (palette value
   `osmAreaAlpha`), so the terrain shows through; lines stay solid. Switch it
   on when you want to see both.
+- **Names**: cities, towns, villages, districts and railway stations from the
+  OSM data are labelled, more of them as you zoom in, together with the
+  route's own stations and the Navi window's markers; names never overlap,
+  and a town named both by the markers and by OSM shows once.
+- **Dark palette**: with the map's dark palette (Settings > Interface, map
+  palette) OSM data is drawn in dark colours: dark areas with their hues
+  kept, light roads and railways, deep blue water. Overlays made with Create
+  from OSM (F3) use the palette chosen when they are made.
 - **Map > Faded Overlay** fades terrain and OSM data together towards the
   background, so the track stands out. Palettes set the amount with
   `overlayFade` (`terrainFade` in older palette files still works).

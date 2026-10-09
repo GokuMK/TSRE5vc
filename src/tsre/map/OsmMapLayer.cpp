@@ -78,6 +78,7 @@ struct OsmMapLayer::Job {
     double metresPerPixel = 1;
     int level = -1;
     bool whole = false;  // Load: all the level's data, not just rect
+    bool dark = false;   // Load: the dark styles (the dark map palette)
     std::shared_ptr<const Osm::MapGeometry> geometry;  // Strokes: what to stroke
 };
 
@@ -95,6 +96,7 @@ struct OsmMapLayer::Result {
     std::shared_ptr<const Osm::MapGeometry> geometry;
     std::vector<Osm::MapBatch> fills;
     std::vector<Osm::MapBatch> strokes;
+    std::vector<MapLabel> labels;
 };
 
 // One thread running the newest job; a newer load cancels a running one.
@@ -238,7 +240,8 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
     // A whole level is much larger than the view: in chunks, so those off screen are not drawn.
     if (job.whole)
         options.chunkMeters = WholeChunkMeters;
-    const auto geometry = std::make_shared<Osm::MapGeometry>();
+    const auto geometry = std::make_shared<Osm::MapGeometry>(job.dark ? Osm::FeatureClasses::dark()
+                                                                       : Osm::FeatureClasses::standard());
     if (!geometry->load(store, area, job.metresPerPixel, project,
                         options, r.error, &cancel))
         return r;
@@ -249,6 +252,29 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
             .arg(job.whole ? QStringLiteral(" (whole level)") : QString()).arg(loadNs / 1000000)
             .arg(geometry->stats().triangles).arg(geometry->stats().polylines);
     r.fills = geometry->takeFills();
+    // Labels: ranked among the Country Places (placeLabelPriority) by kind, then
+    // population; each kind from its resolution in.
+    for (const Osm::MapGeometry::PointLabel &p : geometry->labels()) {
+        MapLabel label;
+        label.tileX = job.tileX;
+        label.tileZ = job.tileZ;
+        label.x = p.x;
+        label.z = p.z;
+        label.text = QString::fromUtf8(p.name.data(), qsizetype(p.name.size()));
+        label.kind = MapLabelKind::Place;
+        const double population = double(std::max<int64_t>(p.population, 0));
+        using K = Osm::MapGeometry::PointKind;
+        switch (p.kind) {
+        case K::City: label.priority = 4e10 + population; label.major = true; break;
+        case K::Town: label.priority = 3e10 + population; label.maxMetresPerPixel = 200.0f; break;
+        case K::Station: label.priority = 2.5e10; label.kind = MapLabelKind::OsmStation; label.maxMetresPerPixel = 60.0f; break;
+        case K::Village: label.priority = 2e10 + population; label.maxMetresPerPixel = 40.0f; break;
+        case K::Halt: label.priority = 1.8e10; label.kind = MapLabelKind::OsmStation; label.maxMetresPerPixel = 20.0f; break;
+        case K::Suburb: label.priority = 1.5e10 + population; label.maxMetresPerPixel = 15.0f; break;
+        case K::Hamlet: label.priority = 1e10; label.maxMetresPerPixel = 10.0f; break;
+        }
+        r.labels.push_back(std::move(label));
+    }
     geometry->strokes(job.metresPerPixel, r.strokes);
     r.geometry = geometry;
     r.ok = true;
@@ -281,6 +307,8 @@ struct OsmMapLayer::Drawn {
     std::vector<Batch> fills;
     std::vector<Batch> strokes;
     float fillAlpha = 1.0f;
+    std::vector<MapLabel> labels;
+    uint64_t labelsVersion = 0;
 };
 
 OsmMapLayer::OsmMapLayer() : worker(std::make_unique<Worker>()), drawn(std::make_unique<Drawn>()) {}
@@ -298,6 +326,14 @@ void OsmMapLayer::invalidate() {
 
 bool OsmMapLayer::busy() const {
     return worker->busy();
+}
+
+const std::vector<MapLabel> &OsmMapLayer::labels() const {
+    return drawn->labels;
+}
+
+uint64_t OsmMapLayer::labelsVersion() const {
+    return drawn->labelsVersion;
 }
 
 void OsmMapLayer::toGround(GeoWorldCoordinateConverter *converter, double lat, double lon, int tileX,
@@ -387,13 +423,15 @@ void OsmMapLayer::apply(Result &result, const MapPalette &palette, bool transpar
         drawn->tileZ = result.tileZ;
         drawn->fillAlpha = transparentAreas ? palette.osmAreaAlpha : 1.0f;
         upload(drawn->fills, result.fills, drawn->fillAlpha);
+        drawn->labels = std::move(result.labels);
+        ++drawn->labelsVersion;
     } else if (drawn->geometry != result.geometry) {
         return;  // stroked from geometry since replaced
     }
     upload(drawn->strokes, result.strokes, 1.0f);
 }
 
-void OsmMapLayer::request(const MapView &view, const QString &directory) {
+void OsmMapLayer::request(const MapView &view, const QString &directory, bool dark) {
     float rect[4];
     viewRect(view, rect);
     const double mpp = view.metresPerPixel;
@@ -409,7 +447,7 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
     // scale. The view alone loads first, as it is ready sooner; the whole level follows.
     const bool whole = level >= 0 && level + 1 == int(Osm::OverviewConfig::standard().levels.size());
     const bool asked = requestedWhole || wholeNext;
-    const bool reload = !requested || invalid || directory != requestedDirectory
+    const bool reload = !requested || invalid || directory != requestedDirectory || dark != requestedDark
             || level != requestedLevel || whole != asked
             || (!whole && !covered) || scale > ReloadScale || scale < 1.0 / ReloadScale
             || !sameStyles(mpp, requestedScale);
@@ -420,6 +458,7 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
         job.kind = Job::Load;
         job.id = ++nextId;
         job.directory = directory;
+        job.dark = requestedDark;
         job.tileX = requestedTile[0];
         job.tileZ = requestedTile[1];
         job.metresPerPixel = requestedScale;
@@ -436,6 +475,7 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
         job.kind = Job::Load;
         job.id = ++nextId;
         job.directory = directory;
+        job.dark = dark;
         job.tileX = view.tileX;
         job.tileZ = view.tileZ;
         const float mx = Margin * (rect[1] - rect[0]), mz = Margin * (rect[3] - rect[2]);
@@ -452,6 +492,7 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
         wholeNext = whole && !asWhole;
         invalid = false;
         requestedDirectory = directory;
+        requestedDark = dark;
         requestedTile[0] = view.tileX;
         requestedTile[1] = view.tileZ;
         std::copy(built, built + 4, requestedRect);
@@ -480,7 +521,8 @@ void OsmMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view, const
     Result result;
     while (worker->take(result))
         apply(result, palette, transparentAreas);
-    request(view, directory);
+    // The dark map palette draws the dark styles (FeatureClasses::dark).
+    request(view, directory, palette.name == QLatin1String("dark"));
 
     const float alpha = transparentAreas ? palette.osmAreaAlpha : 1.0f;
     if (alpha != drawn->fillAlpha) {

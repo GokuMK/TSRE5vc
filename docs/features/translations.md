@@ -70,6 +70,22 @@ new QLabel(qtTrId("activity.list.title"));
 Changing the English wording does not require changing a still-correct semantic
 ID. Do not introduce new GUI-facing `tr()` calls or raw display strings.
 
+Put each `//%` line directly above its own `qtTrId()`. One comment above a
+statement with two calls gives the text to the first call only, and `lupdate`
+can lose a comment placed before a conditional's `?`. In a conditional, end the
+line with `?` or `:` instead:
+
+```cpp
+const QString text = newRoute ?
+    //% "Skip"
+    qtTrId("route.editor.trk.window.button.skip") :
+    //% "Discard"
+    qtTrId("route.editor.trk.window.button.discard");
+```
+
+`QObject::tr()` and `QCoreApplication::translate()` are not used: their
+messages land in named contexts without IDs, which the validator rejects.
+
 Use one complete message and Qt placeholders instead of concatenating translated
 fragments:
 
@@ -155,24 +171,26 @@ must be rebuilt to contain the updated `.qm`.
 When C++ adds/removes an ID or changes a `//%` source, update both catalogues,
 make English complete, validate them, and build:
 
-```powershell
+```text
 cmake --build build --target update_translations
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync_english_translations.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_translations.ps1
+python scripts/sync_english_translations.py
+python scripts/validate_translations.py
 cmake --build build
 ```
 
-`-ExecutionPolicy Bypass` affects only that PowerShell process; it does not
-change the machine policy. It is unnecessary on systems that already allow
-repository scripts.
-
-The scripts have deliberately separate responsibilities:
+The scripts need only Python 3 (standard library), so they run the same on
+Windows, Linux and in CI; use `python3` where `python` is not Python 3. They
+have deliberately separate responsibilities:
 
 | Script | Mutates files | Purpose |
 | --- | --- | --- |
-| `sync_english_translations.ps1` | Yes | Copies each active English source into its English translation and fills the declared English plural forms |
-| `validate_translations.ps1` | No | Checks ID syntax and uniqueness, matching catalogue membership/source text, complete English entries, and placeholder consistency |
-| `seed_polish_translations.ps1` | Yes | Applies the small curated initial Polish translation set; it is not part of normal translator editing |
+| `sync_english_translations.py` | Yes | Copies each active English source into its English translation and fills the declared English plural forms; keeps `lupdate`'s layout, so `lupdate` followed by it changes only translations |
+| `validate_translations.py` | No | Checks ID syntax and uniqueness, matching catalogue membership/source text, complete English entries, and placeholder consistency; also the `translations` CTest test |
+
+The PowerShell versions were replaced on 2026-10-09. The one-time Polish seed
+script (`seed_polish_translations.ps1`, the first curated Polish entries) was
+not ported: it has been applied, and running it again would overwrite later
+edits of those entries. It remains in the history.
 
 Keeping synchronization and validation separate allows CI or reviewers to run
 the validator without modifying the working tree.
@@ -229,7 +247,7 @@ suite against an isolated profile:
 ```powershell
 cmake --build build --parallel 4
 ctest --test-dir build --output-on-failure
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_translations.ps1
+python scripts/validate_translations.py
 
 $testRoot = Join-Path $env:TEMP ("tsre-translation-test-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $testRoot | Out-Null

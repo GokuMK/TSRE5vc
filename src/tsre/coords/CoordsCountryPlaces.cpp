@@ -132,6 +132,12 @@ CoordsCountryPlaces::CoordsCountryPlaces(const QString &path) {
                        && name == QStringLiteral("asciiName")) {
                 current.asciiName = reader.readElementText().trimmed();
             } else if (inPlacemark && namespaceUri == tsreNamespace
+                       && name == QStringLiteral("featureCode")) {
+                current.featureCode = reader.readElementText().trimmed().toUpper();
+            } else if (inPlacemark && namespaceUri == tsreNamespace
+                       && name == QStringLiteral("population")) {
+                current.population = reader.readElementText().trimmed().toLongLong();
+            } else if (inPlacemark && namespaceUri == tsreNamespace
                        && name == QStringLiteral("alias")) {
                 const QString alias = reader.readElementText().trimmed();
                 if (!alias.isEmpty()) current.aliases.append(alias);
@@ -249,6 +255,11 @@ bool CoordsCountryPlaces::write(
                 && place.asciiName.compare(place.name, Qt::CaseInsensitive) != 0)
             writer.writeTextElement(QStringLiteral("tsre:asciiName"),
                                     place.asciiName);
+        if (!place.featureCode.isEmpty())
+            writer.writeTextElement(QStringLiteral("tsre:featureCode"), place.featureCode);
+        if (place.population > 0)
+            writer.writeTextElement(QStringLiteral("tsre:population"),
+                                    QString::number(place.population));
         QSet<QString> writtenNames;
         writtenNames.insert(place.name.simplified().toCaseFolded());
         writtenNames.insert(place.asciiName.simplified().toCaseFolded());

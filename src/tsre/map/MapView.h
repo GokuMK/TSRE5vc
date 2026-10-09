@@ -11,6 +11,15 @@
 #ifndef MAPVIEW_H
 #define MAPVIEW_H
 
+// A point on the map's ground: a tile in the editor's (camera's) convention and
+// metres in it.
+struct MapGroundPoint {
+    int tileX = 0;
+    int tileZ = 0;
+    float x = 0.0f;
+    float z = 0.0f;
+};
+
 // The Route Editor's map mode view (task editor 04): a top-down orthographic
 // view of a centre on the ground, a scale and a heading. Coordinates are
 // the editor's: tiles of 2048 m with the camera's tile convention (pozT),

@@ -20,6 +20,7 @@
 #include <tsre/geo/HeightWindow.h>
 #include <routeEditor/TerrainProfileSelector.h>
 #include <tsre/world/TerrainGridLayout.h>
+#include <tsre/geo/TerrainOverlays.h>
 
 GeoTools::GeoTools(QString name)
     : QWidget(),
@@ -27,24 +28,26 @@ GeoTools::GeoTools(QString name)
     setFixedWidth(250);
     int row = 0;
     
-    buttonTools["mapTileShowTool"] = new QPushButton(
-        //% "Show/Hide Map"
-        qtTrId("route.editor.geo.tools.button.show.hide.map"), this);
-    buttonTools["mapTileLoadTool"] = new QPushButton(
-        //% "Load Map"
-        qtTrId("route.editor.geo.tools.button.load.map"), this);
-    buttonTools["imageryTileLoadTool"] = new QPushButton(
-        //% "Load Imagery"
-        qtTrId("route.editor.geo.tools.button.load.imagery"), this);
+    // One tool for the tile's overlay and its texture: each button chooses the
+    // action a left click runs; the context menu lists them all.
+    buttonTools["terrainOverlayTool:show"] = new QPushButton(
+        //% "Show/Hide Loaded Overlay"
+        qtTrId("route.editor.geo.tools.button.overlay.show"), this);
+    buttonTools["terrainOverlayTool:osm"] = new QPushButton(
+        //% "Create from OSM"
+        qtTrId("route.editor.geo.tools.button.overlay.osm"), this);
+    buttonTools["terrainOverlayTool:imagery"] = new QPushButton(
+        //% "Create from Imagery"
+        qtTrId("route.editor.geo.tools.button.overlay.imagery"), this);
     buttonTools["heightTileLoadTool"] = new QPushButton(
         //% "Load Height"
         qtTrId("route.editor.geo.tools.button.load.height"), this);
-    buttonTools["makeTileTextureTool"] = new QPushButton(
-        //% "Make Tile Texture from Map"
-        qtTrId("route.editor.geo.tools.button.make.tile.texture.from.map"), this);
-    buttonTools["removeTileTextureTool"] = new QPushButton(
-        //% "Remove Map Tile Texture"
-        qtTrId("route.editor.geo.tools.button.remove.map.tile.texture"), this);
+    buttonTools["terrainOverlayTool:makeTexture"] = new QPushButton(
+        //% "Make from Overlay"
+        qtTrId("route.editor.geo.tools.button.texture.make"), this);
+    buttonTools["terrainOverlayTool:removeTexture"] = new QPushButton(
+        //% "Remove"
+        qtTrId("route.editor.geo.tools.button.texture.remove"), this);
     buttonTools["quadTreeTool"] = new QPushButton(
         //% "Edit Quad Tree"
         qtTrId("route.editor.geo.tools.button.edit.quad.tree"), this);
@@ -63,16 +66,41 @@ GeoTools::GeoTools(QString name)
     vbox->setContentsMargins(0,1,1,1);
         
     label0 = new QLabel(
-        //% "Map Layers:"
-        qtTrId("route.editor.geo.tools.label.label0"));
+        //% "Terrain Tile Overlay:"
+        qtTrId("route.editor.geo.tools.label.overlay"));
     label0->setContentsMargins(3,0,0,0);
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
-    vbox->addWidget(buttonTools["mapTileShowTool"]);
-    vbox->addWidget(buttonTools["mapTileLoadTool"]);
-    vbox->addWidget(buttonTools["imageryTileLoadTool"]);
-    vbox->addWidget(buttonTools["makeTileTextureTool"]);
-    vbox->addWidget(buttonTools["removeTileTextureTool"]);
+    // How much of the terrain shows through the overlays, when drawing.
+    QSpinBox *opacity = new QSpinBox(this);
+    opacity->setRange(0, 100);
+    opacity->setSuffix(QStringLiteral(" %"));
+    opacity->setValue(qRound(TerrainOverlays::opacity() * 100.0f));
+    QFormLayout *opacityRow = new QFormLayout;
+    opacityRow->setContentsMargins(3,0,3,0);
+    opacityRow->addRow(
+        //% "Opacity:"
+        qtTrId("route.editor.geo.tools.label.overlay.opacity"), opacity);
+    vbox->addLayout(opacityRow);
+    QObject::connect(opacity, &QSpinBox::valueChanged, this, [this](int value) {
+        TerrainOverlays::setOpacity(value / 100.0f);
+        emit overlayOpacityChanged();
+    });
+    vbox->addWidget(buttonTools["terrainOverlayTool:show"]);
+    vbox->addWidget(buttonTools["terrainOverlayTool:osm"]);
+    vbox->addWidget(buttonTools["terrainOverlayTool:imagery"]);
+
+    label0 = new QLabel(
+        //% "Terrain Tile Texture:"
+        qtTrId("route.editor.geo.tools.label.texture"));
+    label0->setContentsMargins(3,0,0,0);
+    label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    vbox->addWidget(label0);
+    QHBoxLayout *textureRow = new QHBoxLayout;
+    textureRow->setSpacing(2);
+    textureRow->addWidget(buttonTools["terrainOverlayTool:makeTexture"]);
+    textureRow->addWidget(buttonTools["terrainOverlayTool:removeTexture"]);
+    vbox->addLayout(textureRow);
     
     label0 = new QLabel(
         //% "Terrain Heightmap:"
@@ -186,28 +214,13 @@ GeoTools::GeoTools(QString name)
     this->setLayout(vbox);
     
     
-    // signals
-    QObject::connect(buttonTools["mapTileShowTool"], SIGNAL(toggled(bool)),
-                      this, SLOT(mapTileShowToolEnabled(bool)));
-    
-    QObject::connect(buttonTools["mapTileLoadTool"], SIGNAL(toggled(bool)),
-                      this, SLOT(mapTileLoadToolEnabled(bool)));
-
-    QObject::connect(buttonTools["imageryTileLoadTool"], SIGNAL(toggled(bool)),
-                      this, SLOT(imageryTileLoadToolEnabled(bool)));
-    
-    QObject::connect(buttonTools["heightTileLoadTool"], SIGNAL(toggled(bool)),
-                      this, SLOT(heightTileLoadToolEnabled(bool)));
-    
-    QObject::connect(buttonTools["makeTileTextureTool"], SIGNAL(toggled(bool)),
-                      this, SLOT(makeTileTextureToolEnabled(bool)));
-    
-    QObject::connect(buttonTools["removeTileTextureTool"], SIGNAL(toggled(bool)),
-                      this, SLOT(removeTileTextureToolEnabled(bool)));
-    
-    QObject::connect(buttonTools["quadTreeTool"], &QPushButton::toggled, this, [this](bool val) {
-        emit enableTool(val ? "quadTreeTool" : "");
-    });
+    // signals: a button enables its tool (and action), unchecking it no tool.
+    for (auto it = buttonTools.cbegin(); it != buttonTools.cend(); ++it) {
+        const QString name = it.key();
+        QObject::connect(it.value(), &QPushButton::toggled, this, [this, name](bool val) {
+            emit enableTool(val ? name : QString());
+        });
+    }
 
     QObject::connect(chAutoCreateTile, SIGNAL(stateChanged(int)),
                       this, SLOT(chAutoCreateTileEnabled(int)));
@@ -310,46 +323,6 @@ void GeoTools::chAutoGeoTerrainEnabled(int state){
         Game::autoGeoTerrain = false;
 }
 
-void GeoTools::mapTileShowToolEnabled(bool val){
-    if(val){
-        emit enableTool("mapTileShowTool");
-    } else {
-        emit enableTool("");
-    }
-}
-
-void GeoTools::mapTileLoadToolEnabled(bool val){
-    if(val){
-        emit enableTool("mapTileLoadTool");
-    } else {
-        emit enableTool("");
-    }
-}
-
-void GeoTools::heightTileLoadToolEnabled(bool val){
-    if(val){
-        emit enableTool("heightTileLoadTool");
-    } else {
-        emit enableTool("");
-    }
-}
-
-void GeoTools::makeTileTextureToolEnabled(bool val){
-    if(val){
-        emit enableTool("makeTileTextureTool");
-    } else {
-        emit enableTool("");
-    }
-}
-
-void GeoTools::removeTileTextureToolEnabled(bool val){
-    if(val){
-        emit enableTool("removeTileTextureTool");
-    } else {
-        emit enableTool("");
-    }
-}
-
 GeoTools::~GeoTools() {
 }
 
@@ -376,14 +349,6 @@ void GeoTools::msg(QString text, QString val){
                 continue;
             i.value()->blockSignals(false);
         }
-    }
-}
-
-void GeoTools::imageryTileLoadToolEnabled(bool val){
-    if(val){
-        emit enableTool("imageryTileLoadTool");
-    } else {
-        emit enableTool("");
     }
 }
 

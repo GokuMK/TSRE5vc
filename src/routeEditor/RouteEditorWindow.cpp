@@ -440,6 +440,8 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
         {//% "Terra&in"
          qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
+        {//% "Ima&gery"
+         qtTrId("route.editor.route.editor.window.action.map.imagery"), MapLayer::Imagery},
         {//% "&OSM Data"
          qtTrId("route.editor.route.editor.window.action.map.osm.data"), MapLayer::OsmData},
         {//% "Transparent OSM &Areas"
@@ -448,14 +450,19 @@ RouteEditorWindow::RouteEditorWindow() {
         {//% "&Faded Overlay"
          qtTrId("route.editor.route.editor.window.action.map.faded.overlay"),
          MapLayer::FadedOverlay},
+        {//% "&Markers"
+         qtTrId("route.editor.route.editor.window.action.map.markers"), MapLayer::Markers},
         {//% "&Pointer"
-         qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
+         qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer},
+        {//% "Scale &Bar"
+         qtTrId("route.editor.route.editor.window.action.map.scale.bar"), MapLayer::ScaleBar}};
     for (const auto &entry : mapLayerEntries) {
         QAction *action = GuiFunct::newMenuCheckAction(entry.text, this,
                                                        MapLayers().shows(entry.layer));
         const MapLayer layer = entry.layer;
         QObject::connect(action, &QAction::triggered, this, [this, layer, action](bool visible) {
-            if (visible && layer == MapLayer::OsmData && !glWidget->prepareOsmLayer()) {
+            if (visible && ((layer == MapLayer::OsmData && !glWidget->prepareOsmLayer())
+                            || (layer == MapLayer::Imagery && !glWidget->prepareImageryLayer()))) {
                 action->setChecked(false);
                 return;
             }
@@ -696,6 +703,8 @@ RouteEditorWindow::RouteEditorWindow() {
     QObject::connect(terrainTools, SIGNAL(enableTool(QString)),
                       glWidget, SLOT(enableTool(QString)));   
     
+    // RouteEditorGLWidget::update forwards to its render surface (not a slot).
+    QObject::connect(geoTools, &GeoTools::overlayOpacityChanged, glWidget, [this] { glWidget->update(); });
     QObject::connect(geoTools, SIGNAL(enableTool(QString)),
                       glWidget, SLOT(enableTool(QString)));   
     

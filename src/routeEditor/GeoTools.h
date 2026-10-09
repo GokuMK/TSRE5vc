@@ -25,12 +25,6 @@ public:
     virtual ~GeoTools();
     
 public slots:
-    void mapTileShowToolEnabled(bool val);
-    void mapTileLoadToolEnabled(bool val);
-    void imageryTileLoadToolEnabled(bool val);
-    void heightTileLoadToolEnabled(bool val);
-    void makeTileTextureToolEnabled(bool val);
-    void removeTileTextureToolEnabled(bool val);
     void msg(QString text, QString val);
     void chAutoCreateTileEnabled(int state);
     void chAutoGeoTerrainEnabled(int state);
@@ -43,6 +37,8 @@ public slots:
     
 signals:
     void enableTool(QString name);
+    // F3 Opacity changed (TerrainOverlays::opacity): the view draws again.
+    void overlayOpacityChanged();
     void createNewTiles(QMap<int, QPair<int, int>*> list);
     void createNewLoTiles(QMap<int, QPair<int, int>*> list);
     

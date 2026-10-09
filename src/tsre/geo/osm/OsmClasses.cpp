@@ -37,6 +37,25 @@ bool parseStroke(const QJsonObject &o, Stroke &s) {
     return parseColor(o.value("color"), s.color) && s.width >= 0;
 }
 
+// Values of over merged into base: objects key by key, arrays item by item.
+QJsonValue merged(const QJsonValue &base, const QJsonValue &over) {
+    if (base.isObject() && over.isObject()) {
+        QJsonObject out = base.toObject();
+        const QJsonObject o = over.toObject();
+        for (auto it = o.begin(); it != o.end(); ++it)
+            out.insert(it.key(), merged(out.value(it.key()), it.value()));
+        return out;
+    }
+    if (base.isArray() && over.isArray()) {
+        QJsonArray out = base.toArray();
+        const QJsonArray o = over.toArray();
+        for (int i = 0; i < o.size() && i < out.size(); ++i)
+            out[i] = merged(out[i], o[i]);
+        return out;
+    }
+    return over;
+}
+
 bool parseStyle(const QJsonObject &o, Style &s, QString &error) {
     if (o.contains("fill")) { s.hasFill = parseColor(o.value("fill"), s.fill); if (!s.hasFill) { error = "bad fill colour"; return false; } }
     if (o.contains("outline")) { s.hasOutline = parseStroke(o.value("outline").toObject(), s.outline); if (!s.hasOutline) { error = "bad outline"; return false; } }
@@ -75,15 +94,25 @@ bool FeatureClasses::startsWith(std::string_view key, const std::vector<std::str
     return false;
 }
 
-bool FeatureClasses::load(const QString &path, QString &error) {
+bool FeatureClasses::load(const QString &path, QString &error, bool dark) {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) { error = QStringLiteral("Cannot open %1").arg(path); return false; }
     QJsonParseError pe;
     const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
     if (pe.error != QJsonParseError::NoError || !doc.isObject()) { error = QStringLiteral("%1: %2").arg(path, pe.errorString()); return false; }
-    const QJsonObject root = doc.object();
+    QJsonObject root = doc.object();
     if (root.value("version").toInt() != 1) { error = QStringLiteral("%1: unsupported version").arg(path); return false; }
     *this = FeatureClasses();
+    dark_ = dark;
+    if (dark) {
+        // The dark colours over the light styles: one entry a style, in their order.
+        const QJsonObject colours = root.value("dark").toObject();
+        const QJsonArray styles = root.value("styles").toArray(), darkStyles = colours.value("styles").toArray();
+        if (darkStyles.size() != styles.size()) { error = QStringLiteral("%1: the dark colours do not match the styles").arg(path); return false; }
+        root.insert("background", colours.value("background"));
+        root.insert("default", merged(root.value("default"), colours.value("default")));
+        root.insert("styles", merged(styles, darkStyles));
+    }
 
     const QJsonObject rules = root.value("classification").toObject();
     for (const QJsonValue &v : rules.value("skipKeyPrefixes").toArray()) skip_.push_back(v.toString().toLower().toStdString());
@@ -147,6 +176,23 @@ const FeatureClasses &FeatureClasses::standard() {
         return c;
     }();
     return classes;
+}
+
+const FeatureClasses &FeatureClasses::dark() {
+    static const FeatureClasses classes = [] {
+        FeatureClasses c;
+        QString error;
+        if (!c.load(QStringLiteral(":/osm/osm-map-classes.json"), error, true)) {
+            qWarning().noquote() << "OSM classes (dark):" << error;
+            return standard();
+        }
+        return c;
+    }();
+    return classes;
+}
+
+const FeatureClasses &FeatureClasses::forPalette(const QString &paletteName) {
+    return paletteName.compare(QLatin1String("dark"), Qt::CaseInsensitive) == 0 ? dark() : standard();
 }
 
 uint16_t FeatureClasses::classOf(const std::string &tag) const {

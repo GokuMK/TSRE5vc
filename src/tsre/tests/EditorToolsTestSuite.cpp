@@ -10,6 +10,8 @@
 #include <routeEditor/tools/ToolContext.h>
 #include <routeEditor/tools/ToolRegistry.h>
 #include <tsre/texture/Brush.h>
+#include <tsre/geo/TerrainOverlays.h>
+#include <QImage>
 
 namespace {
 
@@ -71,6 +73,14 @@ public:
     bool placeContinuousFlex(float *) override { continuousFlexPlaced = true; return placeResult; }
     bool placeContinuousRulerPoint(const float *) override { rulerPlaced = true; return placeResult; }
     void startTelepole(TelepoleObj *) override {}
+    bool measuring = false;
+    MapGroundPoint measureFrom, measureTo;
+    void setMapMeasurement(const MapGroundPoint &from, const MapGroundPoint &to) override {
+        measuring = true;
+        measureFrom = from;
+        measureTo = to;
+    }
+    void clearMapMeasurement() override { measuring = false; }
     void activateTool(const QString &id) override { activated = id; }
     void message(const QString &) override {}
     QString lastMessage;
@@ -78,8 +88,8 @@ public:
     void sendFlexData() override { flexDataSent = true; }
     void reportTextureId(int) override {}
     void reportMaterialPicked() override {}
-    void openMapTileWindow(Terrain *) override {}
     void openImageryWindow(Terrain *) override {}
+    void terrainChanged() override {}
 };
 
 }
@@ -178,8 +188,7 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                                       "proceduralFillTool", "pickTerrainTexTool",
                                       "proceduralTileEnableTool", "proceduralTileDisableTool",
                                       "putTerrainTexTool", "drawTerrTool", "waterHeightTileTool",
-                                      "fixedTileTool", "lockTexTool", "makeTileTextureTool",
-                                      "removeTileTextureTool"};
+                                      "fixedTileTool", "lockTexTool"};
     allFound = true;
     for (const QString &id : terrainTools)
         allFound = allFound && registry.find(id) != nullptr;
@@ -215,8 +224,7 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
           "painting offers four automatic paints");
 
     // Geo and activity tools; every name the panels send.
-    const QStringList dataTools = {"mapTileShowTool", "mapTileLoadTool", "imageryTileLoadTool",
-                                   "heightTileLoadTool", "actNewLooseConsistTool",
+    const QStringList dataTools = {"terrainOverlayTool", "heightTileLoadTool", "actNewLooseConsistTool",
                                    "actNewSpeedZoneTool", "pickNewEventLocationTool",
                                    "quadTreeTool"};
     allFound = true;
@@ -230,8 +238,9 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     bool noneRegistered = true;
     for (const QString &id : withoutTool)
         noneRegistered = noneRegistered && registry.find(id) == nullptr;
+    const QStringList mapTools = {"mapMeasureTool"};
     check(noneRegistered && registry.ids().size() == objectTools.size() + terrainTools.size()
-                                                     + dataTools.size(),
+                                                     + dataTools.size() + mapTools.size(),
           "every other panel name has a tool, and no tool is registered twice");
 
     // Tool panel buttons follow the view mode; a button's own condition
@@ -273,8 +282,7 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                            "drawTerrTool"})
         geometryTools = geometryTools || registry.allowed(id, ViewMode::Map);
     bool geoTools = true;
-    for (const char *id : {"mapTileShowTool", "mapTileLoadTool", "imageryTileLoadTool",
-                           "heightTileLoadTool", "makeTileTextureTool", "removeTileTextureTool"})
+    for (const char *id : {"terrainOverlayTool:show", "terrainOverlayTool:makeTexture", "heightTileLoadTool"})
         geoTools = geoTools && registry.allowed(id, ViewMode::Map);
     geoTools = geoTools && registry.allowed("quadTreeTool", ViewMode::Map)
             && !registry.find("quadTreeTool")->editsByDragging();
@@ -284,6 +292,72 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                   && !registry.find("proceduralFillTool")->editsByDragging()
                   && !registry.find("pickTerrainTexTool")->editsByDragging(),
           "terrain: texture tools work on the map, height tools stay 3D; painting drags");
+    // One tool with several actions: the panel's buttons name "tool:action", the
+    // context menu lists the actions under their sections.
+    EditorTool *overlay = registry.find("terrainOverlayTool:osm");
+    bool overlayOk = overlay != nullptr && overlay->id() == "terrainOverlayTool"
+            && EditorTool::idOf("terrainOverlayTool:osm") == "terrainOverlayTool"
+            && EditorTool::actionOf("terrainOverlayTool:osm") == "osm"
+            && EditorTool::actionOf("quadTreeTool").isEmpty() && overlay->defaultAction() == "show";
+    if (overlay != nullptr) {
+        QStringList ids;
+        for (const ToolAction &action : overlay->actions(ctx))
+            ids << action.id;
+        QMenu overlayMenu;
+        overlay->contextMenu(ctx, overlayMenu);
+        int sections = 0, items = 0;
+        for (QAction *action : overlayMenu.actions())
+            action->isSeparator() ? ++sections : ++items;
+        overlayOk = overlayOk && ids == QStringList({"show", "osm", "imagery", "save", "makeTexture", "removeTexture"})
+                && sections == 2 && items == 6 && overlayMenu.actions().at(1)->isCheckable();
+        overlay->setDefaultAction("imagery");
+        overlayOk = overlayOk && overlay->defaultAction() == "imagery";
+        overlay->setDefaultAction("show");
+    }
+    check(overlayOk, "overlay tool: one tool, actions by name, its menu built from its actions");
+    // The overlay store: images opaque, opacity applied when drawing.
+    QImage translucent(8, 8, QImage::Format_ARGB32);
+    translucent.fill(QColor(10, 20, 30, 40));
+    TerrainOverlays::set(-7, 9, translucent);
+    const QImage *stored = TerrainOverlays::image(TerrainOverlays::key(-7, 9));
+    QString overlayError;
+    const bool noReference = !TerrainOverlays::createFromOsm(-7, 9, 2048, {}, overlayError) && !overlayError.isEmpty();
+    TerrainOverlays::setOpacity(1.5f);
+    const float clampedHigh = TerrainOverlays::opacity();
+    TerrainOverlays::setOpacity(0.25f);
+    check(stored != nullptr && stored->format() == QImage::Format_RGB888 && !stored->hasAlphaChannel()
+                  && TerrainOverlays::has(-7, 9) && !TerrainOverlays::has(7, 9)
+                  && !TerrainOverlays::saveToDisk(7, 9, overlayError) && noReference
+                  && clampedHigh == 1.0f && TerrainOverlays::opacity() == 0.25f,
+          "overlay store: opaque images by tile, opacity kept apart and clamped");
+    TerrainOverlays::setOpacity(1.0f);
+
+    // Measure Distance (map only): a drag measures from the press to the pointer.
+    EditorTool *measureTool = registry.find("mapMeasureTool");
+    bool measureOk = measureTool != nullptr && registry.allowed("mapMeasureTool", ViewMode::Map)
+            && !registry.allowed("mapMeasureTool", ViewMode::Scene3D) && measureTool->editsByDragging();
+    if (measureTool != nullptr) {
+        FakeContext measuring;
+        measuring.mode = ViewMode::Map;
+        measuring.measuring = true;
+        measureTool->press(measuring, ToolMouse{});
+        measureOk = measureOk && !measuring.measuring;
+        measuring.pointerPosition[0] = 40.0f;
+        measuring.pointerPosition[2] = -30.0f;
+        measureTool->drag(measuring, ToolMouse{});
+        measureOk = measureOk && measuring.measuring && measuring.measureFrom.x == 1.0f
+                && measuring.measureFrom.z == 3.0f && measuring.measureTo.x == 40.0f
+                && measuring.measureTo.z == -30.0f && measuring.measureTo.tileX == 10
+                && measuring.measureTo.tileZ == -20;
+        QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+        measureOk = measureOk && measureTool->key(measuring, &escape) && !measuring.measuring;
+        measureTool->drag(measuring, ToolMouse{});
+        measureTool->deactivate(measuring);
+        QMenu measureMenu;
+        measureTool->contextMenu(measuring, measureMenu);
+        measureOk = measureOk && !measuring.measuring && measureMenu.actions().size() == 1;
+    }
+    check(measureOk, "map measure: map only, drags from the press to the pointer, Escape and leaving clear it");
     QPushButton aliased;
     aliased.setProperty("tool", "pickTerrainTexTool");
     ToolButtons::applyMode({{"proceduralPickTool", &aliased}}, ViewMode::Map);

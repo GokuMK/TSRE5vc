@@ -72,6 +72,32 @@ void runClassesTests(const std::function<void(bool, const char *)> &check) {
     check(fc.load(QStringLiteral(TSRE_OSM_CLASSES_JSON), error) && fc.classCount() == 636, "the class table loads with every legacy class");
     check(FeatureClasses::standard().classCount() == 636, "the built-in resource loads");
 
+    // The dark colours: the same classes, styles, ranges and widths, other colours.
+    const FeatureClasses &light = FeatureClasses::standard(), &dark = FeatureClasses::dark();
+    bool darkSame = dark.isDark() && !light.isDark() && dark.classCount() == light.classCount()
+            && dark.scaleRanges() == light.scaleRanges() && dark.background() != light.background()
+            && &FeatureClasses::forPalette("dark") == &dark && &FeatureClasses::forPalette("light") == &light
+            && &FeatureClasses::forPalette("") == &light;
+    bool darkColours = true;
+    for (uint16_t cls = 1; cls <= light.classCount(); ++cls) {
+        Classification c;
+        c.cls = cls;
+        const Style &a = light.style(c), &b = dark.style(c);
+        darkSame = darkSame && a.hasFill == b.hasFill && a.hasLine == b.hasLine && a.hasOutline == b.hasOutline
+                && a.casings.size() == b.casings.size() && a.maxMetersPerPixel == b.maxMetersPerPixel
+                && a.line.width == b.line.width;
+        if (a.hasFill && a.fill == b.fill) darkColours = false;
+        if (a.hasLine && a.line.color == b.line.color) darkColours = false;
+    }
+    // Railways light on the dark map, darker than their light-map grey is not.
+    Classification railClass;
+    railClass.cls = light.classOf("railway=rail");
+    const auto lightness = [](Rgb c) { return ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255); };
+    check(darkSame && darkColours && railClass.cls != 0
+                  && lightness(dark.style(railClass).line.color) > lightness(light.style(railClass).line.color)
+                  && lightness(dark.background()) < lightness(light.background()),
+          "the dark styles: same classes and widths, every colour changed, railways light on dark");
+
     bool all = true;
     std::string why;
     for (const auto &p : OSMFeatures::LIST) {

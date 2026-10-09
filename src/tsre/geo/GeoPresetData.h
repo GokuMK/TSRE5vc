@@ -19,6 +19,10 @@ struct GeoPlacePreset {
     QString countryCode;
     double latitude = 0.0;
     double longitude = 0.0;
+    // GeoNames feature code (PPLC capital, PPLA region seat, PPLA2..4, PPL...) and
+    // population: what maps rank place names by.
+    QString featureCode;
+    qint64 population = 0;
 };
 
 struct GeoProjectionPreset {

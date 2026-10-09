@@ -7,6 +7,13 @@
 #include <tsre/Game.h>
 #include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapOverlayFade.h>
+#include <tsre/map/MapLabelLayer.h>
+#include <tsre/map/MapLabelSources.h>
+#include <tsre/map/MapMeasureLayer.h>
+#include <tsre/map/MapScaleBar.h>
+#include <tsre/coords/Coords.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityEvent.h>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/OsmMapLayer.h>
 #include <tsre/geo/GeoCoordinates.h>
@@ -143,7 +150,7 @@ int TsreTests::runMapViewSuite(bool verbose) {
     MapPalette oldFade, newFade;
     check(MapPalette::fromJson("{\"terrainFade\": 0.5}", oldFade) && near(oldFade.overlayFade, 0.5f)
                   && MapPalette::fromJson("{\"terrainFade\": 0.5, \"overlayFade\": 0.2}", newFade)
-                  && near(newFade.overlayFade, 0.2f) && near(MapPalette::light().overlayFade, 0.3f),
+                  && near(newFade.overlayFade, 0.2f) && near(MapPalette::light().overlayFade, 0.55f) && near(MapPalette::dark().overlayFade, 0.55f),
           "palettes: overlayFade, read from the former terrainFade too");
 
     // Layer order: terrain textures, OSM data (50 to 79), terrain aids, the
@@ -172,6 +179,75 @@ int TsreTests::runMapViewSuite(bool verbose) {
         check(fadeSquare.size() == 18 && near(highX - lowX, 400.0f) && near(highZ - lowZ, 200.0f)
                       && near(fadeSquare[1], MapOverlayFade::Height),
               "Faded Overlay covers the ground in view");
+    }
+
+    // Labels: placement without overlaps, ranking, the atlas.
+    {
+        using C = MapLabelLayer::Candidate;
+        const auto placed = MapLabelLayer::place({C{100, 100, 60, 16}, C{100, 100, 60, 16}, C{130, 100, 60, 16},
+                                                  C{-50, 100, 60, 16}, C{300, 5, 60, 16}},
+                                                 400, 300, 5.0f, 2.0f);
+        check(placed[0] == QPoint(70, 77) && placed[1].x() < 0 && placed[2].x() >= 0 && placed[2] != QPoint(100, 77)
+                      && placed[3].x() < 0 && placed[4].y() > 5,
+              "labels: the first name above its dot; one on the same dot left out; a neighbour moved aside; "
+              "off screen left out; at the top edge placed below");
+        C kraków{100, 100, 60, 16, 7}, sameName{100, 160, 60, 16, 7}, other{100, 220, 60, 16, 9}, far{350, 100, 40, 16, 7};
+        const auto deduped = MapLabelLayer::place({kraków, sameName, other, far}, 500, 300, 5.0f, 2.0f, 120.0f);
+        check(deduped[0].x() >= 0 && deduped[1].x() < 0 && deduped[2].x() >= 0 && deduped[3].x() >= 0,
+              "labels: the same name within 120 pixels is placed once; other names and distant ones are placed");
+        bool major = false, minor = true;
+        const double capital = placeLabelPriority("PPLC", 1000, &major), seat = placeLabelPriority("PPLA", 5000000);
+        const double big = placeLabelPriority("PPL", 900000, &minor), small = placeLabelPriority("PPL", 20000);
+        check(capital > seat && seat > big && big > small && small > placeLabelPriority("PPLX", 5000000) && major && !minor,
+              "labels: capitals, region seats, then by population; city sections last; capitals and seats major");
+        MapLabelAtlas atlas;
+        const MapLabelAtlas::Entry *a1 = atlas.get("Wrocław", false);
+        const QRect r1 = a1 ? a1->rect : QRect();
+        const MapLabelAtlas::Entry *b1 = atlas.get("Kędzierzyn-Koźle", false);
+        const MapLabelAtlas::Entry *a2 = atlas.get("Wrocław", false);
+        const MapLabelAtlas::Entry *major1 = atlas.get("Wrocław", true);
+        check(a1 && b1 && a2 && major1 && a2->rect == r1 && !b1->rect.intersects(r1) && !major1->rect.intersects(r1)
+                      && b1->rect.width() > r1.width() && major1->rect.height() > r1.height() && atlas.pageCount() == 1
+                      && atlas.measure("Wrocław", false) == r1.size(),
+              "label atlas: a name is painted once and reused; names do not overlap; bold ones are larger");
+        const int generation = atlas.generation();
+        atlas.setStyle(Qt::white, Qt::black, 2.0f);
+        const MapLabelAtlas::Entry *again = atlas.get("Wrocław", false);
+        check(atlas.generation() == generation + 1 && again && again->rect.height() > r1.height(),
+              "label atlas: a new style or pixel ratio starts again, at the new size");
+
+        // Sources: a location event and a marker into the view's tile convention.
+        Activity activity;
+        ActivityEvent event(1, ActivityEvent::CategoryLocation);
+        event.name = "Pick up";
+        const float location[5] = {-6120, 15094, 100, 200, 25};
+        std::copy(location, location + 5, event.location);
+        activity.event.push_back(event);
+        Coords markers;
+        Coords::Marker marker;
+        marker.name = "Kraków";
+        marker.featureCode = "PPLA";
+        marker.population = 800000;
+        marker.tileX.push_back(5);
+        marker.tileZ.push_back(7);
+        marker.x.push_back(10);
+        marker.y.push_back(0);
+        marker.z.push_back(-20);
+        markers.markerList.push_back(marker);
+        markers.loaded = true;
+        std::vector<MapLabel> sourced;
+        MapLabelSources::appendActivity(sourced, &activity);
+        MapLabelSources::appendMarkers(sourced, &markers);
+        check(sourced.size() == 2 && sourced[0].text == "Pick up" && sourced[0].tileX == -6120 && sourced[0].tileZ == -15094
+                      && near(sourced[0].x, 100) && near(sourced[0].z, -200) && sourced[0].kind == MapLabelKind::Event
+                      && sourced[1].tileZ == -7 && near(sourced[1].z, -20) && sourced[1].major
+                      && sourced[0].priority > sourced[1].priority,
+              "label sources: events and markers in the view's tile convention, events ranked above places");
+        const MapPalette lightPalette = MapPalette::light();
+        check(MapLabelLayer::dotColour(lightPalette, MapLabelKind::Siding) == lightPalette.siding
+                      && MapLabelLayer::dotColour(lightPalette, MapLabelKind::Station) == lightPalette.platform
+                      && MapLabelLayer::dotColour(lightPalette, MapLabelKind::Event) == lightPalette.event,
+              "label dots take the colour of what they name");
     }
 
     // OSM data: its band of heights, and placing latitude and longitude on the ground.
@@ -336,6 +412,40 @@ int TsreTests::runMapViewSuite(bool verbose) {
     items.visibleTiles(tiles[0], tiles[1], tiles[2], tiles[3]);
     check(tiles[0] == 0 && tiles[1] == 1 && tiles[2] == 0 && tiles[3] == 0,
           "visible tiles: a 2 km by 1.2 km view across a tile edge");
+
+    // Measure Distance: WGS84 geodesics (Vincenty's own example, Flinders Peak to
+    // Buninyong, 54972.271 m; one degree of latitude at the equator, 110574.389 m).
+    const double flinders = MapMeasureLayer::geodesicMetres(-(37 + 57 / 60.0 + 3.72030 / 3600.0),
+            144 + 25 / 60.0 + 29.52440 / 3600.0, -(37 + 39 / 60.0 + 10.15610 / 3600.0),
+            143 + 55 / 60.0 + 35.38390 / 3600.0);
+    check(std::abs(flinders - 54972.271) < 0.01
+                  && std::abs(MapMeasureLayer::geodesicMetres(0, 0, 1, 0) - 110574.389) < 0.01
+                  && MapMeasureLayer::geodesicMetres(52, 20, 52, 20) == 0.0,
+          "measure: geodesic lengths on WGS84");
+    MapMeasureLayer measure;
+    measure.set({0, 0, 1000.0f, 0.0f}, {1, 0, -1000.0f, 0.0f});
+    const uint64_t measured = measure.version();
+    check(measure.shown() && std::abs(measure.gameLength() - 48.0) < 1e-6 && measure.geoLength(nullptr) < 0.0,
+          "measure: the game length across a tile edge; no geo length without a reference");
+    measure.set({0, 0, 5.0f, 5.0f}, {0, 0, 5.0f, 5.0f});
+    check(!measure.shown() && measure.version() != measured, "measure: a click (no length) shows nothing");
+    measure.clear();
+    check(!measure.shown(), "measure: cleared");
+    const QString one = MapMeasureLayer::text(1234.4, 1234.3), two = MapMeasureLayer::text(1234.4, 1236.6);
+    check(one.contains(QLatin1String("1234")) && !one.contains(QLatin1String("1237"))
+                  && two.contains(QLatin1String("1234")) && two.contains(QLatin1String("1237"))
+                  && MapMeasureLayer::text(10.0, -1.0) == MapMeasureLayer::text(10.0, 10.2)
+                  && !MapMeasureLayer::text(524.79, 524.3).contains(QLatin1String("524")),
+          "measure: one length when they differ by under a metre (no switching at roundings), else both");
+
+    // Scale bar: the longest round length (1, 2 or 5 times a power of ten) that fits.
+    check(MapScaleBar::roundLength(120.0) == 100.0 && MapScaleBar::roundLength(240.0) == 200.0
+                  && MapScaleBar::roundLength(2.4) == 2.0 && MapScaleBar::roundLength(7.0) == 5.0
+                  && MapScaleBar::roundLength(1000.0) == 1000.0 && MapScaleBar::roundLength(60000.0) == 50000.0
+                  && MapScaleBar::roundLength(0.0) == 0.0,
+          "scale bar: round lengths");
+    check(MapScaleBar::text(2000.0).contains(QLatin1String("2 km")) && MapScaleBar::text(500.0).contains(QLatin1String("500 m")),
+          "scale bar: metres below a kilometre, kilometres from it");
 
     qInfo().noquote() << "[tests:map-view] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

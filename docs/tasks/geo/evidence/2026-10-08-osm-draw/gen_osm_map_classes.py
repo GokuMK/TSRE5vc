@@ -1,4 +1,5 @@
 # Generates osm-map-classes.json from the legacy OSMFeatures table and the MapDataOSM::draw() styles.
+# Afterwards run scripts/osm_dark_palette.py: it adds the dark colours (the "dark" block).
 import re, json, sys
 src = open(sys.argv[1], encoding='utf-8', errors='replace').read()
 names = {int(i): n for n, i in re.findall(r'\{"([A-Z0-9_:]+)",\s*(\d+)\}', src)}

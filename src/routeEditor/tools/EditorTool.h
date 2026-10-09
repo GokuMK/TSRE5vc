@@ -14,6 +14,7 @@
 #include <QFlags>
 #include <QPointF>
 #include <QString>
+#include <vector>
 
 class QKeyEvent;
 class QMenu;
@@ -37,6 +38,20 @@ struct ToolMouse {
     float dx() const { return float(position.x() - last.x()); }
 };
 
+// One thing a tool can do where the pointer is (a tool with one subject and
+// several actions, such as a terrain tile's overlay). The context menu lists a
+// tool's actions; panel buttons choose the one a left click runs, by naming the
+// tool as "tool:action" (enableTool).
+struct ToolAction {
+    QString id;
+    QString text;
+    // The menu section it is listed under; actions of one section stay together.
+    QString section;
+    bool enabled = true;
+    bool checkable = false;
+    bool checked = false;
+};
+
 // A Route Editor tool: what the left mouse button, the wheel and the keys do
 // while it is active. The view calls the active tool; a tool reaches the
 // editor only through the ToolContext. Tools are identified by the names
@@ -47,11 +62,17 @@ public:
         : toolId(std::move(id)), toolModes(modes) {}
     virtual ~EditorTool() = default;
 
+    // The tool of a name that may carry an action ("tool:action"), and the action.
+    static QString idOf(const QString &name) { return name.section(QLatin1Char(':'), 0, 0); }
+    static QString actionOf(const QString &name) { return name.section(QLatin1Char(':'), 1); }
+
     const QString &id() const { return toolId; }
+    // The heading of its context menu section; empty uses the id.
+    virtual QString title() const { return QString(); }
     ViewModes modes() const { return toolModes; }
     bool supports(ViewMode mode) const { return toolModes.testFlag(mode); }
     // Whether a left drag edits with the tool (painting) instead of moving
-    // the map, in map mode; the middle button then moves the map.
+    // the map, in map mode; the right button then moves the map.
     virtual bool editsByDragging() const { return false; }
 
     virtual void activate(ToolContext &) {}
@@ -66,11 +87,23 @@ public:
     virtual bool wheel(ToolContext &, float) { return false; }
     // A key pressed; true when the tool used it.
     virtual bool key(ToolContext &, QKeyEvent *) { return false; }
-    // Adds the tool's section to the view's context menu.
-    virtual void contextMenu(ToolContext &, QMenu &) {}
+    // Adds the tool's section to the view's context menu: by default its
+    // actions, under their sections, each running its action.
+    virtual void contextMenu(ToolContext &ctx, QMenu &menu);
+
+    // The actions at the pointer, with their state (asked when the menu opens);
+    // none for a tool with one action.
+    virtual std::vector<ToolAction> actions(ToolContext &) { return {}; }
+    // Runs an action at the pointer.
+    virtual void run(ToolContext &, const QString &) {}
+    // The action a left click runs, set from the "tool:action" name a panel
+    // button enables.
+    const QString &defaultAction() const { return clickAction; }
+    void setDefaultAction(const QString &action) { clickAction = action; }
 
 private:
     QString toolId;
+    QString clickAction;
     ViewModes toolModes;
 };
 

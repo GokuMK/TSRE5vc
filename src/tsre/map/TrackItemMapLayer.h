@@ -76,6 +76,16 @@ public:
     static void appendCircle(std::vector<float> &out, float x, float y, float z, float radius);
     // Whether a view of that size draws the world objects' items.
     static bool drawsWorldObjects(const MapView &view);
+    // Where a database draws each item, by item ID: on its track node, as the 3D
+    // view's boxes. Database convention: tile z and position z as stored (the
+    // view's tile z is -tileZ, its z -z).
+    struct ItemPlace {
+        int tileX = 0;
+        int tileZ = 0;
+        float x = 0.0f;
+        float z = 0.0f;
+    };
+    static QHash<int, ItemPlace> itemPlaces(TDB *database);
 
 private:
     struct Position {
