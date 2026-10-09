@@ -211,6 +211,30 @@ Phase 1 core, as built:
   `tests/renderer/map-imagery.json`. Design, measurements and open items:
   [Imagery in map mode](../geo/imagery-map-layer.md).
 
+- **Measure Distance** (2026-10-09; `mapMeasureTool`, `MapTools` and
+  `MapMeasureLayer`, named apart from the 3D Ruler object and its ruler tools):
+  - the first entry of the map's right-click menu, always there whatever the
+    tool; checking it starts the tool, unchecking returns to the tool before it.
+    The active map tool's own actions follow it (the menu used to appear only
+    for a map tool);
+  - a left drag measures from the press to the pointer (the right button still
+    moves the map); the line stays until the next drag, a click, Escape, Clear
+    Measurement in the menu, or another tool. Map tools now get keys first in
+    map mode;
+  - a line in the pointer's colour on a halo, labelled at its end in whole
+    metres, ranked above every other label;
+  - the map has no heights, so lengths are across the ground. The game length
+    is in route coordinates. The geo length is between the ends' latitudes and
+    longitudes on the WGS84 ellipsoid (Vincenty; the 3D Ruler's Geo Length uses
+    a local approximation, the same to centimetres over short lengths). Both
+    are shown, "1942 m (geo 1940 m)", when they differ by 1 m or more: rounding
+    alone would switch the label between one and two values while dragging.
+    Measured: TEST_PROFILES (Transverse Mercator, PL-1992 scale) 1942 against
+    1940 m; EUROPE1 (MSTS Goode projection, 54 N) 31906 against 26820 m for a
+    mostly east-west line;
+  - capture key `measure` (metres from the view's centre),
+    `tests/renderer/map-measure.json`; QRhi matches OpenGL.
+
 Next: phase 2 layers (tile grid, scale ruler). OSM and label follow-ups:
 [OSM rendering, open items](../geo/osm-rendering-design.md).
 

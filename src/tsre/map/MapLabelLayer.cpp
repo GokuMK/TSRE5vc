@@ -302,6 +302,7 @@ QColor MapLabelLayer::dotColour(const MapPalette &palette, MapLabelKind kind) {
     case MapLabelKind::Event: return palette.event;
     case MapLabelKind::Place: return palette.place;
     case MapLabelKind::OsmStation: return palette.osmStation;
+    case MapLabelKind::Measure: return palette.pointer;
     default: return palette.marker;
     }
 }

@@ -71,6 +71,14 @@ public:
     bool placeContinuousFlex(float *) override { continuousFlexPlaced = true; return placeResult; }
     bool placeContinuousRulerPoint(const float *) override { rulerPlaced = true; return placeResult; }
     void startTelepole(TelepoleObj *) override {}
+    bool measuring = false;
+    MapGroundPoint measureFrom, measureTo;
+    void setMapMeasurement(const MapGroundPoint &from, const MapGroundPoint &to) override {
+        measuring = true;
+        measureFrom = from;
+        measureTo = to;
+    }
+    void clearMapMeasurement() override { measuring = false; }
     void activateTool(const QString &id) override { activated = id; }
     void message(const QString &) override {}
     QString lastMessage;
@@ -230,8 +238,9 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     bool noneRegistered = true;
     for (const QString &id : withoutTool)
         noneRegistered = noneRegistered && registry.find(id) == nullptr;
+    const QStringList mapTools = {"mapMeasureTool"};
     check(noneRegistered && registry.ids().size() == objectTools.size() + terrainTools.size()
-                                                     + dataTools.size(),
+                                                     + dataTools.size() + mapTools.size(),
           "every other panel name has a tool, and no tool is registered twice");
 
     // Tool panel buttons follow the view mode; a button's own condition
@@ -284,6 +293,32 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                   && !registry.find("proceduralFillTool")->editsByDragging()
                   && !registry.find("pickTerrainTexTool")->editsByDragging(),
           "terrain: texture tools work on the map, height tools stay 3D; painting drags");
+    // Measure Distance (map only): a drag measures from the press to the pointer.
+    EditorTool *measureTool = registry.find("mapMeasureTool");
+    bool measureOk = measureTool != nullptr && registry.allowed("mapMeasureTool", ViewMode::Map)
+            && !registry.allowed("mapMeasureTool", ViewMode::Scene3D) && measureTool->editsByDragging();
+    if (measureTool != nullptr) {
+        FakeContext measuring;
+        measuring.mode = ViewMode::Map;
+        measuring.measuring = true;
+        measureTool->press(measuring, ToolMouse{});
+        measureOk = measureOk && !measuring.measuring;
+        measuring.pointerPosition[0] = 40.0f;
+        measuring.pointerPosition[2] = -30.0f;
+        measureTool->drag(measuring, ToolMouse{});
+        measureOk = measureOk && measuring.measuring && measuring.measureFrom.x == 1.0f
+                && measuring.measureFrom.z == 3.0f && measuring.measureTo.x == 40.0f
+                && measuring.measureTo.z == -30.0f && measuring.measureTo.tileX == 10
+                && measuring.measureTo.tileZ == -20;
+        QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+        measureOk = measureOk && measureTool->key(measuring, &escape) && !measuring.measuring;
+        measureTool->drag(measuring, ToolMouse{});
+        measureTool->deactivate(measuring);
+        QMenu measureMenu;
+        measureTool->contextMenu(measuring, measureMenu);
+        measureOk = measureOk && !measuring.measuring && measureMenu.actions().size() == 1;
+    }
+    check(measureOk, "map measure: map only, drags from the press to the pointer, Escape and leaving clear it");
     QPushButton aliased;
     aliased.setProperty("tool", "pickTerrainTexTool");
     ToolButtons::applyMode({{"proceduralPickTool", &aliased}}, ViewMode::Map);

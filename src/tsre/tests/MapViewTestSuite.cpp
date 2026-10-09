@@ -9,6 +9,7 @@
 #include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/MapLabelLayer.h>
 #include <tsre/map/MapLabelSources.h>
+#include <tsre/map/MapMeasureLayer.h>
 #include <tsre/coords/Coords.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
@@ -410,6 +411,31 @@ int TsreTests::runMapViewSuite(bool verbose) {
     items.visibleTiles(tiles[0], tiles[1], tiles[2], tiles[3]);
     check(tiles[0] == 0 && tiles[1] == 1 && tiles[2] == 0 && tiles[3] == 0,
           "visible tiles: a 2 km by 1.2 km view across a tile edge");
+
+    // Measure Distance: WGS84 geodesics (Vincenty's own example, Flinders Peak to
+    // Buninyong, 54972.271 m; one degree of latitude at the equator, 110574.389 m).
+    const double flinders = MapMeasureLayer::geodesicMetres(-(37 + 57 / 60.0 + 3.72030 / 3600.0),
+            144 + 25 / 60.0 + 29.52440 / 3600.0, -(37 + 39 / 60.0 + 10.15610 / 3600.0),
+            143 + 55 / 60.0 + 35.38390 / 3600.0);
+    check(std::abs(flinders - 54972.271) < 0.01
+                  && std::abs(MapMeasureLayer::geodesicMetres(0, 0, 1, 0) - 110574.389) < 0.01
+                  && MapMeasureLayer::geodesicMetres(52, 20, 52, 20) == 0.0,
+          "measure: geodesic lengths on WGS84");
+    MapMeasureLayer measure;
+    measure.set({0, 0, 1000.0f, 0.0f}, {1, 0, -1000.0f, 0.0f});
+    const uint64_t measured = measure.version();
+    check(measure.shown() && std::abs(measure.gameLength() - 48.0) < 1e-6 && measure.geoLength(nullptr) < 0.0,
+          "measure: the game length across a tile edge; no geo length without a reference");
+    measure.set({0, 0, 5.0f, 5.0f}, {0, 0, 5.0f, 5.0f});
+    check(!measure.shown() && measure.version() != measured, "measure: a click (no length) shows nothing");
+    measure.clear();
+    check(!measure.shown(), "measure: cleared");
+    const QString one = MapMeasureLayer::text(1234.4, 1234.3), two = MapMeasureLayer::text(1234.4, 1236.6);
+    check(one.contains(QLatin1String("1234")) && !one.contains(QLatin1String("1237"))
+                  && two.contains(QLatin1String("1234")) && two.contains(QLatin1String("1237"))
+                  && MapMeasureLayer::text(10.0, -1.0) == MapMeasureLayer::text(10.0, 10.2)
+                  && !MapMeasureLayer::text(524.79, 524.3).contains(QLatin1String("524")),
+          "measure: one length when they differ by under a metre (no switching at roundings), else both");
 
     qInfo().noquote() << "[tests:map-view] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

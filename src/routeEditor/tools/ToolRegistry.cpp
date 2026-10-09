@@ -12,6 +12,7 @@
 #include "ObjectTools.h"
 #include "TerrainEditTools.h"
 #include "RouteDataTools.h"
+#include "MapTools.h"
 
 ToolRegistry::ToolRegistry() {
     for (std::unique_ptr<EditorTool> &tool : ObjectTools::create())
@@ -19,6 +20,8 @@ ToolRegistry::ToolRegistry() {
     for (std::unique_ptr<EditorTool> &tool : TerrainEditTools::create())
         add(std::move(tool));
     for (std::unique_ptr<EditorTool> &tool : RouteDataTools::create())
+        add(std::move(tool));
+    for (std::unique_ptr<EditorTool> &tool : MapTools::create())
         add(std::move(tool));
 }
 

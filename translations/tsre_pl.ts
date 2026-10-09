@@ -2380,102 +2380,107 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3883"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3929"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2046"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2053"/>
         <source>OSM Data</source>
         <translation>Dane OSM</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2051"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2058"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2057"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2064"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2074"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2081"/>
         <source>Imagery</source>
         <translation>Zobrazowanie</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2077"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2084"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić zobrazowania.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2079"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2086"/>
         <source>No imagery source can be shown: %1</source>
         <translation>Nie można wyświetlić żadnego źródła zobrazowania: %1</translation>
     </message>
+    <message id="route.editor.map.measure.distance">
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2131"/>
+        <source>Measure Distance</source>
+        <translation>Zmierz odległość</translation>
+    </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3889"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3935"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3895"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3941"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3901"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3947"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3907"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3953"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3913"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3959"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3919"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3965"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3925"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3971"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3931"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3977"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3937"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3983"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3943"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3989"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3949"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3995"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3961"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4007"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3979"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4025"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -2653,7 +2658,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3992"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4038"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -11586,6 +11591,21 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="158"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
+    </message>
+    <message id="route.editor.map.measure.clear">
+        <location filename="../src/routeEditor/tools/MapTools.cpp" line="49"/>
+        <source>Clear Measurement</source>
+        <translation>Wyczyść pomiar</translation>
+    </message>
+    <message id="route.editor.map.measure.length">
+        <location filename="../src/tsre/map/MapMeasureLayer.cpp" line="61"/>
+        <source>%1 m</source>
+        <translation>%1 m</translation>
+    </message>
+    <message id="route.editor.map.measure.length.geo">
+        <location filename="../src/tsre/map/MapMeasureLayer.cpp" line="63"/>
+        <source>%1 m (geo %2 m)</source>
+        <translation>%1 m (geo %2 m)</translation>
     </message>
 </context>
 </TS>

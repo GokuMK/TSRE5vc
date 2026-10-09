@@ -84,6 +84,8 @@
 #include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/OsmMapLayer.h>
 #include <tsre/map/ImageryMapLayer.h>
+#include <tsre/map/MapMeasureLayer.h>
+#include <routeEditor/tools/MapTools.h>
 #include <QLabel>
 #include <tsre/map/MapLabelLayer.h>
 #include <tsre/map/MapLabelSources.h>
@@ -364,6 +366,8 @@ void RouteEditorGLWidget::cameraInit(){
         mapFade = std::make_unique<MapOverlayFade>();
     if (!mapLabels)
         mapLabels = std::make_unique<MapLabelLayer>();
+    if (!mapMeasure)
+        mapMeasure = std::make_unique<MapMeasureLayer>();
     if (!imageryMap) {
         imageryMap = std::make_unique<ImageryMapLayer>();
         // From the fetch thread: draw again once tiles arrive.
@@ -1529,7 +1533,14 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         return;
     }
     if (currentViewMode == ViewMode::Map) {
-        // The map takes navigation keys only; the 3D keys stay in 3D.
+        // The map takes navigation keys and the active map tool's keys (Escape
+        // ends a measurement); the 3D keys stay in 3D.
+        EditorTool *tool = activeTool();
+        if (tool != nullptr && tool->supports(ViewMode::Map) && tool->key(*this, event)) {
+            update();
+            event->accept();
+            return;
+        }
         camera->keyDown(event);
         event->accept();
         return;
@@ -1863,18 +1874,14 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
         const QPointF position = event->position() * Game::PixelRatio;
         const QPointF moved = position - mapPressPos;
         EditorTool *tool = activeTool();
-        // A right click that does not turn the map: the tool's menu, acting
-        // at the pointer.
-        if (event->button() == Qt::RightButton && tool != nullptr
-                && tool->supports(ViewMode::Map)
+        // A right click that does not move the map: the map's menu, acting at
+        // the pointer.
+        if (event->button() == Qt::RightButton
                 && std::abs(moved.x()) + std::abs(moved.y()) <= MapClickPixels) {
             mousex = float(position.x());
             mousey = float(position.y());
             updateMapPointer();
-            QMenu menu;
-            tool->contextMenu(*this, menu);
-            if (!menu.isEmpty())
-                menu.exec(mapToGlobal(event->position().toPoint()));
+            showMapContextMenu(event->position().toPoint());
             // What the actions changed shows on the next draw.
             terrainMap->invalidate();
             trackItemMap->rebuild();
@@ -2106,6 +2113,48 @@ void RouteEditorGLWidget::showImageryAttribution(bool show) {
     }
 }
 
+void RouteEditorGLWidget::setMapMeasurement(const MapGroundPoint &from, const MapGroundPoint &to) {
+    mapMeasure->set(from, to);
+    update();
+}
+
+void RouteEditorGLWidget::setDiagnosticMapMeasurement(const MapGroundPoint *from, const MapGroundPoint *to) {
+    if (from != nullptr && to != nullptr)
+        setMapMeasurement(*from, *to);
+    else
+        clearMapMeasurement();
+}
+
+void RouteEditorGLWidget::clearMapMeasurement() {
+    mapMeasure->clear();
+    update();
+}
+
+void RouteEditorGLWidget::showMapContextMenu(const QPoint &position) {
+    QMenu menu;
+    // Always first: measuring is wanted at any moment, whatever the tool.
+    QAction *measure = menu.addAction(
+        //% "Measure Distance"
+        qtTrId("route.editor.map.measure.distance"));
+    measure->setCheckable(true);
+    measure->setChecked(toolEnabled == MapTools::MeasureToolId);
+    EditorTool *tool = activeTool();
+    if (tool != nullptr && tool->supports(ViewMode::Map)) {
+        QAction *separator = menu.addSeparator();
+        tool->contextMenu(*this, menu);
+        if (menu.actions().constLast() == separator)
+            menu.removeAction(separator);
+    }
+    if (menu.exec(mapToGlobal(position)) != measure)
+        return;
+    if (measure->isChecked()) {
+        toolBeforeMeasure = toolEnabled;
+        enableTool(MapTools::MeasureToolId);
+    } else {
+        enableTool(tools->allowed(toolBeforeMeasure, ViewMode::Map) ? toolBeforeMeasure : QString());
+    }
+}
+
 bool RouteEditorGLWidget::mapLayersBusy() const {
     return (osmMap && osmMap->busy()) || (imageryMap && mapLayers.shows(MapLayer::Imagery) && imageryMap->busy());
 }
@@ -2120,10 +2169,13 @@ void RouteEditorGLWidget::updateMapLabels() {
         osm, reinterpret_cast<const void *>(quintptr(osm != NULL ? osm->labelsVersion() : 0)),
         markers, reinterpret_cast<const void *>(quintptr(markers != NULL ? markers->markerList.size() : 0)),
         track, reinterpret_cast<const void *>(quintptr(track != NULL ? track->trackItems.size() : 0)),
-        activity, reinterpret_cast<const void *>(quintptr(activity != NULL ? activity->event.size() : 0))};
+        activity, reinterpret_cast<const void *>(quintptr(activity != NULL ? activity->event.size() : 0)),
+        mapMeasure.get(), reinterpret_cast<const void *>(quintptr(mapMeasure->version()))};
     if (!mapLabelsInvalid && sources == mapLabelSources)
         return;
     std::vector<MapLabel> labels;
+    if (mapMeasure->shown())
+        labels.push_back(mapMeasure->label(Game::GeoCoordConverter));
     MapLabelSources::appendActivity(labels, activity);
     MapLabelSources::appendTrackDatabase(labels, track);
     MapLabelSources::appendMarkers(labels, markers);
@@ -2201,6 +2253,7 @@ void RouteEditorGLWidget::paintMap() {
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
     activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
                                  mapLayers.shows(MapLayer::Paths));
+    mapMeasure->pushRenderItems(queue, view, palette, Game::PixelRatio);
     updateMapLabels();
     mapLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);
     // The pointer: a square of a fixed screen size above everything.

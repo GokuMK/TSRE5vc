@@ -65,6 +65,7 @@ class TerrainMapLayer;
 class MapOverlayFade;
 class OsmMapLayer;
 class ImageryMapLayer;
+class MapMeasureLayer;
 class QLabel;
 class MapLabelLayer;
 class Coords;
@@ -96,6 +97,8 @@ public:
                            float rotX, float rotY);
     void diagnosticView(int &tileX, int &tileZ, float *pos,
                         float &rotX, float &rotY) const;
+    // Captures: a Measure Distance line, or none (null ends).
+    void setDiagnosticMapMeasurement(const MapGroundPoint *from, const MapGroundPoint *to);
     // Map mode centred on a ground point, at a scale, with a compass
     // bearing (degrees, 0: north) at the top of the screen.
     void setDiagnosticMapView(int tileX, int tileZ, float x, float z,
@@ -298,6 +301,8 @@ private:
     bool placeContinuousRulerPoint(const float *rotation) override;
     void startTelepole(TelepoleObj *telepole) override { beginLiveTelepole(telepole); }
     void activateTool(const QString &id) override { enableTool(id); }
+    void setMapMeasurement(const MapGroundPoint &from, const MapGroundPoint &to) override;
+    void clearMapMeasurement() override;
     void message(const QString &name) override { emit sendMsg(name); }
     void message(const QString &name, const QString &value) override { emit sendMsg(name, value); }
     void sendFlexData() override;
@@ -427,6 +432,14 @@ private:
     // Track Objects), location events (Map > Activity), placed together. Rebuilt when a
     // source or its size changes, or when edits invalidate the map's items.
     std::unique_ptr<MapLabelLayer> mapLabels;
+    // The map's Measure Distance tool's line and length (labelled with mapLabels).
+    std::unique_ptr<MapMeasureLayer> mapMeasure;
+    // The tool active before Measure Distance was chosen from the map's menu, to
+    // return to when it is unchecked there.
+    QString toolBeforeMeasure;
+    // The map's right-click menu: Measure Distance first, then the active tool's
+    // actions at the pointer.
+    void showMapContextMenu(const QPoint &position);
     std::vector<const void *> mapLabelSources;
     bool mapLabelsInvalid = true;
     void updateMapLabels();

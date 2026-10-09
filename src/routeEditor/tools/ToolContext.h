@@ -13,6 +13,7 @@
 
 #include <QString>
 #include "EditorTool.h"
+#include <tsre/map/MapView.h>
 
 class Brush;
 class GameObj;
@@ -96,6 +97,11 @@ public:
     virtual bool placeContinuousFlex(float *rotation) = 0;
     virtual bool placeContinuousRulerPoint(const float *rotation) = 0;
     virtual void startTelepole(TelepoleObj *telepole) = 0;
+
+    // Map mode's distance measurement (MapMeasureTool): a line between two ground
+    // points with its length; clearMapMeasurement hides it.
+    virtual void setMapMeasurement(const MapGroundPoint &from, const MapGroundPoint &to) = 0;
+    virtual void clearMapMeasurement() = 0;
 
     virtual void activateTool(const QString &id) = 0;
     // Messages to the panels (RouteEditorGLWidget::sendMsg).
