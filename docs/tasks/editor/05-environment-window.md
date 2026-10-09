@@ -218,7 +218,8 @@ Steps 1 to 3 (user: "go with 1, 2 and 3"):
   12 August, full, new and quarter moons, the full moon in the south at
   midnight); `settings` catalogue count 110.
 - **Translations**: entries added by hand (en, pl). The `lupdate` target
-  rewrites both files in its own layout and drops the entries of branches
-  not merged yet (ace-converter), so it was not used.
+  would also rewrite both files in its own layout (the files were last
+  written by another tool; about 27,000 changed lines) and remove 35
+  entries no code uses any more, so it was left for a commit of its own.
 - **Not yet checked**: captures of the sun and moon on both renderers; the
   sun's size and brightness need the user's approval.
