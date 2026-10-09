@@ -2529,6 +2529,9 @@ void RouteEditorGLWidget::enableTool(QString name) {
         continuousPlacementYOffset = 0.0f;
     qDebug() << name;
     toolEnabled = name;
+    // A panel button may choose the tool's left-click action ("tool:action").
+    if (next != nullptr && !EditorTool::actionOf(name).isEmpty())
+        next->setDefaultAction(EditorTool::actionOf(name));
     resizeTool = false;
     translateTool = false;
     rotateTool = false;
@@ -4036,10 +4039,15 @@ void RouteEditorGLWidget::showContextMenu(const QPoint & point) {
             //% "No Tool"
             qtTrId("route.editor.context.no.tool"));
     } else {
-        QString toolName = toolEnabled;
-        toolName[0] = toolName[0].toUpper();
-        menu.addSection(toolName);
-        if (EditorTool *tool = activeTool())
+        EditorTool *tool = activeTool();
+        // A tool with actions heads them with its own sections.
+        if (tool == nullptr || tool->actions(*this).empty()) {
+            QString toolName = tool != nullptr && !tool->title().isEmpty() ? tool->title()
+                                                                           : EditorTool::idOf(toolEnabled);
+            toolName[0] = toolName[0].toUpper();
+            menu.addSection(toolName);
+        }
+        if (tool != nullptr)
             tool->contextMenu(*this, menu);
 
     }

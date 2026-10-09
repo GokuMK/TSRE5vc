@@ -15,6 +15,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainLib.h>
+#include <tsre/geo/MapWindow.h>
 #include <QAction>
 #include <QMenu>
 #include <QMessageBox>
@@ -124,6 +125,8 @@ public:
 
 // The loaded terrain tile under the pointer, or null.
 Terrain *terrainAtPointer(ToolContext &ctx) {
+    if (Game::terrainLib == nullptr)
+        return nullptr;
     int x = ctx.tileX();
     int z = ctx.tileZ();
     float posx = ctx.pointer()[0];
@@ -132,6 +135,81 @@ Terrain *terrainAtPointer(ToolContext &ctx) {
     Terrain *terrain = Game::terrainLib->getTerrainByXY(x, z);
     return terrain != nullptr && terrain->loaded ? terrain : nullptr;
 }
+
+// The terrain tile's overlay image (F3 Terrain Tile Overlay and Terrain Tile
+// Texture): one tool, its actions in the context menu for the tile under the
+// pointer; the panel's buttons choose the one a left click runs.
+class TerrainOverlayTool : public EditorTool {
+public:
+    TerrainOverlayTool() : EditorTool("terrainOverlayTool", ViewMode::Scene3D | ViewMode::Map) {
+        setDefaultAction("show");
+    }
+
+    QString title() const override {
+        //% "Terrain Tile Overlay"
+        return qtTrId("route.editor.overlay.tool.section.overlay");
+    }
+
+    bool press(ToolContext &ctx, const ToolMouse &) override {
+        run(ctx, defaultAction());
+        return true;
+    }
+
+    std::vector<ToolAction> actions(ToolContext &ctx) override {
+        // The tile's state when it is loaded; actions load it when it is not.
+        Terrain *terrain = terrainAtPointer(ctx);
+        bool shown = false, image = true;
+        if (terrain != nullptr) {
+            int x, z;
+            terrain->getLowCornerTileXY(x, z);
+            const auto found = MapWindow::mapTileImages.find(x * 10000 + z);
+            image = found != MapWindow::mapTileImages.end() && found->second != nullptr;
+            shown = terrain->showBlob;
+        }
+        const QString overlay = title();
+        //% "Terrain Tile Texture"
+        const QString texture = qtTrId("route.editor.overlay.tool.section.texture");
+        ToolAction show{"show",
+            //% "Show Loaded Overlay"
+            qtTrId("route.editor.overlay.tool.action.show"), overlay};
+        show.checkable = true;
+        show.checked = shown;
+        ToolAction make{"makeTexture",
+            //% "Make from Overlay"
+            qtTrId("route.editor.overlay.tool.action.make.texture"), texture};
+        make.enabled = image;
+        return {show,
+                {"osm",
+                 //% "Create from OSM"
+                 qtTrId("route.editor.overlay.tool.action.osm"), overlay},
+                {"imagery",
+                 //% "Create from Imagery"
+                 qtTrId("route.editor.overlay.tool.action.imagery"), overlay},
+                make,
+                {"removeTexture",
+                 //% "Remove Overlay Texture"
+                 qtTrId("route.editor.overlay.tool.action.remove.texture"), texture}};
+    }
+
+    void run(ToolContext &ctx, const QString &action) override {
+        // The map completes the tile first; at any zoom.
+        if (!ctx.prepareTerrainTile())
+            return;
+        if (action == QLatin1String("show")) {
+            Game::terrainLib->setTileBlob(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+        } else if (action == QLatin1String("osm")) {
+            if (Terrain *terrain = terrainAtPointer(ctx))
+                ctx.openMapTileWindow(terrain);
+        } else if (action == QLatin1String("imagery")) {
+            if (Terrain *terrain = terrainAtPointer(ctx))
+                ctx.openImageryWindow(terrain);
+        } else if (action == QLatin1String("makeTexture")) {
+            Game::terrainLib->makeTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+        } else if (action == QLatin1String("removeTexture")) {
+            Game::terrainLib->removeTileTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+        }
+    }
+};
 
 }
 
@@ -150,22 +228,7 @@ std::vector<std::unique_ptr<EditorTool>> create() {
     // The geo tools act on the tile under the pointer, which the map
     // completes first; they work at any zoom, the tile picked by its
     // square or border.
-    click("mapTileShowTool", [](ToolContext &ctx) {
-        if (ctx.prepareTerrainTile())
-            Game::terrainLib->setTileBlob(ctx.tileX(), ctx.tileZ(), ctx.pointer());
-    }, bothModes);
-    click("mapTileLoadTool", [](ToolContext &ctx) {
-        if (!ctx.prepareTerrainTile())
-            return;
-        if (Terrain *terrain = terrainAtPointer(ctx))
-            ctx.openMapTileWindow(terrain);
-    }, bothModes);
-    click("imageryTileLoadTool", [](ToolContext &ctx) {
-        if (!ctx.prepareTerrainTile())
-            return;
-        if (Terrain *terrain = terrainAtPointer(ctx))
-            ctx.openImageryWindow(terrain);
-    }, bothModes);
+    tools.push_back(std::make_unique<TerrainOverlayTool>());
     click("heightTileLoadTool", [](ToolContext &ctx) {
         if (ctx.prepareTerrainTile())
             Game::terrainLib->setHeightFromGeoGui(ctx.tileX(), ctx.tileZ(), ctx.pointer());

@@ -186,8 +186,7 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                                       "proceduralFillTool", "pickTerrainTexTool",
                                       "proceduralTileEnableTool", "proceduralTileDisableTool",
                                       "putTerrainTexTool", "drawTerrTool", "waterHeightTileTool",
-                                      "fixedTileTool", "lockTexTool", "makeTileTextureTool",
-                                      "removeTileTextureTool"};
+                                      "fixedTileTool", "lockTexTool"};
     allFound = true;
     for (const QString &id : terrainTools)
         allFound = allFound && registry.find(id) != nullptr;
@@ -223,8 +222,7 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
           "painting offers four automatic paints");
 
     // Geo and activity tools; every name the panels send.
-    const QStringList dataTools = {"mapTileShowTool", "mapTileLoadTool", "imageryTileLoadTool",
-                                   "heightTileLoadTool", "actNewLooseConsistTool",
+    const QStringList dataTools = {"terrainOverlayTool", "heightTileLoadTool", "actNewLooseConsistTool",
                                    "actNewSpeedZoneTool", "pickNewEventLocationTool",
                                    "quadTreeTool"};
     allFound = true;
@@ -282,8 +280,7 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                            "drawTerrTool"})
         geometryTools = geometryTools || registry.allowed(id, ViewMode::Map);
     bool geoTools = true;
-    for (const char *id : {"mapTileShowTool", "mapTileLoadTool", "imageryTileLoadTool",
-                           "heightTileLoadTool", "makeTileTextureTool", "removeTileTextureTool"})
+    for (const char *id : {"terrainOverlayTool:show", "terrainOverlayTool:makeTexture", "heightTileLoadTool"})
         geoTools = geoTools && registry.allowed(id, ViewMode::Map);
     geoTools = geoTools && registry.allowed("quadTreeTool", ViewMode::Map)
             && !registry.find("quadTreeTool")->editsByDragging();
@@ -293,6 +290,30 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                   && !registry.find("proceduralFillTool")->editsByDragging()
                   && !registry.find("pickTerrainTexTool")->editsByDragging(),
           "terrain: texture tools work on the map, height tools stay 3D; painting drags");
+    // One tool with several actions: the panel's buttons name "tool:action", the
+    // context menu lists the actions under their sections.
+    EditorTool *overlay = registry.find("terrainOverlayTool:osm");
+    bool overlayOk = overlay != nullptr && overlay->id() == "terrainOverlayTool"
+            && EditorTool::idOf("terrainOverlayTool:osm") == "terrainOverlayTool"
+            && EditorTool::actionOf("terrainOverlayTool:osm") == "osm"
+            && EditorTool::actionOf("quadTreeTool").isEmpty() && overlay->defaultAction() == "show";
+    if (overlay != nullptr) {
+        QStringList ids;
+        for (const ToolAction &action : overlay->actions(ctx))
+            ids << action.id;
+        QMenu overlayMenu;
+        overlay->contextMenu(ctx, overlayMenu);
+        int sections = 0, items = 0;
+        for (QAction *action : overlayMenu.actions())
+            action->isSeparator() ? ++sections : ++items;
+        overlayOk = overlayOk && ids == QStringList({"show", "osm", "imagery", "makeTexture", "removeTexture"})
+                && sections == 2 && items == 5 && overlayMenu.actions().at(1)->isCheckable();
+        overlay->setDefaultAction("imagery");
+        overlayOk = overlayOk && overlay->defaultAction() == "imagery";
+        overlay->setDefaultAction("show");
+    }
+    check(overlayOk, "overlay tool: one tool, actions by name, its menu built from its actions");
+
     // Measure Distance (map only): a drag measures from the press to the pointer.
     EditorTool *measureTool = registry.find("mapMeasureTool");
     bool measureOk = measureTool != nullptr && registry.allowed("mapMeasureTool", ViewMode::Map)

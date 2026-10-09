@@ -578,6 +578,22 @@ Map > Faded Overlay, formerly Faded Terrain):
   (`showBlob`) gets its map texture over its terrain
   (`Terrain::mapOverlayTexture`), mapped across the tile as the 3D view
   maps it; the layer builds again while that texture still loads.
+- **Tools with actions** (2026-10-09, user's design): a tool has one
+  subject and may have several actions (`ToolAction`: id, text, menu
+  section, enabled, checked; `EditorTool::actions`, `run`). The context
+  menu lists them for the place under the pointer (the default
+  `EditorTool::contextMenu`), and panel buttons choose the one a left
+  click runs by naming the tool as `tool:action` (`enableTool` sets
+  `defaultAction`; `ToolRegistry::find` takes the part before the colon;
+  the "toolEnabled" message carries the whole name, so the panel checks
+  the right button). View-wide entries such as Measure Distance stay
+  first in the map's menu, the tool's actions follow.
+  - The first: `terrainOverlayTool` (F3 Terrain Tile Overlay: Show/Hide
+    Loaded Overlay, Create from OSM, Create from Imagery; Terrain Tile
+    Texture: Make from Overlay | Remove), replacing five click tools
+    (`mapTileShowTool`, `mapTileLoadTool`, `imageryTileLoadTool`,
+    `makeTileTextureTool`, `removeTileTextureTool`). The Quad Tree tool
+    has its own menu and could move to actions too.
 - **Auto-created tiles** (F3, "Create new tiles if not exist"): the 3D
   scene draw creates the camera's tile when it has none, writing terrain
   and world files to disk at once (`Route::newTile`, with heights from

@@ -1581,180 +1581,225 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <source>Message:</source>
         <translation>Komunikat:</translation>
     </message>
-    <message id="route.editor.geo.tools.button.show.hide.map">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="32"/>
-        <source>Show/Hide Map</source>
-        <translation>Pokaż/ukryj mapę</translation>
-    </message>
-    <message id="route.editor.geo.tools.button.load.map">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="35"/>
-        <source>Load Map</source>
-        <translation>Wczytaj mapę</translation>
-    </message>
     <message id="route.editor.geo.tools.button.load.height">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="41"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="43"/>
         <source>Load Height</source>
         <translation>Wczytaj wysokości</translation>
     </message>
-    <message id="route.editor.geo.tools.button.make.tile.texture.from.map">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="44"/>
-        <source>Make Tile Texture from Map</source>
-        <translation>Utwórz teksturę kafla z mapy</translation>
-    </message>
     <message id="route.editor.quad.tree.tool.label.quad">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="64"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="65"/>
         <source>Quad %1 km, %2: %3</source>
         <translation>Kwadrat %1 km, %2: %3</translation>
     </message>
     <message id="route.editor.quad.tree.tool.label.populated.present">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="68"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="69"/>
         <source>populated, tile present</source>
         <translation>zajęty, kafel istnieje</translation>
     </message>
     <message id="route.editor.quad.tree.tool.label.populated.missing">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="70"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="71"/>
         <source>populated, tile missing</source>
         <translation>zajęty, brak kafla</translation>
     </message>
     <message id="route.editor.quad.tree.tool.label.empty">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="72"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="73"/>
         <source>not populated</source>
         <translation>niezajęty</translation>
     </message>
     <message id="route.editor.quad.tree.tool.action.split">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="76"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="77"/>
         <source>Split Quad</source>
         <translation>Podziel kwadrat</translation>
     </message>
     <message id="route.editor.quad.tree.tool.action.toggle.populated">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="83"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="84"/>
         <source>Toggle Populated</source>
         <translation>Przełącz zajętość</translation>
     </message>
     <message id="route.editor.quad.tree.tool.action.create.tile">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="90"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="91"/>
         <source>Create Tile</source>
         <translation>Utwórz kafel</translation>
     </message>
     <message id="route.editor.quad.tree.tool.dialog.create.title">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="95"/>
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="102"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="96"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="103"/>
         <source>Create Tile</source>
         <translation>Utwórz kafel</translation>
     </message>
     <message id="route.editor.quad.tree.tool.dialog.create.override">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="97"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="98"/>
         <source>The tile %1 exists. Replace it with an empty tile?</source>
         <translation>Kafel %1 istnieje. Zastąpić go pustym kaflem?</translation>
     </message>
     <message id="route.editor.quad.tree.tool.action.delete.tile">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="107"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="108"/>
         <source>Delete Tile</source>
         <translation>Usuń kafel</translation>
     </message>
     <message id="route.editor.quad.tree.tool.dialog.delete.title">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="112"/>
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="119"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="113"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="120"/>
         <source>Delete Tile</source>
         <translation>Usuń kafel</translation>
     </message>
     <message id="route.editor.quad.tree.tool.dialog.delete.question">
-        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="114"/>
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="115"/>
         <source>Delete the tile %1 and its files? This cannot be undone.</source>
         <translation>Usunąć kafel %1 i jego pliki? Tej operacji nie można cofnąć.</translation>
     </message>
+    <message id="route.editor.overlay.tool.section.overlay">
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="150"/>
+        <source>Terrain Tile Overlay</source>
+        <translation>Nakładka kafla terenu</translation>
+    </message>
+    <message id="route.editor.overlay.tool.section.texture">
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="171"/>
+        <source>Terrain Tile Texture</source>
+        <translation>Tekstura kafla terenu</translation>
+    </message>
+    <message id="route.editor.overlay.tool.action.show">
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="174"/>
+        <source>Show Loaded Overlay</source>
+        <translation>Pokaż wczytaną nakładkę</translation>
+    </message>
+    <message id="route.editor.overlay.tool.action.make.texture">
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="179"/>
+        <source>Make from Overlay</source>
+        <translation>Utwórz z nakładki</translation>
+    </message>
+    <message id="route.editor.overlay.tool.action.osm">
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="184"/>
+        <source>Create from OSM</source>
+        <translation>Utwórz z OSM</translation>
+    </message>
+    <message id="route.editor.overlay.tool.action.imagery">
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="187"/>
+        <source>Create from Imagery</source>
+        <translation>Utwórz ze zobrazowania</translation>
+    </message>
+    <message id="route.editor.overlay.tool.action.remove.texture">
+        <location filename="../src/routeEditor/tools/RouteDataTools.cpp" line="191"/>
+        <source>Remove Overlay Texture</source>
+        <translation>Usuń teksturę z nakładki</translation>
+    </message>
     <message id="route.editor.geo.tools.button.edit.quad.tree">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="50"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="52"/>
         <source>Edit Quad Tree</source>
         <translation>Edytuj drzewo quadtree</translation>
     </message>
     <message id="route.editor.geo.tools.tooltip.edit.quad.tree">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="53"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="55"/>
         <source>Right click a quad of the terrain tree being edited for its actions: split, populate, create or delete its tile.</source>
         <translation>Kliknij prawym przyciskiem kwadrat edytowanego drzewa terenu, aby wybrać akcję: podziel, zaznacz jako zajęty, utwórz lub usuń jego kafel.</translation>
     </message>
     <message id="route.editor.geo.tools.label.quad.tree">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="87"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="99"/>
         <source>Quad Tree:</source>
         <translation>Drzewo quadtree:</translation>
     </message>
-    <message id="route.editor.geo.tools.button.remove.map.tile.texture">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="47"/>
-        <source>Remove Map Tile Texture</source>
-        <translation>Usuń teksturę kafla mapy</translation>
+    <message id="route.editor.geo.tools.button.overlay.show">
+        <location filename="../src/routeEditor/GeoTools.cpp" line="34"/>
+        <source>Show/Hide Loaded Overlay</source>
+        <translation>Pokaż/ukryj wczytaną nakładkę</translation>
     </message>
-    <message id="route.editor.geo.tools.label.label0">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="67"/>
-        <source>Map Layers:</source>
-        <translation>Warstwy mapy:</translation>
+    <message id="route.editor.geo.tools.button.overlay.osm">
+        <location filename="../src/routeEditor/GeoTools.cpp" line="37"/>
+        <source>Create from OSM</source>
+        <translation>Utwórz z OSM</translation>
+    </message>
+    <message id="route.editor.geo.tools.button.overlay.imagery">
+        <location filename="../src/routeEditor/GeoTools.cpp" line="40"/>
+        <source>Create from Imagery</source>
+        <translation>Utwórz ze zobrazowania</translation>
+    </message>
+    <message id="route.editor.geo.tools.button.texture.make">
+        <location filename="../src/routeEditor/GeoTools.cpp" line="46"/>
+        <source>Make from Overlay</source>
+        <translation>Utwórz z nakładki</translation>
+    </message>
+    <message id="route.editor.geo.tools.button.texture.remove">
+        <location filename="../src/routeEditor/GeoTools.cpp" line="49"/>
+        <source>Remove</source>
+        <translation>Usuń</translation>
+    </message>
+    <message id="route.editor.geo.tools.label.overlay">
+        <location filename="../src/routeEditor/GeoTools.cpp" line="69"/>
+        <source>Terrain Tile Overlay:</source>
+        <translation>Nakładka kafla terenu:</translation>
+    </message>
+    <message id="route.editor.geo.tools.label.texture">
+        <location filename="../src/routeEditor/GeoTools.cpp" line="79"/>
+        <source>Terrain Tile Texture:</source>
+        <translation>Tekstura kafla terenu:</translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.2">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="79"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="91"/>
         <source>Terrain Heightmap:</source>
         <translation>Mapa wysokości terenu:</translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.3">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="95"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="107"/>
         <source>Auto tile generation:</source>
         <translation>Automatyczne generowanie kafli:</translation>
     </message>
     <message id="route.editor.geo.tools.option.ch.auto.create.tile">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="101"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="113"/>
         <source>Create new tiles if not exist.</source>
         <translation>Twórz nowe kafle, jeśli nie istnieją.</translation>
     </message>
     <message id="route.editor.geo.tools.option.ch.auto.geo.terrain">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="105"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="117"/>
         <source>Create terrain from Geodata. </source>
         <translation>Utwórz teren z geodanych. </translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.4">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="112"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="124"/>
         <source>Default Terrain Profile:</source>
         <translation>Domyślny profil terenu:</translation>
     </message>
     <message id="route.editor.geo.tools.button.select.terrain.profile">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="124"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="136"/>
         <source>Select terrain profile...</source>
         <translation>Wybierz profil terenu…</translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.5">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="131"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="143"/>
         <source>Tiles from marker file:</source>
         <translation>Kafle z pliku markerów:</translation>
     </message>
     <message id="route.editor.geo.tools.label.radius">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="142"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="154"/>
         <source>Radius:</source>
         <translation>Promień:</translation>
     </message>
     <message id="route.editor.geo.tools.button.check.geodata.files">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="148"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="160"/>
         <source>Check if geodata files available.</source>
         <translation>Sprawdź dostępność plików geodanych.</translation>
     </message>
     <message id="route.editor.geo.tools.button.generate.tiles">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="155"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="167"/>
         <source>Generate tiles.</source>
         <translation>Generuj kafle.</translation>
     </message>
     <message id="route.editor.geo.tools.label.label0.6">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="162"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="174"/>
         <source>Distant Terrain:</source>
         <translation>Teren odległy:</translation>
     </message>
     <message id="route.editor.geo.tools.button.check.geodata.lo.files">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="167"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="179"/>
         <source>Check if geodata files available.</source>
         <translation>Sprawdź dostępność plików geodanych.</translation>
     </message>
     <message id="route.editor.geo.tools.button.generate.lo.tiles">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="174"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="186"/>
         <source>Generate tiles using MKR.</source>
         <translation>Generuj kafle na podstawie MKR.</translation>
     </message>
     <message id="route.editor.geo.tools.button.generate.lo.tiles.from.tdb">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="180"/>
+        <location filename="../src/routeEditor/GeoTools.cpp" line="192"/>
         <source>Generate tiles using TDB.</source>
         <translation>Generuj kafle na podstawie TDB.</translation>
     </message>
@@ -2380,7 +2425,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3941"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3944"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
@@ -2420,67 +2465,67 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3947"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3950"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3953"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3956"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3959"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3962"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3965"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3968"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3971"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3974"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3977"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3980"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3983"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3986"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3989"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3992"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3995"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3998"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4001"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4004"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4007"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4010"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4019"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4022"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4037"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4040"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -2658,7 +2703,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4050"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4058"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -11285,11 +11330,6 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/settings/SettingsRegistration.cpp" line="437"/>
         <source>Approved secondary source used for missing coverage or NoData. If both sources fail, elevation generation remains unresolved.</source>
         <translation>Zatwierdzone źródło dodatkowe używane przy braku pokrycia lub danych. Jeśli oba źródła zawiodą, tworzenie wysokości pozostaje nierozstrzygnięte.</translation>
-    </message>
-    <message id="route.editor.geo.tools.button.load.imagery">
-        <location filename="../src/routeEditor/GeoTools.cpp" line="38"/>
-        <source>Load Imagery</source>
-        <translation>Wczytaj zobrazowanie</translation>
     </message>
     <message id="settings.geo.imagery.source.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="456"/>

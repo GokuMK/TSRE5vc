@@ -31,7 +31,8 @@ void ToolRegistry::add(std::unique_ptr<EditorTool> tool) {
 }
 
 EditorTool *ToolRegistry::find(const QString &id) const {
-    return byId.value(id, nullptr);
+    // A name may carry the action a panel button chooses ("tool:action").
+    return byId.value(EditorTool::idOf(id), nullptr);
 }
 
 bool ToolRegistry::allowed(const QString &id, ViewMode mode) const {
