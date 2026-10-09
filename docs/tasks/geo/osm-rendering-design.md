@@ -501,8 +501,22 @@ In rough order of what the user asked about:
      (follow this railway) reads the feature's geometry from the store.
 6. **Street names along roads**: a glyph atlas (QTextLayout shaping, QRawFont
    glyph images) placing letters along lines.
-7. **Line shader** (instanced segments): 3.5 to 9 times less line memory, no
-   rebuild on zoom; needs instancing in both renderers.
+7. **A dedicated OSM map shader** (decided by the user, 2026-10-09; likely
+   given to a local agent on the user's Steam Deck, where hardware tests can
+   choose between the options):
+   - a custom vertex format, as the terrain mesh has (`TerrainVertex8Derived`
+     in `src/tsre/world/TerrainMeshBackend.h`: 8 bytes, the position derived
+     in the shader), instead of `RenderItem::V`;
+   - lines widened in the shader (from centre points and a side, or
+     instanced segments): 3.5 to 9 times less line memory, nothing rebuilt
+     when zooming (see "7. Later: a dedicated line shader" above);
+   - the feature's selection index as a vertex attribute, written by the
+     shader's selection variant ("colour" selection of item 5);
+   - a fallback that finds the feature nearest a click, which is also the
+     better way for railways and other thin lines, too narrow to hit in the
+     ID buffer unless drawn wider for the pass;
+   - on OpenGL and QRhi; measured on the Deck (frame time, memory, upload
+     time) to choose the vertex layout and line method.
 8. Smaller: a dark style for the OSM colours (now toned by the palette's fade
    only), an option to start with OSM Data on, the multipolygon cache (little
    gain since the speed work), the detail read just below the regional switch
