@@ -2,7 +2,16 @@ cmake_minimum_required(VERSION 3.22)
 
 project(TSRE5vc LANGUAGES CXX)
 
+# Development builds show VERSION with -dev, following it when it changes
+# (it is a configure dependency, and a cached -dev value of an older VERSION
+# is replaced). A version given on the command line, as the release
+# workflow does with the tag's, is kept.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" TSRE5_BASE_VERSION LIMIT_COUNT 1)
+if(DEFINED CACHE{TSRE5_VERSION} AND TSRE5_VERSION MATCHES "-dev$"
+        AND NOT TSRE5_VERSION STREQUAL "${TSRE5_BASE_VERSION}-dev")
+    unset(TSRE5_VERSION CACHE)
+endif()
 set(TSRE5_VERSION "${TSRE5_BASE_VERSION}-dev" CACHE STRING "Version shown by TSRE5vc")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/TSRE5Version.h.in"
