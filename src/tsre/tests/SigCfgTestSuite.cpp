@@ -115,10 +115,12 @@ int TsreTests::runSigCfgSuite(const QString &configurationPath, bool verbose) {
     test.check(home->light(1) && home->light(1)->semaphoreChange && near(home->light(1)->radius, 0.1f)
                    && near(home->light(1)->position[0], 0),
                "a malformed position loses only itself");
-    test.check(home->drawStates.size() == 4 && home->drawState("red") && home->drawState("dst3")
-                   && home->drawState("yellow")->lights.size() == 1 && home->drawState("yellow")->lights[0].flashing
-                   && near(home->drawState("green")->semaphorePos, 1),
-               "draw states with flashing lights and semaphore positions; a duplicate renamed");
+    test.check(home->drawStates.size() == 4 && home->drawState("yellow")->lights.size() == 1
+                   && home->drawState("yellow")->lights[0].flashing && near(home->drawState("green")->semaphorePos, 1),
+               "draw states with flashing lights and semaphore positions");
+    test.check(home->drawStates[3].name == "red" && home->drawStates[3].index == 3
+                   && home->drawState("red") && home->drawState("red")->index == 0,
+               "a shared draw state name is kept and finds the first state, as in MSTS");
     test.check(home->aspects.size() == 3 && home->aspects[1].aspect == SignalType::APPROACH_1
                    && near(home->aspects[1].speedMpS, 20) && home->aspects[2].asap,
                "aspects with speeds and flags");
@@ -142,12 +144,13 @@ int TsreTests::runSigCfgSuite(const QString &configurationPath, bool verbose) {
         test.check(back.backFacing && back.faceidx == 0 && back.sigSubSType == "NoAspects", "back-facing sub-object");
     }
     test.check(cfg.scriptFiles == QStringList({"sigscr.dat"}), "script files");
-    bool outOfRange = false, malformed = false;
+    bool outOfRange = false, malformed = false, sharedName = false;
     for (const QString &w : cfg.warnings) {
         outOfRange = outOfRange || w.contains("index 7");
         malformed = malformed || w.contains("Incomplete Position");
+        sharedName = sharedName || w.contains("Duplicate SignalDrawState name red");
     }
-    test.check(outOfRange && malformed, "problems reported as warnings");
+    test.check(outOfRange && malformed && sharedName, "problems reported as warnings");
 
     SigCfg missing(temp.filePath("none.dat"));
     test.check(missing.loaded && !missing.sourceFileExists && missing.signalType.isEmpty(), "missing file is empty");

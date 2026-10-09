@@ -98,11 +98,12 @@ public:
     float approachControlSpeedMpS = -1.0f;
     // Sorted by index.
     QVector<Light> lights;
-    // In file order; duplicate names are kept under a generated name.
+    // In file order, names as written (several may share one).
     QVector<DrawState> drawStates;
     QVector<AspectEntry> aspects;
 
     const Light *light(int index) const;
+    // The first draw state of that name, as MSTS finds it.
     const DrawState *drawState(const QString &name) const;
     // The draw state of the most restrictive aspect; without aspects the
     // draw state with the lowest index. Null when there is none.

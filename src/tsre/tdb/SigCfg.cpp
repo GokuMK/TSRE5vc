@@ -429,12 +429,11 @@ private:
                 }
             }
             ++read;
-            // Open Rails keeps a duplicate name under a generated one.
-            if (type.drawState(state.name) != nullptr) {
-                const QString renamed = QString("dst%1").arg(type.drawStates.size());
-                warn("Duplicate SignalDrawState " + state.name + ", named " + renamed);
-                state.name = renamed;
-            }
+            // Kept as written: names find the first state, as MSTS looks them
+            // up (Open Rails renames the later ones instead).
+            if (type.drawState(state.name) != nullptr)
+                warn(QString("Duplicate SignalDrawState name %1 (index %2); the name finds the first")
+                     .arg(state.name).arg(state.index));
             type.drawStates << state;
         }
         checkCount(declared, read, "SignalDrawState");

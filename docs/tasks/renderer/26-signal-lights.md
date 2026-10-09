@@ -164,14 +164,15 @@ index.
   glow values.
 - Signal scripts and aspects from the route's state.
 
-## Open questions
+## Draw states sharing a name (user, 2026-10-09)
 
-- **Draw states sharing a name** (user, 2026-10-09). CMK has 109 of them
-  (`pkp_sem_*` signal types, for example several `v40a`). The reader follows
-  Open Rails: the first keeps the name, the others are renamed `dst<n>` and
-  logged, so an aspect naming one finds the first. MSTS probably does no
-  such renaming and these signals work there; Open Rails handles signals
-  quite differently from MSTS, so its rule may not be MSTS's. To examine:
-  how MSTS resolves an aspect's draw state name and a script's draw state
-  (by name, first or last match, or by index), then match it here and in
-  the default draw state, and stop logging these if they are valid.
+CMK has 109 draw states whose name an earlier state of the same signal type
+already has, different states under one name: `PKP_SEM_4k_A` has `S5`
+steady yellow (index 3) and `S5` flashing yellow (index 4), and its aspect
+`APPROACH_2` names `S5`. Most likely a mistake of the script authors that
+works in MSTS, which looks names up through the array and takes the first;
+Open Rails keeps names in a map, so it renames the later ones (`DST<n>`).
+
+The reader keeps both states as written, with their indices, and a name
+finds the first, as in MSTS. Each such name is logged as a warning (the
+route log shows the first 20), pointing out the duplicate.
