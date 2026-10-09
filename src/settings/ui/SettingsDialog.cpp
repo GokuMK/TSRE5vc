@@ -160,6 +160,10 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
     QAction *saveAsAction = profileMenu->addAction(
         //% "Save &As..."
         qtTrId("settings.dialog.action.save.as.action"));
+    QAction *newProfileAction = profileMenu->addAction(
+        //% "&New..."
+        qtTrId("settings.dialog.action.new.profile"));
+    newProfileAction->setObjectName("new-profile");
     m_duplicateProfileAction = profileMenu->addAction(
         //% "&Duplicate..."
         qtTrId("settings.dialog.action.m.duplicate.profile.action"));
@@ -182,6 +186,15 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
         //% "Paste Key and &Value"
         qtTrId("settings.dialog.action.paste.key.value.action"));
     pasteKeyValueAction->setObjectName("paste-setting-key-value");
+    editMenu->addSeparator();
+    m_resetGroupAction = editMenu->addAction(
+        //% "Reset &Group to Defaults"
+        qtTrId("settings.dialog.action.reset.group"));
+    m_resetGroupAction->setObjectName("reset-group-defaults");
+    QAction *resetAllAction = editMenu->addAction(
+        //% "Reset All to &Defaults"
+        qtTrId("settings.dialog.action.reset.all"));
+    resetAllAction->setObjectName("reset-all-defaults");
     editMenu->addSeparator();
     QAction *rawAction = editMenu->addAction(
         //% "Edit Raw Profile &JSON..."
@@ -288,8 +301,13 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
             this, &SettingsDialog::updateSearchPlacement);
     connect(loadAction, &QAction::triggered, this, &SettingsDialog::loadProfile);
     connect(saveAsAction, &QAction::triggered, this, &SettingsDialog::saveProfileAs);
+    connect(newProfileAction, &QAction::triggered, this, &SettingsDialog::newProfile);
     connect(m_duplicateProfileAction, &QAction::triggered,
             this, &SettingsDialog::duplicateProfile);
+    connect(m_resetGroupAction, &QAction::triggered, this, &SettingsDialog::resetGroupToDefaults);
+    connect(resetAllAction, &QAction::triggered, this, &SettingsDialog::resetAllToDefaults);
+    connect(m_tabs, &QTabWidget::currentChanged, this,
+            [this] { m_resetGroupAction->setEnabled(!currentGroupId().isEmpty()); });
     connect(folderAction, &QAction::triggered, this, &SettingsDialog::openProfileFolder);
     connect(addAction, &QAction::triggered, this, &SettingsDialog::addCustomSetting);
     connect(pasteKeyValueAction, &QAction::triggered,
@@ -667,9 +685,10 @@ void SettingsDialog::rebuild() {
         scroll->setFrameShape(QFrame::NoFrame);
         scroll->setWidget(content);
         tabLayout->addWidget(scroll, 1);
-        m_tabs->addTab(tab, translatedField(group, "nameId",
-                                            group.value("id").toString()));
         const QString groupId = group.value("id").toString();
+        // Before addTab: adding the first tab makes it current.
+        tab->setProperty("groupId", groupId);
+        m_tabs->addTab(tab, translatedField(group, "nameId", groupId));
         groupLayouts.insert(groupId, rows);
         groupObjects.insert(groupId, group);
     }
@@ -847,6 +866,16 @@ void SettingsDialog::rebuild() {
             //% "Copy Key and Value"
             qtTrId("settings.dialog.action.copy.key.value"));
         copyKeyValue->setObjectName(QStringLiteral("copy-setting-key-value:") + record.key);
+        // Settings this build registers can go back to its default.
+        const SettingsDefinition *registered = m_manager->registry().definition(record.key);
+        if (registered && registered->type != SettingType::Secret) {
+            QAction *resetSetting = settingMenu->addAction(
+                //% "Reset to Default"
+                qtTrId("settings.dialog.action.reset.setting"));
+            resetSetting->setObjectName(QStringLiteral("reset-setting:") + record.key);
+            connect(resetSetting, &QAction::triggered, this,
+                    [this, key = record.key] { resetToDefaults({key}, QString()); });
+        }
         connect(viewJson, &QAction::triggered, this,
                 [this, key = record.key] { editSettingMetadata(key); });
         connect(copyKeyValue, &QAction::triggered, this,
@@ -1249,6 +1278,100 @@ void SettingsDialog::saveProfileAs() {
             //% "Cannot save profile"
             qtTrId("settings.dialog.message.cannot.save.profile.2"), error);
     else rebuild();
+}
+
+void SettingsDialog::newProfile() {
+    if (!confirmDiscardChanges())
+        return;
+    bool accepted = false;
+    const QString name = QInputDialog::getText(
+                this,
+                    //% "New profile"
+                    qtTrId("settings.dialog.text.new.profile"),
+                    //% "Name of the new profile (every setting at its default):"
+                    qtTrId("settings.dialog.text.new.profile.name.defaults"),
+                QLineEdit::Normal, QString(), &accepted).trimmed();
+    if (!accepted)
+        return;
+    QString settingsFile;
+    QString error;
+    if (!SettingsProfile::newPortableProfile(name, &settingsFile, &error)) {
+        showError(
+            //% "Cannot create profile"
+            qtTrId("settings.dialog.message.cannot.create.profile"), error);
+        return;
+    }
+    // A missing settings file is made from the catalogue defaults and saved.
+    if (!m_manager->loadFile(settingsFile, &error)) {
+        showError(
+            //% "Profile was created but cannot be opened"
+            qtTrId("settings.dialog.message.profile.created.cannot.open"), error);
+        rebuild();
+        return;
+    }
+    rebuild();
+    m_statusLabel->setText(
+        //% "Created profile %1 with every setting at its default"
+        qtTrId("settings.dialog.text.status.profile.created").arg(name));
+}
+
+QString SettingsDialog::currentGroupId() const {
+    const QWidget *tab = m_tabs->currentWidget();
+    return tab ? tab->property("groupId").toString() : QString();
+}
+
+void SettingsDialog::resetGroupToDefaults() {
+    const QString group = currentGroupId();
+    if (group.isEmpty())
+        return;
+    resetToDefaults(m_manager->resettableKeys(group),
+        //% "Set %1 setting(s) of this tab back to their defaults? The profile changes when you save it."
+        qtTrId("settings.dialog.text.reset.group.question"));
+}
+
+void SettingsDialog::resetAllToDefaults() {
+    resetToDefaults(m_manager->resettableKeys(),
+        //% "Set %1 setting(s) of this profile back to their defaults? Secrets and custom settings stay. The profile changes when you save it."
+        qtTrId("settings.dialog.text.reset.all.question"));
+}
+
+void SettingsDialog::resetToDefaults(const QStringList &keys, const QString &question) {
+    QString error;
+    // Values typed into the editors count as the profile's.
+    if (!applyEditors(&error)) {
+        showError(
+            //% "Cannot reset settings"
+            qtTrId("settings.dialog.message.cannot.reset"), error);
+        return;
+    }
+    int differing = 0;
+    for (const QString &key : keys)
+        differing += m_manager->hasDefaultValue(key) ? 0 : 1;
+    if (differing == 0) {
+        m_statusLabel->setText(
+            //% "Already at the defaults"
+            qtTrId("settings.dialog.text.status.already.defaults"));
+        return;
+    }
+    if (!question.isEmpty()
+            && QMessageBox::question(this,
+                //% "Reset to defaults"
+                qtTrId("settings.dialog.message.reset.defaults"),
+                question.arg(differing)) != QMessageBox::Yes)
+        return;
+    const QStringList changed = m_manager->resetToDefaults(keys, &error);
+    const int tab = m_tabs->currentIndex();
+    rebuild();
+    if (tab >= 0 && tab < m_tabs->count())
+        m_tabs->setCurrentIndex(tab);
+    if (!error.isEmpty())
+        showError(
+            //% "Cannot reset settings"
+            qtTrId("settings.dialog.message.cannot.reset.2"), error);
+    m_statusLabel->setText(
+        //% "%1 setting(s) back to their defaults | unsaved changes"
+        qtTrId("settings.dialog.text.status.reset").arg(changed.size()));
+    m_statusLabel->setToolTip(changed.join("\n"));
 }
 
 void SettingsDialog::duplicateProfile() {

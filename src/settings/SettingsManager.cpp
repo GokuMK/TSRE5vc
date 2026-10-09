@@ -664,6 +664,42 @@ bool SettingsManager::setValue(const QString &key, const QVariant &value, QStrin
     return replaceSettingObject(key, object, error);
 }
 
+QStringList SettingsManager::resettableKeys(const QString &groupId) const {
+    QStringList keys;
+    for (const SettingsDefinition &definition : m_registry.definitions()) {
+        if (definition.type == SettingType::Secret || !m_index.contains(definition.key))
+            continue;
+        if (groupId.isEmpty() || definition.group == groupId)
+            keys.append(definition.key);
+    }
+    return keys;
+}
+
+bool SettingsManager::hasDefaultValue(const QString &key) const {
+    const SettingsDefinition *definition = m_registry.definition(key);
+    const QJsonObject object = settingObject(key);
+    if (!definition || object.isEmpty())
+        return true;
+    return object.value("value") == settingJsonFromVariant(definition->defaultValue, definition->type);
+}
+
+QStringList SettingsManager::resetToDefaults(const QStringList &keys, QString *error) {
+    QStringList changed;
+    for (const QString &key : keys) {
+        const SettingsDefinition *definition = m_registry.definition(key);
+        if (!definition || definition->type == SettingType::Secret || hasDefaultValue(key))
+            continue;
+        // A stored type that differs from the build's needs migrating, not
+        // resetting; the validator reports it.
+        if (settingObject(key).value("type").toString() != settingTypeName(definition->type))
+            continue;
+        if (!setValue(key, definition->defaultValue, error))
+            return changed;
+        changed.append(key);
+    }
+    return changed;
+}
+
 bool SettingsManager::replaceSettingObject(const QString &oldKey,
                                            const QJsonObject &object,
                                            QString *error) {

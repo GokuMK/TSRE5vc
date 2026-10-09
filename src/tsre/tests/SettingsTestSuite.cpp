@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QLocale>
 #include <QPushButton>
+#include <QMessageBox>
 #include <algorithm>
 #include <QTemporaryDir>
 #include <QTranslator>
@@ -750,6 +751,40 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && qFuzzyCompare(preserved.value(exposureKey).toDouble(), 0.5)
           && preserved.value(threadedKey) == threadedBefore,
           "catalogue-update-moves-values-left-at-their-recorded-default-to-the-new-default");
+    // Back to the defaults: one setting from its action menu, then all of
+    // them; settings the build does not register stay.
+    const QString fogKey = "core.rendering.fogDensity";
+    check(preserved.setValue(fogKey, 0.123, &error) && preserved.setValue(bloomKey, 1.0, &error)
+          && !preserved.hasDefaultValue(fogKey) && !preserved.hasDefaultValue(bloomKey)
+          && preserved.resettableKeys("rendering").contains(bloomKey)
+          && !preserved.resettableKeys().contains("fork.weather.enabled"),
+          "resettable-keys-are-the-registered-settings-of-a-group");
+    {
+        // The dialog edits its own copy of the profile file.
+        QTemporaryDir resetWorkspace;
+        SettingsManager resetSource;
+        SettingsRegistration::registerAll(resetSource.registry());
+        const QString resetFile = resetWorkspace.filePath("settings.json");
+        check(resetWorkspace.isValid() && resetSource.loadFile(resetFile, &error)
+              && resetSource.setValue(bloomKey, 1.0, &error) && resetSource.save(&error),
+              "reset-dialog-profile");
+        SettingsDialog resetDialog(&resetSource);
+        auto *edited = resetDialog.findChild<SettingsManager *>();
+        QAction *resetBloom = resetDialog.findChild<QAction *>("reset-setting:" + bloomKey);
+        const bool changedBefore = edited && !edited->hasDefaultValue(bloomKey);
+        if (resetBloom)
+            resetBloom->trigger();
+        check(changedBefore && resetBloom && edited->hasDefaultValue(bloomKey) && edited->isModified()
+              && resetDialog.findChild<QAction *>("reset-all-defaults")
+              && resetDialog.findChild<QAction *>("reset-group-defaults")
+              && resetDialog.findChild<QAction *>("new-profile"),
+              "setting-action-resets-one-setting-to-its-default");
+    }
+    const QStringList resetKeys = preserved.resetToDefaults(preserved.resettableKeys(), &error);
+    check(resetKeys.contains(fogKey) && resetKeys.contains(bloomKey) && preserved.hasDefaultValue(bloomKey)
+          && preserved.hasDefaultValue(fogKey) && preserved.hasDefaultValue(exposureKey)
+          && preserved.value("fork.weather.enabled").toBool(),
+          "reset-all-sets-registered-settings-to-defaults-and-keeps-custom-ones");
 
     QJsonObject invalidDocument = preserved.document();
     QJsonArray invalidSettings = invalidDocument.value("settings").toArray();
@@ -918,6 +953,18 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(!SettingsProfile::duplicatePortableProfile(
               duplicateSource.settingsFilePath(), "CLONE", nullptr, &error),
           "duplicate-rejects-case-insensitive-collision");
+    QString freshSettings;
+    check(SettingsProfile::newPortableProfile("fresh", &freshSettings, &error)
+          && !SettingsProfile::newPortableProfile("SOURCE", nullptr, &error)
+          && !SettingsProfile::newPortableProfile("bad name", nullptr, &error),
+          "new-profile-checks-its-name");
+    SettingsManager fresh;
+    SettingsRegistration::registerAll(fresh.registry());
+    check(fresh.loadFile(freshSettings, &error) && fresh.wasCreated()
+          && QFileInfo::exists(freshSettings) && fresh.profileName() == "fresh"
+          && fresh.hasDefaultValue("core.rendering.bloom")
+          && fresh.hasDefaultValue("core.rendering.backend"),
+          "new-profile-starts-with-every-default");
     check(QDir::setCurrent(previousWorkingDirectory), "restore-working-directory");
 
     check(SettingsRegistration::addProvider(

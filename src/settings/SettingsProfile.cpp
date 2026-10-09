@@ -93,6 +93,47 @@ bool SettingsProfile::isPortableProfileFile(const QString &settingsFile,
     return true;
 }
 
+// Whether a new portable profile may take this name: allowed characters,
+// and no profile, file or directory of that name, whatever its case.
+static bool newProfileNameFree(const QString &name, QString *error) {
+    static const QRegularExpression validName(QStringLiteral("^[\\p{L}\\p{N}._-]+$"));
+    if (name.isEmpty() || name == "." || name == ".." || !validName.match(name).hasMatch()) {
+        if (error) *error = "Profile name may contain only letters, numbers, '.', '_' and '-'.";
+        return false;
+    }
+    for (const QString &existing : SettingsProfile::portableProfileNames()) {
+        if (existing.compare(name, Qt::CaseInsensitive) == 0) {
+            if (error) *error = QString("Profile already exists: %1").arg(existing);
+            return false;
+        }
+    }
+    const QString rootPath = SettingsProfile::portableProfilesRoot();
+    for (const QFileInfo &entry : QDir(rootPath).entryInfoList(
+             QDir::NoDotAndDotDot | QDir::AllEntries | QDir::Hidden | QDir::System)) {
+        if (entry.fileName().compare(name, Qt::CaseInsensitive) == 0) {
+            if (error) *error = QString("A file or directory already uses profile name: %1")
+                    .arg(entry.fileName());
+            return false;
+        }
+    }
+    return true;
+}
+
+bool SettingsProfile::newPortableProfile(const QString &profileName, QString *settingsFile,
+                                         QString *error) {
+    const QString name = profileName.trimmed();
+    if (!newProfileNameFree(name, error))
+        return false;
+    const QString directory = QDir(portableProfilesRoot()).filePath(name);
+    if (!QDir().mkpath(directory)) {
+        if (error) *error = QString("Cannot create profile directory: %1").arg(directory);
+        return false;
+    }
+    if (settingsFile)
+        *settingsFile = QDir(directory).filePath("settings.json");
+    return true;
+}
+
 bool SettingsProfile::duplicatePortableProfile(const QString &sourceSettingsFile,
                                                const QString &newProfileName,
                                                QString *newSettingsFile,
@@ -103,30 +144,12 @@ bool SettingsProfile::duplicatePortableProfile(const QString &sourceSettingsFile
         return false;
     }
     const QString name = newProfileName.trimmed();
-    static const QRegularExpression validName(QStringLiteral("^[\\p{L}\\p{N}._-]+$"));
-    if (name.isEmpty() || name == "." || name == ".." || !validName.match(name).hasMatch()) {
-        if (error) *error = "Profile name may contain only letters, numbers, '.', '_' and '-'.";
+    if (!newProfileNameFree(name, error))
         return false;
-    }
-    for (const QString &existing : portableProfileNames()) {
-        if (existing.compare(name, Qt::CaseInsensitive) == 0) {
-            if (error) *error = QString("Profile already exists: %1").arg(existing);
-            return false;
-        }
-    }
-
     const QString rootPath = portableProfilesRoot();
     if (!QDir().mkpath(rootPath)) {
         if (error) *error = QString("Cannot create profiles root: %1").arg(rootPath);
         return false;
-    }
-    for (const QFileInfo &entry : QDir(rootPath).entryInfoList(
-             QDir::NoDotAndDotDot | QDir::AllEntries | QDir::Hidden | QDir::System)) {
-        if (entry.fileName().compare(name, Qt::CaseInsensitive) == 0) {
-            if (error) *error = QString("A file or directory already uses profile name: %1")
-                    .arg(entry.fileName());
-            return false;
-        }
     }
     QTemporaryDir staging(QDir(rootPath).filePath(".duplicate-XXXXXX"));
     if (!staging.isValid()) {
