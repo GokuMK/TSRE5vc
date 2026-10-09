@@ -996,21 +996,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.core.rendering.fog.density.name")).withDescriptionId(
                 //% "Fog density copied into each OpenGL scene helper when it is constructed."
                 QT_TRID_NOOP("settings.core.rendering.fog.density.description")).withRange(0, 1, 0.01).inGroup("rendering").inSubgroup("environment"),
-        "fogDensity", "Game::fogDensity", "GLUU", false, "renderer-construction");
+        "fogDensity", "Game::fogDensity", "GLUU", true, "hot-cache");
     ADD(SettingsDefinition::string("core.rendering.fogColor", "#E6F8FF", SettingType::Color)
             .withNameId(
                 //% "Fog colour"
                 QT_TRID_NOOP("settings.core.rendering.fog.color.name")).withDescriptionId(
                 //% "Colour used for distance fog and copied into the scene renderer."
                 QT_TRID_NOOP("settings.core.rendering.fog.color.description")).inGroup("rendering").inSubgroup("environment"),
-        "fogColor", "Game::fogColor", "GLUU", false, "renderer-construction");
+        "fogColor", "Game::fogColor", "GLUU", true, "hot-cache");
     ADD(SettingsDefinition::string("core.rendering.skyColor", "#E6F8FF", SettingType::Color)
             .withNameId(
                 //% "Sky colour"
                 QT_TRID_NOOP("settings.core.rendering.sky.color.name")).withDescriptionId(
                 //% "Base clear colour copied into the scene renderer."
                 QT_TRID_NOOP("settings.core.rendering.sky.color.description")).inGroup("rendering").inSubgroup("environment"),
-        "skyColor", "Game::skyColor", "GLUU", false, "renderer-construction");
+        "skyColor", "Game::skyColor", "GLUU", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.enabled", false)
             .withNameId(
                 //% "Time of day"
@@ -1032,6 +1032,27 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Date for the sun's path, as yyyy-MM-dd."
                 QT_TRID_NOOP("settings.core.rendering.time.of.day.date.description")).inGroup("rendering").inSubgroup("environment"),
         "timeOfDayDate", "Game::timeOfDayDate", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.sky.sun", true)
+            .withNameId(
+                //% "Sun on the sky"
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.name")).withDescriptionId(
+                //% "Draw the sun as a disc on the sky, where time of day puts it (or where the editor's fixed light comes from when time of day is off)."
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.description")).inGroup("rendering").inSubgroup("environment"),
+        "", "", "SkySatellites", false, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.sky.moon", true)
+            .withNameId(
+                //% "Moon on the sky"
+                QT_TRID_NOOP("settings.core.rendering.sky.moon.name")).withDescriptionId(
+                //% "Draw the moon on the sky, at its place and phase for the time and date of time of day. Only with time of day on."
+                QT_TRID_NOOP("settings.core.rendering.sky.moon.description")).inGroup("rendering").inSubgroup("environment"),
+        "", "", "SkySatellites", false, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.sky.sunSize", 0.8)
+            .withNameId(
+                //% "Sun and moon size"
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.size.name")).withDescriptionId(
+                //% "Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger."
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.size.description")).withRange(0.2, 10, 0.1).withUnit("°").inGroup("rendering").inSubgroup("environment"),
+        "", "", "SkySatellites", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
                 //% "Render TrackDB items"

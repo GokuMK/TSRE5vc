@@ -125,9 +125,10 @@ public:
         float thickness = 0.0f;
         float attenuationDistance = 0.0f;
         float attenuationColor[3] = {1.0f, 1.0f, 1.0f};
-        // A signal light (task 26): its glow follows the signal lights'
-        // daylight scale instead of the lamps'.
-        bool signalGlow = false;
+        // The daylight scale the glow follows: the lamps' (task 21), the
+        // signal lights' (task 26), or none, for the sun (task editor 05).
+        enum Glow : unsigned char {GLOW_LAMP = 0, GLOW_SIGNAL, GLOW_FULL};
+        unsigned char glow = GLOW_LAMP;
         int textures[MAP_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
         // Texture coordinate set (0 or 1) of each map.
         unsigned char texCoords[MAP_COUNT] = {};

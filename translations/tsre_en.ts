@@ -2685,6 +2685,141 @@ Consist with this file name already exist. Overwrite?
         <source>&amp;Navi Window</source>
         <translation>&amp;Navi Window</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.environment.action">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="484" />
+        <source>&amp;Environment Window</source>
+        <translation>&amp;Environment Window</translation>
+    </message>
+    <message id="route.editor.environment.window.title">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="74" />
+        <source>Environment</source>
+        <translation>Environment</translation>
+    </message>
+    <message id="route.editor.environment.window.group.time">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="110" />
+        <source>Time</source>
+        <translation>Time</translation>
+    </message>
+    <message id="route.editor.environment.window.time.of.day">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="114" />
+        <source>Time of day</source>
+        <translation>Time of day</translation>
+    </message>
+    <message id="route.editor.environment.window.time">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="127" />
+        <source>Solar time</source>
+        <translation>Solar time</translation>
+    </message>
+    <message id="route.editor.environment.window.today">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="141" />
+        <source>Today</source>
+        <translation>Today</translation>
+    </message>
+    <message id="route.editor.environment.window.date">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="144" />
+        <source>Date</source>
+        <translation>Date</translation>
+    </message>
+    <message id="route.editor.environment.window.group.sky">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="159" />
+        <source>Sky and fog</source>
+        <translation>Sky and fog</translation>
+    </message>
+    <message id="route.editor.environment.window.sky.colour">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="163" />
+        <source>Sky colour</source>
+        <translation>Sky colour</translation>
+    </message>
+    <message id="route.editor.environment.window.fog.colour">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="170" />
+        <source>Fog colour</source>
+        <translation>Fog colour</translation>
+    </message>
+    <message id="route.editor.environment.window.fog.density">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="182" />
+        <source>Fog density</source>
+        <translation>Fog density</translation>
+    </message>
+    <message id="route.editor.environment.window.group.lights">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="194" />
+        <source>Lights</source>
+        <translation>Lights</translation>
+    </message>
+    <message id="route.editor.environment.window.local.lights">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="198" />
+        <source>Local lights</source>
+        <translation>Local lights</translation>
+    </message>
+    <message id="route.editor.environment.window.bloom">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="207" />
+        <source>Bloom</source>
+        <translation>Bloom</translation>
+    </message>
+    <message id="route.editor.environment.window.exposure">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="217" />
+        <source>Exposure</source>
+        <translation>Exposure</translation>
+    </message>
+    <message id="route.editor.environment.window.group.sun.moon">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="226" />
+        <source>Sun and moon</source>
+        <translation>Sun and moon</translation>
+    </message>
+    <message id="route.editor.environment.window.sun">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="230" />
+        <source>Sun</source>
+        <translation>Sun</translation>
+    </message>
+    <message id="route.editor.environment.window.moon">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="237" />
+        <source>Moon</source>
+        <translation>Moon</translation>
+    </message>
+    <message id="route.editor.environment.window.sun.size">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247" />
+        <source>Size</source>
+        <translation>Size</translation>
+    </message>
+    <message id="route.editor.environment.window.reset.all">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="254" />
+        <source>Reset all</source>
+        <translation>Reset all</translation>
+    </message>
+    <message id="route.editor.environment.window.reset.all.tooltip">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="257" />
+        <source>Go back to the profile&apos;s values.</source>
+        <translation>Go back to the profile&apos;s values.</translation>
+    </message>
+    <message id="route.editor.environment.window.save">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="261" />
+        <source>Save to profile</source>
+        <translation>Save to profile</translation>
+    </message>
+    <message id="route.editor.environment.window.save.tooltip">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="264" />
+        <source>Keep the current values in the profile&apos;s settings.</source>
+        <translation>Keep the current values in the profile&apos;s settings.</translation>
+    </message>
+    <message id="route.editor.environment.window.reset.one">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="292" />
+        <source>Back to the profile&apos;s value</source>
+        <translation>Back to the profile&apos;s value</translation>
+    </message>
+    <message id="route.editor.environment.window.readout.fixed.sun">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="377" />
+        <source>Sun %1° above the horizon (fixed light)</source>
+        <translation>Sun %1° above the horizon (fixed light)</translation>
+    </message>
+    <message id="route.editor.environment.window.readout.sun">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="381" />
+        <source>Sun %1° above the horizon, bearing %2°</source>
+        <translation>Sun %1° above the horizon, bearing %2°</translation>
+    </message>
+    <message id="route.editor.environment.window.readout.moon">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="387" />
+        <source>Moon %1° above the horizon, %2% lit</source>
+        <translation>Moon %1° above the horizon, %2% lit</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.shape.view.action">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="361" />
         <source>&amp;Shape View Window</source>
@@ -8797,6 +8932,36 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="933" />
         <source>Date for the sun&apos;s path, as yyyy-MM-dd.</source>
         <translation>Date for the sun&apos;s path, as yyyy-MM-dd.</translation>
+    </message>
+    <message id="settings.core.rendering.sky.sun.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1038" />
+        <source>Sun on the sky</source>
+        <translation>Sun on the sky</translation>
+    </message>
+    <message id="settings.core.rendering.sky.sun.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1040" />
+        <source>Draw the sun as a disc on the sky, where time of day puts it (or where the editor&apos;s fixed light comes from when time of day is off).</source>
+        <translation>Draw the sun as a disc on the sky, where time of day puts it (or where the editor&apos;s fixed light comes from when time of day is off).</translation>
+    </message>
+    <message id="settings.core.rendering.sky.moon.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1045" />
+        <source>Moon on the sky</source>
+        <translation>Moon on the sky</translation>
+    </message>
+    <message id="settings.core.rendering.sky.moon.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1047" />
+        <source>Draw the moon on the sky, at its place and phase for the time and date of time of day. Only with time of day on.</source>
+        <translation>Draw the moon on the sky, at its place and phase for the time and date of time of day. Only with time of day on.</translation>
+    </message>
+    <message id="settings.core.rendering.sky.sun.size.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1052" />
+        <source>Sun and moon size</source>
+        <translation>Sun and moon size</translation>
+    </message>
+    <message id="settings.core.rendering.sky.sun.size.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1054" />
+        <source>Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger.</source>
+        <translation>Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger.</translation>
     </message>
     <message id="settings.core.rendering.render.track.items.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="746" />

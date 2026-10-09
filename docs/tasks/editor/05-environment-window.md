@@ -131,9 +131,12 @@ At night the moon lights the scene a little, by where it is and how full:
   adaptation makes it look).
 - The light's direction (`Game::sunLightDirection`, the direction shaders
   light with) then points from the moon; the sun disc keeps its own sun
-  direction. Shadow maps follow the moon too, with the same lowest
-  elevation as for the sun; they could be left off at night if they cost
-  too much for so faint a light.
+  direction.
+- **No moon shadows for now** (user, 2026-10-09): nice, but too expensive
+  for so faint a light. The code must not rule them out: the light's
+  direction and the shadow direction stay separate inputs, and shadows are
+  simply not drawn under moonlight. A later option: only one shadow map for
+  the moon, for example the middle one.
 - At twilight the sun's light fades out before the moon's fades in, so
   there is no jump in direction while both are visible.
 
@@ -178,3 +181,44 @@ At night the moon lights the scene a little, by where it is and how full:
   sun and moon in view (the sun's size approved by the user), and a full
   and a new moon night for moonlight; the settings window's values unchanged after using
   the environment window.
+
+## Implementation status (2026-10-09)
+
+Steps 1 to 3 (user: "go with 1, 2 and 3"):
+
+- **Window**: `EnvironmentWindow` (Tools > Environment Window), floating,
+  hidden at start. Rows for time of day, solar time (slider and field),
+  date ("Today"), sky colour, fog colour, fog density, local lights, bloom,
+  exposure, sun, moon, sun and moon size, and a read-out of the sun's and
+  moon's elevation, the sun's bearing and the moon's lit share (from
+  `RouteEditorGLWidget::environmentInfo`). Each control sets a session
+  value; changed rows are bold and have a reset button; Reset all; Save to
+  profile writes the values (`setValue`, `save`, `applyProfileToRuntime`)
+  and clears the session values.
+- **Live sky and fog**: `skyColor`, `fogColor`, `fogDensity` are `hot-cache`
+  now; the editor takes them on the next frame (into `GLUU` and as the day
+  colours of time of day).
+- **Sun and moon**: `SkySatellites`, discs 1500 m out in the sky layer (in
+  front of 2000 m MSTS skydomes, no fog there), drawn from the camera's
+  position. Sun: where time of day puts it, or where the fixed light comes
+  from; warm near the horizon; hidden once below it. Moon (time of day
+  only): `MoonPosition` (Meeus' main terms, mean parallax), its lit part a
+  mesh between the limb and the terminator ellipse, turned towards the sun;
+  a dark side slightly lighter than the night sky at night. QRhi: emissive
+  (sun 12, moon 1 by day to 3 at night times the colour), the sun's glow at
+  full strength (`RenderItem::Pbr::GLOW_FULL`, replacing the signal light
+  flag by a glow choice), the moon's following the lamps' scale. OpenGL:
+  plain discs.
+- **Settings**: `core.rendering.sky.sun` (on), `.moon` (on), `.sunSize`
+  (0.8 degrees, both discs; to be fixed from captures the user approves).
+- **Shared**: `DiscMesh` (the signal lights' disc, now shared with the sky).
+- **Tests**: `environment-window` (session values, Reset, Save to profile
+  on a temporary copy of the profile, live fog density); `time-of-day` with
+  the moon against 2026 events (lunar eclipse of 3 March, solar eclipse of
+  12 August, full, new and quarter moons, the full moon in the south at
+  midnight); `settings` catalogue count 110.
+- **Translations**: entries added by hand (en, pl). The `lupdate` target
+  rewrites both files in its own layout and drops the entries of branches
+  not merged yet (ace-converter), so it was not used.
+- **Not yet checked**: captures of the sun and moon on both renderers; the
+  sun's size and brightness need the user's approval.

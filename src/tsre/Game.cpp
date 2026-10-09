@@ -382,6 +382,10 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.timeOfDay.enabled", timeOfDayEnabled);
     floating("core.rendering.timeOfDay.time", timeOfDayHours);
     string("core.rendering.timeOfDay.date", timeOfDayDate, SettingType::String);
+    // Read by SkySatellites each frame (task editor 05).
+    claim("core.rendering.sky.sun", SettingType::Bool);
+    claim("core.rendering.sky.moon", SettingType::Bool);
+    claim("core.rendering.sky.sunSize", SettingType::Float);
     floating("core.rendering.localLights.exposure", localLightsExposure);
     floating("core.rendering.localLights.emissiveGain", localLightsEmissiveGain);
     integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);

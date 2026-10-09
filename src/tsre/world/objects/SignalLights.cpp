@@ -11,7 +11,7 @@
 #include <tsre/world/objects/SignalLights.h>
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
-#include <tsre/renderer/Mesh.h>
+#include <tsre/renderer/DiscMesh.h>
 #include <tsre/renderer/RenderContext.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
@@ -26,47 +26,11 @@
 
 namespace {
 
-constexpr int DiscSegments = 24;
-constexpr int DiscVertices = DiscSegments * 3;
 // Emitted radiance of a light's colour at full strength, linear: enough for
 // the bloom to show it as a lit lamp.
 constexpr float SignalEmission = 4.0f;
 // Lights sit this far in front of the head (metres), as in Open Rails.
 constexpr float FrontOffset = 0.015f;
-
-// A disc of radius 1 in the xy plane, facing -z, as triangles; PBR layout
-// (position, normal, texture coordinates, alpha, tangent, second texture
-// coordinates, colour) or positions only.
-MeshHandle disc(RenderItem::VertexAttr layout) {
-    std::vector<float> v;
-    v.reserve(size_t(DiscVertices) * layout);
-    auto vertex = [&](float x, float y) {
-        v.insert(v.end(), {x, y, 0.0f});
-        if (layout != RenderItem::PBR)
-            return;
-        v.insert(v.end(), {0.0f, 0.0f, -1.0f, 0.5f + 0.5f * x, 0.5f - 0.5f * y, 1.0f,
-                           1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f});
-    };
-    for (int i = 0; i < DiscSegments; ++i) {
-        const float a = float(2.0 * M_PI * i / DiscSegments);
-        const float b = float(2.0 * M_PI * (i + 1) / DiscSegments);
-        vertex(0.0f, 0.0f);
-        vertex(std::cos(a), std::sin(a));
-        vertex(std::cos(b), std::sin(b));
-    }
-    MeshData data;
-    data.layout = layout;
-    data.vertices = std::move(v);
-    return Meshes::create(std::move(data));
-}
-
-MeshHandle sharedDisc(bool pbr) {
-    static MeshHandle meshes[2];
-    MeshHandle &mesh = meshes[pbr ? 1 : 0];
-    if (!mesh.valid() && RenderContext::ready())
-        mesh = disc(pbr ? RenderItem::PBR : RenderItem::V);
-    return mesh;
-}
 
 float toLinear(float c) {
     return std::pow(std::clamp(c, 0.0f, 1.0f), 2.2f);
@@ -139,14 +103,14 @@ void SignalLights::build(ComplexShape *shape, const SignalShape *signalShape, un
 
 void SignalLights::makePackets() {
     retirePackets();
-    const MeshHandle mesh = sharedDisc(emissive);
+    const MeshHandle mesh = DiscMesh::shared(emissive ? RenderItem::PBR : RenderItem::V);
     if (!mesh.valid())
         return;
     for (Light &light : lights) {
         auto *r = new RenderItem();
         r->mesh.handle = mesh;
         r->mesh.first = 0;
-        r->mesh.count = DiscVertices;
+        r->mesh.count = DiscMesh::Vertices;
         r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
         r->material.surface = RenderItem::SURFACE_OPAQUE;
         r->material.brightness = 1.0f;
@@ -165,7 +129,7 @@ void SignalLights::makePackets() {
             p.metallic = 0.0f;
             p.roughness = 1.0f;
             p.specular = 0.0f;
-            p.signalGlow = true;
+            p.glow = RenderItem::Pbr::GLOW_SIGNAL;
             float peak = 0.0f;
             for (int c = 0; c < 3; ++c) {
                 p.emissive[c] = toLinear(light.color[c]) * SignalEmission;

@@ -437,9 +437,14 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         program->setFloat("pbrGlowRadius", emitters > 0 ? glowRadius / emitters : 0.0f);
         // Glow follows the lamps' light (task 21): it fades by day and goes
         // with local lights turned off; the lenses' colour stays. Signal
-        // lights keep more of it by day (task 26).
-        const float daylight = p.signalGlow ? gluu->signalLightAdaptation : gluu->localLightAdaptation;
-        program->setFloat("pbrGlowScale", Game::localLightsEnabled ? daylight : 0.0f);
+        // lights keep more of it by day (task 26); the sun all of it.
+        float glowScale = 1.0f;
+        if (p.glow != RenderItem::Pbr::GLOW_FULL) {
+            const float daylight = p.glow == RenderItem::Pbr::GLOW_SIGNAL ? gluu->signalLightAdaptation
+                                                                          : gluu->localLightAdaptation;
+            glowScale = Game::localLightsEnabled ? daylight : 0.0f;
+        }
+        program->setFloat("pbrGlowScale", glowScale);
         program->setFloat("pbrNormalScale", p.normalScale);
         program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
         program->setFloat("pbrAlphaCutoff", p.alphaCutoff);

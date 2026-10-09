@@ -14,6 +14,7 @@
 #include <QVector3D>
 #include <QWidget>
 #include <tsre/renderer/RenderSurface.h>
+#include <tsre/world/SkySatellites.h>
 #include <vector>
 #include <QOpenGLFunctions>
 //#include <QOpenGLFunctions_3_2_Core>
@@ -185,6 +186,9 @@ signals:
     void routeLoaded(Route * a);
     void itemSelected(Ref::RefItem* pointer);
     void naviInfo(int all, int hidden);
+    // Sun and moon at the camera (true bearing); NaN where unknown (no
+    // moon, or no sun bearing, without time of day).
+    void environmentInfo(float sunElevation, float sunAzimuth, float moonElevation, float moonFraction);
     void posInfo(PreciseTileCoordinate* pos);
     void pointerInfo(float* pos);
     void setToolbox(QString name);
@@ -236,6 +240,13 @@ protected:
     // Direction towards the shadow-casting sun, and whether it casts shadows.
     float shadowSunDirection[3] = {-1.0f, 1.5f, 1.0f};
     bool sunCastsShadows = true;
+    // The sun and the moon on the sky (task editor 05).
+    SkySatellites skySatellites;
+    SkySatellites::State skyState;
+    // Sky or fog settings changed; applyTimeOfDay takes them.
+    bool environmentChanged = false;
+    float reportedEnvironment[4] = {-1000.0f, -1000.0f, -1000.0f, -1000.0f};
+    void reportEnvironment(float sunElevation, float sunAzimuth, float moonElevation, float moonFraction);
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
     void surfaceResize(int width, int height) override;

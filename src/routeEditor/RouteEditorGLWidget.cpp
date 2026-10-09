@@ -69,6 +69,8 @@
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/SunPosition.h>
+#include <tsre/geo/MoonPosition.h>
+#include <settings/SettingsManager.h>
 #include <tsre/world/Daylight.h>
 #include <QDebug>
 #include <algorithm>
@@ -115,6 +117,15 @@ m_zRot(0),
 tools(std::make_unique<ToolRegistry>()) {
     surface = RenderSurface::create(this, this);
     this->installEventFilter(this);
+    // Sky and fog settings change while the editor runs (environment window,
+    // task editor 05); the next frame takes them.
+    connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
+            [this](const QStringList &keys) {
+        for (const QString &key : keys)
+            if (key == "core.rendering.skyColor" || key == "core.rendering.fogColor"
+                    || key == "core.rendering.fogDensity")
+                environmentChanged = true;
+    });
 }
 
 void RouteEditorGLWidget::update(){
@@ -725,6 +736,9 @@ void RouteEditorGLWidget::paintScene(){
     renderer->setLayer(RenderQueue::LAYER_SKY);
     route->skydome->pushRenderItems(queue);
     Mat4::identity(renderer->transform());
+    Mat4::translate(renderer->transform(), renderer->transform(), camera->getPos());
+    skySatellites.push(queue, skyState);
+    Mat4::identity(renderer->transform());
     // Distant terrain patches are culled against the distant projection.
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, aspect, 600.0f, Game::distantLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
@@ -970,7 +984,29 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         std::copy(gluu->ambientColor, gluu->ambientColor + 4, state.ambient);
         state.saved = true;
     }
+    // Changed sky and fog settings are the day colours of time of day, and
+    // the colours without it.
+    if (environmentChanged) {
+        environmentChanged = false;
+        std::copy(Game::skyColor, Game::skyColor + 4, state.sky);
+        std::copy(Game::fogColor, Game::fogColor + 4, state.fog);
+        gluu->fogDensity = Game::fogDensity;
+        if (!Game::timeOfDayEnabled) {
+            std::copy(state.sky, state.sky + 4, gluu->skyColor);
+            std::copy(state.fog, state.fog + 4, gluu->fogColor);
+        }
+    }
     if (!Game::timeOfDayEnabled) {
+        // The sun where the fixed light comes from; no moon without a time.
+        float sun[3] = {state.sunDirection[0], state.sunDirection[1], state.sunDirection[2]};
+        const float length = std::sqrt(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
+        for (float &c : sun)
+            c = length > 0.0f ? c / length : 0.0f;
+        std::copy(sun, sun + 3, skyState.sunDirection);
+        skyState.sunElevation = float(std::asin(std::clamp(sun[1], -1.0f, 1.0f)) * 180.0 / M_PI);
+        skyState.moon = false;
+        std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
+        reportEnvironment(skyState.sunElevation, std::nanf(""), std::nanf(""), std::nanf(""));
         if (state.applied) {
             std::copy(state.sunDirection, state.sunDirection + 3, Game::sunLightDirection);
             std::copy(state.sky, state.sky + 4, gluu->skyColor);
@@ -1023,8 +1059,13 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         date = QDate(2026, 6, 21);
     SunPosition::Result sun = SunPosition::atSolarTime(state.latitude, state.longitude, date,
                                                        Game::timeOfDayHours);
+    MoonPosition::Result moon = MoonPosition::atSolarTime(state.latitude, state.longitude, date,
+                                                          Game::timeOfDayHours);
+    reportEnvironment(float(sun.elevation), float(sun.azimuth), float(moon.elevation),
+                      float(moon.illuminatedFraction));
     // From true bearings to the world's grid.
     sun.azimuth -= state.gridNorth;
+    moon.azimuth -= state.gridNorth;
     SunPosition::direction(sun, Game::sunLightDirection);
     // Shadows of a sun near the horizon would stretch across the maps.
     SunPosition::Result shadowSun = sun;
@@ -1038,6 +1079,31 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     gluu->localLightAdaptation = light.localLights;
     gluu->signalLightAdaptation = light.signalLights;
     sunCastsShadows = light.sunUp;
+    // The sun and the moon on the sky.
+    std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, skyState.sunDirection);
+    skyState.sunElevation = float(sun.elevation);
+    skyState.moon = true;
+    MoonPosition::direction(moon, skyState.moonDirection);
+    skyState.moonElevation = float(moon.elevation);
+    skyState.moonFraction = float(moon.illuminatedFraction);
+    std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
+}
+
+// Tells the environment window where the sun and moon stand (true bearing;
+// NaN where there is nothing to tell), when it changes noticeably.
+void RouteEditorGLWidget::reportEnvironment(float sunElevation, float sunAzimuth, float moonElevation,
+                                            float moonFraction) {
+    const float values[4] = {sunElevation, sunAzimuth, moonElevation, moonFraction};
+    bool changed = false;
+    for (int i = 0; i < 4; ++i) {
+        const bool wasNan = std::isnan(reportedEnvironment[i]), isNan = std::isnan(values[i]);
+        if (wasNan != isNan || (!isNan && std::fabs(values[i] - reportedEnvironment[i]) > (i == 3 ? 0.002f : 0.05f)))
+            changed = true;
+    }
+    if (!changed)
+        return;
+    std::copy(values, values + 4, reportedEnvironment);
+    emit environmentInfo(sunElevation, sunAzimuth, moonElevation, moonFraction);
 }
 
 // Light-space matrices of the near, mid and far shadow maps, centred on the

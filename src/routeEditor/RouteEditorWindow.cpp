@@ -50,6 +50,7 @@
 #include <routeEditor/properties/PropertiesActivityPath.h>
 #include <routeEditor/properties/PropertiesConsist.h>
 #include <routeEditor/NaviWindow.h>
+#include <routeEditor/EnvironmentWindow.h>
 #include <routeEditor/ErrorMessagesWindow.h>
 #include <routeEditor/ClientUsersWindow.h>
 #include <tsre/ErrorMessagesLib.h>
@@ -121,6 +122,7 @@ RouteEditorWindow::RouteEditorWindow() {
     shapeViewWindow = new ShapeViewWindow(this);
     aboutWindow = new AboutWindow(this);
     naviWindow = new NaviWindow(this);
+    environmentWindow = new EnvironmentWindow(this);
     errorMessagesWindow = ErrorMessagesLib::GetWindow(this);
     clientUsersWindow = new ClientUsersWindow(this);
     activityEventWindow = new ActivityEventWindow(this);
@@ -477,6 +479,11 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.navi.action"), this);
     toolsMenu->addAction(naviAction);
     QObject::connect(naviAction, SIGNAL(triggered(bool)), this, SLOT(hideShowNaviWidget(bool)));
+    environmentAction = GuiFunct::newMenuCheckAction(
+        //% "&Environment Window"
+        qtTrId("route.editor.route.editor.window.action.environment.action"), this, false);
+    toolsMenu->addAction(environmentAction);
+    QObject::connect(environmentAction, SIGNAL(triggered(bool)), this, SLOT(hideShowEnvironmentWidget(bool)));
     shapeViewAction = GuiFunct::newMenuCheckAction(
         //% "&Shape View Window"
         qtTrId("route.editor.route.editor.window.action.shape.view.action"), this, false);
@@ -656,6 +663,8 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(glWidget, SIGNAL(naviInfo(int, int)),
                       naviWindow, SLOT(naviInfo(int, int)));
+    QObject::connect(glWidget, &RouteEditorGLWidget::environmentInfo,
+                      environmentWindow, &EnvironmentWindow::environmentInfo);
     
     QObject::connect(glWidget, SIGNAL(posInfo(PreciseTileCoordinate*)),
                       naviWindow, SLOT(posInfo(PreciseTileCoordinate*)));
@@ -758,6 +767,8 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(naviWindow, SIGNAL(windowClosed()),
                       this, SLOT(naviWindowClosed())); 
+    QObject::connect(environmentWindow, SIGNAL(windowClosed()),
+                      this, SLOT(environmentWindowClosed()));
     
     QObject::connect(errorMessagesWindow, SIGNAL(windowClosed()),
                       this, SLOT(errorMessagesWindowClosed())); 
@@ -1298,6 +1309,11 @@ void RouteEditorWindow::hideShowNaviWidget(bool show){
     else naviWindow->hide();
 }
 
+void RouteEditorWindow::hideShowEnvironmentWidget(bool show){
+    if(show) environmentWindow->show();
+    else environmentWindow->hide();
+}
+
 void RouteEditorWindow::hideShowToolWidget(bool show){
     if(show) box->show();
     else box->hide();
@@ -1383,6 +1399,12 @@ void RouteEditorWindow::naviWindowClosed(){
     naviAction->blockSignals(true);
     naviAction->setChecked(false);
     naviAction->blockSignals(false);
+}
+
+void RouteEditorWindow::environmentWindowClosed(){
+    environmentAction->blockSignals(true);
+    environmentAction->setChecked(false);
+    environmentAction->blockSignals(false);
 }
 
 void RouteEditorWindow::errorMessagesWindowClosed(){
