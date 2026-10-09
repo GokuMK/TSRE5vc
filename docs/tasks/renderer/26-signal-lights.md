@@ -141,11 +141,9 @@ index.
   signal scale (50% by day). Midday: lit with a small glow; night: glowing
   through the bloom. OpenGL and local lights off: plain discs.
 - Heads without a TDB link (signal unit) show no lights, as in Open Rails.
-- **Open**: the shapes' own hoods and lenses stand in front of the discs and
-  cover part of them (CMK: radius 0.21 m at z 0, a dark crescent over the
-  light). Open Rails has the same overlap; its glow quad, further out and
-  growing with distance, hides it. Light textures (future work) or a
-  larger offset are the options.
+- The sigcfg.dat radii are often larger than the lamp openings of the
+  shapes, whose hoods and lenses then cover part of the discs (see future
+  work).
 
 ## Future work
 
@@ -155,6 +153,13 @@ index.
   `SemaphoreInfo`, `SEMAPHORE_CHANGE` lights dark while the arm moves).
 - Previewing any aspect from the signal's properties.
 - Light textures (`LightTex`, `ORTSSignalLightTex`) instead of plain discs.
+- Lights larger than the shape's lamp opening: sigcfg.dat radii are often
+  bigger than the place the shape prepares for the lamp (CMK: radius 0.21 m
+  at z 0), so the shape's hood and lens cover part of the disc, a dark
+  crescent over the light. Open Rails has the same overlap and hides it
+  with its glow quad, further out and growing with distance. Possible
+  improvements: light textures (their soft edge falls inside the opening),
+  or a larger offset in front of the head.
 - `ORTSDayLight false` (lights off by day) and the Open Rails day and night
   glow values.
 - Signal scripts and aspects from the route's state.
