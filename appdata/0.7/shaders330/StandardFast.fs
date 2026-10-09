@@ -65,6 +65,8 @@ void main() {
     fragColor.rgb *= (diffuseColor.rgb * clamp(visibility, 0.0, 1.0)
             + ambientColor.rgb)
             * colorBrightness;
-    fragColor = mix(fragColor, skyColor, fogFactor);
+    // Fog tints the colour only; mixing alpha towards the sky's 1 made
+    // translucent surfaces turn opaque with distance.
+    fragColor.rgb = mix(fragColor.rgb, skyColor.rgb, fogFactor);
 #endif
 }

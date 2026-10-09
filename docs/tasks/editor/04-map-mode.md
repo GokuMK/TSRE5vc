@@ -652,6 +652,11 @@ Map > Faded Overlay, formerly Faded Terrain):
   accumulates as coverage (`glBlendFuncSeparate(..., GL_ONE,
   GL_ONE_MINUS_SRC_ALPHA)`), so the frame stays opaque; QRhi composes into
   an opaque target already.
+- **Fog and translucency** (user report, 2026-10-09): the standard shaders
+  fogged with `mix(fragColor, skyColor, fogFactor)`, alpha included, so
+  translucent surfaces (the overlay, MSTS blended parts) grew opaque with
+  distance; fog now tints the colour only (`StandardFog`, `StandardFast`,
+  `StandardFogStoredCoords`; the PBR and water shaders already did).
 - Checked (2026-10-09, Steam Deck, TEST_PROFILES with the Poland file):
   opacity 0, 0.5 and 1 in 3D and on the map, QRhi and OpenGL; at 50 % each
   pixel is the mean of 0 and 100 % on both renderers, which agree within
