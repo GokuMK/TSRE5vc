@@ -41,7 +41,6 @@ class Route;
 class Brush;
 class PreciseTileCoordinate;
 class Coords;
-class MapWindow;
 class ImageryWindow;
 class ShapeLib;
 class EngLib;
@@ -98,6 +97,9 @@ public:
                            float rotX, float rotY);
     void diagnosticView(int &tileX, int &tileZ, float *pos,
                         float &rotX, float &rotY) const;
+    // Captures: runs a terrainOverlayTool action ("osm", "show", ...) at the
+    // view's centre, as a click with that action would.
+    bool runDiagnosticOverlayAction(const QString &action);
     // Captures: a Measure Distance line, or none (null ends).
     void setDiagnosticMapMeasurement(const MapGroundPoint *from, const MapGroundPoint *to);
     // Map mode centred on a ground point, at a scale, with a compass
@@ -309,7 +311,7 @@ private:
     void sendFlexData() override;
     void reportTextureId(int textureId) override { emit setBrushTextureId(textureId); }
     void reportMaterialPicked() override { emit terrainMaterialPicked(); }
-    void openMapTileWindow(Terrain *terrain) override;
+    void terrainChanged() override;
     void openImageryWindow(Terrain *terrain) override;
     // The active tool's object; null for no tool or a name without one.
     EditorTool *activeTool() const;
@@ -537,7 +539,6 @@ private:
     int shadowMapSize = 2048;
     int distantShadowMapSize = 1024;
     Brush* defaultPaintBrush;
-    MapWindow* mapWindow;
     ImageryWindow* imageryWindow;
     ShapeLib *currentShapeLib = NULL;
     EngLib *engLib = NULL;

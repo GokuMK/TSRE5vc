@@ -50,6 +50,8 @@ public:
 signals:
     void loaded();
     void statusInfo(QString val);
+    // The web data could not be had (no answer, an error, too little data).
+    void failed(QString message);
 
 public slots:
     void isData(QNetworkReply* r);
@@ -78,6 +80,7 @@ private:
     QNetworkAccessManager *network = nullptr;
     int loadCount = 0;
     int totalLoadCount = 0;
+    bool requestFailed = false;  // one of the web requests failed: the others are ignored
     std::unordered_map<int64_t, std::pair<double, double>> apiNodes;
     std::unordered_map<int64_t, ApiWay> apiWays;
 };

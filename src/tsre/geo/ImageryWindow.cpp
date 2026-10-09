@@ -2,7 +2,8 @@
 #include <tsre/geo/ImageryWindow.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/ImagerySource.h>
-#include <tsre/geo/MapWindow.h>
+#include <tsre/geo/TerrainOverlays.h>
+#include <QPointer>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 
@@ -354,15 +355,7 @@ void ImageryWindow::loadPreview() {
 
 void ImageryWindow::apply() {
     if(preparedImage.isNull()||loading)return;
-    QImage image;
-    if(MapWindow::isAlpha>0){
-        image=preparedImage.convertToFormat(QImage::Format_RGBA8888);
-        const uchar alpha=uchar(255-MapWindow::isAlpha);
-        for(int y=0;y<image.height();++y){
-            uchar *line=image.scanLine(y);
-            for(int x=0;x<image.width();++x)line[x*4+3]=alpha;
-        }
-    }else image=preparedImage.convertToFormat(QImage::Format_RGB888);
-    MapWindow::setTileImage(tileX,tileZ,image);
+    // Opaque: the overlay's opacity is applied when drawing.
+    TerrainOverlays::set(tileX,tileZ,preparedImage);
     QDialog::accept();
 }

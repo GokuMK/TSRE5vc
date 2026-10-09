@@ -37,6 +37,8 @@ public slots:
     
 signals:
     void enableTool(QString name);
+    // F3 Opacity changed (TerrainOverlays::opacity): the view draws again.
+    void overlayOpacityChanged();
     void createNewTiles(QMap<int, QPair<int, int>*> list);
     void createNewLoTiles(QMap<int, QPair<int, int>*> list);
     

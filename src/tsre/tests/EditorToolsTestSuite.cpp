@@ -10,6 +10,8 @@
 #include <routeEditor/tools/ToolContext.h>
 #include <routeEditor/tools/ToolRegistry.h>
 #include <tsre/texture/Brush.h>
+#include <tsre/geo/TerrainOverlays.h>
+#include <QImage>
 
 namespace {
 
@@ -86,8 +88,8 @@ public:
     void sendFlexData() override { flexDataSent = true; }
     void reportTextureId(int) override {}
     void reportMaterialPicked() override {}
-    void openMapTileWindow(Terrain *) override {}
     void openImageryWindow(Terrain *) override {}
+    void terrainChanged() override {}
 };
 
 }
@@ -306,13 +308,29 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
         int sections = 0, items = 0;
         for (QAction *action : overlayMenu.actions())
             action->isSeparator() ? ++sections : ++items;
-        overlayOk = overlayOk && ids == QStringList({"show", "osm", "imagery", "makeTexture", "removeTexture"})
-                && sections == 2 && items == 5 && overlayMenu.actions().at(1)->isCheckable();
+        overlayOk = overlayOk && ids == QStringList({"show", "osm", "imagery", "save", "makeTexture", "removeTexture"})
+                && sections == 2 && items == 6 && overlayMenu.actions().at(1)->isCheckable();
         overlay->setDefaultAction("imagery");
         overlayOk = overlayOk && overlay->defaultAction() == "imagery";
         overlay->setDefaultAction("show");
     }
     check(overlayOk, "overlay tool: one tool, actions by name, its menu built from its actions");
+    // The overlay store: images opaque, opacity applied when drawing.
+    QImage translucent(8, 8, QImage::Format_ARGB32);
+    translucent.fill(QColor(10, 20, 30, 40));
+    TerrainOverlays::set(-7, 9, translucent);
+    const QImage *stored = TerrainOverlays::image(TerrainOverlays::key(-7, 9));
+    QString overlayError;
+    const bool noReference = !TerrainOverlays::createFromOsm(-7, 9, 2048, {}, overlayError) && !overlayError.isEmpty();
+    TerrainOverlays::setOpacity(1.5f);
+    const float clampedHigh = TerrainOverlays::opacity();
+    TerrainOverlays::setOpacity(0.25f);
+    check(stored != nullptr && stored->format() == QImage::Format_RGB888 && !stored->hasAlphaChannel()
+                  && TerrainOverlays::has(-7, 9) && !TerrainOverlays::has(7, 9)
+                  && !TerrainOverlays::saveToDisk(7, 9, overlayError) && noReference
+                  && clampedHigh == 1.0f && TerrainOverlays::opacity() == 0.25f,
+          "overlay store: opaque images by tile, opacity kept apart and clamped");
+    TerrainOverlays::setOpacity(1.0f);
 
     // Measure Distance (map only): a drag measures from the press to the pointer.
     EditorTool *measureTool = registry.find("mapMeasureTool");

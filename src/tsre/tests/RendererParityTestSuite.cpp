@@ -19,6 +19,7 @@
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
+#include <tsre/geo/TerrainOverlays.h>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QScopedValueRollback>
@@ -86,6 +87,10 @@ struct ViewSpec {
     bool osmData = false;
     bool osmTransparentAreas = false;
     bool imagery = false;
+    // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
+    // overlay opacity (0 to 1).
+    QStringList overlayActions;
+    double overlayOpacity = 1.0;
     // Measure Distance: from and to, metres from the view's centre (x east, z south).
     bool hasMeasure = false;
     float measure[4] = {0, 0, 0, 0};
@@ -265,6 +270,9 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
         view.imagery = object.value("imagery").toBool(false);
+        for (const QJsonValue &action : object.value("overlay").toArray())
+            view.overlayActions << action.toString();
+        view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
         const QJsonArray measure = object.value("measure").toArray();
         view.hasMeasure = measure.size() == 4;
         for (int i = 0; i < 4 && view.hasMeasure; ++i)
@@ -552,6 +560,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setMapLayerVisible(MapLayer::OsmData, spec.osmData);
             widget.setMapLayerVisible(MapLayer::OsmTransparentAreas, spec.osmTransparentAreas);
             widget.setMapLayerVisible(MapLayer::Imagery, spec.imagery);
+            TerrainOverlays::setOpacity(float(spec.overlayOpacity));
+            for (const QString &action : spec.overlayActions)
+                widget.runDiagnosticOverlayAction(action);
             const MapGroundPoint measureFrom{tileX, tileZ, pos[0] + spec.measure[0], pos[2] + spec.measure[1]};
             const MapGroundPoint measureTo{tileX, tileZ, pos[0] + spec.measure[2], pos[2] + spec.measure[3]};
             widget.setDiagnosticMapMeasurement(spec.hasMeasure ? &measureFrom : nullptr,

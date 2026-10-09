@@ -594,6 +594,47 @@ Map > Faded Overlay, formerly Faded Terrain):
     (`mapTileShowTool`, `mapTileLoadTool`, `imageryTileLoadTool`,
     `makeTileTextureTool`, `removeTileTextureTool`). The Quad Tree tool
     has its own menu and could move to actions too.
+  - Its menu also has Save Overlay to Disk (`ROUTES/<route>/TERRAIN_MAPS/
+    <key>.png`; Show loads it when no overlay is in memory).
+- **Terrain tile overlays** (2026-10-09; `src/tsre/geo/TerrainOverlays`,
+  replacing the Load Map dialog `MapWindow`, whose static image store it
+  takes over):
+  - Create from OSM draws the tile at once, without a dialog: from the OSM
+    directory (offering to convert its downloads), else from the OSM web
+    API (`MapDataOSM` now reports a failed download with `failed`), and
+    shows it. Create from Imagery shows the overlay once applied. The
+    dialog's colour "invert" option is gone (a darker OSM palette shared by
+    the map and 3D is planned instead).
+  - Overlay images are opaque (RGB888) wherever they come from (OSM,
+    imagery, saved PNGs); nothing writes alpha into them, so Make from
+    Overlay always gives an opaque terrain texture.
+  - F3 Opacity (0 to 100 %, for the session) is
+    `TerrainOverlays::opacity()`. At 100 % the overlay replaces the
+    terrain's textures (the terrain draw is skipped, as before); below,
+    the terrain is drawn and the overlay 0.35 m over it (the former
+    translucent path).
+  - Capture key `overlay` (terrainOverlayTool actions at the view's
+    centre) and `overlayOpacity`; `tests/renderer/map-overlay.json`
+    (TEST_PROFILES, local OSM data; QRhi matches OpenGL).
+
+### Terrain tile overlay opacity (to do, renderer)
+
+Everything up to drawing is in place; the renderer does not apply the
+opacity yet (left for the renderer work on `main`, to avoid conflicts).
+Below 100 % the overlay is drawn where a translucent one would be, but
+opaque. To do:
+
+- a per-item opacity for textured draws, multiplied into the texture's
+  alpha, on OpenGL and QRhi (today `RenderItem::Material::color` applies to
+  untextured items only, and the vertex alpha is an alpha floor or test);
+- 3D: the overlay packets of `Terrain::pushRenderItem` (paged terrain,
+  `terrainMapPass`, and the legacy `terrainBlob`) drawn blended at
+  `TerrainOverlays::opacity()`; marked `TODO(renderer)` there;
+- map mode: the overlay squares of `TerrainMapLayer` (its `overlays`
+  groups, at `OverlayHeight` over the terrain textures) the same; marked
+  `TODO(renderer)` there;
+- then check `tests/renderer/map-overlay.json`'s `half-map` and `half-3d`
+  views, which run at 50 %.
 - **Auto-created tiles** (F3, "Create new tiles if not exist"): the 3D
   scene draw creates the camera's tile when it has none, writing terrain
   and world files to disk at once (`Route::newTile`, with heights from

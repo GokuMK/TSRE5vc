@@ -15,7 +15,10 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainLib.h>
-#include <tsre/geo/MapWindow.h>
+#include <tsre/geo/TerrainOverlays.h>
+#include <QApplication>
+#include <QGuiApplication>
+#include <QPointer>
 #include <QAction>
 #include <QMenu>
 #include <QMessageBox>
@@ -162,8 +165,7 @@ public:
         if (terrain != nullptr) {
             int x, z;
             terrain->getLowCornerTileXY(x, z);
-            const auto found = MapWindow::mapTileImages.find(x * 10000 + z);
-            image = found != MapWindow::mapTileImages.end() && found->second != nullptr;
+            image = TerrainOverlays::has(x, z);
             shown = terrain->showBlob;
         }
         const QString overlay = title();
@@ -178,13 +180,20 @@ public:
             //% "Make from Overlay"
             qtTrId("route.editor.overlay.tool.action.make.texture"), texture};
         make.enabled = image;
+        ToolAction osm{"osm",
+            //% "Create from OSM"
+            qtTrId("route.editor.overlay.tool.action.osm"), overlay};
+        osm.enabled = !TerrainOverlays::osmBusy();
+        ToolAction save{"save",
+            //% "Save Overlay to Disk"
+            qtTrId("route.editor.overlay.tool.action.save"), overlay};
+        save.enabled = image;
         return {show,
-                {"osm",
-                 //% "Create from OSM"
-                 qtTrId("route.editor.overlay.tool.action.osm"), overlay},
+                osm,
                 {"imagery",
                  //% "Create from Imagery"
                  qtTrId("route.editor.overlay.tool.action.imagery"), overlay},
+                save,
                 make,
                 {"removeTexture",
                  //% "Remove Overlay Texture"
@@ -198,15 +207,88 @@ public:
         if (action == QLatin1String("show")) {
             Game::terrainLib->setTileBlob(ctx.tileX(), ctx.tileZ(), ctx.pointer());
         } else if (action == QLatin1String("osm")) {
-            if (Terrain *terrain = terrainAtPointer(ctx))
-                ctx.openMapTileWindow(terrain);
+            createFromOsm(ctx);
         } else if (action == QLatin1String("imagery")) {
-            if (Terrain *terrain = terrainAtPointer(ctx))
-                ctx.openImageryWindow(terrain);
+            Terrain *terrain = terrainAtPointer(ctx);
+            if (terrain == nullptr)
+                return;
+            int x, z;
+            terrain->getLowCornerTileXY(x, z);
+            const QImage *before = TerrainOverlays::image(TerrainOverlays::key(x, z));
+            const qint64 previous = before != nullptr ? before->cacheKey() : 0;
+            ctx.openImageryWindow(terrain);
+            // Applied in the window: shown at once.
+            const QImage *after = TerrainOverlays::image(TerrainOverlays::key(x, z));
+            if (after != nullptr && after->cacheKey() != previous)
+                show(ctx, x, z);
+        } else if (action == QLatin1String("save")) {
+            Terrain *terrain = terrainAtPointer(ctx);
+            if (terrain == nullptr)
+                return;
+            int x, z;
+            terrain->getLowCornerTileXY(x, z);
+            QString error;
+            if (!TerrainOverlays::saveToDisk(x, z, error))
+                QMessageBox::warning(ctx.view(), title(), error);
         } else if (action == QLatin1String("makeTexture")) {
             Game::terrainLib->makeTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
         } else if (action == QLatin1String("removeTexture")) {
             Game::terrainLib->removeTileTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+        }
+    }
+
+private:
+    // Shows the overlay of the tile under the pointer, if its low corner is x, z.
+    static void show(ToolContext &ctx, int x, int z) {
+        if (Terrain *terrain = terrainAtPointer(ctx)) {
+            int tx, tz;
+            terrain->getLowCornerTileXY(tx, tz);
+            if (tx == x && tz == z)
+                terrain->showBlob = true;
+        }
+        ctx.terrainChanged();
+    }
+
+    // Draws the tile's OSM data (local files, else the web) and shows it.
+    static void createFromOsm(ToolContext &ctx) {
+        Terrain *terrain = terrainAtPointer(ctx);
+        if (terrain == nullptr)
+            return;
+        int x, z;
+        terrain->getLowCornerTileXY(x, z);
+        const int size = terrain->getSampleCount() * terrain->getSampleSize();
+        QPointer<QWidget> view = ctx.view();
+        ToolContext *context = &ctx;
+        // The pointer may move before the web answers: the tile is kept.
+        const int pointerTile[2] = {ctx.tileX(), ctx.tileZ()};
+        const float pointer[3] = {ctx.pointer()[0], ctx.pointer()[1], ctx.pointer()[2]};
+        QString error;
+        QGuiApplication::setOverrideCursor(Qt::BusyCursor);
+        const bool started = TerrainOverlays::createFromOsm(x, z, size,
+            [view, context, x, z, pointerTile, pointer](bool ok, const QString &message) {
+                QGuiApplication::restoreOverrideCursor();
+                if (view.isNull())
+                    return;
+                if (!ok) {
+                    QMessageBox::warning(view,
+                        //% "Create from OSM"
+                        qtTrId("route.editor.overlay.tool.action.osm.title"), message);
+                    return;
+                }
+                int tx = pointerTile[0], tz = pointerTile[1];
+                float px = pointer[0], pz = pointer[2];
+                Game::check_coords(tx, tz, px, pz);
+                if (Terrain *tile = Game::terrainLib->getTerrainByXY(tx, tz)) {
+                    int cx, cz;
+                    tile->getLowCornerTileXY(cx, cz);
+                    if (tile->loaded && cx == x && cz == z)
+                        tile->showBlob = true;
+                }
+                context->terrainChanged();
+            }, error);
+        if (!started) {
+            QGuiApplication::restoreOverrideCursor();
+            QMessageBox::warning(ctx.view(), qtTrId("route.editor.overlay.tool.action.osm.title"), error);
         }
     }
 };

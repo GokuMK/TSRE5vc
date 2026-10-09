@@ -694,6 +694,8 @@ RouteEditorWindow::RouteEditorWindow() {
     QObject::connect(terrainTools, SIGNAL(enableTool(QString)),
                       glWidget, SLOT(enableTool(QString)));   
     
+    // RouteEditorGLWidget::update forwards to its render surface (not a slot).
+    QObject::connect(geoTools, &GeoTools::overlayOpacityChanged, glWidget, [this] { glWidget->update(); });
     QObject::connect(geoTools, SIGNAL(enableTool(QString)),
                       glWidget, SLOT(enableTool(QString)));   
     

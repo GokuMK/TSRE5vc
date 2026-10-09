@@ -75,6 +75,13 @@ imagery belongs to Load Imagery.
 
 ### Overlay sink
 
+Update 2026-10-09: the overlay store is now `TerrainOverlays`
+(`src/tsre/geo/TerrainOverlays`); the Load Map dialog (`MapWindow`) is gone,
+Create from OSM draws without it, and Load Imagery's Apply stores an opaque
+image (the overlay opacity is applied when drawing). See
+[map mode, terrain tile overlays](../editor/04-map-mode.md). The text below is
+the original design.
+
 `MapWindow::mapTileImages` stores one `QImage*` under
 `tileX * 10000 + tileZ`. `Terrain` and `MapLib` already render that image, and
 `MapWindow::saveToDisk()` writes it under the route's `TERRAIN_MAPS` directory.

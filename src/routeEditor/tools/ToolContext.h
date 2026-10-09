@@ -113,9 +113,11 @@ public:
     // terrain tools panel (setBrushTextureId, terrainMaterialPicked).
     virtual void reportTextureId(int textureId) = 0;
     virtual void reportMaterialPicked() = 0;
-    // Geo data windows for a loaded terrain tile: map tiles and imagery.
-    virtual void openMapTileWindow(Terrain *terrain) = 0;
+    // The imagery window for a loaded terrain tile (Create from Imagery).
     virtual void openImageryWindow(Terrain *terrain) = 0;
+    // Terrain changed outside a mouse action (an overlay made later, after a
+    // download): the map builds its terrain again.
+    virtual void terrainChanged() = 0;
 };
 
 #endif

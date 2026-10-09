@@ -20,6 +20,7 @@
 #include <tsre/geo/HeightWindow.h>
 #include <routeEditor/TerrainProfileSelector.h>
 #include <tsre/world/TerrainGridLayout.h>
+#include <tsre/geo/TerrainOverlays.h>
 
 GeoTools::GeoTools(QString name)
     : QWidget(),
@@ -70,6 +71,21 @@ GeoTools::GeoTools(QString name)
     label0->setContentsMargins(3,0,0,0);
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
+    // How much of the terrain shows through the overlays, when drawing.
+    QSpinBox *opacity = new QSpinBox(this);
+    opacity->setRange(0, 100);
+    opacity->setSuffix(QStringLiteral(" %"));
+    opacity->setValue(qRound(TerrainOverlays::opacity() * 100.0f));
+    QFormLayout *opacityRow = new QFormLayout;
+    opacityRow->setContentsMargins(3,0,3,0);
+    opacityRow->addRow(
+        //% "Opacity:"
+        qtTrId("route.editor.geo.tools.label.overlay.opacity"), opacity);
+    vbox->addLayout(opacityRow);
+    QObject::connect(opacity, &QSpinBox::valueChanged, this, [this](int value) {
+        TerrainOverlays::setOpacity(value / 100.0f);
+        emit overlayOpacityChanged();
+    });
     vbox->addWidget(buttonTools["terrainOverlayTool:show"]);
     vbox->addWidget(buttonTools["terrainOverlayTool:osm"]);
     vbox->addWidget(buttonTools["terrainOverlayTool:imagery"]);

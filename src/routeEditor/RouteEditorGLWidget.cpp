@@ -45,7 +45,6 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/HeightWindow.h>
-#include <tsre/geo/MapWindow.h>
 #include <tsre/geo/ImageryWindow.h>
 #include "TerrainTreeWindow.h"
 #include <tsre/shape/ShapeLib.h>
@@ -499,7 +498,6 @@ void RouteEditorGLWidget::surfaceInitialize() {
     groupObj = new GroupObj();
     copyPasteGroupObj = new GroupObj();
     defaultPaintBrush = new Brush();
-    mapWindow = new MapWindow();
     imageryWindow = new ImageryWindow();
     Quat::fill(this->placeRot);
 
@@ -2462,10 +2460,28 @@ bool RouteEditorGLWidget::placeContinuousRulerPoint(const float *rotation) {
     return placeContinuousRuler(tileX(), tileZ(), aktPointerPos, rotation);
 }
 
-void RouteEditorGLWidget::openMapTileWindow(Terrain *terrain) {
-    terrain->getLowCornerTileXY(mapWindow->tileX, mapWindow->tileZ);
-    mapWindow->tileSize = terrain->getSampleCount()*terrain->getSampleSize();
-    mapWindow->exec();
+bool RouteEditorGLWidget::runDiagnosticOverlayAction(const QString &action) {
+    EditorTool *tool = tools->find(QStringLiteral("terrainOverlayTool"));
+    if (tool == nullptr)
+        return false;
+    if (currentViewMode == ViewMode::Map) {
+        // Before the first frame the view has no size yet (paintMap sets it).
+        const int width = qRound(float(this->width()) * Game::PixelRatio);
+        const int height = qRound(float(this->height()) * Game::PixelRatio);
+        cameraMap->setViewport(width, height);
+        mousex = float(width) / 2.0f;
+        mousey = float(height) / 2.0f;
+        updateMapPointer();
+    }
+    tool->run(*this, action);
+    terrainChanged();
+    return true;
+}
+
+void RouteEditorGLWidget::terrainChanged() {
+    if (terrainMap)
+        terrainMap->invalidate();
+    update();
 }
 
 void RouteEditorGLWidget::openImageryWindow(Terrain *terrain) {
