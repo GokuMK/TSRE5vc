@@ -73,9 +73,12 @@ imagery.
 
 ## Open items
 
-- WorldCover has a black first pixel row in its zoom 8 row 81 tiles (about
-  53.3° N), a line across Poland at country scale. It is in the service's
-  tiles, so Load Imagery has it too.
+- WorldCover's rendered tiles have one-pixel black rows at some latitudes:
+  the first row of zoom 8 row 81 (about 53.3° N), pixel row 100 of zoom 8
+  row 83, pixel row 164 of zoom 9 row 173. They show as lines across the map
+  at country scale and are in Load Imagery's images too. They could be
+  repaired as tiles arrive (a black row between two normal rows replaced by
+  their average).
 - The tiles are PNG, 64–180 KB each. The service also returns JPEG
   (20 KB, not advertised in its capabilities). Switching the catalogue entry
   would make the cache about seven times smaller, but Load Imagery's terrain
