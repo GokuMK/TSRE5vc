@@ -51,7 +51,7 @@ public:
     ViewModes modes() const { return toolModes; }
     bool supports(ViewMode mode) const { return toolModes.testFlag(mode); }
     // Whether a left drag edits with the tool (painting) instead of moving
-    // the map, in map mode; the middle button then moves the map.
+    // the map, in map mode; the right button then moves the map.
     virtual bool editsByDragging() const { return false; }
 
     virtual void activate(ToolContext &) {}

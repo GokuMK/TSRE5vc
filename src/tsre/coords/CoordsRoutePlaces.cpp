@@ -41,7 +41,7 @@ CoordsRoutePlaces::CoordsRoutePlaces(TDB *tdb, QString place) {
                 markerList.back().tileX.push_back(n->trItemRData[3]);
                 markerList.back().tileZ.push_back(n->trItemRData[4]);
                 markerList.back().x.push_back(n->trItemRData[0]);
-                markerList.back().z.push_back(n->trItemRData[2]);
+                markerList.back().z.push_back(-n->trItemRData[2]);  // database z counts the other way
                 
                 coords.TileX = n->trItemRData[3];
                 coords.TileZ = n->trItemRData[4];
@@ -61,7 +61,7 @@ CoordsRoutePlaces::CoordsRoutePlaces(TDB *tdb, QString place) {
                 markerList.back().tileX.push_back(n->trItemRData[3]);
                 markerList.back().tileZ.push_back(n->trItemRData[4]);
                 markerList.back().x.push_back(n->trItemRData[0]);
-                markerList.back().z.push_back(n->trItemRData[2]);
+                markerList.back().z.push_back(-n->trItemRData[2]);  // database z counts the other way
                 
                 coords.TileX = n->trItemRData[3];
                 coords.TileZ = n->trItemRData[4];

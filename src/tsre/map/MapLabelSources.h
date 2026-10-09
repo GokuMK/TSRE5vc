@@ -28,7 +28,8 @@ namespace MapLabelSources {
 constexpr float PlatformMetresPerPixel = 2.0f;
 constexpr float SidingMetresPerPixel = 4.0f;
 
-// A marker set's names at their first point (lines and areas included).
+// A marker set's names at their first point (lines and areas included); nothing for
+// the sets made from the track database ("Route: Stations", "Route: Sidings").
 void appendMarkers(std::vector<MapLabel> &out, const Coords *markers);
 // Station names once each, among their platforms; platform names (when not the
 // station's) and siding names between their two ends.

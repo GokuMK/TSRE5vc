@@ -470,12 +470,26 @@ In rough order of what the user asked about:
    redoing"). A real development-project file is wanted as test data.
    With it: draw KML lines and areas on the map, rank custom files from
    `ExtendedData` (`priority`, `population`).
-4. **"Route: Stations" / "Route: Sidings" marker sets** (`CoordsRoutePlaces`)
-   probably mirror their markers within the tile (z not negated); to check in
-   3D.
-5. **Selecting OSM features** on the map (through the selection pass), the
-   start of procedural tools that use OSM data (for example track along an
-   OSM railway).
+4. Done 2026-10-09: the "Route: Stations" / "Route: Sidings" marker sets
+   (`CoordsRoutePlaces`) mirrored their markers within the tile (database z
+   not negated) since the repository's first commit; fixed (a 3D capture over
+   Carlisle shows the pole on the platform; its 3D name label did not show,
+   the old `TextObj` path, not looked into). The map leaves these sets out: it
+   labels the same names from the database.
+5. **Selecting OSM features** on the map, the start of procedural tools that
+   use OSM data (for example track along an OSM railway). Through the
+   existing selection pass (IDs drawn as colours), user's question
+   2026-10-09:
+   - IDs are 32 bits, 5 for the kind and 27 of payload; OSM way IDs are
+     larger, so a new kind (`OsmFeature`) carries an index into a table of
+     the features drawn for that pass, which maps back to type and ID.
+   - Drawing every feature in the view with its own ID would be one draw
+     each (the OSM batches mix features), so the pass draws only the
+     features near the pointer: a small query (the layer's projected
+     polylines and fills, or the store) builds per-feature shapes into
+     `MapSelection`, lines widened by its margin as markers are now.
+   - The result goes to the select tool as other picks do; a later tool
+     (follow this railway) reads the feature's geometry from the store.
 6. **Street names along roads**: a glyph atlas (QTextLayout shaping, QRawFont
    glyph images) placing letters along lines.
 7. **Line shader** (instanced segments): 3.5 to 9 times less line memory, no
@@ -485,6 +499,7 @@ In rough order of what the user asked about:
    gain since the speed work), the detail read just below the regional switch
    (about 1 s at 19 m/px over a big city; or move the switch to about
    10 m/px), names in a chosen language (GeoNames vs OSM spellings).
-9. Not OSM, found on the way: terrain texture painting calls only
-   `Texture::update()`, which does nothing on QRhi, so painted textures may
-   not refresh there; to check.
+9. Map mouse buttons changed (user, 2026-10-09): left and right drag move
+   the map, middle drag turns it, so a right click for a context menu never
+   turns it. (Terrain painting on QRhi, suspected from the code, works: the
+   user tested static and procedural painting.)

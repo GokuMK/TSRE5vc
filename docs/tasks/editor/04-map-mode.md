@@ -56,7 +56,9 @@ Phase 1 core, as built:
     round (the start marker drawn from or to the line).
 - **Map view** (`src/tsre/map/MapView`, `src/tsre/camera/CameraMap`):
   - centre, scale and heading, with an orthographic projection;
-  - left drag pans, right drag turns, the wheel zooms about the mouse;
+  - left and right drag pan, middle drag turns (2026-10-09; it was right
+    drag, which a right click for a context menu could trigger), the wheel
+    zooms about the mouse;
   - W, A, S, D and the arrows move, Q and E turn, N returns to north up.
 - **Track layer** (`src/tsre/map/TrackMapLayer`):
   - the track and road databases as lines 2 pixels wide;
@@ -521,7 +523,7 @@ Map > Faded Overlay, formerly Faded Terrain):
   - It also refuses edits the map would not show: static textures need
     the Detailed level (16 km), procedural ones the Procedural level.
   - Tools that edit by dragging (`EditorTool::editsByDragging`: painting,
-    put texture) take the left drag; the middle button moves the map.
+    put texture) take the left drag; the right button moves the map.
     Other tools act on a click, and the left drag pans.
   - Patch squares use the tile's own textures (`Terrain::mapPatchTexture`
     fills `texid` as the 3D draw does), so painted and unique textures
@@ -598,7 +600,8 @@ longer side, as for track objects):
     for a recovery tree. No undo.
   - `QuadTree::quadAt` gives the smallest quad under a tile, following
     split quadrants; outside every TD block, the block's 256-tile quad.
-  - The map gets right-click menus for map tools; right drags still turn.
+  - The map gets right-click menus for map tools; right drags move the map
+    (middle drags turn it, since 2026-10-09).
 - **Tile coordinates**: `Game::check_coords` moved a position by one tile
   at most, enough for the 3D pointer but not for the map's, which can lie
   several tiles from the view's tile: painting, geo and activity tools

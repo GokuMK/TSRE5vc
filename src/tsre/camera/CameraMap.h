@@ -15,7 +15,7 @@
 #include <tsre/map/MapView.h>
 
 // The map mode's camera (task editor 04): straight down on a MapView. The
-// left button drags the map, the right button turns it, the wheel zooms
+// left and right buttons drag the map, the middle one turns it, the wheel zooms
 // about the mouse; W, A, S, D (and the arrow keys) move it, Q and E turn
 // it, N turns north up. pozT follows the view's tile, so code that reads the
 // camera's tile keeps working.

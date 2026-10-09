@@ -14,6 +14,7 @@
 #include <QSet>
 #include <cmath>
 #include <tsre/coords/Coords.h>
+#include <tsre/coords/CoordsRoutePlaces.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Activity.h>
@@ -57,7 +58,9 @@ struct Average {
 }
 
 void appendMarkers(std::vector<MapLabel> &out, const Coords *markers) {
-    if (markers == nullptr || !markers->loaded)
+    // The "Route: Stations" and "Route: Sidings" sets repeat the track database's
+    // names, which the map labels from the database itself.
+    if (markers == nullptr || !markers->loaded || dynamic_cast<const CoordsRoutePlaces *>(markers) != nullptr)
         return;
     for (const Coords::Marker &m : markers->markerList) {
         if (m.tileX.isEmpty() || m.name.isEmpty())

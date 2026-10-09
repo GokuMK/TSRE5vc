@@ -428,7 +428,7 @@ private:
     // the drag moves it instead of the map.
     bool mapDraggingObject = false;
     // A left press with a tool that edits by dragging (painting): the drag
-    // goes to the tool, the middle button moves the map.
+    // goes to the tool, the right button moves the map.
     bool mapEditing = false;
     std::unique_ptr<MapSelection> mapSelection;
     // The ID of the last selection applied, to know a press is on it.

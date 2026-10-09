@@ -1677,7 +1677,7 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     m_lastPos *= Game::PixelRatio;
     mouseClick = true;
     if (currentViewMode == ViewMode::Map) {
-        // Both buttons move the map; a left click that does not move it
+        // Left and right drags move the map (middle turns it); a left click that does not move it
         // goes to the active tool (mouseReleaseEvent). A left press on the
         // selected activity object drags it with the select tool instead.
         mapPressPos = m_lastPos;
