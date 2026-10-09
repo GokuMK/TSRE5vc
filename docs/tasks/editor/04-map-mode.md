@@ -842,8 +842,11 @@ the core is in.
 shaders, so the OpenGL renderer gets it directly. `feature/qrhi` gets it
 through the usual merges of `main`, and then needs its backend share:
 - the orthographic `LayeredView` case;
-- the ribbon shader variant through its shader converter;
 - map captures on Vulkan and OpenGL.
+
+No ribbon shader was needed: lines are quads built on the CPU (see
+"Lines" above). The dedicated line shader moved to the OSM work, item 7
+of the open items in [OSM rendering design](../geo/osm-rendering-design.md).
 
 Basing it on `feature/qrhi` would tie the feature's release to that
 branch, whose merge is not decided.
