@@ -317,3 +317,14 @@ and QRhi.
   The extinction is a constant (`WaterExtinction`); per-route water
   clarity could come later. Next: step 3 (foam, light through crests),
   step 4 (river flow).
+- User, 2026-10-09, on screen: the waves and the depth work; performance
+  is fine on the Deck; the tuning (wind, gusts, extinction) is acceptable
+  for now. The shore fade already makes the bright band along banks
+  better; how much is left depends on the slope of the ground (steep banks
+  keep more).
+- Future (user, 2026-10-09): seen from above, the water still shows the
+  route's plain MSTS layer textures, repeating, as its deep colour. Better:
+  a deep colour of its own, for example the layers' average colour (keeping
+  the route's tint) with scattering that depends on the view angle and
+  slow large-scale variation (as the gusts), instead of the textures at
+  their patch coordinates.
