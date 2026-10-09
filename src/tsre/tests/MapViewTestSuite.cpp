@@ -10,6 +10,7 @@
 #include <tsre/map/MapLabelLayer.h>
 #include <tsre/map/MapLabelSources.h>
 #include <tsre/map/MapMeasureLayer.h>
+#include <tsre/map/MapScaleBar.h>
 #include <tsre/coords/Coords.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
@@ -436,6 +437,15 @@ int TsreTests::runMapViewSuite(bool verbose) {
                   && MapMeasureLayer::text(10.0, -1.0) == MapMeasureLayer::text(10.0, 10.2)
                   && !MapMeasureLayer::text(524.79, 524.3).contains(QLatin1String("524")),
           "measure: one length when they differ by under a metre (no switching at roundings), else both");
+
+    // Scale bar: the longest round length (1, 2 or 5 times a power of ten) that fits.
+    check(MapScaleBar::roundLength(120.0) == 100.0 && MapScaleBar::roundLength(240.0) == 200.0
+                  && MapScaleBar::roundLength(2.4) == 2.0 && MapScaleBar::roundLength(7.0) == 5.0
+                  && MapScaleBar::roundLength(1000.0) == 1000.0 && MapScaleBar::roundLength(60000.0) == 50000.0
+                  && MapScaleBar::roundLength(0.0) == 0.0,
+          "scale bar: round lengths");
+    check(MapScaleBar::text(2000.0).contains(QLatin1String("2 km")) && MapScaleBar::text(500.0).contains(QLatin1String("500 m")),
+          "scale bar: metres below a kilometre, kilometres from it");
 
     qInfo().noquote() << "[tests:map-view] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

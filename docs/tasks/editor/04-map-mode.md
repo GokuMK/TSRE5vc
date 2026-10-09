@@ -235,7 +235,14 @@ Phase 1 core, as built:
   - capture key `measure` (metres from the view's centre),
     `tests/renderer/map-measure.json`; QRhi matches OpenGL.
 
-Next: phase 2 layers (tile grid, scale ruler). OSM and label follow-ups:
+- **Scale bar** (2026-10-09; Map > Scale Bar, on; `MapScaleBar`): bottom
+  left, a bar of a round length (1, 2 or 5 times a power of ten) up to 120
+  logical pixels, "500 m" or "2 km" above it; upright whatever the heading,
+  drawn on the ground like the labels (heights 850 to 852) with the label
+  atlas's text and halo. In route (game) metres, as the map is drawn; Measure
+  Distance gives the geo length of a line.
+
+Next: phase 2 layers (tile grid). OSM and label follow-ups:
 [OSM rendering, open items](../geo/osm-rendering-design.md).
 
 Phase 0, in three batches, each to be tested once in the editor:

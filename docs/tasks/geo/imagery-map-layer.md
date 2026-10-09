@@ -79,10 +79,21 @@ imagery.
   at country scale and are in Load Imagery's images too. They could be
   repaired as tiles arrive (a black row between two normal rows replaced by
   their average).
-- The tiles are PNG, 64–180 KB each. The service also returns JPEG
-  (20 KB, not advertised in its capabilities). Switching the catalogue entry
-  would make the cache about seven times smaller, but Load Imagery's terrain
-  textures would then be made from JPEG.
+- The tiles are PNG, 64–180 KB each. The service also returns JPEG (quality
+  85, about a fifth of the bytes; not advertised in its capabilities).
+  Measured 2026-10-09, 36 tiles at zoom 13, 16 requests in flight:
+  - tiles the service has not rendered yet: no difference (PNG 1.7–2.6 s,
+    median 1.9; JPEG 1.4–2.7 s, median 2.1); its rendering dominates, and two
+    first batches took 144 and 74 s whatever the format;
+  - tiles it has rendered: JPEG 0.12–0.14 s, PNG 0.26–0.54 s (more on a
+    slower link: 3 MB against 0.6 MB);
+  - decoding in Qt (with the RGBA conversion): JPEG 0.42 ms, PNG 2.5 ms a
+    tile, which also counts for every read from the disk cache;
+  - quality: 31–32 dB PSNR against the PNG of the same tile, visibly paler and
+    softer; acceptable for the map, not for terrain textures.
+  Undecided: JPEG for the map layer only (its own cache files beside the PNG
+  ones, as the extension follows the format) would keep Load Imagery lossless,
+  but the two would no longer share downloads.
 - A source choice (regional orthophoto where available), and sources with
   keys.
 - Texture pages are not freed when the layer goes (as the label atlas):

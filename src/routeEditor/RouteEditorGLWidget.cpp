@@ -85,6 +85,7 @@
 #include <tsre/map/OsmMapLayer.h>
 #include <tsre/map/ImageryMapLayer.h>
 #include <tsre/map/MapMeasureLayer.h>
+#include <tsre/map/MapScaleBar.h>
 #include <routeEditor/tools/MapTools.h>
 #include <QLabel>
 #include <tsre/map/MapLabelLayer.h>
@@ -368,6 +369,8 @@ void RouteEditorGLWidget::cameraInit(){
         mapLabels = std::make_unique<MapLabelLayer>();
     if (!mapMeasure)
         mapMeasure = std::make_unique<MapMeasureLayer>();
+    if (!mapScaleBar)
+        mapScaleBar = std::make_unique<MapScaleBar>();
     if (!imageryMap) {
         imageryMap = std::make_unique<ImageryMapLayer>();
         // From the fetch thread: draw again once tiles arrive.
@@ -2256,6 +2259,8 @@ void RouteEditorGLWidget::paintMap() {
     mapMeasure->pushRenderItems(queue, view, palette, Game::PixelRatio);
     updateMapLabels();
     mapLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);
+    if (mapLayers.shows(MapLayer::ScaleBar))
+        mapScaleBar->pushRenderItems(queue, view, palette, Game::PixelRatio);
     // The pointer: a square of a fixed screen size above everything.
     if (mapPointer == NULL)
         mapPointer = new OglObj();

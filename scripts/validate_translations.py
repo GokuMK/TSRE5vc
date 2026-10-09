@@ -87,6 +87,9 @@ def validate(english_path=ENGLISH, polish_path=POLISH):
 def main():
     try:
         count = validate()
+    except ET.ParseError as problem:
+        print('A catalogue is not well-formed XML: %s' % problem, file=sys.stderr)
+        return 1
     except Invalid as problem:
         print(problem, file=sys.stderr)
         return 1

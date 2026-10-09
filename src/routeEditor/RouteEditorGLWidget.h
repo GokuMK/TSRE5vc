@@ -66,6 +66,7 @@ class MapOverlayFade;
 class OsmMapLayer;
 class ImageryMapLayer;
 class MapMeasureLayer;
+class MapScaleBar;
 class QLabel;
 class MapLabelLayer;
 class Coords;
@@ -434,6 +435,7 @@ private:
     std::unique_ptr<MapLabelLayer> mapLabels;
     // The map's Measure Distance tool's line and length (labelled with mapLabels).
     std::unique_ptr<MapMeasureLayer> mapMeasure;
+    std::unique_ptr<MapScaleBar> mapScaleBar;
     // The tool active before Measure Distance was chosen from the map's menu, to
     // return to when it is unchecked there.
     QString toolBeforeMeasure;

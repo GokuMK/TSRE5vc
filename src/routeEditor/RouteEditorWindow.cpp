@@ -451,7 +451,9 @@ RouteEditorWindow::RouteEditorWindow() {
         {//% "&Markers"
          qtTrId("route.editor.route.editor.window.action.map.markers"), MapLayer::Markers},
         {//% "&Pointer"
-         qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
+         qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer},
+        {//% "Scale &Bar"
+         qtTrId("route.editor.route.editor.window.action.map.scale.bar"), MapLayer::ScaleBar}};
     for (const auto &entry : mapLayerEntries) {
         QAction *action = GuiFunct::newMenuCheckAction(entry.text, this,
                                                        MapLayers().shows(entry.layer));
