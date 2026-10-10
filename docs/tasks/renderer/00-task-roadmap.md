@@ -30,6 +30,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `25-qrhi-hardware-investigation.md` (Steam Deck under Windows: paged terrain, frame pacing and memory fixed; open performance work in its handover)
 - [x] `26-signal-lights.md` (signal lights in the default aspect from sigcfg.dat; glow on QRhi, plain discs on OpenGL; flashing and animation later)
 - [ ] `27-sky-enclosure-and-tunnel-lighting.md` (a top-down enclosure map: lamps at full strength and ambient with a floor where the sky is hidden; best done with the clouds task)
+- [ ] `28-volumetric-clouds.md` (physical sky, raymarched low and mid clouds, flat high layer, cloud shadows, overcast light and light shafts on QRhi; weather from `docs/tasks/environment/01-weather-data.md`; includes task 27)
 
 Renderer work continues on Windows hardware; software rendering (llvmpipe,
 lavapipe) no longer shows the remaining problems. Measurement and
