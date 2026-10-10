@@ -238,13 +238,19 @@ it; the season and weather tokens stay for MSTS and Open Rails):
 - `Weather` (`src/tsre/environment/`): an env file's weather, read and
   written with ParserX; its keyframes and maps;
   `sample(time, x, z, layer)` for a cell value and `drift(time, layer)`.
-- Parser (user's question, 2026-10-10): the block is read with
+- Parser (user, 2026-10-10): a new env file reader and writer on
   `SimisTextReader`, the bounded lexer `SFileComplex`, `SigCfg` and the
   quadtree recovery use, not `ParserX`. It reports line and column for
-  errors, which hand-written weather needs, and gives each token's offsets:
-  writing replaces the block's text span in the file and leaves the MSTS
-  parts byte for byte. `Environment`'s water layer reading moves to it in
-  the same step (small), so the file is read once.
+  errors, which hand-written weather needs.
+- **The whole file is read into objects** (user, 2026-10-10), not only the
+  parts TSRE uses: fog, sky layers (geometry, fades, animated shaders,
+  textures), horizon, satellites, water (layers, terrain patch map, waves),
+  precipitation, and the `tsre_weather` block. Writing writes the model
+  out in the env file's layout; reading the stock env files, writing them
+  and reading them again gives equal models (round trip test). A token the
+  model does not know (another tool's extension) is kept as text where it
+  stood, so nothing is lost. `Environment` (water layers today) uses the
+  new model.
 - `WeatherPresets`: the named presets.
 - `WeatherDetail`: the generated detail, a seeded noise field thresholded
   by coverage, evaluated on the CPU for the map and on the GPU by the
@@ -281,15 +287,17 @@ replacing the floating environment window (editor 05):
 - **Weather**: preset, seed, the keyframe at the current time and its
   values (layers, wind, precipitation, visibility); later a timeline of the
   keyframes.
-- **Time, sky, fog, lights**: the environment window's controls (time,
-  date, sun, moon, fog, local lights, exposure, bloom), moved over as they
-  are, still session values with Reset and Save to profile. The time drives
-  the weather's drift and keyframes, in 3D and in map mode.
+- **Editor Session** (user, 2026-10-10): the environment window's controls
+  (time, date, sun, moon, fog, local lights, exposure, bloom), moved over as
+  they are, still session values with Reset and Save to profile. The time
+  drives the weather's drift and keyframes, in 3D and in map mode.
 
 The window's widgets move into the panel rather than being rebuilt; its
-menu entry and shortcut go to F5. Where the F1-F4 panels are too narrow for
-the environment window's rows, the panel takes the width it needs when F5
-is shown.
+menu entry and shortcut go to F5. Width (user, 2026-10-10): the F1-F4
+panels and the tool box are 250 px wide, the environment window 260 px; all
+become 260 px (the combined Objects and Terrain view 520 px), so switching
+panels does not shift the 3D view. No panel grows beyond the Environment
+panel's width.
 
 ## Steps
 
