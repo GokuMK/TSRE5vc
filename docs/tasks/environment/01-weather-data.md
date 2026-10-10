@@ -11,8 +11,8 @@ historical weather data, stored in the route, and shown in the editor's map
 mode as a weather-app style layer. The 3D clouds are task renderer 28, which
 reads this data.
 
-Not truly dynamic weather: each moment of the weather is a static field that
-drifts with the wind; changes come from keyframes cross-faded in time.
+Not simulated weather: the weather is one or more prepared fields that drift
+with the wind (see "Drift and keyframes").
 
 ## What exists
 
@@ -55,9 +55,15 @@ drifts with the wind; changes come from keyframes cross-faded in time.
   precipitation (type, intensity), visibility, and derived lighting values
   (overcast share).
 - **Time**: keyframes at times (absolute for real data, relative for
-  presets), cross-faded; between and within them the field drifts with the
-  wind. The grid covers the route plus a margin for the drift over the
-  weather's duration.
+  presets); see "Drift and keyframes". The grid covers the route plus a
+  margin for the drift over the weather's duration.
+- **Grid**: aligned to the world tiles (user's question, 2026-10-10): its
+  corner on a tile corner, its cell 2048 m times a power of two (512, 1024,
+  2048, 4096 m ...). A cell then maps to whole tiles or a tile to whole
+  cells, positions stay in tile plus local coordinates as everywhere else
+  (no large floats), and the map layer and the renderer find a cell with
+  integer arithmetic. The default is 2048 m: one cell per tile, finer than
+  any source (9-25 km), coarse enough to keep the files small.
 - **Sources**: procedural presets (a type and a few parameters, no maps:
   fair cumulus, broken, overcast, rain, a passing front); historical data
   from Open-Meteo first (ERA5 0.25 degrees from 1940, ECMWF IFS 9 km from
@@ -67,15 +73,41 @@ drifts with the wind; changes come from keyframes cross-faded in time.
   cloud tops, upper winds; free with visible attribution) later, if needed.
   Real data sets the cells' values; the generated detail stays procedural.
 
+## Drift and keyframes
+
+The user's simple model and keyframes are one mechanism (decided
+2026-10-10, answering the user's question):
+
+- **One keyframe**: one field, larger than the route by the drift margin,
+  moved by wind x elapsed time. The user's simple model.
+- **Several keyframes** (real data, a passing front): between keyframes
+  A (time a) and B (time b), at time t both fields are drawn moved by the
+  wind, A forward from its time and B back from its time, and blended by
+  `(t - a) / (b - a)`:
+  `field(t, p) = mix(A(p - w (t - a)), B(p + w (b - t)), (t - a) / (b - a))`,
+  with w the wind interpolated between the keyframes. At a the result is A
+  exactly, at b it is B exactly; in between, features move with the wind
+  instead of fading in place. This is the advection-corrected interpolation
+  of radar and satellite frame interpolation. With real data it suits that
+  the fields at a and b are already where the weather moved to.
+- **The generated detail** (where the clouds are inside a cell) drifts
+  continuously with the wind from the weather's start and never jumps; only
+  the coverage it is thresholded against changes between keyframes. Clouds
+  then form and dissolve where coverage rises and falls, and keep moving
+  meanwhile.
+- Each layer uses its own wind, so low and high clouds move apart.
+
 ## Storage and ENV files (user, 2026-10-10)
 
 The env file stays the entry point: the TRK's season and weather defaults
-and, later, an activity naming an env file directly (MSTS does not read
-activity-referenced env files; Open Rails reads env files as text). A TSRE
-weather block in the env file, with larger data in files it references.
-If a block in shared, TRK-referenced env files causes problems in MSTS or
-Open Rails, an advanced weather block in the TRK is the fallback. A generic
-env file can list several weathers with weights, one chosen at random.
+and an activity naming an env file directly (MSTS does not read
+activity-referenced env files; Open Rails reads env files as text). One env
+file holds **one weather** (user, 2026-10-10): an activity designer wants
+one weather flow matching the scenario. The random choice belongs to the
+TRK's generic seasonal defaults, as a list of env files with weights (see
+"The TRK"). Larger data sits in files the env file references. If the block
+in shared, TRK-referenced env files causes problems in MSTS or Open Rails,
+an advanced weather block in the TRK is the fallback.
 
 The exact format is step 1's proposal (below), reviewed before the loader is
 written.
@@ -109,43 +141,37 @@ m/s.
 ```text
 tsre_weather (
     tsre_weather_version ( 1 )
-    tsre_weather_choice (                         // optional: a generic env file
-        tsre_weather_option ( 3 "fair" )          // weight, a weather in this file
-        tsre_weather_option ( 1 "UKrain.env" )    // or another env file
+    tsre_weather_preset ( fair_cumulus )      // optional: preset values, overridden below
+    tsre_weather_seed ( 1234 )                // the generated detail
+    tsre_weather_source ( "preset" "" )       // source, attribution
+    tsre_weather_start ( 2024-06-21T04:00:00Z )  // optional: absolute UTC; without it, relative and looping
+    tsre_weather_grid ( -6200 14950 2048 80 55 )  // NW corner tile x, z; cell size (2048 m x 2^n); columns; rows
+    tsre_weather_maps ( "WEATHER/fair" )      // optional: per-cell maps, below
+    tsre_weather_keyframe (
+        tsre_weather_time ( 0 )
+        tsre_weather_wind ( low 250 6 )
+        tsre_weather_wind ( mid 260 12 )
+        tsre_weather_wind ( high 270 25 )
+        tsre_weather_precipitation ( none 0 )     // none, rain, snow; mm/h
+        tsre_weather_visibility ( 30000 )
+        tsre_weather_variation ( 0.25 30000 )     // coverage varied by noise: amount, scale (m)
+        tsre_weather_layer ( low cumulus 0.35 900 2200 1.0 )  // type, coverage, base, top, density
+        tsre_weather_layer ( mid altocumulus 0.10 3500 4200 0.6 )
+        tsre_weather_layer ( high cirrus 0.20 9000 9500 0.3 )
     )
-    tsre_weather_def ( "fair"
-        tsre_weather_preset ( fair_cumulus )      // optional: preset values, overridden below
-        tsre_weather_seed ( 1234 )                // the generated detail
-        tsre_weather_source ( "preset" "" )       // source, attribution
-        tsre_weather_start ( 2024-06-21T04:00:00Z )  // optional: absolute UTC; without it, relative and looping
-        tsre_weather_grid ( -6200 14950 2000 160 110 )  // NW corner tile x, z; cell size; columns; rows
-        tsre_weather_maps ( "WEATHER/fair" )      // optional: per-cell maps, below
-        tsre_weather_keyframe (
-            tsre_weather_time ( 0 )
-            tsre_weather_wind ( low 250 6 )
-            tsre_weather_wind ( mid 260 12 )
-            tsre_weather_wind ( high 270 25 )
-            tsre_weather_precipitation ( none 0 )     // none, rain, snow; mm/h
-            tsre_weather_visibility ( 30000 )
-            tsre_weather_variation ( 0.25 30000 )     // coverage varied by noise: amount, scale (m)
-            tsre_weather_layer ( low cumulus 0.35 900 2200 1.0 )  // type, coverage, base, top, density
-            tsre_weather_layer ( mid altocumulus 0.10 3500 4200 0.6 )
-            tsre_weather_layer ( high cirrus 0.20 9000 9500 0.3 )
-        )
-        tsre_weather_keyframe ( ... )
-    )
+    tsre_weather_keyframe ( ... )
 )
 ```
 
 - A preset is a named set of these values in TSRE's code (fair cumulus,
   scattered, broken, overcast, rain, snow, thunderstorm, a passing front as
-  several keyframes); a definition can start from one and override any
+  several keyframes); a weather can start from one and override any
   value. A preset weather has no grid or maps: it is the same everywhere
   except for the variation noise, and covers the whole world.
 - Layer values in a keyframe are uniform; per-cell maps (below) replace
   them where given.
-- Keyframes cross-fade linearly; each layer drifts with its own wind,
-  integrated from the weather's start, so low and high clouds move apart.
+- Keyframes blend as in "Drift and keyframes"; each layer drifts with its
+  own wind.
 - A relative weather (no start) begins at the activity's start or, in the
   editor, at the environment window's time; it loops after its last
   keyframe.
@@ -179,17 +205,32 @@ Options considered for the maps: one binary file with a header and half
 floats (compact, not viewable), JSON (large), NetCDF or EXR (new
 dependencies). PNG fits Qt and can be checked by eye.
 
+### The TRK
+
+The TRK's `Environment ( SpringClear ( UKsun.env ) ... )` stays as it is for
+MSTS and Open Rails. A TSRE block next to it lists, per season and weather,
+env files with weights; one is chosen at random when no activity names an
+env file:
+
+```text
+TsreEnvironment (
+    SpringClear ( 3 "UKsun.env" 1 "UKsunCumulus.env" )
+    SummerClear ( 2 "UKsun.env" 2 "UKsunCumulus.env" 1 "UKsunStorm.env" )
+)
+```
+
+A season and weather missing there uses the `Environment` entry.
+
 ### Activities
 
 A TSRE token in the activity header names an env file (MSTS does not read
 it; the season and weather tokens stay for MSTS and Open Rails):
-`TsreEnvironment ( "fair.env" )`. With a choice in that env file, the
-activity may fix the choice with a seed.
+`TsreEnvironment ( "fair.env" )`.
 
 ### Code
 
-- `Weather` (`src/tsre/environment/`): the definitions of an env file,
-  read and written with ParserX; a definition's keyframes and maps;
+- `Weather` (`src/tsre/environment/`): an env file's weather, read and
+  written with ParserX; its keyframes and maps;
   `sample(time, x, z, layer)` for a cell value and `drift(time, layer)`.
 - `WeatherPresets`: the named presets.
 - `WeatherDetail`: the generated detail, a seeded noise field thresholded
@@ -227,8 +268,9 @@ the generated detail can be toggled.
    route's grid; attribution stored with the weather.
 4. **Keyframes and drift** polished: cross-fades, margins, a weather longer
    than its data (looping presets).
-5. **Random choice** in generic env files; **activities** naming an env file
-   (TSRE token); the editor picking the season and weather (editor 05).
+5. **Random choice** in the TRK's `TsreEnvironment`; **activities** naming
+   an env file (TSRE token); the editor picking the season and weather
+   (editor 05).
 6. **Open Rails export**: weather change events for activities and
    `.weather-or` files for timetables from the keyframes (overcast, fog,
    precipitation).
