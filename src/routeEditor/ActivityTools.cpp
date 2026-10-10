@@ -30,7 +30,7 @@
 
 ActivityTools::ActivityTools(QString name)
     : QWidget(){
-    setFixedWidth(260);
+    // The tool box scrolls it (RouteEditorWindow); it takes the box's width.
     cSeason.setStyleSheet("combobox-popup: 0;");
     cSeason.addItem(
         //% "Spring"

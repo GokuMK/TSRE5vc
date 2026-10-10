@@ -18,12 +18,12 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QScrollArea>
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <cmath>
@@ -80,15 +80,8 @@ QString typeName(int layer, float type) {
 EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow *session, QWidget *parent)
     : QWidget(parent), view(view) {
     constexpr int LabelWidth = 80;
-    auto *outer = new QVBoxLayout(this);
-    outer->setContentsMargins(0, 0, 0, 0);
-    auto *scroll = new QScrollArea(this);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    outer->addWidget(scroll);
-    auto *content = new QWidget(scroll);
-    scroll->setWidget(content);
+    // The tool box scrolls the panel (RouteEditorWindow).
+    QWidget *content = this;
     auto *layout = new QVBoxLayout(content);
     layout->setSpacing(2);
     layout->setContentsMargins(1, 1, 1, 1);
@@ -171,11 +164,27 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
         qtTrId("route.editor.environment.tools.on.map"), content);
     onMap->setObjectName("weatherOnMap");
     weatherGrid->addWidget(onMap, 2, 0, 1, 2);
-    info = new QLabel(content);
-    info->setWordWrap(true);
+    detailsButton = new QPushButton(
+        //% "Weather Details..."
+        qtTrId("route.editor.environment.tools.details"), content);
+    detailsButton->setObjectName("weatherDetails");
+    weatherGrid->addWidget(detailsButton, 3, 0, 1, 2);
+    details = new QDialog(this);
+    details->setWindowTitle(
+        //% "Weather Details"
+        qtTrId("route.editor.environment.tools.details.title"));
+    auto *detailsLayout = new QVBoxLayout(details);
+    info = new QLabel(details);
     info->setTextFormat(Qt::PlainText);
-    info->setContentsMargins(0, 2, 0, 2);
-    weatherGrid->addWidget(info, 3, 0, 1, 2);
+    info->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    info->setMinimumWidth(320);
+    detailsLayout->addWidget(info);
+    connect(detailsButton, &QPushButton::clicked, this, [this] {
+        refresh();
+        details->show();
+        details->raise();
+        details->activateWindow();
+    });
     connect(preset, QOverload<int>::of(&QComboBox::activated), this, [this](int) { choosePreset(); });
     connect(seed, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) {
         if (!preset->currentData().toString().isEmpty())
@@ -194,7 +203,6 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
     layout->addWidget(session);
     session->show();
     layout->addStretch(1);
-    setFixedWidth(260);
 
     connect(view, &RouteEditorGLWidget::weatherChanged, this, &EnvironmentTools::refresh);
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this, &EnvironmentTools::refresh);

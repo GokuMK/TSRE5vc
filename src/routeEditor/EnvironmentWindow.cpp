@@ -83,6 +83,29 @@ QIcon resetIcon(const QColor &colour) {
     return QIcon(pixmap);
 }
 
+// A word-wrapped label that keeps the height of its wrapped text at its
+// width: in the scrolled tool panel the rows below would not make room for a
+// line that wraps.
+class WrappingLabel : public QLabel {
+public:
+    using QLabel::QLabel;
+    // The wrapped text's height at the label's width (heightForWidth gave
+    // twice the lines here).
+    void fitHeight() {
+        const QMargins m = contentsMargins();
+        const int width = std::max(1, this->width() - m.left() - m.right());
+        const QRect text = fontMetrics().boundingRect(QRect(0, 0, width, 100000), Qt::TextWordWrap, this->text());
+        const int height = text.height() + m.top() + m.bottom();
+        if (height != minimumHeight())
+            setMinimumHeight(height);
+    }
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QLabel::resizeEvent(event);
+        fitHeight();
+    }
+};
+
 QTime timeOfHours(double hours) {
     const int minutes = std::clamp(int(std::lround(hours * 60.0)), 0, 24 * 60 - 1);
     return QTime(minutes / 60, minutes % 60);
@@ -232,7 +255,7 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     sunSize = number(SunSize,
         //% "Size:"
         qtTrId("route.editor.environment.window.sun.size"), 0.2, 5.0, 0.1, 1, QStringLiteral("°"));
-    readout = new QLabel(this);
+    readout = new WrappingLabel(this);
     readout->setWordWrap(true);
     readout->setContentsMargins(0, 2, 0, 2);
     grid->addWidget(readout, grid->rowCount(), 0, 1, 3);
@@ -409,6 +432,8 @@ void EnvironmentWindow::environmentInfo(float sunElevation, float sunAzimuth, fl
                 .arg(moonElevation, 0, 'f', 1).arg(moonFraction * 100.0f, 0, 'f', 0);
     readout->setText(lines.join('\n'));
     readout->setVisible(!lines.isEmpty());
+    if (readout->width() > 50)
+        static_cast<WrappingLabel *>(readout)->fitHeight();
 }
 
 void EnvironmentWindow::hideEvent(QHideEvent *e) {

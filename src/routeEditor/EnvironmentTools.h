@@ -17,6 +17,7 @@ class EnvironmentWindow;
 class RouteEditorGLWidget;
 class QCheckBox;
 class QComboBox;
+class QDialog;
 class QLabel;
 class QPushButton;
 class QSpinBox;
@@ -50,6 +51,10 @@ private:
     QComboBox *preset = nullptr;
     QSpinBox *seed = nullptr;
     QCheckBox *onMap = nullptr;
+    // Weather Details: a dialog with the weather's values at the editor's
+    // time, kept up to date while it is open.
+    QPushButton *detailsButton = nullptr;
+    QDialog *details = nullptr;
     QLabel *info = nullptr;
     void chooseFile(int index);
     void choosePreset();

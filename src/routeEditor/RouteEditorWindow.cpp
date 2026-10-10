@@ -52,6 +52,9 @@
 #include <routeEditor/NaviWindow.h>
 #include <routeEditor/EnvironmentWindow.h>
 #include <routeEditor/EnvironmentTools.h>
+#include <QProxyStyle>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <routeEditor/ErrorMessagesWindow.h>
 #include <routeEditor/ClientUsersWindow.h>
 #include <tsre/ErrorMessagesLib.h>
@@ -110,6 +113,43 @@ QString projectionCountry(Route *route,
     return index >= 0 ? projections.preset(index).countryCode : QString();
 }
 }
+
+namespace {
+
+// Tool panels are narrow: their scroll bars take a third of the style's width.
+class ThinScrollBars : public QProxyStyle {
+public:
+    int pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const override {
+        const int value = QProxyStyle::pixelMetric(metric, option, widget);
+        return metric == PM_ScrollBarExtent ? std::max(4, (value + 2) / 3) : value;
+    }
+};
+
+// A tool panel (F1-F5) in a scroll area of the tool box's width, so a tall
+// panel scrolls instead of being cut off.
+QScrollArea *scrollPanel(QWidget *panel, QWidget *parent) {
+    static ThinScrollBars *thin = new ThinScrollBars;
+    auto *area = new QScrollArea(parent);
+    area->setWidgetResizable(true);
+    area->setFrameShape(QFrame::NoFrame);
+    area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    area->verticalScrollBar()->setStyle(thin);
+    area->setFixedWidth(260);
+    // The panel keeps the width beside the scroll bar, so its rows squeeze
+    // into it as they did at a fixed width (wider, they would be cut off).
+    panel->setFixedWidth(260 - thin->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, area->verticalScrollBar()));
+    area->setWidget(panel);
+    return area;
+}
+
+// The scroll area holding a panel.
+QWidget *panelArea(QWidget *panel) {
+    QWidget *viewport = panel->parentWidget();
+    QWidget *area = viewport != nullptr ? viewport->parentWidget() : nullptr;
+    return qobject_cast<QScrollArea *>(area) != nullptr ? area : panel;
+}
+
+} // namespace
 
 RouteEditorWindow::RouteEditorWindow() {
 
@@ -177,14 +217,14 @@ RouteEditorWindow::RouteEditorWindow() {
     //mainLayout2->setContentsMargins(0,0,0,0);
     mainLayout2->setSpacing(0);
     mainLayout2->setContentsMargins(0,0,0,0);
-    mainLayout2->addWidget(objTools);
-    mainLayout2->addWidget(terrainTools);
-    mainLayout2->addWidget(geoTools);
+    mainLayout2->addWidget(scrollPanel(objTools, box));
+    mainLayout2->addWidget(scrollPanel(terrainTools, box));
+    mainLayout2->addWidget(scrollPanel(geoTools, box));
     if(Game::serverClient == NULL){
-        mainLayout2->addWidget(activityTools);
+        mainLayout2->addWidget(scrollPanel(activityTools, box));
     }
-    mainLayout2->addWidget(environmentTools);
-    environmentTools->hide();
+    mainLayout2->addWidget(scrollPanel(environmentTools, box));
+    panelArea(environmentTools)->hide();
     //mainLayout2->addWidget(naviBox);
     //mainLayout2->setAlignment(naviBox, Qt::AlignBottom);
     box->setLayout(mainLayout2);
@@ -625,7 +665,7 @@ RouteEditorWindow::RouteEditorWindow() {
     helpMenu->addAction(aboutAction);
     
     hideAllTools();
-    objTools->show();
+    panelArea(objTools)->show();
     
     
     if(Settings::boolean("core.interface.hideTools")){
@@ -1146,9 +1186,9 @@ void RouteEditorWindow::showToolsObjectAndTerrain(bool show){
     if(show){
         hideShowToolWidget(true);
         hideAllTools();
-        objTools->show();
+        panelArea(objTools)->show();
         objectsAndTerrainAction->setChecked(true);
-        terrainTools->show();
+        panelArea(terrainTools)->show();
         box->setFixedWidth(520);
     } else {
         hideShowToolWidget(false);
@@ -1210,39 +1250,39 @@ void RouteEditorWindow::showActivityTimetableEditor(){
 void RouteEditorWindow::setToolbox(QString name){
     if(name == "objTools"){
         hideAllTools();
-        objTools->show();
+        panelArea(objTools)->show();
         objectsAction->setChecked(true);
     }
     if(name == "terrainTools"){
         hideAllTools();
-        terrainTools->show();
+        panelArea(terrainTools)->show();
         terrainAction->setChecked(true);       
     }
     if(name == "geoTools"){
         hideAllTools();
-        geoTools->show();
+        panelArea(geoTools)->show();
         geoAction->setChecked(true);
     }
     if(name == "activityTools"){
         hideAllTools();
         if(Game::serverClient == NULL){
-            activityTools->show();
+            panelArea(activityTools)->show();
             activityAction->setChecked(true);
         }
     }
     if(name == "environmentTools"){
         hideAllTools();
-        environmentTools->show();
+        panelArea(environmentTools)->show();
         environmentAction->setChecked(true);
     }
 }
 
 void RouteEditorWindow::hideAllTools(){
-    objTools->hide();
-    terrainTools->hide();
-    geoTools->hide();
-    activityTools->hide();
-    environmentTools->hide();
+    panelArea(objTools)->hide();
+    panelArea(terrainTools)->hide();
+    panelArea(geoTools)->hide();
+    panelArea(activityTools)->hide();
+    panelArea(environmentTools)->hide();
     objectsAction->setChecked(false);
     terrainAction->setChecked(false);     
     geoAction->setChecked(false);

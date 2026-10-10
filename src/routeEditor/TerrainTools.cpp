@@ -25,7 +25,7 @@
 
 TerrainTools::TerrainTools(QString name)
     : QWidget(){
-    setFixedWidth(260);
+    // The tool box scrolls it (RouteEditorWindow); it takes the box's width.
     int row = 0;
     
     texPreview = new QPixmap(192,192);

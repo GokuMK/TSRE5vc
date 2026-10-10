@@ -3036,6 +3036,16 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <source>Passing front</source>
         <translation>Passing front</translation>
     </message>
+    <message id="route.editor.environment.tools.details">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="169"/>
+        <source>Weather Details...</source>
+        <translation>Weather Details...</translation>
+    </message>
+    <message id="route.editor.environment.tools.details.title">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="175"/>
+        <source>Weather Details</source>
+        <translation>Weather Details</translation>
+    </message>
     <message id="route.editor.environment.tools.group.file">
         <location filename="../src/routeEditor/EnvironmentTools.cpp" line="107"/>
         <source>Environment File:</source>

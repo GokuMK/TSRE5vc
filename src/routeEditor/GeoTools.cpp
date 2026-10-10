@@ -25,7 +25,7 @@
 GeoTools::GeoTools(QString name)
     : QWidget(),
       defaultTerrainProfileName(new QLabel(this)) {
-    setFixedWidth(260);
+    // The tool box scrolls it (RouteEditorWindow); it takes the box's width.
     int row = 0;
     
     // One tool for the tile's overlay and its texture: each button chooses the
