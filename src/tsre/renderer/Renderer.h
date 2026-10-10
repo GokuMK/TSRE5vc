@@ -114,6 +114,23 @@ public:
     // the camera) and depth planes, which screen-space effects such as
     // ambient occlusion need to rebuild positions from depth.
     virtual void setSceneProjection(const float *projection, float zNear, float zFar) {}
+
+    // The sky of the following frames (task 28). With physical set, a
+    // renderer that can (QRhi) draws the atmosphere behind each view in
+    // place of the sky band's background, and the caller leaves the skydome
+    // out.
+    struct Sky {
+        bool physical = false;
+        // Towards the sun (world: x east, y up, z south).
+        float sun[3] = {0.0f, 1.0f, 0.0f};
+        // The camera above sea level (m).
+        float cameraHeight = 0.0f;
+        // Display colour the sky keeps at least (night).
+        float night[3] = {0.0f, 0.0f, 0.0f};
+    };
+    virtual void setSky(const Sky &sky) { this->sky = sky; }
+    // Whether the sky set is drawn here as the atmosphere.
+    virtual bool drawsPhysicalSky() const { return false; }
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.
@@ -194,6 +211,7 @@ public:
     static int pendingRetiredPackets();
 
 protected:
+    Sky sky;
     // Borrowed packets queued in all renderers; retirement waits for zero.
     static int queuedPackets;
     static quint64 currentFrame;

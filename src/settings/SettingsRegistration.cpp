@@ -1074,6 +1074,34 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger."
                 QT_TRID_NOOP("settings.core.rendering.sky.sun.size.description")).withRange(0.2, 5, 0.1).withUnit("°").inGroup("rendering").inSubgroup("environment"),
         "", "", "SkySatellites", false, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.sky.model", 0)
+            .withNameId(
+                //% "Sky"
+                QT_TRID_NOOP("settings.core.rendering.sky.model.name")).withDescriptionId(
+                //% "Classic draws the route's sky dome in the time of day's colours. Physical computes the sky from the atmosphere for the sun's place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky."
+                QT_TRID_NOOP("settings.core.rendering.sky.model.description"))
+            .withOptions(numericChoices({{0,
+                //% "Classic"
+                QT_TRID_NOOP("settings.core.rendering.sky.model.option.classic")}, {1,
+                //% "Physical"
+                QT_TRID_NOOP("settings.core.rendering.sky.model.option.physical")}})).inGroup("rendering").inSubgroup("environment"),
+        "skyModel", "Game::skyModel", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.clouds", 0)
+            .withNameId(
+                //% "Clouds"
+                QT_TRID_NOOP("settings.core.rendering.clouds.name")).withDescriptionId(
+                //% "Volumetric clouds from the environment's weather, with the physical sky (QRhi renderer). Higher quality marches the clouds in finer steps and costs more time per frame."
+                QT_TRID_NOOP("settings.core.rendering.clouds.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.off")}, {1,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.low")}, {2,
+                //% "Medium"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.medium")}, {3,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.high")}})).inGroup("rendering").inSubgroup("environment"),
+        "cloudQuality", "Game::cloudQuality", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
                 //% "Render TrackDB items"

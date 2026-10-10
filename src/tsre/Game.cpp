@@ -134,6 +134,8 @@ bool Game::waterShaded = true;
 bool Game::waterReflection = true;
 bool Game::localLightsEnabled = true;
 int Game::ambientOcclusionQuality = 0;
+int Game::skyModel = 0;
+int Game::cloudQuality = 0;
 int Game::toneMapping = 0;
 float Game::exposure = 0.0f;
 float Game::bloomStrength = 3.0f;
@@ -390,6 +392,12 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.sky.sun", SettingType::Bool);
     claim("core.rendering.sky.moon", SettingType::Bool);
     claim("core.rendering.sky.sunSize", SettingType::Float);
+    claim("core.rendering.sky.model", SettingType::Enum);
+    if (appliesNow("core.rendering.sky.model"))
+        skyModel = settings.runtimeInt("core.rendering.sky.model");
+    claim("core.rendering.clouds", SettingType::Enum);
+    if (appliesNow("core.rendering.clouds"))
+        cloudQuality = settings.runtimeInt("core.rendering.clouds");
     floating("core.rendering.localLights.exposure", localLightsExposure);
     floating("core.rendering.localLights.emissiveGain", localLightsEmissiveGain);
     integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);

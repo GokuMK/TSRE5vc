@@ -3654,6 +3654,56 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Use a route-specific terrain mesh LOD profile</source>
         <translation>Użyj profilu LOD siatki terenu specyficznego dla trasy</translation>
     </message>
+    <message id="settings.core.rendering.clouds.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1094"/>
+        <source>Volumetric clouds from the environment's weather, with the physical sky (QRhi renderer). Higher quality marches the clouds in finer steps and costs more time per frame.</source>
+        <translation>Chmury wolumetryczne z pogody środowiska, przy fizycznym niebie (renderer QRhi). Wyższa jakość przechodzi przez chmury drobniejszymi krokami i zajmuje więcej czasu na klatkę.</translation>
+    </message>
+    <message id="settings.core.rendering.clouds.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1092"/>
+        <source>Clouds</source>
+        <translation>Chmury</translation>
+    </message>
+    <message id="settings.core.rendering.clouds.option.high">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1103"/>
+        <source>High</source>
+        <translation>Wysoka</translation>
+    </message>
+    <message id="settings.core.rendering.clouds.option.low">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1099"/>
+        <source>Low</source>
+        <translation>Niska</translation>
+    </message>
+    <message id="settings.core.rendering.clouds.option.medium">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1101"/>
+        <source>Medium</source>
+        <translation>Średnia</translation>
+    </message>
+    <message id="settings.core.rendering.clouds.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1097"/>
+        <source>Off</source>
+        <translation>Wyłączone</translation>
+    </message>
+    <message id="settings.core.rendering.sky.model.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1082"/>
+        <source>Classic draws the route's sky dome in the time of day's colours. Physical computes the sky from the atmosphere for the sun's place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky.</source>
+        <translation>Klasyczne rysuje kopułę nieba trasy w kolorach pory dnia. Fizyczne oblicza niebo z atmosfery dla położenia słońca (niebieskie w dzień, czerwone o zachodzie, ciemne nocą) i bierze z niego kolor mgły. Renderer QRhi; renderer OpenGL zostaje przy klasycznym niebie.</translation>
+    </message>
+    <message id="settings.core.rendering.sky.model.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1080"/>
+        <source>Sky</source>
+        <translation>Niebo</translation>
+    </message>
+    <message id="settings.core.rendering.sky.model.option.classic">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1085"/>
+        <source>Classic</source>
+        <translation>Klasyczne</translation>
+    </message>
+    <message id="settings.core.rendering.sky.model.option.physical">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1087"/>
+        <source>Physical</source>
+        <translation>Fizyczne</translation>
+    </message>
     <message id="terrain.lod.header.sample.spacing">
         <location filename="../src/routeEditor/TerrainLodProfileDialog.cpp" line="47"/>
         <source>Sample spacing</source>

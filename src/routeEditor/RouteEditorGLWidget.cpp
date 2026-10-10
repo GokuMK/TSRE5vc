@@ -109,6 +109,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <QFileInfo>
 #include <tsre/environment/WeatherPresets.h>
+#include <tsre/environment/Atmosphere.h>
 #include <tsre/world/Trk.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
@@ -694,6 +695,7 @@ void RouteEditorGLWidget::paintScene(){
     RenderStats::ScopedFrame statsFrame(!selectionPass);
     // The sun and the sky of the chosen time of day (or the fixed light).
     applyTimeOfDay();
+    applySky();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
@@ -776,7 +778,8 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::translate(renderer->transform(), renderer->transform(), 0, -50, 0);
     Mat4::rotate(renderer->transform(), renderer->transform(), 2.0, 0, 1, 0);
     renderer->setLayer(RenderQueue::LAYER_SKY);
-    route->skydome->pushRenderItems(queue);
+    if (!renderer->drawsPhysicalSky())
+        route->skydome->pushRenderItems(queue);
     Mat4::identity(renderer->transform());
     Mat4::translate(renderer->transform(), renderer->transform(), camera->getPos());
     skySatellites.push(queue, skyState);
@@ -1129,6 +1132,34 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     skyState.moonElevation = float(moon.elevation);
     skyState.moonFraction = float(moon.illuminatedFraction);
     std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
+}
+
+// The sky for the renderer. A physical sky (QRhi) replaces the skydome and
+// gives the fog its colour: the horizon's, averaged around it.
+void RouteEditorGLWidget::applySky() {
+    Renderer::Sky sky;
+    sky.physical = Game::skyModel == 1;
+    std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, sky.sun);
+    sky.cameraHeight = camera->getPos()[1];
+    // The night sky's floor, as the classic sky's (Daylight).
+    const float night[3] = {0.015f, 0.022f, 0.05f};
+    std::copy(night, night + 3, sky.night);
+    renderer->setSky(sky);
+    if (!renderer->drawsPhysicalSky()) {
+        if (physicalSkyApplied && !Game::timeOfDayEnabled) {
+            std::copy(timeOfDay.sky, timeOfDay.sky + 4, gluu->skyColor);
+            std::copy(timeOfDay.fog, timeOfDay.fog + 4, gluu->fogColor);
+        }
+        physicalSkyApplied = false;
+        return;
+    }
+    physicalSkyApplied = true;
+    const Atmosphere::Rgb horizon = Atmosphere::horizonColour(std::max(0.001, sky.cameraHeight / 1000.0), sky.sun);
+    for (int c = 0; c < 3; ++c) {
+        gluu->fogColor[c] = std::max(horizon[c], night[c]);
+        gluu->skyColor[c] = gluu->fogColor[c];
+        skyState.skyColor[c] = gluu->fogColor[c];
+    }
 }
 
 // Tells the environment window where the sun and moon stand (true bearing;

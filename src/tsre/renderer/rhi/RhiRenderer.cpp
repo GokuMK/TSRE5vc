@@ -250,6 +250,7 @@ void RhiRenderer::releaseResources() {
     releaseBloom();
     releaseGlowSplats();
     releaseGlowClear();
+    releaseSkyResources();
     delete presentUniforms;
     delete presentLinear;
     delete dummyBlack;
@@ -807,6 +808,10 @@ void RhiRenderer::releaseAttachments(Attachments &attachments) {
             }
         }
     }
+    delete attachments.skyTarget;
+    delete attachments.skyPass;
+    attachments.skyTarget = nullptr;
+    attachments.skyPass = nullptr;
     for (int clears = 0; clears < 4; ++clears) {
         delete attachments.targets[clears];
         delete attachments.passes[clears];
@@ -1221,6 +1226,7 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         view.projection(0.2f, view.sceneFar, projection);
         Mat4::multiply(gluu->fMatrix, projection, viewMatrix);
         view.projection(100.0f, 10000.0f, projection);
+        setSkyInverse(projection, viewMatrix);
         Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
         applyFrameUniforms();
         setFogLod(0.0f);
@@ -1888,6 +1894,8 @@ void RhiRenderer::flushTarget() {
             && uploadGlowSplats(frameBatch, state.attachments->pipelinePass());
     // Clears happen at the start of the pass; otherwise the contents stay.
     int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
+    // A physical sky takes the colour clear's place, before the geometry.
+    const bool skyFirst = (clears & 1) && skyFor(currentTarget) && state.attachments->color != nullptr;
     if ((clears & 1) && state.attachments->color3 != nullptr) {
         // The glow (bloom) starts black, not in the background colour: the
         // clear gets a pass of its own, then the glow is cleared again.
@@ -1903,6 +1911,10 @@ void RhiRenderer::flushTarget() {
         cb->beginPass(glowClear, Qt::black, {1.0f, 0});
         cb->endPass();
         clears = 0;
+    }
+    if (skyFirst) {
+        drawSky(cb, *state.attachments, frameBatch);
+        clears &= ~1;
     }
     cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
     frameBatch = nullptr;
@@ -2213,6 +2225,8 @@ void RhiRenderer::resetFrame() {
     glowSplats.gathered = glowSplats.pending = false;
     ambientOcclusionApplied = false;
     sceneProjectionValid = false;
+    skyResources.viewRendered = false;
+    std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }
 
 void RhiRenderer::writeLightUniforms(RhiProgram *program) {

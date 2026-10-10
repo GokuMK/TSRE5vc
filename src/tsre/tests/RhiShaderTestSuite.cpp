@@ -107,7 +107,8 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
         }
     }
     // Ambient occlusion passes: code-held GLSL 440.
-    const QList<QByteArray> occlusion = RhiRenderer::ambientOcclusionShaders() + RhiRenderer::imageShaders();
+    const QList<QByteArray> occlusion = RhiRenderer::ambientOcclusionShaders() + RhiRenderer::imageShaders()
+            + RhiRenderer::skyShaders();
     for (int i = 0; i < occlusion.size(); ++i) {
         QShaderBaker baker;
         baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
@@ -117,7 +118,7 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
         const QShader shader = baker.bake();
         if (!shader.isValid())
             qWarning().noquote() << baker.errorMessage();
-        check(shader.isValid(), QString("full-screen pass %1 (occlusion, present, bloom) bakes").arg(i));
+        check(shader.isValid(), QString("full-screen pass %1 (occlusion, present, bloom, sky) bakes").arg(i));
     }
     const QList<QByteArray> splats = RhiRenderer::glowSplatShaders();
     for (int i = 0; i < splats.size(); ++i) {

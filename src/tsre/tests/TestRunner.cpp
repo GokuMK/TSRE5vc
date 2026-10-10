@@ -65,6 +65,7 @@
 #include <tsre/tests/LocalLightsTestSuite.h>
 #include <tsre/tests/TimeOfDayTestSuite.h>
 #include <tsre/tests/WeatherTestSuite.h>
+#include <tsre/tests/SkyTestSuite.h>
 #include <tsre/tests/DxtCodecTestSuite.h>
 #include <tsre/tests/RhiShaderTestSuite.h>
 #include <tsre/tests/GltfPbrTestSuite.h>
@@ -4115,6 +4116,7 @@ QStringList TsreTests::listSuites() {
         "local-lights",
         "time-of-day",
         "weather",
+        "sky",
         "dxt-codec",
         "gltf-pbr-gl",
         "consist-preview-gl",
@@ -4202,6 +4204,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runTimeOfDaySuite(opts.verbose);
     if (suite == "weather")
         return runWeatherSuite(opts.casesFile, opts.verbose);
+    if (suite == "sky")
+        return runSkySuite(opts.verbose);
     if (suite == "dxt-codec")
         return runDxtCodecSuite(opts.verbose);
     if (suite == "gltf-pbr-gl")
@@ -4338,6 +4342,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runSettingsSuite(opts.verbose));
         rc = std::max(rc, runOsmDataSuite(opts.verbose));
         rc = std::max(rc, runWeatherSuite(QString(), opts.verbose));
+        rc = std::max(rc, runSkySuite(opts.verbose));
         rc = std::max(rc, runNewRouteSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTdbEditingSuite());

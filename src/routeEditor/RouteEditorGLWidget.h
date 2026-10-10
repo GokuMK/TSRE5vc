@@ -276,6 +276,9 @@ protected:
     // Time of day (Game::timeOfDayEnabled): puts the sun where it stands over
     // the camera and lights the scene for it; off, restores the fixed light.
     void applyTimeOfDay();
+    // The physical sky (task 28): the renderer's sky and the fog colour.
+    void applySky();
+    bool physicalSkyApplied = false;
     struct TimeOfDayState {
         bool saved = false;
         bool applied = false;

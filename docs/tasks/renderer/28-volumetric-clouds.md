@@ -1,8 +1,10 @@
 # Task 28 - Volumetric Clouds and Sky
 
-Status: design (user, 2026-10-10). Not started. Includes task 27 (sky
-enclosure). Reads its weather from task environment 01; the first steps do
-not need it.
+Status: in progress on `feature/clouds` (from `feature/weather`), started
+2026-10-11; step 1 done. Includes task 27 (sky enclosure). Reads its weather
+from task environment 01. Authorized overnight through step 8 and task 27
+(user, 2026-10-11); verified on lavapipe with captures, timed by the user on
+the Steam Deck.
 
 ## Objective
 
@@ -115,6 +117,44 @@ keeps today's sky.
 8. Volumetric light shafts.
 9. OpenGL renderer: a flat cloud layer from the weather; generated skydome
    textures for routes and for MSTS and Open Rails.
+
+## Step 1 (done, 2026-10-11)
+
+- `Atmosphere` (`src/tsre/environment/`): the model on the CPU (Hillaire
+  2020 constants: Rayleigh, Mie with Cornette-Shanks phase, ozone, ground
+  albedo 0.3; km; light relative to the sun's illuminance). It makes the
+  transmittance (256 x 64) and multiple-scattering (32 x 32) tables once,
+  and gives sky light along any direction, the sun's light at a height and
+  the colours the classic shading takes: `horizonColour` (the fog of a
+  physical sky, averaged around the horizon 2 degrees up) and
+  `zenithColour`. Display colour: `1 - exp(-L * 16)` and the display curve,
+  which keeps the zenith blue and rolls the bright horizon off to white.
+- QRhi (`RhiSky.cpp`): the two tables go up once as half floats; each frame
+  a sky-view table (192 x 108, Hillaire's mapping: zenith angle squeezed
+  towards the horizon, azimuth from the sun) is marched for the camera's
+  height and the sun (30 steps). Every view that clears its colour (main
+  view, environment map faces, water reflection) instead starts with a
+  full-screen pass of the sky from that table, before its geometry; the
+  direction comes from the sky band's projection and the camera's rotation
+  (`setSkyInverse`, recorded per target when the sky band begins). Below
+  the horizon (past the distant terrain) the horizon's colour. Night keeps
+  the classic night sky colour as a floor.
+- `Renderer::Sky` / `setSky` / `drawsPhysicalSky`: the editor sets the sun,
+  the camera's height and the night floor each frame (`applySky`); where the
+  renderer draws the physical sky the editor leaves out the skydome and
+  takes the fog and sky colours from `horizonColour`. The sun and moon discs
+  (`SkySatellites`) stay.
+- Settings: `core.rendering.sky.model` (Classic, default; Physical) and
+  `core.rendering.clouds` (Off, default; Low, Medium, High; used from step
+  2). The OpenGL renderer keeps the classic sky.
+- Checked: `sky` suite (8 cases: table coordinates, transmittance up and
+  along the horizon, sun set, noon zenith and horizon, sunset towards and
+  away from the sun, night); `rhi-shaders` bakes the sky passes; EUROPE1 on
+  QRhi Vulkan (lavapipe) with the physical sky at noon, 18:00, 19:30,
+  20:15, 21:00 and 23:00 (blue noon sky, golden low sun, orange band at
+  sunset, twilight, dark night; distant hills fade into the horizon's
+  colour); defaults pixel-identical to the branch's start (parity views,
+  picking 144 of 144).
 
 ## Verification
 

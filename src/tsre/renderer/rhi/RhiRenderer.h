@@ -70,6 +70,7 @@ public:
                              const float *viewProjection = nullptr) override;
     void renderFrame() override;
     void resetFrame() override;
+    bool drawsPhysicalSky() const override;
 
     // The environment map and water reflection storage (RhiReflections.cpp)
     // drive these.
@@ -162,6 +163,9 @@ private:
         // textures sampled by direction or projection rather than by screen
         // position: shadow maps and cube faces.
         bool openGlRows = false;
+        // The sky's pass: the colour attachment alone.
+        QRhiTextureRenderTarget *skyTarget = nullptr;
+        QRhiRenderPassDescriptor *skyPass = nullptr;
         QRhiTextureRenderTarget *targets[4] = {};
         QRhiRenderPassDescriptor *passes[4] = {};
         QSize size;
@@ -380,6 +384,34 @@ private:
     // view draws and read by every view.
     void prepareLights();
     void releaseLights();
+public:
+    static QList<QByteArray> skyShaders();
+private:
+    // Physical sky (RhiSky.cpp).
+    struct SkyResources {
+        QRhiTexture *transmittance = nullptr;
+        QRhiTexture *multiple = nullptr;
+        QRhiTexture *view = nullptr;
+        QRhiTexture::Format tableFormat = QRhiTexture::RGBA16F;
+        QRhiTextureRenderTarget *viewTarget = nullptr;
+        QRhiRenderPassDescriptor *viewPass = nullptr;
+        QRhiBuffer *viewUniforms = nullptr;
+        QRhiSampler *linear = nullptr;
+        QRhiShaderResourceBindings *viewBindings = nullptr;
+        QRhiGraphicsPipeline *viewPipeline = nullptr;
+        QRhiBuffer *uniforms[TargetCount] = {};
+        QRhiShaderResourceBindings *bindings[TargetCount] = {};
+        std::vector<std::pair<QRhiRenderPassDescriptor *, QRhiGraphicsPipeline *>> pipelines;
+        bool tablesUploaded = false;
+        bool viewRendered = false;
+    } skyResources;
+    float skyInverse[TargetCount][16] = {};
+    bool skyInverseValid[TargetCount] = {};
+    bool skyFor(int which) const;
+    bool createSkyResources();
+    void releaseSkyResources();
+    void setSkyInverse(const float *projection, const float *viewMatrix);
+    void drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiResourceUpdateBatch *&updates);
     void writeLightUniforms(RhiProgram *program);
     LightGrid lightGrid;
     std::vector<LightGrid::Light> frameLights;

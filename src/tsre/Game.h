@@ -167,6 +167,9 @@ public:
     static bool localLightsEnabled;
     // Ambient occlusion on the QRhi renderer: 0 off, 1 low, 2 medium, 3 high.
     static int ambientOcclusionQuality;
+    // Sky (0 classic, 1 physical) and cloud quality (0 off to 3), task 28.
+    static int skyModel;
+    static int cloudQuality;
     // QRhi renderer image: tone curve (0 off, 1 soft shoulder, 2 ACES,
     // 3 AgX), exposure in stops and bloom strength (0 off).
     static int toneMapping;
