@@ -62,9 +62,17 @@ of that name. Every file is listed in the appendix.
 | Road textures: `road`, `road2lane*`, `road2lcross*`, `road4lane*`, `road4lcross*` (14) | 1.3 MB | GLOBAL road shapes | Own assets, same names |
 | Signals, speed posts, mileposts, flags, telegraph pole, car, tree: shapes and textures | 0.6 MB | `sigcfg`, `speedpost`, `telepole`, `carspawn`, `forests`, the ref file | Own assets |
 | Sound definitions: `ingame.sms`, `signal.sms` | 15 KB | Simulator | Rework; the sounds they play: open question (below) |
-| **Unused:** `acleantrack3/4/5`, `acleantrackbase`, `concrete1-4,6` | 5.1 MB | Nothing (checked TSRE code and all 546 GLOBAL shapes) | Remove |
-| **Unused:** `jp1carcrossing`, `jp1gantry2`, `jp2bluebrg(_r)`, `watercolumn` shapes and their textures | 0.2 MB | Nothing references them | Remove |
-| **Unused:** `tiles/template.t`, `template_y.raw` | 0.15 MB | Nothing (terrain is generated) | Remove |
+| **No reference found:** `acleantrack3/4/5`, `acleantrackbase`, `concrete1-4,6` | 5.1 MB | Not named in TSRE code or in the 546 GLOBAL shapes | Verify, then replace or remove |
+| **No reference found:** `jp1carcrossing`, `jp1gantry2`, `jp2bluebrg(_r)`, `watercolumn` shapes and their textures | 0.2 MB | No template file names them | Verify, then replace or remove |
+| **No reference found:** `tiles/template.t`, `template_y.raw` | 0.15 MB | Not read by `RouteCreator` (terrain is generated) | Verify, then replace or remove |
+
+"No reference found" is only what a search of TSRE's code, the template's
+files and GLOBAL's shapes showed. A file can still be needed in a way that
+search does not see: a tool or Open Rails asking for it by a fixed name, a
+level crossing or water column picked from a list, a texture a GLOBAL or
+route shape loads by convention, or something users expect to find in a new
+route. Each of these files is checked before it is removed, and replaced
+like the others when something needs it.
 
 Broken now, fix on the way: `jp1resumesp.s` names `us2whistlepost2.ace`,
 which is not in the template; `ingame.sms` names `01.wav` and others that
@@ -109,16 +117,22 @@ an MSTS installation's `SOUND` directory.
 
 ## Steps
 
-1. **Remove the unused files** (5.5 MB) and the broken references from
-   `RouteCreator`'s lists and the data files. Create a route and check that
-   it loads. Report, with an answer proposed for every open question below,
-   then stop for review.
+1. **Check every file's use**: for each file, what reads it (TSRE code,
+   Open Rails, MSTS conventions, other template files) and which way it is
+   replaced, with special care for the "no reference found" ones (above).
+   Report a table of file, users, proposed action (generate, rework, own
+   asset, remove) and a proposed answer to every open question below, then
+   stop for review. Nothing is removed or replaced in this step.
 2. **Generated textures** (way 1) and **reworked text data** (way 2), with
    the generated files written at route creation and no longer copied.
 3. **Own assets** (way 3) for track, road, tunnel, buffer and crossing
-   textures, signals, posts, telegraph pole, car and tree. Coordinate with
+   textures, signals, posts, telegraph pole, car and tree, and for any
+   "no reference found" file step 1 shows to be needed. Coordinate with
    task 01 (assets-gen); those assets also count for the library there.
-4. **Into the repository**: the remaining template files (own assets, text)
+4. **Remove** what step 1 showed to be unused and the review confirmed,
+   with `RouteCreator`'s lists and the broken references (above). Create a
+   route and check that it loads.
+5. **Into the repository**: the remaining template files (own assets, text)
    go into the repo with a manifest (below); `RouteCreator` reads them from
    there, `LoadWindow::downloadTemplateRoute` and the koniec.org URL go,
    `templateResourcesAvailable` checks the new location.
