@@ -11,10 +11,13 @@
 #include <tsre/tests/SkyTestSuite.h>
 
 #include <tsre/environment/Atmosphere.h>
+#include <tsre/environment/CloudNoise.h>
 
 #include <QDebug>
 #include <QString>
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace {
 
@@ -94,6 +97,30 @@ int runSkySuite(bool verbose) {
     direction(45.0, 0.0, view);
     const Atmosphere::Rgb night = model.skyRadiance(0.1, view, sun);
     c.check(night[0] + night[1] + night[2] < 1e-5f, "sky-night " + text(night));
+
+    // The cloud noise tiles: one period on, the same value.
+    bool tiles = true;
+    for (int i = 0; i < 20; ++i) {
+        const float x = 0.037f * i, y = 0.71f - 0.029f * i, z = 0.013f * i * i;
+        tiles = tiles && std::abs(CloudNoise::worley(x, y, z, 8) - CloudNoise::worley(x + 1.0f, y, z - 1.0f, 8)) < 1e-4f
+                && std::abs(CloudNoise::perlin(x, y, z, 4, 3) - CloudNoise::perlin(x, y + 1.0f, z, 4, 3)) < 1e-4f;
+    }
+    c.check(tiles, "cloud-noise-tiles");
+    // The shape volume spans the range, its billows (R) about mid-grey on
+    // average; the detail volume too.
+    const std::vector<quint8> shape = CloudNoise::shape(32);
+    double sum = 0.0;
+    int low = 255, high = 0;
+    for (size_t i = 0; i < shape.size(); i += 4) {
+        sum += shape[i];
+        low = std::min(low, int(shape[i]));
+        high = std::max(high, int(shape[i]));
+    }
+    const double mean = sum / (shape.size() / 4);
+    c.check(shape.size() == 32u * 32 * 32 * 4 && mean > 60.0 && mean < 200.0 && high - low > 120,
+            QString("cloud-shape-volume (mean %1, %2-%3)").arg(mean).arg(low).arg(high));
+    const std::vector<quint8> detail = CloudNoise::detail(16);
+    c.check(detail.size() == 16u * 16 * 16 * 4, "cloud-detail-volume");
 
     qInfo() << "[tests:sky] cases=" << (c.passed + c.failed) << "passed=" << c.passed << "failed=" << c.failed;
     return c.failed == 0 ? 0 : 1;

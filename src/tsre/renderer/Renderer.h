@@ -15,6 +15,7 @@
 #include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <functional>
+#include <memory>
 #include <vector>
 
 class RenderSurface;
@@ -131,6 +132,35 @@ public:
     virtual void setSky(const Sky &sky) { this->sky = sky; }
     // Whether the sky set is drawn here as the atmosphere.
     virtual bool drawsPhysicalSky() const { return false; }
+
+    // The clouds of the following frames (task 28), with a physical sky.
+    // World metres: east, north (as the weather's).
+    struct Clouds {
+        // 0 none, 1-3 quality.
+        int quality = 0;
+        // Each frame complete, without jitter or history (captures).
+        bool still = false;
+        // The weather around the camera: size x size texels per layer (low,
+        // mid, high, one after the other), rows from north to south, RGBA:
+        // coverage, type, base (km), top (km).
+        int size = 0;
+        double west = 0.0;
+        double north = 0.0;
+        float texel = 0.0f;
+        std::shared_ptr<const std::vector<float>> layers;
+        // Changes whenever the layers do.
+        quint64 revision = 0;
+        // How far each layer has drifted with its wind (east, north).
+        float drift[3][2] = {};
+        quint32 seed = 0;
+        // The low and mid layers' extent (km): bottom and top.
+        float bottom = 0.0f;
+        float top = 0.0f;
+        // The camera.
+        double cameraEast = 0.0;
+        double cameraNorth = 0.0;
+    };
+    virtual void setClouds(const Clouds &clouds) {}
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.

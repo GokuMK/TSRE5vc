@@ -148,6 +148,9 @@ void main() {
             vec3 lights = normalize(lightDirection);
             float cosTheta = clamp(dot( normal, lights ), 0, 1);
             float visibility = shadowedVisibility(cosTheta);
+#ifdef TSRE_RHI
+            visibility *= cloudShadow(vLightPosition);
+#endif
 
             // calculate light color
             vec3 color = diffuseColor.xyz;

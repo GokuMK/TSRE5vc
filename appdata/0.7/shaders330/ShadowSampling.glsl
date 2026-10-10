@@ -32,6 +32,26 @@ float receiverPlaneBias(vec2 gradient, vec2 offset, float limit) {
     return clamp(dot(gradient, offset), -limit, limit);
 }
 
+#ifdef TSRE_RHI
+// Clouds between the sun and a point (task 28): a map of their
+// transmittance along the sun from a plane under them, around the camera.
+uniform sampler2D cloudShadowMap;
+// The map's centre (x, z), 1 / its extent, on (1) or off (0).
+uniform vec4 cloudShadowArea;
+// The sun's x / y and z / y (along it to the map's plane) and the plane's y.
+uniform vec4 cloudShadowSun;
+
+float cloudShadow(vec3 position) {
+    if (cloudShadowArea.w <= 0.0)
+        return 1.0;
+    vec2 p = position.xz + cloudShadowSun.xy * (cloudShadowSun.z - position.y);
+    vec2 uv = (p - cloudShadowArea.xy) * cloudShadowArea.z + 0.5;
+    // Past the map, fading to its average edge (no hard border).
+    float edge = smoothstep(0.5, 0.45, max(abs(uv.x - 0.5), abs(uv.y - 0.5)));
+    return mix(1.0, textureLod(cloudShadowMap, uv, 0.0).r, cloudShadowArea.w * mix(0.6, 1.0, edge));
+}
+#endif
+
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
     float shadowIntensity = 0.1;

@@ -132,6 +132,7 @@ m_yRot(0),
 m_zRot(0),
 tools(std::make_unique<ToolRegistry>()) {
     surface = RenderSurface::create(this, this);
+    connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
@@ -696,6 +697,7 @@ void RouteEditorGLWidget::paintScene(){
     // The sun and the sky of the chosen time of day (or the fixed light).
     applyTimeOfDay();
     applySky();
+    applyClouds();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
@@ -1160,6 +1162,105 @@ void RouteEditorGLWidget::applySky() {
         gluu->skyColor[c] = gluu->fogColor[c];
         skyState.skyColor[c] = gluu->fogColor[c];
     }
+}
+
+// The weather of the environment around the camera, for the renderer's
+// clouds: 128 x 128 km at 1 km a texel per layer, rebuilt when the weather,
+// its time or the camera's kilometre changes.
+void RouteEditorGLWidget::applyClouds() {
+    Renderer::Clouds &c = cloudState;
+    const Weather *weather = currentWeather();
+    if (Game::cloudQuality <= 0 || !renderer->drawsPhysicalSky() || weather == nullptr
+            || weather->keyframes.isEmpty()) {
+        if (c.quality != 0) {
+            c.quality = 0;
+            renderer->setClouds(c);
+        }
+        if (overcastApplied && !Game::timeOfDayEnabled)
+            std::copy(timeOfDay.ambient, timeOfDay.ambient + 4, gluu->ambientColor);
+        overcastApplied = false;
+        return;
+    }
+    constexpr int Size = 128;
+    constexpr float Texel = 1000.0f;
+    c.quality = Game::cloudQuality;
+    // Captures want each frame complete and the same.
+    static const bool still = qEnvironmentVariableIsSet("TSRE_CLOUDS_STILL");
+    c.still = still;
+    double east, north;
+    cameraWorldPosition(east, north);
+    c.cameraEast = east;
+    c.cameraNorth = north;
+    const double hours = weatherHours();
+    const Weather::Frame frame = weather->frame(hours);
+    for (int l = 0; l < 3; ++l) {
+        c.drift[l][0] = float(frame.drift[l][0]);
+        c.drift[l][1] = float(frame.drift[l][1]);
+    }
+    c.seed = weather->seed;
+    const double west = std::floor((east - Size * Texel * 0.5) / Texel) * Texel;
+    const double top = std::ceil((north + Size * Texel * 0.5) / Texel) * Texel;
+    if (c.size != Size || west != c.west || top != c.north || hours != cloudHours
+            || weatherRevision != cloudWeatherRevision) {
+        c.size = Size;
+        c.west = west;
+        c.north = top;
+        c.texel = Texel;
+        cloudHours = hours;
+        cloudWeatherRevision = weatherRevision;
+        auto layers = std::make_shared<std::vector<float>>(size_t(3) * Size * Size * 4);
+        float bottom = 1e9f, highest = -1e9f;
+        for (int l = 0; l < 3; ++l)
+            for (int j = 0; j < Size; ++j)
+                for (int i = 0; i < Size; ++i) {
+                    const WeatherLayerValues v = weather->layer(frame, west + (i + 0.5) * Texel,
+                                                                top - (j + 0.5) * Texel, l);
+                    float *out = &(*layers)[((size_t(l) * Size + j) * Size + i) * 4];
+                    out[0] = v.coverage;
+                    out[1] = v.type;
+                    out[2] = v.base / 1000.0f;
+                    out[3] = v.top / 1000.0f;
+                    if (l < 2 && v.coverage > 0.0f) {
+                        bottom = std::min(bottom, out[2]);
+                        highest = std::max(highest, out[3]);
+                    }
+                }
+        if (bottom > highest)
+            bottom = highest = 0.0f;
+        c.bottom = bottom;
+        c.top = highest;
+        c.layers = layers;
+        ++c.revision;
+        // Overcast: the low and mid layers' cover within 10 km, the two
+        // combined as independent.
+        double sum = 0.0;
+        int count = 0;
+        for (int j = Size / 2 - 10; j < Size / 2 + 10; ++j)
+            for (int i = Size / 2 - 10; i < Size / 2 + 10; ++i) {
+                const float lowCover = (*layers)[((size_t(0) * Size + j) * Size + i) * 4];
+                const float midCover = (*layers)[((size_t(1) * Size + j) * Size + i) * 4];
+                sum += 1.0 - (1.0 - lowCover) * (1.0 - midCover);
+                ++count;
+            }
+        cloudOvercast = float(sum / std::max(1, count));
+    }
+    renderer->setClouds(c);
+    // Under a covered sky the light comes grey from all around: more
+    // ambient, less colour, and a grey horizon (the sun's share is the
+    // renderer's, through the clouds' shadow).
+    const float o = std::clamp((cloudOvercast - 0.3f) / 0.6f, 0.0f, 1.0f);
+    const float *ambient = Game::timeOfDayEnabled ? gluu->ambientColor : timeOfDay.ambient;
+    float base[3] = {ambient[0], ambient[1], ambient[2]};
+    const float grey = (base[0] + base[1] + base[2]) / 3.0f;
+    for (int k = 0; k < 3; ++k)
+        gluu->ambientColor[k] = (base[k] + (grey - base[k]) * 0.6f * o) * (1.0f + 0.5f * o);
+    const float fogGrey = (gluu->fogColor[0] * 0.3f + gluu->fogColor[1] * 0.55f + gluu->fogColor[2] * 0.15f) * 0.85f;
+    for (int k = 0; k < 3; ++k) {
+        gluu->fogColor[k] += (fogGrey - gluu->fogColor[k]) * 0.8f * o;
+        gluu->skyColor[k] = gluu->fogColor[k];
+        skyState.skyColor[k] = gluu->fogColor[k];
+    }
+    overcastApplied = true;
 }
 
 // Tells the environment window where the sun and moon stand (true bearing;

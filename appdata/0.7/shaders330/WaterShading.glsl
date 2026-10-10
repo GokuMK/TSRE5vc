@@ -173,6 +173,9 @@ vec4 waterShade() {
     // Lit like the legacy layers, by the sun on a flat surface.
     vec3 l = normalize(lightDirection);
     float shadow = clamp(shadowedVisibility(clamp(l.y, 0.0, 1.0)), 0.0, 1.0);
+#ifdef TSRE_RHI
+    shadow *= cloudShadow(vLightPosition);
+#endif
     body *= (diffuseColor.rgb * shadow + ambientColor.rgb) * colorBrightness;
 
     float variance;

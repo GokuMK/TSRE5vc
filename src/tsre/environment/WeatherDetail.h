@@ -13,6 +13,7 @@
 
 #include <QtGlobal>
 #include <tsre/environment/Weather.h>
+#include <vector>
 
 // Seeded 2D gradient noise for the weather (the renderer evaluates the same
 // functions on the GPU).
@@ -25,6 +26,9 @@ double fractal(double x, double y, int octaves, quint32 seed);
 // The share of fractal(…, 4, …) values below value: maps the noise to an
 // even distribution, so a threshold covers a known share of the area.
 double distribution(double value);
+// The 257 quantiles distribution() interpolates (the shaders take them as a
+// table).
+const std::vector<double> &quantiles();
 // fractal() without the octaves an image of texel (in the noise's units)
 // cannot show: each fades out between 4 and 2 texels a cell, the rest
 // weighted up so the spread stays.

@@ -14,6 +14,7 @@
 #include <QVector3D>
 #include <QWidget>
 #include <tsre/renderer/RenderSurface.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/world/SkySatellites.h>
 #include <vector>
 #include <QOpenGLFunctions>
@@ -279,6 +280,16 @@ protected:
     // The physical sky (task 28): the renderer's sky and the fog colour.
     void applySky();
     bool physicalSkyApplied = false;
+    // The clouds (task 28): the weather around the camera for the renderer.
+    void applyClouds();
+    Renderer::Clouds cloudState;
+    quint64 weatherRevision = 0;
+    quint64 cloudWeatherRevision = ~0ull;
+    double cloudHours = std::nan("");
+    // The share of the sky the clouds cover around the camera (0-1), and
+    // whether the overcast light changed the frame's colours.
+    float cloudOvercast = 0.0f;
+    bool overcastApplied = false;
     struct TimeOfDayState {
         bool saved = false;
         bool applied = false;

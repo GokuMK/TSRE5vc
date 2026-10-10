@@ -250,6 +250,7 @@ void RhiRenderer::releaseResources() {
     releaseBloom();
     releaseGlowSplats();
     releaseGlowClear();
+    releaseCloudResources();
     releaseSkyResources();
     delete presentUniforms;
     delete presentLinear;
@@ -353,6 +354,7 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setVec("specularColor", 1.0f, 1.0f, 1.0f, 1.0f);
     program->setVec("lightDirection", Game::sunLightDirection[0], Game::sunLightDirection[1],
                     Game::sunLightDirection[2]);
+    writeCloudShadowUniforms(program);
     program->setFloat("isAlpha", gluu->alpha);
     program->setFloat("alphaTest", gluu->alphaTest);
     program->setFloat("textureEnabled", 1.0f);
@@ -1247,6 +1249,8 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         sceneDepthRange[1] = 0.98f;
         sceneProjectionValid = true;
     }
+    if (band == BAND_DISTANT && !secondaryView && currentTarget == TARGET_VIEW)
+        distantFar = view.distantFar;
     if (band == BAND_DISTANT) {
         if (view.mirrorPlane != nullptr) {
             // Below the plane only the water bed would show; clip it just
@@ -1626,6 +1630,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         }
         default:
             texture = dummy2D;
+            if (slot.binding == RhiShaderSource::CloudShadowBinding) {
+                if (cloudResources.shadow != nullptr && cloudResources.shadowValid) {
+                    texture = cloudResources.shadow;
+                    slotSampler = sampler(false, true);
+                }
+                break;
+            }
             if (slot.binding >= 22 && slot.binding <= 24) {
                 QRhiTexture *grid[3] = {lightData, lightCells, lightIndices};
                 if (grid[slot.binding - 22] != nullptr && !lightGrid.empty()) {
@@ -1806,8 +1817,10 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (queue.ordered.empty() && queue.grouped.empty())
             continue;
         // Occlusion of the opaque scene, before blended and later passes.
-        if (pass > PASS_ALPHA_TEST)
+        if (pass > PASS_ALPHA_TEST) {
             applyAmbientOcclusion();
+            applyClouds();
+        }
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();
         // Water sees the bed: the frame and its depth so far.
@@ -1912,6 +1925,10 @@ void RhiRenderer::flushTarget() {
         cb->endPass();
         clears = 0;
     }
+    // The clouds' maps (cover, shadow) before the main view's geometry,
+    // which samples the shadow.
+    if (state.clearColor && currentTarget == TARGET_VIEW && !secondaryView)
+        prepareClouds(cb, frameBatch);
     if (skyFirst) {
         drawSky(cb, *state.attachments, frameBatch);
         clears &= ~1;
@@ -2196,6 +2213,7 @@ void RhiRenderer::renderFrame() {
     }
     drawPasses(PASS_SKY, PASS_UI, true);
     applyAmbientOcclusion();
+    applyClouds();
     flushTarget();
     // The view goes to the frame when the surface ends it, after the
     // client painted its overlay.
@@ -2226,6 +2244,8 @@ void RhiRenderer::resetFrame() {
     ambientOcclusionApplied = false;
     sceneProjectionValid = false;
     skyResources.viewRendered = false;
+    cloudsApplied = false;
+    cloudsPrepared = false;
     std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }
 

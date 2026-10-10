@@ -1,0 +1,1218 @@
+/*  This file is part of TSRE5.
+ *
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
+ *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
+ *
+ *  Licensed under GNU General Public License 3.0 or later.
+ *
+ *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
+ */
+
+// Volumetric clouds of the QRhi renderer (task 28), after Schneider (Horizon
+// Zero Dawn 2015, Nubis 2017) and Hillaire (Frostbite 2016). After the main
+// view's opaque passes:
+// 1. cover maps: where the low, mid and high layers have clouds, the same
+//    function as the weather's 2D detail (WeatherDetail::cover: the noise,
+//    its octaves limited to what a texel shows, its quantiles, the edge),
+//    around the camera in a near (20 km) and a far (205 km) map, redrawn
+//    only when the weather, its drift or the camera's place changes;
+// 2. a march at a reduced resolution through the low and mid layers on a
+//    shell around the planet: density from the cover, a height profile by
+//    cloud type and 3D Perlin-Worley noise eroded by Worley detail; light
+//    from a short march towards the sun (multiple scattering in octaves,
+//    two-lobe phase) and from the sky; the flat high layer behind them;
+//    haze over the distance from the sky-view table;
+// 3. the result blended with the last frames' where the clouds were in the
+//    same direction (the march starts at a different jitter each frame);
+// 4. composited over the view where nothing nearer stands in front.
+
+#include "RhiRenderer.h"
+#include "RhiProgram.h"
+#include "RhiRenderSurface.h"
+#include <QDebug>
+#include <QElapsedTimer>
+#include <QMatrix4x4>
+#include <algorithm>
+#include <cmath>
+#include <qfloat16.h>
+#include <tsre/environment/Atmosphere.h>
+#include <tsre/environment/CloudNoise.h>
+#include <tsre/environment/WeatherDetail.h>
+
+namespace {
+
+constexpr int CoverSize = 512;
+// The cloud shadow map: texels and extent (km) around the camera.
+constexpr int CloudShadowSize = 256;
+constexpr float CloudShadowExtent = 12.0f;
+constexpr float NearCoverTexel = 40.0f;
+constexpr float FarCoverTexel = 400.0f;
+constexpr int ShapeSize = 128;
+constexpr int DetailSize = 32;
+// Metres one period of the shape and detail volumes spans.
+constexpr double ShapePeriod = 6000.0;
+constexpr double DetailPeriod = 900.0;
+
+// Per quality: resolution divisor, march steps, light steps, distance (km).
+struct Preset {
+    int divisor;
+    int steps;
+    int lightSteps;
+    float distance;
+};
+const Preset Presets[4] = {{0, 0, 0, 0.0f}, {4, 48, 4, 60.0f}, {2, 72, 6, 90.0f}, {2, 128, 6, 130.0f}};
+
+struct CoverParameters {
+    float map[4];          // the map's west, north edges in the weather texture (m from its NW corner), texel (m), weather extent (m)
+    float origin[3][4];    // the map's NW corner per layer, drift taken off (m; noise space)
+    quint32 seeds[4];      // noise seed per layer
+    float quantiles[65][4];
+};
+
+struct MarchParameters {
+    float inverse[16];
+    float previous[16];
+    float sun[4];
+    float camera[4];       // height (km), y sign, exposure, jitter (0-1)
+    float weatherMap[4];   // camera in the weather texture (m from its NW corner), extent (m), texels per side
+    float nearMap[4];      // camera in the near cover map (m), extent (m)
+    float farMap[4];
+    float slab[4];         // bottom, top (km), distance (km), steps
+    float projection[4];   // x and y scale, scene near and far
+    float bands[4];        // distant near and far, scene and distant depth ends
+    float noiseLow[4];     // shape and detail offsets of the low layer (m), mod their periods
+    float noiseMid[4];
+    float lighting[4];     // light steps, still, buffer texel w, h
+    float high[4];         // high layer altitude (km)
+    float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km)
+};
+
+const char *CloudCommon = R"(
+const float Pi = 3.14159265;
+
+uint hashCell(int x, int y, uint seed) {
+    uint h = uint(x) * 0x8da6b343u ^ uint(y) * 0xd8163841u ^ seed * 0xcb1ab31fu;
+    h ^= h >> 16;
+    h *= 0x7feb352du;
+    h ^= h >> 15;
+    h *= 0x846ca68bu;
+    h ^= h >> 16;
+    return h;
+}
+
+float corner(int ix, int iy, uint seed, float dx, float dy) {
+    float a = float(hashCell(ix, iy, seed) >> 24) * (2.0 * Pi / 256.0);
+    return cos(a) * dx + sin(a) * dy;
+}
+
+float fadeCurve(float t) {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+float gradientNoise(float x, float y, uint seed) {
+    float fx = floor(x), fy = floor(y);
+    int ix = int(fx), iy = int(fy);
+    float dx = x - fx, dy = y - fy;
+    float u = fadeCurve(dx), v = fadeCurve(dy);
+    float a = corner(ix, iy, seed, dx, dy);
+    float b = corner(ix + 1, iy, seed, dx - 1.0, dy);
+    float c = corner(ix, iy + 1, seed, dx, dy - 1.0);
+    float d = corner(ix + 1, iy + 1, seed, dx - 1.0, dy - 1.0);
+    return (a + (b - a) * u) + ((c + (d - c) * u) - (a + (b - a) * u)) * v;
+}
+
+// WeatherNoise::fractal with the octaves limited to what a texel shows.
+float fractalLimited(float x, float y, uint seed, float texel) {
+    float sum = 0.0, amplitude = 1.0, squares = 0.0, fullSquares = 0.0, fullTotal = 0.0, cell = 1.0;
+    for (int i = 0; i < 4; ++i) {
+        float weight = clamp((cell / texel - 2.0) / 2.0, 0.0, 1.0);
+        if (weight > 0.0) {
+            float turn = 0.5 + float(i) * 1.3;
+            float c = cos(turn), s = sin(turn);
+            float rx = x * c - y * s;
+            float ry = x * s + y * c;
+            sum += weight * amplitude * gradientNoise(rx + float(i) * 17.31, ry - float(i) * 9.77,
+                                                      seed + uint(i) * 0x9e3779b9u);
+            squares += weight * weight * amplitude * amplitude;
+        }
+        fullSquares += amplitude * amplitude;
+        fullTotal += amplitude;
+        amplitude *= 0.5;
+        cell *= 0.5;
+        x *= 2.0;
+        y *= 2.0;
+    }
+    if (squares <= 0.0)
+        return 0.0;
+    return sum / sqrt(squares) * sqrt(fullSquares) / fullTotal * 1.6;
+}
+)";
+
+const char *CoverFragment = R"(
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 result;
+layout(std140, binding = 0) uniform Cover {
+    vec4 map;
+    vec4 origin[3];
+    uvec4 seeds;
+    vec4 quantiles[65];
+};
+layout(binding = 1) uniform sampler2D weatherTexture;
+
+float quantile(int i) {
+    return quantiles[i >> 2][i & 3];
+}
+
+// WeatherNoise::distribution.
+float distribution(float value) {
+    if (value <= quantile(0))
+        return 0.0;
+    if (value >= quantile(256))
+        return 1.0;
+    int low = 0, high = 256;
+    while (high - low > 1) {
+        int middle = (low + high) / 2;
+        if (quantile(middle) > value)
+            high = middle;
+        else
+            low = middle;
+    }
+    float a = quantile(low), b = quantile(high);
+    return (float(low) + (b > a ? (value - a) / (b - a) : 0.0)) / 256.0;
+}
+
+const float Scales[4] = float[4](5000.0, 2500.0, 1200.0, 3000.0);
+
+// WeatherDetail::cover for one layer at a point of the noise space; with
+// even set, the noise's even value (0-1) the cover thresholds instead.
+float cover(vec2 point, vec2 values, uint seed, float texel, bool even) {
+    if (values.x <= 0.0 && !even)
+        return 0.0;
+    float t3 = clamp(values.y, 0.0, 1.0) * 3.0;
+    int i = min(2, int(t3));
+    float along = t3 - float(i);
+    float a = fractalLimited(point.x / Scales[i], point.y / Scales[i], seed + uint(i) * 7919u, texel / Scales[i]);
+    float noise = a;
+    if (along > 0.001) {
+        float b = fractalLimited(point.x / Scales[i + 1], point.y / Scales[i + 1], seed + uint(i + 1) * 7919u,
+                                 texel / Scales[i + 1]);
+        noise = along >= 0.999 ? b : (a * (1.0 - along) + b * along)
+                / sqrt((1.0 - along) * (1.0 - along) + along * along);
+    }
+    float evenValue = distribution(noise);
+    if (even)
+        return evenValue;
+    float scale = Scales[i] + (Scales[i + 1] - Scales[i]) * along;
+    float edge = max(0.04 + 0.08 * (1.0 - values.y), clamp(1.5 * texel / scale, 0.0, 0.3));
+    float t = clamp((evenValue - (1.0 - values.x) + edge) / (2.0 * edge), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+void main() {
+    // Texel centres (metres east and south of the map's corner); rows from
+    // north to south.
+    vec2 offset = uv * (map.z * 512.0);
+    vec2 weather = (map.xy + offset) / map.w;
+    vec4 layers[3];
+    float size = float(textureSize(weatherTexture, 0).y);
+    for (int l = 0; l < 3; ++l) {
+        vec2 w = clamp(weather, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
+        layers[l] = textureLod(weatherTexture, vec2((float(l) + w.x) / 3.0, w.y), 0.0);
+    }
+    vec3 c;
+    for (int l = 0; l < 3; ++l) {
+        vec2 point = vec2(origin[l].x + offset.x, origin[l].y - offset.y);
+        // The low and mid layers keep the noise itself: the march adds 3D
+        // noise to it before the threshold.
+        c[l] = cover(point, layers[l].xy, seeds[l], map.z, l < 2);
+    }
+    result = vec4(c, 1.0);
+}
+)";
+
+const char *CloudField = R"(
+layout(location = 0) in vec2 uv;
+layout(std140, binding = 0) uniform Clouds {
+    mat4 inverse;
+    mat4 previous;
+    vec4 sun;
+    vec4 camera;
+    vec4 weatherMap;
+    vec4 nearMap;
+    vec4 farMap;
+    vec4 slab;
+    vec4 projection;
+    vec4 bands;
+    vec4 noiseLow;
+    vec4 noiseMid;
+    vec4 lighting;
+    vec4 high;
+    vec4 shadow;
+};
+layout(binding = 1) uniform sampler2D weatherTexture;
+layout(binding = 2) uniform sampler2D nearCover;
+layout(binding = 3) uniform sampler2D farCover;
+layout(binding = 4) uniform sampler3D shapeNoise;
+layout(binding = 5) uniform sampler3D detailNoise;
+layout(binding = 6) uniform sampler2D transmittanceTable;
+layout(binding = 7) uniform sampler2D skyView;
+layout(binding = 8) uniform sampler2D sceneDepth;
+
+const float BottomRadius = 6360.0;
+const float TopRadius = 6460.0;
+
+vec2 transmittanceUv(float radius, float mu) {
+    float h = sqrt(TopRadius * TopRadius - BottomRadius * BottomRadius);
+    float rho = sqrt(max(0.0, radius * radius - BottomRadius * BottomRadius));
+    float discriminant = radius * radius * (mu * mu - 1.0) + TopRadius * TopRadius;
+    float d = max(0.0, -radius * mu + sqrt(max(0.0, discriminant)));
+    float dMin = TopRadius - radius;
+    float dMax = rho + h;
+    return vec2((d - dMin) / (dMax - dMin), rho / h);
+}
+
+float fromUnitToSubUvs(float u, float resolution) {
+    return (u + 0.5 / resolution) * (resolution / (resolution + 1.0));
+}
+
+// Sky light along a direction from the sky-view table.
+vec3 skyLight(vec3 d) {
+    float radius = BottomRadius + max(camera.x, 0.001);
+    float horizonLength = sqrt(max(0.0, radius * radius - BottomRadius * BottomRadius));
+    float beta = acos(clamp(horizonLength / radius, -1.0, 1.0));
+    float zenithHorizon = Pi - beta;
+    float angle = min(acos(clamp(d.y, -1.0, 1.0)), zenithHorizon - 1e-4);
+    float c = 1.0 - sqrt(max(0.0, 1.0 - angle / zenithHorizon));
+    vec2 dh = d.xz, sh = sun.xz;
+    float lightViewCos = (dot(dh, dh) > 1e-10 && dot(sh, sh) > 1e-10) ? dot(normalize(dh), normalize(sh)) : 1.0;
+    float u = sqrt(clamp(-lightViewCos * 0.5 + 0.5, 0.0, 1.0));
+    return textureLod(skyView, vec2(fromUnitToSubUvs(u, 192.0), fromUnitToSubUvs(c * 0.5, 108.0)), 0.0).rgb;
+}
+
+// Intersections of a ray from inside or below with a sphere around the
+// planet's centre: the far one from inside, the near one from outside.
+vec2 sphereHits(vec3 p, vec3 d, float radius) {
+    float b = dot(p, d);
+    float c = dot(p, p) - radius * radius;
+    float discriminant = b * b - c;
+    if (discriminant < 0.0)
+        return vec2(-1.0);
+    float root = sqrt(discriminant);
+    return vec2(-b - root, -b + root);
+}
+
+float henyeyGreenstein(float c, float g) {
+    float g2 = g * g;
+    return (1.0 - g2) / (4.0 * Pi * pow(1.0 + g2 - 2.0 * g * c, 1.5));
+}
+
+float remap(float v, float a, float b, float c, float d) {
+    return c + (v - a) / (b - a) * (d - c);
+}
+
+// The weather's values (coverage, type, base, top km) of a layer, at a
+// point given by its offset from the camera (km east, north).
+vec4 weatherAt(vec2 offset, int layer) {
+    vec2 w = (weatherMap.xy + vec2(offset.x, -offset.y) * 1000.0) / weatherMap.z;
+    float size = weatherMap.w;
+    w = clamp(w, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
+    return textureLod(weatherTexture, vec2((float(layer) + w.x) / 3.0, w.y), 0.0);
+}
+
+// The cover maps' value of a layer (0 low, 1 mid, 2 high): the near map
+// near the camera, then the far one.
+float coverAt(vec2 offset, int layer) {
+    vec2 m = vec2(offset.x, -offset.y) * 1000.0;
+    vec2 nearUv = (nearMap.xy + m) / nearMap.z;
+    float distance = length(offset);
+    float nearShare = 1.0 - smoothstep(6.0, 9.0, distance);
+    float value = 0.0;
+    if (nearShare > 0.0)
+        value = textureLod(nearCover, nearUv, 0.0)[layer] * nearShare;
+    if (nearShare < 1.0)
+        value += textureLod(farCover, (farMap.xy + m) / farMap.z, 0.0)[layer] * (1.0 - nearShare);
+    return value;
+}
+
+// Extinction (1/km) of the low and mid layers at a point.
+float density(vec3 p, vec2 offset, float altitude, bool detail) {
+    float sum = 0.0;
+    for (int layer = 0; layer < 2; ++layer) {
+        vec4 w = weatherAt(offset, layer);
+        if (w.x <= 0.0 || altitude < w.z || altitude > w.w)
+            continue;
+        float h = (altitude - w.z) / max(w.w - w.z, 0.05);
+        // The weather's 2D noise (even, 0-1): clouds where it passes the
+        // coverage's threshold, as on the map; 3D noise added to it before
+        // the threshold makes their edges billows instead of walls.
+        float even = coverAt(offset, layer);
+        float threshold = 1.0 - w.x;
+        float convective = clamp((w.y - 0.3) / 0.4, 0.0, 1.0);
+        float spread = mix(0.22, 0.38, convective);
+        if (even + spread < threshold)
+            continue;
+        vec4 offsets = layer == 0 ? noiseLow : noiseMid;
+        vec3 metres = vec3(offset.x * 1000.0, altitude * 1000.0, -offset.y * 1000.0);
+        vec4 s = textureLod(shapeNoise, (metres + vec3(offsets.x, 0.0, -offsets.y)) / ShapePeriod, 0.0);
+        float fbm = dot(s.gba, vec3(0.625, 0.25, 0.125));
+        float base = clamp(remap(s.r, fbm - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
+        // Height: stratus a sheet with a ragged top and bottom; cumulus a
+        // rounded base, narrowing towards the top.
+        float bottom = 1.0 - smoothstep(0.0, mix(0.25, 0.12, convective), h);
+        float top = smoothstep(mix(0.7, 0.35, convective), 1.0, h);
+        float field = even + (base - 0.5) * spread * 2.0 - bottom * 0.35 - top * mix(0.4, 0.7, convective);
+        float v = clamp((field - threshold) / mix(0.08, 0.18, convective), 0.0, 1.0);
+        if (v <= 0.0)
+            continue;
+        if (v > 0.0 && detail) {
+            vec3 dn = textureLod(detailNoise, (metres + vec3(offsets.z, 0.0, -offsets.w)) / DetailPeriod, 0.0).rgb;
+            float dfbm = dot(dn, vec3(0.625, 0.25, 0.125));
+            float erosion = mix(dfbm, 1.0 - dfbm, clamp(h * 4.0, 0.0, 1.0));
+            v = clamp(remap(v, erosion * 0.35, 1.0, 0.0, 1.0), 0.0, 1.0);
+        }
+        sum += v * mix(18.0, 30.0, convective);
+    }
+    return sum;
+}
+
+// Scene depth to distance along the view ray (km); -1 for none (sky).
+float sceneDistance(float depth, vec2 ndc) {
+    float viewZ;
+    if (depth >= bands.w)
+        return -1.0;
+    if (depth >= bands.z) {
+        float z = (depth - bands.z) / (bands.w - bands.z) * 2.0 - 1.0;
+        viewZ = 2.0 * bands.x * bands.y / ((bands.y + bands.x) - z * (bands.y - bands.x));
+    } else {
+        float z = depth / bands.z * 2.0 - 1.0;
+        viewZ = 2.0 * projection.z * projection.w / ((projection.w + projection.z) - z * (projection.w - projection.z));
+    }
+    return viewZ * length(vec3(ndc.x / projection.x, ndc.y / projection.y, 1.0)) / 1000.0;
+}
+)";
+
+const char *MarchFragment = R"(
+layout(location = 0) out vec4 result;
+layout(location = 1) out vec4 distanceOut;
+)";
+
+const char *MarchMain = R"(
+void main() {
+    vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
+    vec4 far = inverse * vec4(ndc, 1.0, 1.0);
+    vec3 d = normalize(far.xyz / far.w);
+    // The farthest scene depth under this texel.
+    vec2 texel = 1.0 / vec2(textureSize(sceneDepth, 0));
+    vec2 full = uv / texel;
+    float depth = 0.0;
+    for (int j = 0; j < 2; ++j)
+        for (int i = 0; i < 2; ++i)
+            depth = max(depth, texelFetch(sceneDepth, ivec2(clamp(floor(full + vec2(i, j) - 0.5), vec2(0.0),
+                                                                  vec2(textureSize(sceneDepth, 0) - 1))), 0).r);
+    float scene = sceneDistance(depth, ndc);
+    float limit = scene > 0.0 ? min(scene, slab.z) : slab.z;
+
+    vec3 p0 = vec3(0.0, BottomRadius + max(camera.x, 0.001), 0.0);
+    float pr = length(p0);
+    vec2 bottomHits = sphereHits(p0, d, BottomRadius + slab.x);
+    vec2 topHits = sphereHits(p0, d, BottomRadius + slab.y);
+    vec2 groundHits = sphereHits(p0, d, BottomRadius);
+    float start, end;
+    if (pr < BottomRadius + slab.x) {
+        // Below the clouds: from the bottom of the shell to its top, unless
+        // the ground comes first.
+        start = bottomHits.y;
+        end = groundHits.x > 0.0 ? -1.0 : topHits.y;
+    } else if (pr < BottomRadius + slab.y) {
+        start = 0.0;
+        end = (bottomHits.x > 0.0) ? bottomHits.x : topHits.y;
+    } else {
+        start = topHits.x;
+        end = bottomHits.x > 0.0 ? bottomHits.x : topHits.y;
+    }
+    end = min(end, limit);
+
+    vec3 sunDir = normalize(sun.xyz);
+    float cosAngle = dot(d, sunDir);
+    // Each pixel starts the march at its own place (interleaved gradient
+    // noise), moved on each frame unless still.
+    float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))) + camera.w);
+    float phaseScale[3] = float[3](1.0, 0.5, 0.25);
+    vec3 luminance = vec3(0.0);
+    float transmittance = 1.0;
+    float hit = -1.0;
+    float weightedDistance = 0.0, weights = 0.0;
+    // Light of the sky from above and of the ground from below.
+    vec3 skyAbove = skyLight(vec3(0.0, 1.0, 0.0)) * 0.6 + skyLight(normalize(vec3(sun.x, 0.0, sun.z) + vec3(0.0, 0.3, 0.0))) * 0.4;
+    if (start >= 0.0 && end > start) {
+        int steps = int(slab.w);
+        float segment = end - start;
+        float previousT = start;
+        for (int s = 0; s < steps; ++s) {
+            float f = (float(s) + jitter) / float(steps);
+            float t = start + segment * f * f;
+            float dt = max(t - previousT, 0.0);
+            if (s == 0)
+                dt = segment * (1.0 / float(steps)) * (1.0 / float(steps));
+            previousT = t;
+            vec3 p = p0 + d * t;
+            float r = length(p);
+            float altitude = r - BottomRadius;
+            vec2 offset = vec2(p.x, -p.z);
+            float sigma = density(p, offset, altitude, true);
+            if (sigma <= 0.0)
+                continue;
+            // Towards the sun, in growing steps.
+            float opticalDepth = 0.0;
+            float stepLength = 0.06;
+            vec3 q = p;
+            for (int k = 0; k < int(lighting.x); ++k) {
+                q += sunDir * stepLength;
+                float qAltitude = length(q) - BottomRadius;
+                opticalDepth += density(q, vec2(q.x, -q.z), qAltitude, false) * stepLength;
+                stepLength *= 1.8;
+            }
+            vec3 up = p / r;
+            float sunCos = dot(up, sunDir);
+            vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(r, sunCos), 0.0).rgb;
+            vec2 ground = sphereHits(p, sunDir, BottomRadius);
+            if (ground.x > 0.0)
+                sunLight = vec3(0.0);
+            // Multiple scattering in octaves (Wrenninge 2013).
+            float scattered = 0.0;
+            for (int o = 0; o < 3; ++o) {
+                float a = phaseScale[o];
+                float phase = mix(henyeyGreenstein(cosAngle, 0.6 * a), henyeyGreenstein(cosAngle, -0.3 * a), 0.3);
+                scattered += a * exp(-opticalDepth * a) * phase;
+            }
+            // Powder: the inside of a heap lit through it looks darker at
+            // its sunny edges (Schneider 2015).
+            float powder = 1.0 - exp(-2.0 * sigma * 0.08);
+            scattered *= mix(1.0, powder * 2.0, 0.5);
+            float h = clamp((altitude - slab.x) / max(slab.y - slab.x, 0.1), 0.0, 1.0);
+            // The sky's light reaches less far in: less at the bottom of
+            // the layer and where the sun's path is dense.
+            float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05));
+            vec3 ambient = skyAbove * open * 0.9 + sunLight * max(sunCos, 0.0) * 0.05 * (1.0 - h);
+            vec3 lit = sunLight * scattered * 4.0 * Pi * 0.25 + ambient;
+            float sampleT = exp(-sigma * dt);
+            luminance += transmittance * lit * (1.0 - sampleT);
+            float before = transmittance;
+            transmittance *= sampleT;
+            weightedDistance += t * (before - transmittance);
+            weights += before - transmittance;
+            if (hit < 0.0 && transmittance < 0.9)
+                hit = t;
+            if (transmittance < 0.01)
+                break;
+        }
+    }
+    float distance = weights > 0.0 ? weightedDistance / weights : -1.0;
+    // The flat high layer, behind the others.
+    if (high.x > 0.0 && pr < BottomRadius + high.x) {
+        float th = sphereHits(p0, d, BottomRadius + high.x).y;
+        if (th > 0.0 && th < slab.z * 1.6 && (scene < 0.0) && sphereHits(p0, d, BottomRadius).x < 0.0) {
+            vec3 p = p0 + d * th;
+            vec2 offset = vec2(p.x, -p.z);
+            float c = coverAt(offset, 2);
+            if (c > 0.0) {
+                vec3 metres = vec3(offset.x * 1000.0, 0.0, -offset.y * 1000.0);
+                vec4 s = textureLod(shapeNoise, vec3(metres.x / 9000.0, 0.37, metres.z / 3000.0), 0.0);
+                float alpha = c * clamp(0.25 + 0.6 * s.g, 0.0, 1.0) * 0.6;
+                vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(length(p), dot(normalize(p), sunDir)), 0.0).rgb;
+                vec3 lit = sunLight * (henyeyGreenstein(cosAngle, 0.7) * 0.6 + 0.4 / (4.0 * Pi)) * 4.0 * Pi * 0.3
+                        + skyAbove * 0.8;
+                luminance += transmittance * lit * alpha;
+                transmittance *= 1.0 - alpha;
+                if (distance < 0.0)
+                    distance = th;
+            }
+        }
+    }
+    // Haze between the camera and the clouds: towards the sky's colour.
+    if (transmittance < 1.0 && distance > 0.0) {
+        float haze = exp(-distance / 45.0);
+        luminance = luminance * haze + skyLight(d) * (1.0 - haze) * (1.0 - transmittance);
+    }
+    result = vec4(luminance, transmittance);
+    distanceOut = vec4(distance, 0.0, 0.0, 1.0);
+}
+)";
+
+const char *ShadowFragment = R"(
+layout(location = 0) out vec4 result;
+)";
+
+const char *ShadowMain = R"(
+// Transmittance along the sun from points of a plane under the clouds,
+// around the camera: the lit shaders take the sun's light through it.
+void main() {
+    vec3 sunDir = normalize(sun.xyz);
+    if (sunDir.y < 0.03) {
+        result = vec4(1.0);
+        return;
+    }
+    // Rows from north to south; km east and north of the camera.
+    vec2 ground = vec2(uv.x - 0.5, 0.5 - uv.y) * shadow.x;
+    float bottom = (slab.x - shadow.y) / sunDir.y;
+    float top = (slab.y - shadow.y) / sunDir.y;
+    const int Steps = 20;
+    float dt = (top - bottom) / float(Steps);
+    float opticalDepth = 0.0;
+    for (int s = 0; s < Steps; ++s) {
+        float t = bottom + (float(s) + 0.5) * dt;
+        vec2 offset = ground + vec2(sunDir.x, -sunDir.z) * t;
+        float altitude = shadow.y + sunDir.y * t;
+        opticalDepth += density(vec3(0.0), offset, altitude, false) * dt;
+    }
+    result = vec4(vec3(exp(-opticalDepth)), 1.0);
+}
+)";
+
+// The march blended with the last frames' result in the same direction,
+// clamped to this frame's neighbourhood.
+const char *TemporalFragment = R"(
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 result;
+layout(std140, binding = 0) uniform Clouds {
+    mat4 inverse;
+    mat4 previous;
+    vec4 sun;
+    vec4 camera;
+    vec4 weatherMap;
+    vec4 nearMap;
+    vec4 farMap;
+    vec4 slab;
+    vec4 projection;
+    vec4 bands;
+    vec4 noiseLow;
+    vec4 noiseMid;
+    vec4 lighting;
+    vec4 high;
+    vec4 shadow;
+};
+layout(binding = 1) uniform sampler2D current;
+layout(binding = 2) uniform sampler2D history;
+
+void main() {
+    vec4 now = textureLod(current, uv, 0.0);
+    if (lighting.y > 0.5) {
+        result = now;
+        return;
+    }
+    vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
+    vec4 far = inverse * vec4(ndc, 1.0, 1.0);
+    vec3 d = normalize(far.xyz / far.w);
+    vec4 clip = previous * vec4(d, 0.0);
+    if (clip.w <= 0.0) {
+        result = now;
+        return;
+    }
+    vec2 before = clip.xy / clip.w;
+    vec2 beforeUv = vec2(before.x * 0.5 + 0.5, (before.y * camera.y) * 0.5 + 0.5);
+    if (any(lessThan(beforeUv, vec2(0.0))) || any(greaterThan(beforeUv, vec2(1.0)))) {
+        result = now;
+        return;
+    }
+    vec4 low = now, highValue = now;
+    vec2 texel = lighting.zw;
+    for (int j = -1; j <= 1; ++j)
+        for (int i = -1; i <= 1; ++i) {
+            vec4 n = textureLod(current, uv + vec2(i, j) * texel, 0.0);
+            low = min(low, n);
+            highValue = max(highValue, n);
+        }
+    vec4 old = clamp(textureLod(history, beforeUv, 0.0), low, highValue);
+    result = mix(old, now, 0.15);
+}
+)";
+
+// Over the view, where nothing nearer than the clouds stands: display colour
+// with premultiplied alpha (dst * T + colour * (1 - T)).
+const char *CompositeFragment = R"(
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 result;
+#ifdef GLOW
+// The glow (bloom) behind the clouds dims with them.
+layout(location = 1) out vec4 glow;
+#endif
+layout(std140, binding = 0) uniform Clouds {
+    mat4 inverse;
+    mat4 previous;
+    vec4 sun;
+    vec4 camera;
+    vec4 weatherMap;
+    vec4 nearMap;
+    vec4 farMap;
+    vec4 slab;
+    vec4 projection;
+    vec4 bands;
+    vec4 noiseLow;
+    vec4 noiseMid;
+    vec4 lighting;
+    vec4 high;
+    vec4 shadow;
+};
+layout(binding = 1) uniform sampler2D clouds;
+layout(binding = 2) uniform sampler2D cloudDistance;
+layout(binding = 3) uniform sampler2D sceneDepth;
+
+float sceneDistance(float depth, vec2 ndc) {
+    float viewZ;
+    if (depth >= bands.w)
+        return -1.0;
+    if (depth >= bands.z) {
+        float z = (depth - bands.z) / (bands.w - bands.z) * 2.0 - 1.0;
+        viewZ = 2.0 * bands.x * bands.y / ((bands.y + bands.x) - z * (bands.y - bands.x));
+    } else {
+        float z = depth / bands.z * 2.0 - 1.0;
+        viewZ = 2.0 * projection.z * projection.w / ((projection.w + projection.z) - z * (projection.w - projection.z));
+    }
+    return viewZ * length(vec3(ndc.x / projection.x, ndc.y / projection.y, 1.0)) / 1000.0;
+}
+
+void main() {
+    vec4 c = textureLod(clouds, uv, 0.0);
+    float distance = textureLod(cloudDistance, uv, 0.0).r;
+    vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
+    float scene = sceneDistance(textureLod(sceneDepth, uv, 0.0).r, ndc);
+#ifdef GLOW
+    glow = vec4(0.0, 0.0, 0.0, 1.0);
+#endif
+    if (c.a >= 0.999 || (scene > 0.0 && distance > 0.0 && scene < distance * 0.97)) {
+        result = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+    float covered = 1.0 - c.a;
+    vec3 colour = c.rgb / max(covered, 1e-3);
+    vec3 display = pow(1.0 - exp(-colour * camera.z), vec3(1.0 / 2.2));
+    result = vec4(display * covered, c.a);
+#ifdef GLOW
+    glow = vec4(0.0, 0.0, 0.0, c.a);
+#endif
+}
+)";
+
+QByteArray cloudSource(const char *body, bool common) {
+    QByteArray source("#version 440\n");
+    source += QByteArray("const float ShapePeriod = ") + QByteArray::number(ShapePeriod, 'f', 1) + ";\n";
+    source += QByteArray("const float DetailPeriod = ") + QByteArray::number(DetailPeriod, 'f', 1) + ";\n";
+    if (common)
+        source += CloudCommon;
+    return source + body;
+}
+
+double positiveModulo(double value, double period) {
+    const double r = std::fmod(value, period);
+    return r < 0.0 ? r + period : r;
+}
+
+}
+
+static QByteArray glowVariant(QByteArray source) {
+    return source.replace("#version 440\n", "#version 440\n#define GLOW\n");
+}
+
+static QByteArray marchSource() {
+    return cloudSource(MarchFragment, true) + CloudField + MarchMain;
+}
+
+static QByteArray shadowSource() {
+    return cloudSource(ShadowFragment, true) + CloudField + ShadowMain;
+}
+
+QList<QByteArray> RhiRenderer::cloudShaders() {
+    return {cloudSource(CoverFragment, true), marchSource(), shadowSource(), cloudSource(TemporalFragment, false),
+            cloudSource(CompositeFragment, false), glowVariant(cloudSource(CompositeFragment, false))};
+}
+
+void RhiRenderer::setClouds(const Clouds &next) {
+    clouds = next;
+}
+
+bool RhiRenderer::cloudsWanted() const {
+    return sky.physical && clouds.quality > 0 && clouds.size > 0 && clouds.layers
+            && clouds.layers->size() == size_t(clouds.size) * clouds.size * 12
+            && rhi->isFeatureSupported(QRhi::ThreeDimensionalTextures)
+            && rhi->isTextureFormatSupported(QRhiTexture::RGBA16F);
+}
+
+bool RhiRenderer::createCloudVolumes() {
+    CloudResources &c = cloudResources;
+    if (c.shape != nullptr)
+        return true;
+    c.shape = rhi->newTexture(QRhiTexture::RGBA8, ShapeSize, ShapeSize, ShapeSize, 1, QRhiTexture::ThreeDimensional);
+    c.detail = rhi->newTexture(QRhiTexture::RGBA8, DetailSize, DetailSize, DetailSize, 1, QRhiTexture::ThreeDimensional);
+    if (!c.shape->create() || !c.detail->create()) {
+        delete c.shape;
+        delete c.detail;
+        c.shape = c.detail = nullptr;
+        return false;
+    }
+    QElapsedTimer timer;
+    timer.start();
+    const std::vector<quint8> shape = CloudNoise::shape(ShapeSize);
+    const std::vector<quint8> detail = CloudNoise::detail(DetailSize);
+    qInfo().noquote() << QString("Cloud noise volumes made in %1 ms").arg(timer.elapsed());
+    QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    auto upload = [&](QRhiTexture *texture, const std::vector<quint8> &data, int size) {
+        QVarLengthArray<QRhiTextureUploadEntry, 128> entries;
+        const int slice = size * size * 4;
+        for (int z = 0; z < size; ++z) {
+            QRhiTextureSubresourceUploadDescription description(data.data() + size_t(z) * slice, quint32(slice));
+            description.setSourceSize(QSize(size, size));
+            entries.append(QRhiTextureUploadEntry(z, 0, description));
+        }
+        QRhiTextureUploadDescription all;
+        all.setEntries(entries.cbegin(), entries.cend());
+        batch->uploadTexture(texture, all);
+    };
+    upload(c.shape, shape, ShapeSize);
+    upload(c.detail, detail, DetailSize);
+    c.pendingUploads = batch;
+    return true;
+}
+
+bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
+    CloudResources &c = cloudResources;
+    const Preset &preset = Presets[quality];
+    const QSize size(std::max(1, viewSize.width() / preset.divisor), std::max(1, viewSize.height() / preset.divisor));
+    if (c.march != nullptr && c.size == size && c.compositeColor == view.color)
+        return true;
+    releaseCloudBuffers();
+    if (!createCloudVolumes())
+        return false;
+    c.size = size;
+    const auto format = QRhiTexture::RGBA16F;
+    auto texture = [&](QSize s) {
+        QRhiTexture *t = rhi->newTexture(format, s, 1, QRhiTexture::RenderTarget);
+        if (!t->create()) {
+            delete t;
+            return static_cast<QRhiTexture *>(nullptr);
+        }
+        return t;
+    };
+    c.march = texture(size);
+    c.distance = texture(size);
+    c.history[0] = texture(size);
+    c.history[1] = texture(size);
+    if (c.coverNear == nullptr) {
+        c.coverNear = texture(QSize(CoverSize, CoverSize));
+        c.coverFar = texture(QSize(CoverSize, CoverSize));
+    }
+    c.shadow = texture(QSize(CloudShadowSize, CloudShadowSize));
+    if (c.march == nullptr || c.distance == nullptr || c.history[0] == nullptr || c.history[1] == nullptr
+            || c.coverNear == nullptr || c.coverFar == nullptr || c.shadow == nullptr) {
+        releaseCloudBuffers();
+        return false;
+    }
+    c.linear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
+                               QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+    c.nearest = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
+                                QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+    c.repeat = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
+                               QRhiSampler::Repeat, QRhiSampler::Repeat, QRhiSampler::Repeat);
+    c.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(MarchParameters));
+    c.coverUniforms[0] = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(CoverParameters));
+    c.coverUniforms[1] = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(CoverParameters));
+    for (QRhiResource *r : std::initializer_list<QRhiResource *>{c.linear, c.nearest, c.repeat})
+        static_cast<QRhiSampler *>(r)->create();
+    c.uniforms->create();
+    c.coverUniforms[0]->create();
+    c.coverUniforms[1]->create();
+    if (c.weather == nullptr) {
+        c.weather = rhi->newTexture(QRhiTexture::RGBA16F, QSize(3 * clouds.size, clouds.size));
+        c.weather->create();
+        c.weatherRevision = ~0ull;
+    }
+    auto target = [&](std::initializer_list<QRhiTexture *> colors, bool preserve, QRhiTextureRenderTarget *&out,
+                      QRhiRenderPassDescriptor *&pass) {
+        QRhiTextureRenderTargetDescription description;
+        QVarLengthArray<QRhiColorAttachment, 2> attachments;
+        for (QRhiTexture *t : colors)
+            attachments.append(QRhiColorAttachment(t));
+        description.setColorAttachments(attachments.cbegin(), attachments.cend());
+        out = rhi->newTextureRenderTarget(description, preserve ? QRhiTextureRenderTarget::PreserveColorContents
+                                                                : QRhiTextureRenderTarget::Flags());
+        pass = out->newCompatibleRenderPassDescriptor();
+        out->setRenderPassDescriptor(pass);
+        return out->create();
+    };
+    bool ok = target({c.coverNear}, false, c.coverTargets[0], c.coverPasses[0])
+            && target({c.coverFar}, false, c.coverTargets[1], c.coverPasses[1])
+            && target({c.march, c.distance}, false, c.marchTarget, c.marchPass)
+            && target({c.shadow}, false, c.shadowTarget, c.shadowPass)
+            && target({c.history[0]}, false, c.historyTargets[0], c.historyPasses[0])
+            && target({c.history[1]}, false, c.historyTargets[1], c.historyPasses[1])
+            && (view.color3 != nullptr ? target({view.color, view.color3}, true, c.compositeTarget, c.compositePass)
+                                       : target({view.color}, true, c.compositeTarget, c.compositePass));
+    if (!ok) {
+        releaseCloudBuffers();
+        return false;
+    }
+    c.compositeColor = view.color;
+    const auto fragment = QRhiShaderResourceBinding::FragmentStage;
+    auto bindings = [&](std::initializer_list<QRhiShaderResourceBinding> list) {
+        QRhiShaderResourceBindings *set = rhi->newShaderResourceBindings();
+        set->setBindings(list.begin(), list.end());
+        set->create();
+        return set;
+    };
+    for (int i = 0; i < 2; ++i)
+        c.coverBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.coverUniforms[i]),
+                                       QRhiShaderResourceBinding::sampledTexture(1, fragment, c.weather, c.linear)});
+    c.marchBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
+                                QRhiShaderResourceBinding::sampledTexture(1, fragment, c.weather, c.linear),
+                                QRhiShaderResourceBinding::sampledTexture(2, fragment, c.coverNear, c.linear),
+                                QRhiShaderResourceBinding::sampledTexture(3, fragment, c.coverFar, c.linear),
+                                QRhiShaderResourceBinding::sampledTexture(4, fragment, c.shape, c.repeat),
+                                QRhiShaderResourceBinding::sampledTexture(5, fragment, c.detail, c.repeat),
+                                QRhiShaderResourceBinding::sampledTexture(6, fragment, skyResources.transmittance,
+                                                                          skyResources.linear),
+                                QRhiShaderResourceBinding::sampledTexture(7, fragment, skyResources.view,
+                                                                          skyResources.linear),
+                                QRhiShaderResourceBinding::sampledTexture(8, fragment, view.depth, c.nearest)});
+    for (int i = 0; i < 2; ++i) {
+        // Writes history i from the march and history 1 - i.
+        c.temporalBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
+                                          QRhiShaderResourceBinding::sampledTexture(1, fragment, c.march, c.linear),
+                                          QRhiShaderResourceBinding::sampledTexture(2, fragment, c.history[1 - i],
+                                                                                    c.linear)});
+        c.compositeBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
+                                           QRhiShaderResourceBinding::sampledTexture(1, fragment, c.history[i], c.linear),
+                                           QRhiShaderResourceBinding::sampledTexture(2, fragment, c.distance, c.nearest),
+                                           QRhiShaderResourceBinding::sampledTexture(3, fragment, view.depth, c.nearest)});
+    }
+    static QShader vertex, coverShader, marchShader, shadowShader, temporalShader, compositeShader,
+            glowCompositeShader;
+    if (!vertex.isValid()) {
+        vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
+        coverShader = bakeInline(cloudSource(CoverFragment, true).constData(), QShader::FragmentStage, rhi);
+        marchShader = bakeInline(marchSource().constData(), QShader::FragmentStage, rhi);
+        shadowShader = bakeInline(shadowSource().constData(), QShader::FragmentStage, rhi);
+        temporalShader = bakeInline(cloudSource(TemporalFragment, false).constData(), QShader::FragmentStage, rhi);
+        compositeShader = bakeInline(cloudSource(CompositeFragment, false).constData(), QShader::FragmentStage, rhi);
+        glowCompositeShader = bakeInline(glowVariant(cloudSource(CompositeFragment, false)).constData(),
+                                         QShader::FragmentStage, rhi);
+    }
+    auto pipeline = [&](const QShader &shader, QRhiShaderResourceBindings *set, QRhiRenderPassDescriptor *pass,
+                        int outputs, bool blend) {
+        QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();
+        ps->setShaderStages({{QRhiShaderStage::Vertex, vertex}, {QRhiShaderStage::Fragment, shader}});
+        QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 2> blends;
+        for (int i = 0; i < outputs; ++i) {
+            QRhiGraphicsPipeline::TargetBlend b;
+            if (blend) {
+                // colour + view * T; the view's alpha stays.
+                b.enable = true;
+                b.srcColor = QRhiGraphicsPipeline::One;
+                b.dstColor = QRhiGraphicsPipeline::SrcAlpha;
+                b.srcAlpha = QRhiGraphicsPipeline::Zero;
+                b.dstAlpha = QRhiGraphicsPipeline::One;
+            }
+            blends.append(b);
+        }
+        ps->setTargetBlends(blends.cbegin(), blends.cend());
+        ps->setShaderResourceBindings(set);
+        ps->setRenderPassDescriptor(pass);
+        if (!ps->create()) {
+            delete ps;
+            return static_cast<QRhiGraphicsPipeline *>(nullptr);
+        }
+        return ps;
+    };
+    c.coverPipeline = pipeline(coverShader, c.coverBindings[0], c.coverPasses[0], 1, false);
+    c.marchPipeline = pipeline(marchShader, c.marchBindings, c.marchPass, 2, false);
+    c.shadowPipeline = pipeline(shadowShader, c.marchBindings, c.shadowPass, 1, false);
+    c.temporalPipeline = pipeline(temporalShader, c.temporalBindings[0], c.historyPasses[0], 1, false);
+    c.compositePipeline = view.color3 != nullptr
+            ? pipeline(glowCompositeShader, c.compositeBindings[0], c.compositePass, 2, true)
+            : pipeline(compositeShader, c.compositeBindings[0], c.compositePass, 1, true);
+    if (c.coverPipeline == nullptr || c.marchPipeline == nullptr || c.shadowPipeline == nullptr
+            || c.temporalPipeline == nullptr
+            || c.compositePipeline == nullptr) {
+        releaseCloudBuffers();
+        return false;
+    }
+    c.historyValid = false;
+    c.coverKey.clear();
+    return true;
+}
+
+bool RhiRenderer::cloudShadowPlane(float &altitude) const {
+    // Under the clouds, through the camera if it is under them.
+    altitude = std::min(sky.cameraHeight / 1000.0f, clouds.bottom - 0.05f);
+    return cloudResources.shadowValid && cloudsWanted();
+}
+
+void RhiRenderer::writeCloudShadowUniforms(RhiProgram *program) {
+    float plane = 0.0f;
+    const bool enabled = cloudShadowPlane(plane);
+    const float length = std::sqrt(sky.sun[0] * sky.sun[0] + sky.sun[1] * sky.sun[1] + sky.sun[2] * sky.sun[2]);
+    const float sunY = length > 0.0f ? sky.sun[1] / length : 1.0f;
+    if (!enabled || sunY < 0.03f) {
+        program->setVec("cloudShadowArea", 0.0f, 0.0f, 1.0f, 0.0f);
+        return;
+    }
+    program->setVec("cloudShadowArea", viewPosition[0], viewPosition[2], 1.0f / (CloudShadowExtent * 1000.0f), 1.0f);
+    // Along the sun to the map's plane (y in the view's space).
+    program->setVec("cloudShadowSun", sky.sun[0] / sky.sun[1], sky.sun[2] / sky.sun[1],
+                    viewPosition[1] + plane * 1000.0f - sky.cameraHeight, 0.0f);
+}
+
+void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates) {
+    if (cloudsPrepared || !cloudsWanted() || secondaryView || !view.valid())
+        return;
+    cloudsPrepared = true;
+    const int quality = std::clamp(clouds.quality, 1, 3);
+    CloudResources &c = cloudResources;
+    if (c.weather != nullptr && c.weather->pixelSize() != QSize(3 * clouds.size, clouds.size)) {
+        releaseCloudBuffers();
+        delete c.weather;
+        c.weather = nullptr;
+    }
+    if (c.quality != quality) {
+        releaseCloudBuffers();
+        c.quality = quality;
+    }
+    if (!createSkyResources() || !createCloudResources(view.size, quality))
+        return;
+    const Preset &preset = Presets[quality];
+    if (updates == nullptr)
+        updates = rhi->nextResourceUpdateBatch();
+    if (c.pendingUploads != nullptr) {
+        updates->merge(c.pendingUploads);
+        c.pendingUploads->release();
+        c.pendingUploads = nullptr;
+    }
+    // The weather around the camera.
+    if (c.weatherRevision != clouds.revision) {
+        c.weatherRevision = clouds.revision;
+        const std::vector<float> &layers = *clouds.layers;
+        std::vector<qfloat16> half(layers.size());
+        // Side by side: low, mid, high.
+        const int n = clouds.size;
+        for (int l = 0; l < 3; ++l)
+            for (int j = 0; j < n; ++j)
+                for (int i = 0; i < n; ++i)
+                    for (int k = 0; k < 4; ++k)
+                        half[(size_t(j) * 3 * n + size_t(l) * n + i) * 4 + k] =
+                                qfloat16(layers[((size_t(l) * n + j) * n + i) * 4 + k]);
+        QRhiTextureSubresourceUploadDescription data(half.data(), quint32(half.size() * sizeof(qfloat16)));
+        data.setSourceSize(QSize(3 * n, n));
+        updates->uploadTexture(c.weather, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, data)));
+        c.coverKey.clear();
+    }
+    const double extent = double(clouds.size) * clouds.texel;
+    // The cover maps, snapped to their texels, redrawn when they move or
+    // the weather changes.
+    const float texels[2] = {NearCoverTexel, FarCoverTexel};
+    double mapWest[2], mapNorth[2];
+    for (int m = 0; m < 2; ++m) {
+        const double span = double(CoverSize) * texels[m];
+        mapWest[m] = std::floor((clouds.cameraEast - span * 0.5) / texels[m]) * texels[m];
+        mapNorth[m] = std::ceil((clouds.cameraNorth + span * 0.5) / texels[m]) * texels[m];
+    }
+    std::vector<double> key = {mapWest[0], mapNorth[0], mapWest[1], mapNorth[1], double(clouds.revision),
+                               double(clouds.seed)};
+    for (int l = 0; l < 3; ++l) {
+        key.push_back(clouds.drift[l][0]);
+        key.push_back(clouds.drift[l][1]);
+    }
+    const bool coverChanged = key != c.coverKey;
+    if (coverChanged) {
+        c.coverKey = key;
+        const std::vector<double> &quantiles = WeatherNoise::quantiles();
+        for (int m = 0; m < 2; ++m) {
+            CoverParameters parameters = {};
+            parameters.map[0] = float(mapWest[m] - clouds.west);
+            parameters.map[1] = float(clouds.north - mapNorth[m]);
+            parameters.map[2] = texels[m];
+            parameters.map[3] = float(extent);
+            for (int l = 0; l < 3; ++l) {
+                parameters.origin[l][0] = float(mapWest[m] - clouds.drift[l][0]);
+                parameters.origin[l][1] = float(mapNorth[m] - clouds.drift[l][1]);
+                parameters.seeds[l] = clouds.seed * 3u + quint32(l) + 101u;
+            }
+            for (int q = 0; q < 257 && q < int(quantiles.size()); ++q)
+                parameters.quantiles[q >> 2][q & 3] = float(quantiles[q]);
+            updates->updateDynamicBuffer(c.coverUniforms[m], 0, sizeof(parameters), &parameters);
+        }
+    }
+    // The frame's parameters, for the shadow map now and the march later.
+    MarchParameters parameters = {};
+    std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, parameters.inverse);
+    std::copy(skyForward[TARGET_VIEW], skyForward[TARGET_VIEW] + 16, parameters.previous);
+    if (c.previousValid)
+        std::copy(c.previous, c.previous + 16, parameters.previous);
+    const float length = std::sqrt(sky.sun[0] * sky.sun[0] + sky.sun[1] * sky.sun[1] + sky.sun[2] * sky.sun[2]);
+    for (int i = 0; i < 3; ++i)
+        parameters.sun[i] = length > 0.0f ? sky.sun[i] / length : (i == 1 ? 1.0f : 0.0f);
+    parameters.camera[0] = std::max(0.001f, sky.cameraHeight / 1000.0f);
+    parameters.camera[1] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
+    parameters.camera[2] = Atmosphere::SkyExposure;
+    // The march's start: one place when still, else a new one each frame.
+    c.frame = (c.frame + 1) % 1024;
+    parameters.camera[3] = clouds.still ? 0.5f : float(std::fmod(0.5 + c.frame * 0.6180339887, 1.0));
+    parameters.weatherMap[0] = float(clouds.cameraEast - clouds.west);
+    parameters.weatherMap[1] = float(clouds.north - clouds.cameraNorth);
+    parameters.weatherMap[2] = float(extent);
+    parameters.weatherMap[3] = float(clouds.size);
+    for (int m = 0; m < 2; ++m) {
+        float *out = m == 0 ? parameters.nearMap : parameters.farMap;
+        out[0] = float(clouds.cameraEast - mapWest[m]);
+        out[1] = float(mapNorth[m] - clouds.cameraNorth);
+        out[2] = float(double(CoverSize) * texels[m]);
+    }
+    parameters.slab[0] = clouds.bottom;
+    parameters.slab[1] = std::max(clouds.top, clouds.bottom + 0.05f);
+    parameters.slab[2] = preset.distance;
+    parameters.slab[3] = float(preset.steps);
+    parameters.projection[0] = sceneProjection[0];
+    parameters.projection[1] = sceneProjection[1];
+    parameters.projection[2] = sceneProjection[2];
+    parameters.projection[3] = sceneProjection[3];
+    parameters.bands[0] = 600.0f;
+    parameters.bands[1] = distantFar;
+    parameters.bands[2] = 0.98f;
+    parameters.bands[3] = 0.99f;
+    for (int l = 0; l < 2; ++l) {
+        float *out = l == 0 ? parameters.noiseLow : parameters.noiseMid;
+        out[0] = float(positiveModulo(clouds.cameraEast - clouds.drift[l][0], ShapePeriod));
+        out[1] = float(positiveModulo(clouds.cameraNorth - clouds.drift[l][1], ShapePeriod));
+        out[2] = float(positiveModulo(clouds.cameraEast - clouds.drift[l][0], DetailPeriod));
+        out[3] = float(positiveModulo(clouds.cameraNorth - clouds.drift[l][1], DetailPeriod));
+    }
+    parameters.lighting[0] = float(preset.lightSteps);
+    parameters.lighting[1] = (clouds.still || !c.historyValid) ? 1.0f : 0.0f;
+    parameters.lighting[2] = 1.0f / float(c.size.width());
+    parameters.lighting[3] = 1.0f / float(c.size.height());
+    // The high layer at the weather's base under the camera.
+    {
+        const int n = clouds.size;
+        const size_t centre = ((size_t(2) * n + n / 2) * n + n / 2) * 4;
+        parameters.high[0] = (*clouds.layers)[centre] > 0.0f ? (*clouds.layers)[centre + 2] : 0.0f;
+    }
+    float plane = 0.0f;
+    cloudShadowPlane(plane);
+    parameters.shadow[0] = CloudShadowExtent;
+    parameters.shadow[1] = std::min(sky.cameraHeight / 1000.0f, clouds.bottom - 0.05f);
+    updates->updateDynamicBuffer(c.uniforms, 0, sizeof(parameters), &parameters);
+    auto fullScreen = [cb](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
+                           QRhiShaderResourceBindings *bindings, const QSize &size, QRhiResourceUpdateBatch *&batch) {
+        cb->beginPass(target, Qt::white, {1.0f, 0}, batch);
+        batch = nullptr;
+        cb->setGraphicsPipeline(pipeline);
+        cb->setViewport(QRhiViewport(0, 0, float(size.width()), float(size.height())));
+        cb->setShaderResources(bindings);
+        cb->draw(3);
+        cb->endPass();
+    };
+    if (coverChanged) {
+        fullScreen(c.coverTargets[0], c.coverPipeline, c.coverBindings[0], QSize(CoverSize, CoverSize), updates);
+        fullScreen(c.coverTargets[1], c.coverPipeline, c.coverBindings[1], QSize(CoverSize, CoverSize), updates);
+    }
+    fullScreen(c.shadowTarget, c.shadowPipeline, c.marchBindings, QSize(CloudShadowSize, CloudShadowSize), updates);
+    c.shadowValid = true;
+}
+
+void RhiRenderer::applyClouds() {
+    if (cloudsApplied || !cloudsWanted() || secondaryView || currentTarget != TARGET_VIEW
+            || baseProgram != PROGRAM_MAIN || !sceneProjectionValid || !skyInverseValid[TARGET_VIEW])
+        return;
+    RhiRenderSurface *surfaceNow = surface();
+    if (surfaceNow == nullptr || surfaceNow->frame().commandBuffer == nullptr || !view.valid())
+        return;
+    cloudsApplied = true;
+    // The opaque passes and the sky so far (the view's first pass prepares
+    // the clouds' maps).
+    flushTarget();
+    CloudResources &c = cloudResources;
+    if (!cloudsPrepared || !skyResources.viewRendered || c.march == nullptr || c.compositeColor != view.color)
+        return;
+    QRhiCommandBuffer *cb = surfaceNow->frame().commandBuffer;
+    auto fullScreen = [cb](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
+                           QRhiShaderResourceBindings *bindings, const QSize &size) {
+        cb->beginPass(target, Qt::black, {1.0f, 0});
+        cb->setGraphicsPipeline(pipeline);
+        cb->setViewport(QRhiViewport(0, 0, float(size.width()), float(size.height())));
+        cb->setShaderResources(bindings);
+        cb->draw(3);
+        cb->endPass();
+    };
+    fullScreen(c.marchTarget, c.marchPipeline, c.marchBindings, c.size);
+    const int write = c.current = 1 - c.current;
+    fullScreen(c.historyTargets[write], c.temporalPipeline, c.temporalBindings[write], c.size);
+    fullScreen(c.compositeTarget, c.compositePipeline, c.compositeBindings[write], view.size);
+    c.historyValid = true;
+    std::copy(skyForward[TARGET_VIEW], skyForward[TARGET_VIEW] + 16, c.previous);
+    c.previousValid = true;
+}
+
+void RhiRenderer::releaseCloudBuffers() {
+    CloudResources &c = cloudResources;
+    delete c.coverPipeline;
+    delete c.marchPipeline;
+    delete c.temporalPipeline;
+    delete c.compositePipeline;
+    for (int i = 0; i < 2; ++i) {
+        delete c.coverBindings[i];
+        delete c.temporalBindings[i];
+        delete c.compositeBindings[i];
+        delete c.coverTargets[i];
+        delete c.coverPasses[i];
+        delete c.historyTargets[i];
+        delete c.historyPasses[i];
+        delete c.history[i];
+        delete c.coverUniforms[i];
+        c.coverBindings[i] = c.temporalBindings[i] = c.compositeBindings[i] = nullptr;
+        c.coverTargets[i] = c.historyTargets[i] = nullptr;
+        c.coverPasses[i] = c.historyPasses[i] = nullptr;
+        c.history[i] = nullptr;
+        c.coverUniforms[i] = nullptr;
+    }
+    delete c.shadowPipeline;
+    delete c.shadowTarget;
+    delete c.shadowPass;
+    delete c.shadow;
+    c.shadowPipeline = nullptr;
+    c.shadowTarget = nullptr;
+    c.shadowPass = nullptr;
+    c.shadow = nullptr;
+    c.shadowValid = false;
+    delete c.marchBindings;
+    delete c.marchTarget;
+    delete c.marchPass;
+    delete c.compositeTarget;
+    delete c.compositePass;
+    delete c.march;
+    delete c.distance;
+    delete c.coverNear;
+    delete c.coverFar;
+    delete c.uniforms;
+    delete c.linear;
+    delete c.nearest;
+    delete c.repeat;
+    c.coverPipeline = c.marchPipeline = c.temporalPipeline = c.compositePipeline = nullptr;
+    c.marchBindings = nullptr;
+    c.marchTarget = c.compositeTarget = nullptr;
+    c.marchPass = c.compositePass = nullptr;
+    c.march = c.distance = c.coverNear = c.coverFar = nullptr;
+    c.uniforms = nullptr;
+    c.linear = c.nearest = c.repeat = nullptr;
+    c.compositeColor = nullptr;
+    c.size = QSize();
+    c.historyValid = false;
+    c.coverKey.clear();
+}
+
+void RhiRenderer::releaseCloudResources() {
+    releaseCloudBuffers();
+    CloudResources &c = cloudResources;
+    delete c.weather;
+    delete c.shape;
+    delete c.detail;
+    if (c.pendingUploads != nullptr)
+        c.pendingUploads->release();
+    c = CloudResources();
+}

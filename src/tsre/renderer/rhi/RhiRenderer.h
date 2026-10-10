@@ -71,6 +71,7 @@ public:
     void renderFrame() override;
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
+    void setClouds(const Clouds &clouds) override;
 
     // The environment map and water reflection storage (RhiReflections.cpp)
     // drive these.
@@ -406,12 +407,79 @@ private:
         bool viewRendered = false;
     } skyResources;
     float skyInverse[TargetCount][16] = {};
+    // Projection x camera rotation (the clouds' reprojection).
+    float skyForward[TargetCount][16] = {};
+    // The main view's distant band far plane (m).
+    float distantFar = 10000.0f;
     bool skyInverseValid[TargetCount] = {};
     bool skyFor(int which) const;
     bool createSkyResources();
     void releaseSkyResources();
     void setSkyInverse(const float *projection, const float *viewMatrix);
     void drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiResourceUpdateBatch *&updates);
+public:
+    static QList<QByteArray> cloudShaders();
+private:
+    // Volumetric clouds (RhiClouds.cpp).
+    Clouds clouds;
+    bool cloudsApplied = false;
+    struct CloudResources {
+        int quality = 0;
+        QRhiTexture *shape = nullptr;
+        QRhiTexture *detail = nullptr;
+        QRhiResourceUpdateBatch *pendingUploads = nullptr;
+        QRhiTexture *weather = nullptr;
+        quint64 weatherRevision = ~0ull;
+        QRhiTexture *coverNear = nullptr;
+        QRhiTexture *coverFar = nullptr;
+        QRhiTextureRenderTarget *coverTargets[2] = {};
+        QRhiRenderPassDescriptor *coverPasses[2] = {};
+        QRhiBuffer *coverUniforms[2] = {};
+        QRhiShaderResourceBindings *coverBindings[2] = {};
+        QRhiGraphicsPipeline *coverPipeline = nullptr;
+        std::vector<double> coverKey;
+        QSize size;
+        QRhiTexture *march = nullptr;
+        QRhiTexture *distance = nullptr;
+        QRhiTextureRenderTarget *marchTarget = nullptr;
+        QRhiRenderPassDescriptor *marchPass = nullptr;
+        QRhiShaderResourceBindings *marchBindings = nullptr;
+        QRhiGraphicsPipeline *marchPipeline = nullptr;
+        QRhiTexture *history[2] = {};
+        QRhiTextureRenderTarget *historyTargets[2] = {};
+        QRhiRenderPassDescriptor *historyPasses[2] = {};
+        QRhiShaderResourceBindings *temporalBindings[2] = {};
+        QRhiGraphicsPipeline *temporalPipeline = nullptr;
+        int current = 0;
+        bool historyValid = false;
+        float previous[16] = {};
+        bool previousValid = false;
+        int frame = 0;
+        QRhiTexture *compositeColor = nullptr;
+        QRhiTextureRenderTarget *compositeTarget = nullptr;
+        QRhiRenderPassDescriptor *compositePass = nullptr;
+        QRhiShaderResourceBindings *compositeBindings[2] = {};
+        QRhiGraphicsPipeline *compositePipeline = nullptr;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiSampler *linear = nullptr;
+        QRhiSampler *nearest = nullptr;
+        QRhiSampler *repeat = nullptr;
+        QRhiTexture *shadow = nullptr;
+        QRhiTextureRenderTarget *shadowTarget = nullptr;
+        QRhiRenderPassDescriptor *shadowPass = nullptr;
+        QRhiGraphicsPipeline *shadowPipeline = nullptr;
+        bool shadowValid = false;
+    } cloudResources;
+    bool cloudsPrepared = false;
+    bool cloudShadowPlane(float &altitude) const;
+    void writeCloudShadowUniforms(RhiProgram *program);
+    void prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);
+    bool cloudsWanted() const;
+    bool createCloudVolumes();
+    bool createCloudResources(const QSize &viewSize, int quality);
+    void applyClouds();
+    void releaseCloudBuffers();
+    void releaseCloudResources();
     void writeLightUniforms(RhiProgram *program);
     LightGrid lightGrid;
     std::vector<LightGrid::Light> frameLights;

@@ -93,6 +93,8 @@ struct ViewSpec {
     QString weatherPreset;
     quint32 weatherSeed = 1;
     double weatherTime = std::nan("");
+    // Time of day (hours) for this view; NaN keeps the profile's.
+    double time = std::nan("");
     // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
     // overlay opacity (0 to 1).
     QStringList overlayActions;
@@ -284,6 +286,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.weatherSeed = quint32(object.value("weatherSeed").toInt(1));
         if (object.contains("weatherTime"))
             view.weatherTime = object.value("weatherTime").toDouble();
+        if (object.contains("time"))
+            view.time = object.value("time").toDouble();
         for (const QJsonValue &action : object.value("overlay").toArray())
             view.overlayActions << action.toString();
         view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
@@ -597,7 +601,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 Game::terrainLib->setDistantAsCurrent();
             else
                 Game::terrainLib->setDetailedAsCurrent();
+        } else if (!spec.weatherPreset.isEmpty()) {
+            // The weather of a 3D view (the clouds).
+            widget.setDiagnosticWeather(spec.weatherPreset, spec.weatherSeed, spec.weatherTime);
         }
+        if (!std::isnan(spec.time))
+            Game::timeOfDayHours = float(spec.time);
 
         QElapsedTimer settleTimer;
         settleTimer.start();

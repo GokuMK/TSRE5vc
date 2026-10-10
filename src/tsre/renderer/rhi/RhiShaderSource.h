@@ -28,6 +28,8 @@ namespace RhiShaderSource {
 constexpr int UniformBlockBinding = 20;
 // Sampler binding of the paged terrain's patch records (TerrainPatch.glsl).
 constexpr int TerrainPatchDataBinding = 19;
+// The clouds' shadow along the sun (task 28).
+constexpr int CloudShadowBinding = 25;
 
 // Vertex attribute locations (as GLUU binds them), and the per-instance
 // matrix columns the QRhi renderer adds.

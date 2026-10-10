@@ -309,6 +309,8 @@ void RhiRenderer::setSkyInverse(const float *projection, const float *viewMatrix
     skyInverseValid[currentTarget] = invertible;
     if (invertible)
         std::copy(inverse.constData(), inverse.constData() + 16, skyInverse[currentTarget]);
+    const QMatrix4x4 forward = p * rotation;
+    std::copy(forward.constData(), forward.constData() + 16, skyForward[currentTarget]);
 }
 
 void RhiRenderer::drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiResourceUpdateBatch *&updates) {

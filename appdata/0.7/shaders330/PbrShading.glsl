@@ -187,6 +187,9 @@ vec4 pbrShade() {
     vec3 l = normalize(lightDirection);
     float nDotL = max(dot(n, l), 0.0);
     float shadow = clamp(shadowedVisibility(1.0), 0.0, 1.0);
+#ifdef TSRE_RHI
+    shadow *= cloudShadow(vLightPosition);
+#endif
     vec3 sun = PbrPi * toLinear(diffuseColor.rgb) * shadow;
     if (nDotL > 0.0) {
         vec3 fresnel;

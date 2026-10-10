@@ -1,7 +1,7 @@
 # Task 28 - Volumetric Clouds and Sky
 
 Status: in progress on `feature/clouds` (from `feature/weather`), started
-2026-10-11; step 1 done. Includes task 27 (sky enclosure). Reads its weather
+2026-10-11; steps 1-3 and 5 done, step 4 in part. Includes task 27 (sky enclosure). Reads its weather
 from task environment 01. Authorized overnight through step 8 and task 27
 (user, 2026-10-11); verified on lavapipe with captures, timed by the user on
 the Steam Deck.
@@ -155,6 +155,71 @@ keeps today's sky.
   sunset, twilight, dark night; distant hills fade into the horizon's
   colour); defaults pixel-identical to the branch's start (parity views,
   picking 144 of 144).
+
+## Steps 2, 3 and 5 (done, 2026-10-11)
+
+Done together: the clouds read the weather from the start (presets and
+imports alike), and their shadow map shares the march's code.
+
+- The editor (`applyClouds`) samples the environment's weather around the
+  camera, 128 x 128 km at 1 km a texel per layer (coverage, type, base,
+  top), and hands it to the renderer (`Renderer::Clouds`, shared, rebuilt
+  when the weather, its time or the camera's kilometre changes) with each
+  layer's drift and the weather's seed.
+- Noise volumes (`CloudNoise`, CPU, all cores, 0.6 s here): shape 128^3
+  (Perlin-Worley and three Worley octaves, Schneider 2015) over 6 km,
+  detail 32^3 (Worley octaves) over 900 m, tileable; 3D textures.
+- QRhi (`RhiClouds.cpp`), at the start of the main view, before its
+  geometry:
+  - cover maps, 512^2 near (40 m texels) and far (400 m): for the low and
+    mid layers the weather's own 2D noise in its even form (the shader
+    ports `WeatherNoise`: the hash, the 256 gradients, the octave turns,
+    the octaves limited to the texel, the quantile table), for the high
+    layer `WeatherDetail::cover` itself; redrawn only when they move, the
+    weather changes or its drift does;
+  - the cloud shadow map, 256^2 over 12 km around the camera: the
+    transmittance along the sun from a plane under the clouds (20 steps).
+    The lit shaders (`ShadowSampling.glsl`, under `TSRE_RHI`: standard,
+    PBR, water) multiply the sun by it, projecting each point along the
+    sun to the plane; past the map it fades to 0.6 of its edge.
+- After the opaque passes (with ambient occlusion):
+  - the march, at half (Medium, High) or quarter (Low) resolution: a shell
+    around the planet between the layers' lowest base and highest top, up
+    to the scene's depth (the farthest of the 2 x 2 texels under it) or 60 /
+    90 / 130 km; 48 / 72 / 128 steps spaced quadratically, each pixel
+    starting at its own place (interleaved gradient noise, moved each frame
+    unless still). Density: the weather's 2D noise plus 3D Perlin-Worley
+    noise, thresholded at 1 - coverage (so the clouds stand where the map
+    shows them, their edges billows instead of walls), less at the base and
+    towards the top (cumulus narrow upwards, stratus is a sheet), eroded by
+    the detail noise; extinction 18-30 per km. Light: 4-6 growing steps
+    towards the sun, three octaves of multiple scattering (Wrenninge), a
+    two-lobe Henyey-Greenstein phase, powder; the sun through the
+    atmosphere's transmittance; ambient from the sky-view table, less low
+    in the layer and where the sun's path is dense. The flat high layer
+    (cirrus) behind them at the weather's high base. Haze over the distance
+    (45 km) towards the sky's colour;
+  - temporal: blended with the last frames' result in the same direction
+    (rotation reprojection, clamped to the neighbourhood, 15 % new);
+  - composited over the view in display colour with premultiplied alpha
+    where nothing nearer stands; the glow (bloom) behind dims with the
+    clouds, so the sun does not shine through them.
+- Overcast (editor): the low and mid layers' cover within 10 km; above 30 %
+  the ambient light grows (up to 1.5 times) and greys, and the fog and sky
+  colours turn grey. The sun's own light is left to the shadow map.
+- `TSRE_CLOUDS_STILL=1` (captures): every frame complete and the same.
+  Capture views take `weatherPreset` and `time` (hours) in 3D too.
+- Checked: `sky` suite (noise tiles, volumes' ranges), `rhi-shaders` (all
+  cloud passes and the lit shaders bake), EUROPE1 captures
+  (`tests/renderer/clouds-views.json`, Medium, still): fair cumulus at
+  13:00 towards the horizon and up, broken, overcast, cumulus at 19:30,
+  scattered at 17:00 with the sun behind clouds, cloud shadows from above
+  and on a town. Temporal mode matches the still images, a little smoother.
+  About 1 s a frame at 960 x 540 on lavapipe. Defaults pixel-identical.
+- Not yet: clouds in the water reflection and the environment map (their
+  sky is clear); the march's cost on the Steam Deck; step 4's tuning by
+  eye (cloud brightness, overcast's base structure, the mid layer's
+  smeared look from below).
 
 ## Verification
 

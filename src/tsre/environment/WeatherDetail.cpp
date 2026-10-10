@@ -125,10 +125,10 @@ double WeatherNoise::fractal(double x, double y, int octaves, quint32 seed, doub
     return sum / std::sqrt(squares) * std::sqrt(fullSquares) / fullTotal * 1.6;
 }
 
-double WeatherNoise::distribution(double value) {
+const std::vector<double> &WeatherNoise::quantiles() {
     // The quantiles of the four-octave noise, measured once over many
     // points: the noise's distribution does not depend on the seed.
-    static const std::vector<double> quantiles = [] {
+    static const std::vector<double> table = [] {
         std::vector<double> samples;
         samples.reserve(1 << 16);
         for (int i = 0; i < (1 << 16); ++i) {
@@ -142,6 +142,11 @@ double WeatherNoise::distribution(double value) {
             table[i] = samples[std::min<size_t>(samples.size() - 1, size_t(i) * (samples.size() - 1) / 256)];
         return table;
     }();
+    return table;
+}
+
+double WeatherNoise::distribution(double value) {
+    const std::vector<double> &quantiles = WeatherNoise::quantiles();
     if (value <= quantiles.front())
         return 0.0;
     if (value >= quantiles.back())
