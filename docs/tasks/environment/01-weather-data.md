@@ -80,6 +80,132 @@ env file can list several weathers with weights, one chosen at random.
 The exact format is step 1's proposal (below), reviewed before the loader is
 written.
 
+## Step 1 proposal: format (for review)
+
+### How the existing env content fits
+
+| Env content | Read by | With a weather block |
+|---|---|---|
+| `world_fog_distance`, fog colours | MSTS, Open Rails | The weather's visibility replaces the distance in TSRE; the colours stay (until the physical sky, task renderer 28, takes over) |
+| `world_precipitation` (type, density, speed) | MSTS, Open Rails | TSRE takes precipitation from the weather; the token stays for the others |
+| `world_sky` layers (cloud and sky textures) | MSTS, Open Rails | Unchanged: the clouds MSTS and Open Rails draw. Later generated from the weather (task 28, step 9) |
+| `world_sky_satellites` | MSTS, Open Rails | Unchanged; TSRE places sun and moon by date and place |
+| `world_water` | MSTS, Open Rails, TSRE | Unchanged |
+| none | | `tsre_weather` block (below) |
+
+Without a block, TSRE derives a weather from the env file: the TRK slot it
+fills (clear, rain or snow), its fog distance and its precipitation pick a
+preset (fair cumulus for clear, overcast with rain or snow otherwise). Every
+route gets clouds without editing.
+
+### The block
+
+A top-level block after `world ( ... )`, in the env file's own style
+(lower case, underscores, a `tsre_` prefix). Times are hours; heights metres
+above sea level; wind direction in degrees the wind comes from, measured
+from the route grid's north (an import turns true north into it); speeds
+m/s.
+
+```text
+tsre_weather (
+    tsre_weather_version ( 1 )
+    tsre_weather_choice (                         // optional: a generic env file
+        tsre_weather_option ( 3 "fair" )          // weight, a weather in this file
+        tsre_weather_option ( 1 "UKrain.env" )    // or another env file
+    )
+    tsre_weather_def ( "fair"
+        tsre_weather_preset ( fair_cumulus )      // optional: preset values, overridden below
+        tsre_weather_seed ( 1234 )                // the generated detail
+        tsre_weather_source ( "preset" "" )       // source, attribution
+        tsre_weather_start ( 2024-06-21T04:00:00Z )  // optional: absolute UTC; without it, relative and looping
+        tsre_weather_grid ( -6200 14950 2000 160 110 )  // NW corner tile x, z; cell size; columns; rows
+        tsre_weather_maps ( "WEATHER/fair" )      // optional: per-cell maps, below
+        tsre_weather_keyframe (
+            tsre_weather_time ( 0 )
+            tsre_weather_wind ( low 250 6 )
+            tsre_weather_wind ( mid 260 12 )
+            tsre_weather_wind ( high 270 25 )
+            tsre_weather_precipitation ( none 0 )     // none, rain, snow; mm/h
+            tsre_weather_visibility ( 30000 )
+            tsre_weather_variation ( 0.25 30000 )     // coverage varied by noise: amount, scale (m)
+            tsre_weather_layer ( low cumulus 0.35 900 2200 1.0 )  // type, coverage, base, top, density
+            tsre_weather_layer ( mid altocumulus 0.10 3500 4200 0.6 )
+            tsre_weather_layer ( high cirrus 0.20 9000 9500 0.3 )
+        )
+        tsre_weather_keyframe ( ... )
+    )
+)
+```
+
+- A preset is a named set of these values in TSRE's code (fair cumulus,
+  scattered, broken, overcast, rain, snow, thunderstorm, a passing front as
+  several keyframes); a definition can start from one and override any
+  value. A preset weather has no grid or maps: it is the same everywhere
+  except for the variation noise, and covers the whole world.
+- Layer values in a keyframe are uniform; per-cell maps (below) replace
+  them where given.
+- Keyframes cross-fade linearly; each layer drifts with its own wind,
+  integrated from the weather's start, so low and high clouds move apart.
+- A relative weather (no start) begins at the activity's start or, in the
+  editor, at the environment window's time; it loops after its last
+  keyframe.
+
+### Per-cell maps
+
+Imported weather (and hand-made weather, later) varies per cell:
+
+```text
+ENVFILES/WEATHER/<name>/
+|-- low.png       per keyframe: R coverage, G type, B base, A top
+|-- mid.png
+|-- high.png
+`-- surface.png   R precipitation (mm/h), G snow share, B visibility, A spare
+```
+
+- 16-bit RGBA PNG (`QImage::Format_RGBA64`), one image per layer with the
+  keyframes stacked as rows of cells: `columns` wide, `rows x keyframes`
+  high. Viewable in any image viewer, lossless, small for smooth fields,
+  four files per weather.
+- Scales: coverage and snow share 0-1; type 0-1 along stratus,
+  stratocumulus, cumulus, cumulonimbus (Nubis' continuous type); heights in
+  metres (0-65535); precipitation in 0.01 mm/h; visibility in metres / 2.
+- Wind, the variation and the layer densities stay per keyframe: one value
+  per layer drifts the whole field rigidly.
+- Imports resample their source grid (latitude and longitude, 9-25 km) to
+  the route grid (about 2 km cells) through the route's coordinate
+  converter.
+
+Options considered for the maps: one binary file with a header and half
+floats (compact, not viewable), JSON (large), NetCDF or EXR (new
+dependencies). PNG fits Qt and can be checked by eye.
+
+### Activities
+
+A TSRE token in the activity header names an env file (MSTS does not read
+it; the season and weather tokens stay for MSTS and Open Rails):
+`TsreEnvironment ( "fair.env" )`. With a choice in that env file, the
+activity may fix the choice with a seed.
+
+### Code
+
+- `Weather` (`src/tsre/environment/`): the definitions of an env file,
+  read and written with ParserX; a definition's keyframes and maps;
+  `sample(time, x, z, layer)` for a cell value and `drift(time, layer)`.
+- `WeatherPresets`: the named presets.
+- `WeatherDetail`: the generated detail, a seeded noise field thresholded
+  by coverage, evaluated on the CPU for the map and on the GPU by the
+  renderer from the same parameters.
+- `Environment` gains the block's reading; nothing else in it changes.
+
+### Open questions
+
+- Grid north or true north for wind directions in the file: grid north
+  makes the renderer's drift direct; true north makes the file readable
+  against weather maps. Proposed: grid north, with the import converting.
+- The map layer's colours for three cloud layers at once (proposed: low
+  white, mid light blue, high thin hatching; precipitation in radar
+  colours over them).
+
 ## Map mode weather layer
 
 A `Weather` map layer, early (step 2), so every later step shows its
