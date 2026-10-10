@@ -129,6 +129,30 @@ public:
     WeatherLayerValues layer(double hours, double east, double north, int layer) const;
     WeatherSurface surface(double hours, double east, double north) const;
 
+    // The part of sampling that depends only on the time, computed once for
+    // many places (map images): the keyframes' blend and how far each
+    // keyframe's field and the clouds have moved.
+    struct Frame {
+        double hours = 0.0;
+        bool empty = true;
+        Blend blend;
+        // Per layer: the layer's drift since the start (the detail and the
+        // variation), keyframe a's field sampled at p - shiftA, b's at p + shiftB.
+        std::array<std::array<double, 2>, WeatherLayer::Count> drift{};
+        std::array<std::array<double, 2>, WeatherLayer::Count> shiftA{};
+        std::array<std::array<double, 2>, WeatherLayer::Count> shiftB{};
+        float variationAmount = 0.0f;
+        float variationScale = 0.0f;
+    };
+    Frame frame(double hours) const;
+    WeatherLayerValues layer(const Frame &frame, double east, double north, int layer) const;
+    WeatherSurface surface(const Frame &frame, double east, double north) const;
+
+    // The weather's hours at the editor's date and time of day (hours): a
+    // relative weather starts at midnight; an absolute one counts from its
+    // start, the editor's time taken as UTC (time zones are a later step).
+    double editorHours(const QDate &date, double timeOfDay) const;
+
     // Per-cell maps (16-bit RGBA PNG, keyframes stacked as rows of cells):
     // <layer>.png: coverage, type, base, top; surface.png: precipitation
     // (0.01 mm/h), snow share, visibility (m / 2).

@@ -44,7 +44,7 @@ ObjTools::ObjTools(QString name)
     //QRadioButton *radio1 = new QRadioButton(tr("&Radio button 1"));
     //QRadioButton *radio2 = new QRadioButton(tr("R&adio button 2"));
     //QRadioButton *radio3 = new QRadioButton(tr("Ra&dio button 3"));
-    setFixedWidth(250);
+    setFixedWidth(260);
     buttonTools["selectTool"] = new QPushButton(
         //% "Select"
         qtTrId("route.editor.obj.tools.button.select"), this);

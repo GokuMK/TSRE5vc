@@ -242,6 +242,12 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
     c.check(written.contains("tsre_other_tool ( 1 \"two words\" )") && written.contains("_world_wind_layers"),
             "sample-unknown-written");
 
+    // Numbers as MSTS writes them: plain decimals, the fewest that read back.
+    c.check(EnvNode::floatText(230.0f) == "230" && EnvNode::floatText(0.25f) == "0.25"
+            && EnvNode::floatText(-0.008f) == "-0.008" && EnvNode::floatText(40000.0f) == "40000"
+            && EnvNode::floatText(0.6f) == "0.6" && EnvNode::floatText(-0.0f) == "0"
+            && EnvNode::floatText(1e-6f).toFloat() == 1e-6f, "number-text " + EnvNode::floatText(230.0f));
+
     // Saving: UTF-16 LE with a byte order mark and CRLF lines.
     QTemporaryDir temp;
     const QString envPath = temp.path() + "/test.env";

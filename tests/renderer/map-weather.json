@@ -1,0 +1,23 @@
+{
+  "notes": "Map mode weather layer (docs/tasks/environment/01-weather-data.md): presets around EUROPE1's start, a passing front at four times, and fair cumulus an hour apart (drifting east with a 5 m/s west wind).",
+  "output": "build/renderer-map",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 120, "maxSeconds": 120},
+  "views": [
+    {"name": "fair-12h", "mode": "map", "metresPerPixel": 20, "weather": true, "weatherPreset": "fair_cumulus", "weatherTime": 12},
+    {"name": "fair-13h", "mode": "map", "metresPerPixel": 20, "weather": true, "weatherPreset": "fair_cumulus", "weatherTime": 13},
+    {"name": "scattered", "mode": "map", "metresPerPixel": 50, "weather": true, "weatherPreset": "scattered", "weatherTime": 12},
+    {"name": "overcast", "mode": "map", "metresPerPixel": 50, "weather": true, "weatherPreset": "overcast", "weatherTime": 12},
+    {"name": "rain", "mode": "map", "metresPerPixel": 50, "weather": true, "weatherPreset": "rain", "weatherTime": 12},
+    {"name": "thunderstorm", "mode": "map", "metresPerPixel": 100, "weather": true, "weatherPreset": "thunderstorm", "weatherTime": 12},
+    {"name": "front-0h", "mode": "map", "metresPerPixel": 100, "weather": true, "weatherPreset": "front", "weatherTime": 0},
+    {"name": "front-4h", "mode": "map", "metresPerPixel": 100, "weather": true, "weatherPreset": "front", "weatherTime": 4},
+    {"name": "front-8h", "mode": "map", "metresPerPixel": 100, "weather": true, "weatherPreset": "front", "weatherTime": 8},
+    {"name": "front-12h", "mode": "map", "metresPerPixel": 100, "weather": true, "weatherPreset": "front", "weatherTime": 12}
+  ]
+}

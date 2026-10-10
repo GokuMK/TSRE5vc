@@ -1,6 +1,6 @@
 # Task Environment 01 - Weather Data
 
-Status: step 1 done on `feature/weather` (2026-10-10); step 2 next.
+Status: steps 1 and 2 done on `feature/weather` (2026-10-10); step 3 next.
 
 ## Objective
 
@@ -355,6 +355,53 @@ panel's width.
   env file below it: all 97 on this machine (stock MSTS, starter route,
   test routes) round-trip, and every value of each file is in its written
   model.
+
+## Step 2 (done, 2026-10-10)
+
+- **Map > Weather** (`WeatherMapLayer`): the low, mid and high clouds at
+  the weather's time (low and mid filled, high hatched; dark clouds on the
+  light palette, light ones on the dark), rain and snow in radar colours
+  over them, the low wind as arrows every 150 pixels, the weather's cells
+  when they are 8 pixels wide or more. The image (512 x 512 texels, the
+  view's ground and 60 % more) is made on a worker thread and anchored to
+  the ground: panning keeps the last image in place until the next is
+  ready; a new one is made for another time (half a minute apart), another
+  weather, or a view it does not cover or fit. Cloud edges are softened to
+  a texel at least, so the image does not step. Map captures wait for it
+  (`mapLayersBusy`).
+- **Precipitation** (`WeatherDetail::precipitation`): the weather's rate
+  varied over about 12 km (mean factor 1) and, for convective clouds,
+  falling only under the cells (the area's mean kept), so rain is patchy
+  as on a radar. The 3D renderer takes the same.
+- **Sampling speed**: `Weather::Frame` holds what depends only on the time
+  (the keyframes' blend, every layer's drift), computed once for an image;
+  the noise uses a table of 256 gradients (the renderer's shader takes the
+  same) instead of trigonometry per corner.
+- **The F5 Environment panel** (`EnvironmentTools`), the fifth tool panel:
+  - Environment File: the TRK's season and weather slots with their files,
+    then every file in `ENVFILES`; Reload; Save (after a question) writes the
+    weather into the env file as its block, with its maps.
+  - Weather: a preset ("From the file" for the file's own or derived
+    weather) and seed, "Show on the map" (Map > Weather), and the values
+    at the editor's time: source, keyframes, each layer's type, coverage
+    and heights, the low wind, precipitation, visibility.
+  - Editor Session: the former environment window's controls, unchanged
+    (its fog section now headed "Fog").
+  - Window > Environment (F5) shows it; the environment window no longer
+    floats. All tool panels and the tool box are 260 px wide (Objects and
+    Terrain together 520).
+- **The weather's time** in the editor: a relative weather starts at
+  midnight, so the environment window's time of day moves it (a 15-hour
+  front passes over the day); an absolute one counts from its start, the
+  editor's time taken as UTC until time zones come.
+- Numbers in written env files are plain decimals (230, 0.25), the fewest
+  that read back as the same float.
+- Checked: `tests/renderer/map-weather.json` (EUROPE1: every preset, the
+  front at 0, 4, 8 and 12 h, fair cumulus an hour apart moving east); in the
+  editor under Xvfb: F5, a preset, Show on the map, map mode; the file list
+  (twelve TRK slots, four files) and switching to `UKsnow.env` (derived
+  snow); Save on a copy of MINI (the block written, the MSTS contents
+  kept). Suites: weather (43), map-view, editor-tools, tokens.
 
 ## Verification
 

@@ -31,10 +31,13 @@ public:
     int surfaceWaterLayer() const;
     // The other layers from the lowest up, at most count of them.
     QVector<int> lowerWaterLayers(int count) const;
-    // The file as read, and its weather (its block, or derived from it).
+    // The file as read, and its weather (its block, or derived from it and
+    // the TRK slot it fills).
     Env::File file;
     Weather weather;
-    Environment(QString path);
+    Env::SlotWeather slot = Env::SlotWeather::Unknown;
+    QString path;
+    Environment(QString path, Env::SlotWeather slot = Env::SlotWeather::Unknown);
     virtual ~Environment();
 private:
     bool loaded;

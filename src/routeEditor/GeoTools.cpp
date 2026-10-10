@@ -25,7 +25,7 @@
 GeoTools::GeoTools(QString name)
     : QWidget(),
       defaultTerrainProfileName(new QLabel(this)) {
-    setFixedWidth(250);
+    setFixedWidth(260);
     int row = 0;
     
     // One tool for the tile's overlay and its texture: each button chooses the

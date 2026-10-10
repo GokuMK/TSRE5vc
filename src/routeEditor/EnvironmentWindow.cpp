@@ -237,10 +237,10 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     readout->setContentsMargins(0, 2, 0, 2);
     grid->addWidget(readout, grid->rowCount(), 0, 1, 3);
 
-    // Environment.
+    // Fog.
     section(
-        //% "Environment:"
-        qtTrId("route.editor.environment.window.group.environment"));
+        //% "Fog:"
+        qtTrId("route.editor.environment.window.group.fog"));
     fogButton = new QPushButton(this);
     row(FogColor,
         //% "Fog colour:"

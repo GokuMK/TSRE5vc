@@ -15,14 +15,15 @@
 #include <QFileInfo>
 #include <algorithm>
 
-Environment::Environment(QString path) {
+Environment::Environment(QString path, Env::SlotWeather slot) : slot(slot) {
     loaded = false;
     texturePath = Game::root + "/ROUTES/" + Game::route + "/ENVFILES/TEXTURES/";
     path = ContentPath::normalize(path);
+    this->path = path;
     QString error;
     if (!file.read(path, error)) {
         qWarning() << "Environment file" << path << "not read:" << error;
-        weather = file.weatherOrDerived();
+        weather = file.weatherOrDerived(slot);
         return;
     }
     for (const QString &warning : file.warnings)
@@ -39,7 +40,7 @@ Environment::Environment(QString path) {
             water.push_back(drawn);
         }
     }
-    weather = file.weatherOrDerived();
+    weather = file.weatherOrDerived(slot);
     QString mapError;
     if (!weather.loadMaps(QFileInfo(path).absolutePath(), mapError))
         qWarning() << "Environment file" << path << mapError;

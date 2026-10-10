@@ -69,6 +69,17 @@ bool EnvNode::numberAt(int index, double &out) const {
 QString EnvNode::floatText(float value) {
     if (!std::isfinite(value))
         return QStringLiteral("0");
+    // Plain decimals, as MSTS files write numbers: the fewest that read back
+    // as the same float (230, 0.25, -0.008); exponents only for numbers too
+    // small or large for that.
+    const float magnitude = std::abs(value);
+    if (magnitude == 0.0f || (magnitude >= 1e-4f && magnitude < 1e9f)) {
+        for (int decimals = 0; decimals <= 12; ++decimals) {
+            const QString text = QString::number(double(value), 'f', decimals);
+            if (text.toFloat() == value)
+                return text == "-0" ? QStringLiteral("0") : text;
+        }
+    }
     for (int precision = 1; precision <= 9; ++precision) {
         const QString text = QString::number(double(value), 'g', precision);
         if (text.toFloat() == value)

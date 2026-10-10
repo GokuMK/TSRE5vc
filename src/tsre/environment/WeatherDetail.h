@@ -12,8 +12,7 @@
 #define WEATHERDETAIL_H
 
 #include <QtGlobal>
-
-class Weather;
+#include <tsre/environment/Weather.h>
 
 // Seeded 2D gradient noise for the weather (the renderer evaluates the same
 // functions on the GPU).
@@ -36,6 +35,17 @@ namespace WeatherDetail {
 double cloudScale(float type);
 // How much of the point is under cloud, 0-1 (soft edges).
 double cover(const Weather &weather, double hours, double east, double north, int layer);
+// The same at a time computed once (Weather::frame), for many places.
+// minimumEdge widens the soft edge (in the noise's even distribution), for
+// images coarser than the clouds' edges.
+double cover(const Weather &weather, const Weather::Frame &frame, double east, double north, int layer,
+             double minimumEdge = 0.0);
+// The edge an image of texel metres needs for a cloud type.
+double imageEdge(double texel, float type);
+// Rain or snow at a point: the weather's rate varied over tens of km
+// (averaging the rate), and for convective clouds falling only under the
+// cells (the area's average kept).
+WeatherSurface precipitation(const Weather &weather, const Weather::Frame &frame, double east, double north);
 }
 
 #endif

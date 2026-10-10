@@ -105,6 +105,11 @@
 #include <tsre/shape/ShapeLoader.h>
 #include <QDir>
 #include <QMessageBox>
+#include <tsre/map/WeatherMapLayer.h>
+#include <tsre/fileFunctions/ContentPath.h>
+#include <QFileInfo>
+#include <tsre/environment/WeatherPresets.h>
+#include <tsre/world/Trk.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
@@ -392,6 +397,13 @@ void RouteEditorGLWidget::cameraInit(){
         mapMeasure = std::make_unique<MapMeasureLayer>();
     if (!mapScaleBar)
         mapScaleBar = std::make_unique<MapScaleBar>();
+    if (!weatherMap) {
+        weatherMap = std::make_unique<WeatherMapLayer>();
+        // From the worker thread: draw again once an image is ready.
+        weatherMap->setReadyCallback([this] {
+            QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
+        });
+    }
     if (!imageryMap) {
         imageryMap = std::make_unique<ImageryMapLayer>();
         // From the fetch thread: draw again once tiles arrive.
@@ -2148,6 +2160,111 @@ bool RouteEditorGLWidget::prepareOsmLayer() {
     return true;
 }
 
+QVector<RouteEditorGLWidget::EnvironmentSlot> RouteEditorGLWidget::environmentSlots() const {
+    QVector<EnvironmentSlot> list;
+    if (route == NULL || route->trk == NULL)
+        return list;
+    for (const char *season : {"Spring", "Summer", "Autumn", "Winter"})
+        for (const char *kind : {"Clear", "Rain", "Snow"}) {
+            const QString name = QString::fromLatin1(season) + QString::fromLatin1(kind);
+            for (const auto &entry : route->trk->environment)
+                if (QString::fromStdString(entry.first).compare(name, Qt::CaseInsensitive) == 0)
+                    list.push_back({name, entry.second});
+        }
+    return list;
+}
+
+QStringList RouteEditorGLWidget::environmentFiles() const {
+    const QDir directory(Game::root + "/ROUTES/" + Game::route + "/ENVFILES");
+    return directory.entryList({"*.env", "*.ENV"}, QDir::Files, QDir::Name | QDir::IgnoreCase);
+}
+
+bool RouteEditorGLWidget::chooseEnvironment(const QString &file, const QString &slot, QString *error) {
+    if (route == NULL)
+        return false;
+    const QString path = ContentPath::normalize(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/" + file);
+    if (!QFileInfo::exists(path)) {
+        if (error) *error = "No env file " + path;
+        return false;
+    }
+    Env::SlotWeather kind = Env::SlotWeather::Unknown;
+    if (slot.endsWith("Clear", Qt::CaseInsensitive)) kind = Env::SlotWeather::Clear;
+    else if (slot.endsWith("Rain", Qt::CaseInsensitive)) kind = Env::SlotWeather::Rain;
+    else if (slot.endsWith("Snow", Qt::CaseInsensitive)) kind = Env::SlotWeather::Snow;
+    Environment *environment = new Environment(path, kind);
+    delete route->env;
+    route->env = environment;
+    currentEnvironmentFile = file;
+    currentEnvironmentSlot = slot;
+    weatherModified = false;
+    if (weatherMap)
+        weatherMap->invalidate();
+    emit weatherChanged();
+    update();
+    return true;
+}
+
+void RouteEditorGLWidget::setWeatherPreset(const QString &preset, quint32 seed) {
+    if (route == NULL || route->env == NULL)
+        return;
+    Environment &environment = *route->env;
+    if (preset.isEmpty()) {
+        environment.weather = environment.file.weatherOrDerived(environment.slot);
+        QString error;
+        if (!environment.weather.loadMaps(QFileInfo(environment.path).absolutePath(), error))
+            qWarning() << "Weather maps:" << error;
+        weatherModified = false;
+    } else {
+        environment.weather = WeatherPresets::weather(preset, seed);
+        weatherModified = true;
+    }
+    if (weatherMap)
+        weatherMap->invalidate();
+    emit weatherChanged();
+    update();
+}
+
+bool RouteEditorGLWidget::saveEnvironment(QString *error) {
+    if (route == NULL || route->env == NULL)
+        return false;
+    if (!Game::writeEnabled) {
+        if (error) *error = "Route saving is disabled.";
+        return false;
+    }
+    Environment &environment = *route->env;
+    environment.file.weather = environment.weather;
+    QString message;
+    if (!environment.file.save(environment.path, message)
+            || !environment.weather.saveMaps(QFileInfo(environment.path).absolutePath(), message)) {
+        if (error) *error = message;
+        return false;
+    }
+    weatherModified = false;
+    emit weatherChanged();
+    return true;
+}
+
+const Weather *RouteEditorGLWidget::currentWeather() const {
+    return route != NULL && route->env != NULL ? &route->env->weather : nullptr;
+}
+
+double RouteEditorGLWidget::weatherHours() const {
+    if (!std::isnan(diagnosticWeatherHours))
+        return diagnosticWeatherHours;
+    const Weather *weather = currentWeather();
+    if (weather == nullptr)
+        return 0.0;
+    QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (!date.isValid())
+        date = QDate(2026, 6, 21);
+    return weather->editorHours(date, Game::timeOfDayHours);
+}
+
+void RouteEditorGLWidget::setDiagnosticWeather(const QString &preset, quint32 seed, double hours) {
+    setWeatherPreset(preset, seed);
+    diagnosticWeatherHours = hours;
+}
+
 bool RouteEditorGLWidget::prepareImageryLayer() {
     QString error;
     if (imageryMap && imageryMap->prepare(error))
@@ -2232,7 +2349,8 @@ void RouteEditorGLWidget::showMapContextMenu(const QPoint &position) {
 }
 
 bool RouteEditorGLWidget::mapLayersBusy() const {
-    return (osmMap && osmMap->busy()) || (imageryMap && mapLayers.shows(MapLayer::Imagery) && imageryMap->busy());
+    return (osmMap && osmMap->busy()) || (imageryMap && mapLayers.shows(MapLayer::Imagery) && imageryMap->busy())
+            || (weatherMap && mapLayers.shows(MapLayer::Weather) && weatherMap->busy());
 }
 
 void RouteEditorGLWidget::updateMapLabels() {
@@ -2329,6 +2447,9 @@ void RouteEditorGLWidget::paintMap() {
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
     activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
                                  mapLayers.shows(MapLayer::Paths));
+    // The weather over the route's data, as a weather app shows it.
+    if (mapLayers.shows(MapLayer::Weather) && weatherMap && currentWeather())
+        weatherMap->pushRenderItems(queue, view, palette, *currentWeather(), weatherHours(), true);
     mapMeasure->pushRenderItems(queue, view, palette, Game::PixelRatio);
     updateMapLabels();
     mapLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);

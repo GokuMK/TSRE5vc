@@ -87,6 +87,12 @@ struct ViewSpec {
     bool osmData = false;
     bool osmTransparentAreas = false;
     bool imagery = false;
+    // Map mode weather (task environment 01): the layer, a preset weather and
+    // its seed, and its hours (NaN: the editor's time of day).
+    bool weather = false;
+    QString weatherPreset;
+    quint32 weatherSeed = 1;
+    double weatherTime = std::nan("");
     // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
     // overlay opacity (0 to 1).
     QStringList overlayActions;
@@ -273,6 +279,11 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
         view.imagery = object.value("imagery").toBool(false);
+        view.weather = object.value("weather").toBool(false);
+        view.weatherPreset = object.value("weatherPreset").toString();
+        view.weatherSeed = quint32(object.value("weatherSeed").toInt(1));
+        if (object.contains("weatherTime"))
+            view.weatherTime = object.value("weatherTime").toDouble();
         for (const QJsonValue &action : object.value("overlay").toArray())
             view.overlayActions << action.toString();
         view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
@@ -571,6 +582,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setMapLayerVisible(MapLayer::OsmData, spec.osmData);
             widget.setMapLayerVisible(MapLayer::OsmTransparentAreas, spec.osmTransparentAreas);
             widget.setMapLayerVisible(MapLayer::Imagery, spec.imagery);
+            widget.setMapLayerVisible(MapLayer::Weather, spec.weather);
+            if (spec.weather)
+                widget.setDiagnosticWeather(spec.weatherPreset, spec.weatherSeed, spec.weatherTime);
             TerrainOverlays::setOpacity(float(spec.overlayOpacity));
             for (const QString &action : spec.overlayActions)
                 widget.runDiagnosticOverlayAction(action);

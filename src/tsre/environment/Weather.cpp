@@ -416,52 +416,73 @@ double Weather::variation(double east, double north, double scale) const {
     return std::clamp(WeatherNoise::fractal(east / scale, north / scale, 3, seed * 7u + 13u), -1.0, 1.0);
 }
 
-WeatherLayerValues Weather::layer(double hours, double east, double north, int layer) const {
-    if (keyframes.isEmpty() || layer < 0 || layer >= WeatherLayer::Count)
-        return WeatherLayerValues{0.67f, 0.0f, 1000.0f, 2000.0f, 1.0f};
-    const Blend b = blend(hours);
+Weather::Frame Weather::frame(double hours) const {
+    Frame f;
+    f.hours = hours;
+    if (keyframes.isEmpty())
+        return f;
+    f.empty = false;
+    f.blend = blend(hours);
     // Where the keyframes' fields have moved to: each from its own time.
     const double local = relative() && duration() > 0.0
             ? hours - std::floor(hours / duration()) * duration() : hours;
-    double nowE, nowN, aE, aN;
-    drift(hours, layer, nowE, nowN);
-    drift(hours - (local - keyframes[b.a].time), layer, aE, aN);
-    WeatherLayerValues v = keyframeLayer(b.a, east - (nowE - aE), north - (nowN - aN), layer);
-    float amount = keyframes[b.a].variationAmount, scale = keyframes[b.a].variationScale;
-    if (b.b != b.a) {
-        double bE, bN;
-        drift(hours + (keyframes[b.b].time - local), layer, bE, bN);
-        const WeatherLayerValues w = keyframeLayer(b.b, east + (bE - nowE), north + (bN - nowN), layer);
-        const float t = float(b.weight);
-        auto mix = [t](float x, float y) { return x + (y - x) * t; };
-        v = {mix(v.type, w.type), mix(v.coverage, w.coverage), mix(v.base, w.base), mix(v.top, w.top),
-             mix(v.density, w.density)};
-        amount = mix(amount, keyframes[b.b].variationAmount);
-        scale = mix(scale, keyframes[b.b].variationScale);
+    const double hoursA = hours - (local - keyframes[f.blend.a].time);
+    const double hoursB = hours + (keyframes[f.blend.b].time - local);
+    for (int l = 0; l < WeatherLayer::Count; ++l) {
+        double nowE, nowN, aE, aN, bE, bN;
+        drift(hours, l, nowE, nowN);
+        drift(hoursA, l, aE, aN);
+        drift(hoursB, l, bE, bN);
+        f.drift[l] = {nowE, nowN};
+        f.shiftA[l] = {nowE - aE, nowN - aN};
+        f.shiftB[l] = {bE - nowE, bN - nowN};
     }
-    // The variation drifts with the layer from the start, like the clouds.
-    if (amount > 0.0f && v.coverage > 0.0f && v.coverage < 1.0f)
-        v.coverage = float(std::clamp(v.coverage + amount * variation(east - nowE, north - nowN, scale), 0.0, 1.0));
-    return v;
+    const WeatherKeyframe &a = keyframes[f.blend.a], &b = keyframes[f.blend.b];
+    const float w = float(f.blend.weight);
+    f.variationAmount = a.variationAmount + (b.variationAmount - a.variationAmount) * w;
+    f.variationScale = a.variationScale + (b.variationScale - a.variationScale) * w;
+    return f;
+}
+
+WeatherLayerValues Weather::layer(double hours, double east, double north, int layer) const {
+    return this->layer(frame(hours), east, north, layer);
 }
 
 WeatherSurface Weather::surface(double hours, double east, double north) const {
-    if (keyframes.isEmpty())
+    return surface(frame(hours), east, north);
+}
+
+WeatherLayerValues Weather::layer(const Frame &f, double east, double north, int layer) const {
+    if (f.empty || layer < 0 || layer >= WeatherLayer::Count)
+        return WeatherLayerValues{0.67f, 0.0f, 1000.0f, 2000.0f, 1.0f};
+    const auto &sa = f.shiftA[layer], &sb = f.shiftB[layer];
+    WeatherLayerValues v = keyframeLayer(f.blend.a, east - sa[0], north - sa[1], layer);
+    if (f.blend.b != f.blend.a) {
+        const WeatherLayerValues w = keyframeLayer(f.blend.b, east + sb[0], north + sb[1], layer);
+        const float t = float(f.blend.weight);
+        auto mix = [t](float x, float y) { return x + (y - x) * t; };
+        v = {mix(v.type, w.type), mix(v.coverage, w.coverage), mix(v.base, w.base), mix(v.top, w.top),
+             mix(v.density, w.density)};
+    }
+    // The variation drifts with the layer from the start, like the clouds.
+    if (f.variationAmount > 0.0f && v.coverage > 0.0f && v.coverage < 1.0f)
+        v.coverage = float(std::clamp(v.coverage + f.variationAmount
+                                      * variation(east - f.drift[layer][0], north - f.drift[layer][1],
+                                                  f.variationScale),
+                                      0.0, 1.0));
+    return v;
+}
+
+WeatherSurface Weather::surface(const Frame &f, double east, double north) const {
+    if (f.empty)
         return WeatherSurface();
-    const Blend b = blend(hours);
-    const double local = relative() && duration() > 0.0
-            ? hours - std::floor(hours / duration()) * duration() : hours;
     // Rain falls from the low clouds: it moves with their wind.
-    double nowE, nowN, aE, aN;
-    drift(hours, WeatherLayer::Low, nowE, nowN);
-    drift(hours - (local - keyframes[b.a].time), WeatherLayer::Low, aE, aN);
-    WeatherSurface s = keyframeSurface(b.a, east - (nowE - aE), north - (nowN - aN));
-    if (b.b == b.a)
+    const auto &sa = f.shiftA[WeatherLayer::Low], &sb = f.shiftB[WeatherLayer::Low];
+    WeatherSurface s = keyframeSurface(f.blend.a, east - sa[0], north - sa[1]);
+    if (f.blend.b == f.blend.a)
         return s;
-    double bE, bN;
-    drift(hours + (keyframes[b.b].time - local), WeatherLayer::Low, bE, bN);
-    const WeatherSurface t = keyframeSurface(b.b, east + (bE - nowE), north + (bN - nowN));
-    const float w = float(b.weight);
+    const WeatherSurface t = keyframeSurface(f.blend.b, east + sb[0], north + sb[1]);
+    const float w = float(f.blend.weight);
     WeatherSurface out;
     out.precipitationRate = s.precipitationRate + (t.precipitationRate - s.precipitationRate) * w;
     out.snowShare = s.snowShare + (t.snowShare - s.snowShare) * w;
@@ -469,6 +490,13 @@ WeatherSurface Weather::surface(double hours, double east, double north) const {
     out.precipitation = out.precipitationRate <= 0.0f ? WeatherPrecipitation::None
                       : out.snowShare >= 0.5f ? WeatherPrecipitation::Snow : WeatherPrecipitation::Rain;
     return out;
+}
+
+double Weather::editorHours(const QDate &date, double timeOfDay) const {
+    if (relative())
+        return timeOfDay;
+    const QDateTime at(date, QTime(0, 0), Qt::UTC);
+    return start.secsTo(at) / 3600.0 + timeOfDay;
 }
 
 QString Weather::mapFileName(int index) {

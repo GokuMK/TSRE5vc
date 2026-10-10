@@ -51,6 +51,7 @@
 #include <routeEditor/properties/PropertiesConsist.h>
 #include <routeEditor/NaviWindow.h>
 #include <routeEditor/EnvironmentWindow.h>
+#include <routeEditor/EnvironmentTools.h>
 #include <routeEditor/ErrorMessagesWindow.h>
 #include <routeEditor/ClientUsersWindow.h>
 #include <tsre/ErrorMessagesLib.h>
@@ -123,6 +124,7 @@ RouteEditorWindow::RouteEditorWindow() {
     aboutWindow = new AboutWindow(this);
     naviWindow = new NaviWindow(this);
     environmentWindow = new EnvironmentWindow(this);
+    environmentTools = new EnvironmentTools(glWidget, environmentWindow);
     errorMessagesWindow = ErrorMessagesLib::GetWindow(this);
     clientUsersWindow = new ClientUsersWindow(this);
     activityEventWindow = new ActivityEventWindow(this);
@@ -159,7 +161,7 @@ RouteEditorWindow::RouteEditorWindow() {
     QWidget* main = new QWidget();
     box = new QWidget(this);
     box2 = new QWidget(this);
-    box->setFixedWidth(250);
+    box->setFixedWidth(260);
     box->setWindowTitle(
         //% "Tools Window"
         qtTrId("route.editor.route.editor.window.title.tools.window"));
@@ -181,6 +183,8 @@ RouteEditorWindow::RouteEditorWindow() {
     if(Game::serverClient == NULL){
         mainLayout2->addWidget(activityTools);
     }
+    mainLayout2->addWidget(environmentTools);
+    environmentTools->hide();
     //mainLayout2->addWidget(naviBox);
     //mainLayout2->setAlignment(naviBox, Qt::AlignBottom);
     box->setLayout(mainLayout2);
@@ -436,6 +440,8 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.paths"), MapLayer::Paths},
         {//% "&Activity"
          qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
+        {//% "&Weather"
+         qtTrId("route.editor.route.editor.window.action.map.weather"), MapLayer::Weather},
         {//% "Terra&in"
          qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
         {//% "Ima&gery"
@@ -465,7 +471,11 @@ RouteEditorWindow::RouteEditorWindow() {
                 return;
             }
             glWidget->setMapLayerVisible(layer, visible);
+            if (layer == MapLayer::Weather)
+                environmentTools->setWeatherOnMap(visible);
         });
+        if (layer == MapLayer::Weather)
+            mapWeatherAction = action;
         mapMenu->addAction(action);
     }
     // Window
@@ -484,11 +494,6 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.navi.action"), this);
     windowMenu->addAction(naviAction);
     QObject::connect(naviAction, SIGNAL(triggered(bool)), this, SLOT(hideShowNaviWidget(bool)));
-    environmentAction = GuiFunct::newMenuCheckAction(
-        //% "&Environment Window"
-        qtTrId("route.editor.route.editor.window.action.environment.action"), this, false);
-    windowMenu->addAction(environmentAction);
-    QObject::connect(environmentAction, SIGNAL(triggered(bool)), this, SLOT(hideShowEnvironmentWidget(bool)));
     shapeViewAction = GuiFunct::newMenuCheckAction(
         //% "&Shape View Window"
         qtTrId("route.editor.route.editor.window.action.shape.view.action"), this, false);
@@ -532,6 +537,12 @@ RouteEditorWindow::RouteEditorWindow() {
     activityAction->setShortcut(QKeySequence("F4"));
     windowMenu->addAction(activityAction);
     QObject::connect(activityAction, SIGNAL(triggered(bool)), this, SLOT(showToolsActivity(bool)));
+    environmentAction = GuiFunct::newMenuCheckAction(
+        //% "&Environment"
+        qtTrId("route.editor.route.editor.window.action.environment.panel"), this, false);
+    environmentAction->setShortcut(QKeySequence("F5"));
+    windowMenu->addAction(environmentAction);
+    QObject::connect(environmentAction, SIGNAL(triggered(bool)), this, SLOT(showToolsEnvironment(bool)));
     // Tools
     toolsMenu = menuBar()->addMenu(
         //% "&Tools"
@@ -781,8 +792,12 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(naviWindow, SIGNAL(windowClosed()),
                       this, SLOT(naviWindowClosed())); 
-    QObject::connect(environmentWindow, SIGNAL(windowClosed()),
-                      this, SLOT(environmentWindowClosed()));
+    // The panel's "Show on the map" is Map > Weather.
+    QObject::connect(environmentTools, &EnvironmentTools::weatherOnMapToggled, this, [this](bool shown) {
+        if (mapWeatherAction != nullptr)
+            mapWeatherAction->setChecked(shown);
+        glWidget->setMapLayerVisible(MapLayer::Weather, shown);
+    });
     
     QObject::connect(errorMessagesWindow, SIGNAL(windowClosed()),
                       this, SLOT(errorMessagesWindowClosed())); 
@@ -1134,7 +1149,7 @@ void RouteEditorWindow::showToolsObjectAndTerrain(bool show){
         objTools->show();
         objectsAndTerrainAction->setChecked(true);
         terrainTools->show();
-        box->setFixedWidth(500);
+        box->setFixedWidth(520);
     } else {
         hideShowToolWidget(false);
     }
@@ -1162,6 +1177,15 @@ void RouteEditorWindow::showToolsActivity(bool show){
     if(show){
         hideShowToolWidget(true);
         setToolbox("activityTools");
+    } else {
+        hideShowToolWidget(false);
+    }
+}
+
+void RouteEditorWindow::showToolsEnvironment(bool show){
+    if(show){
+        hideShowToolWidget(true);
+        setToolbox("environmentTools");
     } else {
         hideShowToolWidget(false);
     }
@@ -1206,6 +1230,11 @@ void RouteEditorWindow::setToolbox(QString name){
             activityAction->setChecked(true);
         }
     }
+    if(name == "environmentTools"){
+        hideAllTools();
+        environmentTools->show();
+        environmentAction->setChecked(true);
+    }
 }
 
 void RouteEditorWindow::hideAllTools(){
@@ -1213,12 +1242,14 @@ void RouteEditorWindow::hideAllTools(){
     terrainTools->hide();
     geoTools->hide();
     activityTools->hide();
+    environmentTools->hide();
     objectsAction->setChecked(false);
     terrainAction->setChecked(false);     
     geoAction->setChecked(false);
     activityAction->setChecked(false);
+    environmentAction->setChecked(false);
     objectsAndTerrainAction->setChecked(false);
-    box->setFixedWidth(250);
+    box->setFixedWidth(260);
 }
 
 void RouteEditorWindow::showSettingsEditor() {
@@ -1323,10 +1354,6 @@ void RouteEditorWindow::hideShowNaviWidget(bool show){
     else naviWindow->hide();
 }
 
-void RouteEditorWindow::hideShowEnvironmentWidget(bool show){
-    if(show) environmentWindow->show();
-    else environmentWindow->hide();
-}
 
 void RouteEditorWindow::hideShowToolWidget(bool show){
     if(show) box->show();
@@ -1415,11 +1442,6 @@ void RouteEditorWindow::naviWindowClosed(){
     naviAction->blockSignals(false);
 }
 
-void RouteEditorWindow::environmentWindowClosed(){
-    environmentAction->blockSignals(true);
-    environmentAction->setChecked(false);
-    environmentAction->blockSignals(false);
-}
 
 void RouteEditorWindow::errorMessagesWindowClosed(){
     errorViewAction->blockSignals(true);

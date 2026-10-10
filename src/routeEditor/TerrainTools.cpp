@@ -25,7 +25,7 @@
 
 TerrainTools::TerrainTools(QString name)
     : QWidget(){
-    setFixedWidth(250);
+    setFixedWidth(260);
     int row = 0;
     
     texPreview = new QPixmap(192,192);

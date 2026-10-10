@@ -65,6 +65,8 @@ class TerrainMapLayer;
 class MapOverlayFade;
 class OsmMapLayer;
 class ImageryMapLayer;
+class WeatherMapLayer;
+class Weather;
 class MapMeasureLayer;
 class MapScaleBar;
 class QLabel;
@@ -139,6 +141,33 @@ public:
     // A map layer is still building on a worker thread (captures wait for it).
     bool mapLayersBusy() const;
 
+    // The editor's environment (task environment 01): the env file whose
+    // weather the map and the Environment panel (F5) show; editor.env at
+    // first.
+    struct EnvironmentSlot {
+        QString name;       // SpringClear ...
+        QString file;
+    };
+    // The TRK's season and weather slots with their env files.
+    QVector<EnvironmentSlot> environmentSlots() const;
+    // The env files in the route's ENVFILES.
+    QStringList environmentFiles() const;
+    QString environmentFile() const { return currentEnvironmentFile; }
+    QString environmentSlot() const { return currentEnvironmentSlot; }
+    // Reads another env file as the editor's environment (its water and
+    // weather); slot: the TRK slot chosen, if any.
+    bool chooseEnvironment(const QString &file, const QString &slot, QString *error);
+    // The weather of a preset, or with an empty name the env file's own.
+    void setWeatherPreset(const QString &preset, quint32 seed);
+    // Writes the env file with the weather as its block.
+    bool saveEnvironment(QString *error);
+    bool environmentModified() const { return weatherModified; }
+    const Weather *currentWeather() const;
+    // The weather's hours at the editor's date and time.
+    double weatherHours() const;
+    // Captures: a preset weather and its hours (NaN: the editor's time).
+    void setDiagnosticWeather(const QString &preset, quint32 seed, double hours);
+
     // The render surface does the drawing; these forward to it so the view
     // code reads as before.
     void update();
@@ -202,6 +231,8 @@ signals:
     // Sun and moon at the camera (true bearing); NaN where unknown (no
     // moon, or no sun bearing, without time of day).
     void environmentInfo(float sunElevation, float sunAzimuth, float moonElevation, float moonFraction);
+    // Another env file or weather (task environment 01).
+    void weatherChanged();
     void posInfo(PreciseTileCoordinate* pos);
     void pointerInfo(float* pos);
     void setToolbox(QString name);
@@ -441,6 +472,11 @@ private:
     // Map > Imagery: the imagery catalogue's world tile source, with its attribution
     // in the bottom right corner while shown.
     std::unique_ptr<ImageryMapLayer> imageryMap;
+    std::unique_ptr<WeatherMapLayer> weatherMap;
+    QString currentEnvironmentFile = QStringLiteral("editor.env");
+    QString currentEnvironmentSlot;
+    bool weatherModified = false;
+    double diagnosticWeatherHours = std::nan("");
     QLabel *imageryAttribution = NULL;
     void showImageryAttribution(bool show);
     // Map labels: the marker set (Map > Markers), stations, platforms and sidings (Map >
