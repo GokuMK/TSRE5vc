@@ -3046,6 +3046,91 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <source>Weather Details</source>
         <translation>Weather Details</translation>
     </message>
+    <message id="route.editor.environment.tools.import">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="175"/>
+        <source>Import Historical...</source>
+        <translation>Import Historical...</translation>
+    </message>
+    <message id="route.editor.environment.tools.import.tooltip">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="179"/>
+        <source>The weather of a past day over the route, from Open-Meteo.</source>
+        <translation>The weather of a past day over the route, from Open-Meteo.</translation>
+    </message>
+    <message id="route.editor.environment.tools.source.imported">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="294"/>
+        <source>%1, not saved</source>
+        <translation>%1, not saved</translation>
+    </message>
+    <message id="route.editor.weather.import.title">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="33"/>
+        <source>Import Historical Weather</source>
+        <translation>Import Historical Weather</translation>
+    </message>
+    <message id="route.editor.weather.import.day">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="48"/>
+        <source>Day:</source>
+        <translation>Day:</translation>
+    </message>
+    <message id="route.editor.weather.import.start">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="55"/>
+        <source>Start:</source>
+        <translation>Start:</translation>
+    </message>
+    <message id="route.editor.weather.import.length">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="62"/>
+        <source>Length:</source>
+        <translation>Length:</translation>
+    </message>
+    <message id="route.editor.weather.import.model">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="68"/>
+        <source>Model:</source>
+        <translation>Model:</translation>
+    </message>
+    <message id="route.editor.weather.import.margin.tooltip">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="75"/>
+        <source>Around the route's track: clouds an hour's wind away still drift over it.</source>
+        <translation>Around the route's track: clouds an hour's wind away still drift over it.</translation>
+    </message>
+    <message id="route.editor.weather.import.margin">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="78"/>
+        <source>Margin:</source>
+        <translation>Margin:</translation>
+    </message>
+    <message id="route.editor.weather.import.cells">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="85"/>
+        <source>Cells:</source>
+        <translation>Cells:</translation>
+    </message>
+    <message id="route.editor.weather.import.attribution">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="91"/>
+        <source>Data: Open-Meteo.com (CC BY 4.0), from ERA5 (Copernicus) or ECMWF IFS. The weather keeps this attribution.</source>
+        <translation>Data: Open-Meteo.com (CC BY 4.0), from ERA5 (Copernicus) or ECMWF IFS. The weather keeps this attribution.</translation>
+    </message>
+    <message id="route.editor.weather.import.button">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="97"/>
+        <source>Import</source>
+        <translation>Import</translation>
+    </message>
+    <message id="route.editor.weather.import.too.early">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="118"/>
+        <source>The model starts on %1.</source>
+        <translation>The model starts on %1.</translation>
+    </message>
+    <message id="route.editor.weather.import.summary">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="151"/>
+        <source>Area %1 x %2 km, %3 sample points, %4 keyframes.</source>
+        <translation>Area %1 x %2 km, %3 sample points, %4 keyframes.</translation>
+    </message>
+    <message id="route.editor.weather.import.progress">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="165"/>
+        <source>Downloading the weather...</source>
+        <translation>Downloading the weather...</translation>
+    </message>
+    <message id="route.editor.weather.import.cancel">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="167"/>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
     <message id="route.editor.environment.tools.group.file">
         <location filename="../src/routeEditor/EnvironmentTools.cpp" line="107"/>
         <source>Environment File:</source>

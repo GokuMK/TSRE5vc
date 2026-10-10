@@ -110,6 +110,8 @@
 #include <QFileInfo>
 #include <tsre/environment/WeatherPresets.h>
 #include <tsre/world/Trk.h>
+#include <tsre/tdb/TDB.h>
+#include <tsre/tdb/TRnode.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
@@ -2258,6 +2260,98 @@ double RouteEditorGLWidget::weatherHours() const {
     if (!date.isValid())
         date = QDate(2026, 6, 21);
     return weather->editorHours(date, Game::timeOfDayHours);
+}
+
+bool RouteEditorGLWidget::routeArea(double &west, double &north, double &east, double &south) const {
+    if (Game::trackDB == NULL)
+        return false;
+    bool any = false;
+    int minX = 0, maxX = 0, minZ = 0, maxZ = 0;
+    for (const auto &entry : Game::trackDB->trackNodes) {
+        const TRnode *node = entry.second;
+        if (node == NULL)
+            continue;
+        for (int i = 0; i < node->iTrv; ++i) {
+            const int x = node->trVectorSection[i].tileX, z = node->trVectorSection[i].tileZ;
+            minX = any ? std::min(minX, x) : x;
+            maxX = any ? std::max(maxX, x) : x;
+            minZ = any ? std::min(minZ, z) : z;
+            maxZ = any ? std::max(maxZ, z) : z;
+            any = true;
+        }
+    }
+    if (!any)
+        return false;
+    // Whole tiles; MSTS tile z counts north.
+    west = minX * 2048.0 - 1024.0;
+    east = maxX * 2048.0 + 1024.0;
+    south = minZ * 2048.0 - 1024.0;
+    north = maxZ * 2048.0 + 1024.0;
+    return true;
+}
+
+void RouteEditorGLWidget::cameraWorldPosition(double &east, double &north) const {
+    east = camera->pozT[0] * 2048.0 + camera->getPos()[0];
+    north = -(camera->pozT[1] * 2048.0 + camera->getPos()[2]);
+}
+
+namespace {
+
+// A route position (MSTS world metres) on the globe.
+bool worldToLatLon(double east, double north, double &latitude, double &longitude) {
+    if (Game::GeoCoordConverter == nullptr)
+        return false;
+    const int tileX = int(std::floor((east + 1024.0) / 2048.0));
+    const int tileZ = int(std::floor((north + 1024.0) / 2048.0));
+    PreciseTileCoordinate tile;
+    // As the camera fills it: MSTS tile z, local z pointing south.
+    tile.setTWxyz(tileX, tileZ, float(east - tileX * 2048.0), 0.0f, float(-(north - tileZ * 2048.0)));
+    IghCoordinate internal;
+    LatitudeLongitudeCoordinate out;
+    if (Game::GeoCoordConverter->ConvertToInternal(&tile, &internal) == NULL
+            || Game::GeoCoordConverter->ConvertToLatLon(&internal, &out) == NULL
+            || !std::isfinite(out.Latitude) || !std::isfinite(out.Longitude))
+        return false;
+    latitude = out.Latitude;
+    longitude = out.Longitude;
+    return true;
+}
+
+} // namespace
+
+bool RouteEditorGLWidget::importWeather(const WeatherImport::Request &request, QString *error,
+                                        const std::function<bool()> &cancelled) {
+    if (route == NULL || route->env == NULL)
+        return false;
+    QString message;
+    QVector<WeatherImport::Sample> samples;
+    int columns = 0, rows = 0;
+    if (!WeatherImport::samples(request, worldToLatLon, samples, columns, rows, message)) {
+        if (error) *error = message;
+        return false;
+    }
+    // The bearing of the grid's north at the area's centre, for the winds.
+    const double centreE = (request.west + request.east) * 0.5, centreN = (request.north + request.south) * 0.5;
+    double lat0, lon0, lat1, lon1, bearing = 0.0;
+    if (worldToLatLon(centreE, centreN, lat0, lon0) && worldToLatLon(centreE, centreN + 1000.0, lat1, lon1))
+        bearing = std::atan2((lon1 - lon0) * std::cos(lat0 * M_PI / 180.0), lat1 - lat0) * 180.0 / M_PI;
+    QByteArray json;
+    QVector<WeatherImport::Series> series;
+    Weather weather;
+    if (!WeatherImport::fetch(WeatherImport::url(request, samples), json, message, cancelled)
+            || !WeatherImport::parse(json, samples.size(), series, message)
+            || !WeatherImport::build(request, samples, columns, rows, series, bearing, weather, message)) {
+        if (error) *error = message;
+        return false;
+    }
+    weather.maps = "WEATHER/" + QFileInfo(route->env->path).completeBaseName();
+    route->env->weather = weather;
+    weatherModified = true;
+    if (weatherMap)
+        weatherMap->invalidate();
+    emit weatherChanged();
+    update();
+    return true;
 }
 
 void RouteEditorGLWidget::setDiagnosticWeather(const QString &preset, quint32 seed, double hours) {

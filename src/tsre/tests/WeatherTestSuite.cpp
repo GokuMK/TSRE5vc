@@ -3,6 +3,11 @@
 #include <tsre/environment/EnvFile.h>
 #include <tsre/environment/WeatherDetail.h>
 #include <tsre/environment/WeatherPresets.h>
+#include <tsre/environment/WeatherImport.h>
+
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <QDebug>
 #include <QDirIterator>
@@ -377,6 +382,84 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
             for (int j = 0; j < 160; ++j, ++n)
                 sum += WeatherDetail::cover(w, 0.0, i * 397.0, j * 397.0, WeatherLayer::Low);
         c.check(near(sum / n, coverage, 0.04), QString("detail-share-%1 (%2)").arg(coverage).arg(sum / n));
+    }
+
+    // Import: samples, the request, the answer and the weather built from it.
+    {
+        WeatherImport::Request request;
+        request.model = "era5";
+        request.date = QDate(2024, 6, 21);
+        request.startHour = 6;
+        request.hours = 1;
+        request.west = 0.0;
+        request.east = 25000.0;
+        request.south = 0.0;
+        request.north = 25000.0;
+        request.cellSize = 4096;
+        auto toLatLon = [](double east, double north, double &lat, double &lon) {
+            lat = 54.0 + north / 111000.0;
+            lon = -2.0 + east / 65000.0;
+            return true;
+        };
+        QVector<WeatherImport::Sample> samples;
+        int columns = 0, rows = 0;
+        c.check(WeatherImport::samples(request, toLatLon, samples, columns, rows, error) && columns == 2 && rows == 2
+                && samples[1].east == 25000.0 && samples[2].north == 0.0, "import-samples " + error);
+        const QString url = WeatherImport::url(request, samples);
+        c.check(url.startsWith("https://archive-api.open-meteo.com/v1/archive?") && url.contains("start_date=2024-06-21")
+                && url.contains("end_date=2024-06-21") && url.contains("models=era5") && url.contains("cloud_cover_low")
+                && url.contains("wind_speed_unit=ms"), "import-url");
+        // North-west: rain from stratus; north-east: a few small clouds;
+        // south-west: showers; south-east: snow.
+        struct Fake { double low; int code; double rain; double snow; double t; double td; };
+        const Fake fake[4] = {{100, 61, 2.0, 0.0, 15, 11}, {20, 1, 0.0, 0.0, 15, 11},
+                              {50, 80, 1.0, 0.0, 15, 11}, {90, 71, 2.0, 1.4, -2, -3}};
+        QJsonArray answer;
+        for (const Fake &f : fake) {
+            auto repeat = [](double v) { QJsonArray a; for (int h = 0; h < 24; ++h) a.append(v); return a; };
+            QJsonObject hourly{{"cloud_cover_low", repeat(f.low)}, {"cloud_cover_mid", repeat(10)},
+                               {"cloud_cover_high", repeat(30)}, {"precipitation", repeat(f.rain)},
+                               {"snowfall", repeat(f.snow)}, {"temperature_2m", repeat(f.t)},
+                               {"dew_point_2m", repeat(f.td)}, {"wind_speed_100m", repeat(10)},
+                               {"wind_direction_100m", repeat(270)}, {"weather_code", repeat(f.code)}};
+            answer.append(QJsonObject{{"elevation", 100.0}, {"hourly", hourly}});
+        }
+        QVector<WeatherImport::Series> series;
+        c.check(WeatherImport::parse(QJsonDocument(answer).toJson(), 4, series, error) && series.size() == 4,
+                "import-parse " + error);
+        QVector<WeatherImport::Series> refused;
+        c.check(!WeatherImport::parse(R"({"error":true,"reason":"No data"})", 1, refused, error)
+                && error.contains("No data"), "import-parse-error");
+        Weather imported;
+        c.check(WeatherImport::build(request, samples, columns, rows, series, 10.0, imported, error),
+                "import-build " + error);
+        c.check(imported.keyframes.size() == 2 && !imported.relative()
+                && imported.start.toString(Qt::ISODate) == "2024-06-21T06:00:00Z", "import-keyframes");
+        c.check(imported.grid.valid && imported.grid.tileX == 0 && imported.grid.tileZ == 12
+                && imported.grid.columns == 7 && imported.grid.rows == 7 && imported.hasMaps(), "import-grid");
+        // From the west in true terms; the grid's north 10 degrees east of true.
+        c.check(near(imported.keyframes[0].wind[WeatherLayer::Low].direction, 260.0, 0.01)
+                && near(imported.keyframes[0].wind[WeatherLayer::Low].speed, 10.0, 0.01)
+                && near(imported.keyframes[0].wind[WeatherLayer::Mid].speed, 20.0, 0.01), "import-wind");
+        const WeatherLayerValues northWest = imported.layer(0.0, 0.0, 25000.0, WeatherLayer::Low);
+        c.check(northWest.coverage > 0.85f && northWest.type < 0.1f && near(northWest.base, 600.0, 60.0),
+                QString("import-rain-stratus (%1 %2 %3)").arg(northWest.coverage).arg(northWest.type).arg(northWest.base));
+        const WeatherLayerValues northEast = imported.layer(0.0, 25000.0, 25000.0, WeatherLayer::Low);
+        c.check(northEast.coverage < 0.4f && northEast.type > 0.5f, "import-fair-cumulus");
+        const WeatherSurface southEast = imported.surface(0.0, 25000.0, 0.0);
+        c.check(southEast.precipitation == WeatherPrecipitation::Snow && southEast.precipitationRate > 1.0f,
+                "import-snow");
+        const WeatherSurface rainy = imported.surface(0.0, 0.0, 25000.0);
+        c.check(near(rainy.visibility, 10000.0, 1500.0) && rainy.precipitation == WeatherPrecipitation::Rain,
+                QString("import-rain-visibility (%1)").arg(rainy.visibility));
+        c.check(imported.attribution.contains("Copernicus") && imported.source.contains("era5"), "import-attribution");
+        // Too many points for one request.
+        WeatherImport::Request wide = request;
+        wide.model = "ecmwf_ifs";
+        wide.east = 400000.0;
+        wide.north = 400000.0;
+        c.check(!WeatherImport::samples(wide, toLatLon, samples, columns, rows, error) && error.contains("1000"),
+                "import-too-many-points");
     }
 
     // Every env file in the cases directory round-trips.

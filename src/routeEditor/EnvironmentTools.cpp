@@ -11,6 +11,7 @@
 #include <routeEditor/EnvironmentTools.h>
 #include <routeEditor/EnvironmentWindow.h>
 #include <routeEditor/RouteEditorGLWidget.h>
+#include <routeEditor/WeatherImportDialog.h>
 #include <settings/SettingsManager.h>
 #include <tsre/environment/Weather.h>
 #include <tsre/environment/WeatherPresets.h>
@@ -169,6 +170,18 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
         qtTrId("route.editor.environment.tools.details"), content);
     detailsButton->setObjectName("weatherDetails");
     weatherGrid->addWidget(detailsButton, 3, 0, 1, 2);
+    auto *importButton = new QPushButton(
+        //% "Import Historical..."
+        qtTrId("route.editor.environment.tools.import"), content);
+    importButton->setObjectName("weatherImport");
+    importButton->setToolTip(
+        //% "The weather of a past day over the route, from Open-Meteo."
+        qtTrId("route.editor.environment.tools.import.tooltip"));
+    weatherGrid->addWidget(importButton, 4, 0, 1, 2);
+    connect(importButton, &QPushButton::clicked, this, [this] {
+        WeatherImportDialog dialog(this->view, this);
+        dialog.exec();
+    });
     details = new QDialog(this);
     details->setWindowTitle(
         //% "Weather Details"
@@ -276,6 +289,9 @@ void EnvironmentTools::refresh() {
     QString source = weather->source == "derived"
             //% "Derived from the env file (%1)"
             ? qtTrId("route.editor.environment.tools.source.derived").arg(presetTitle(weather->preset))
+            : view->environmentModified() && weather->preset.isEmpty()
+            //% "%1, not saved"
+            ? qtTrId("route.editor.environment.tools.source.imported").arg(weather->source)
             : view->environmentModified()
             //% "Preset, not saved"
             ? qtTrId("route.editor.environment.tools.source.unsaved")
@@ -317,7 +333,7 @@ void EnvironmentTools::refresh() {
                      .arg(wind.speed, 0, 'f', 1);
         const WeatherKeyframe &near = w < 0.5f ? ka : kb;
         const float rate = mix(ka.precipitationRate, kb.precipitationRate);
-        if (near.precipitation == WeatherPrecipitation::None || rate <= 0.0f)
+        if (near.precipitation == WeatherPrecipitation::None || rate < 0.05f)
             //% "Precipitation: none"
             lines << qtTrId("route.editor.environment.tools.precipitation.none");
         else

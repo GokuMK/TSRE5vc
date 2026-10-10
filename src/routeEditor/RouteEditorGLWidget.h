@@ -66,6 +66,7 @@ class MapOverlayFade;
 class OsmMapLayer;
 class ImageryMapLayer;
 class WeatherMapLayer;
+#include <tsre/environment/WeatherImport.h>
 class Weather;
 class MapMeasureLayer;
 class MapScaleBar;
@@ -167,6 +168,14 @@ public:
     double weatherHours() const;
     // Captures: a preset weather and its hours (NaN: the editor's time).
     void setDiagnosticWeather(const QString &preset, quint32 seed, double hours);
+    // The track database's extent (MSTS world metres); false without track.
+    bool routeArea(double &west, double &north, double &east, double &south) const;
+    // The camera's place (MSTS world metres).
+    void cameraWorldPosition(double &east, double &north) const;
+    // A weather from historical data (task environment 01, step 3) for the
+    // request's area, set as the editor's weather (unsaved, as a preset).
+    bool importWeather(const WeatherImport::Request &request, QString *error,
+                       const std::function<bool()> &cancelled = {});
 
     // The render surface does the drawing; these forward to it so the view
     // code reads as before.

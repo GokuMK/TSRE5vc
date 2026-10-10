@@ -1,6 +1,6 @@
 # Task Environment 01 - Weather Data
 
-Status: steps 1 and 2 done on `feature/weather` (2026-10-10); step 3 next.
+Status: steps 1-3 done on `feature/weather` (2026-10-10); step 4 next.
 
 ## Objective
 
@@ -402,6 +402,55 @@ panel's width.
   (twelve TRK slots, four files) and switching to `UKsnow.env` (derived
   snow); Save on a copy of MINI (the block written, the MSTS contents
   kept). Suites: weather (43), map-view, editor-tools, tokens.
+
+## Step 3 (done, 2026-10-10)
+
+- `WeatherImport` (`src/tsre/environment/`): Open-Meteo's archive
+  (`archive-api.open-meteo.com/v1/archive`), models ERA5 (0.25 degrees,
+  from 1940; samples every 25 km) and ECMWF IFS (9 km, from 2017). The
+  area is the route's track (TDB vector sections, whole tiles; the camera's
+  surroundings without track) and a margin (30 km by default: an hour of
+  wind). Sample points on a regular grid in route metres, converted to
+  latitude and longitude through the route's converter, all in one request
+  (at most 1000 points), hourly from the chosen start (UTC) for the chosen
+  hours. Answers are cached on disk (`<cache>/TSRE5/weather`, by URL), as
+  the archive does not change.
+- Variables: cloud cover low, mid, high; precipitation; snowfall;
+  temperature and dew point at 2 m; wind at 100 m; the WMO weather code.
+  Derived: low cloud type from the code (thunderstorm: cumulonimbus to
+  10 km; showers: cumulus; steady rain, drizzle, snow: stratus) or else the
+  cover (under half: cumulus, under 85 %: stratocumulus, more: stratus);
+  low base 125 m a degree of dew point spread above the point's elevation
+  (fog codes: 30 m); mid at 3-4.3 km (5 km in steady rain), high at
+  8.5-9.5 km; snow share from snowfall (7 cm of snow a mm of water);
+  visibility 300 m in fog, else 40 km reduced by the precipitation; mid and
+  high winds twice and three and a half times the 100 m wind, veering
+  10 and 20 degrees.
+- The weather: absolute, starting at the request's start, a keyframe each
+  hour; the grid tile-aligned over the area at the chosen cell size
+  (4096 m by default); maps interpolated from the samples per cell; the
+  keyframes' uniform values the samples' means, the wind their mean
+  vector turned from true north to the route grid's (its bearing at the
+  area's centre). Source and attribution go with it ("Weather data by
+  Open-Meteo.com (CC BY 4.0); contains modified Copernicus Climate Change
+  Service information <year>" for ERA5); maps are saved to
+  `ENVFILES/WEATHER/<env file name>/`.
+- F5 > Import Historical... opens the dialog: day, start (UTC), length,
+  model, margin, cells, with the area, sample count and keyframes shown;
+  the download can be cancelled. The imported weather is unsaved until
+  Save. Weather Details names it ("Open-Meteo era5, <day> <hour> UTC").
+- Checked: the weather suite's import cases (a canned answer of four
+  samples: rain from stratus, fair cumulus, showers, snow; the grid's
+  alignment, the wind turned by the grid bearing, the cloud base from the
+  dew point, snow share, visibility in rain, an error answer, too many
+  points); a live import for EUROPE1 on 2026-06-21 (87 x 146 km, 35 points,
+  13 keyframes; fair weather, cumulus building to about 60 % in the early
+  afternoon) shown on the map; on a copy of MINI an import saved (the
+  block with start, grid and maps; 16-bit maps of 21 x 21 cells x 13
+  keyframes) and read back from the file.
+- Not yet: time zones (the editor's time is taken as UTC for an absolute
+  weather), so on a route far from Greenwich the hours are off by its
+  offset.
 
 ## Verification
 
