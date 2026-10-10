@@ -28,6 +28,8 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [ ] `23-ambient-occlusion.md` (GTAO on the QRhi renderer from the view's depth, taken off the ambient light share the lit shaders write; Off/Low/Medium/High)
 - [ ] `24-hdr-and-bloom.md` (float view with tone curves and exposure; bloom only from emitted light; defaults unchanged, look to be tuned)
 - [x] `25-qrhi-hardware-investigation.md` (Steam Deck under Windows: paged terrain, frame pacing and memory fixed; open performance work in its handover)
+- [x] `26-signal-lights.md` (signal lights in the default aspect from sigcfg.dat; glow on QRhi, plain discs on OpenGL; flashing and animation later)
+- [ ] `27-sky-enclosure-and-tunnel-lighting.md` (a top-down enclosure map: lamps at full strength and ambient with a floor where the sky is hidden; best done with the clouds task)
 
 Renderer work continues on Windows hardware; software rendering (llvmpipe,
 lavapipe) no longer shows the remaining problems. Measurement and
