@@ -163,6 +163,10 @@ tsre_weather (
 )
 ```
 
+Draft decision (user, 2026-10-10): the block stays separate, at the top
+level. Whether it later moves into `world` (for example the weather into
+`world_sky`) is decided when the format has settled in practice.
+
 - A preset is a named set of these values in TSRE's code (fair cumulus,
   scattered, broken, overcast, rain, snow, thunderstorm, a passing front as
   several keyframes); a weather can start from one and override any
@@ -203,7 +207,8 @@ ENVFILES/WEATHER/<name>/
 
 Options considered for the maps: one binary file with a header and half
 floats (compact, not viewable), JSON (large), NetCDF or EXR (new
-dependencies). PNG fits Qt and can be checked by eye.
+dependencies). PNG fits Qt and can be checked by eye. Draft decision (user,
+2026-10-10): PNG; reconsidered once it has been used.
 
 ### The TRK
 
@@ -219,7 +224,8 @@ TsreEnvironment (
 )
 ```
 
-A season and weather missing there uses the `Environment` entry.
+A season and weather missing there uses the `Environment` entry. The method
+is reconsidered in step 5 (user, 2026-10-10); left as is for now.
 
 ### Activities
 
@@ -232,6 +238,13 @@ it; the season and weather tokens stay for MSTS and Open Rails):
 - `Weather` (`src/tsre/environment/`): an env file's weather, read and
   written with ParserX; its keyframes and maps;
   `sample(time, x, z, layer)` for a cell value and `drift(time, layer)`.
+- Parser (user's question, 2026-10-10): the block is read with
+  `SimisTextReader`, the bounded lexer `SFileComplex`, `SigCfg` and the
+  quadtree recovery use, not `ParserX`. It reports line and column for
+  errors, which hand-written weather needs, and gives each token's offsets:
+  writing replaces the block's text span in the file and leaves the MSTS
+  parts byte for byte. `Environment`'s water layer reading moves to it in
+  the same step (small), so the file is read once.
 - `WeatherPresets`: the named presets.
 - `WeatherDetail`: the generated detail, a seeded noise field thresholded
   by coverage, evaluated on the CPU for the map and on the GPU by the
@@ -256,18 +269,42 @@ the grid's cells when zoomed in, a legend, and the time from the
 environment window (the drift and keyframes follow it). The shown cells and
 the generated detail can be toggled.
 
+## Controls (user's question, 2026-10-10)
+
+An **Environment panel on F5**, a fifth panel of the tool box that holds
+Objects (F1), Terrain (F2), Geo (F3) and Activity (F4) and floats with it,
+replacing the floating environment window (editor 05):
+
+- **Top**: the env file being shown and edited: the TRK's season and weather
+  slot, any file in `ENVFILES`, or the open activity's. Actions: new
+  weather from a preset, import (Open-Meteo, step 3), save, reload.
+- **Weather**: preset, seed, the keyframe at the current time and its
+  values (layers, wind, precipitation, visibility); later a timeline of the
+  keyframes.
+- **Time, sky, fog, lights**: the environment window's controls (time,
+  date, sun, moon, fog, local lights, exposure, bloom), moved over as they
+  are, still session values with Reset and Save to profile. The time drives
+  the weather's drift and keyframes, in 3D and in map mode.
+
+The window's widgets move into the panel rather than being rebuilt; its
+menu entry and shortcut go to F5. Where the F1-F4 panels are too narrow for
+the environment window's rows, the panel takes the width it needs when F5
+is shown.
+
 ## Steps
 
 1. **Format and base**: the format proposal (review), then the `Weather`
-   model, the env block reader and writer, the generated detail, and the
-   preset generator; a weather derived from a plain env file (fog distance,
-   precipitation, clear/rain/snow) when it has no block. Unit tests.
-2. **Map mode layer**, with time from the environment window.
+   model, the env block reader and writer (`SimisTextReader`), the
+   generated detail, and the preset generator; a weather derived from a
+   plain env file (fog distance, precipitation, clear/rain/snow) when it has
+   no block. Unit tests.
+2. **Map mode layer** and the **F5 Environment panel** (env selection,
+   preset, time).
 3. **Open-Meteo import**: the route's area as a grid of point requests
    (spacing by model), cached; times in UTC, the grid's north turned to the
    route's grid; attribution stored with the weather.
 4. **Keyframes and drift** polished: cross-fades, margins, a weather longer
-   than its data (looping presets).
+   than its data (looping presets). **Stop for review** (user, 2026-10-10).
 5. **Random choice** in the TRK's `TsreEnvironment`; **activities** naming
    an env file (TSRE token); the editor picking the season and weather
    (editor 05).
