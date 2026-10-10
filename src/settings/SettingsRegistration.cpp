@@ -1102,6 +1102,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "High"
                 QT_TRID_NOOP("settings.core.rendering.clouds.option.high")}})).inGroup("rendering").inSubgroup("environment"),
         "cloudQuality", "Game::cloudQuality", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.lightShafts", false)
+            .withNameId(
+                //% "Light shafts"
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.name")).withDescriptionId(
+                //% "Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.description")).inGroup("rendering").inSubgroup("environment"),
+        "lightShafts", "Game::lightShafts", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
                 //% "Render TrackDB items"

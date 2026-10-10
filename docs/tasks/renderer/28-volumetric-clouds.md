@@ -1,7 +1,7 @@
 # Task 28 - Volumetric Clouds and Sky
 
 Status: in progress on `feature/clouds` (from `feature/weather`), started
-2026-10-11; steps 1-3 and 5 done, step 4 in part. Includes task 27 (sky enclosure). Reads its weather
+2026-10-11; steps 1-3, 5 and 6 done, step 4 in part. Includes task 27 (sky enclosure). Reads its weather
 from task environment 01. Authorized overnight through step 8 and task 27
 (user, 2026-10-11); verified on lavapipe with captures, timed by the user on
 the Steam Deck.
@@ -220,6 +220,21 @@ imports alike), and their shadow map shares the march's code.
   sky is clear); the march's cost on the Steam Deck; step 4's tuning by
   eye (cloud brightness, overcast's base structure, the mid layer's
   smeared look from below).
+
+## Step 6 (done, 2026-10-11)
+
+- `RhiLightShafts.cpp`, after the clouds, at half resolution: a mask of
+  the open sky (the sky band's depth) within 12 degrees of the sun, dimmed
+  by the clouds' transmittance; a radial blur of 64 steps towards the sun's
+  place on the screen (each 2 % weaker); added to the view in the sun's
+  colour (the atmosphere's transmittance, normalised), less over the open
+  sky next to the sun, which the bloom lights already. Weaker below 5
+  degrees of elevation and as the sun leaves the screen (gone a third of
+  the screen past its edge). Works with the classic sky too (no clouds:
+  the skydome's depth alone).
+- Setting `core.rendering.lightShafts` (off by default).
+- Checked: EUROPE1, fair cumulus at 17:00 and 19:00 looking towards the
+  sun: rays fan out under the cloud in front of the sun; `rhi-shaders`.
 
 ## Verification
 

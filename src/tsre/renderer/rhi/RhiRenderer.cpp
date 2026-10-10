@@ -250,6 +250,7 @@ void RhiRenderer::releaseResources() {
     releaseBloom();
     releaseGlowSplats();
     releaseGlowClear();
+    releaseLightShafts();
     releaseCloudResources();
     releaseSkyResources();
     delete presentUniforms;
@@ -1820,6 +1821,7 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (pass > PASS_ALPHA_TEST) {
             applyAmbientOcclusion();
             applyClouds();
+            applyLightShafts();
         }
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();
@@ -2214,6 +2216,7 @@ void RhiRenderer::renderFrame() {
     drawPasses(PASS_SKY, PASS_UI, true);
     applyAmbientOcclusion();
     applyClouds();
+    applyLightShafts();
     flushTarget();
     // The view goes to the frame when the surface ends it, after the
     // client painted its overlay.
@@ -2246,6 +2249,7 @@ void RhiRenderer::resetFrame() {
     skyResources.viewRendered = false;
     cloudsApplied = false;
     cloudsPrepared = false;
+    shaftsApplied = false;
     std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }
 

@@ -3684,6 +3684,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Off</source>
         <translation>Wyłączone</translation>
     </message>
+    <message id="settings.core.rendering.light.shafts.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1110"/>
+        <source>Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer.</source>
+        <translation>Promienie słońca przez prześwity w chmurach, drzewach i budynkach, gdy słońce jest na ekranie lub blisko niego. Renderer QRhi.</translation>
+    </message>
+    <message id="settings.core.rendering.light.shafts.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1108"/>
+        <source>Light shafts</source>
+        <translation>Smugi światła</translation>
+    </message>
     <message id="settings.core.rendering.sky.model.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1082"/>
         <source>Classic draws the route's sky dome in the time of day's colours. Physical computes the sky from the atmosphere for the sun's place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky.</source>

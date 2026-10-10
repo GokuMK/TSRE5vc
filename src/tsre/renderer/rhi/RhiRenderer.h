@@ -474,6 +474,37 @@ private:
     bool cloudShadowPlane(float &altitude) const;
     void writeCloudShadowUniforms(RhiProgram *program);
     void prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);
+public:
+    static QList<QByteArray> lightShaftShaders();
+private:
+    // Screen-space light shafts (RhiLightShafts.cpp).
+    struct LightShafts {
+        QSize size;
+        QRhiTexture *viewColor = nullptr;
+        QRhiTexture *cloudTexture = nullptr;
+        QRhiTexture *white = nullptr;
+        QRhiResourceUpdateBatch *whiteUpload = nullptr;
+        QRhiTexture *mask = nullptr;
+        QRhiTexture *blurred = nullptr;
+        QRhiTextureRenderTarget *maskTarget = nullptr;
+        QRhiTextureRenderTarget *blurTarget = nullptr;
+        QRhiTextureRenderTarget *addTarget = nullptr;
+        QRhiRenderPassDescriptor *maskPass = nullptr;
+        QRhiRenderPassDescriptor *blurPass = nullptr;
+        QRhiRenderPassDescriptor *addPass = nullptr;
+        QRhiShaderResourceBindings *maskBindings = nullptr;
+        QRhiShaderResourceBindings *blurBindings = nullptr;
+        QRhiShaderResourceBindings *addBindings = nullptr;
+        QRhiGraphicsPipeline *maskPipeline = nullptr;
+        QRhiGraphicsPipeline *blurPipeline = nullptr;
+        QRhiGraphicsPipeline *addPipeline = nullptr;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiSampler *linear = nullptr;
+    } lightShafts;
+    bool shaftsApplied = false;
+    bool createLightShafts(QRhiTexture *cloudTexture);
+    void applyLightShafts();
+    void releaseLightShafts();
     bool cloudsWanted() const;
     bool createCloudVolumes();
     bool createCloudResources(const QSize &viewSize, int quality);

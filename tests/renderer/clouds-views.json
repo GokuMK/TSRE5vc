@@ -20,6 +20,8 @@
     {"name": "cumulus-evening", "rot": [4.7124, 0.12], "weatherPreset": "fair_cumulus", "time": 19.5},
     {"name": "scattered-sun", "rot": [4.0, 0.25], "weatherPreset": "scattered", "time": 17},
     {"name": "shadows-aerial", "offset": [0, 400, 0], "rot": [3.1416, -0.45], "weatherPreset": "fair_cumulus", "time": 13},
-    {"name": "shadows-ground", "rot": [0.8, -0.05], "weatherPreset": "fair_cumulus", "time": 15}
+    {"name": "shadows-ground", "rot": [0.8, -0.05], "weatherPreset": "fair_cumulus", "time": 15},
+    {"name": "sun-cumulus", "rot": [4.0, 0.3], "weatherPreset": "fair_cumulus", "time": 17},
+    {"name": "sun-low", "rot": [4.4, 0.1], "weatherPreset": "fair_cumulus", "time": 19}
   ]
 }
