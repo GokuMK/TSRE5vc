@@ -29,7 +29,7 @@
 WeatherImportDialog::WeatherImportDialog(RouteEditorGLWidget *view, QWidget *parent)
     : QDialog(parent), view(view) {
     setWindowTitle(
-        //% "Import Historical Weather"
+        //% "Import Weather"
         qtTrId("route.editor.weather.import.title"));
     auto *layout = new QVBoxLayout(this);
     auto *form = new QFormLayout;
@@ -39,8 +39,8 @@ WeatherImportDialog::WeatherImportDialog(RouteEditorGLWidget *view, QWidget *par
     date->setDisplayFormat("yyyy-MM-dd");
     date->setCalendarPopup(true);
     const QDate editorDate = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
-    // The archive is about five days behind today.
-    date->setMaximumDate(QDate::currentDate().addDays(-6));
+    // Past days from the archives, coming ones from the forecasts.
+    date->setMaximumDate(QDate::currentDate().addDays(14));
     date->setDate(editorDate.isValid() && editorDate <= date->maximumDate() ? editorDate
                                                                             : date->maximumDate());
     form->addRow(
@@ -61,11 +61,24 @@ WeatherImportDialog::WeatherImportDialog(RouteEditorGLWidget *view, QWidget *par
         //% "Length:"
         qtTrId("route.editor.weather.import.length"), hours);
     model = new QComboBox(this);
+    //% "Automatic (the finest with data here)"
+    model->addItem(qtTrId("route.editor.weather.import.model.automatic"), QString::fromLatin1(WeatherImport::Automatic));
     for (const WeatherImport::Model &m : WeatherImport::models())
         model->addItem(m.title, m.id);
     form->addRow(
         //% "Model:"
         qtTrId("route.editor.weather.import.model"), model);
+    spacing = new QComboBox(this);
+    //% "Model's grid, 4 km at least"
+    spacing->addItem(qtTrId("route.editor.weather.import.spacing.model"), 0.0);
+    for (int km : {2, 4, 8, 16})
+        spacing->addItem(QString("%1 km").arg(km), km * 1000.0);
+    spacing->setToolTip(
+        //% "Points sampled from the model; each counts towards Open-Meteo's free 10000 a day."
+        qtTrId("route.editor.weather.import.spacing.tooltip"));
+    form->addRow(
+        //% "Samples:"
+        qtTrId("route.editor.weather.import.spacing"), spacing);
     margin = new QSpinBox(this);
     margin->setRange(0, 300);
     margin->setValue(30);
@@ -87,8 +100,8 @@ WeatherImportDialog::WeatherImportDialog(RouteEditorGLWidget *view, QWidget *par
     summary->setWordWrap(true);
     layout->addWidget(summary);
     auto *note = new QLabel(
-        //% "Data: Open-Meteo.com (CC BY 4.0), from ERA5 (Copernicus) or ECMWF IFS. The weather keeps this attribution."
-        qtTrId("route.editor.weather.import.attribution"), this);
+        //% "Data: Open-Meteo.com (CC BY 4.0) and the model's maker (Meteo-France, UK Met Office, DMI, DWD, KNMI, ECMWF, Copernicus). The weather keeps the attribution."
+        qtTrId("route.editor.weather.import.attribution.models"), this);
     note->setWordWrap(true);
     layout->addWidget(note);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
@@ -102,23 +115,18 @@ WeatherImportDialog::WeatherImportDialog(RouteEditorGLWidget *view, QWidget *par
         connect(box, QOverload<int>::of(&QSpinBox::valueChanged), this, &WeatherImportDialog::updateSummary);
     connect(model, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &WeatherImportDialog::updateSummary);
     connect(cellSize, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &WeatherImportDialog::updateSummary);
+    connect(spacing, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &WeatherImportDialog::updateSummary);
     connect(date, &QDateEdit::dateChanged, this, &WeatherImportDialog::updateSummary);
     updateSummary();
 }
 
 bool WeatherImportDialog::request(WeatherImport::Request &out, QString *error) const {
     out.model = model->currentData().toString();
+    out.spacing = spacing->currentData().toDouble();
     out.date = date->date();
     out.startHour = startHour->value();
     out.hours = hours->value();
     out.cellSize = cellSize->currentData().toInt();
-    if (out.date < WeatherImport::model(out.model).first) {
-        if (error)
-            //% "The model starts on %1."
-            *error = qtTrId("route.editor.weather.import.too.early")
-                    .arg(WeatherImport::model(out.model).first.toString(Qt::ISODate));
-        return false;
-    }
     double west, north, east, south;
     if (!view->routeArea(west, north, east, south)) {
         // No track: the camera's surroundings.
@@ -144,9 +152,13 @@ void WeatherImportDialog::updateSummary() {
         summary->setText(error);
         return;
     }
-    const double spacing = WeatherImport::model(r.model).spacing;
-    const int points = (int(std::ceil((r.east - r.west) / spacing)) + 1)
-            * (int(std::ceil((r.north - r.south) / spacing)) + 1);
+    // Automatic: the regional models' 4 km until a model is chosen.
+    WeatherImport::Request sized = r;
+    if (sized.model == QLatin1String(WeatherImport::Automatic))
+        sized.model = WeatherImport::models().front().id;
+    const double step = WeatherImport::spacing(sized);
+    const int points = (int(std::ceil((r.east - r.west) / step)) + 1)
+            * (int(std::ceil((r.north - r.south) / step)) + 1);
     //% "Area %1 x %2 km, %3 sample points, %4 keyframes."
     summary->setText(qtTrId("route.editor.weather.import.summary")
                      .arg((r.east - r.west) / 1000.0, 0, 'f', 0).arg((r.north - r.south) / 1000.0, 0, 'f', 0)

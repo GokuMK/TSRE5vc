@@ -350,12 +350,18 @@ void Weather::drift(double hours, int layer, double &east, double &north) const 
     integrate(0.0, hours, east, north);
 }
 
-bool Weather::cell(double east, double north, double &column, double &row) const {
+double Weather::cell(double east, double north, double &column, double &row) const {
     if (!grid.valid)
-        return false;
-    column = std::clamp((east - grid.west()) / grid.cellSize - 0.5, 0.0, grid.columns - 1.0);
-    row = std::clamp((grid.north() - north) / grid.cellSize - 0.5, 0.0, grid.rows - 1.0);
-    return true;
+        return 0.0;
+    const double c = (east - grid.west()) / grid.cellSize - 0.5;
+    const double r = (grid.north() - north) / grid.cellSize - 0.5;
+    column = std::clamp(c, 0.0, grid.columns - 1.0);
+    row = std::clamp(r, 0.0, grid.rows - 1.0);
+    // Past the grid the edge would stretch out in stripes.
+    const double outside = std::hypot(std::max({0.0, -0.5 - c, c - (grid.columns - 0.5)}),
+                                      std::max({0.0, -0.5 - r, r - (grid.rows - 0.5)}));
+    const double weight = std::clamp(1.0 - outside / 3.0, 0.0, 1.0);
+    return weight * weight * (3.0 - 2.0 * weight);
 }
 
 std::array<double, 4> Weather::sampleMap(int index, int keyframe, double column, double row) const {
@@ -381,12 +387,15 @@ std::array<double, 4> Weather::sampleMap(int index, int keyframe, double column,
 WeatherLayerValues Weather::keyframeLayer(int keyframe, double east, double north, int layer) const {
     WeatherLayerValues v = keyframes[keyframe].layers[layer];
     double column, row;
-    if (hasMaps() && cell(east, north, column, row)) {
+    const double weight = hasMaps() ? cell(east, north, column, row) : 0.0;
+    if (weight > 0.0) {
         const auto m = sampleMap(layer, keyframe, column, row);
-        v.coverage = float(m[0]);
-        v.type = float(m[1]);
-        v.base = float(m[2] * 65535.0);
-        v.top = float(m[3] * 65535.0);
+        const float w = float(weight);
+        auto mix = [w](float keyframe, double map) { return keyframe + (float(map) - keyframe) * w; };
+        v.coverage = mix(v.coverage, m[0]);
+        v.type = mix(v.type, m[1]);
+        v.base = mix(v.base, m[2] * 65535.0);
+        v.top = mix(v.top, m[3] * 65535.0);
     }
     return v;
 }
@@ -399,11 +408,14 @@ WeatherSurface Weather::keyframeSurface(int keyframe, double east, double north)
     s.snowShare = k.precipitation == WeatherPrecipitation::Snow ? 1.0f : 0.0f;
     s.visibility = k.visibility;
     double column, row;
-    if (hasMaps() && cell(east, north, column, row)) {
+    const double weight = hasMaps() ? cell(east, north, column, row) : 0.0;
+    if (weight > 0.0) {
         const auto m = sampleMap(SurfaceMap, keyframe, column, row);
-        s.precipitationRate = float(m[0] * 65535.0 * 0.01);
-        s.snowShare = float(m[1]);
-        s.visibility = float(m[2] * 65535.0 * 2.0);
+        const float w = float(weight);
+        auto mix = [w](float keyframe, double map) { return keyframe + (float(map) - keyframe) * w; };
+        s.precipitationRate = mix(s.precipitationRate, m[0] * 65535.0 * 0.01);
+        s.snowShare = mix(s.snowShare, m[1]);
+        s.visibility = mix(s.visibility, m[2] * 65535.0 * 2.0);
         s.precipitation = s.precipitationRate <= 0.0f ? WeatherPrecipitation::None
                         : s.snowShare >= 0.5f ? WeatherPrecipitation::Snow : WeatherPrecipitation::Rain;
     }

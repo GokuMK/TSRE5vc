@@ -2319,11 +2319,18 @@ bool worldToLatLon(double east, double north, double &latitude, double &longitud
 
 } // namespace
 
-bool RouteEditorGLWidget::importWeather(const WeatherImport::Request &request, QString *error,
+bool RouteEditorGLWidget::importWeather(const WeatherImport::Request &asked, QString *error,
                                         const std::function<bool()> &cancelled) {
     if (route == NULL || route->env == NULL)
         return false;
     QString message;
+    WeatherImport::Request request = asked;
+    // Automatic: the finest model with data over the area.
+    if (request.model == QLatin1String(WeatherImport::Automatic)
+            && !WeatherImport::chooseModel(request, worldToLatLon, request.model, message, cancelled)) {
+        if (error) *error = message;
+        return false;
+    }
     QVector<WeatherImport::Sample> samples;
     int columns = 0, rows = 0;
     if (!WeatherImport::samples(request, worldToLatLon, samples, columns, rows, message)) {
@@ -2335,11 +2342,9 @@ bool RouteEditorGLWidget::importWeather(const WeatherImport::Request &request, Q
     double lat0, lon0, lat1, lon1, bearing = 0.0;
     if (worldToLatLon(centreE, centreN, lat0, lon0) && worldToLatLon(centreE, centreN + 1000.0, lat1, lon1))
         bearing = std::atan2((lon1 - lon0) * std::cos(lat0 * M_PI / 180.0), lat1 - lat0) * 180.0 / M_PI;
-    QByteArray json;
     QVector<WeatherImport::Series> series;
     Weather weather;
-    if (!WeatherImport::fetch(WeatherImport::url(request, samples), json, message, cancelled)
-            || !WeatherImport::parse(json, samples.size(), series, message)
+    if (!WeatherImport::download(request, samples, series, message, cancelled)
             || !WeatherImport::build(request, samples, columns, rows, series, bearing, weather, message)) {
         if (error) *error = message;
         return false;

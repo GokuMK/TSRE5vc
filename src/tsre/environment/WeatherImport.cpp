@@ -62,7 +62,12 @@ Hour hourOf(const WeatherImport::Series &s, int hour) {
     const double low = std::clamp(at(s.low, hour) / 100.0, 0.0, 1.0);
     const double mid = std::clamp(at(s.mid, hour) / 100.0, 0.0, 1.0);
     const double high = std::clamp(at(s.high, hour) / 100.0, 0.0, 1.0);
-    const int code = hour >= 0 && hour < s.weatherCode.size() ? s.weatherCode[hour] : 0;
+    int code = hour >= 0 && hour < s.weatherCode.size() ? s.weatherCode[hour] : -1;
+    if (code < 0) {
+        // Without a weather code: steady rain or snow when it falls, else fair.
+        const double rate = at(s.precipitation, hour);
+        code = rate >= 0.1 ? (at(s.snowfall, hour) > 0.0 ? 73 : 61) : 0;
+    }
     const bool fog = code == 45 || code == 48;
     const bool steady = (code >= 51 && code <= 67) || (code >= 71 && code <= 77);
     const bool showers = code >= 80 && code <= 86;
@@ -109,12 +114,17 @@ QString cacheFile(const QString &url) {
 } // namespace
 
 QVector<WeatherImport::Model> WeatherImport::models() {
+    const QString openMeteo = QStringLiteral("Weather data by Open-Meteo.com (CC BY 4.0); ");
     return {
-        {"era5", "ERA5 (25 km, 1940 on)", 25000.0, QDate(1940, 1, 1),
-         "Weather data by Open-Meteo.com (CC BY 4.0); contains modified Copernicus Climate Change Service "
-         "information"},
-        {"ecmwf_ifs", "ECMWF IFS (9 km, 2017 on)", 9000.0, QDate(2017, 1, 1),
-         "Weather data by Open-Meteo.com (CC BY 4.0); ECMWF IFS"},
+        {"meteofrance_arome_france_hd", "AROME France HD (1.5 km, France)", 1500.0, openMeteo + "Meteo-France"},
+        {"ukmo_uk_deterministic_2km", "UKMO (2 km, UK and Ireland)", 2000.0, openMeteo + "UK Met Office"},
+        {"dmi_harmonie_arome_europe", "DMI HARMONIE (2 km, northern and central Europe)", 2000.0, openMeteo + "DMI"},
+        {"icon_d2", "ICON-D2 (2 km, Germany and neighbours)", 2200.0, openMeteo + "DWD"},
+        {"knmi_harmonie_arome_europe", "KNMI HARMONIE (5.5 km, Europe)", 5500.0, openMeteo + "KNMI"},
+        {"icon_eu", "ICON-EU (7 km, Europe)", 7000.0, openMeteo + "DWD"},
+        {"ecmwf_ifs", "ECMWF IFS (9 km)", 9000.0, openMeteo + "ECMWF"},
+        {"era5", "ERA5 (25 km, from 1940)", 25000.0,
+         openMeteo + "contains modified Copernicus Climate Change Service information", true},
     };
 }
 
@@ -128,15 +138,16 @@ WeatherImport::Model WeatherImport::model(const QString &id) {
 bool WeatherImport::samples(const Request &r, const ToLatLon &toLatLon, QVector<Sample> &out, int &columns,
                             int &rows, QString &error) {
     out.clear();
-    const double spacing = model(r.model).spacing;
+    const double spacing = WeatherImport::spacing(r);
     if (!(r.east > r.west) || !(r.north > r.south)) {
         error = QStringLiteral("The area is empty");
         return false;
     }
     columns = int(std::ceil((r.east - r.west) / spacing)) + 1;
     rows = int(std::ceil((r.north - r.south) / spacing)) + 1;
-    if (columns * rows > 1000) {
-        error = QString("%1 sample points; at most 1000 fit one request (a smaller area or margin)")
+    // Each point counts towards Open-Meteo's free daily limit (10000).
+    if (columns * rows > 3000) {
+        error = QString("%1 sample points; at most 3000 (wider spacing, a smaller area or margin)")
                 .arg(columns * rows);
         return false;
     }
@@ -154,9 +165,22 @@ bool WeatherImport::samples(const Request &r, const ToLatLon &toLatLon, QVector<
     return true;
 }
 
-QString WeatherImport::url(const Request &r, const QVector<Sample> &samples) {
+double WeatherImport::spacing(const Request &r) {
+    return r.spacing > 0.0 ? r.spacing : std::max(model(r.model).resolution, 4000.0);
+}
+
+bool WeatherImport::cacheable(const Request &r) {
+    // Days fully past: the archives do not change them.
+    const QDate last = r.date.addDays((r.startHour + r.hours) / 24);
+    return last < QDate::currentDate().addDays(-2);
+}
+
+QString WeatherImport::url(const Request &r, const QVector<Sample> &samples, int first, int count) {
+    if (count < 0)
+        count = samples.size() - first;
     QStringList latitudes, longitudes;
-    for (const Sample &s : samples) {
+    for (int i = first; i < first + count && i < samples.size(); ++i) {
+        const Sample &s = samples[i];
         latitudes << QString::number(s.latitude, 'f', 4);
         longitudes << QString::number(s.longitude, 'f', 4);
     }
@@ -171,7 +195,13 @@ QString WeatherImport::url(const Request &r, const QVector<Sample> &samples) {
     query.addQueryItem("models", r.model);
     query.addQueryItem("wind_speed_unit", "ms");
     query.addQueryItem("timezone", "GMT");
-    QUrl u("https://archive-api.open-meteo.com/v1/archive");
+    // ERA5 from the reanalysis archive; the others from the forecast
+    // archive for past days, from the forecast service for recent and
+    // coming ones.
+    const QString endpoint = model(r.model).reanalysis ? "https://archive-api.open-meteo.com/v1/archive"
+                           : cacheable(r) ? "https://historical-forecast-api.open-meteo.com/v1/forecast"
+                                          : "https://api.open-meteo.com/v1/forecast";
+    QUrl u(endpoint);
     u.setQuery(query);
     return u.toString(QUrl::FullyEncoded);
 }
@@ -214,8 +244,9 @@ bool WeatherImport::parse(const QByteArray &json, int sampleCount, QVector<Serie
         s.dewPoint = numbers(hourly, "dew_point_2m");
         s.windSpeed = numbers(hourly, "wind_speed_100m");
         s.windDirection = numbers(hourly, "wind_direction_100m");
+        // -1: the model has none (AROME HD).
         for (double code : numbers(hourly, "weather_code"))
-            s.weatherCode.push_back(std::isnan(code) ? 0 : int(code));
+            s.weatherCode.push_back(std::isnan(code) ? -1 : int(code));
         if (s.low.isEmpty()) {
             error = QStringLiteral("The answer has no hourly cloud cover");
             return false;
@@ -232,7 +263,7 @@ bool WeatherImport::build(const Request &r, const QVector<Sample> &samples, int 
         return false;
     }
     const Model m = model(r.model);
-    const double spacing = m.spacing;
+    const double spacing = WeatherImport::spacing(r);
     weather = Weather();
     weather.seed = 1;
     weather.source = QString("Open-Meteo %1, %2 %3:00 UTC").arg(m.id, r.date.toString(Qt::ISODate))
@@ -261,7 +292,8 @@ bool WeatherImport::build(const Request &r, const QVector<Sample> &samples, int 
     for (int k = 0; k < keyframes; ++k) {
         WeatherKeyframe f;
         f.time = float(k);
-        f.variationAmount = 0.1f;
+        // The data varies by itself; the noise only fills between coarse samples.
+        f.variationAmount = float(std::min(0.1, 0.1 * spacing / 25000.0));
         f.variationScale = 15000.0f;
         double e = 0.0, n = 0.0, rate = 0.0, snow = 0.0, visibility = 0.0;
         double sums[WeatherLayer::Count][5] = {};
@@ -336,10 +368,11 @@ bool WeatherImport::build(const Request &r, const QVector<Sample> &samples, int 
     return true;
 }
 
-bool WeatherImport::fetch(const QString &url, QByteArray &out, QString &error, const std::function<bool()> &cancelled) {
+bool WeatherImport::fetch(const QString &url, QByteArray &out, QString &error, const std::function<bool()> &cancelled,
+                          bool cache) {
     const QString cached = cacheFile(url);
     QFile file(cached);
-    if (file.open(QIODevice::ReadOnly)) {
+    if (cache && file.open(QIODevice::ReadOnly)) {
         out = file.readAll();
         if (!out.isEmpty())
             return true;
@@ -378,9 +411,127 @@ bool WeatherImport::fetch(const QString &url, QByteArray &out, QString &error, c
         return false;
     }
     QSaveFile save(cached);
-    if (save.open(QIODevice::WriteOnly)) {
+    if (cache && save.open(QIODevice::WriteOnly)) {
         save.write(out);
         save.commit();
     }
     return true;
+}
+
+namespace {
+
+// Open-Meteo's free use counts every location of a request as a call: at
+// most 600 a minute. The downloads keep under 500 a minute and wait out the
+// rest of the minute when they would go over (or when told they did).
+class MinuteLimit {
+public:
+    static constexpr int PerMinute = 500;
+    // Waits until count more fit this minute; false when cancelled.
+    bool reserve(int count, const std::function<bool()> &cancelled) {
+        if (!started.isValid() || started.elapsed() >= 60000) {
+            started.start();
+            used = 0;
+        }
+        if (used + count > PerMinute && !waitMinute(cancelled))
+            return false;
+        used += count;
+        return true;
+    }
+    bool waitMinute(const std::function<bool()> &cancelled) {
+        while (started.isValid() && started.elapsed() < 61000) {
+            if (cancelled && cancelled())
+                return false;
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+            QThread::msleep(100);
+        }
+        started.start();
+        used = 0;
+        return true;
+    }
+private:
+    QElapsedTimer started;
+    int used = 0;
+};
+
+MinuteLimit &minuteLimit() {
+    static MinuteLimit limit;
+    return limit;
+}
+
+} // namespace
+
+bool WeatherImport::download(const Request &r, const QVector<Sample> &samples, QVector<Series> &out, QString &error,
+                             const std::function<bool()> &cancelled) {
+    out.clear();
+    constexpr int Batch = 200;
+    const bool cache = cacheable(r);
+    for (int first = 0; first < samples.size(); first += Batch) {
+        const int count = std::min(Batch, int(samples.size()) - first);
+        const QString address = url(r, samples, first, count);
+        QByteArray json;
+        QVector<Series> part;
+        bool fetched = false;
+        for (int attempt = 0; attempt < 3 && !fetched; ++attempt) {
+            // Answers from the disk cache do not count.
+            if (!(cache && QFile::exists(cacheFile(address))) && !minuteLimit().reserve(count, cancelled)) {
+                error = QStringLiteral("Cancelled");
+                return false;
+            }
+            fetched = fetch(address, json, error, cancelled, cache);
+            // 429: the minute's limit was reached after all; wait it out.
+            if (!fetched && error.contains("429") && !minuteLimit().waitMinute(cancelled)) {
+                error = QStringLiteral("Cancelled");
+                return false;
+            }
+            if (!fetched && !error.contains("429"))
+                return false;
+        }
+        if (!fetched || !parse(json, count, part, error))
+            return false;
+        out += part;
+    }
+    return true;
+}
+
+bool WeatherImport::chooseModel(const Request &r, const ToLatLon &toLatLon, QString &chosen, QString &error,
+                                const std::function<bool()> &cancelled) {
+    // The area's centre and corners must all have data.
+    QVector<Sample> probe;
+    for (const auto &p : {std::pair<double, double>{(r.west + r.east) * 0.5, (r.north + r.south) * 0.5},
+                          {r.west, r.north}, {r.east, r.north}, {r.west, r.south}, {r.east, r.south}}) {
+        Sample s;
+        s.east = p.first;
+        s.north = p.second;
+        if (!toLatLon(s.east, s.north, s.latitude, s.longitude)) {
+            error = QStringLiteral("The route has no geographic reference");
+            return false;
+        }
+        probe.push_back(s);
+    }
+    Request one = r;
+    one.hours = 0;
+    QString lastError;
+    for (const Model &m : models()) {
+        if (cancelled && cancelled()) {
+            error = QStringLiteral("Cancelled");
+            return false;
+        }
+        one.model = m.id;
+        QByteArray json;
+        QVector<Series> series;
+        QString message;
+        if (!fetch(url(one, probe), json, message, cancelled, cacheable(one)) || !parse(json, probe.size(), series, message)) {
+            lastError = message;
+            continue;
+        }
+        bool covered = true;
+        for (const Series &s : series)
+            covered = covered && std::isfinite(at(s.low, r.startHour, std::nan("")));
+        if (covered) {
+            chosen = m.id;
+            return true;
+        }
+    }
+    error = lastError.isEmpty() ? QStringLiteral("No model has data for this area and day") : lastError;
+    return false;
 }

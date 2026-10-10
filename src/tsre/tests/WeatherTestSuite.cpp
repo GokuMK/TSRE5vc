@@ -6,6 +6,8 @@
 #include <tsre/environment/WeatherImport.h>
 
 #include <QJsonArray>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -453,13 +455,50 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
         c.check(near(rainy.visibility, 10000.0, 1500.0) && rainy.precipitation == WeatherPrecipitation::Rain,
                 QString("import-rain-visibility (%1)").arg(rainy.visibility));
         c.check(imported.attribution.contains("Copernicus") && imported.source.contains("era5"), "import-attribution");
+        // Past the grid the maps fade to the keyframe's values (no stripes).
+        Weather still = imported;
+        for (WeatherKeyframe &k : still.keyframes)
+            k.variationAmount = 0.0f;
+        const WeatherLayerValues away = still.layer(0.0, -60000.0, 25000.0, WeatherLayer::Low);
+        c.check(near(away.coverage, still.keyframes[0].layers[WeatherLayer::Low].coverage, 0.001)
+                && near(away.type, still.keyframes[0].layers[WeatherLayer::Low].type, 0.001), "import-outside-grid");
+        // Far from the origin the clouds stay whole where the type changes
+        // from cell to cell: points 10 m apart differ only at the clouds' edges.
+        Weather far = still;
+        far.grid.tileX = -6000;
+        far.grid.tileZ = 7400;
+        const Weather::Frame farFrame = far.frame(0.0);
+        const double farNorth = far.grid.north() - 3000.0;
+        double previous = WeatherDetail::cover(far, farFrame, far.grid.west(), farNorth, WeatherLayer::Low), jump = 0.0;
+        for (int i = 1; i <= 2500; ++i) {
+            const double v = WeatherDetail::cover(far, farFrame, far.grid.west() + i * 10.0, farNorth,
+                                                  WeatherLayer::Low);
+            jump += std::abs(v - previous) / 2500.0;
+            previous = v;
+        }
+        c.check(jump < 0.02, QString("detail-far-continuous (%1)").arg(jump));
         // Too many points for one request.
         WeatherImport::Request wide = request;
-        wide.model = "ecmwf_ifs";
+        wide.model = "dmi_harmonie_arome_europe";
+        wide.spacing = 2000.0;
         wide.east = 400000.0;
         wide.north = 400000.0;
-        c.check(!WeatherImport::samples(wide, toLatLon, samples, columns, rows, error) && error.contains("1000"),
+        c.check(!WeatherImport::samples(wide, toLatLon, samples, columns, rows, error) && error.contains("3000"),
                 "import-too-many-points");
+        // Regional models: sampled every 4 km at least; past days from the
+        // forecast archive, recent ones from the forecast service.
+        WeatherImport::Request regional = request;
+        regional.model = "ukmo_uk_deterministic_2km";
+        QVector<WeatherImport::Sample> many(450);
+        c.check(WeatherImport::spacing(regional) == 4000.0
+                && QUrlQuery(QUrl(WeatherImport::url(regional, many, 400, 200)).query())
+                           .queryItemValue("latitude").split(',').size() == 50
+                && WeatherImport::url(regional, many).contains("historical-forecast-api.open-meteo.com"),
+                "import-regional-url");
+        regional.date = QDate::currentDate();
+        c.check(!WeatherImport::cacheable(regional)
+                && WeatherImport::url(regional, many, 0, 10).startsWith("https://api.open-meteo.com/v1/forecast"),
+                "import-forecast-url");
     }
 
     // Every env file in the cases directory round-trips.

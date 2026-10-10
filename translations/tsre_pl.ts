@@ -3050,13 +3050,13 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
     </message>
     <message id="route.editor.environment.tools.import">
         <location filename="../src/routeEditor/EnvironmentTools.cpp" line="175"/>
-        <source>Import Historical...</source>
-        <translation>Importuj historyczną...</translation>
+        <source>Import Weather...</source>
+        <translation>Importuj pogodę...</translation>
     </message>
     <message id="route.editor.environment.tools.import.tooltip">
         <location filename="../src/routeEditor/EnvironmentTools.cpp" line="179"/>
-        <source>The weather of a past day over the route, from Open-Meteo.</source>
-        <translation>Pogoda z minionego dnia nad trasą, z Open-Meteo.</translation>
+        <source>The weather of a day over the route, past or forecast, from Open-Meteo.</source>
+        <translation>Pogoda z wybranego dnia nad trasą, miniona lub prognozowana, z Open-Meteo.</translation>
     </message>
     <message id="route.editor.environment.tools.source.imported">
         <location filename="../src/routeEditor/EnvironmentTools.cpp" line="294"/>
@@ -3065,8 +3065,8 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
     </message>
     <message id="route.editor.weather.import.title">
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="33"/>
-        <source>Import Historical Weather</source>
-        <translation>Import historycznej pogody</translation>
+        <source>Import Weather</source>
+        <translation>Import pogody</translation>
     </message>
     <message id="route.editor.weather.import.day">
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="48"/>
@@ -3103,20 +3103,10 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <source>Cells:</source>
         <translation>Komórki:</translation>
     </message>
-    <message id="route.editor.weather.import.attribution">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="91"/>
-        <source>Data: Open-Meteo.com (CC BY 4.0), from ERA5 (Copernicus) or ECMWF IFS. The weather keeps this attribution.</source>
-        <translation>Dane: Open-Meteo.com (CC BY 4.0), z ERA5 (Copernicus) lub ECMWF IFS. Pogoda zachowuje to oznaczenie autorstwa.</translation>
-    </message>
     <message id="route.editor.weather.import.button">
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="97"/>
         <source>Import</source>
         <translation>Importuj</translation>
-    </message>
-    <message id="route.editor.weather.import.too.early">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="118"/>
-        <source>The model starts on %1.</source>
-        <translation>Model zaczyna się %1.</translation>
     </message>
     <message id="route.editor.weather.import.summary">
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="151"/>
@@ -3132,6 +3122,31 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="167"/>
         <source>Cancel</source>
         <translation>Anuluj</translation>
+    </message>
+    <message id="route.editor.weather.import.model.automatic">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="65"/>
+        <source>Automatic (the finest with data here)</source>
+        <translation>Automatycznie (najdokładniejszy z danymi tutaj)</translation>
+    </message>
+    <message id="route.editor.weather.import.spacing.model">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="73"/>
+        <source>Model's grid, 4 km at least</source>
+        <translation>Siatka modelu, co najmniej 4 km</translation>
+    </message>
+    <message id="route.editor.weather.import.spacing.tooltip">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="78"/>
+        <source>Points sampled from the model; each counts towards Open-Meteo's free 10000 a day.</source>
+        <translation>Punkty próbkowane z modelu; każdy wlicza się do darmowego limitu Open-Meteo 10000 na dobę.</translation>
+    </message>
+    <message id="route.editor.weather.import.spacing">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="81"/>
+        <source>Samples:</source>
+        <translation>Próbki:</translation>
+    </message>
+    <message id="route.editor.weather.import.attribution.models">
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="104"/>
+        <source>Data: Open-Meteo.com (CC BY 4.0) and the model's maker (Meteo-France, UK Met Office, DMI, DWD, KNMI, ECMWF, Copernicus). The weather keeps the attribution.</source>
+        <translation>Dane: Open-Meteo.com (CC BY 4.0) i twórca modelu (Meteo-France, UK Met Office, DMI, DWD, KNMI, ECMWF, Copernicus). Pogoda zachowuje to oznaczenie autorstwa.</translation>
     </message>
     <message id="route.editor.environment.tools.group.file">
         <location filename="../src/routeEditor/EnvironmentTools.cpp" line="107"/>

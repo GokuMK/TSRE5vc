@@ -1,6 +1,6 @@
 # Task Environment 01 - Weather Data
 
-Status: steps 1-3 done on `feature/weather` (2026-10-10); step 4 next.
+Status: steps 1-3 and 3b done on `feature/weather` (2026-10-10); step 4 next.
 
 ## Objective
 
@@ -314,6 +314,10 @@ panel's width.
 3. **Open-Meteo import**: the route's area as a grid of point requests
    (spacing by model), cached; times in UTC, the grid's north turned to the
    route's grid; attribution stored with the weather.
+3b. **Regional models and map detail** (inserted, user 2026-10-10): the
+   high-resolution European models (historical forecasts and forecasts,
+   the date not mattering), chosen automatically; the map showing the
+   coverage zoomed out and the generated clouds only zoomed in.
 4. **Keyframes and drift** polished: cross-fades, margins, a weather longer
    than its data (looping presets). **Stop for review** (user, 2026-10-10).
 5. **Random choice** in the TRK's `TsreEnvironment`; **activities** naming
@@ -451,6 +455,61 @@ panel's width.
 - Not yet: time zones (the editor's time is taken as UTC for an absolute
   weather), so on a route far from Greenwich the hours are off by its
   offset.
+
+## Step 3b (done, 2026-10-10)
+
+Imports from ERA5 looked like noise: its 25 km cells carry little of a
+route's weather, and the visible structure came from the generator. The
+user's call: the import is an alternative to a good generator, so dates do
+not matter, and free forecasts at high resolution are worth more than
+reanalyses. Europe first.
+
+- Models, finest first: Meteo-France AROME France HD (1.5 km), UK Met
+  Office UKV (2 km), DMI HARMONIE-AROME Europe (2 km), DWD ICON-D2
+  (2.2 km), KNMI HARMONIE-AROME Europe (5.5 km), DWD ICON-EU (7 km), ECMWF
+  IFS (9 km), ERA5 (25 km). Past days come from Open-Meteo's historical
+  forecasts (`historical-forecast-api.open-meteo.com`), the last two days
+  and the coming two weeks from the forecast service
+  (`api.open-meteo.com`), ERA5 from the archive. Only the archives are
+  cached.
+- Automatic (the dialog's default): the finest model with data at the
+  area's centre and four corners (one small request per model tried).
+  AROME HD has no weather code: it is inferred from the cover and the
+  precipitation.
+- Samples every model cell, 4 km at least (or 2-16 km as chosen), in
+  requests of 200 points; at most 3000. Open-Meteo counts each point as a
+  call (600 a minute, 5000 an hour, 10000 a day free), so downloads keep
+  under 500 points a minute, wait out the minute (cancellable) when going
+  over, and on a refusal (429) wait a minute and retry, three times at
+  most. Cached answers do not count.
+- Map: zoomed out, the coverage itself (as weather apps show cloudiness);
+  the generated clouds come in where a texel is between a third and a
+  tenth of the clouds' size, and the showers keep to the convective cells
+  likewise. Noise octaves finer than about three texels are left out,
+  which would only speckle the image.
+- Past the grid the maps fade to the keyframe's values over three cells;
+  before, the grid's edge stretched out in stripes.
+- The noise is sampled at fixed scales (5000, 2500, 1200, 3000 m: stratus,
+  stratocumulus, cumulus, cumulonimbus), the two either side of the cloud
+  type mixed. It was sampled at a scale following the type, and a route
+  far from the origin (EUROPE1 is 12 000 km out) is thousands of noise
+  cells away, so the slightest change of type from texel to texel moved the
+  noise by whole cells: pixel noise wherever the type varied, which was
+  most of the noise in the earlier imports. The renderer (task 28) must do
+  the same.
+- Checked: the weather suite (60 cases; new: the forecast URL, regional
+  batches, the fade past the grid, the noise staying whole far from the
+  origin, which fails with the old scaling); a live import for EUROPE1 on
+  2026-06-21, Automatic picking AROME France HD (its domain reaches
+  55 degrees north; UKV can be chosen by hand), 874 points in 5 requests
+  paced without a refusal, then the map wide (the model's cloud field,
+  smooth) and close (cloud shapes).
+- Later: raster sources. Open-Meteo publishes its model data on AWS open
+  data (`s3://openmeteo`, `data/<model>/<variable>/chunk_N.om`: ICON-D2
+  back to late 2023, UKV, AROME HD, HARMONIE, IFS, ERA5), with no call
+  limit; a chunk is one variable over the whole domain for a few days,
+  about 40 MB, read in parts over HTTP ranges with the `.om` file format
+  library. Worth it for large areas or fine sampling.
 
 ## Verification
 

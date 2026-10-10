@@ -171,11 +171,11 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
     detailsButton->setObjectName("weatherDetails");
     weatherGrid->addWidget(detailsButton, 3, 0, 1, 2);
     auto *importButton = new QPushButton(
-        //% "Import Historical..."
+        //% "Import Weather..."
         qtTrId("route.editor.environment.tools.import"), content);
     importButton->setObjectName("weatherImport");
     importButton->setToolTip(
-        //% "The weather of a past day over the route, from Open-Meteo."
+        //% "The weather of a day over the route, past or forecast, from Open-Meteo."
         qtTrId("route.editor.environment.tools.import.tooltip"));
     weatherGrid->addWidget(importButton, 4, 0, 1, 2);
     connect(importButton, &QPushButton::clicked, this, [this] {

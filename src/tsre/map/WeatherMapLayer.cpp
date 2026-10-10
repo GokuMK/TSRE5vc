@@ -110,17 +110,25 @@ QImage makeImage(const WeatherMapLayer::Request &r) {
         for (int i = 0; i < n; ++i) {
             const double east = r.west + (i + 0.5) * texel;
             Pixel p;
-            // Edges at least a texel soft, so the image does not step.
+            // Zoomed out, the coverage itself (as a weather app shows
+            // cloudiness); zoomed in, the clouds, their edges at least a
+            // texel soft so the image does not step.
             auto cover = [&](int layer) {
-                const float type = r.weather.layer(frame, east, north, layer).type;
-                return float(WeatherDetail::cover(r.weather, frame, east, north, layer,
-                                                  WeatherDetail::imageEdge(texel, type)));
+                const WeatherLayerValues values = r.weather.layer(frame, east, north, layer);
+                const double detail = WeatherDetail::imageDetail(texel, values.type);
+                if (detail <= 0.0)
+                    return values.coverage;
+                const double clouds = WeatherDetail::cover(r.weather, frame, east, north, layer,
+                                                           WeatherDetail::imageEdge(texel, values.type), texel);
+                return float(values.coverage + (clouds - values.coverage) * detail);
             };
             // High clouds hatched, so the layers under them show.
             p.over(r.colours[WeatherLayer::High], cover(WeatherLayer::High) * (((i + j) % 6) < 2 ? 0.4f : 0.1f));
             p.over(r.colours[WeatherLayer::Mid], cover(WeatherLayer::Mid) * 0.45f);
             p.over(r.colours[WeatherLayer::Low], cover(WeatherLayer::Low) * 0.6f);
-            const WeatherSurface surface = WeatherDetail::precipitation(r.weather, frame, east, north);
+            const WeatherSurface surface = WeatherDetail::precipitation(
+                    r.weather, frame, east, north,
+                    WeatherDetail::imageDetail(texel, r.weather.layer(frame, east, north, WeatherLayer::Low).type));
             if (surface.precipitationRate >= 0.1f)
                 p.over(WeatherMapLayer::precipitationColour(surface.precipitationRate,
                                                             surface.precipitation == WeatherPrecipitation::Snow),

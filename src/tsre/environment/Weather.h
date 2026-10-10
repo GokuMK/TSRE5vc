@@ -173,7 +173,9 @@ private:
     std::array<QImage, WeatherLayer::Count + 1> mapImages;
     WeatherLayerValues keyframeLayer(int keyframe, double east, double north, int layer) const;
     WeatherSurface keyframeSurface(int keyframe, double east, double north) const;
-    bool cell(double east, double north, double &column, double &row) const;
+    // The map cell at a point, and how much the maps count there: 1 on the
+    // grid, fading to 0 (the keyframe's values) over three cells past it.
+    double cell(double east, double north, double &column, double &row) const;
     std::array<double, 4> sampleMap(int index, int keyframe, double column, double row) const;
 };
 

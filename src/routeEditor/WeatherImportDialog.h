@@ -34,6 +34,7 @@ private:
     QSpinBox *startHour = nullptr;
     QSpinBox *hours = nullptr;
     QComboBox *model = nullptr;
+    QComboBox *spacing = nullptr;
     QSpinBox *margin = nullptr;
     QComboBox *cellSize = nullptr;
     QLabel *summary = nullptr;

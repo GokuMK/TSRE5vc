@@ -57,6 +57,17 @@ struct Octaves {
 };
 const Octaves octaveTurns;
 
+// Stratus sheets break into large patches, cumulus into small cells,
+// cumulonimbus into large towers.
+const double cloudScales[] = {5000.0, 2500.0, 1200.0, 3000.0};
+
+// A cloud type between two of the scales: which two, and how far along.
+void scalePair(float type, int &i, double &along) {
+    const double t = std::clamp(double(type), 0.0, 1.0) * 3.0;
+    i = std::min(2, int(t));
+    along = t - i;
+}
+
 double fade(double t) {
     return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
@@ -89,6 +100,31 @@ double WeatherNoise::fractal(double x, double y, int octaves, quint32 seed) {
     return sum / total * 1.6;
 }
 
+double WeatherNoise::fractal(double x, double y, int octaves, quint32 seed, double texel) {
+    if (texel <= 0.0)
+        return fractal(x, y, octaves, seed);
+    // The spread of the full noise: the octaves' amplitudes add as squares.
+    double sum = 0.0, amplitude = 1.0, squares = 0.0, fullSquares = 0.0, fullTotal = 0.0, cell = 1.0;
+    for (int i = 0; i < octaves && i < 8; ++i) {
+        const double weight = std::clamp((cell / texel - 2.0) / 2.0, 0.0, 1.0);
+        if (weight > 0.0) {
+            const double rx = x * octaveTurns.c[i] - y * octaveTurns.s[i];
+            const double ry = x * octaveTurns.s[i] + y * octaveTurns.c[i];
+            sum += weight * amplitude * gradient(rx + i * 17.31, ry - i * 9.77, seed + quint32(i) * 0x9e3779b9u);
+            squares += weight * weight * amplitude * amplitude;
+        }
+        fullSquares += amplitude * amplitude;
+        fullTotal += amplitude;
+        amplitude *= 0.5;
+        cell *= 0.5;
+        x *= 2.0;
+        y *= 2.0;
+    }
+    if (squares <= 0.0)
+        return 0.0;
+    return sum / std::sqrt(squares) * std::sqrt(fullSquares) / fullTotal * 1.6;
+}
+
 double WeatherNoise::distribution(double value) {
     // The quantiles of the four-octave noise, measured once over many
     // points: the noise's distribution does not depend on the seed.
@@ -118,12 +154,10 @@ double WeatherNoise::distribution(double value) {
 }
 
 double WeatherDetail::cloudScale(float type) {
-    // Stratus sheets break into large patches, cumulus into small cells,
-    // cumulonimbus into large towers.
-    static const double scales[] = {5000.0, 2500.0, 1200.0, 3000.0};
-    const double t = std::clamp(double(type), 0.0, 1.0) * 3.0;
-    const int i = std::min(2, int(t));
-    return scales[i] + (scales[i + 1] - scales[i]) * (t - i);
+    int i;
+    double along;
+    scalePair(type, i, along);
+    return cloudScales[i] + (cloudScales[i + 1] - cloudScales[i]) * along;
 }
 
 double WeatherDetail::cover(const Weather &weather, double hours, double east, double north, int layer) {
@@ -131,16 +165,33 @@ double WeatherDetail::cover(const Weather &weather, double hours, double east, d
 }
 
 double WeatherDetail::cover(const Weather &weather, const Weather::Frame &frame, double east, double north,
-                            int layer, double minimumEdge) {
+                            int layer, double minimumEdge, double texel) {
     if (frame.empty)
         return 0.0;
     const WeatherLayerValues values = weather.layer(frame, east, north, layer);
     if (values.coverage <= 0.0f)
         return 0.0;
-    const double scale = cloudScale(values.type);
-    const double noise = WeatherNoise::fractal((east - frame.drift[layer][0]) / scale,
-                                               (north - frame.drift[layer][1]) / scale, 4,
-                                               weather.seed * 3u + quint32(layer) + 101u);
+    // The noise at the two fixed scales the type lies between, mixed: a
+    // scale following the type would move the far-from-origin noise by
+    // whole cells from texel to texel as the type changes.
+    int i;
+    double along;
+    scalePair(values.type, i, along);
+    const double e = east - frame.drift[layer][0], n = north - frame.drift[layer][1];
+    auto noiseAt = [&](int s) {
+        const double scale = cloudScales[s];
+        return WeatherNoise::fractal(e / scale, n / scale, 4,
+                                     weather.seed * 3u + quint32(layer) + 101u + quint32(s) * 7919u, texel / scale);
+    };
+    double noise;
+    if (along <= 0.001)
+        noise = noiseAt(i);
+    else if (along >= 0.999)
+        noise = noiseAt(i + 1);
+    else
+        // Two independent noises mixed spread less: weighted back up.
+        noise = (noiseAt(i) * (1.0 - along) + noiseAt(i + 1) * along)
+                / std::sqrt((1.0 - along) * (1.0 - along) + along * along);
     const double even = WeatherNoise::distribution(noise);
     // A ramp centred on the threshold: its mean over an even distribution is
     // the share above the threshold, the coverage.
@@ -154,8 +205,13 @@ double WeatherDetail::imageEdge(double texel, float type) {
     return std::clamp(1.5 * texel / cloudScale(type), 0.0, 0.3);
 }
 
+double WeatherDetail::imageDetail(double texel, float type) {
+    const double scale = cloudScale(type);
+    return std::clamp((scale / 3.0 - texel) / (scale / 3.0 - scale / 10.0), 0.0, 1.0);
+}
+
 WeatherSurface WeatherDetail::precipitation(const Weather &weather, const Weather::Frame &frame, double east,
-                                            double north) {
+                                            double north, double cells) {
     WeatherSurface s = weather.surface(frame, east, north);
     if (s.precipitationRate <= 0.0f || frame.empty)
         return s;
@@ -168,10 +224,11 @@ WeatherSurface WeatherDetail::precipitation(const Weather &weather, const Weathe
     // Showers fall from the cells of convective clouds.
     const WeatherLayerValues low = weather.layer(frame, east, north, WeatherLayer::Low);
     const double convective = std::clamp((low.type - 0.45) / 0.35, 0.0, 1.0);
-    if (convective > 0.0 && low.coverage > 0.0f) {
+    if (convective > 0.0 && low.coverage > 0.0f && cells > 0.0) {
         const double under = cover(weather, frame, east, north, WeatherLayer::Low)
                 / std::max(double(low.coverage), 0.1);
-        rate *= 1.0 - convective + convective * std::min(under, 3.0);
+        const double factor = 1.0 - convective + convective * std::min(under, 3.0);
+        rate *= 1.0 + (factor - 1.0) * cells;
     }
     s.precipitationRate = float(rate);
     if (s.precipitationRate < 0.05f)
