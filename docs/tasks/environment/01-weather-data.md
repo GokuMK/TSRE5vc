@@ -1,6 +1,8 @@
 # Task Environment 01 - Weather Data
 
-Status: steps 1-3 and 3b done on `feature/weather` (2026-10-10); step 4 next.
+Status: steps 1-3 and 3b done on `feature/weather` (2026-10-10). **Paused**
+(user, 2026-10-11) for renderer task 28: the data sources are to be
+rethought first (see "Sources rethink"), then step 4.
 
 ## Objective
 
@@ -510,6 +512,67 @@ reanalyses. Europe first.
   limit; a chunk is one variable over the whole domain for a few days,
   about 40 MB, read in parts over HTTP ranges with the `.om` file format
   library. Worth it for large areas or fine sampling.
+
+## Sources rethink (paused, 2026-10-11)
+
+The user's review of step 3b: the imports still sample points, while
+weather data comes as rasters, and the earlier source research (Open-Meteo's
+point API only) was too narrow. The user's report
+(`weather-source-report-1.md`) proposes DWD ICON-EU model fields (3D cloud
+cover, cloud water and ice per level), EUMETSAT satellite cloud shapes and
+CERRA. Simple files can be read without libraries. Before going further:
+choose the sources, then remove the ones that turn out useless.
+Automatic keeps choosing the finest model (user).
+
+Checked on 2026-10-10/11:
+
+- **DWD open data** (`opendata.dwd.de/weather/nwp/icon-eu/grib/<run>/<var>/`,
+  likewise `icon-d2`): free, no account. ICON-EU on a regular 1377 x 657
+  grid (0.0625 degrees); ICON-D2 both icosahedral and regular-lat-lon.
+  Single-level fields (`clcl`, `clcm`, `clch`, `clct`, `hbas_con`,
+  `htop_con`, `ceiling`, `tot_prec`, `rain_gsp`, `snow_gsp`, `t_2m`,
+  `td_2m`, winds) and model-level ones (`clc`, `qc`, `qi`, `t`, `p`, `u`,
+  `v`, about 74 levels; `hhl` gives their heights). Files are GRIB2 in
+  bzip2; the data is CCSDS/AEC packed (data template 5.42, 16 bits), so
+  reading them takes a bzip2 and an AEC (adaptive Rice) decoder besides
+  the GRIB2 sections: no library, but two decoders to write. Only the
+  latest runs are kept (about a day: 8 runs a day): forecasts only, no
+  history. Each file covers the whole domain, with no subsetting: about
+  1.2 MB a single-level field and hour, 0.1-0.6 MB a model level and hour,
+  so 12 hours of a 3D cloud field (40 levels x `clc`, `qc`, `qi`) is about
+  400 MB, of the single-level fields about 150 MB.
+- **EUMETSAT view service** (`view.eumetsat.int/geoserver/ows`, WMS
+  1.3.0): free, no account, PNG images for any bounding box and time:
+  MTG FCI high-resolution visible 0.6 um (`mtg_fd:vis06_hrfi`, about 1 km,
+  from 2024-09-16, every 10 min, daytime) and infrared 10.5 um
+  (`mtg_fd:ir105_hrfi`, day and night), MSG cloud mask (`msg_fes:clm`,
+  about 4-5 km over Europe, from 2020-09, every 15 min), MTG cloud type and
+  cloud phase RGBs (from 2025-06), MSG blended precipitation
+  (`msg_fes:h60b`, from 2022-12). Cloud top height (`msg_fes:cth`) is too
+  coarse (blocks of about 15 km). A visible image for the Settle-Carlisle
+  area on 2026-06-21 12:00 UTC shows the real cloud field at about 1 km.
+  Images are colour-mapped (the legend gives the mapping); a satellite sees
+  the tops only; parallax shifts clouds poleward (about 3 km for a 2 km
+  cloud at 54 degrees north); the licence of derived data is to be checked.
+  The report's OCA products need a Data Store account and come as NetCDF-4
+  (HDF5), which does need a library.
+- **CERRA** (Copernicus, 5.5 km, 3-hourly analyses): a CDS account, API key
+  and queued requests; GRIB. Heavier to set up; history is not needed now.
+- **Open-Meteo**: the point API (current import) has history and every
+  European model, but counts each point as a call. Its own model data is
+  also on AWS open data (`s3://openmeteo`, `data/<model>/<var>/chunk_N.om`,
+  with history, readable by HTTP ranges), in its own compressed format.
+
+Proposal (to decide when resuming):
+
+- Cloud shapes from the satellite (WMS), about 1 km: the coverage maps
+  directly, for a chosen past time (daytime visible; infrared at night).
+- Heights, wind, precipitation from a model at a coarse spacing (10-20 km,
+  a few dozen points, under the point API's limits), as they vary smoothly.
+- Later, DWD files (bzip2 + AEC + GRIB2 decoders) for forecasts and 3D
+  cloud fields.
+- Remove: ERA5 and ECMWF IFS (too coarse; the early imports' noise), the
+  2 km point sampling. Keep the request pacing (small).
 
 ## Verification
 
