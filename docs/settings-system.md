@@ -142,7 +142,11 @@ When registered definitions collide but differ, it shows **Stored setting
 definitions differ from this TSRE build**, with **Update** and **Hide** actions.
 Update refreshes only metadata owned by registered definitions and records the
 current `catalog`; setting values, unknown fields, unknown groups, and unknown
-fork/custom settings are preserved. The result remains an unsaved editor change
+fork/custom settings are preserved. One exception (0.7.8): a value still equal
+to the `default` its stored definition recorded was never chosen, so when the
+build changes that default the value takes the new one; the status line counts
+them and its tooltip lists the keys. A definition without a recorded `default`
+keeps its value. The result remains an unsaved editor change
 until **Save Profile** is used and does not alter runtime values. Hide suppresses
 the message for that profile only for the lifetime of the current editor dialog.
 Extra settings which are not registered by the running build do not trigger the
@@ -192,7 +196,7 @@ used to start the application is disabled.
 
 ## Editor and persistence
 
-The Route Editor opens the Settings Editor from **Settings > Settings Editor...** or `F12`. It provides group tabs, search, unsupported/advanced filters, type-specific controls, clipboard-based full-object and full-document JSON exchange, custom setting creation, and profile operations. The profile selector lists detected portable profile directories and marks the profile used at application startup. Selecting another entry opens it in an editor-local manager and does not replace the runtime manager's selected profile. Managed portable profiles can be duplicated as complete directories; arbitrary settings files and the single AppData profile cannot.
+The Route Editor opens the Settings Editor from **Settings > Settings Editor...** or `F12`. It provides group tabs, search, unsupported/advanced filters, type-specific controls, clipboard-based full-object and full-document JSON exchange, custom setting creation, and profile operations. The profile selector lists detected portable profile directories and marks the profile used at application startup. Selecting another entry opens it in an editor-local manager and does not replace the runtime manager's selected profile. Managed portable profiles can be duplicated as complete directories; arbitrary settings files and the single AppData profile cannot. **Profile > New...** creates a portable profile with every setting at the build's default (the name follows the duplicate rules) and opens it. Settings go back to the defaults with **Reset to Default** in a setting's action menu, **Edit > Reset Group to Defaults** (the tab shown) or **Edit > Reset All to Defaults**; the last two ask first. Only settings the build registers are reset, never secrets or custom/fork settings, and the result stays unsaved until **Save Profile**.
 
 Writes use `QSaveFile`, retain five timestamped backups, and detect external file changes before overwriting. Recoverable per-setting errors remain loadable for repair, but validation errors prevent saving. Secret values are stored in the profile-local `secrets.json`; dedicated secret settings and inline `{secret:ID}` placeholders store only references.
 

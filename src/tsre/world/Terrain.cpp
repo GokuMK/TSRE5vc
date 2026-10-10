@@ -30,7 +30,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/texture/Brush.h>
 #include <routeEditor/TerrainWaterWindow.h>
-#include <tsre/geo/MapWindow.h>
+#include <tsre/geo/TerrainOverlays.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Trk.h>
 #include <tsre/world/Environment.h>
@@ -1351,12 +1351,10 @@ void Terrain::setTileBlob(){
     } 
     int X, Y;
     getLowCornerTileXY(X, Y);
-    int hash = (X*10000+Y);
-    qDebug() << hash;
-    if(MapWindow::mapTileImages[hash] != NULL)
+    if(TerrainOverlays::has(X, Y))
         this->showBlob = true;
     else {
-        if(MapWindow::LoadMapFromDisk(X, Y)){
+        if(TerrainOverlays::loadFromDisk(X, Y)){
             this->showBlob = true;
         } else {
             qDebug() << "load map first!";
@@ -1373,9 +1371,8 @@ void Terrain::makeTextureFromMap(){
     
     int X, Y;
     getLowCornerTileXY(X, Y);
-    int hash = (X*10000+Y);
-    qDebug() << hash;
-    if(MapWindow::mapTileImages[hash] == NULL){
+    int hash = TerrainOverlays::key(X, Y);
+    if(!TerrainOverlays::has(X, Y)){
         qDebug() << "mat tex not found";
         return;
     }
@@ -2347,7 +2344,9 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
     float size = 512;
 
     RenderItem *r;
-    if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionId != 0)){
+    // A fully opaque overlay replaces the terrain's own textures; below, the
+    // terrain is drawn and the overlay over it.
+    if(Game::viewTerrainShape && (!(showBlob && TerrainOverlays::opacity() >= 1.0f) || selectionId != 0)){
         if (selectionId==0) prepareVisibleProceduralTextures(patchVisibility);
         float shaderSecondTexUV = 0;
         for (int yy = 0; yy < patches; yy++) {
@@ -2518,15 +2517,16 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
     }
     
     if(showBlob && selectionId == 0){
+        // Below full opacity the overlay is blended over the terrain drawn
+        // above. Paged terrain draws it on the terrain's own patches as a decal
+        // (depth tested with an offset, no depth writes, as transfers), so
+        // whatever stands on the ground hides it. Legacy terrain (deprecated)
+        // keeps its overlay lifted 0.35 m.
+        const float opacity = TerrainOverlays::opacity();
+        const bool translucent = opacity < 1.0f;
         if (backend->isPaged()) {
             const int mapTexture = ensureMapTexture();
             if (mapTexture >= 0) {
-                if(MapWindow::isAlpha != 0){
-                    queue.pushTransform();
-                    Mat4::translate(queue.transform(),
-                                    queue.transform(),
-                                    0, 0.35, 0);
-                }
                 for (int patchId = 0; patchId < gridLayout.patchRecordCount(); ++patchId) {
                     if (!isPatchVisible(patchId, patchVisibility))
                         continue;
@@ -2540,14 +2540,16 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                     backend->configureRenderItem(*r, patchId, true, false,
                                                  lodState.sourceStep,
                                                  lodState.edgeMask);
+                    r->material.decal = translucent;
+                    r->material.opacity = opacity;
                     queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
                 }
-                if(MapWindow::isAlpha != 0)
-                    queue.popTransform();
             }
-        } else if(MapWindow::isAlpha == 0){
+        } else if(!translucent){
+            terrainBlob.setOpacity(1.0f);
             terrainBlob.pushRenderItem(queue);
         }else{
+            terrainBlob.setOpacity(opacity);
             queue.pushTransform();
             Mat4::translate(queue.transform(), queue.transform(), 0, 0.35, 0);
             terrainBlob.pushRenderItem(queue);

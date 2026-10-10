@@ -317,7 +317,7 @@ void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances){
 }
 
 void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
-                                 float emissiveGain, bool emittersOnly) const{
+                                 float emissiveGain, bool emittersOnly, float signalGain) const{
     lights.clear();
     for(const PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
@@ -334,6 +334,8 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     std::copy(matrix, matrix + 16, transform);
                 for(const RenderItem::Light &source : packet->lights){
                     if(emittersOnly && !source.emissive)
+                        continue;
+                    if(source.signal && !emittersOnly)
                         continue;
                     LightGrid::Light light;
                     const float *p = source.position;
@@ -352,7 +354,8 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     // Scaled shapes scale their emitters.
                     const float scale = std::sqrt(transform[0] * transform[0] + transform[1] * transform[1]
                                                   + transform[2] * transform[2]);
-                    const float gain = source.emissive ? emissiveGain * scale * scale : exposure;
+                    const float gain = !source.emissive ? exposure
+                            : (source.signal ? signalGain : emissiveGain) * scale * scale;
                     for(int c = 0; c < 3; ++c)
                         light.color[c] = source.color[c] * source.intensity * gain;
                     light.radius = source.radius * scale;

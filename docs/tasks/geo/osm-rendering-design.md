@@ -5,8 +5,12 @@ on the local OSM data ([design](osm-data-design.md)) and the Route Editor's map
 mode ([task editor 04](../editor/04-map-mode.md)). The measurements are in
 [evidence/2026-10-08-osm-rendering](evidence/2026-10-08-osm-rendering/results.md).
 
-Status (2026-10-08): steps 1 to 5 done, step 6 measured on TEST_PROFILES
-(Lower Silesia) with OpenGL and QRhi; see "Implementation status" at the end.
+Status (2026-10-09): the OSM layer, forest generalization, country-scale
+speed work, the Windows thread fix and map labels (markers, route data, OSM
+places and stations) are done and on `main` up to `c0c8ccc`; the labels
+(`3fccc45` to `227207f`) are on `feature/osm-rendering`, not merged yet. The
+user's test on a GPU is pending. See "Implementation status" and "Open
+items" at the end.
 
 ## Goal
 
@@ -186,8 +190,8 @@ Renames:
   twice. A whole-layer opacity would need an off-screen pass; it is not part
   of this work.
 - **Colours** come from the class table, which uses light, OSM-style colours.
-  A dark style for the dark palette is a later addition; until then the
-  Faded Overlay toggle tones OSM down.
+  The dark map palette draws its dark colours (added 2026-10-09; see "Dark
+  styles" below).
 
 ### 6. Menu, settings and conversion
 
@@ -409,6 +413,144 @@ and the editor then crashed; on the Linux server all was fine.
   overviews, and only stale or missing ones are rebuilt; conversion writes
   only files that are not converted yet.
 
-Still open: the line shader, labels and points, selection of OSM features, a
-dark style for the dark palette, the multipolygon cache, and an option to
-start with the layer on.
+### Labels (user, 2026-10-09)
+
+Agreed: no glyph atlas yet. The 3D view's `TextObj` paints each label into
+its own texture 16 characters wide (512 x 32 RGBA, 64 KB, clipping long
+names), on the GUI thread, drawn one quad and one texture a label, sized in
+metres: fine for a few 3D markers, not for map names at a fixed screen size.
+Instead (`MapLabelLayer`, `MapLabelAtlas`):
+
+- Whole names painted once by QPainter (fonts, Polish letters, shaping by
+  Qt) into atlas pages, one mesh a page; quads at whole pixels, upright,
+  rebuilt when the view changes (a few hundred names, about 1 ms).
+- Placement by priority with four positions around the dot; overlapping
+  names left out.
+- First user: the marker set (Map > Markers). Country Places now store the
+  GeoNames feature code and population for ranking.
+- Measured on TEST_PROFILES with Polish Country Places (363 places): all of
+  Poland places 152 names, 21 ms the first time (font set-up included), a
+  region 49 names, 5 ms with new names, 1 ms without.
+- Route data (2026-10-09): station, platform and siding names and location
+  events join the same layer (see the map-mode task).
+- **OSM names** (2026-10-09): nodes tagged `place` (city, town, village,
+  hamlet, suburb or quarter) or `railway` (station, halt) with a `name`, read
+  by `Osm::MapGeometry` with the geometry (a keys filter over the node blocks;
+  converted files keep tagged nodes only) and handed to the label layer by
+  `OsmMapLayer::labels()`.
+  - Ranked below the route's names and any marker set shown (Map > Markers,
+    off by default, is turned on for a purpose): city (bold), town, station,
+    village, halt, suburb, hamlet, each by its `population` tag;
+    shown from 200 m/px for towns, 60 stations, 40 villages, 20 halts,
+    15 suburbs, 10 hamlets, cities always. The overview levels hold what each
+    scale needs (national: cities and towns; regional: villages and
+    stations too).
+  - A name already placed within 120 pixels is not placed again, so a town in
+    both the Country Places and OSM shows once (the marker's). Different
+    spellings (GeoNames "Warsaw", OSM "Warszawa") are not matched; overlapping
+    sources are not a concern (user, 2026-10-09).
+  - Palette colours `place` and `osmStation` for the dots.
+  - Captures (`map-labels.json`, osm-* views): Poland's cities at 450 m/px,
+    Kraków's towns and stations at 60 m/px, its districts and every station
+    at 12 m/px. A build with new names took up to 11 ms (257 candidates),
+    1 to 2 ms without.
+- Street names along roads would need a glyph atlas (QTextLayout shaping,
+  QRawFont glyph images) and are left for later.
+
+### Dark styles (2026-10-09)
+
+The user's colour "invert" option of the old Load Map dialog is replaced by
+dark styles, shared by the map's OSM layer and the 3D tile overlays (Create
+from OSM), chosen by the map palette (`core.interface.routeEditor.mapPalette`
+= dark):
+
+- Inverting colours flips hues (forests purple, water orange); inverting only
+  lightness keeps hues but turns everything olive and makes roads darker than
+  the land. So the dark colours are derived by role, in OKLab with hues kept
+  (`scripts/osm_dark_palette.py`, which writes the `"dark"` block of
+  `osm-map-classes.json`: background, default, one entry a style):
+  - areas dark and toned down, paler (less important) ones darkest, near the
+    background (#1e2227); colour strength capped by lightness, and
+    yellow-greens (allotments, heath, grass) turned a little greener and
+    calmer, as they go muddy olive when dark; water a fixed deep blue;
+  - roads light and dimmed, their class colour kept; grey lines (railways)
+    turned light; lines of no class mid grey;
+  - casings dark, black ones (bridge edges) light.
+- `FeatureClasses::dark()` merges the dark colours over the styles, so classes,
+  scale ranges and widths stay the same (checked in the osm tests);
+  `forPalette(name)` picks the table. The OSM layer loads again when the
+  palette changes; Create from OSM takes the palette when it starts.
+- Seen on TEST_PROFILES at 1, 4, 40 and 300 m/px and in 3D; QRhi matches
+  OpenGL. Where OSM maps no land use the route's own terrain shows, light on
+  the dark map, and a dark overlay under a daylight sky looks heavy; the user
+  accepted both.
+
+## Open items (2026-10-09)
+
+In rough order of what the user asked about:
+
+1. **The user's test on a GPU** (Windows, Steam Deck): frame rate at country
+   scale, transparency and the fade, both renderers, the labels.
+2. **Merge the labels to `main`** after that test.
+3. **KML marker files need redoing** (`CoordsKml`, the 3D marker lines); the
+   findings and a first example file are in the map-mode task
+   ([04-map-mode.md](../editor/04-map-mode.md), "KML marker files need
+   redoing"). A real development-project file is wanted as test data.
+   With it: draw KML lines and areas on the map, rank custom files from
+   `ExtendedData` (`priority`, `population`).
+4. Done 2026-10-09: the "Route: Stations" / "Route: Sidings" marker sets
+   (`CoordsRoutePlaces`) mirrored their markers within the tile (database z
+   not negated) since the repository's first commit; fixed (a 3D capture over
+   Carlisle shows the pole on the platform; its name, 30 m above the pole,
+   was out of that steep view's frame, and renders on the user's system).
+   The map leaves these sets out: it labels the same names from the database.
+5. **Selecting OSM features** on the map, the start of procedural tools that
+   use OSM data (for example track along an OSM railway). Through the
+   existing selection pass (IDs drawn as colours), user's question
+   2026-10-09:
+   - IDs are 32 bits, 5 for the kind and 27 of payload; OSM way IDs are
+     larger, so a new kind (`OsmFeature`) carries an index into a table of
+     the features drawn for that pass, which maps back to type and ID.
+   - Drawing every feature in the view with its own per-draw ID would be one
+     draw each (the OSM batches mix features). Two ways:
+     - **Per-vertex ID** (user's suggestion, preferred): each vertex carries
+       its feature's index as an attribute, and a selection variant of the
+       shader writes it instead of the per-draw ID; the batches stay as they
+       are and the whole view is pickable in the same few draws. A float
+       attribute is exact up to 2^24 (enough for a per-view index); an
+       integer one also works on both backends. Costs a quarter more vertex
+       memory (12 to 16 bytes), or a selection mesh built on the first
+       pick; needs a vertex layout and shader variant on OpenGL and QRhi,
+       the same kind of work as the line shader (7), so best done with it.
+     - **Near the pointer** (no renderer work, a first tool can use it): a
+       small query builds per-feature shapes into `MapSelection`, lines
+       widened by its margin as markers are now.
+   - The result goes to the select tool as other picks do; a later tool
+     (follow this railway) reads the feature's geometry from the store.
+6. **Street names along roads**: a glyph atlas (QTextLayout shaping, QRawFont
+   glyph images) placing letters along lines.
+7. **A dedicated OSM map shader** (decided by the user, 2026-10-09; likely
+   given to a local agent on the user's Steam Deck, where hardware tests can
+   choose between the options):
+   - a custom vertex format, as the terrain mesh has (`TerrainVertex8Derived`
+     in `src/tsre/world/TerrainMeshBackend.h`: 8 bytes, the position derived
+     in the shader), instead of `RenderItem::V`;
+   - lines widened in the shader (from centre points and a side, or
+     instanced segments): 3.5 to 9 times less line memory, nothing rebuilt
+     when zooming (see "7. Later: a dedicated line shader" above);
+   - the feature's selection index as a vertex attribute, written by the
+     shader's selection variant ("colour" selection of item 5);
+   - a fallback that finds the feature nearest a click, which is also the
+     better way for railways and other thin lines, too narrow to hit in the
+     ID buffer unless drawn wider for the pass;
+   - on OpenGL and QRhi; measured on the Deck (frame time, memory, upload
+     time) to choose the vertex layout and line method.
+8. Smaller (the dark style is done, 2026-10-09): an option to start with OSM
+   Data on, the multipolygon cache (little
+   gain since the speed work), the detail read just below the regional switch
+   (about 1 s at 19 m/px over a big city; or move the switch to about
+   10 m/px), names in a chosen language (GeoNames vs OSM spellings).
+9. Map mouse buttons changed (user, 2026-10-09): left and right drag move
+   the map, middle drag turns it, so a right click for a context menu never
+   turns it. (Terrain painting on QRhi, suspected from the code, works: the
+   user tested static and procedural painting.)

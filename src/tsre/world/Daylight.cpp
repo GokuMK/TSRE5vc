@@ -66,6 +66,7 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     // degrees up to full at sunset, evenly to the eye (in log space): a
     // linear fade left them invisible until the sun had set.
     light.localLights = std::pow(DayLocalLights, smoothstep(0.0f, 20.0f, h));
+    light.signalLights = std::pow(DaySignalLights, smoothstep(0.0f, 20.0f, h));
     return light;
 }
 

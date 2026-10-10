@@ -50,6 +50,8 @@ flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
 uniform float enableNormals;
 uniform float colorBrightness;
+// 1 - RenderItem::Material::opacity; 0 (opaque) where nothing sets it.
+uniform float materialTransparency;
 
 vec2 poissonDisk[16] = vec2[]( 
    vec2( -0.94201624, -0.39906216 ), 
@@ -117,6 +119,7 @@ void main() {
 #endif
         if(textureEnabled == 0) {
             fragColor = shapeColor;
+            fragColor.a *= 1.0 - materialTransparency;
         } else {
             fragColor = texture(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
@@ -133,6 +136,7 @@ void main() {
             // discard if transparent 
             if(fragColor.a < -vAlpha)
                 discard;
+            fragColor.a *= 1.0 - materialTransparency;
             //gl_FragColor.a = 1.0;
 
 #ifdef TSRE_UNLIT
@@ -159,7 +163,9 @@ void main() {
 #endif
             fragColor.xyz *= color*colorBrightness;
 
-            fragColor = mix(fragColor, skyColor, fogFactor);
+            // Fog tints the colour only; mixing alpha towards the sky's 1 made
+            // translucent surfaces turn opaque with distance.
+            fragColor.rgb = mix(fragColor.rgb, skyColor.rgb, fogFactor);
 #endif
         }
 #endif

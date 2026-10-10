@@ -82,6 +82,9 @@ class Texture {
     qint64 estimatedVramBytes() const;
     bool gpuIsCompressed() const;
     void update();
+    // Replaces a rectangle of a loaded RGBA texture's first level (both renderers);
+    // pixels are tightly packed rows of width * 4 bytes.
+    void updateRegion(int x, int y, int w, int h, const unsigned char *pixels);
     void advancedCrop(const TerrainFile::PatchUv &uv, int patchSamples, int w = 0, int h = 0);
     void crop(float x1, float y1, float x2, float y2);
     void paint(Brush *brush, float x, float z);

@@ -1,0 +1,15 @@
+{
+  "notes": "CMK lake (tile -5306/-14963, water at 78 m): low views across the water to judge the waves.",
+  "output": "build/renderer-water-lake",
+  "width": 1280,
+  "height": 720,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "settle": { "minFrames": 8, "stableFrames": 3, "maxFrames": 300, "maxSeconds": 120 },
+  "views": [
+    { "name": "west", "tile": [-5306, -14963], "pos": [650, 85, 0], "rot": [1.5708, -0.12] },
+    { "name": "wide", "tile": [-5306, -14963], "pos": [650, 120, 0], "rot": [0.6, -0.25] },
+    { "name": "wide2", "tile": [-5306, -14963], "pos": [650, 120, 0], "rot": [-0.6, -0.25] }
+  ]
+}

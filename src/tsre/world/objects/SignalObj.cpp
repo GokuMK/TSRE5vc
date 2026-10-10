@@ -9,6 +9,7 @@
  */
 
 #include <tsre/world/objects/SignalObj.h>
+#include <tsre/world/objects/SignalLights.h>
 #include <tsre/fileFunctions/SimisReader.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
@@ -702,6 +703,22 @@ void SignalObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
         }
         pointer3d->pushRenderItem(queue, selectionId);
         queue.popTransform();
+    }
+
+    // Lights of the shown heads in their default aspect (task 26).
+    if(shapePointer != NULL && signalShape != NULL){
+        unsigned int heads = 0;
+        for(int i = 0; i < 32; i++)
+            if(signalUnit[i].enabled && signalUnit[i].head && ((signalSubObj >> i) & 1))
+                heads |= 1u << i;
+        if(heads != 0){
+            if(!lights)
+                lights.reset(new SignalLights());
+            queue.pushTransform();
+            Mat4::multiply(queue.transform(), queue.transform(), matrix);
+            lights->push(queue, shapePointer, signalShape, heads, selectionId);
+            queue.popTransform();
+        }
     }
 
     if(trLoaded >= 0)

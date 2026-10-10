@@ -34,7 +34,10 @@ private slots:
     void reloadProfile();
     void loadProfile();
     void saveProfileAs();
+    void newProfile();
     void duplicateProfile();
+    void resetGroupToDefaults();
+    void resetAllToDefaults();
     void switchProfile(int index);
     void openProfileFolder();
     void addCustomSetting();
@@ -69,6 +72,7 @@ private:
     QWidget *m_catalogBanner;
     QLabel *m_catalogMessage;
     QAction *m_duplicateProfileAction;
+    QAction *m_resetGroupAction;
     QLabel *m_statusLabel;
     QPushButton *m_applyRuntime;
     QWidget *m_resultsTab = nullptr;
@@ -87,6 +91,11 @@ private:
     bool isViewingUsedProfile() const;
     void updateCatalogBanner();
     bool confirmDiscardChanges();
+    // The group of the tab shown; empty for the Other and search tabs.
+    QString currentGroupId() const;
+    // Applies the editors, then sets the keys back to the build's defaults
+    // after asking `question` (%1: how many differ) when it is not empty.
+    void resetToDefaults(const QStringList &keys, const QString &question);
     void showError(const QString &title, const QString &message);
 };
 

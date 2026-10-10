@@ -14,6 +14,7 @@
 #include <QVector3D>
 #include <QWidget>
 #include <tsre/renderer/RenderSurface.h>
+#include <tsre/world/SkySatellites.h>
 #include <vector>
 #include <QOpenGLFunctions>
 //#include <QOpenGLFunctions_3_2_Core>
@@ -41,7 +42,6 @@ class Route;
 class Brush;
 class PreciseTileCoordinate;
 class Coords;
-class MapWindow;
 class ImageryWindow;
 class ShapeLib;
 class EngLib;
@@ -64,6 +64,12 @@ class MapSelection;
 class TerrainMapLayer;
 class MapOverlayFade;
 class OsmMapLayer;
+class ImageryMapLayer;
+class MapMeasureLayer;
+class MapScaleBar;
+class QLabel;
+class MapLabelLayer;
+class Coords;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -92,6 +98,11 @@ public:
                            float rotX, float rotY);
     void diagnosticView(int &tileX, int &tileZ, float *pos,
                         float &rotX, float &rotY) const;
+    // Captures: runs a terrainOverlayTool action ("osm", "show", ...) at the
+    // view's centre, as a click with that action would.
+    bool runDiagnosticOverlayAction(const QString &action);
+    // Captures: a Measure Distance line, or none (null ends).
+    void setDiagnosticMapMeasurement(const MapGroundPoint *from, const MapGroundPoint *to);
     // Map mode centred on a ground point, at a scale, with a compass
     // bearing (degrees, 0: north) at the top of the screen.
     void setDiagnosticMapView(int tileX, int tileZ, float x, float z,
@@ -122,6 +133,9 @@ public:
     // geographic reference (telling the user what is missing) and offers to convert the
     // downloads covering the view. False when the layer cannot be shown.
     bool prepareOsmLayer();
+    // Before Map > Imagery is switched on: checks the route's geographic reference and
+    // the imagery catalogue's world source. False when the layer cannot be shown.
+    bool prepareImageryLayer();
     // A map layer is still building on a worker thread (captures wait for it).
     bool mapLayersBusy() const;
 
@@ -185,6 +199,9 @@ signals:
     void routeLoaded(Route * a);
     void itemSelected(Ref::RefItem* pointer);
     void naviInfo(int all, int hidden);
+    // Sun and moon at the camera (true bearing); NaN where unknown (no
+    // moon, or no sun bearing, without time of day).
+    void environmentInfo(float sunElevation, float sunAzimuth, float moonElevation, float moonFraction);
     void posInfo(PreciseTileCoordinate* pos);
     void pointerInfo(float* pos);
     void setToolbox(QString name);
@@ -236,6 +253,14 @@ protected:
     // Direction towards the shadow-casting sun, and whether it casts shadows.
     float shadowSunDirection[3] = {-1.0f, 1.5f, 1.0f};
     bool sunCastsShadows = true;
+    // The sun and the moon on the sky (task editor 05).
+    SkySatellites skySatellites;
+    SkySatellites::State skyState;
+    // Sky or fog settings changed; applyTimeOfDay takes them.
+    bool environmentChanged = false;
+    float reportedEnvironment[4] = {-1000.0f, -1000.0f, -1000.0f, -1000.0f};
+    void reportEnvironment(float sunElevation, float sunAzimuth, float moonElevation, float moonFraction);
+    static int renderTimerStep();
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
     void surfaceResize(int width, int height) override;
@@ -291,12 +316,14 @@ private:
     bool placeContinuousRulerPoint(const float *rotation) override;
     void startTelepole(TelepoleObj *telepole) override { beginLiveTelepole(telepole); }
     void activateTool(const QString &id) override { enableTool(id); }
+    void setMapMeasurement(const MapGroundPoint &from, const MapGroundPoint &to) override;
+    void clearMapMeasurement() override;
     void message(const QString &name) override { emit sendMsg(name); }
     void message(const QString &name, const QString &value) override { emit sendMsg(name, value); }
     void sendFlexData() override;
     void reportTextureId(int textureId) override { emit setBrushTextureId(textureId); }
     void reportMaterialPicked() override { emit terrainMaterialPicked(); }
-    void openMapTileWindow(Terrain *terrain) override;
+    void terrainChanged() override;
     void openImageryWindow(Terrain *terrain) override;
     // The active tool's object; null for no tool or a name without one.
     EditorTool *activeTool() const;
@@ -411,6 +438,27 @@ private:
     std::unique_ptr<TerrainMapLayer> terrainMap;
     std::unique_ptr<MapOverlayFade> mapFade;
     std::unique_ptr<OsmMapLayer> osmMap;
+    // Map > Imagery: the imagery catalogue's world tile source, with its attribution
+    // in the bottom right corner while shown.
+    std::unique_ptr<ImageryMapLayer> imageryMap;
+    QLabel *imageryAttribution = NULL;
+    void showImageryAttribution(bool show);
+    // Map labels: the marker set (Map > Markers), stations, platforms and sidings (Map >
+    // Track Objects), location events (Map > Activity), placed together. Rebuilt when a
+    // source or its size changes, or when edits invalidate the map's items.
+    std::unique_ptr<MapLabelLayer> mapLabels;
+    // The map's Measure Distance tool's line and length (labelled with mapLabels).
+    std::unique_ptr<MapMeasureLayer> mapMeasure;
+    std::unique_ptr<MapScaleBar> mapScaleBar;
+    // The tool active before Measure Distance was chosen from the map's menu, to
+    // return to when it is unchecked there.
+    QString toolBeforeMeasure;
+    // The map's right-click menu: Measure Distance first, then the active tool's
+    // actions at the pointer.
+    void showMapContextMenu(const QPoint &position);
+    std::vector<const void *> mapLabelSources;
+    bool mapLabelsInvalid = true;
+    void updateMapLabels();
     // Where a press began in map mode: a left click that moves the map no
     // more than this goes to the active tool.
     static constexpr float MapClickPixels = 4.0f;
@@ -419,7 +467,7 @@ private:
     // the drag moves it instead of the map.
     bool mapDraggingObject = false;
     // A left press with a tool that edits by dragging (painting): the drag
-    // goes to the tool, the middle button moves the map.
+    // goes to the tool, the right button moves the map.
     bool mapEditing = false;
     std::unique_ptr<MapSelection> mapSelection;
     // The ID of the last selection applied, to know a press is on it.
@@ -503,7 +551,6 @@ private:
     int shadowMapSize = 2048;
     int distantShadowMapSize = 1024;
     Brush* defaultPaintBrush;
-    MapWindow* mapWindow;
     ImageryWindow* imageryWindow;
     ShapeLib *currentShapeLib = NULL;
     EngLib *engLib = NULL;

@@ -392,7 +392,8 @@ int SettingsManager::catalogDifferenceCount() const {
     return differences;
 }
 
-bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *error) {
+bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *error,
+                                                  QStringList *adoptedDefaults) {
     Q_UNUSED(error);
     int updated = m_seededCatalogDifferences;
 
@@ -464,11 +465,22 @@ bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *er
             continue;
         if (!fieldsDiffer(stored, expected, settingDefinitionFields()))
             continue;
+        // A value left at the default the profile recorded was never chosen:
+        // it follows the new default. Without a recorded default it stays.
+        const bool followsDefault = stored.contains("default") && stored.contains("value")
+                && expected.contains("default")
+                && stored.value("value") == stored.value("default")
+                && stored.value("default") != expected.value("default");
         for (const QString &field : settingDefinitionFields()) {
             if (expected.contains(field))
                 stored.insert(field, expected.value(field));
             else
                 stored.remove(field);
+        }
+        if (followsDefault) {
+            stored["value"] = expected.value("default");
+            if (adoptedDefaults)
+                adoptedDefaults->append(definition.key);
         }
         settings.replace(it.value(), stored);
         ++updated;
@@ -650,6 +662,42 @@ bool SettingsManager::setValue(const QString &key, const QVariant &value, QStrin
     }
     object["value"] = settingJsonFromVariant(value, type);
     return replaceSettingObject(key, object, error);
+}
+
+QStringList SettingsManager::resettableKeys(const QString &groupId) const {
+    QStringList keys;
+    for (const SettingsDefinition &definition : m_registry.definitions()) {
+        if (definition.type == SettingType::Secret || !m_index.contains(definition.key))
+            continue;
+        if (groupId.isEmpty() || definition.group == groupId)
+            keys.append(definition.key);
+    }
+    return keys;
+}
+
+bool SettingsManager::hasDefaultValue(const QString &key) const {
+    const SettingsDefinition *definition = m_registry.definition(key);
+    const QJsonObject object = settingObject(key);
+    if (!definition || object.isEmpty())
+        return true;
+    return object.value("value") == settingJsonFromVariant(definition->defaultValue, definition->type);
+}
+
+QStringList SettingsManager::resetToDefaults(const QStringList &keys, QString *error) {
+    QStringList changed;
+    for (const QString &key : keys) {
+        const SettingsDefinition *definition = m_registry.definition(key);
+        if (!definition || definition->type == SettingType::Secret || hasDefaultValue(key))
+            continue;
+        // A stored type that differs from the build's needs migrating, not
+        // resetting; the validator reports it.
+        if (settingObject(key).value("type").toString() != settingTypeName(definition->type))
+            continue;
+        if (!setValue(key, definition->defaultValue, error))
+            return changed;
+        changed.append(key);
+    }
+    return changed;
 }
 
 bool SettingsManager::replaceSettingObject(const QString &oldKey,

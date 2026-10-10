@@ -50,7 +50,7 @@ struct MapPalette {
     QColor event = QColor(255, 0, 0);
     // How much Map > Faded Overlay blends terrain and OSM data towards the
     // background. Files may still name it terrainFade, its former name.
-    float overlayFade = 0.3f;
+    float overlayFade = 0.55f;
     // Alpha of OSM area fills with Map > Transparent OSM Areas.
     float osmAreaAlpha = 0.5f;
     // Borders of the terrain tiles being edited, the thin lines of their
@@ -60,6 +60,13 @@ struct MapPalette {
     QColor missingTile = QColor(235, 70, 70);
     // The halo around selected objects.
     QColor selection = QColor(0, 170, 255);
+    // Map labels (markers, places): names with a halo, and their dots.
+    QColor label = QColor(30, 30, 36);
+    QColor labelHalo = QColor(255, 255, 255);
+    QColor marker = QColor(176, 32, 122);
+    // OSM data's named places and railway stations.
+    QColor place = QColor(90, 90, 100);
+    QColor osmStation = QColor(40, 90, 170);
 
     static MapPalette light();
     static MapPalette dark();

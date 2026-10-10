@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/ogl/OglObj.h>
+#include <tsre/geo/TerrainOverlays.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/texture/TexLib.h>
@@ -335,18 +336,21 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     if (rebuild)
         build(view, palette, terrain);
     // Textures still loading are left out rather than drawn as missing.
-    auto push = [&queue](std::vector<Group> &groups) {
+    auto push = [&queue](std::vector<Group> &groups, float opacity = 1.0f) {
         for (Group &group : groups) {
             auto found = TexLib::mtex.find(group.texture);
-            if (found != TexLib::mtex.end() && found->second != nullptr && found->second->loaded)
+            if (found != TexLib::mtex.end() && found->second != nullptr && found->second->loaded) {
+                group.object->setOpacity(opacity);
                 group.object->pushRenderItem(queue);
+            }
         }
     };
     push(distant);
     push(detailed);
     for (Procedural &tile : procedural)
         tile.square->push(queue, terrain->getTerrainByXY(tile.tileX, tile.tileZ, false));
-    push(overlays);
+    // Overlays blend at the F3 opacity over the terrain textures under them.
+    push(overlays, TerrainOverlays::opacity());
     missing->pushRenderItem(queue);
     quadLines->pushRenderItem(queue);
     borders->pushRenderItem(queue);

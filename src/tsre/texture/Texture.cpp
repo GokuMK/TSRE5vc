@@ -610,6 +610,21 @@ void Texture::update() {
         glLoaded = false;
 }
 
+void Texture::updateRegion(int x, int y, int w, int h, const unsigned char *pixels) {
+    if (!glLoaded || tex == nullptr || bytesPerPixel != 4 || w <= 0 || h <= 0)
+        return;
+    if (Game::renderBackend == "qrhi") {
+        RhiTextures::updateRegion(tex[0], x, y, w, h,
+                                  QByteArray(reinterpret_cast<const char *>(pixels), qsizetype(w) * h * 4));
+        return;
+    }
+    if (!QOpenGLContext::currentContext())
+        return;
+    PixelRows rows;
+    glBindTexture(GL_TEXTURE_2D, tex[0]);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+}
+
 Texture::~Texture() {
     // Existing callers own/free the legacy raw pointers. New containers are RAII.
 }

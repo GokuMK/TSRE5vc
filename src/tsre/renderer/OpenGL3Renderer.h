@@ -14,7 +14,7 @@
 
 #include <tsre/renderer/QueueRenderer.h>
 #include <tsre/renderer/SelectionRenderer.h>
-#include <tsre/renderer/WaterNormalMap.h>
+#include <tsre/renderer/WaterWaves.h>
 #include <unordered_map>
 #include <vector>
 
@@ -97,10 +97,22 @@ private:
     void bindWrapSampler(int unit, quint32 wrap);
     void releaseWrapSamplers();
     void applyWaterState(GLUU *gluu, const RenderItem *item);
-    WaterNormalMap waterNormals;
+    WaterWaveTexture waterWaves;
     // Copies the frame drawn so far for the transmission pass; returns its
     // mipmap levels, 0 when transmissive surfaces see the environment.
     float copyFrameForTransmission(GLUU *gluu, Shader *base);
+    // Copies the frame and its depth for the water pass, bound on the water
+    // units; returns the mipmap levels, 0 when water does not see the bed
+    // (secondary views, core.rendering.water.depth off, no depth to copy).
+    float copyFrameForWater(GLUU *gluu, Shader *base);
+    // The copy itself: the frame drawn so far, and its depth when asked;
+    // 0 when nothing (or no depth) could be copied.
+    float copyFrame(bool depth);
+    unsigned int sceneDepthTexture = 0;
+    unsigned int sceneDepthFormat = 0;
+    bool sceneDepthFailed = false;
+    // Near and far plane of the main view's scene band.
+    float scenePlanes[2] = {0.2f, 1000.0f};
     unsigned int sceneCopyTexture = 0;
     unsigned int sceneCopyFramebuffer = 0;
     int sceneCopyWidth = 0;

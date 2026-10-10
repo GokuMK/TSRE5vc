@@ -71,6 +71,8 @@
 #include <tsre/tests/RendererParityTestSuite.h>
 #include <tsre/tests/PaintTexTestSuite.h>
 #include <tsre/tests/SignalSelectionTestSuite.h>
+#include <tsre/tests/SigCfgTestSuite.h>
+#include <tsre/tests/EnvironmentWindowTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
 #include <tsre/tests/TokenIdTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
@@ -4120,6 +4122,8 @@ QStringList TsreTests::listSuites() {
         "shape-viewer-compare",
         "paint-text",
         "signal-selection",
+        "sigcfg",
+        "environment-window",
         "tokens",
         "content-path",
         "shape-complex",
@@ -4219,6 +4223,12 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "signal-selection")
         return runSignalSelectionSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "sigcfg")
+        return runSigCfgSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "environment-window")
+        return runEnvironmentWindowSuite(opts.casesFile, opts.verbose);
 
     if (suite == "shape-complex" || suite == "shape-complex-gl")
         return runSFileComplexSuite(opts.verbose, suite == "shape-complex-gl");

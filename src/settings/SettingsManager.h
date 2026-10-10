@@ -46,8 +46,12 @@ public:
     int catalogDifferenceCount() const;
     QString catalogApplication() const;
     QString catalogVersion() const;
+    // Refreshes the stored definitions from the catalogue. A value still
+    // equal to the default its definition recorded takes the catalogue's new
+    // default (keys in adoptedDefaults); other values stay.
     bool updateRegisteredDefinitions(int *updatedCount = nullptr,
-                                     QString *error = nullptr);
+                                     QString *error = nullptr,
+                                     QStringList *adoptedDefaults = nullptr);
     static QString currentCatalogApplication();
     static QString currentCatalogVersion();
 
@@ -78,6 +82,14 @@ public:
     void clearSessionValue(const QString &key);
 
     bool setValue(const QString &key, const QVariant &value, QString *error = nullptr);
+    // Settings the build registers that can go back to its defaults: those
+    // of one group, or all when the group is empty. Secrets are left out.
+    QStringList resettableKeys(const QString &groupId = QString()) const;
+    // Whether a registered setting holds the build's default.
+    bool hasDefaultValue(const QString &key) const;
+    // Sets the given settings (of resettableKeys) to the build's defaults,
+    // unsaved like other edits; returns the keys whose value changed.
+    QStringList resetToDefaults(const QStringList &keys, QString *error = nullptr);
     bool replaceSettingObject(const QString &oldKey, const QJsonObject &object,
                               QString *error = nullptr);
     bool addSettingObject(const QJsonObject &object, QString *error = nullptr);

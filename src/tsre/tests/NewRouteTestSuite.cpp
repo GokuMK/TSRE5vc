@@ -80,7 +80,7 @@ int TsreTests::runNewRouteSuite(bool verbose) {
     QTemporaryDir temporary;
     check(temporary.isValid(), "temporary workspace");
     const QByteArray places =
-            "1\tParis\tParis\tLutetia,Paname\t48.8566\t2.3522\tP\tPPLC\tFR\n"
+            "1\tParis\tParis\tLutetia,Paname\t48.8566\t2.3522\tP\tPPLC\tFR\t\t11\t75\t751\t\t2138551\n"
             "2\tWarszawa\tWarsaw\tVarsovie\t52.2297\t21.0122\tP\tPPLC\tPL\n";
     const QString placesPath = temporary.filePath("places.txt");
     check(writeFile(placesPath, places), "write place fixture");
@@ -124,8 +124,10 @@ int TsreTests::runNewRouteSuite(bool verbose) {
                   && countryMarker != nullptr
                   && countryMarker->sourceId == 1
                   && countryMarker->aliases.contains(QStringLiteral("Lutetia"))
+                  && countryMarker->featureCode == QStringLiteral("PPLC")
+                  && countryMarker->population == 2138551
                   && countryPlaces.search(QStringLiteral("lute")).value(0, -1) == 0,
-          "reload country KML metadata and alias search");
+          "reload country KML metadata (feature code, population) and alias search");
 
     const QString extractedPath = temporary.filePath("assets/geo/geo_cities_presets.txt");
     const QString zipPath = temporary.filePath("geo_cities_presets.zip");

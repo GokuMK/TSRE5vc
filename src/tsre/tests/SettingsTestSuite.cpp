@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QLocale>
 #include <QPushButton>
+#include <QMessageBox>
 #include <algorithm>
 #include <QTemporaryDir>
 #include <QTranslator>
@@ -43,7 +44,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 107,
+    check(manager.registry().definitions().size() == 113,
           "catalog-includes-terrain-elevation-and-imagery-sources");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
@@ -488,7 +489,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 107,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 113,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()
@@ -727,6 +728,63 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && preserved.catalogApplication() == SettingsManager::currentCatalogApplication()
           && preserved.catalogVersion() == SettingsManager::currentCatalogVersion(),
           "catalogue-update-refreshes-known-metadata-and-preserves-values-and-fork-settings");
+    // An older profile: bloom left at the default it recorded (2), exposure
+    // chosen (0.5) away from its recorded default (1). Only bloom follows the
+    // catalogue's default.
+    const QString bloomKey = "core.rendering.bloom", exposureKey = "core.rendering.exposure";
+    QJsonObject oldBloom = preserved.settingObject(bloomKey);
+    oldBloom["default"] = 2.0;
+    oldBloom["value"] = 2.0;
+    QJsonObject oldExposure = preserved.settingObject(exposureKey);
+    oldExposure["default"] = 1.0;
+    oldExposure["value"] = 0.5;
+    QJsonObject noRecordedDefault = preserved.settingObject(threadedKey);
+    noRecordedDefault.remove("default");
+    const QVariant threadedBefore = noRecordedDefault.value("value").toVariant();
+    QStringList adopted;
+    check(preserved.replaceSettingObject(bloomKey, oldBloom, &error)
+          && preserved.replaceSettingObject(exposureKey, oldExposure, &error)
+          && preserved.replaceSettingObject(threadedKey, noRecordedDefault, &error)
+          && preserved.updateRegisteredDefinitions(nullptr, &error, &adopted)
+          && adopted == QStringList{bloomKey}
+          && preserved.value(bloomKey) == preserved.registry().definition(bloomKey)->defaultValue
+          && qFuzzyCompare(preserved.value(exposureKey).toDouble(), 0.5)
+          && preserved.value(threadedKey) == threadedBefore,
+          "catalogue-update-moves-values-left-at-their-recorded-default-to-the-new-default");
+    // Back to the defaults: one setting from its action menu, then all of
+    // them; settings the build does not register stay.
+    const QString fogKey = "core.rendering.fogDensity";
+    check(preserved.setValue(fogKey, 0.123, &error) && preserved.setValue(bloomKey, 1.0, &error)
+          && !preserved.hasDefaultValue(fogKey) && !preserved.hasDefaultValue(bloomKey)
+          && preserved.resettableKeys("rendering").contains(bloomKey)
+          && !preserved.resettableKeys().contains("fork.weather.enabled"),
+          "resettable-keys-are-the-registered-settings-of-a-group");
+    {
+        // The dialog edits its own copy of the profile file.
+        QTemporaryDir resetWorkspace;
+        SettingsManager resetSource;
+        SettingsRegistration::registerAll(resetSource.registry());
+        const QString resetFile = resetWorkspace.filePath("settings.json");
+        check(resetWorkspace.isValid() && resetSource.loadFile(resetFile, &error)
+              && resetSource.setValue(bloomKey, 1.0, &error) && resetSource.save(&error),
+              "reset-dialog-profile");
+        SettingsDialog resetDialog(&resetSource);
+        auto *edited = resetDialog.findChild<SettingsManager *>();
+        QAction *resetBloom = resetDialog.findChild<QAction *>("reset-setting:" + bloomKey);
+        const bool changedBefore = edited && !edited->hasDefaultValue(bloomKey);
+        if (resetBloom)
+            resetBloom->trigger();
+        check(changedBefore && resetBloom && edited->hasDefaultValue(bloomKey) && edited->isModified()
+              && resetDialog.findChild<QAction *>("reset-all-defaults")
+              && resetDialog.findChild<QAction *>("reset-group-defaults")
+              && resetDialog.findChild<QAction *>("new-profile"),
+              "setting-action-resets-one-setting-to-its-default");
+    }
+    const QStringList resetKeys = preserved.resetToDefaults(preserved.resettableKeys(), &error);
+    check(resetKeys.contains(fogKey) && resetKeys.contains(bloomKey) && preserved.hasDefaultValue(bloomKey)
+          && preserved.hasDefaultValue(fogKey) && preserved.hasDefaultValue(exposureKey)
+          && preserved.value("fork.weather.enabled").toBool(),
+          "reset-all-sets-registered-settings-to-defaults-and-keeps-custom-ones");
 
     QJsonObject invalidDocument = preserved.document();
     QJsonArray invalidSettings = invalidDocument.value("settings").toArray();
@@ -895,6 +953,18 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(!SettingsProfile::duplicatePortableProfile(
               duplicateSource.settingsFilePath(), "CLONE", nullptr, &error),
           "duplicate-rejects-case-insensitive-collision");
+    QString freshSettings;
+    check(SettingsProfile::newPortableProfile("fresh", &freshSettings, &error)
+          && !SettingsProfile::newPortableProfile("SOURCE", nullptr, &error)
+          && !SettingsProfile::newPortableProfile("bad name", nullptr, &error),
+          "new-profile-checks-its-name");
+    SettingsManager fresh;
+    SettingsRegistration::registerAll(fresh.registry());
+    check(fresh.loadFile(freshSettings, &error) && fresh.wasCreated()
+          && QFileInfo::exists(freshSettings) && fresh.profileName() == "fresh"
+          && fresh.hasDefaultValue("core.rendering.bloom")
+          && fresh.hasDefaultValue("core.rendering.backend"),
+          "new-profile-starts-with-every-default");
     check(QDir::setCurrent(previousWorkingDirectory), "restore-working-directory");
 
     check(SettingsRegistration::addProvider(

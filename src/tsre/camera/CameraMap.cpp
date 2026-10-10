@@ -97,11 +97,12 @@ void CameraMap::check_coords() {
 
 void CameraMap::MouseDown(QMouseEvent *e) {
     last = e->position() * Game::PixelRatio;
-    // The middle button always moves the map, also while a tool paints
-    // with the left one.
-    if (e->button() == Qt::LeftButton || e->button() == Qt::MiddleButton)
+    // The right button always moves the map, also while a tool paints with the
+    // left one; turning, used less, is on the middle one, so a right click for a
+    // context menu never turns the map (user, 2026-10-09).
+    if (e->button() == Qt::LeftButton || e->button() == Qt::RightButton)
         dragging = true;
-    if (e->button() == Qt::RightButton)
+    if (e->button() == Qt::MiddleButton)
         turning = true;
 }
 
@@ -117,9 +118,9 @@ void CameraMap::MouseMove(QMouseEvent *e) {
 }
 
 void CameraMap::MouseUp(QMouseEvent *e) {
-    if (e->button() == Qt::LeftButton || e->button() == Qt::MiddleButton)
+    if (e->button() == Qt::LeftButton || e->button() == Qt::RightButton)
         dragging = false;
-    if (e->button() == Qt::RightButton)
+    if (e->button() == Qt::MiddleButton)
         turning = false;
 }
 

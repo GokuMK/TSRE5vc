@@ -9,177 +9,40 @@
  */
 
 #include <tsre/tdb/SignalType.h>
-#include <tsre/fileFunctions/FileBuffer.h>
-#include <tsre/fileFunctions/ParserX.h>
-#include <QDebug>
 
-SignalType::SignalType() {
+const SignalType::Light *SignalType::light(int index) const {
+    for (const Light &l : lights)
+        if (l.index == index)
+            return &l;
+    return nullptr;
 }
 
-SignalType::~SignalType() {
+const SignalType::DrawState *SignalType::drawState(const QString &stateName) const {
+    for (const DrawState &state : drawStates)
+        if (state.name == stateName)
+            return &state;
+    return nullptr;
 }
 
-void SignalType::set(QString sh, FileBuffer* data) {
-        if (sh == "signalflags") {   
-            return;
-        }
-        if (sh == "signalfntype") {   
-            type = ParserX::GetString(data);
-            return;
-        }
-        if (sh == "signallighttex") {   
-            type = ParserX::GetString(data);
-            return;
-        }
-        if (sh == "semaphoreinfo") {   
-            ParserX::GetNumber(data);
-            return;
-        }
-        if (sh == "signallights") {  
-            ParserX::GetNumber(data);
-            Light *newLight;
-            
-            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                //qDebug() << "- " << sh;
-                if (sh == "") {
-                    break;
-                }
-                if (sh == "_info" || sh == "skip" || sh == "_skip") {
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == "signallight") {
-                    newLight = new Light();
-                    newLight->id = ParserX::GetNumber(data);
-                    newLight->defName = ParserX::GetString(data);
-
-                    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                        newLight->set(sh, data);
-                        ParserX::SkipToken(data);
-                    }
-
-                    lights[newLight->id] = newLight;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                qDebug() << "#signallights - undefined token: "<<sh;
-                ParserX::SkipToken(data);
-                continue;
-            }
-            return;
-        }
-        if (sh == "signaldrawstates") {   
-            ParserX::GetNumber(data);
-            DrawState *newState;
-            
-            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                
-                if (sh == "") {
-                    break;
-                }
-                if (sh == "_info" || sh == "skip" || sh == "_skip") {
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == "signaldrawstate") {
-                    newState = new DrawState();
-                    newState->id = ParserX::GetNumber(data);
-                    newState->name = ParserX::GetString(data);
-                    //qDebug() << "0- " << sh;
-                    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                        newState->set(sh, data);
-                        ParserX::SkipToken(data);
-                    }
-
-                    drawStates[newState->name] = newState;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                qDebug() << "#signaldrawstates - undefined token: "<<sh;
-                ParserX::SkipToken(data);
-                continue;
-            }
-            return;
-        }
-        if (sh == "signalaspects") {   
-            ParserX::GetNumber(data);
-            
-            return;
-        }
-        if (sh == "signalnumclearahead") {   
-            return;
-        }
-        if (sh == "sigflashduration") {   
-            return;
-        }
-        
-    qDebug() << "#signaltype - undefined token: " << sh;
-    return;
+const SignalType::DrawState *SignalType::defaultDrawState() const {
+    const AspectEntry *restrictive = nullptr;
+    for (const AspectEntry &entry : aspects)
+        if (entry.aspect != UNKNOWN_ASPECT && (restrictive == nullptr || entry.aspect < restrictive->aspect))
+            restrictive = &entry;
+    if (restrictive != nullptr)
+        return drawState(restrictive->drawState);
+    const DrawState *lowest = nullptr;
+    for (const DrawState &state : drawStates)
+        if (lowest == nullptr || state.index < lowest->index)
+            lowest = &state;
+    return lowest;
 }
 
-SignalType::Light::Light(){
-    
-}
-
-void SignalType::Light::set(QString sh, FileBuffer* data){
-    if (sh == "position") {   
-        position[0] = ParserX::GetNumber(data);
-        position[1] = ParserX::GetNumber(data);
-        position[2] = ParserX::GetNumber(data);
-        return;
-    }
-    if (sh == "radius") {   
-        radius = ParserX::GetNumber(data);
-        return;
-    }
-    if (sh == "signalflags") {   
-        QString flags = ParserX::GetStringInside(data);
-        return;
-    }
-    
-    qDebug() << "-- " << sh;
-    return;
-}
-
-SignalType::DrawState::DrawState(){
-    
-}
-
-void SignalType::DrawState::set(QString sh, FileBuffer* data){
-    if (sh == "drawlights") {   
-        int count = ParserX::GetNumber(data);
-        while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-            if (sh == "") {
-                break;
-            }
-            if (sh == "_info" || sh == "skip" || sh == "_skip") {
-                ParserX::SkipToken(data);
-                continue;
-            }
-            if (sh == "drawlight") {
-                lightDrawList.push_back(ParserX::GetNumber(data));
-                int mode = 0;
-                if(ParserX::NextTokenInside(data).toLower() == "signalflags"){
-                    QString optionalFlags = ParserX::GetStringInside(data);
-                    if(optionalFlags == "FLASHING")
-                        mode = 1;
-                    ParserX::SkipToken(data);
-                }
-                lightModeList.push_back(mode);
-                ParserX::SkipToken(data);
-                continue;
-            }
-            qDebug() << "#drawlights - undefined token: "<<sh;
-            ParserX::SkipToken(data);
-            continue;
-        }
-        return;
-    }
-    if (sh == "semaphorepos") {   
-        int semaphorepos = ParserX::GetNumber(data);
-        return;
-    }
-
-    qDebug() << "-- " << sh;
-    return;
+SignalType::Aspect SignalType::aspectFromName(const QString &name) {
+    static const char *const names[] = {"STOP", "STOP_AND_PROCEED", "RESTRICTING", "APPROACH_1",
+                                        "APPROACH_2", "APPROACH_3", "CLEAR_1", "CLEAR_2"};
+    for (int i = 0; i < int(sizeof(names) / sizeof(names[0])); ++i)
+        if (name.compare(QLatin1String(names[i]), Qt::CaseInsensitive) == 0)
+            return Aspect(i);
+    return UNKNOWN_ASPECT;
 }

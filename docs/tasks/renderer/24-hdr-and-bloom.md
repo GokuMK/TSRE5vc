@@ -64,7 +64,8 @@ glow.
 
 - `core.rendering.toneMapping`: Off (default), Soft shoulder, ACES, AgX.
 - `core.rendering.exposure`: stops, -4 to 4 (0).
-- `core.rendering.bloom`: strength, 0 (off) to 4 (default since 2026-10-08).
+- `core.rendering.bloom`: strength, 0 (off) to 4; default 3 for 0.7.8 (user,
+  2026-10-09; 4 from 2026-10-08).
 
 ## Verification
 

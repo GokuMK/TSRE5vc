@@ -19,6 +19,7 @@
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
+#include <tsre/geo/TerrainOverlays.h>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QScopedValueRollback>
@@ -37,6 +38,8 @@
 #include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
 #include <tsre/geo/GeoCoordinates.h>
+#include <tsre/geo/GeoPresetData.h>
+#include <tsre/coords/CoordsCountryPlaces.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
@@ -83,8 +86,18 @@ struct ViewSpec {
     bool fadedOverlay = false;
     bool osmData = false;
     bool osmTransparentAreas = false;
+    bool imagery = false;
+    // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
+    // overlay opacity (0 to 1).
+    QStringList overlayActions;
+    double overlayOpacity = 1.0;
+    // Measure Distance: from and to, metres from the view's centre (x east, z south).
+    bool hasMeasure = false;
+    float measure[4] = {0, 0, 0, 0};
     // Centred on a latitude and longitude through the route's projection, instead of
     // tile and pos (map views of OSM data).
+    bool markers = false;  // Map > Markers
+    bool viewMarkers = false;  // 3D View > Markers
     bool hasLatLon = false;
     double lat = 0.0, lon = 0.0;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
@@ -92,6 +105,9 @@ struct ViewSpec {
     // Height above the terrain, replacing the view's own height.
     bool hasAboveGround = false;
     float aboveGround = 0.0f;
+    // Editor size for this view and the following ones, as when a tool
+    // panel is hidden or shown (0: unchanged).
+    int windowWidth = 0, windowHeight = 0;
 };
 
 // A static object placed for the capture only (not saved): a shape of the
@@ -126,6 +142,11 @@ struct Options {
     Thresholds thresholds;
     // Map mode layers: an activity and a path to select, by file name.
     QString activity;
+    // Country code: Country Places written into the route (as Route > Generate Country
+    // Places does) and selected as the marker set.
+    QString countryPlaces;
+    // A marker set to select by its Navi window name (for example "plan.kml").
+    QString markerSet;
     QString path;
     QVector<ViewSpec> views;
 };
@@ -213,6 +234,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.thresholds.maxPickMismatches = thresholds.value("maxPickMismatches").toInt(-1);
 
     options.activity = root.value("activity").toString();
+    options.countryPlaces = root.value("countryPlaces").toString();
+    options.markerSet = root.value("markerSet").toString();
     options.path = root.value("path").toString();
 
     const QJsonArray objects = root.value("objects").toArray();
@@ -249,6 +272,16 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
+        view.imagery = object.value("imagery").toBool(false);
+        for (const QJsonValue &action : object.value("overlay").toArray())
+            view.overlayActions << action.toString();
+        view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
+        const QJsonArray measure = object.value("measure").toArray();
+        view.hasMeasure = measure.size() == 4;
+        for (int i = 0; i < 4 && view.hasMeasure; ++i)
+            view.measure[i] = float(measure[i].toDouble());
+        view.markers = object.value("markers").toBool(false);
+        view.viewMarkers = object.value("viewMarkers").toBool(false);
         const QJsonArray latLon = object.value("latLon").toArray();
         view.hasLatLon = latLon.size() == 2;
         if (view.hasLatLon) {
@@ -257,6 +290,10 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         }
         view.editDistant = object.value("editDistant").toBool(false);
         view.hasAboveGround = object.contains("aboveGround");
+        if (object.value("windowSize").isArray() && object.value("windowSize").toArray().size() == 2) {
+            view.windowWidth = object.value("windowSize").toArray()[0].toInt(0);
+            view.windowHeight = object.value("windowSize").toArray()[1].toInt(0);
+        }
         view.aboveGround = float(object.value("aboveGround").toDouble(0.0));
         if (view.hasTile != view.hasPos) {
             error = QString("view %1 needs both tile and pos").arg(view.name);
@@ -475,8 +512,29 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     }
 
     widget.setDiagnosticActivity(options.activity, options.path);
+    if (!options.countryPlaces.isEmpty() && widget.currentRoute() != nullptr) {
+        GeoPlacePresetIndex places;
+        QString placesError;
+        const QString code = options.countryPlaces.trimmed().toUpper();
+        const QString file = QDir(Game::root).filePath(QStringLiteral("ROUTES/%1/%2")
+                .arg(Game::route, CoordsCountryPlaces::fileNameForCountry(code)));
+        if (!places.loadDefault(&placesError) || !CoordsCountryPlaces::write(file, code, places, &placesError)
+                || !widget.currentRoute()->reloadCountryPlaces(code, &placesError))
+            qWarning() << CaptureLog << "country places" << code << placesError;
+        else
+            widget.currentRoute()->setMkrFile(QStringLiteral("| Country places: %1").arg(code));
+    }
+    if (!options.markerSet.isEmpty() && widget.currentRoute() != nullptr) {
+        if (!widget.currentRoute()->getMkrList().contains(options.markerSet))
+            qWarning() << CaptureLog << "no marker set" << options.markerSet;
+        widget.currentRoute()->setMkrFile(options.markerSet);
+    }
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
+        if (spec.windowWidth > 0 && spec.windowHeight > 0) {
+            widget.resize(spec.windowWidth, spec.windowHeight);
+            QCoreApplication::processEvents();
+        }
         int tileX = spec.hasTile ? spec.tileX : startTileX;
         int tileZ = spec.hasTile ? spec.tileZ : startTileZ;
         float pos[3] = {startPos[0], startPos[1], startPos[2]};
@@ -504,6 +562,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             Game::check_coords(groundX, groundZ, ground);
             pos[1] = Game::terrainLib->getHeight(groundX, groundZ, ground[0], ground[2]) + spec.aboveGround;
         }
+        Game::viewMarkers = spec.viewMarkers;
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
@@ -511,6 +570,15 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setMapLayerVisible(MapLayer::FadedOverlay, spec.fadedOverlay);
             widget.setMapLayerVisible(MapLayer::OsmData, spec.osmData);
             widget.setMapLayerVisible(MapLayer::OsmTransparentAreas, spec.osmTransparentAreas);
+            widget.setMapLayerVisible(MapLayer::Imagery, spec.imagery);
+            TerrainOverlays::setOpacity(float(spec.overlayOpacity));
+            for (const QString &action : spec.overlayActions)
+                widget.runDiagnosticOverlayAction(action);
+            const MapGroundPoint measureFrom{tileX, tileZ, pos[0] + spec.measure[0], pos[2] + spec.measure[1]};
+            const MapGroundPoint measureTo{tileX, tileZ, pos[0] + spec.measure[2], pos[2] + spec.measure[3]};
+            widget.setDiagnosticMapMeasurement(spec.hasMeasure ? &measureFrom : nullptr,
+                                               spec.hasMeasure ? &measureTo : nullptr);
+            widget.setMapLayerVisible(MapLayer::Markers, spec.markers);
             if (spec.editDistant)
                 Game::terrainLib->setDistantAsCurrent();
             else

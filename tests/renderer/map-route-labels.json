@@ -1,0 +1,18 @@
+{
+  "notes": "Map labels of the route's own data (docs/tasks/editor/04-map-mode.md, labels) on EUROPE1 with the winterun activity: station names, platform and siding names when zoomed in, location event names, the route start's marker set.",
+  "output": "build/renderer-map-labels",
+  "activity": "winterun.act",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "route", "mode": "map", "tile": [-6120, -15094], "pos": [0, 0, 1000], "metresPerPixel": 30},
+    {"name": "overview", "mode": "map", "tile": [-6120, -15094], "pos": [0, 0, 1000], "metresPerPixel": 8},
+    {"name": "sidings", "mode": "map", "tile": [-6121, -15094], "pos": [-830, 0, 160], "metresPerPixel": 3},
+    {"name": "yard", "mode": "map", "tile": [-6121, -15094], "pos": [-830, 0, 160], "metresPerPixel": 1}
+  ]
+}

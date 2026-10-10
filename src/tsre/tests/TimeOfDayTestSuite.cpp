@@ -5,6 +5,7 @@
 #include <cmath>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/SunPosition.h>
+#include <tsre/geo/MoonPosition.h>
 #include <tsre/world/Daylight.h>
 
 int TsreTests::runTimeOfDaySuite(bool verbose) {
@@ -97,6 +98,9 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
           "at night the sun is gone and the sky dark");
     check(light.localLights == 1.0f && near(Daylight::forElevation(60.0, sky, fog).localLights, Daylight::DayLocalLights, 1e-6),
           "lamps count fully at night and little by day");
+    check(light.signalLights == 1.0f && near(Daylight::forElevation(60.0, sky, fog).signalLights, Daylight::DaySignalLights, 1e-6)
+              && Daylight::forElevation(10.0, sky, fog).signalLights > Daylight::forElevation(10.0, sky, fog).localLights,
+          "signal lights count fully at night and half by day");
     const float sunsetLamps = Daylight::forElevation(0.0, sky, fog).localLights;
     const float lowSunLamps = Daylight::forElevation(10.0, sky, fog).localLights;
     check(near(sunsetLamps, 1.0, 1e-6) && lowSunLamps > 0.1f && lowSunLamps < 0.3f,
@@ -104,6 +108,26 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
     light = Daylight::forElevation(-8.0, sky, fog);
     check(light.sky[2] > light.sky[0] && light.sky[2] > 0.15f && light.diffuse[0] == 0.0f,
           "twilight is blue");
+
+    // The moon against published events of 2026 (UTC).
+    const MoonPosition::Result lunarEclipse = MoonPosition::compute(0.0, 0.0, QDate(2026, 3, 3), 11.55);
+    check(lunarEclipse.elongation > 178.5 && std::abs(lunarEclipse.eclipticLatitude) < 0.6
+              && lunarEclipse.illuminatedFraction > 0.999,
+          "total lunar eclipse of 3 March: the moon opposite the sun, on the ecliptic, full");
+    const MoonPosition::Result solarEclipse = MoonPosition::compute(0.0, 0.0, QDate(2026, 8, 12), 17.77);
+    check(solarEclipse.elongation < 1.5 && solarEclipse.illuminatedFraction < 0.001,
+          "total solar eclipse of 12 August: the moon in front of the sun");
+    check(MoonPosition::compute(0.0, 0.0, QDate(2026, 1, 3), 10.05).illuminatedFraction > 0.995
+              && MoonPosition::compute(0.0, 0.0, QDate(2026, 1, 18), 19.87).illuminatedFraction < 0.005,
+          "full moon of 3 January, new moon of 18 January");
+    const double quarter = MoonPosition::compute(0.0, 0.0, QDate(2026, 1, 26), 5.0).illuminatedFraction;
+    check(quarter > 0.4 && quarter < 0.6, "half lit about 7.4 days after new moon");
+    const MoonPosition::Result fullAtMidnight = MoonPosition::atSolarTime(50.0, 0.0, QDate(2026, 3, 3), 0.0);
+    check(std::abs(fullAtMidnight.azimuth - 180.0) < 25.0 && fullAtMidnight.elevation > 25.0,
+          "at midnight the full moon stands in the south, as the sun does at noon");
+    float moonDirection[3];
+    MoonPosition::direction(fullAtMidnight, moonDirection);
+    check(moonDirection[2] > 0.5f && moonDirection[1] > 0.4f, "the moon's direction in world axes (z south)");
 
     qInfo() << "[tests:time-of-day] cases=" << (passed + failed) << "passed=" << passed
             << "failed=" << failed;

@@ -75,7 +75,19 @@ public:
         // > 0: batches are split by squares of this size (by each feature's first point), so
         // a renderer can leave out those off screen. For loads much larger than the view.
         float chunkMeters = 0;
+        // Also collect named places and railway stations (labels()).
+        bool labels = true;
     };
+    // A named point: places (place=city ... suburb) and railway stations and halts.
+    enum class PointKind : uint8_t { City, Town, Village, Hamlet, Suburb, Station, Halt };
+    struct PointLabel {
+        float x = 0, z = 0;       // projected, as the geometry
+        std::string name;         // UTF-8, the name tag
+        PointKind kind = PointKind::Village;
+        int64_t population = 0;   // the population tag, 0 when absent
+    };
+    // The kind of a node's tags, or false for none.
+    template <class TagAt> static bool pointKind(uint32_t count, TagAt tagAt, PointKind &kind);
     struct Stats {
         uint64_t ways = 0, relations = 0, polygons = 0, triangles = 0;
         uint64_t polylines = 0, points = 0;
@@ -98,6 +110,7 @@ public:
 
     // Area fills from load(), one batch per slot and colour.
     const std::vector<MapBatch> &fills() const { return out_.fills; }
+    const std::vector<PointLabel> &labels() const { return labels_; }
     // Moves the fills out (they are uploaded once; strokes() does not need them).
     std::vector<MapBatch> takeFills() { out_.fillIndex.clear(); return std::move(out_.fills); }
     // Outlines, casings and lines for a scale.
@@ -142,7 +155,25 @@ private:
     Options options_;
     double loadedMetersPerPixel_ = 0;
     Output out_;
+    std::vector<PointLabel> labels_;
     Stats stats_;
 };
+
+template <class TagAt> bool MapGeometry::pointKind(uint32_t count, TagAt tagAt, PointKind &kind) {
+    for (uint32_t i = 0; i < count; ++i) {
+        const Tag t = tagAt(i);
+        if (t.key == "place") {
+            if (t.value == "city") { kind = PointKind::City; return true; }
+            if (t.value == "town") { kind = PointKind::Town; return true; }
+            if (t.value == "village") { kind = PointKind::Village; return true; }
+            if (t.value == "hamlet") { kind = PointKind::Hamlet; return true; }
+            if (t.value == "suburb" || t.value == "quarter") { kind = PointKind::Suburb; return true; }
+        } else if (t.key == "railway") {
+            if (t.value == "station") { kind = PointKind::Station; return true; }
+            if (t.value == "halt") { kind = PointKind::Halt; return true; }
+        }
+    }
+    return false;
+}
 
 }

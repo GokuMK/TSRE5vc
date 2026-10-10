@@ -45,7 +45,6 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/HeightWindow.h>
-#include <tsre/geo/MapWindow.h>
 #include <tsre/geo/ImageryWindow.h>
 #include "TerrainTreeWindow.h"
 #include <tsre/shape/ShapeLib.h>
@@ -69,6 +68,8 @@
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/SunPosition.h>
+#include <tsre/geo/MoonPosition.h>
+#include <settings/SettingsManager.h>
 #include <tsre/world/Daylight.h>
 #include <QDebug>
 #include <algorithm>
@@ -83,6 +84,15 @@
 #include <tsre/map/MapSelection.h>
 #include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/OsmMapLayer.h>
+#include <tsre/map/ImageryMapLayer.h>
+#include <tsre/map/MapMeasureLayer.h>
+#include <tsre/map/MapScaleBar.h>
+#include <routeEditor/tools/MapTools.h>
+#include <QLabel>
+#include <tsre/map/MapLabelLayer.h>
+#include <tsre/map/MapLabelSources.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/coords/Coords.h>
 #include <tsre/geo/osm/OsmConversionUi.h>
 #include <tsre/map/TerrainMapLayer.h>
 #include <tsre/map/TrackItemMapLayer.h>
@@ -115,6 +125,26 @@ m_zRot(0),
 tools(std::make_unique<ToolRegistry>()) {
     surface = RenderSurface::create(this, this);
     this->installEventFilter(this);
+    // Sky and fog settings change while the editor runs (environment window,
+    // task editor 05); the next frame takes them.
+    connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
+            [this](const QStringList &keys) {
+        for (const QString &key : keys) {
+            if (key == "core.rendering.skyColor" || key == "core.rendering.fogColor"
+                    || key == "core.rendering.fogDensity")
+                environmentChanged = true;
+            // The frame-rate limit applies at once.
+            if (key == "core.system.fpsLimit" && timer.isActive())
+                timer.start(renderTimerStep(), this);
+        }
+    });
+}
+
+// Milliseconds between frames for core.system.fpsLimit (frames per second;
+// 0 is the built-in 15 ms).
+int RouteEditorGLWidget::renderTimerStep() {
+    const int fpsLimit = Settings::integer("core.system.fpsLimit");
+    return fpsLimit > 0 ? std::max(1, 1000 / fpsLimit) : 15;
 }
 
 void RouteEditorGLWidget::update(){
@@ -356,6 +386,19 @@ void RouteEditorGLWidget::cameraInit(){
         terrainMap = std::make_unique<TerrainMapLayer>();
     if (!mapFade)
         mapFade = std::make_unique<MapOverlayFade>();
+    if (!mapLabels)
+        mapLabels = std::make_unique<MapLabelLayer>();
+    if (!mapMeasure)
+        mapMeasure = std::make_unique<MapMeasureLayer>();
+    if (!mapScaleBar)
+        mapScaleBar = std::make_unique<MapScaleBar>();
+    if (!imageryMap) {
+        imageryMap = std::make_unique<ImageryMapLayer>();
+        // From the fetch thread: draw again once tiles arrive.
+        imageryMap->setReadyCallback([this] {
+            QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
+        });
+    }
     if (!osmMap) {
         osmMap = std::make_unique<OsmMapLayer>();
         // From the worker thread: draw again once a build is ready.
@@ -449,11 +492,7 @@ void RouteEditorGLWidget::surfaceInitialize() {
     fpsDisplayLastUpdate = lastTime;
     fpsDisplayAccumMs = 0.0;
     fpsDisplayAccumFrames = 0;
-    int timerStep = 15;
-    const int fpsLimit = Settings::integer("core.system.fpsLimit");
-    if (fpsLimit > 0)
-        timerStep = 1000 / fpsLimit;
-    timer.start(timerStep, this);
+    timer.start(renderTimerStep(), this);
     setFocus();
     setMouseTracking(true);
     pointer3d = new Pointer3d();
@@ -477,7 +516,6 @@ void RouteEditorGLWidget::surfaceInitialize() {
     groupObj = new GroupObj();
     copyPasteGroupObj = new GroupObj();
     defaultPaintBrush = new Brush();
-    mapWindow = new MapWindow();
     imageryWindow = new ImageryWindow();
     Quat::fill(this->placeRot);
 
@@ -562,6 +600,7 @@ void RouteEditorGLWidget::surfacePaint(){
     renderer->resetState();
 
     const bool selectionPass = selection;
+    showImageryAttribution(currentViewMode == ViewMode::Map && mapLayers.shows(MapLayer::Imagery));
     if (currentViewMode == ViewMode::Map) {
         paintMap();
         // As in 3D, a selection pass is followed by a visible frame.
@@ -724,6 +763,9 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::rotate(renderer->transform(), renderer->transform(), 2.0, 0, 1, 0);
     renderer->setLayer(RenderQueue::LAYER_SKY);
     route->skydome->pushRenderItems(queue);
+    Mat4::identity(renderer->transform());
+    Mat4::translate(renderer->transform(), renderer->transform(), camera->getPos());
+    skySatellites.push(queue, skyState);
     Mat4::identity(renderer->transform());
     // Distant terrain patches are culled against the distant projection.
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, aspect, 600.0f, Game::distantLod);
@@ -970,7 +1012,29 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         std::copy(gluu->ambientColor, gluu->ambientColor + 4, state.ambient);
         state.saved = true;
     }
+    // Changed sky and fog settings are the day colours of time of day, and
+    // the colours without it.
+    if (environmentChanged) {
+        environmentChanged = false;
+        std::copy(Game::skyColor, Game::skyColor + 4, state.sky);
+        std::copy(Game::fogColor, Game::fogColor + 4, state.fog);
+        gluu->fogDensity = Game::fogDensity;
+        if (!Game::timeOfDayEnabled) {
+            std::copy(state.sky, state.sky + 4, gluu->skyColor);
+            std::copy(state.fog, state.fog + 4, gluu->fogColor);
+        }
+    }
     if (!Game::timeOfDayEnabled) {
+        // The sun where the fixed light comes from; no moon without a time.
+        float sun[3] = {state.sunDirection[0], state.sunDirection[1], state.sunDirection[2]};
+        const float length = std::sqrt(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
+        for (float &c : sun)
+            c = length > 0.0f ? c / length : 0.0f;
+        std::copy(sun, sun + 3, skyState.sunDirection);
+        skyState.sunElevation = float(std::asin(std::clamp(sun[1], -1.0f, 1.0f)) * 180.0 / M_PI);
+        skyState.moon = false;
+        std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
+        reportEnvironment(skyState.sunElevation, std::nanf(""), std::nanf(""), std::nanf(""));
         if (state.applied) {
             std::copy(state.sunDirection, state.sunDirection + 3, Game::sunLightDirection);
             std::copy(state.sky, state.sky + 4, gluu->skyColor);
@@ -981,6 +1045,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
             // time of day off is an editing mode that keeps every lamp's light
             // visible (tasks 21 and 22). Only time of day scales them down.
             gluu->localLightAdaptation = 1.0f;
+            gluu->signalLightAdaptation = 1.0f;
             const float fixed[3] = {-1.0f, 1.5f, 1.0f};
             std::copy(fixed, fixed + 3, shadowSunDirection);
             sunCastsShadows = true;
@@ -1022,8 +1087,13 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         date = QDate(2026, 6, 21);
     SunPosition::Result sun = SunPosition::atSolarTime(state.latitude, state.longitude, date,
                                                        Game::timeOfDayHours);
+    MoonPosition::Result moon = MoonPosition::atSolarTime(state.latitude, state.longitude, date,
+                                                          Game::timeOfDayHours);
+    reportEnvironment(float(sun.elevation), float(sun.azimuth), float(moon.elevation),
+                      float(moon.illuminatedFraction));
     // From true bearings to the world's grid.
     sun.azimuth -= state.gridNorth;
+    moon.azimuth -= state.gridNorth;
     SunPosition::direction(sun, Game::sunLightDirection);
     // Shadows of a sun near the horizon would stretch across the maps.
     SunPosition::Result shadowSun = sun;
@@ -1035,7 +1105,33 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
     std::copy(light.ambient, light.ambient + 4, gluu->ambientColor);
     gluu->localLightAdaptation = light.localLights;
+    gluu->signalLightAdaptation = light.signalLights;
     sunCastsShadows = light.sunUp;
+    // The sun and the moon on the sky.
+    std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, skyState.sunDirection);
+    skyState.sunElevation = float(sun.elevation);
+    skyState.moon = true;
+    MoonPosition::direction(moon, skyState.moonDirection);
+    skyState.moonElevation = float(moon.elevation);
+    skyState.moonFraction = float(moon.illuminatedFraction);
+    std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
+}
+
+// Tells the environment window where the sun and moon stand (true bearing;
+// NaN where there is nothing to tell), when it changes noticeably.
+void RouteEditorGLWidget::reportEnvironment(float sunElevation, float sunAzimuth, float moonElevation,
+                                            float moonFraction) {
+    const float values[4] = {sunElevation, sunAzimuth, moonElevation, moonFraction};
+    bool changed = false;
+    for (int i = 0; i < 4; ++i) {
+        const bool wasNan = std::isnan(reportedEnvironment[i]), isNan = std::isnan(values[i]);
+        if (wasNan != isNan || (!isNan && std::fabs(values[i] - reportedEnvironment[i]) > (i == 3 ? 0.002f : 0.05f)))
+            changed = true;
+    }
+    if (!changed)
+        return;
+    std::copy(values, values + 4, reportedEnvironment);
+    emit environmentInfo(sunElevation, sunAzimuth, moonElevation, moonFraction);
 }
 
 // Light-space matrices of the near, mid and far shadow maps, centred on the
@@ -1513,7 +1609,14 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         return;
     }
     if (currentViewMode == ViewMode::Map) {
-        // The map takes navigation keys only; the 3D keys stay in 3D.
+        // The map takes navigation keys and the active map tool's keys (Escape
+        // ends a measurement); the 3D keys stay in 3D.
+        EditorTool *tool = activeTool();
+        if (tool != nullptr && tool->supports(ViewMode::Map) && tool->key(*this, event)) {
+            update();
+            event->accept();
+            return;
+        }
         camera->keyDown(event);
         event->accept();
         return;
@@ -1671,7 +1774,7 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     m_lastPos *= Game::PixelRatio;
     mouseClick = true;
     if (currentViewMode == ViewMode::Map) {
-        // Both buttons move the map; a left click that does not move it
+        // Left and right drags move the map (middle turns it); a left click that does not move it
         // goes to the active tool (mouseReleaseEvent). A left press on the
         // selected activity object drags it with the select tool instead.
         mapPressPos = m_lastPos;
@@ -1847,22 +1950,19 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
         const QPointF position = event->position() * Game::PixelRatio;
         const QPointF moved = position - mapPressPos;
         EditorTool *tool = activeTool();
-        // A right click that does not turn the map: the tool's menu, acting
-        // at the pointer.
-        if (event->button() == Qt::RightButton && tool != nullptr
-                && tool->supports(ViewMode::Map)
+        // A right click that does not move the map: the map's menu, acting at
+        // the pointer.
+        if (event->button() == Qt::RightButton
                 && std::abs(moved.x()) + std::abs(moved.y()) <= MapClickPixels) {
             mousex = float(position.x());
             mousey = float(position.y());
             updateMapPointer();
-            QMenu menu;
-            tool->contextMenu(*this, menu);
-            if (!menu.isEmpty())
-                menu.exec(mapToGlobal(event->position().toPoint()));
+            showMapContextMenu(event->position().toPoint());
             // What the actions changed shows on the next draw.
             terrainMap->invalidate();
             trackItemMap->rebuild();
             activityMap->invalidate();
+            mapLabelsInvalid = true;
             update();
             return;
         }
@@ -1878,6 +1978,7 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
             // What the tool changed shows on the next draw.
             trackItemMap->rebuild();
             activityMap->invalidate();
+            mapLabelsInvalid = true;
             terrainMap->rebuild();
             update();
         }
@@ -1926,6 +2027,7 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
                 updateMapPointer();
                 tool->drag(*this, ToolMouse{position, m_lastPos});
                 activityMap->invalidate();
+                mapLabelsInvalid = true;
                 update();
             }
         } else if (event->buttons() & (Qt::LeftButton | Qt::RightButton | Qt::MiddleButton)) {
@@ -1988,6 +2090,7 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
         trackItemMap->invalidate();
         terrainMap->invalidate();
         activityMap->invalidate();
+        mapLabelsInvalid = true;
     } else {
         // The 3D camera looks at the map pointer from behind and above, in
         // the map's heading.
@@ -2045,8 +2148,118 @@ bool RouteEditorGLWidget::prepareOsmLayer() {
     return true;
 }
 
+bool RouteEditorGLWidget::prepareImageryLayer() {
+    QString error;
+    if (imageryMap && imageryMap->prepare(error))
+        return true;
+    QMessageBox::information(this,
+        //% "Imagery"
+        qtTrId("route.editor.route.editor.glwidget.imagery.title"),
+        Game::GeoCoordConverter == NULL ?
+            //% "This route has no geographic reference, so imagery cannot be placed on it."
+            qtTrId("route.editor.route.editor.glwidget.imagery.no.reference") :
+            //% "No imagery source can be shown: %1"
+            qtTrId("route.editor.route.editor.glwidget.imagery.no.source").arg(error));
+    return false;
+}
+
+void RouteEditorGLWidget::showImageryAttribution(bool show) {
+    if (!show) {
+        if (imageryAttribution != NULL)
+            imageryAttribution->hide();
+        return;
+    }
+    if (imageryAttribution == NULL) {
+        imageryAttribution = new QLabel(this);
+        imageryAttribution->setAttribute(Qt::WA_TransparentForMouseEvents);
+        imageryAttribution->setStyleSheet(
+            QStringLiteral("QLabel { background: rgba(255, 255, 255, 180); color: black; padding: 1px 4px; }"));
+    }
+    const QString text = imageryMap ? imageryMap->attribution() : QString();
+    if (imageryAttribution->text() != text) {
+        imageryAttribution->setText(text);
+        imageryAttribution->adjustSize();
+    }
+    const QPoint corner(width() - imageryAttribution->width(), height() - imageryAttribution->height());
+    if (imageryAttribution->pos() != corner)
+        imageryAttribution->move(corner);
+    if (!imageryAttribution->isVisible() && !text.isEmpty()) {
+        imageryAttribution->show();
+        imageryAttribution->raise();
+    }
+}
+
+void RouteEditorGLWidget::setMapMeasurement(const MapGroundPoint &from, const MapGroundPoint &to) {
+    mapMeasure->set(from, to);
+    update();
+}
+
+void RouteEditorGLWidget::setDiagnosticMapMeasurement(const MapGroundPoint *from, const MapGroundPoint *to) {
+    if (from != nullptr && to != nullptr)
+        setMapMeasurement(*from, *to);
+    else
+        clearMapMeasurement();
+}
+
+void RouteEditorGLWidget::clearMapMeasurement() {
+    mapMeasure->clear();
+    update();
+}
+
+void RouteEditorGLWidget::showMapContextMenu(const QPoint &position) {
+    QMenu menu;
+    // Always first: measuring is wanted at any moment, whatever the tool.
+    QAction *measure = menu.addAction(
+        //% "Measure Distance"
+        qtTrId("route.editor.map.measure.distance"));
+    measure->setCheckable(true);
+    measure->setChecked(toolEnabled == MapTools::MeasureToolId);
+    EditorTool *tool = activeTool();
+    if (tool != nullptr && tool->supports(ViewMode::Map)) {
+        QAction *separator = menu.addSeparator();
+        tool->contextMenu(*this, menu);
+        if (menu.actions().constLast() == separator)
+            menu.removeAction(separator);
+    }
+    if (menu.exec(mapToGlobal(position)) != measure)
+        return;
+    if (measure->isChecked()) {
+        toolBeforeMeasure = toolEnabled;
+        enableTool(MapTools::MeasureToolId);
+    } else {
+        enableTool(tools->allowed(toolBeforeMeasure, ViewMode::Map) ? toolBeforeMeasure : QString());
+    }
+}
+
 bool RouteEditorGLWidget::mapLayersBusy() const {
-    return osmMap && osmMap->busy();
+    return (osmMap && osmMap->busy()) || (imageryMap && mapLayers.shows(MapLayer::Imagery) && imageryMap->busy());
+}
+
+void RouteEditorGLWidget::updateMapLabels() {
+    Coords *markers = mapLayers.shows(MapLayer::Markers) && route != NULL ? route->currentMkr() : NULL;
+    TDB *track = mapLayers.shows(MapLayer::TrackObjects) ? Game::trackDB : NULL;
+    Activity *activity = mapLayers.shows(MapLayer::Activity) && route != NULL ? route->getCurrentActivity() : NULL;
+    const OsmMapLayer *osm = mapLayers.shows(MapLayer::OsmData) ? osmMap.get() : NULL;
+    // What is labelled, and how much of it: a change rebuilds the labels.
+    const std::vector<const void *> sources = {
+        osm, reinterpret_cast<const void *>(quintptr(osm != NULL ? osm->labelsVersion() : 0)),
+        markers, reinterpret_cast<const void *>(quintptr(markers != NULL ? markers->markerList.size() : 0)),
+        track, reinterpret_cast<const void *>(quintptr(track != NULL ? track->trackItems.size() : 0)),
+        activity, reinterpret_cast<const void *>(quintptr(activity != NULL ? activity->event.size() : 0)),
+        mapMeasure.get(), reinterpret_cast<const void *>(quintptr(mapMeasure->version()))};
+    if (!mapLabelsInvalid && sources == mapLabelSources)
+        return;
+    std::vector<MapLabel> labels;
+    if (mapMeasure->shown())
+        labels.push_back(mapMeasure->label(Game::GeoCoordConverter));
+    MapLabelSources::appendActivity(labels, activity);
+    MapLabelSources::appendTrackDatabase(labels, track);
+    MapLabelSources::appendMarkers(labels, markers);
+    if (osm != NULL)
+        labels.insert(labels.end(), osm->labels().begin(), osm->labels().end());
+    mapLabels->setLabels(std::move(labels));
+    mapLabelSources = sources;
+    mapLabelsInvalid = false;
 }
 
 void RouteEditorGLWidget::updateMapPointer() {
@@ -2090,6 +2303,10 @@ void RouteEditorGLWidget::paintMap() {
     const MapView &view = cameraMap->view;
     if (mapLayers.shows(MapLayer::Terrain))
         terrainMap->pushRenderItems(queue, view, palette, Game::terrainLib);
+    if (mapLayers.shows(MapLayer::Imagery))
+        imageryMap->pushRenderItems(queue, view);
+    else
+        imageryMap->pause();
     if (mapLayers.shows(MapLayer::OsmData))
         osmMap->pushRenderItems(queue, view, palette,
                                 Settings::string("core.paths.osmData", SettingType::Directory),
@@ -2112,6 +2329,11 @@ void RouteEditorGLWidget::paintMap() {
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
     activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
                                  mapLayers.shows(MapLayer::Paths));
+    mapMeasure->pushRenderItems(queue, view, palette, Game::PixelRatio);
+    updateMapLabels();
+    mapLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);
+    if (mapLayers.shows(MapLayer::ScaleBar))
+        mapScaleBar->pushRenderItems(queue, view, palette, Game::PixelRatio);
     // The pointer: a square of a fixed screen size above everything.
     if (mapPointer == NULL)
         mapPointer = new OglObj();
@@ -2313,10 +2535,28 @@ bool RouteEditorGLWidget::placeContinuousRulerPoint(const float *rotation) {
     return placeContinuousRuler(tileX(), tileZ(), aktPointerPos, rotation);
 }
 
-void RouteEditorGLWidget::openMapTileWindow(Terrain *terrain) {
-    terrain->getLowCornerTileXY(mapWindow->tileX, mapWindow->tileZ);
-    mapWindow->tileSize = terrain->getSampleCount()*terrain->getSampleSize();
-    mapWindow->exec();
+bool RouteEditorGLWidget::runDiagnosticOverlayAction(const QString &action) {
+    EditorTool *tool = tools->find(QStringLiteral("terrainOverlayTool"));
+    if (tool == nullptr)
+        return false;
+    if (currentViewMode == ViewMode::Map) {
+        // Before the first frame the view has no size yet (paintMap sets it).
+        const int width = qRound(float(this->width()) * Game::PixelRatio);
+        const int height = qRound(float(this->height()) * Game::PixelRatio);
+        cameraMap->setViewport(width, height);
+        mousex = float(width) / 2.0f;
+        mousey = float(height) / 2.0f;
+        updateMapPointer();
+    }
+    tool->run(*this, action);
+    terrainChanged();
+    return true;
+}
+
+void RouteEditorGLWidget::terrainChanged() {
+    if (terrainMap)
+        terrainMap->invalidate();
+    update();
 }
 
 void RouteEditorGLWidget::openImageryWindow(Terrain *terrain) {
@@ -2380,6 +2620,9 @@ void RouteEditorGLWidget::enableTool(QString name) {
         continuousPlacementYOffset = 0.0f;
     qDebug() << name;
     toolEnabled = name;
+    // A panel button may choose the tool's left-click action ("tool:action").
+    if (next != nullptr && !EditorTool::actionOf(name).isEmpty())
+        next->setDefaultAction(EditorTool::actionOf(name));
     resizeTool = false;
     translateTool = false;
     rotateTool = false;
@@ -2473,6 +2716,7 @@ void RouteEditorGLWidget::setDiagnosticMapView(int tileX, int tileZ, float x, fl
     trackItemMap->invalidate();
     terrainMap->invalidate();
     activityMap->invalidate();
+    mapLabelsInvalid = true;
 }
 
 void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
@@ -2562,6 +2806,7 @@ void RouteEditorGLWidget::setSelectedObj(GameObj* o) {
         trackItemMap->rebuild();
     if (activityMap)
         activityMap->invalidate();
+    mapLabelsInvalid = true;
     emit showProperties(selectedObj);
     if (o != NULL)
         if (o->typeObj == o->worldobj)
@@ -3885,10 +4130,15 @@ void RouteEditorGLWidget::showContextMenu(const QPoint & point) {
             //% "No Tool"
             qtTrId("route.editor.context.no.tool"));
     } else {
-        QString toolName = toolEnabled;
-        toolName[0] = toolName[0].toUpper();
-        menu.addSection(toolName);
-        if (EditorTool *tool = activeTool())
+        EditorTool *tool = activeTool();
+        // A tool with actions heads them with its own sections.
+        if (tool == nullptr || tool->actions(*this).empty()) {
+            QString toolName = tool != nullptr && !tool->title().isEmpty() ? tool->title()
+                                                                           : EditorTool::idOf(toolEnabled);
+            toolName[0] = toolName[0].toUpper();
+            menu.addSection(toolName);
+        }
+        if (tool != nullptr)
             tool->contextMenu(*this, menu);
 
     }

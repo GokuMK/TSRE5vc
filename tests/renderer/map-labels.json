@@ -1,0 +1,125 @@
+{
+  "notes": "Map labels (docs/tasks/geo/osm-rendering-design.md, labels): Country Places of Poland written into TEST_PROFILES (Route > Generate Country Places) and shown by Map > Markers, from the whole country to a town; upright in a turned view; over OSM data (needs --set core.paths.osmData=<converted Poland files>). OSM names (places, railway stations) alone at country, region, town and close scale, and mixed with Country Places (one name each).",
+  "output": "build/renderer-map-labels",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "countryPlaces": "PL",
+  "settle": {
+    "minFrames": 8,
+    "stableFrames": 3,
+    "maxFrames": 400,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "poland",
+      "mode": "map",
+      "metresPerPixel": 450,
+      "latLon": [
+        52.0,
+        19.3
+      ],
+      "markers": true
+    },
+    {
+      "name": "silesia",
+      "mode": "map",
+      "metresPerPixel": 120,
+      "latLon": [
+        50.6,
+        17.5
+      ],
+      "markers": true
+    },
+    {
+      "name": "walbrzych",
+      "mode": "map",
+      "metresPerPixel": 25,
+      "latLon": [
+        50.77,
+        16.3
+      ],
+      "markers": true
+    },
+    {
+      "name": "turned",
+      "mode": "map",
+      "metresPerPixel": 120,
+      "latLon": [
+        50.6,
+        17.5
+      ],
+      "bearing": 35,
+      "markers": true
+    },
+    {
+      "name": "over-osm",
+      "mode": "map",
+      "metresPerPixel": 120,
+      "latLon": [
+        50.6,
+        17.5
+      ],
+      "osmData": true,
+      "markers": true
+    },
+    {
+      "name": "osm-poland",
+      "mode": "map",
+      "metresPerPixel": 450,
+      "latLon": [
+        52.0,
+        19.3
+      ],
+      "osmData": true
+    },
+    {
+      "name": "osm-region",
+      "mode": "map",
+      "metresPerPixel": 60,
+      "latLon": [
+        50.06,
+        19.94
+      ],
+      "osmData": true
+    },
+    {
+      "name": "osm-town",
+      "mode": "map",
+      "metresPerPixel": 12,
+      "latLon": [
+        50.06,
+        19.94
+      ],
+      "osmData": true
+    },
+    {
+      "name": "osm-close",
+      "mode": "map",
+      "metresPerPixel": 3,
+      "latLon": [
+        50.77,
+        16.29
+      ],
+      "osmData": true
+    },
+    {
+      "name": "osm-and-places",
+      "mode": "map",
+      "metresPerPixel": 60,
+      "latLon": [
+        50.06,
+        19.94
+      ],
+      "osmData": true,
+      "markers": true
+    }
+  ]
+}

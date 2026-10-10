@@ -12,6 +12,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/Game.h>
+#include <tsre/renderer/WaterWaves.h>
 #include <tsre/math3d/Vector4f.h>
 #include <QDebug>
 #include <QFile>
@@ -241,6 +242,7 @@ void GLUU::initShader() {
         currentShader->shaderShadowsEnabled = currentShader->uniformLocation("shadowsEnabled");
         currentShader->shaderBrightness = currentShader->uniformLocation("colorBrightness");
         currentShader->shaderFogDensity = currentShader->uniformLocation("fogDensity");
+        currentShader->shaderTransparency = currentShader->uniformLocation("materialTransparency");
         currentShader->shadow1Res = currentShader->uniformLocation("shadow1Res");
         currentShader->shadow2Res = currentShader->uniformLocation("shadow2Res");
         currentShader->shadow2Bias = currentShader->uniformLocation("shadow2Bias");
@@ -287,6 +289,9 @@ void GLUU::initShader() {
         currentShader->waterTime = currentShader->uniformLocation("waterTime");
         currentShader->waterLayers = currentShader->uniformLocation("waterLayers");
         currentShader->waterReflectionView = currentShader->uniformLocation("waterReflectionView");
+        currentShader->waterWind = currentShader->uniformLocation("waterWind");
+        currentShader->waterScene = currentShader->uniformLocation("waterScene");
+        currentShader->waterDepthRange = currentShader->uniformLocation("waterDepthRange");
         currentShader->waterReflectionPlane = currentShader->uniformLocation("waterReflectionPlane");
         currentShader->clipPlane = currentShader->uniformLocation("clipPlane");
 
@@ -336,7 +341,8 @@ void GLUU::initShader() {
         // normal, occlusion and emissive maps, units 4-6 (terrain-only
         // elsewhere) the clearcoat maps, and units 7 and 15 the specular maps.
         // Water uses units 4 and 5 for its lower layers, unit 6 for the planar
-        // reflection and unit 15 for the wave map.
+        // reflection, unit 15 for the wave cascades, and units 11 and 12 for
+        // the frame and depth under the water.
         const struct { const char *name; int unit; } pbrSamplers[] = {
             {"environmentMap", 10}, {"pbrMetallicRoughnessMap", 11}, {"pbrNormalMap", 12},
             {"pbrOcclusionMap", 13}, {"pbrEmissiveMap", 14}, {"pbrClearcoatMap", 4},
@@ -344,7 +350,7 @@ void GLUU::initShader() {
             {"pbrSpecularMap", 7}, {"pbrSpecularColorMap", 15}, {"pbrSceneColor", 1},
             {"pbrTransmissionMap", 16}, {"pbrThicknessMap", 17},
             {"waterBottomMap", 4}, {"waterMiddleMap", 5}, {"waterReflectionMap", 6},
-            {"waterNormalMap", 15}};
+            {"waterWaveMap", 15}, {"waterSceneColor", 11}, {"waterSceneDepth", 12}};
         GLint unitCount = 16;
         extra->glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &unitCount);
         for (const auto &sampler : pbrSamplers) {
@@ -420,6 +426,12 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->environmentMapLevels, float(environmentMapLevels));
     if (currentShader->waterTime >= 0)
         currentShader->setUniformValue(currentShader->waterTime, animationSeconds());
+    if (currentShader->waterWind >= 0) {
+        const WaterWaves::Wind wind = WaterWaves::settingsWind();
+        const float direction = float(wind.direction * M_PI / 180.0);
+        currentShader->setUniformValue(currentShader->waterWind, std::sin(direction),
+                -std::cos(direction), float(wind.speed), 0.0f);
+    }
     if (currentShader->waterReflectionView >= 0)
         currentShader->setUniformValue(currentShader->waterReflectionView, waterReflectionView[0],
                 waterReflectionView[1], waterReflectionView[2], waterReflectionView[3]);

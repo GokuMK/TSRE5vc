@@ -26,6 +26,7 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 
 #ifndef GL_SAMPLES_PASSED
 #define GL_SAMPLES_PASSED 0x8914
@@ -77,10 +78,16 @@ const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6,
 // The frame copy transmissive surfaces see through, on unit 1 (the detail
 // texture unit, unused by the PBR program).
 const int SceneCopyUnit = 1;
+// The frame copy and its depth water sees the bed through, on units of PBR
+// maps (unused by the water program).
+const int WaterSceneColorUnit = 11;
+const int WaterSceneDepthUnit = 12;
 
 // Mipmap levels of the frame copy while the transmission pass draws; 0 when
 // transmissive surfaces see the environment instead.
 float sceneCopyLevels = 0.0f;
+// The same for the water pass: 0 when water is drawn without the bed.
+float waterSceneLevels = 0.0f;
 
 int textureUnitCount(){
     static int units = 0;
@@ -153,6 +160,9 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
         gluu->disableNormals();
 
     gluu->setBrightness(item->material.brightness);
+    // Set for every item: a shader switch would leave a cached value stale.
+    gluu->currentShader->setUniformValue(gluu->currentShader->shaderTransparency,
+                                         1.0f - item->material.opacity);
 
     gluu->setSelectionId(selectionId);
     if (detail.remap != item->terrain.textureRemap) {
@@ -464,6 +474,8 @@ OpenGL3Renderer::~OpenGL3Renderer() {
             context->functions()->glDeleteTextures(1, &sceneCopyTexture);
         if(sceneCopyFramebuffer != 0)
             context->functions()->glDeleteFramebuffers(1, &sceneCopyFramebuffer);
+        if(sceneDepthTexture != 0)
+            context->functions()->glDeleteTextures(1, &sceneDepthTexture);
     }
     if(context != NULL && context == samplerContext)
         for(auto &entry : wrapSamplers)
@@ -568,7 +580,7 @@ void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
 }
 
 // Lower water layers on units 4 and 5 (terrain-only elsewhere) and the
-// wave map on unit 15.
+// wave cascades on unit 15.
 void OpenGL3Renderer::applyWaterState(GLUU *gluu, const RenderItem *item){
     Shader *s = gluu->currentShader;
     if(!item->water.enabled || s->waterLayers < 0)
@@ -583,7 +595,16 @@ void OpenGL3Renderer::applyWaterState(GLUU *gluu, const RenderItem *item){
     }
     f->glActiveTexture(GL_TEXTURE0);
     s->setUniformValue(s->waterLayers, present);
-    waterNormals.bind(f, 15);
+    // The bed under the water: the frame copy, its size and mipmap levels,
+    // and the depth planes of the scene band (its depth fills 0 to 1).
+    if(s->waterScene >= 0)
+        s->setUniformValue(s->waterScene, sceneCopyWidth > 0 ? 1.0f / sceneCopyWidth : 0.0f,
+                           sceneCopyHeight > 0 ? 1.0f / sceneCopyHeight : 0.0f,
+                           waterSceneLevels, waterSceneLevels > 0.0f ? 1.0f : 0.0f);
+    if(s->waterDepthRange >= 0)
+        s->setUniformValue(s->waterDepthRange, 0.0f, 1.0f, scenePlanes[0], scenePlanes[1]);
+    waterWaves.bind(f, 15, GLUU::animationSeconds(), WaterWaves::settingsWind(),
+                    Game::animationFrozen);
 }
 
 void OpenGL3Renderer::releaseWrapSamplers(){
@@ -816,6 +837,9 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
             // Transmissive surfaces see the frame drawn so far.
             if(pass == PASS_TRANSMISSION)
                 sceneCopyLevels = copyFrameForTransmission(gluu, base);
+            // Water sees the bed: the frame and its depth so far.
+            if(pass == PASS_WATER)
+                waterSceneLevels = copyFrameForWater(gluu, base);
             drawOrdered(gluu, base, queue.ordered, pass);
             // Keep defaults predictable for the packet loop.
             gluu->setBrightness(1.0f);
@@ -830,6 +854,8 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
         }
         if(pass == PASS_TRANSMISSION)
             sceneCopyLevels = 0.0f;
+        if(pass == PASS_WATER)
+            waterSceneLevels = 0.0f;
         if(consume)
             consumePass(queue);
     }
@@ -911,8 +937,60 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
 float OpenGL3Renderer::copyFrameForTransmission(GLUU *gluu, Shader *base){
     // Secondary views and programs without a PBR variant (selection) use no
     // copy: transmissive surfaces there see the environment.
+    if(secondaryView || gluu->pbrVariant(base) == base)
+        return 0.0f;
+    return copyFrame(false);
+}
+
+float OpenGL3Renderer::copyFrameForWater(GLUU *gluu, Shader *base){
+    // Secondary views (reflection, environment map) and programs without a
+    // water variant draw water without the bed.
+    if(secondaryView || gluu->waterVariant(base) == base
+            || !Settings::boolean("core.rendering.water.depth"))
+        return 0.0f;
+    const float levels = copyFrame(true);
+    if(levels <= 0.0f || sceneDepthTexture == 0)
+        return 0.0f;
+    QOpenGLExtraFunctions *e = QOpenGLContext::currentContext()->extraFunctions();
+    e->glActiveTexture(GL_TEXTURE0 + WaterSceneColorUnit);
+    e->glBindTexture(GL_TEXTURE_2D, sceneCopyTexture);
+    e->glActiveTexture(GL_TEXTURE0 + WaterSceneDepthUnit);
+    e->glBindTexture(GL_TEXTURE_2D, sceneDepthTexture);
+    e->glActiveTexture(GL_TEXTURE0);
+    return levels;
+}
+
+// The depth texture format a blit from the bound draw framebuffer needs
+// (blits need the same format); 0 when there is no depth.
+static GLenum depthCopyFormat(QOpenGLExtraFunctions *e, GLint framebuffer){
+    const GLenum attachment = framebuffer == 0 ? GL_DEPTH : GL_DEPTH_ATTACHMENT;
+    GLint type = GL_NONE, depthBits = 0, stencilBits = 0;
+    e->glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment,
+                                             GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type);
+    if(framebuffer != 0 && type == GL_NONE)
+        return 0;
+    e->glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment,
+                                             GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &depthBits);
+    e->glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
+                                             framebuffer == 0 ? GL_STENCIL : GL_STENCIL_ATTACHMENT,
+                                             GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &stencilBits);
+    GLint component = GL_UNSIGNED_NORMALIZED;
+    e->glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, attachment,
+                                             GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &component);
+    if(component == GL_FLOAT)
+        return stencilBits > 0 ? GL_DEPTH32F_STENCIL8 : GL_DEPTH_COMPONENT32F;
+    if(depthBits == 24)
+        return stencilBits > 0 ? GL_DEPTH24_STENCIL8 : GL_DEPTH_COMPONENT24;
+    if(depthBits == 16)
+        return GL_DEPTH_COMPONENT16;
+    if(depthBits == 32)
+        return GL_DEPTH_COMPONENT32;
+    return 0;
+}
+
+float OpenGL3Renderer::copyFrame(bool depth){
     QOpenGLContext *context = QOpenGLContext::currentContext();
-    if(secondaryView || context == NULL || gluu->pbrVariant(base) == base)
+    if(context == NULL)
         return 0.0f;
     QOpenGLExtraFunctions *e = context->extraFunctions();
     GLint viewportRect[4] = {0, 0, 0, 0};
@@ -922,8 +1000,10 @@ float OpenGL3Renderer::copyFrameForTransmission(GLUU *gluu, Shader *base){
         return 0.0f;
     if(copyContext != context){
         // Objects of another context cannot be used or deleted here.
-        sceneCopyTexture = sceneCopyFramebuffer = 0;
+        sceneCopyTexture = sceneCopyFramebuffer = sceneDepthTexture = 0;
         sceneCopyWidth = sceneCopyHeight = 0;
+        sceneDepthFormat = 0;
+        sceneDepthFailed = false;
         copyContext = context;
     }
     if(sceneCopyTexture == 0 || width != sceneCopyWidth || height != sceneCopyHeight){
@@ -944,10 +1024,49 @@ float OpenGL3Renderer::copyFrameForTransmission(GLUU *gluu, Shader *base){
         e->glActiveTexture(GL_TEXTURE0);
         sceneCopyWidth = width;
         sceneCopyHeight = height;
+        // The depth copy follows the new size.
+        sceneDepthFormat = 0;
     }
     GLint drawFramebuffer = 0, readFramebuffer = 0;
     e->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFramebuffer);
     e->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFramebuffer);
+    GLbitfield copied = GL_COLOR_BUFFER_BIT;
+    if(depth && !sceneDepthFailed){
+        const GLenum format = depthCopyFormat(e, drawFramebuffer);
+        if(format == 0){
+            sceneDepthFailed = true;
+        } else {
+            if(format != sceneDepthFormat){
+                if(sceneDepthTexture == 0)
+                    e->glGenTextures(1, &sceneDepthTexture);
+                const bool stencil = format == GL_DEPTH24_STENCIL8 || format == GL_DEPTH32F_STENCIL8;
+                e->glActiveTexture(GL_TEXTURE0 + WaterSceneDepthUnit);
+                e->glBindTexture(GL_TEXTURE_2D, sceneDepthTexture);
+                e->glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0,
+                                stencil ? GL_DEPTH_STENCIL : GL_DEPTH_COMPONENT,
+                                format == GL_DEPTH24_STENCIL8 ? GL_UNSIGNED_INT_24_8
+                                : format == GL_DEPTH32F_STENCIL8 ? GL_FLOAT_32_UNSIGNED_INT_24_8_REV
+                                : format == GL_DEPTH_COMPONENT32F ? GL_FLOAT : GL_UNSIGNED_INT,
+                                nullptr);
+                e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+                e->glActiveTexture(GL_TEXTURE0);
+                e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sceneCopyFramebuffer);
+                e->glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                                          GL_TEXTURE_2D, 0, 0);
+                e->glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,
+                                          stencil ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT,
+                                          GL_TEXTURE_2D, sceneDepthTexture, 0);
+                e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(drawFramebuffer));
+                sceneDepthFormat = format;
+            }
+            copied |= GL_DEPTH_BUFFER_BIT;
+        }
+    }
+    while(e->glGetError() != GL_NO_ERROR) {}
     // A blit also resolves a multisampled frame.
     e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sceneCopyFramebuffer);
     e->glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
@@ -955,13 +1074,22 @@ float OpenGL3Renderer::copyFrameForTransmission(GLUU *gluu, Shader *base){
     e->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(drawFramebuffer));
     e->glBlitFramebuffer(viewportRect[0], viewportRect[1], viewportRect[0] + width,
                          viewportRect[1] + height, 0, 0, width, height,
-                         GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                         copied, GL_NEAREST);
+    if((copied & GL_DEPTH_BUFFER_BIT) && e->glGetError() != GL_NO_ERROR){
+        // A depth this driver cannot blit: copy the colour alone from now on.
+        sceneDepthFailed = true;
+        e->glBlitFramebuffer(viewportRect[0], viewportRect[1], viewportRect[0] + width,
+                             viewportRect[1] + height, 0, 0, width, height,
+                             GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
     e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(drawFramebuffer));
     e->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(readFramebuffer));
     e->glActiveTexture(GL_TEXTURE0 + SceneCopyUnit);
     e->glBindTexture(GL_TEXTURE_2D, sceneCopyTexture);
     e->glGenerateMipmap(GL_TEXTURE_2D);
     e->glActiveTexture(GL_TEXTURE0);
+    if(depth && sceneDepthFailed)
+        return 0.0f;
     return 1.0f + std::floor(std::log2(float(std::max(width, height))));
 }
 
@@ -1039,6 +1167,11 @@ void OpenGL3Renderer::beginViewBand(const LayeredView &view, ViewBand band){
         view.projection(600.0f, view.distantFar, projection);
     } else {
         view.projection(0.2f, view.sceneFar, projection);
+        if(!secondaryView){
+            // Water turns the scene depth into distances.
+            scenePlanes[0] = 0.2f;
+            scenePlanes[1] = view.sceneFar;
+        }
     }
     Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
     gluu->setMatrixUniforms();
@@ -1145,7 +1278,11 @@ void OpenGL3Renderer::resetState(){
     functions->glEnable(GL_CULL_FACE);
     functions->glCullFace(GL_BACK);
     functions->glEnable(GL_BLEND);
-    functions->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // Alpha accumulates as coverage, so the frame stays opaque: with the
+    // colour's factors for alpha too, blended and alpha-textured surfaces
+    // left the framebuffer's alpha below 1 (captures and widget composition
+    // showed them washed out). QRhi composes into an opaque target.
+    functions->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     functions->glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     functions->glDisable(GL_SCISSOR_TEST);
     functions->glLineWidth(Game::oglDefaultLineWidth);

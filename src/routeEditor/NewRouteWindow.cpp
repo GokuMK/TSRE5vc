@@ -61,18 +61,19 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
       originLongitudeEdit(new QLineEdit(projectionPanel)),
       customOrigin(new QCheckBox(
           //% "Custom origin"
-          tr("Custom origin"),
+          qtTrId("route.editor.new.route.window.custom.origin"),
           projectionPanel)),
       routeTilePanel(new QWidget(projectionPanel)),
       projectionTileOffsetXEdit(new QLineEdit(QStringLiteral("0"), routeTilePanel)),
       projectionTileOffsetZEdit(new QLineEdit(QStringLiteral("0"), routeTilePanel)),
       ighOffsetButton(new QPushButton(
-          tr("Create origin offset using MSTS IGH"), projectionPanel)),
+          //% "Create origin offset using MSTS IGH"
+          qtTrId("route.editor.new.route.window.create.origin.offset.using.msts.igh"), projectionPanel)),
       assetStatus(new QLabel(this)),
       buttons(new QDialogButtonBox(QDialogButtonBox::Cancel, this)),
       createButton(buttons->addButton(
           //% "New route"
-          tr("New route"),
+          qtTrId("route.editor.new.route.window.new.route"),
           QDialogButtonBox::AcceptRole)) {
     setWindowTitle(
         //% "New route"
@@ -92,10 +93,10 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
 
     layout->addWidget(sectionLabel(
         //% "Choose Route Starting Point"
-        tr("Choose Route Starting Point"), this));
+        qtTrId("route.editor.new.route.window.choose.route.starting.point"), this));
     placeSearch->setPlaceholderText(
         //% "Search for a city or place"
-        tr("Search for a city or place"));
+        qtTrId("route.editor.new.route.window.search.for.a.city.or.place"));
     layout->addWidget(placeSearch);
     placeCompleter->setModel(placeModel);
     placeCompleter->setCompletionMode(QCompleter::UnfilteredPopupCompletion);
@@ -103,20 +104,24 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
     placeCompleter->setMaxVisibleItems(10);
     placeSearch->setCompleter(placeCompleter);
     selectedPlaceEdit->setEnabled(false);
-    selectedPlaceEdit->setPlaceholderText(tr("No place selected"));
+    //% "No place selected"
+    selectedPlaceEdit->setPlaceholderText(qtTrId("route.editor.new.route.window.no.place.selected"));
     QFormLayout *selectedPlaceLayout = new QFormLayout;
-    selectedPlaceLayout->addRow(tr("Selected place:"), selectedPlaceEdit);
+    //% "Selected place:"
+    selectedPlaceLayout->addRow(qtTrId("route.editor.new.route.window.selected.place.label"), selectedPlaceEdit);
     layout->addLayout(selectedPlaceLayout);
 
     QGridLayout *startCoordinatesLayout = new QGridLayout;
     startLatitudeEdit->setPlaceholderText(
         //% "Latitude"
-        tr("Latitude"));
+        qtTrId("route.editor.new.route.window.latitude"));
     startLongitudeEdit->setPlaceholderText(
         //% "Longitude"
-        tr("Longitude"));
-    startCoordinatesLayout->addWidget(new QLabel(tr("Latitude:"), this), 0, 0);
-    startCoordinatesLayout->addWidget(new QLabel(tr("Longitude:"), this), 0, 1);
+        qtTrId("route.editor.new.route.window.longitude"));
+    //% "Latitude:"
+    startCoordinatesLayout->addWidget(new QLabel(qtTrId("route.editor.new.route.window.latitude.label"), this), 0, 0);
+    //% "Longitude:"
+    startCoordinatesLayout->addWidget(new QLabel(qtTrId("route.editor.new.route.window.longitude.label"), this), 0, 1);
     startCoordinatesLayout->addWidget(startLatitudeEdit, 1, 0);
     startCoordinatesLayout->addWidget(startLongitudeEdit, 1, 1);
     layout->addLayout(startCoordinatesLayout);
@@ -124,28 +129,28 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
     layout->addSpacing(8);
     layout->addWidget(sectionLabel(
         //% "Route Geographic Projection"
-        tr("Route Geographic Projection"), this));
+        qtTrId("route.editor.new.route.window.route.geographic.projection"), this));
     layout->addWidget(projectionPanel);
 
     QVBoxLayout *projectionLayout = new QVBoxLayout(projectionPanel);
     projectionLayout->setContentsMargins(0, 0, 0, 0);
     projectionCombo->addItem(
         //% "Transverse Mercator"
-        tr("Transverse Mercator"),
+        qtTrId("route.editor.new.route.window.transverse.mercator"),
                              int(GeoProjectionType::TransverseMercator));
     projectionCombo->addItem(
         //% "Local Ellipsoidal Equirectangular - Legacy TSRE"
-        tr("Local Ellipsoidal Equirectangular - Legacy TSRE"),
+        qtTrId("route.editor.new.route.window.local.ellipsoidal.equirectangular.legacy.tsre"),
                              int(GeoProjectionType::LocalEllipsoidalEquirectangular));
     projectionCombo->addItem(
         //% "Interrupted Goode Homolosine - Legacy MSTS"
-        tr("Interrupted Goode Homolosine - Legacy MSTS"),
+        qtTrId("route.editor.new.route.window.interrupted.goode.homolosine.legacy.msts"),
                              int(GeoProjectionType::InterruptedGoodeHomolosine));
     projectionCombo->setStyleSheet(QStringLiteral("combobox-popup: 0;"));
     projectionLayout->addWidget(projectionCombo);
     originSearch->setPlaceholderText(
         //% "Search for a projection origin"
-        tr("Search for a projection origin"));
+        qtTrId("route.editor.new.route.window.search.for.a.projection.origin"));
     projectionLayout->addWidget(originSearch);
     originCompleter->setModel(originModel);
     originCompleter->setCompletionMode(QCompleter::UnfilteredPopupCompletion);
@@ -153,27 +158,31 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
     originCompleter->setMaxVisibleItems(10);
     originSearch->setCompleter(originCompleter);
     selectedOriginEdit->setEnabled(false);
-    selectedOriginEdit->setPlaceholderText(tr("No projection origin selected"));
+    //% "No projection origin selected"
+    selectedOriginEdit->setPlaceholderText(qtTrId("route.editor.new.route.window.no.projection.origin.selected"));
     QFormLayout *selectedOriginLayout = new QFormLayout;
-    selectedOriginLayout->addRow(tr("Selected origin:"), selectedOriginEdit);
+    //% "Selected origin:"
+    selectedOriginLayout->addRow(qtTrId("route.editor.new.route.window.selected.origin.label"), selectedOriginEdit);
     projectionLayout->addLayout(selectedOriginLayout);
     projectionLayout->addWidget(customOrigin);
 
     QGridLayout *originCoordinatesLayout = new QGridLayout;
     originLatitudeEdit->setPlaceholderText(
         //% "Origin latitude"
-        tr("Origin latitude"));
+        qtTrId("route.editor.new.route.window.origin.latitude"));
     originLongitudeEdit->setPlaceholderText(
         //% "Origin longitude"
-        tr("Origin longitude"));
+        qtTrId("route.editor.new.route.window.origin.longitude"));
     originLatitudeEdit->setReadOnly(true);
     originLongitudeEdit->setReadOnly(true);
     originLatitudeEdit->setEnabled(false);
     originLongitudeEdit->setEnabled(false);
     originCoordinatesLayout->addWidget(
-            new QLabel(tr("Origin latitude:"), projectionPanel), 0, 0);
+            //% "Origin latitude:"
+            new QLabel(qtTrId("route.editor.new.route.window.origin.latitude.label"), projectionPanel), 0, 0);
     originCoordinatesLayout->addWidget(
-            new QLabel(tr("Origin longitude:"), projectionPanel), 0, 1);
+            //% "Origin longitude:"
+            new QLabel(qtTrId("route.editor.new.route.window.origin.longitude.label"), projectionPanel), 0, 1);
     originCoordinatesLayout->addWidget(originLatitudeEdit, 1, 0);
     originCoordinatesLayout->addWidget(originLongitudeEdit, 1, 1);
     projectionLayout->addLayout(originCoordinatesLayout);
@@ -182,11 +191,11 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
     routeTileLayout->setContentsMargins(0, 0, 0, 0);
     routeTileLayout->addWidget(new QLabel(
         //% "Projection tile offset X:"
-        tr("Projection tile offset X:"), routeTilePanel));
+        qtTrId("route.editor.new.route.window.projection.tile.offset.x.label"), routeTilePanel));
     routeTileLayout->addWidget(projectionTileOffsetXEdit);
     routeTileLayout->addWidget(new QLabel(
         //% "Projection tile offset Z:"
-        tr("Projection tile offset Z:"), routeTilePanel));
+        qtTrId("route.editor.new.route.window.projection.tile.offset.z.label"), routeTilePanel));
     routeTileLayout->addWidget(projectionTileOffsetZEdit);
     projectionTileOffsetXEdit->setValidator(
             new QIntValidator(projectionTileOffsetXEdit));
@@ -255,7 +264,8 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
         assetErrors.append(error);
     showAssetStatus(assetErrors);
     placeSearch->setEnabled(false);
-    placeSearch->setPlaceholderText(tr("Loading places..."));
+    //% "Loading places..."
+    placeSearch->setPlaceholderText(qtTrId("route.editor.new.route.window.loading.places"));
     auto loadedPlaces = std::make_shared<GeoPlacePresetIndex>();
     auto placeError = std::make_shared<QString>();
     QThread *loader = QThread::create(
@@ -267,12 +277,14 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
         if (placeError->isEmpty()) {
             placeIndex = std::move(*loadedPlaces);
             placeSearch->setEnabled(true);
-            placeSearch->setPlaceholderText(tr("Search for a city or place"));
+            //% "Search for a city or place"
+            placeSearch->setPlaceholderText(qtTrId("route.editor.new.route.window.search.for.a.city.or.place"));
             if (!placeSearch->text().isEmpty())
                 updatePlaceResults(placeSearch->text());
         } else {
             showAssetStatus(QStringList(*placeError));
-            placeSearch->setPlaceholderText(tr("Place presets unavailable"));
+            //% "Place presets unavailable"
+            placeSearch->setPlaceholderText(qtTrId("route.editor.new.route.window.place.presets.unavailable"));
         }
     });
     connect(loader, &QThread::finished, loader, &QObject::deleteLater);
@@ -514,19 +526,24 @@ void NewRouteWindow::updateNameStatus() {
     case NameError::Empty:
         break;
     case NameError::TooShort:
-        message = tr("Route name must contain at least two characters.");
+        //% "Route name must contain at least two characters."
+        message = qtTrId("route.editor.new.route.window.route.name.must.contain.at.least.two");
         break;
     case NameError::TooLong:
-        message = tr("Route name must not exceed 64 characters.");
+        //% "Route name must not exceed 64 characters."
+        message = qtTrId("route.editor.new.route.window.route.name.must.not.exceed.64.characters");
         break;
     case NameError::InvalidCharacter:
-        message = tr("Use only letters, numbers, spaces, hyphens and underscores.");
+        //% "Use only letters, numbers, spaces, hyphens and underscores."
+        message = qtTrId("route.editor.new.route.window.use.only.letters.numbers.spaces.hyphens.and");
         break;
     case NameError::Reserved:
-        message = tr("This route name is reserved by the operating system.");
+        //% "This route name is reserved by the operating system."
+        message = qtTrId("route.editor.new.route.window.this.route.name.is.reserved.by.the");
         break;
     case NameError::AlreadyExists:
-        message = tr("A route with this name already exists.");
+        //% "A route with this name already exists."
+        message = qtTrId("route.editor.new.route.window.a.route.with.this.name.already.exists");
         break;
     }
     nameStatus->setText(message.isEmpty() ? QStringLiteral(" ") : message);
@@ -597,8 +614,7 @@ void NewRouteWindow::createRoute() {
 void NewRouteWindow::showAssetStatus(const QStringList &errors) {
     if (errors.isEmpty()) return;
     //% "Some geographic presets could not be loaded. Manual coordinates remain available. %1"
-    QString message = tr("Some geographic presets could not be loaded. "
-                         "Manual coordinates remain available. %1")
+    QString message = qtTrId("route.editor.new.route.window.presets.partly.unavailable")
             .arg(errors.join(QStringLiteral("\n")));
     if (assetStatus->isVisible() && !assetStatus->text().isEmpty())
         message = assetStatus->text() + QStringLiteral("\n") + message;

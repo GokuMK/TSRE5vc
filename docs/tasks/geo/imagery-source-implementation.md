@@ -49,6 +49,12 @@ Milestone one was implemented on 2026-09-24:
 - the focused geo suite covers catalogue merging, KVP requests, Web Mercator
   addressing, zoom choice, cache paths and offline cached composition.
 
+On 2026-10-09 the WMTS and static-map tile loop became the public
+`Imagery::fetchTiles`, shared with the map mode's imagery layer
+([imagery-map-layer.md](imagery-map-layer.md)). Requests now run in a sliding
+window instead of waves of four; the composed images and cache files are
+unchanged, and fresh requests got faster (measurements in that document).
+
 The optional overlay PNG save and final terrain texture generation remain
 separate. Load Map now contains only its OSM workflow; catalogue-based raster
 imagery belongs to Load Imagery.
@@ -68,6 +74,13 @@ imagery belongs to Load Imagery.
 ## Existing implementation relevant to the task
 
 ### Overlay sink
+
+Update 2026-10-09: the overlay store is now `TerrainOverlays`
+(`src/tsre/geo/TerrainOverlays`); the Load Map dialog (`MapWindow`) is gone,
+Create from OSM draws without it, and Load Imagery's Apply stores an opaque
+image (the overlay opacity is applied when drawing). See
+[map mode, terrain tile overlays](../editor/04-map-mode.md). The text below is
+the original design.
 
 `MapWindow::mapTileImages` stores one `QImage*` under
 `tileX * 10000 + tileZ`. `Terrain` and `MapLib` already render that image, and

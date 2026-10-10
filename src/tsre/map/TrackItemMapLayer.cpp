@@ -108,11 +108,10 @@ void TrackItemMapLayer::invalidate() {
     valid = false;
 }
 
-void TrackItemMapLayer::buildIndex(Index &index, TDB *database, int databaseKind) {
-    index.built = true;
-    index.items.clear();
+QHash<int, TrackItemMapLayer::ItemPlace> TrackItemMapLayer::itemPlaces(TDB *database) {
+    QHash<int, ItemPlace> places;
     if (database == nullptr || !database->loaded)
-        return;
+        return places;
     // The node of each item, from the nodes' references.
     QHash<int, int> nodeOfItem;
     for (int id = 1; id <= database->iTRnodes; ++id) {
@@ -130,17 +129,39 @@ void TrackItemMapLayer::buildIndex(Index &index, TDB *database, int databaseKind
         TRitem *item = entry.second;
         if (item == nullptr)
             continue;
-        const int kind = kindOfItemType(item->type);
         const auto node = nodeOfItem.constFind(int(item->trItemId));
-        if (kind < 0 || node == nodeOfItem.constEnd())
+        if (node == nodeOfItem.constEnd()
+                || !database->getDrawPositionOnTrNode(out, node.value(), item->getTrackPosition()))
             continue;
-        if (!database->getDrawPositionOnTrNode(out, node.value(), item->getTrackPosition()))
+        ItemPlace place;
+        place.tileX = int(out[5]);
+        place.tileZ = int(out[6]);
+        place.x = out[0];
+        place.z = out[2];
+        places.insert(int(item->trItemId), place);
+    }
+    return places;
+}
+
+void TrackItemMapLayer::buildIndex(Index &index, TDB *database, int databaseKind) {
+    index.built = true;
+    index.items.clear();
+    if (database == nullptr || !database->loaded)
+        return;
+    const QHash<int, ItemPlace> places = itemPlaces(database);
+    for (const auto &entry : database->trackItems) {
+        TRitem *item = entry.second;
+        if (item == nullptr)
+            continue;
+        const int kind = kindOfItemType(item->type);
+        const auto place = places.constFind(int(item->trItemId));
+        if (kind < 0 || place == places.constEnd())
             continue;
         Position position;
-        position.tileX = int(out[5]);
-        position.tileZ = int(out[6]);
-        position.x = out[0];
-        position.z = out[2];
+        position.tileX = place->tileX;
+        position.tileZ = place->tileZ;
+        position.x = place->x;
+        position.z = place->z;
         position.kind = kind;
         position.database = databaseKind;
         position.itemId = item->trItemId;

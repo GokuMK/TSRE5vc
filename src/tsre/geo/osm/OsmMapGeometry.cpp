@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 #include <thread>
 #include <tuple>
@@ -205,6 +206,7 @@ bool MapGeometry::sameStyles(double metersPerPixel) const {
 bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerPixel, const MapProjection &project,
                        const Options &options, QString &error, const std::atomic_bool *cancel) {
     out_ = Output();
+    labels_.clear();
     stats_ = Stats();
     options_ = options;
     loadedMetersPerPixel_ = metersPerPixel;
@@ -267,6 +269,27 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
     if (!ok) return false;
     if (cancelled()) { error = QStringLiteral("cancelled"); return false; }
     stats_.ways = wayJobs.size();
+
+    // Named places and stations: few nodes (the converted files keep tagged nodes only).
+    if (options_.labels) {
+        Filter nodes;
+        nodes.types = Nodes;
+        nodes.keys = {"place", "railway"};
+        if (!store.forEach(area, nodes, [&](const Feature &f) {
+                PointKind kind;
+                if (!pointKind(f.tagCount(), [&](uint32_t i) { return f.tag(i); }, kind)) return;
+                const std::string_view name = f.value("name");
+                if (name.empty()) return;
+                PointLabel label;
+                project(&f.location, 1, &label.x);
+                label.name.assign(name.data(), name.size());
+                label.kind = kind;
+                const std::string population(f.value("population"));
+                label.population = std::strtoll(population.c_str(), nullptr, 10);
+                labels_.push_back(std::move(label));
+            }, error))
+            return false;
+    }
 
     auto t = Clock::now();
     std::vector<MultipolygonResult> polygons;

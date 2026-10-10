@@ -54,9 +54,15 @@ struct Classification {
 
 class FeatureClasses {
 public:
-    bool load(const QString &path, QString &error);
-    // The built-in table (:/osm/osm-map-classes.json), loaded once.
+    // dark: the file's "dark" colours merged over its styles (same classes, ranges
+    // and widths; scripts/osm_dark_palette.py writes them).
+    bool load(const QString &path, QString &error, bool dark = false);
+    // The built-in table (:/osm/osm-map-classes.json), loaded once: light, dark, or
+    // as the map palette (core.interface.routeEditor.mapPalette) names it.
     static const FeatureClasses &standard();
+    static const FeatureClasses &dark();
+    static const FeatureClasses &forPalette(const QString &paletteName);
+    bool isDark() const { return dark_; }
 
     Classification classify(const Feature &f) const;
     template <class TagAt> Classification classify(uint32_t count, TagAt tagAt) const;
@@ -83,6 +89,7 @@ private:
     std::vector<Style> styles_, bridgeStyles_;
     Style default_;
     Rgb background_ = 0;
+    bool dark_ = false;
     std::vector<std::string> skip_;
     std::string bridgePrefix_, tunnelPrefix_, buildingPrefix_;
     uint16_t buildingClass_ = 0;

@@ -68,6 +68,8 @@ void RenderItem::enableTextureId(int id){
 }
 
 unsigned char RenderItem::drawSurface() const{
+    if(material.opacity < 1.0f && material.surface != SURFACE_TERRAIN)
+        return SURFACE_BLENDED;
     if(material.surface != SURFACE_BLENDED || !material.textured || pbr.enabled
             || Game::blendedParts == 0)
         return material.surface;

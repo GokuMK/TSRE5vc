@@ -13,6 +13,7 @@ bool supportsBlocks() { return false; }
 unsigned int createCompressed(int, int, Blocks, const QVector<QByteArray> &) { return 0; }
 void release(unsigned int) {}
 void setSampling(unsigned int, bool, bool) {}
+void updateRegion(unsigned int, int, int, int, int, const QByteArray &) {}
 bool clampedToEdge(unsigned int) { return false; }
 }
 int Game::AASamples = 0;

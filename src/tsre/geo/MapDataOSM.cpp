@@ -10,7 +10,6 @@
 
 #include <tsre/geo/MapDataOSM.h>
 #include <tsre/geo/GeoCoordinates.h>
-#include <tsre/geo/MapWindow.h>
 #include <tsre/geo/osm/OsmClasses.h>
 #include <tsre/geo/osm/OsmConversionUi.h>
 #include <tsre/geo/osm/OsmDirectory.h>
@@ -79,10 +78,18 @@ void MapDataOSM::addItem(Item item) {
     items.push_back(std::move(item));
 }
 
+void MapDataOSM::setClasses(const Osm::FeatureClasses &table) {
+    classes = &table;
+}
+
+const Osm::FeatureClasses &MapDataOSM::styles() const {
+    return classes != nullptr ? *classes : Osm::FeatureClasses::standard();
+}
+
 size_t MapDataOSM::loadFrom(const Osm::OsmStore &store) {
     using namespace Osm;
     items.clear();
-    const FeatureClasses &classes = FeatureClasses::standard();
+    const FeatureClasses &classes = styles();
     const double margin = 0.0005;  // degrees, keeps wide strokes at the tile edge
     const Box area = Box::fromDegrees(minlon - margin, minlat - margin, maxlon + margin, maxlat + margin);
     std::vector<RelationData> relations;
@@ -165,6 +172,7 @@ void MapDataOSM::load() {
     hasData = false;
     apiNodes.clear();
     apiWays.clear();
+    requestFailed = false;
     if (loadLocal()) {
         //% "Load"
         emit statusInfo(qtTrId("map.network.status.load"));
@@ -215,8 +223,12 @@ void MapDataOSM::get(LatitudeLongitudeCoordinate* min, LatitudeLongitudeCoordina
 
 void MapDataOSM::isData(QNetworkReply* r){
     const QByteArray data = r->readAll();
+    const bool networkError = r->error() != QNetworkReply::NoError;
     r->deleteLater();
-    if(data.length() < 100){
+    if(requestFailed)
+        return;
+    if(networkError || data.length() < 100){
+        requestFailed = true;
         //"No data from the network..." label
         //% "No data from the network..."
         emit statusInfo(qtTrId("map.network.status.no.data"));
@@ -225,6 +237,8 @@ void MapDataOSM::isData(QNetworkReply* r){
             //% "Load"
             emit statusInfo(qtTrId("map.network.status.load"));
         });
+        //% "No OSM data could be downloaded for this tile (no local OSM file covers it)."
+        emit failed(qtTrId("map.network.failed"));
         return;
     }
     parseApi(data);
@@ -278,7 +292,7 @@ size_t MapDataOSM::loadFromApiXml(const QList<QByteArray> &responses){
 
 void MapDataOSM::buildApiItems(){
     using namespace Osm;
-    const FeatureClasses &classes = FeatureClasses::standard();
+    const FeatureClasses &classes = styles();
     std::vector<int64_t> ids;
     for (const auto &w : apiWays) ids.push_back(w.first);
     std::sort(ids.begin(), ids.end());
@@ -353,9 +367,8 @@ void MapDataOSM::paint(QPainter &painter, const QRectF &unitArea) const {
 
 bool MapDataOSM::draw(QImage* myImage) {
     if (!hasData) return false;
-    const QColor background = QColor::fromRgba(Osm::FeatureClasses::standard().background());
+    const QColor background = QColor::fromRgba(styles().background());
     const double scale = myImage->height() / level;  // pixels per tile unit, as in the legacy drawing
-    const double opacity = (255.0 - MapWindow::isAlpha) / 255.0;
     const int w = myImage->width(), h = myImage->height(), hw = w / 2, hh = h / 2;
     const QRect quadrants[4] = {QRect(0, 0, hw, hh), QRect(hw, 0, w - hw, hh), QRect(0, hh, hw, h - hh), QRect(hw, hh, w - hw, h - hh)};
     const int bytesPerPixel = myImage->depth() / 8;
@@ -368,7 +381,6 @@ bool MapDataOSM::draw(QImage* myImage) {
         QImage part(bits + q.y() * bytesPerLine + q.x() * bytesPerPixel, q.width(), q.height(), bytesPerLine, format);
         QPainter painter(&part);
         painter.setRenderHint(QPainter::Antialiasing, false);
-        painter.setOpacity(opacity);
         painter.fillRect(part.rect(), background);
         painter.translate(-q.x(), -q.y());
         painter.scale(scale, scale);

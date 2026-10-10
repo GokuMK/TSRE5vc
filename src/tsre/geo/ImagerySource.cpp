@@ -6,6 +6,7 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
@@ -23,7 +24,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <deque>
 #include <limits>
+#include <memory>
 
 namespace Imagery {
 namespace {
@@ -202,6 +205,168 @@ bool decodeImage(const QByteArray &bytes, int width, int height,
     }
     image=image.convertToFormat(QImage::Format_RGB888);
     return true;
+}
+
+struct ImageJob { int index = 0; QUrl url; QString path; };
+
+// Images of one tile size, from the persistent cache (path) or the service (url),
+// with up to `parallel` requests in flight: a request starts as soon as another
+// ends. nextJob is asked for work whenever a request slot is free, and every 50 ms
+// while requests run or keepWaiting holds; done gets each image (or its error) on
+// this thread. Failed requests are tried DownloadAttempts times with a backoff.
+void fetchImages(const Dataset &dataset, int parallel, std::atomic_bool &cancel,
+                 const std::function<bool(ImageJob &)> &nextJob,
+                 const std::function<void(const ImageJob &, TileFetch &&)> &done,
+                 const std::function<bool()> &keepWaiting,
+                 const QString &queryParameter, const QString &queryValue) {
+    struct Running {
+        ImageJob job;
+        int attempt = 0;
+        QNetworkReply *reply = nullptr;
+        QTimer *deadline = nullptr;
+        QByteArray bytes;
+        bool tooLarge = false, timedOut = false, finished = false;
+    };
+    struct Retry { ImageJob job; int attempt = 0; qint64 due = 0; };
+    QNetworkAccessManager network;
+    QEventLoop loop;
+    QElapsedTimer clock;
+    clock.start();
+    std::vector<std::unique_ptr<Running>> running;
+    // Finished requests, kept until the end: a reply's handlers may still name them.
+    std::vector<std::unique_ptr<Running>> ended;
+    std::deque<Retry> retries;
+    parallel = std::max(1, parallel);
+    const auto idle = [&] {
+        return running.empty() && retries.empty() && (!keepWaiting || cancel || !keepWaiting());
+    };
+    std::function<void()> fill;
+    const auto finish = [&](Running *item) {
+        if (item->finished) return;
+        item->finished = true;
+        item->deadline->stop();
+        QNetworkReply *reply = item->reply;
+        item->bytes += reply->readAll();
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        QString error;
+        if (item->tooLarge || item->bytes.size() > MaxTileBytes)
+            error = QStringLiteral("Imagery response exceeds %1 bytes").arg(MaxTileBytes);
+        else if (item->timedOut) error = QStringLiteral("Imagery request timed out");
+        else if (reply->error() != QNetworkReply::NoError || status != 200)
+            error = queryParameter.isEmpty()
+                ? QStringLiteral("Imagery request failed (HTTP %1): %2").arg(status).arg(reply->errorString())
+                : QStringLiteral("Imagery request failed (HTTP %1, network error %2)")
+                      .arg(status).arg(int(reply->error()));
+        const ImageJob job = item->job;
+        const int attempt = item->attempt;
+        QByteArray bytes = std::move(item->bytes);
+        reply->deleteLater();
+        const auto found = std::find_if(running.begin(), running.end(),
+                                        [item](const auto &r) { return r.get() == item; });
+        ended.push_back(std::move(*found));
+        running.erase(found);
+        if (!cancel) {
+            TileFetch fetched;
+            if (!error.isEmpty() && attempt + 1 < DownloadAttempts) {
+                retries.push_back({job, attempt + 1, clock.elapsed() + 250 * (qint64(1) << attempt)});
+            } else if (!error.isEmpty()) {
+                fetched.error = error + QStringLiteral(" (after %1 attempts)").arg(DownloadAttempts);
+                done(job, std::move(fetched));
+            } else if (validImage(bytes, dataset, fetched.image, fetched.error)) {
+                if (dataset.persistentCache && !job.path.isEmpty()) {
+                    QDir().mkpath(QFileInfo(job.path).absolutePath());
+                    QSaveFile file(job.path);
+                    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
+                        fetched.issue = QStringLiteral("Cannot write imagery cache tile %1")
+                                            .arg(QDir::toNativeSeparators(job.path));
+                }
+                fetched.downloadedBytes = bytes.size();
+                done(job, std::move(fetched));
+            } else {
+                done(job, std::move(fetched));
+            }
+        }
+        fill();
+    };
+    const auto start = [&](const ImageJob &job, int attempt) {
+        QUrl url = job.url;
+        if (!queryParameter.isEmpty()) {
+            QUrlQuery query(url);
+            query.addQueryItem(queryParameter, queryValue);
+            url.setQuery(query);
+        }
+        QNetworkRequest request(url);
+        request.setRawHeader("User-Agent", "TSRE5vc terrain imagery");
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                             QNetworkRequest::NoLessSafeRedirectPolicy);
+        request.setTransferTimeout(30000);
+        auto item = std::make_unique<Running>();
+        Running *r = item.get();
+        r->job = job;
+        r->attempt = attempt;
+        r->reply = network.get(request);
+        r->reply->setReadBufferSize(1024 * 1024);
+        r->deadline = new QTimer(r->reply);
+        r->deadline->setSingleShot(true);
+        running.push_back(std::move(item));
+        QObject::connect(r->deadline, &QTimer::timeout, &loop, [r] {
+            r->timedOut = true;
+            r->reply->abort();
+        });
+        QObject::connect(r->reply, &QNetworkReply::readyRead, &loop, [r] {
+            r->bytes += r->reply->readAll();
+            if (r->bytes.size() > MaxTileBytes) {
+                r->tooLarge = true;
+                r->reply->abort();
+            }
+        });
+        QObject::connect(r->reply, &QNetworkReply::finished, &loop, [&finish, r] { finish(r); });
+        r->deadline->start(45000);
+        if (r->reply->isFinished()) QTimer::singleShot(0, &loop, [&finish, r] { finish(r); });
+    };
+    fill = [&] {
+        while (!cancel && int(running.size()) < parallel) {
+            const auto due = std::find_if(retries.begin(), retries.end(),
+                                          [&](const Retry &r) { return r.due <= clock.elapsed(); });
+            if (due != retries.end()) {
+                const Retry retry = *due;
+                retries.erase(due);
+                start(retry.job, retry.attempt);
+                continue;
+            }
+            ImageJob job;
+            if (!nextJob(job)) break;
+            if (dataset.persistentCache && !job.path.isEmpty() && isFresh(QFileInfo(job.path), dataset)) {
+                QFile file(job.path);
+                QByteArray bytes;
+                if (file.open(QIODevice::ReadOnly)) bytes = file.readAll();
+                file.close();
+                TileFetch fetched;
+                if (validImage(bytes, dataset, fetched.image, fetched.error)) {
+                    fetched.cached = true;
+                    done(job, std::move(fetched));
+                    continue;
+                }
+                QFile::remove(job.path);
+            }
+            start(job, 0);
+        }
+        if (idle() && loop.isRunning()) loop.quit();
+    };
+    QTimer tick;
+    QObject::connect(&tick, &QTimer::timeout, &loop, [&] {
+        if (cancel) {
+            retries.clear();
+            for (const auto &r : running)
+                if (!r->reply->isFinished()) r->reply->abort();
+        }
+        fill();
+    });
+    tick.start(50);
+    fill();
+    if (!idle()) loop.exec();
+    // Cancelled: the aborted replies end here, before the manager goes.
+    for (const auto &r : running) r->reply->disconnect();
 }
 
 bool compose(const QImage &source, const QVector<QPointF> &sourcePoints,
@@ -722,6 +887,27 @@ QString cacheRelativePath(const Dataset &dataset, TileAddress tile) {
         .arg(tile.zoom).arg(tile.column).arg(tile.row).arg(extension);
 }
 
+void fetchTiles(const Dataset &dataset, const QString &root, int parallel,
+                std::atomic_bool &cancel,
+                const std::function<bool(TileAddress &tile)> &next,
+                const std::function<void(TileFetch &&tile)> &done,
+                const std::function<bool()> &keepWaiting, const QString &apiKey) {
+    const QDir directory(root);
+    std::vector<TileAddress> addresses;
+    fetchImages(dataset, parallel, cancel, [&](ImageJob &job) {
+        TileAddress tile;
+        if (!next(tile)) return false;
+        job.index = int(addresses.size());
+        addresses.push_back(tile);
+        job.url = tileUrl(dataset, tile);
+        job.path = root.isEmpty() ? QString() : directory.filePath(cacheRelativePath(dataset, tile));
+        return true;
+    }, [&](const ImageJob &job, TileFetch &&fetched) {
+        fetched.tile = addresses[size_t(job.index)];
+        done(std::move(fetched));
+    }, keepWaiting, dataset.apiKeyParameter, apiKey);
+}
+
 Result generate(const Request &request, std::atomic_bool &cancel,
                 const Progress &progress) {
     Result result;
@@ -1003,7 +1189,6 @@ Result generate(const Request &request, std::atomic_bool &cancel,
     if (mosaic.isNull()) { result.error=QStringLiteral("Cannot allocate imagery mosaic"); return result; }
     mosaic.fill(Qt::black);
     QPainter painter(&mosaic);
-    QVector<LocalTile> missing;
     const QDir root(request.root);
     const auto staticUrlForCell=[&](int column,int row){
         const double centreX=(column+.5)*dataset->tilePixels;
@@ -1012,87 +1197,55 @@ Result generate(const Request &request, std::atomic_bool &cancel,
                             webMercatorGeographic(centreX,centreY,result.report.zoom),
                             result.report.zoom);
     };
-    for (int row=minRow;row<=maxRow;++row) for (int column=minColumn;column<=maxColumn;++column) {
-        const int normalized=staticMap?column:(column%matrixTiles+matrixTiles)%matrixTiles;
-        const TileAddress address{result.report.zoom,normalized,row};
-        const QString path=root.filePath(staticMap
-            ?imageCacheRelativePath(*dataset,staticUrlForCell(column,row))
-            :cacheRelativePath(*dataset,address));
-        QFileInfo file(path);
-        QImage image;
-        QString imageError;
-        if (dataset->persistentCache&&isFresh(file,*dataset)) {
-            QFile cached(path);
-            QByteArray bytes;
-            if (cached.open(QIODevice::ReadOnly)) bytes=cached.readAll();
-            if (validImage(bytes,*dataset,image,imageError)) {
-                painter.drawImage((column-minColumn)*dataset->tilePixels,
-                                  (row-minRow)*dataset->tilePixels,image);
-                ++result.report.cacheHits;
-                continue;
-            }
-            QFile::remove(path);
-        }
-        missing.push_back({column,row,normalized});
-    }
-    int completed=0;
-    bool requiredTileMissing=false;
+    QVector<LocalTile> cells;
+    for (int row=minRow;row<=maxRow;++row) for (int column=minColumn;column<=maxColumn;++column)
+        cells.push_back({column,row,staticMap?column:(column%matrixTiles+matrixTiles)%matrixTiles});
+    const auto cellJob=[&](int index){
+        const LocalTile &tile=cells[index];
+        const TileAddress address{result.report.zoom,tile.normalizedColumn,tile.row};
+        ImageJob job;
+        job.index=index;
+        job.url=staticMap?staticUrlForCell(tile.column,tile.row):tileUrl(*dataset,address);
+        job.path=root.filePath(staticMap?imageCacheRelativePath(*dataset,job.url)
+                                        :cacheRelativePath(*dataset,address));
+        return job;
+    };
+    // The key is needed only when a tile must be downloaded.
+    bool anyMissing=false;
+    for (int i=0;i<cells.size() && !anyMissing;++i)
+        anyMissing=!dataset->persistentCache||!isFresh(QFileInfo(cellJob(i).path),*dataset);
     const QString apiKey=request.secrets.value(dataset->apiKeySecret);
-    if(!missing.isEmpty()&&!dataset->apiKeySecret.isEmpty()
+    if(anyMissing&&!dataset->apiKeySecret.isEmpty()
             &&(apiKey.isEmpty()||apiKey.contains('\r')||apiKey.contains('\n'))){
         result.error=QStringLiteral("Missing or invalid imagery API key: %1 in profile-local secrets.json")
             .arg(dataset->apiKeySecret);
         return result;
     }
-    for (int offset=0;offset<missing.size() && !cancel;offset+=4) {
-        const int count=std::min(4,int(missing.size())-offset);
-        QVector<QUrl> urls;
-        for (int i=0;i<count;++i) {
-            const auto tile=missing[offset+i];
-            urls.push_back(staticMap?staticUrlForCell(tile.column,tile.row)
-                :tileUrl(*dataset,{result.report.zoom,tile.normalizedColumn,tile.row}));
-        }
-        const auto downloads=downloadWaveWithRetries(urls,cancel,[&] {
-            ++completed;
-            if (progress) progress(completed,missing.size(),QStringLiteral("Downloading imagery tiles"));
-        },dataset->apiKeyParameter,apiKey);
-        for (int i=0;i<count;++i) {
-            const auto tile=missing[offset+i];
-            if (!downloads[i].error.isEmpty()) {
-                requiredTileMissing=true;
-                result.report.issues << QStringLiteral("Tile %1/%2/%3: %4")
-                    .arg(result.report.zoom).arg(tile.normalizedColumn).arg(tile.row)
-                    .arg(downloads[i].error);
-                continue;
-            }
-            QImage image;
-            QString imageError;
-            if (!validImage(downloads[i].bytes,*dataset,image,imageError)) {
-                requiredTileMissing=true;
-                result.report.issues << QStringLiteral("Tile %1/%2/%3: %4")
-                    .arg(result.report.zoom).arg(tile.normalizedColumn).arg(tile.row).arg(imageError);
-                continue;
-            }
-            const TileAddress address{result.report.zoom,tile.normalizedColumn,tile.row};
-            const QString path=root.filePath(staticMap
-                ?imageCacheRelativePath(*dataset,urls[i])
-                :cacheRelativePath(*dataset,address));
-            if(dataset->persistentCache){
-                QDir().mkpath(QFileInfo(path).absolutePath());
-                QSaveFile output(path);
-                if (!output.open(QIODevice::WriteOnly)
-                        || output.write(downloads[i].bytes)!=downloads[i].bytes.size()
-                        || !output.commit()) {
-                    result.report.issues << QStringLiteral("Cannot write imagery cache tile %1")
-                        .arg(QDir::toNativeSeparators(path));
-                }
-            }
+    int nextCell=0,completed=0;
+    bool requiredTileMissing=false;
+    fetchImages(*dataset,4,cancel,[&](ImageJob &job){
+        if (nextCell>=cells.size()) return false;
+        job=cellJob(nextCell++);
+        return true;
+    },[&](const ImageJob &job,TileFetch &&fetched){
+        const LocalTile &tile=cells[job.index];
+        if (!fetched.issue.isEmpty()) result.report.issues << fetched.issue;
+        if (!fetched.error.isEmpty()) {
+            requiredTileMissing=true;
+            result.report.issues << QStringLiteral("Tile %1/%2/%3: %4")
+                .arg(result.report.zoom).arg(tile.normalizedColumn).arg(tile.row).arg(fetched.error);
+        } else {
             painter.drawImage((tile.column-minColumn)*dataset->tilePixels,
-                              (tile.row-minRow)*dataset->tilePixels,image);
-            ++result.report.downloads;
-            result.report.downloadedBytes += downloads[i].bytes.size();
+                              (tile.row-minRow)*dataset->tilePixels,fetched.image);
+            if (fetched.cached) ++result.report.cacheHits;
+            else {
+                ++result.report.downloads;
+                result.report.downloadedBytes += fetched.downloadedBytes;
+            }
         }
-    }
+        ++completed;
+        if (progress) progress(completed,cells.size(),QStringLiteral("Downloading imagery tiles"));
+    },{},dataset->apiKeyParameter,apiKey);
     painter.end();
     if (cancel) { result.cancelled=true; return result; }
     if (requiredTileMissing) {

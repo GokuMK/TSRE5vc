@@ -252,6 +252,7 @@ public:
     void getFloorBorderLinePoints(float *&punkty) override;
     bool isSnapable() const override;
     void addSnapablePoints(QVector<float> &out) override;
+    bool matrixByName(const QString &name, float *out) const override;
     void reload() override;
     unsigned int newState() override;
     void setAnimated(unsigned int stateId, bool animated) override;

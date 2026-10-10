@@ -24,6 +24,7 @@ class ActivityTools;
 class NaviBox;
 class AboutWindow;
 class NaviWindow;
+class EnvironmentWindow;
 class ShapeViewWindow;
 class PropertiesAbstract;
 class PropertiesGroup;
@@ -63,6 +64,7 @@ public slots:
     void hideShowToolWidget(bool show);
     void hideShowPropertiesWidget(bool show);
     void hideShowNaviWidget(bool);
+    void hideShowEnvironmentWidget(bool);
     void hideShowShapeViewWidget(bool);
     void hideShowErrorMsgWidget(bool);
     void viewWorldGrid(bool show);
@@ -85,6 +87,7 @@ public slots:
     void showTerrainTreeEditr();
     void showWorldObjPivotPointsEnabled(bool show);
     void naviWindowClosed();
+    void environmentWindowClosed();
     void errorMessagesWindowClosed();
     void shapeVeiwWindowClosed();
     void viewUnselectAll();
@@ -123,6 +126,7 @@ private:
     QMenu *editMenu;
     QMenu *viewMenu;
     QMenu *helpMenu;
+    QMenu *windowMenu;
     QMenu *toolsMenu;
     QMenu *settingsMenu;
     
@@ -142,6 +146,7 @@ private:
     QAction *settingsEditorAction;
     QAction *propertiesAction;
     QAction *naviAction;
+    QAction *environmentAction;
     QAction *shapeViewAction;
     QAction *errorViewAction;
     QAction *toolsAction;
@@ -168,6 +173,7 @@ private:
     
     AboutWindow* aboutWindow;
     NaviWindow* naviWindow;
+    EnvironmentWindow* environmentWindow;
     ErrorMessagesWindow* errorMessagesWindow;
     ClientUsersWindow* clientUsersWindow;
     SettingsDialog* settingsDialog = nullptr;

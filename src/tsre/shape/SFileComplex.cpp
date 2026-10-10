@@ -774,6 +774,20 @@ void SFileComplex::fillMatrices(int lodIndex, bool animated, float frame,
             matrices[i] = matrices[parent] * m;
     }
 }
+bool SFileComplex::matrixByName(const QString &name, float *out) const {
+    if (!d->loaded || d->lods.empty())
+        return false;
+    for (size_t i = 0; i < d->matrices.size(); ++i)
+        if (d->matrices[i].name.compare(name, Qt::CaseInsensitive) == 0) {
+            std::vector<QMatrix4x4> matrices;
+            fillMatrices(0, false, 0.0f, matrices);
+            if (i >= matrices.size())
+                return false;
+            std::copy(matrices[i].constData(), matrices[i].constData() + 16, out);
+            return true;
+        }
+    return false;
+}
 bool SFileComplex::getBoxPoints(QVector<float> &out) {
     if (!d->loaded)
         return false;

@@ -99,10 +99,12 @@ QString sourceInformation(const Elevation::Dataset &dataset,const QString &root)
             .arg(qtTrId("geo.elevation.info.license").toHtmlEscaped(),escaped(dataset.license));
     }
     if(dataset.fileGrid=="directory") {
+        // One statement per text: lupdate takes a //% text only right before its call.
+        //% "Mode"
+        const QString mode = qtTrId("geo.elevation.info.mode");
         //% "User-managed files"
-        html+=QStringLiteral("<b>%1:</b> %2<br>")
-            .arg(qtTrId("geo.elevation.info.mode").toHtmlEscaped(),
-                 qtTrId("geo.elevation.info.manual").toHtmlEscaped());
+        const QString manual = qtTrId("geo.elevation.info.manual");
+        html+=QStringLiteral("<b>%1:</b> %2<br>").arg(mode.toHtmlEscaped(), manual.toHtmlEscaped());
         //% "Local directory"
         html+=QStringLiteral("<b>%1:</b> %2<br>")
             .arg(qtTrId("geo.elevation.info.directory").toHtmlEscaped(),
@@ -465,14 +467,17 @@ void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tiles)
             if (Elevation::findHgtFile(root,*fileSource,lat,lon).isEmpty()) missing.insert(Elevation::hgtFileName(lat,lon));
     }
     QStringList names = missing.values(); names.sort();
-    QString message = selected == fileSource->id
-        //% "Elevation file-source check"
-        ? qtTrId("geo.elevation.hgt.check")
-        //% "Fallback file-source check. Elevation data is prepared when terrain is loaded."
-        : qtTrId("geo.elevation.hgt.fallback.check");
+    // One statement per text: lupdate takes a //% text only right before its call.
+    //% "Elevation file-source check"
+    const QString check = qtTrId("geo.elevation.hgt.check");
+    //% "Fallback file-source check. Elevation data is prepared when terrain is loaded."
+    const QString fallbackCheck = qtTrId("geo.elevation.hgt.fallback.check");
     //% "\nAll checked elevation files are present."
-    message += names.isEmpty() ? qtTrId("geo.elevation.hgt.present") : //% "\nMissing local elevation files (downloaded automatically when supported):\n%1"
-        qtTrId("geo.elevation.hgt.missing").arg(names.join('\n'));
+    const QString allPresent = qtTrId("geo.elevation.hgt.present");
+    //% "\nMissing local elevation files (downloaded automatically when supported):\n%1"
+    const QString missingFiles = qtTrId("geo.elevation.hgt.missing");
+    QString message = selected == fileSource->id ? check : fallbackCheck;
+    message += names.isEmpty() ? allPresent : missingFiles.arg(names.join('\n'));
     //% "Elevation data"
     QMessageBox::information(nullptr,qtTrId("geo.elevation.data.title"),message);
 }

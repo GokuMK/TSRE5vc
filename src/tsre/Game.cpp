@@ -121,9 +121,9 @@ bool Game::textureLoaderThreaded = true;
 int Game::shadowMapSize = 2048;
 int Game::shadowLowMapSize = 1024;
 int Game::shadowsEnabled = 1;
-QString Game::renderBackend = "opengl";
+QString Game::renderBackend = "qrhi";
 QString Game::rhiApi = "auto";
-bool Game::environmentMapEnabled = false;
+bool Game::environmentMapEnabled = true;
 int Game::blendedParts = 1;
 QString Game::mapPalette = "light";
 int Game::environmentMapSize = 256;
@@ -136,8 +136,8 @@ bool Game::localLightsEnabled = true;
 int Game::ambientOcclusionQuality = 0;
 int Game::toneMapping = 0;
 float Game::exposure = 0.0f;
-float Game::bloomStrength = 4.0f;
-bool Game::timeOfDayEnabled = false;
+float Game::bloomStrength = 3.0f;
+bool Game::timeOfDayEnabled = true;
 float Game::timeOfDayHours = 12.0f;
 QString Game::timeOfDayDate = "2026-06-21";
 float Game::localLightsExposure = 1.0f;
@@ -370,6 +370,10 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.environmentMap.preview", environmentMapPreview);
     boolean("core.rendering.water.shaded", waterShaded);
     boolean("core.rendering.water.reflection", waterReflection);
+    // Read by the renderers and WaterWaves each frame (task renderer 18).
+    claim("core.rendering.water.depth", SettingType::Bool);
+    claim("core.rendering.water.windSpeed", SettingType::Float);
+    claim("core.rendering.water.windDirection", SettingType::Float);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);
     claim("core.rendering.ambientOcclusion", SettingType::Enum);
     if (appliesNow("core.rendering.ambientOcclusion"))
@@ -382,6 +386,10 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.timeOfDay.enabled", timeOfDayEnabled);
     floating("core.rendering.timeOfDay.time", timeOfDayHours);
     string("core.rendering.timeOfDay.date", timeOfDayDate, SettingType::String);
+    // Read by SkySatellites each frame (task editor 05).
+    claim("core.rendering.sky.sun", SettingType::Bool);
+    claim("core.rendering.sky.moon", SettingType::Bool);
+    claim("core.rendering.sky.sunSize", SettingType::Float);
     floating("core.rendering.localLights.exposure", localLightsExposure);
     floating("core.rendering.localLights.emissiveGain", localLightsEmissiveGain);
     integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);

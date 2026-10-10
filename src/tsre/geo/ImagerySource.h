@@ -70,6 +70,30 @@ int chooseZoom(const Dataset &dataset, double latitude,
 QPointF webMercatorPixel(GeographicPoint point, int zoom, int tilePixels = 256);
 QString cacheRelativePath(const Dataset &dataset, TileAddress tile);
 
+// A tile of a Web Mercator tile source (wmts-kvp-webmercator), ready or failed.
+struct TileFetch {
+    TileAddress tile;
+    QImage image;           // RGB888, tilePixels square; null on error
+    QString error;
+    QString issue;          // a problem that did not stop the tile (cache not written)
+    bool cached = false;
+    qint64 downloadedBytes = 0;
+};
+
+// Tiles of a Web Mercator tile source, as Load Imagery fetches them: from its
+// persistent cache under root, else the service, with up to `parallel` requests in
+// flight and retries. next is asked for a tile whenever a request slot is free, and
+// every 50 ms while requests run or keepWaiting holds; done gets each tile on the
+// calling thread. Returns once next has nothing, no request runs and keepWaiting
+// (when given) is false, or soon after cancel is set. Blocking, with its own event
+// loop: call it on a worker thread (a QThread).
+void fetchTiles(const Dataset &dataset, const QString &root, int parallel,
+                std::atomic_bool &cancel,
+                const std::function<bool(TileAddress &tile)> &next,
+                const std::function<void(TileFetch &&tile)> &done,
+                const std::function<bool()> &keepWaiting = {},
+                const QString &apiKey = {});
+
 using Progress = std::function<void(int done, int total, const QString &message)>;
 
 struct Request {

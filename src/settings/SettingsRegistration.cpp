@@ -362,9 +362,9 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Frame-rate limit"
                 QT_TRID_NOOP("settings.core.system.fps.limit.name")).withDescriptionId(
-                //% "Set the Route Editor render timer interval to 1000 divided by this value. Zero uses the built-in 15 ms interval (about 67 updates per second)."
+                //% "The most frames per second the Route Editor draws, for example 30 or 60. 0: the default, about 67."
                 QT_TRID_NOOP("settings.core.system.fps.limit.description")).withRange(0, 1000, 1).withUnit("fps").inGroup("rendering").inSubgroup("performance"),
-        "fpsLimit", "Game::fpsLimit", "RouteEditorGLWidget", false, "startup");
+        "fpsLimit", "Game::fpsLimit", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.system.soundEnabled", false)
             .withNameId(
                 //% "Enable route sounds"
@@ -719,17 +719,17 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "On GPU / Experimental"
                 QT_TRID_NOOP("settings.core.rendering.terrain.mesh.option.paged")}})).inGroup("rendering").inSubgroup("pipeline").applies("routeReload").asAdvanced(),
         "terrainMesh", "Game::terrainMeshMode", "Terrain renderer", true, "route-reload");
-    ADD(SettingsDefinition::string("core.rendering.backend", "opengl", SettingType::Enum)
+    ADD(SettingsDefinition::string("core.rendering.backend", "qrhi", SettingType::Enum)
             .withNameId(
                 //% "Renderer"
                 QT_TRID_NOOP("settings.core.rendering.backend.name")).withDescriptionId(
-                //% "The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart."
-                QT_TRID_NOOP("settings.core.rendering.backend.description"))
+                //% "The QRhi renderer (Vulkan, with glow, local lights and tone mapping), or the OpenGL renderer. Where Vulkan is not available the QRhi renderer falls back to the OpenGL renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.backend.description.qrhi.default"))
             .withOptions(choices({{"opengl",
                 //% "OpenGL"
                 QT_TRID_NOOP("settings.core.rendering.backend.option.opengl")}, {"qrhi",
-                //% "QRhi / Experimental"
-                QT_TRID_NOOP("settings.core.rendering.backend.option.qrhi")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
+                //% "QRhi (Vulkan)"
+                QT_TRID_NOOP("settings.core.rendering.backend.option.qrhi.vulkan")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "renderBackend", "Game::renderBackend", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::string("core.rendering.rhiApi", "auto", SettingType::Enum)
             .withNameId(
@@ -853,7 +853,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Also alpha-tested when the texture alpha is on/off"
                 QT_TRID_NOOP("settings.core.rendering.blended.parts.option.2")}})).inGroup("rendering").inSubgroup("pipeline"),
         "blendedParts", "Game::blendedParts", "RenderItem::drawSurface", true, "hot-cache");
-    ADD(SettingsDefinition::boolean("core.rendering.environmentMap.enabled", false)
+    ADD(SettingsDefinition::boolean("core.rendering.environmentMap.enabled", true)
             .withNameId(
                 //% "Render environment map"
                 QT_TRID_NOOP("settings.core.rendering.environment.map.enabled.name")).withDescriptionId(
@@ -916,6 +916,27 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only."
                 QT_TRID_NOOP("settings.core.rendering.water.reflection.description")).inGroup("rendering").inSubgroup("water"),
         "waterReflection", "Game::waterReflection", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.water.depth", true)
+            .withNameId(
+                //% "See into shallow water"
+                QT_TRID_NOOP("settings.core.rendering.water.depth.name")).withDescriptionId(
+                //% "Shaded water shows the ground under it where it is shallow, bent by the waves, and turns to the route's water colour with depth; shores blend into the water. Uses a copy of the frame drawn before the water."
+                QT_TRID_NOOP("settings.core.rendering.water.depth.description")).inGroup("rendering").inSubgroup("water"),
+        "", "", "Renderer", false, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.water.windSpeed", 3.0)
+            .withNameId(
+                //% "Wind speed"
+                QT_TRID_NOOP("settings.core.rendering.water.wind.speed.name")).withDescriptionId(
+                //% "Wind over shaded water, which makes its waves: 0 leaves only small ripples, 3 is a light breeze, 10 a strong wind."
+                QT_TRID_NOOP("settings.core.rendering.water.wind.speed.description")).withRange(0, 20, 0.5).withUnit("m/s").inGroup("rendering").inSubgroup("water"),
+        "", "", "WaterWaves", false, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.water.windDirection", 45.0)
+            .withNameId(
+                //% "Wind direction"
+                QT_TRID_NOOP("settings.core.rendering.water.wind.direction.name")).withDescriptionId(
+                //% "The way the wind blows, in degrees from north towards east: 0 to the north, 90 to the east. Waves run mostly with the wind."
+                QT_TRID_NOOP("settings.core.rendering.water.wind.direction.description")).withRange(0, 360, 5).withUnit("°").inGroup("rendering").inSubgroup("water"),
+        "", "", "WaterWaves", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.localLights.enabled", true)
             .withNameId(
                 //% "Local lights"
@@ -962,7 +983,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer."
                 QT_TRID_NOOP("settings.core.rendering.exposure.description")).withRange(-4, 4, 0.25).withUnit("EV").inGroup("rendering").inSubgroup("image"),
         "exposure", "Game::exposure", "RouteEditorGLWidget", true, "hot-cache");
-    ADD(SettingsDefinition::floating("core.rendering.bloom", 4.0)
+    ADD(SettingsDefinition::floating("core.rendering.bloom", 3.0)
             .withNameId(
                 //% "Glow (bloom)"
                 QT_TRID_NOOP("settings.core.rendering.bloom.name")).withDescriptionId(
@@ -996,22 +1017,22 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.core.rendering.fog.density.name")).withDescriptionId(
                 //% "Fog density copied into each OpenGL scene helper when it is constructed."
                 QT_TRID_NOOP("settings.core.rendering.fog.density.description")).withRange(0, 1, 0.01).inGroup("rendering").inSubgroup("environment"),
-        "fogDensity", "Game::fogDensity", "GLUU", false, "renderer-construction");
+        "fogDensity", "Game::fogDensity", "GLUU", true, "hot-cache");
     ADD(SettingsDefinition::string("core.rendering.fogColor", "#E6F8FF", SettingType::Color)
             .withNameId(
                 //% "Fog colour"
                 QT_TRID_NOOP("settings.core.rendering.fog.color.name")).withDescriptionId(
                 //% "Colour used for distance fog and copied into the scene renderer."
                 QT_TRID_NOOP("settings.core.rendering.fog.color.description")).inGroup("rendering").inSubgroup("environment"),
-        "fogColor", "Game::fogColor", "GLUU", false, "renderer-construction");
+        "fogColor", "Game::fogColor", "GLUU", true, "hot-cache");
     ADD(SettingsDefinition::string("core.rendering.skyColor", "#E6F8FF", SettingType::Color)
             .withNameId(
                 //% "Sky colour"
                 QT_TRID_NOOP("settings.core.rendering.sky.color.name")).withDescriptionId(
                 //% "Base clear colour copied into the scene renderer."
                 QT_TRID_NOOP("settings.core.rendering.sky.color.description")).inGroup("rendering").inSubgroup("environment"),
-        "skyColor", "Game::skyColor", "GLUU", false, "renderer-construction");
-    ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.enabled", false)
+        "skyColor", "Game::skyColor", "GLUU", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.enabled", true)
             .withNameId(
                 //% "Time of day"
                 QT_TRID_NOOP("settings.core.rendering.time.of.day.enabled.name")).withDescriptionId(
@@ -1032,6 +1053,27 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Date for the sun's path, as yyyy-MM-dd."
                 QT_TRID_NOOP("settings.core.rendering.time.of.day.date.description")).inGroup("rendering").inSubgroup("environment"),
         "timeOfDayDate", "Game::timeOfDayDate", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.sky.sun", true)
+            .withNameId(
+                //% "Sun on the sky"
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.name")).withDescriptionId(
+                //% "Draw the sun as a disc on the sky, where time of day puts it (or where the editor's fixed light comes from when time of day is off)."
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.description")).inGroup("rendering").inSubgroup("environment"),
+        "", "", "SkySatellites", false, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.sky.moon", true)
+            .withNameId(
+                //% "Moon on the sky"
+                QT_TRID_NOOP("settings.core.rendering.sky.moon.name")).withDescriptionId(
+                //% "Draw the moon on the sky, at its place and phase for the time and date of time of day. Only with time of day on."
+                QT_TRID_NOOP("settings.core.rendering.sky.moon.description")).inGroup("rendering").inSubgroup("environment"),
+        "", "", "SkySatellites", false, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.sky.sunSize", 1.2)
+            .withNameId(
+                //% "Sun and moon size"
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.size.name")).withDescriptionId(
+                //% "Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger."
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.size.description")).withRange(0.2, 5, 0.1).withUnit("°").inGroup("rendering").inSubgroup("environment"),
+        "", "", "SkySatellites", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
                 //% "Render TrackDB items"

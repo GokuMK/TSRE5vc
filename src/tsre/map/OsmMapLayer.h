@@ -14,6 +14,7 @@
 #include <QString>
 #include <functional>
 #include <tsre/geo/osm/OsmTypes.h>
+#include "MapLabelLayer.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -53,13 +54,18 @@ public:
     void setReadyCallback(std::function<void()> callback);
     // Draws what is built and asks for a new build when the view needs one. directory is
     // the OSM directory setting; transparentAreas draws fills at the palette's
-    // osmAreaAlpha.
+    // osmAreaAlpha. The dark palette draws the dark styles; switching palettes loads
+    // again.
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
                          const QString &directory, bool transparentAreas);
     // Loads again on the next draw (the directory's files changed).
     void invalidate();
     // A build is running or waiting.
     bool busy() const;
+    // Named places and railway stations of the drawn data, for the map's labels; the
+    // version changes with them.
+    const std::vector<MapLabel> &labels() const;
+    uint64_t labelsVersion() const;
 
     // The ground position (metres, relative to a tile in the editor's convention) of a
     // latitude and longitude, and back, through a route's converter.
@@ -80,7 +86,7 @@ private:
     class Worker;
     struct Drawn;
     void apply(Result &result, const MapPalette &palette, bool transparentAreas);
-    void request(const MapView &view, const QString &directory);
+    void request(const MapView &view, const QString &directory, bool dark);
 
     std::unique_ptr<Worker> worker;
     std::unique_ptr<Drawn> drawn;
@@ -88,6 +94,7 @@ private:
     bool requested = false;
     bool invalid = true;
     QString requestedDirectory;
+    bool requestedDark = false;
     int requestedTile[2] = {0, 0};
     float requestedRect[4] = {0, 0, 0, 0};
     double requestedScale = 0;

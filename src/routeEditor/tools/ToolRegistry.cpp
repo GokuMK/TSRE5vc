@@ -12,6 +12,7 @@
 #include "ObjectTools.h"
 #include "TerrainEditTools.h"
 #include "RouteDataTools.h"
+#include "MapTools.h"
 
 ToolRegistry::ToolRegistry() {
     for (std::unique_ptr<EditorTool> &tool : ObjectTools::create())
@@ -19,6 +20,8 @@ ToolRegistry::ToolRegistry() {
     for (std::unique_ptr<EditorTool> &tool : TerrainEditTools::create())
         add(std::move(tool));
     for (std::unique_ptr<EditorTool> &tool : RouteDataTools::create())
+        add(std::move(tool));
+    for (std::unique_ptr<EditorTool> &tool : MapTools::create())
         add(std::move(tool));
 }
 
@@ -28,7 +31,8 @@ void ToolRegistry::add(std::unique_ptr<EditorTool> tool) {
 }
 
 EditorTool *ToolRegistry::find(const QString &id) const {
-    return byId.value(id, nullptr);
+    // A name may carry the action a panel button chooses ("tool:action").
+    return byId.value(EditorTool::idOf(id), nullptr);
 }
 
 bool ToolRegistry::allowed(const QString &id, ViewMode mode) const {

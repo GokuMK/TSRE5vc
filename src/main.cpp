@@ -29,7 +29,6 @@
 #include <shapeConverter/ShapeConverter.h>
 #include <aceConverter/AceConverter.h>
 #include <aceConverter/AceConverterWindow.h>
-#include <tsre/geo/MapWindow.h>
 #include <routeEditor/RouteEditorServer.h>
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/Undo.h>

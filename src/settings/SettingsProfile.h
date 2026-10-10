@@ -24,6 +24,12 @@ public:
                                          const QString &newProfileName,
                                          QString *newSettingsFile = nullptr,
                                          QString *error = nullptr);
+    // A new portable profile's settings file (its directory created), for
+    // SettingsManager::loadFile to fill with the catalogue defaults. The
+    // name follows the rules of duplicatePortableProfile.
+    static bool newPortableProfile(const QString &profileName,
+                                   QString *settingsFile = nullptr,
+                                   QString *error = nullptr);
     static QString resolveSettingsFile(const SettingsProfileSelection &selection);
     static bool ensureStartupArgsFile(const QString &filePath,
                                       QString *error = nullptr);

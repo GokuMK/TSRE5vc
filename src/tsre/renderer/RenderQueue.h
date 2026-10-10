@@ -91,6 +91,7 @@ public:
     // it back on. Only lit triangle meshes in the scene and overlay layers
     // cast, excluding terrain and terrain decals.
     void setShadowCasting(bool cast);
+    bool shadowCastingEnabled() const { return shadowCasting; }
 
 protected:
     void resetQueueState();

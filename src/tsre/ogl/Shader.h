@@ -48,6 +48,7 @@ public:
     unsigned int shaderShadowsEnabled;
     unsigned int shaderBrightness;
     unsigned int shaderFogDensity;
+    unsigned int shaderTransparency;
     unsigned int shadow1Res;
     unsigned int shadow2Res;
     unsigned int shadow2Bias;
@@ -95,6 +96,9 @@ public:
     int waterTime = -1;
     int waterLayers = -1;
     int waterReflectionView = -1;
+    int waterWind = -1;
+    int waterScene = -1;
+    int waterDepthRange = -1;
     int waterReflectionPlane = -1;
     int clipPlane = -1;
 private:

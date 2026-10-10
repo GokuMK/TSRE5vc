@@ -83,6 +83,9 @@ public:
         bool wireframe = false;
         // Drawn without back-face culling.
         bool doubleSided = false;
+        // Below 1 the surface is drawn blended, its alpha times this (terrain
+        // tile overlays, task editor 04).
+        float opacity = 1.0f;
     };
 
     // Metallic-roughness material (glTF), drawn by the PBR program variant.
@@ -125,6 +128,10 @@ public:
         float thickness = 0.0f;
         float attenuationDistance = 0.0f;
         float attenuationColor[3] = {1.0f, 1.0f, 1.0f};
+        // The daylight scale the glow follows: the lamps' (task 21), the
+        // signal lights' (task 26), or none, for the sun (task editor 05).
+        enum Glow : unsigned char {GLOW_LAMP = 0, GLOW_SIGNAL, GLOW_FULL};
+        unsigned char glow = GLOW_LAMP;
         int textures[MAP_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
         // Texture coordinate set (0 or 1) of each map.
         unsigned char texCoords[MAP_COUNT] = {};
@@ -201,6 +208,9 @@ public:
         // Made from an emissive surface (scaled by the emissive gain) rather
         // than a light source (scaled by the exposure).
         bool emissive = false;
+        // An emissive signal light (task 26): only its glow splat, scaled by
+        // the signal lights' daylight scale; it lights nothing.
+        bool signal = false;
     };
 
     // Sphere enclosing the packet in the space of the submission transform

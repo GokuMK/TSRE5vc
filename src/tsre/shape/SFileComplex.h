@@ -75,6 +75,7 @@ class SFileComplex final : public ComplexShape {
     void getFloorBorderLinePoints(float *&) override;
     bool isSnapable() const override;
     void addSnapablePoints(QVector<float> &) override;
+    bool matrixByName(const QString &, float *) const override;
     void fillShapeTextureInfo(QHash<int, ShapeTextureInfo *> &, unsigned int = 0) override;
     void fillShapeHierarchyInfo(ShapeHierarchyInfo *, unsigned int = 0) override;
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo *> &, int) override;

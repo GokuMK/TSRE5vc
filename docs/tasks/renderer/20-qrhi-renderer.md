@@ -126,6 +126,15 @@ Buffer-format data and meshes over a quarter of a chunk keep buffers of
 their own: Immutable, or Static while edited, so that copy is reused. TexLib textures become renderer-owned handles that both
 renderers resolve; the QRhi renderer keeps the CPU pixels until upload.
 
+## Default renderer (user, 2026-10-09, for 0.7.8)
+
+`core.rendering.backend` defaults to `qrhi` with `core.rendering.rhiApi`
+`auto`, which tries Vulkan only. Without Vulkan the editor falls back to the
+OpenGL renderer (`RenderSurface::create`), not to QRhi's OpenGL backend:
+that one is still much slower and is used only when chosen explicitly. The
+option reads "QRhi (Vulkan)" instead of "QRhi / Experimental". Profiles that
+saved `opengl` keep it.
+
 ## Milestones
 
 1. Shared queue base, target and program calls, render surface host

@@ -50,6 +50,7 @@
 #include <routeEditor/properties/PropertiesActivityPath.h>
 #include <routeEditor/properties/PropertiesConsist.h>
 #include <routeEditor/NaviWindow.h>
+#include <routeEditor/EnvironmentWindow.h>
 #include <routeEditor/ErrorMessagesWindow.h>
 #include <routeEditor/ClientUsersWindow.h>
 #include <tsre/ErrorMessagesLib.h>
@@ -121,6 +122,7 @@ RouteEditorWindow::RouteEditorWindow() {
     shapeViewWindow = new ShapeViewWindow(this);
     aboutWindow = new AboutWindow(this);
     naviWindow = new NaviWindow(this);
+    environmentWindow = new EnvironmentWindow(this);
     errorMessagesWindow = ErrorMessagesLib::GetWindow(this);
     clientUsersWindow = new ClientUsersWindow(this);
     activityEventWindow = new ActivityEventWindow(this);
@@ -282,8 +284,6 @@ RouteEditorWindow::RouteEditorWindow() {
         routeMenu->addAction(saveAction);
         routeMenu->addAction(reloadRefAction);
         routeMenu->addAction(reloadTrackProfilesAction);
-        routeMenu->addAction(createPathsAction);
-        routeMenu->addAction(generateCountryPlacesAction);
         routeMenu->addAction(trkEditr);
         routeMenu->addAction(exitAction);
     } else {
@@ -438,6 +438,8 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
         {//% "Terra&in"
          qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
+        {//% "Ima&gery"
+         qtTrId("route.editor.route.editor.window.action.map.imagery"), MapLayer::Imagery},
         {//% "&OSM Data"
          qtTrId("route.editor.route.editor.window.action.map.osm.data"), MapLayer::OsmData},
         {//% "Transparent OSM &Areas"
@@ -446,14 +448,19 @@ RouteEditorWindow::RouteEditorWindow() {
         {//% "&Faded Overlay"
          qtTrId("route.editor.route.editor.window.action.map.faded.overlay"),
          MapLayer::FadedOverlay},
+        {//% "&Markers"
+         qtTrId("route.editor.route.editor.window.action.map.markers"), MapLayer::Markers},
         {//% "&Pointer"
-         qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
+         qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer},
+        {//% "Scale &Bar"
+         qtTrId("route.editor.route.editor.window.action.map.scale.bar"), MapLayer::ScaleBar}};
     for (const auto &entry : mapLayerEntries) {
         QAction *action = GuiFunct::newMenuCheckAction(entry.text, this,
                                                        MapLayers().shows(entry.layer));
         const MapLayer layer = entry.layer;
         QObject::connect(action, &QAction::triggered, this, [this, layer, action](bool visible) {
-            if (visible && layer == MapLayer::OsmData && !glWidget->prepareOsmLayer()) {
+            if (visible && ((layer == MapLayer::OsmData && !glWidget->prepareOsmLayer())
+                            || (layer == MapLayer::Imagery && !glWidget->prepareImageryLayer()))) {
                 action->setChecked(false);
                 return;
             }
@@ -461,66 +468,78 @@ RouteEditorWindow::RouteEditorWindow() {
         });
         mapMenu->addAction(action);
     }
-    // Tools
-    toolsMenu = menuBar()->addMenu(
-        //% "&Tools"
-        qtTrId("route.editor.route.editor.window.menu.tools.menu"));
-    toolsMenu->addAction(viewMapMode);
-    toolsMenu->addSeparator();
+    // Window
+    windowMenu = menuBar()->addMenu(
+        //% "&Window"
+        qtTrId("route.editor.route.editor.window.menu.window.menu"));
+    windowMenu->addAction(viewMapMode);
+    windowMenu->addSeparator();
     propertiesAction = GuiFunct::newMenuCheckAction(
         //% "&Properties"
         qtTrId("route.editor.route.editor.window.action.properties.action"), this);
-    toolsMenu->addAction(propertiesAction);
+    windowMenu->addAction(propertiesAction);
     QObject::connect(propertiesAction, SIGNAL(triggered(bool)), this, SLOT(hideShowPropertiesWidget(bool)));
     naviAction = GuiFunct::newMenuCheckAction(
         //% "&Navi Window"
         qtTrId("route.editor.route.editor.window.action.navi.action"), this);
-    toolsMenu->addAction(naviAction);
+    windowMenu->addAction(naviAction);
     QObject::connect(naviAction, SIGNAL(triggered(bool)), this, SLOT(hideShowNaviWidget(bool)));
+    environmentAction = GuiFunct::newMenuCheckAction(
+        //% "&Environment Window"
+        qtTrId("route.editor.route.editor.window.action.environment.action"), this, false);
+    windowMenu->addAction(environmentAction);
+    QObject::connect(environmentAction, SIGNAL(triggered(bool)), this, SLOT(hideShowEnvironmentWidget(bool)));
     shapeViewAction = GuiFunct::newMenuCheckAction(
         //% "&Shape View Window"
         qtTrId("route.editor.route.editor.window.action.shape.view.action"), this, false);
-    toolsMenu->addAction(shapeViewAction);
+    windowMenu->addAction(shapeViewAction);
     QObject::connect(shapeViewAction, SIGNAL(triggered(bool)), this, SLOT(hideShowShapeViewWidget(bool)));
     errorViewAction = GuiFunct::newMenuCheckAction(
         //% "&Errors and Messages"
         qtTrId("route.editor.route.editor.window.action.error.view.action"), this, false);
-    toolsMenu->addAction(errorViewAction);
+    windowMenu->addAction(errorViewAction);
     QObject::connect(errorViewAction, SIGNAL(triggered(bool)), this, SLOT(hideShowErrorMsgWidget(bool)));
-    toolsMenu->addSeparator();
+    windowMenu->addSeparator();
     objectsAndTerrainAction = GuiFunct::newMenuCheckAction(
         //% "&Objects and Terrain"
         qtTrId("route.editor.route.editor.window.action.objects.and.terrain.action"), this);
-    toolsMenu->addAction(objectsAndTerrainAction);
+    windowMenu->addAction(objectsAndTerrainAction);
     QObject::connect(objectsAndTerrainAction, SIGNAL(triggered(bool)), this, SLOT(showToolsObjectAndTerrain(bool)));
     objectsAction = GuiFunct::newMenuCheckAction(
         //% "&Objects"
         qtTrId("route.editor.route.editor.window.action.objects.action"), this);
     objectsAction->setShortcut(QKeySequence("F1"));
-    toolsMenu->addAction(objectsAction);
+    windowMenu->addAction(objectsAction);
     QObject::connect(objectsAction, SIGNAL(triggered(bool)), this, SLOT(showToolsObject(bool)));
     terrainAction = GuiFunct::newMenuCheckAction(
         //% "&Terrain"
         qtTrId("route.editor.route.editor.window.action.terrain.action"), this);
     terrainAction->setChecked(false);    
     terrainAction->setShortcut(QKeySequence("F2"));
-    toolsMenu->addAction(terrainAction);
+    windowMenu->addAction(terrainAction);
     QObject::connect(terrainAction, SIGNAL(triggered(bool)), this, SLOT(showToolsTerrain(bool)));
     geoAction = GuiFunct::newMenuCheckAction(
         //% "&Geo"
         qtTrId("route.editor.route.editor.window.action.geo.action"), this);
     geoAction->setChecked(false);    
     geoAction->setShortcut(QKeySequence("F3"));
-    toolsMenu->addAction(geoAction);
+    windowMenu->addAction(geoAction);
     QObject::connect(geoAction, SIGNAL(triggered(bool)), this, SLOT(showToolsGeo(bool)));
     activityAction = GuiFunct::newMenuCheckAction(
         //% "&Activity"
         qtTrId("route.editor.route.editor.window.action.activity.action"), this);
     activityAction->setChecked(false);    
     activityAction->setShortcut(QKeySequence("F4"));
-    toolsMenu->addAction(activityAction);
+    windowMenu->addAction(activityAction);
     QObject::connect(activityAction, SIGNAL(triggered(bool)), this, SLOT(showToolsActivity(bool)));
-    toolsMenu->addSeparator();
+    // Tools
+    toolsMenu = menuBar()->addMenu(
+        //% "&Tools"
+        qtTrId("route.editor.route.editor.window.menu.tools.menu"));
+    if(Game::serverClient == NULL){
+        toolsMenu->addAction(createPathsAction);
+        toolsMenu->addAction(generateCountryPlacesAction);
+    }
     QAction* copyCameraAction = new QAction(
         //% "&Copy Camera Position"
         qtTrId("route.editor.route.editor.window.action.tools.copy.camera"), this);
@@ -530,6 +549,21 @@ RouteEditorWindow::RouteEditorWindow() {
         // after --set= on the command line or in startup-args.txt, or as a
         // -Set value of the hardware scripts.
         QApplication::clipboard()->setText("core.startup.camera=" + glWidget->cameraSetting());
+    });
+    auto *bakeTerrainAction=toolsMenu->addAction(
+        //% "Bake procedural terrain textures…"
+        qtTrId("route.editor.route.editor.window.action.bake.terrain.action"));
+    connect(bakeTerrainAction,&QAction::triggered,this,[this] {
+        QVector<QString> unsaved;
+        glWidget->getUnsavedInfo(unsaved);
+        if (!unsaved.isEmpty()) {
+            QMessageBox::warning(this,
+                //% "Bake terrain"
+                qtTrId("route.editor.route.editor.window.message.bake.terrain"),
+                //% "Save or discard route changes before batch baking."
+                qtTrId("route.editor.route.editor.window.message.save.discard.route.changes.before.batch.baking"));return;
+        }
+        TerrainBakeCommand::showDialog(this,Game::root+"/ROUTES/"+Game::route);
     });
     // Settigs
     terrainCameraAction = GuiFunct::newMenuCheckAction(
@@ -569,21 +603,6 @@ RouteEditorWindow::RouteEditorWindow() {
     settingsMenu->addAction(terrainCameraAction);
     settingsMenu->addAction(mstsShadowsAction);
     settingsMenu->addMenu(terrainMenu);
-    auto *bakeTerrainAction=settingsMenu->addAction(
-        //% "Bake procedural terrain textures…"
-        qtTrId("route.editor.route.editor.window.action.bake.terrain.action"));
-    connect(bakeTerrainAction,&QAction::triggered,this,[this] {
-        QVector<QString> unsaved;
-        glWidget->getUnsavedInfo(unsaved);
-        if (!unsaved.isEmpty()) {
-            QMessageBox::warning(this,
-                //% "Bake terrain"
-                qtTrId("route.editor.route.editor.window.message.bake.terrain"),
-                //% "Save or discard route changes before batch baking."
-                qtTrId("route.editor.route.editor.window.message.save.discard.route.changes.before.batch.baking"));return;
-        }
-        TerrainBakeCommand::showDialog(this,Game::root+"/ROUTES/"+Game::route);
-    });
     // Help
     aboutAction = new QAction(
         //% "&About"
@@ -656,6 +675,8 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(glWidget, SIGNAL(naviInfo(int, int)),
                       naviWindow, SLOT(naviInfo(int, int)));
+    QObject::connect(glWidget, &RouteEditorGLWidget::environmentInfo,
+                      environmentWindow, &EnvironmentWindow::environmentInfo);
     
     QObject::connect(glWidget, SIGNAL(posInfo(PreciseTileCoordinate*)),
                       naviWindow, SLOT(posInfo(PreciseTileCoordinate*)));
@@ -687,6 +708,8 @@ RouteEditorWindow::RouteEditorWindow() {
     QObject::connect(terrainTools, SIGNAL(enableTool(QString)),
                       glWidget, SLOT(enableTool(QString)));   
     
+    // RouteEditorGLWidget::update forwards to its render surface (not a slot).
+    QObject::connect(geoTools, &GeoTools::overlayOpacityChanged, glWidget, [this] { glWidget->update(); });
     QObject::connect(geoTools, SIGNAL(enableTool(QString)),
                       glWidget, SLOT(enableTool(QString)));   
     
@@ -758,6 +781,8 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(naviWindow, SIGNAL(windowClosed()),
                       this, SLOT(naviWindowClosed())); 
+    QObject::connect(environmentWindow, SIGNAL(windowClosed()),
+                      this, SLOT(environmentWindowClosed()));
     
     QObject::connect(errorMessagesWindow, SIGNAL(windowClosed()),
                       this, SLOT(errorMessagesWindowClosed())); 
@@ -1298,6 +1323,11 @@ void RouteEditorWindow::hideShowNaviWidget(bool show){
     else naviWindow->hide();
 }
 
+void RouteEditorWindow::hideShowEnvironmentWidget(bool show){
+    if(show) environmentWindow->show();
+    else environmentWindow->hide();
+}
+
 void RouteEditorWindow::hideShowToolWidget(bool show){
     if(show) box->show();
     else box->hide();
@@ -1383,6 +1413,12 @@ void RouteEditorWindow::naviWindowClosed(){
     naviAction->blockSignals(true);
     naviAction->setChecked(false);
     naviAction->blockSignals(false);
+}
+
+void RouteEditorWindow::environmentWindowClosed(){
+    environmentAction->blockSignals(true);
+    environmentAction->setChecked(false);
+    environmentAction->blockSignals(false);
 }
 
 void RouteEditorWindow::errorMessagesWindowClosed(){

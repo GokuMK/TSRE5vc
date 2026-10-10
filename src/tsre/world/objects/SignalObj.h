@@ -14,11 +14,13 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <memory>
 
 class RenderQueue;
 
 class TrackItemObj;
 class SignalShape;
+class SignalLights;
 
 class SignalObj : public WorldObj  {
 public:
@@ -83,6 +85,8 @@ private:
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
     SignalShape* signalShape = NULL;
+    // Lights of the shown heads (task 26); copies make their own.
+    std::unique_ptr<SignalLights> lights;
 };
 
 #endif	/* SIGNALOBJ_H */

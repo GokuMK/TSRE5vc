@@ -1341,7 +1341,28 @@ void SFileLegacy::fillShapeTextureInfo(QHash<int, ShapeTextureInfo*>& list, unsi
     }
 }
 
-
+bool SFileLegacy::matrixByName(const QString &name, float *out) const {
+    if (!isLoaded() || iloscd < 1 || distancelevel == nullptr || distancelevel[0].hierarchia == nullptr)
+        return false;
+    int id = -1;
+    for (int i = 0; i < iloscm; i++)
+        if (macierz[i].name.compare(name, Qt::CaseInsensitive) == 0) {
+            id = i;
+            break;
+        }
+    if (id < 0)
+        return false;
+    // As getPmatrix(): the mirrored root, then the parents down to the
+    // matrix; a malformed hierarchy stops after iloscm steps.
+    QVector<int> chain;
+    for (int m = id; m > 0 && m < iloscm && chain.size() < iloscm; m = distancelevel[0].hierarchia[m])
+        chain.push_back(m);
+    Mat4::identity(out);
+    out[0] = -1;
+    for (int i = chain.size() - 1; i >= 0; --i)
+        Mat4::multiply(out, out, const_cast<float*>(macierz[chain[i]].param));
+    return true;
+}
 
 float* SFileLegacy::getPmatrix(int currentDlevel, float* pmatrix, int matrix) {
     if (matrix == -1 || matrix == 0) {

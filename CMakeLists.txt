@@ -2,7 +2,16 @@ cmake_minimum_required(VERSION 3.22)
 
 project(TSRE5vc LANGUAGES CXX)
 
+# Development builds show VERSION with -dev, following it when it changes
+# (it is a configure dependency, and a cached -dev value of an older VERSION
+# is replaced). A version given on the command line, as the release
+# workflow does with the tag's, is kept.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" TSRE5_BASE_VERSION LIMIT_COUNT 1)
+if(DEFINED CACHE{TSRE5_VERSION} AND TSRE5_VERSION MATCHES "-dev$"
+        AND NOT TSRE5_VERSION STREQUAL "${TSRE5_BASE_VERSION}-dev")
+    unset(TSRE5_VERSION CACHE)
+endif()
 set(TSRE5_VERSION "${TSRE5_BASE_VERSION}-dev" CACHE STRING "Version shown by TSRE5vc")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/TSRE5Version.h.in"
@@ -18,6 +27,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 find_package(Qt6 REQUIRED COMPONENTS Network Core Gui Widgets OpenGL OpenGLWidgets WebSockets LinguistTools
     GuiPrivate ShaderTools ShaderToolsPrivate)
+# Release builds must have the QRhi renderer's Vulkan backend (its default):
+# without Qt's Vulkan support or the Vulkan headers it is left out silently
+# (RhiContext.h) and every user falls back to the OpenGL renderer. Checked
+# here, when configuring, so the option changes nothing that is compiled.
+option(TSRE5_REQUIRE_VULKAN "Stop when the QRhi Vulkan backend cannot be built" OFF)
+if(TSRE5_REQUIRE_VULKAN)
+    if(DEFINED QT_FEATURE_vulkan AND NOT QT_FEATURE_vulkan)
+        message(FATAL_ERROR "TSRE5_REQUIRE_VULKAN: this Qt is built without Vulkan support")
+    endif()
+    if(NOT TARGET WrapVulkanHeaders::WrapVulkanHeaders)
+        message(FATAL_ERROR "TSRE5_REQUIRE_VULKAN: Vulkan headers not found (set Vulkan_INCLUDE_DIR)")
+    endif()
+    message(STATUS "QRhi Vulkan backend: Qt Vulkan support and headers found")
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_package(OpenGL REQUIRED)
@@ -183,4 +206,12 @@ option(TSRE_BUILD_OSM_TESTS "Build OSM PBF format and store checks" ON)
 if(TSRE_BUILD_OSM_TESTS)
     enable_testing()
     add_subdirectory(tests/osm)
+endif()
+
+# The translation catalogues: IDs only, English complete, Polish consistent.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    enable_testing()
+    add_test(NAME translations
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/validate_translations.py)
 endif()
