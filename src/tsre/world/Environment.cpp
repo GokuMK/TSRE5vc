@@ -10,148 +10,40 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/Environment.h>
-#include <tsre/fileFunctions/ParserX.h>
-#include <tsre/fileFunctions/FileBuffer.h>
-#include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/Game.h>
 #include <QDebug>
-#include <QFile>
+#include <QFileInfo>
 #include <algorithm>
-#include <tsre/ogl/GLUU.h>
 
 Environment::Environment(QString path) {
     loaded = false;
     texturePath = Game::root + "/ROUTES/" + Game::route + "/ENVFILES/TEXTURES/";
-            
-    qDebug() << "Wczytywanie pliku env: " << path;
-
-    QString sh;
     path = ContentPath::normalize(path);
-    qDebug() << path;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    QString error;
+    if (!file.read(path, error)) {
+        qWarning() << "Environment file" << path << "not read:" << error;
+        weather = file.weatherOrDerived();
         return;
-    FileBuffer* data = ReadFile::read(&file);
-    data->toUtf16();
-    data->skipBOM();
-
-    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        if (sh == "simisa@@@@@@@@@@jinx0w0t______") {
-            continue;
-        }
-        if (sh == "include") {
-            QString incPath = ParserX::GetStringInside(data);
-            ParserX::SkipToken(data);
-            data->insertFile(path + "/" + incPath);
-            continue;
-        }
-        if (sh == "world") {
-            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                if (sh == "include") {
-                    QString incPath = ParserX::GetStringInside(data);
-                    ParserX::SkipToken(data);
-                    data->insertFile(path + "/" + incPath);
-                    continue;
-                }
-                if (sh == "world_water") {
-                    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                        if (sh == "world_water_layers") {
-                            waterCount = ParserX::GetNumber(data);
-                            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-
-                                if (sh == "world_water_layer") {
-                                    water.push_back(WaterLayer());
-                                    loadWaterLayer(data);
-                                    //traffic->service.emplace_back();
-                                    //traffic->service.back().load(data);
-                                    ParserX::SkipToken(data);
-                                    continue;
-                                }
-                                ParserX::SkipToken(data);
-                                continue;
-                            }
-                            ParserX::SkipToken(data);
-                            continue;
-                        }
-                        qDebug() << "#world_water_layers - undefined token: " << sh;
-                        ParserX::SkipToken(data);
-                    }
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                qDebug() << "#world - undefined token: " << sh;
-                ParserX::SkipToken(data);
-            }
-            ParserX::SkipToken(data);
-            continue;
-        }
-        qDebug() << "#ENV - undefined token: " << sh;
-        ParserX::SkipToken(data);
     }
-    delete data;
-    loaded = 1;
-qDebug() << water.size();
-    for(int i = 0; i < water.size(); i++){
-        qDebug() << water[i].height;
-qDebug() << water[i].tex;
-    }
-    return;
-}
-
-void Environment::loadWaterLayer(FileBuffer* data){
-    QString sh;
-    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        if (sh == "world_water_layer_height") {
-            water.back().height = ParserX::GetNumber(data);
-            ParserX::SkipToken(data);
-            continue;
+    for (const QString &warning : file.warnings)
+        qWarning() << "Environment file" << path << warning;
+    if (file.world && file.world->water) {
+        const Env::Water &w = *file.world->water;
+        waterCount = w.layerCount;
+        for (const Env::WaterLayer &layer : w.layers) {
+            WaterLayer drawn;
+            drawn.height = layer.height.value_or(0.0f);
+            // The last texture slot, as the previous reader took it.
+            if (layer.shader && layer.shader->shader && !layer.shader->shader->texSlots.isEmpty())
+                drawn.tex = texturePath + layer.shader->shader->texSlots.back().file;
+            water.push_back(drawn);
         }
-        if (sh == "world_anim_shader") {
-            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                if (sh == "world_shader") {
-                    ParserX::GetString(data);
-                    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                        if (sh == "terrain_texslots") {
-                            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                                if (sh == "terrain_texslot") {
-                                    water.back().tex = texturePath + ParserX::GetString(data);
-                                    ParserX::SkipToken(data);
-                                    continue;
-                                }
-                                qDebug() << "#terrain_texslots - undefined token: " << sh;
-                                ParserX::SkipToken(data);
-                            }
-                            ParserX::SkipToken(data);
-                            continue;
-                        }
-                        if (sh == "terrain_uvcalc") {
-                            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                                if (sh == "terrain_uvcalc") {
-                                    ParserX::SkipToken(data);
-                                    continue;
-                                }
-                                qDebug() << "#terrain_uvcalc - undefined token: " << sh;
-                                ParserX::SkipToken(data);
-                            }
-                            ParserX::SkipToken(data);
-                            continue;
-                        }
-                        qDebug() << "#world_anim_shader - undefined token: " << sh;
-                        ParserX::SkipToken(data);
-                    }
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                qDebug() << "#world_anim_shader - undefined token: " << sh;
-                ParserX::SkipToken(data);
-            }
-            ParserX::SkipToken(data);
-            continue;
-        }
-        qDebug() << "#world_water_layer - undefined token: " << sh;
-        ParserX::SkipToken(data);
-        continue;
     }
+    weather = file.weatherOrDerived();
+    QString mapError;
+    if (!weather.loadMaps(QFileInfo(path).absolutePath(), mapError))
+        qWarning() << "Environment file" << path << mapError;
+    loaded = true;
 }
 
 Environment::~Environment() {

@@ -1,6 +1,6 @@
 # Task Environment 01 - Weather Data
 
-Status: design (user, 2026-10-10). Step 1 in progress on `feature/weather`.
+Status: step 1 done on `feature/weather` (2026-10-10); step 2 next.
 
 ## Objective
 
@@ -167,6 +167,9 @@ Draft decision (user, 2026-10-10): the block stays separate, at the top
 level. Whether it later moves into `world` (for example the weather into
 `world_sky`) is decided when the format has settled in practice.
 
+The `//` notes explain the example; env files have no comments (MSTS uses
+`comment ( ... )` and `skip ( ... )` blocks, and names starting with `_`).
+
 - A preset is a named set of these values in TSRE's code (fair cumulus,
   scattered, broken, overcast, rain, snow, thunderstorm, a passing front as
   several keyframes); a weather can start from one and override any
@@ -321,6 +324,37 @@ panel's width.
    precipitation).
 7. Later, if needed: Copernicus CDS import (cloud base and tops, upper
    winds).
+
+## Step 1 (done, 2026-10-10)
+
+- `src/tsre/environment/`: `EnvNode` (token trees, the reader on
+  `SimisTextReader`, the writer: tab indents, UTF-16 LE with a byte order
+  mark, CRLF), `EnvFile` (`Env::File`, the whole env file as objects),
+  `Weather` (the block, keyframes, advection-corrected blending, drift,
+  PNG maps, sampling), `WeatherPresets` (clear, fair_cumulus, scattered,
+  broken, overcast, rain, snow, thunderstorm, front), `WeatherDetail`
+  (seeded gradient noise; cloud placement thresholded through the noise's
+  measured distribution, so the covered share matches the coverage).
+- `Environment` reads through `Env::File` and keeps the file and its
+  weather (`file`, `weather`); its water layers are as before: parity
+  captures of EUROPE1 and BNSF_SCENIC with the old and the new reader are
+  pixel-identical.
+- Found in real files: an empty block used as a flag
+  (`world_sky_satellite_light ( )`) stays a token tree, so it is written as
+  it was; six stock snow env files end with one `)` too many, skipped with a
+  warning as MSTS and Open Rails accept it; declared list counts do not
+  always match (kept as declared); the env files carry MSTS wind layers
+  (`world_wind`), which the derived weather uses for the low wind.
+- Known simplification: unknown items inside a list block (between its
+  entries) are kept in the enclosing block.
+- `weather` test suite (42 cases): the model's values, round trips, unknown
+  and commented-out blocks kept, saving, the weather block with preset
+  overrides, derived weather, presets, blending and looping, drift, fields
+  moving with the wind instead of fading, maps, the covered share
+  (within 0.004 at 0.2, 0.5, 0.8). With `--test-cases <dir>` it reads every
+  env file below it: all 97 on this machine (stock MSTS, starter route,
+  test routes) round-trip, and every value of each file is in its written
+  model.
 
 ## Verification
 
