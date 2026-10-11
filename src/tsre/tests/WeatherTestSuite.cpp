@@ -4,6 +4,7 @@
 #include <tsre/environment/WeatherDetail.h>
 #include <tsre/environment/WeatherPresets.h>
 #include <tsre/environment/WeatherImport.h>
+#include <tsre/environment/WeatherGenerator.h>
 
 #include <QJsonArray>
 #include <QUrl>
@@ -531,6 +532,51 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
         qInfo().noquote() << QString("[tests:weather] env files: %1, failed %2, with warnings %3")
                              .arg(files).arg(failedFiles).arg(warned);
         c.check(files > 0 && failedFiles == 0, "env-files-round-trip");
+    }
+
+    // Generated fronts (route scale).
+    {
+        using namespace WeatherGenerator;
+        const WeatherKeyframe line = section(ColdFront, 0.0);
+        c.check(line.layers[WeatherLayer::Low].type > 0.9f && line.layers[WeatherLayer::Low].coverage >= 0.85f
+                        && line.precipitationRate >= 5.0f,
+                "generator-cold-front-line");
+        const WeatherKeyframe behind = section(ColdFront, -300.0);
+        c.check(behind.precipitationRate == 0.0f && behind.layers[WeatherLayer::Low].coverage < 0.4f
+                        && behind.visibility > 40000.0f,
+                "generator-cold-front-clears-behind");
+        const WeatherKeyframe farAhead = section(WarmFront, 650.0);
+        const WeatherKeyframe warmLine = section(WarmFront, 20.0);
+        c.check(farAhead.layers[WeatherLayer::High].coverage >= 0.4f && farAhead.precipitationRate == 0.0f
+                        && warmLine.precipitationRate >= 2.0f && warmLine.layers[WeatherLayer::Low].base < 500.0f,
+                "generator-warm-front-cirrus-ahead-rain-at-line");
+        // A cold front moving east over a 100 km area, at its centre at noon:
+        // rain at the centre then, cloud ahead (east), clearing behind (west);
+        // in the morning the centre is still ahead of it.
+        Settings s;
+        s.scenario = ColdFront;
+        s.heading = 90.0;
+        s.speed = 40.0;
+        s.arrival = 12.0;
+        s.west = 0.0;
+        s.east = 100000.0;
+        s.south = 0.0;
+        s.north = 100000.0;
+        const Weather w = generate(s);
+        c.check(w.keyframes.size() == 25 && w.relative() && w.hasMaps() && w.grid.valid
+                        && w.source.startsWith("Generated"),
+                "generator-day-with-maps");
+        const WeatherSurface centreNoon = w.surface(12.0, 50000.0, 50000.0);
+        const WeatherSurface westNoon = w.surface(12.0, 8000.0, 50000.0);
+        const WeatherSurface centreMorning = w.surface(5.0, 50000.0, 50000.0);
+        const WeatherLayerValues eastNoon = w.layer(12.0, 92000.0, 50000.0, WeatherLayer::Low);
+        const WeatherLayerValues westLow = w.layer(12.0, 8000.0, 50000.0, WeatherLayer::Low);
+        c.check(centreNoon.precipitationRate > 1.0f && westNoon.precipitationRate < centreNoon.precipitationRate
+                        && centreMorning.precipitationRate < 0.05f,
+                QString("generator-front-passes (%1 %2 %3)").arg(centreNoon.precipitationRate)
+                        .arg(westNoon.precipitationRate).arg(centreMorning.precipitationRate));
+        c.check(eastNoon.coverage > westLow.coverage,
+                QString("generator-cloud-ahead-clearer-behind (%1 %2)").arg(eastNoon.coverage).arg(westLow.coverage));
     }
 
     qInfo() << "[tests:weather] cases=" << (c.passed + c.failed) << "passed=" << c.passed << "failed=" << c.failed;

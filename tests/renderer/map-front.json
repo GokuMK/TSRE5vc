@@ -1,0 +1,19 @@
+{
+  "notes": "Generated fronts (docs/tasks/environment/01-weather-data.md) over EUROPE1's area, seen on the map: a cold front moving east-north-east at 35 km/h, over the area's centre at 14:00, at four times, and a warm front at two.",
+  "output": "build/renderer-map",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 120, "maxSeconds": 300},
+  "views": [
+    {"name": "cold-11h", "mode": "map", "metresPerPixel": 120, "weather": true, "weatherScenario": "cold_front", "weatherTime": 11},
+    {"name": "cold-13h", "mode": "map", "metresPerPixel": 120, "weather": true, "weatherScenario": "cold_front", "weatherTime": 13},
+    {"name": "cold-15h", "mode": "map", "metresPerPixel": 120, "weather": true, "weatherScenario": "cold_front", "weatherTime": 15},
+    {"name": "cold-17h", "mode": "map", "metresPerPixel": 120, "weather": true, "weatherScenario": "cold_front", "weatherTime": 17},
+    {"name": "warm-8h", "mode": "map", "metresPerPixel": 120, "weather": true, "weatherScenario": "warm_front", "weatherTime": 8},
+    {"name": "warm-13h", "mode": "map", "metresPerPixel": 120, "weather": true, "weatherScenario": "warm_front", "weatherTime": 13}
+  ]
+}

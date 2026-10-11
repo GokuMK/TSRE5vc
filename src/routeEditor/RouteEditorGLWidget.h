@@ -68,6 +68,7 @@ class OsmMapLayer;
 class ImageryMapLayer;
 class WeatherMapLayer;
 #include <tsre/environment/WeatherImport.h>
+#include <tsre/environment/WeatherGenerator.h>
 class Weather;
 class MapMeasureLayer;
 class MapScaleBar;
@@ -175,6 +176,11 @@ public:
     void cameraWorldPosition(double &east, double &north) const;
     // A weather from historical data (task environment 01, step 3) for the
     // request's area, set as the editor's weather (unsaved, as a preset).
+    // A route-scale weather from a scenario (a front over the route), in
+    // place of the environment's, not saved.
+    bool generateWeather(const WeatherGenerator::Settings &settings);
+    // The weather's hour for captures (NaN: the editor's time).
+    void setDiagnosticWeatherTime(double hours) { diagnosticWeatherHours = hours; }
     bool importWeather(const WeatherImport::Request &request, QString *error,
                        const std::function<bool()> &cancelled = {});
 
