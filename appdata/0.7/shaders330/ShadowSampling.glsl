@@ -38,7 +38,8 @@ float receiverPlaneBias(vec2 gradient, vec2 offset, float limit) {
 uniform sampler2D cloudShadowMap;
 // The map's centre (x, z), 1 / its extent, on (1) or off (0).
 uniform vec4 cloudShadowArea;
-// The sun's x / y and z / y (along it to the map's plane) and the plane's y.
+// The sun's x / y and z / y (along it to the map's plane), the plane's y,
+// the clouds' average shade (past the map).
 uniform vec4 cloudShadowSun;
 
 float cloudShadow(vec3 position) {
@@ -46,9 +47,11 @@ float cloudShadow(vec3 position) {
         return 1.0;
     vec2 p = position.xz + cloudShadowSun.xy * (cloudShadowSun.z - position.y);
     vec2 uv = (p - cloudShadowArea.xy) * cloudShadowArea.z + 0.5;
-    // Past the map, fading to its average edge (no hard border).
-    float edge = smoothstep(0.5, 0.45, max(abs(uv.x - 0.5), abs(uv.y - 0.5)));
-    return mix(1.0, textureLod(cloudShadowMap, uv, 0.0).r, cloudShadowArea.w * mix(0.6, 1.0, edge));
+    // Past the map the clouds' average shade (its clamped edge would
+    // stretch into stripes), with no hard border.
+    float inside = smoothstep(0.5, 0.45, max(abs(uv.x - 0.5), abs(uv.y - 0.5)));
+    float shade = mix(cloudShadowSun.w, textureLod(cloudShadowMap, uv, 0.0).r, inside);
+    return mix(1.0, shade, cloudShadowArea.w);
 }
 #endif
 

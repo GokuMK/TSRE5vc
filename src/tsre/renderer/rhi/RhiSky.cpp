@@ -281,10 +281,10 @@ void RhiRenderer::releaseSkyResources() {
         delete entry.second;
         delete entry.first;
     }
-    for (QRhiShaderResourceBindings *b : s.bindings)
-        delete b;
-    for (QRhiBuffer *b : s.uniforms)
-        delete b;
+    for (SkyResources::Use &use : s.uses) {
+        delete use.bindings;
+        delete use.uniforms;
+    }
     delete s.viewPipeline;
     delete s.viewBindings;
     delete s.viewTarget;
@@ -362,22 +362,25 @@ void RhiRenderer::drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiR
         cb->draw(3);
         cb->endPass();
     }
-    // This view's pass: its own uniforms (each target has a buffer, as all
-    // of a frame's passes see a dynamic buffer's last values).
+    // This view's pass: uniforms of its own, as all of a frame's passes see
+    // a dynamic buffer's last values.
     const int which = currentTarget;
     std::copy(skyInverse[which], skyInverse[which] + 16, parameters.inverse);
     // Rows in OpenGL's order (cube faces) or where the framebuffer's y
     // points up: NDC's y grows with the row; otherwise against it.
     parameters.camera[1] = (attachments.openGlRows || rhi->isYUpInFramebuffer()) ? 1.0f : -1.0f;
     const auto fragment = QRhiShaderResourceBinding::FragmentStage;
-    if (s.uniforms[which] == nullptr) {
-        s.uniforms[which] = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(SkyParameters));
-        s.uniforms[which]->create();
-        s.bindings[which] = rhi->newShaderResourceBindings();
-        s.bindings[which]->setBindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, s.uniforms[which]),
-                                        QRhiShaderResourceBinding::sampledTexture(1, fragment, s.view, s.linear)});
-        s.bindings[which]->create();
+    if (s.usesThisFrame >= s.uses.size()) {
+        SkyResources::Use use;
+        use.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(SkyParameters));
+        use.uniforms->create();
+        use.bindings = rhi->newShaderResourceBindings();
+        use.bindings->setBindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, use.uniforms),
+                                   QRhiShaderResourceBinding::sampledTexture(1, fragment, s.view, s.linear)});
+        use.bindings->create();
+        s.uses.push_back(use);
     }
+    const SkyResources::Use &use = s.uses[s.usesThisFrame++];
     if (attachments.skyTarget == nullptr) {
         QRhiColorAttachment color(attachments.color);
         color.setLayer(attachments.colorLayer);
@@ -405,7 +408,7 @@ void RhiRenderer::drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiR
         }
         pipeline = rhi->newGraphicsPipeline();
         pipeline->setShaderStages({{QRhiShaderStage::Vertex, vertex}, {QRhiShaderStage::Fragment, skyShader}});
-        pipeline->setShaderResourceBindings(s.bindings[which]);
+        pipeline->setShaderResourceBindings(use.bindings);
         // A descriptor of its own: the attachments' one goes with them.
         QRhiRenderPassDescriptor *key = attachments.skyTarget->newCompatibleRenderPassDescriptor();
         pipeline->setRenderPassDescriptor(key);
@@ -418,12 +421,12 @@ void RhiRenderer::drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiR
     }
     if (updates == nullptr)
         updates = rhi->nextResourceUpdateBatch();
-    updates->updateDynamicBuffer(s.uniforms[which], 0, sizeof(parameters), &parameters);
+    updates->updateDynamicBuffer(use.uniforms, 0, sizeof(parameters), &parameters);
     cb->beginPass(attachments.skyTarget, Qt::black, {1.0f, 0}, updates);
     updates = nullptr;
     cb->setGraphicsPipeline(pipeline);
     cb->setViewport(QRhiViewport(0, 0, float(attachments.size.width()), float(attachments.size.height())));
-    cb->setShaderResources(s.bindings[which]);
+    cb->setShaderResources(use.bindings);
     cb->draw(3);
     cb->endPass();
 }

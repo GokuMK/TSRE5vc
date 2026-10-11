@@ -311,7 +311,8 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
         return set;
     };
     l.maskBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.uniforms),
-                               QRhiShaderResourceBinding::sampledTexture(1, fragment, view.depth, l.linear),
+                               QRhiShaderResourceBinding::sampledTexture(1, fragment, view.depth,
+                                                                         sampler(false, true, true)),
                                QRhiShaderResourceBinding::sampledTexture(2, fragment, cloudTexture != nullptr
                                                                          ? cloudTexture : l.white, l.linear)});
     l.blurBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.uniforms),
@@ -429,8 +430,9 @@ void RhiRenderer::applyLightShafts() {
         return;
     // Everything before: the opaque passes, the sky, the clouds.
     flushTarget();
-    const bool clouds = cloudsApplied && cloudResources.history[cloudResources.current] != nullptr;
-    if (!createLightShafts(clouds ? cloudResources.history[cloudResources.current] : nullptr))
+    // The clouds' march result: one texture (the history alternates, which
+    // would rebuild everything each frame).
+    if (!createLightShafts(cloudsApplied ? cloudResources.march : nullptr))
         return;
     LightShafts &l = lightShafts;
     ShaftParameters parameters = {};
@@ -479,8 +481,7 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
         return;
     // Everything before: the opaque passes, the sky, the clouds.
     flushTarget();
-    if (!createLightShafts(cloudsApplied && cloudResources.history[cloudResources.current] != nullptr
-                                   ? cloudResources.history[cloudResources.current] : nullptr))
+    if (!createLightShafts(cloudsApplied ? cloudResources.march : nullptr))
         return;
     LightShafts &l = lightShafts;
     VolumeParameters v = {};

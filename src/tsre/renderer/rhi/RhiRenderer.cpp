@@ -2299,6 +2299,7 @@ void RhiRenderer::resetFrame() {
     ambientOcclusionApplied = false;
     sceneProjectionValid = false;
     skyResources.viewRendered = false;
+    skyResources.usesThisFrame = 0;
     cloudsApplied = false;
     cloudsPrepared = false;
     shaftsApplied = false;

@@ -89,6 +89,7 @@ struct MarchParameters {
     float lighting[4];     // light steps, still, buffer texel w, h
     float high[4];         // high layer altitude (km)
     float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km)
+    float night[4];        // the night sky's floor (display colour)
 };
 
 const char *CloudCommon = R"(
@@ -252,6 +253,7 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 lighting;
     vec4 high;
     vec4 shadow;
+    vec4 night;
 };
 layout(binding = 1) uniform sampler2D weatherTexture;
 layout(binding = 2) uniform sampler2D nearCover;
@@ -639,6 +641,7 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 lighting;
     vec4 high;
     vec4 shadow;
+    vec4 night;
 };
 layout(binding = 1) uniform sampler2D current;
 layout(binding = 2) uniform sampler2D history;
@@ -701,6 +704,7 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 lighting;
     vec4 high;
     vec4 shadow;
+    vec4 night;
 };
 layout(binding = 1) uniform sampler2D clouds;
 layout(binding = 2) uniform sampler2D cloudDistance;
@@ -735,6 +739,8 @@ void main() {
     float covered = 1.0 - c.a;
     vec3 colour = c.rgb / max(covered, 1e-3);
     vec3 display = pow(1.0 - exp(-colour * camera.z), vec3(1.0 / 2.2));
+    // At night a little darker than the night sky's floor, not black.
+    display = max(display, night.rgb * 0.8);
     result = vec4(display * covered, c.a);
 #ifdef GLOW
     glow = vec4(0.0, 0.0, 0.0, c.a);
@@ -1012,8 +1018,10 @@ void RhiRenderer::writeCloudShadowUniforms(RhiProgram *program) {
     }
     program->setVec("cloudShadowArea", viewPosition[0], viewPosition[2], 1.0f / (CloudShadowExtent * 1000.0f), 1.0f);
     // Along the sun to the map's plane (y in the view's space).
+    // Past the map: about the share of the sky the clouds leave open.
     program->setVec("cloudShadowSun", sky.sun[0] / sky.sun[1], sky.sun[2] / sky.sun[1],
-                    viewPosition[1] + plane * 1000.0f - sky.cameraHeight, 0.0f);
+                    viewPosition[1] + plane * 1000.0f - sky.cameraHeight,
+                    1.0f - 0.85f * std::clamp(sky.overcast, 0.0f, 1.0f));
 }
 
 void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates) {
@@ -1139,6 +1147,12 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         out[2] = float(positiveModulo(clouds.cameraEast - clouds.drift[l][0], DetailPeriod));
         out[3] = float(positiveModulo(clouds.cameraNorth - clouds.drift[l][1], DetailPeriod));
     }
+    std::copy(sky.night, sky.night + 3, parameters.night);
+    // A jump of the camera leaves the last frames' clouds behind.
+    if (std::hypot(clouds.cameraEast - c.lastEast, clouds.cameraNorth - c.lastNorth) > 300.0)
+        c.historyValid = false;
+    c.lastEast = clouds.cameraEast;
+    c.lastNorth = clouds.cameraNorth;
     parameters.lighting[0] = float(preset.lightSteps);
     parameters.lighting[1] = (clouds.still || !c.historyValid) ? 1.0f : 0.0f;
     parameters.lighting[2] = 1.0f / float(c.size.width());

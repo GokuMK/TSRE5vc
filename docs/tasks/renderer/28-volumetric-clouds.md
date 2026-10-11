@@ -330,6 +330,50 @@ bounce and diffusion); the air between was missing (now per colour). The
 editor's general ambient (PBR rough surfaces not taking the environment's
 colour) is a separate renderer question.
 
+## Review before the hardware test (2026-10-11)
+
+Fixed:
+
+- Sky passes of one frame shared a dynamic uniform buffer per target: the
+  environment map's faces drawn in one frame (all six at first, two or
+  more with the faces-per-frame setting) took the last face's directions.
+  Each sky pass now takes its own buffer and resource set from a pool.
+- Light shafts rebuilt their textures and pipelines every frame: they were
+  keyed to the clouds' history texture, which alternates. They read the
+  march's texture now; the screen-space mask samples the depth nearest
+  (linear filtering of D32F is optional in Vulkan).
+- The weather map under the clouds was rebuilt each kilometre the camera
+  moved (49 000 weather samples, a hitch about every 20 s on a train): now
+  2 km texels (the weather's cells are 2 km or more) in 8 km steps, 12 000
+  samples a rebuild.
+- The clouds' history is dropped when the camera jumps (over 300 m in a
+  frame), so the last place's clouds do not smear in.
+- Clouds at night keep 0.8 of the night sky's floor instead of black.
+- Past the cloud shadow map, terrain took its clamped edge (stripes into
+  the distance); now the clouds' average shade (from the overcast measure).
+- The enclosure pass is skipped entirely on renderers without it.
+
+Known, not changed:
+
+- QRhi Vulkan on lavapipe loses the glow after depth-only passes (task 27
+  notes); the user's hardware showed lights fine with shadows.
+- The environment map preview captures black on lavapipe with the classic
+  sky as well (not from this task).
+- Fog stays one colour all around (the horizon's average): at sunset
+  terrain fades to the same colour towards and away from the sun. The
+  sun's light on the scene still follows `Daylight`, not the atmosphere.
+- Clouds are not in the water reflection or the environment map; no rain
+  drawn in 3D; cumulonimbus bases blue-grey (ambient from the open sky).
+- First use: the atmosphere tables and the noise volumes are made on the
+  CPU (about 0.6 s here).
+- High marches every pixel: heavy for the Steam Deck; Medium is half.
+- Enclosure: thin overhead parts (catenary) count a little as cover; the
+  pass draws all opaque surfaces within 300 m once more.
+- On QRhi's OpenGL backend the lit programs gain two samplers (cloud
+  shadow, enclosure); drivers with 16 texture units per stage may fail
+  the PBR program there (Vulkan is the default).
+- With the physical sky the Editor Session's fog colour has no effect.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

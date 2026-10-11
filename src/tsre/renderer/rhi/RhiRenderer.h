@@ -407,8 +407,14 @@ private:
         QRhiSampler *linear = nullptr;
         QRhiShaderResourceBindings *viewBindings = nullptr;
         QRhiGraphicsPipeline *viewPipeline = nullptr;
-        QRhiBuffer *uniforms[TargetCount] = {};
-        QRhiShaderResourceBindings *bindings[TargetCount] = {};
+        // One per sky pass in a frame (a frame may draw several cube faces):
+        // a dynamic buffer holds its last values for the whole frame.
+        struct Use {
+            QRhiBuffer *uniforms = nullptr;
+            QRhiShaderResourceBindings *bindings = nullptr;
+        };
+        std::vector<Use> uses;
+        size_t usesThisFrame = 0;
         std::vector<std::pair<QRhiRenderPassDescriptor *, QRhiGraphicsPipeline *>> pipelines;
         bool tablesUploaded = false;
         bool viewRendered = false;
@@ -462,6 +468,8 @@ private:
         bool historyValid = false;
         float previous[16] = {};
         bool previousValid = false;
+        double lastEast = 0.0;
+        double lastNorth = 0.0;
         int frame = 0;
         QRhiTexture *compositeColor = nullptr;
         QRhiTextureRenderTarget *compositeTarget = nullptr;

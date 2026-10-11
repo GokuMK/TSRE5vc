@@ -1180,8 +1180,10 @@ void RouteEditorGLWidget::applySky() {
 }
 
 // The weather of the environment around the camera, for the renderer's
-// clouds: 128 x 128 km at 1 km a texel per layer, rebuilt when the weather,
-// its time or the camera's kilometre changes.
+// clouds: 128 x 128 km at 2 km a texel per layer (the weather's own cells
+// are 2 km or more; the renderer's noise makes the clouds), moved in 8 km
+// steps, rebuilt when the weather or its time changes or the camera leaves
+// its step: a rebuild samples the weather 12000 times.
 void RouteEditorGLWidget::applyClouds() {
     Renderer::Clouds &c = cloudState;
     const Weather *weather = currentWeather();
@@ -1196,8 +1198,9 @@ void RouteEditorGLWidget::applyClouds() {
         overcastApplied = false;
         return;
     }
-    constexpr int Size = 128;
-    constexpr float Texel = 1000.0f;
+    constexpr int Size = 64;
+    constexpr float Texel = 2000.0f;
+    constexpr double Step = 8000.0;
     c.quality = Game::cloudQuality;
     // Captures want each frame complete and the same.
     static const bool still = qEnvironmentVariableIsSet("TSRE_CLOUDS_STILL");
@@ -1213,8 +1216,8 @@ void RouteEditorGLWidget::applyClouds() {
         c.drift[l][1] = float(frame.drift[l][1]);
     }
     c.seed = weather->seed;
-    const double west = std::floor((east - Size * Texel * 0.5) / Texel) * Texel;
-    const double top = std::ceil((north + Size * Texel * 0.5) / Texel) * Texel;
+    const double west = std::floor((east - Size * Texel * 0.5) / Step) * Step;
+    const double top = std::ceil((north + Size * Texel * 0.5) / Step) * Step;
     if (c.size != Size || west != c.west || top != c.north || hours != cloudHours
             || weatherRevision != cloudWeatherRevision) {
         c.size = Size;
@@ -1246,12 +1249,14 @@ void RouteEditorGLWidget::applyClouds() {
         c.top = highest;
         c.layers = layers;
         ++c.revision;
-        // Overcast: the low and mid layers' cover within 10 km, the two
-        // combined as independent.
+        // Overcast: the low and mid layers' cover within 10 km of the
+        // camera, the two combined as independent.
         double sum = 0.0;
         int count = 0;
-        for (int j = Size / 2 - 10; j < Size / 2 + 10; ++j)
-            for (int i = Size / 2 - 10; i < Size / 2 + 10; ++i) {
+        const int ci = std::clamp(int((east - west) / Texel), 5, Size - 6);
+        const int cj = std::clamp(int((top - north) / Texel), 5, Size - 6);
+        for (int j = cj - 5; j <= cj + 5; ++j)
+            for (int i = ci - 5; i <= ci + 5; ++i) {
                 const float lowCover = (*layers)[((size_t(0) * Size + j) * Size + i) * 4];
                 const float midCover = (*layers)[((size_t(1) * Size + j) * Size + i) * 4];
                 sum += 1.0 - (1.0 - lowCover) * (1.0 - midCover);
@@ -1406,6 +1411,11 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     enclosure.filter = 2.0f / Size;
     enclosure.ambientFloor = route != NULL && route->trk != NULL && route->trk->tsreEnclosedAmbient >= 0.0f
             ? route->trk->tsreEnclosedAmbient : Game::enclosedAmbient;
+    // Renderers without the map (OpenGL) draw nothing.
+    if (!renderer->beginSkyEnclosure(Size)) {
+        renderer->setSkyEnclosure(Renderer::SkyEnclosure());
+        return;
+    }
     // The shadow program draws with uShadowPMatrix.
     renderer->useProgram(Renderer::PROGRAM_SHADOW);
     Mat4::identity(gluu->mvMatrix);
@@ -1413,9 +1423,7 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     float *saved = gluu->pShadowMatrix;
     gluu->pShadowMatrix = enclosure.viewProjection;
     renderer->applyFrameUniforms();
-    if (renderer->beginSkyEnclosure(Size))
-        renderer->renderEnclosureCasters(Half * 1.5f, RenderStats::FrameStats::PassSlots - 1,
-                                         enclosure.viewProjection);
+    renderer->renderEnclosureCasters(Half * 1.5f, RenderStats::FrameStats::PassSlots - 1, enclosure.viewProjection);
     gluu->pShadowMatrix = saved;
     renderer->applyFrameUniforms();
     renderer->releaseProgram();

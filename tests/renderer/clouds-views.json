@@ -22,6 +22,7 @@
     {"name": "shadows-aerial", "offset": [0, 400, 0], "rot": [3.1416, -0.45], "weatherPreset": "fair_cumulus", "time": 13},
     {"name": "shadows-ground", "rot": [0.8, -0.05], "weatherPreset": "fair_cumulus", "time": 15},
     {"name": "sun-cumulus", "rot": [4.0, 0.3], "weatherPreset": "fair_cumulus", "time": 17},
-    {"name": "sun-low", "rot": [4.4, 0.1], "weatherPreset": "fair_cumulus", "time": 19}
+    {"name": "sun-low", "rot": [4.4, 0.1], "weatherPreset": "fair_cumulus", "time": 19},
+    {"name": "broken-night", "rot": [3.1416, 0.2], "weatherPreset": "broken", "time": 23}
   ]
 }
