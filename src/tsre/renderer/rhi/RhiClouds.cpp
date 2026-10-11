@@ -45,8 +45,11 @@ constexpr int CoverSize = 512;
 // The cloud shadow map: texels and extent (km) around the camera.
 constexpr int CloudShadowSize = 256;
 constexpr float CloudShadowExtent = 12.0f;
-constexpr float NearCoverTexel = 40.0f;
-constexpr float FarCoverTexel = 400.0f;
+// The maps keep the weather's large scales only (its octaves finer than a
+// few texels drop out): the 3D noise makes the smaller shapes, which the 2D
+// noise, the same at every height, would carve into vertical flutes.
+constexpr float NearCoverTexel = 120.0f;
+constexpr float FarCoverTexel = 600.0f;
 constexpr int ShapeSize = 128;
 constexpr int DetailSize = 32;
 // Metres one period of the shape and detail volumes spans.
@@ -60,7 +63,7 @@ struct Preset {
     int lightSteps;
     float distance;
 };
-const Preset Presets[4] = {{0, 0, 0, 0.0f}, {4, 48, 4, 60.0f}, {2, 72, 6, 90.0f}, {2, 128, 6, 130.0f}};
+const Preset Presets[4] = {{0, 0, 0, 0.0f}, {4, 48, 4, 60.0f}, {2, 72, 6, 90.0f}, {1, 128, 6, 130.0f}};
 
 struct CoverParameters {
     float map[4];          // the map's west, north edges in the weather texture (m from its NW corner), texel (m), weather extent (m)
@@ -325,7 +328,7 @@ float coverAt(vec2 offset, int layer) {
     vec2 m = vec2(offset.x, -offset.y) * 1000.0;
     vec2 nearUv = (nearMap.xy + m) / nearMap.z;
     float distance = length(offset);
-    float nearShare = 1.0 - smoothstep(6.0, 9.0, distance);
+    float nearShare = 1.0 - smoothstep(20.0, 28.0, distance);
     float value = 0.0;
     if (nearShare > 0.0)
         value = textureLod(nearCover, nearUv, 0.0)[layer] * nearShare;
@@ -342,35 +345,48 @@ float density(vec3 p, vec2 offset, float altitude, bool detail) {
         if (w.x <= 0.0 || altitude < w.z || altitude > w.w)
             continue;
         float h = (altitude - w.z) / max(w.w - w.z, 0.05);
-        // The weather's 2D noise (even, 0-1): clouds where it passes the
-        // coverage's threshold, as on the map; 3D noise added to it before
-        // the threshold makes their edges billows instead of walls.
-        float even = coverAt(offset, layer);
-        float threshold = 1.0 - w.x;
         float convective = clamp((w.y - 0.3) / 0.4, 0.0, 1.0);
-        float spread = mix(0.22, 0.38, convective);
-        if (even + spread < threshold)
-            continue;
+        // The local coverage from the weather's 2D noise (even, 0-1): a half
+        // where it crosses the coverage's threshold (the map's cloud edge),
+        // all of it well inside a patch, none well outside.
+        // The billows (Schneider 2015): Perlin-Worley eroded by Worley
+        // octaves; finer for heaps than for sheets.
         vec4 offsets = layer == 0 ? noiseLow : noiseMid;
         vec3 metres = vec3(offset.x * 1000.0, altitude * 1000.0, -offset.y * 1000.0);
-        vec4 s = textureLod(shapeNoise, (metres + vec3(offsets.x, 0.0, -offsets.y)) / ShapePeriod, 0.0);
+        vec3 q = (metres + vec3(offsets.x, 0.0, -offsets.y)) / ShapePeriod;
+        vec4 s = textureLod(shapeNoise, q * mix(1.2, 3.2, convective), 0.0);
+        // The map read a little aside, by height: sides bulge and lean
+        // instead of standing straight.
+        vec2 warp = (s.gb - 0.5) * 0.5 * mix(0.5, 1.0, convective);
+        float even = coverAt(offset + warp, layer);
+        float threshold = 1.0 - w.x;
+        float coverage = clamp(0.5 + (even - threshold) * mix(2.5, 1.8, convective), 0.0, 1.0);
+        if (coverage <= 0.0)
+            continue;
         float fbm = dot(s.gba, vec3(0.625, 0.25, 0.125));
         float base = clamp(remap(s.r, fbm - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
-        // Height: stratus a sheet with a ragged top and bottom; cumulus a
-        // rounded base, narrowing towards the top.
-        float bottom = 1.0 - smoothstep(0.0, mix(0.25, 0.12, convective), h);
-        float top = smoothstep(mix(0.7, 0.35, convective), 1.0, h);
-        float field = even + (base - 0.5) * spread * 2.0 - bottom * 0.35 - top * mix(0.4, 0.7, convective);
-        float v = clamp((field - threshold) / mix(0.08, 0.18, convective), 0.0, 1.0);
+        // The height profile by type, before the coverage: only a patch's
+        // cores reach the top, so heaps rise as domes from flat bases;
+        // sheets fill their layer with ragged edges.
+        // Sheets vary in thickness with the 2D noise and the billows, so
+        // their bases show lighter and darker patches (rolls, thin parts).
+        float thickness = mix(0.45, 1.0, clamp(even * 1.2 + (s.r - 0.5) * 0.6, 0.0, 1.0));
+        float hs = h / thickness;
+        float stratusProfile = smoothstep(0.0, 0.25, hs + (s.g - 0.5) * 0.3) * (1.0 - smoothstep(0.55, 1.0, hs));
+        float cumulusProfile = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.15, 1.0, h));
+        base *= mix(stratusProfile, cumulusProfile, convective);
+        float v = clamp(remap(base, 1.0 - coverage, 1.0, 0.0, 1.0), 0.0, 1.0) * coverage;
         if (v <= 0.0)
             continue;
-        if (v > 0.0 && detail) {
-            vec3 dn = textureLod(detailNoise, (metres + vec3(offsets.z, 0.0, -offsets.w)) / DetailPeriod, 0.0).rgb;
+        if (detail) {
+            // Wisps at the bottom, billows at the top, eroding the edges.
+            vec3 dn = textureLod(detailNoise, (metres + vec3(offsets.z, 0.0, -offsets.w))
+                                 / (DetailPeriod * mix(0.9, 0.55, convective)), 0.0).rgb;
             float dfbm = dot(dn, vec3(0.625, 0.25, 0.125));
-            float erosion = mix(dfbm, 1.0 - dfbm, clamp(h * 4.0, 0.0, 1.0));
-            v = clamp(remap(v, erosion * 0.35, 1.0, 0.0, 1.0), 0.0, 1.0);
+            float erosion = mix(dfbm, 1.0 - dfbm, clamp(h * 5.0, 0.0, 1.0));
+            v = clamp(remap(v, erosion * mix(0.3, 0.55, convective), 1.0, 0.0, 1.0), 0.0, 1.0);
         }
-        sum += v * mix(18.0, 30.0, convective);
+        sum += v * mix(35.0, 70.0, convective);
     }
     return sum;
 }
@@ -493,7 +509,7 @@ void main() {
             // The sky's light reaches less far in: less at the bottom of
             // the layer and where the sun's path is dense.
             float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05));
-            vec3 ambient = skyAbove * open * 0.9 + sunLight * max(sunCos, 0.0) * 0.05 * (1.0 - h);
+            vec3 ambient = skyAbove * open * 0.7 + sunLight * max(sunCos, 0.0) * 0.05 * (1.0 - h);
             vec3 lit = sunLight * scattered * 4.0 * Pi * 0.25 + ambient;
             float sampleT = exp(-sigma * dt);
             luminance += transmittance * lit * (1.0 - sampleT);

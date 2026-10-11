@@ -172,7 +172,7 @@ imports alike), and their shadow map shares the march's code.
   detail 32^3 (Worley octaves) over 900 m, tileable; 3D textures.
 - QRhi (`RhiClouds.cpp`), at the start of the main view, before its
   geometry:
-  - cover maps, 512^2 near (40 m texels) and far (400 m): for the low and
+  - cover maps, 512^2 near (120 m texels) and far (600 m): for the low and
     mid layers the weather's own 2D noise in its even form (the shader
     ports `WeatherNoise`: the hash, the 256 gradients, the octave turns,
     the octaves limited to the texel, the quantile table), for the high
@@ -184,7 +184,7 @@ imports alike), and their shadow map shares the march's code.
     PBR, water) multiply the sun by it, projecting each point along the
     sun to the plane; past the map it fades to 0.6 of its edge.
 - After the opaque passes (with ambient occlusion):
-  - the march, at half (Medium, High) or quarter (Low) resolution: a shell
+  - the march, at full (High), half (Medium) or quarter (Low) resolution: a shell
     around the planet between the layers' lowest base and highest top, up
     to the scene's depth (the farthest of the 2 x 2 texels under it) or 60 /
     90 / 130 km; 48 / 72 / 128 steps spaced quadratically, each pixel
@@ -265,6 +265,33 @@ including a glow problem found on QRhi Vulkan with depth-only passes.
 - To tune on hardware: the strength (subtle now), the step count and
   temporal blending (the march is jittered each frame without history);
   lamps in fog (froxels) remain later work.
+
+## Cloud shapes, second pass (2026-10-11)
+
+The user's review of the first images: the shapes looked 2.5D, artificial
+(they were at Medium; High only marches more finely). Causes: the weather's
+2D field, the same at every height, set each cloud's outline, so clouds
+were columns extruded from the map with flat tops and, near the camera
+(40 m cover texels keeping 150 m octaves), vertical flutes; the 3D noise
+only nudged the edges; the half-resolution march blurred them. Now
+(Schneider 2015's form):
+
+- The 2D field gives a local coverage (a half at the map's cloud edge, all
+  of it well inside a patch), read a little aside by the 3D noise and by
+  height (up to 250 m), so sides bulge and lean.
+- The billows (Perlin-Worley eroded by its Worley octaves, 2.2-3.2 times
+  finer for heaps than before) are multiplied by the height profile of the
+  cloud type before the coverage's threshold (`remap(base, 1 - coverage,
+  1)`): only a patch's cores reach the top, so cumulus rise as domes from
+  flat bases. Sheets vary in thickness with the 2D field and the billows,
+  with a ragged base, so overcast shows lighter and darker patches.
+- Worley detail erodes the edges more strongly and finer (wisps at the
+  bottom, billows at the top); extinction 35-70 per km, so edges are
+  crisp; a little less ambient light for more contrast.
+- The cover maps keep only the weather's large scales (120 and 600 m
+  texels); High marches at full resolution (Medium half, Low quarter).
+- Checked at High: fair cumulus towards the horizon, from below and
+  towards the sun, broken, overcast, scattered, cumulus in the evening.
 
 ## Verification
 
