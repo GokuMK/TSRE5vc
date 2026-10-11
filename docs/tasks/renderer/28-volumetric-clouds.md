@@ -1,7 +1,10 @@
 # Task 28 - Volumetric Clouds and Sky
 
 Status: in progress on `feature/clouds` (from `feature/weather`), started
-2026-10-11; steps 1-3 and 5-8 done (7: task 27), step 4 in part; step 9
+2026-10-11; steps 1-3 and 5-8 done (7: task 27), step 4 in part; reviewed
+and timed on the Steam Deck 2026-10-12 (presets by pixels, temporal update,
+horizon, stable cloud shadows, cached enclosure: see "Review and
+performance"); step 9
 (OpenGL fallback, skydome) not started. Includes task 27 (sky enclosure). Reads its weather
 from task environment 01. Authorized overnight through step 8 and task 27
 (user, 2026-10-11); verified on lavapipe with captures, timed by the user on
@@ -373,6 +376,126 @@ Known, not changed:
   shadow, enclosure); drivers with 16 texture units per stage may fail
   the PBR program there (Vulkan is the default).
 - With the physical sky the Editor Session's fog colour has no effect.
+
+## Review and performance on the Steam Deck (2026-10-12)
+
+The user's notes after trying the branch: the enclosure tanks performance;
+the lamp multiplier works but is a stopgap until HDR exposure (the enclosure
+stays needed either way); presets look partly right; the cloud shadow's
+edge dances when the camera moves; volumetric shafts are heavy and need
+work; High is too heavy (move Medium to High, Low to Medium, a lower Low);
+clouds stop too high above the horizon in some presets.
+
+### How it was measured
+
+The capture harness now times whole frames (`minFrameMs`,
+`medianFrameMs`; a grab waits for the GPU and reads the image back, so the
+time is CPU + GPU + a fixed readback): QRhi reports no GPU timestamps for
+offscreen frames. Differences between settings are the GPU's cost. CMK
+(the lake by the bridge, the station hall at the route start), shadows on,
+at the Deck's 1280 x 800 (`QT_ENABLE_HIGHDPI_SCALING=0`) and at 3200 x 1800:
+the user's display is scaled 250 %, and every per-pixel cost grows 5.6
+times there.
+
+### Before (added ms over the classic sky, horizon / sun views)
+
+| | 1280 x 800 | 3200 x 1800 |
+|---|---|---|
+| Physical sky | +1.8 / +1.9 | |
+| Clouds Low | +6 / +6 | +20 / +14 |
+| Clouds Medium | +15 / +16 | +52 / +56 |
+| Clouds High | +57 / +64 | +220 / +262 |
+| Volumetric shafts (over Medium) | +2 | +4 |
+
+Causes: the march's buffer followed the window (High every pixel at 128
+steps; at 3200 x 1800 that is 5.8 million rays a frame) and was marched
+whole every frame.
+
+### Changes
+
+- **Presets** are the cloud image's pixels, whatever the window or its
+  scaling: Low 320 x 180, Medium 480 x 270, High 640 x 360 (in the view's
+  shape, never more than the view); march steps 48 / 64 / 96, light steps
+  3 / 4 / 6. New High is about old Medium at the Deck's size, new Medium
+  between, new Low about old Low (the user's reshuffle).
+- **Temporal update** (Schneider 2015): each frame marches one pixel of
+  every 4 x 4 block of the image (a Bayer order over 16 frames) into a
+  march buffer of one texel per block; the temporal pass rebuilds the
+  image: marched pixels blend half into the history, the others are the
+  last frames' (rotation reprojected, clamped loosely to the marched
+  neighbourhood), off the last image the march's result. Still captures
+  and the frame after a jump (no history) run all 16 passes at once. The
+  pass's pixel comes from a per-pass uniform block picked by a dynamic
+  offset (`Update`, binding 10). The march's start jitter goes by the
+  image's pixel (by the march texel, a block's 16 pixels shared it and
+  showed as 4 x 4 steps). The scene depth under an image pixel is the
+  farthest of 3 x 3 samples over it.
+- **Horizon**: the weather around the camera reaches about 58 km (64
+  texels of 2 km, moved in 8 km steps), and the march stopped at 60 / 90 /
+  130 km, so a 1.5 km base ended about 1.2 degrees above the horizon, a
+  4 km mid layer about 3 degrees. The cloud shell now sits on a smaller
+  planet (`cloudShellRadius`): its radius puts the clouds' top, seen from
+  the camera's height, on the horizon 55 km away (s^2 = 2 R (top - h),
+  120 km to the Earth's radius), so the clouds reach the horizon within
+  the weather; the march goes to 60 km at every quality. The sun's light
+  on a cloud still uses the Earth's geometry at its height (the smaller
+  shell would tilt a far cloud's sky away from the sun and set it early).
+  No outer weather ring needed.
+- **Cloud shadow map**: its centre stays on whole texels of the ground
+  (46.9 m), the plane under the clouds no longer follows the camera's
+  height, and the map is drawn only when its centre moves a texel, the sun,
+  the weather or the cover maps change. The lit shaders and the volumetric
+  shafts take the same centre (`cloudShadowCentre`). The dance came from
+  the map recentred on the camera each frame (resampling its 47 m texels),
+  there since step 5, not from the last review's edits.
+- **Sky enclosure** (task 27): the map is drawn from a point snapped to
+  cells of 80 texels (31.25 m; 16 m in height) and kept while the camera
+  stays in its cell, drawn anyway once a second for edits. Same result as
+  drawing it every frame (the lamp and ambient difference on and off is
+  identical, pixel for pixel).
+
+### After
+
+| | 1280 x 800 | 3200 x 1800 |
+|---|---|---|
+| Clouds Low | about 0 / +3 | +6 / +1 |
+| Clouds Medium | +4 / -2 (noise) | +2 / +6 |
+| Clouds High | +2 / 0 (noise) | +5 / +4 |
+
+Within the run-to-run noise (2-3 ms) at the Deck's size: the target of
+2-3 ms for sky and clouds holds at all three. The image is softer than
+before at High (640 x 360 for the whole view).
+
+Enclosure, at the user's camera in the CMK station hall with 10 glTF lamps:
+before, on added about 6.5 ms at noon and 8 ms at night, and 1.6 ms of CPU
+(the second pass over everything within 300 m, every frame); now no CPU,
+1-3 ms at night (the shaders' 16 taps), about 5 ms at noon. At noon the
+hall is enclosed, so its lamps shine at full strength by day as at night:
+that cost is the lamps', the feature working. A trial of four corner taps
+first (skipping the rest in the open) changed the shade under tree
+canopies (patchy cover leaves the corners open) and was dropped.
+
+### Still open
+
+- Lamps are gathered at full strength whenever the enclosure is on (their
+  ranges too), and dimmed per pixel in the open: by day, lamps in the open
+  cost their full night range. Needs each lamp's enclosure on the CPU (a
+  readback of the map at the lamps); later, with HDR exposure replacing the
+  multiplier.
+- Volumetric shafts: 40 steps at half resolution, a new jitter each frame
+  without history (noisy). Quarter resolution, about 24 steps and temporal
+  blending, as the clouds.
+- The cover maps' redraw key holds each layer's drift: with the weather's
+  time running they would be redrawn every frame. Snap each layer's
+  offset to whole texels and pass the remainder to the march.
+- Still captures show the march's dither (frozen jitter); in motion the
+  history averages it.
+- Settings in `Game.h` (sky model, cloud quality, shafts, enclosure,
+  enclosed ambient): to move to their classes when a full rebuild happens
+  anyway (user, 2026-10-12: settings read every frame may live in `Game`,
+  but their own class is better).
+- Clouds in the water reflection and the environment map; precipitation;
+  cumulonimbus anvils.
 
 ## Verification
 

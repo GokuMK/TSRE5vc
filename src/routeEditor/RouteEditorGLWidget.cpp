@@ -1384,13 +1384,18 @@ void RouteEditorGLWidget::renderShadowMaps() {
 }
 
 // The sky enclosure (task 27): terrain and opaque surfaces seen from 300 m
-// above the camera, 400 m across at 1024 texels, snapped to its texels so it
-// does not crawl as the camera moves. The lit shaders find in it whether
-// something stands over a point.
+// above the camera, 400 m across at 1024 texels. The lit shaders find in it
+// whether something stands over a point. The map is drawn from a point
+// snapped to cells of 80 of its texels (31.25 m; 16 m in height), so its
+// texels keep their place on the ground, and kept while the camera stays in
+// its cell: the scene under it rarely changes, and drawing it again is a
+// second pass over everything within 300 m. Once a second it is drawn
+// anyway, for edits.
 void RouteEditorGLWidget::renderSkyEnclosure() {
     Renderer::SkyEnclosure enclosure;
     enclosure.enabled = Game::skyEnclosure;
     if (!enclosure.enabled) {
+        enclosureAge = -1;
         renderer->setSkyEnclosure(enclosure);
         return;
     }
@@ -1398,24 +1403,39 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     constexpr float Half = 200.0f;
     constexpr float Above = 300.0f;
     constexpr float Depth = 600.0f;
-    const float texel = 2.0f * Half / Size;
+    constexpr float Cell = 80.0f * 2.0f * Half / Size;
+    constexpr float CellHeight = 16.0f;
+    constexpr int RedrawFrames = 60;
     const float *position = camera->getPos();
-    float eye[3] = {std::floor(position[0] / texel) * texel, position[1] + Above, std::floor(position[2] / texel) * texel};
-    float centre[3] = {eye[0], position[1], eye[2]};
+    const float eye[3] = {std::floor(position[0] / Cell + 0.5f) * Cell,
+                          std::floor(position[1] / CellHeight + 0.5f) * CellHeight + Above,
+                          std::floor(position[2] / Cell + 0.5f) * Cell};
+    const bool redraw = enclosureAge < 0 || enclosureAge >= RedrawFrames
+            || !std::equal(eye, eye + 3, enclosureEye);
+    float centre[3] = {eye[0], eye[1] - Above, eye[2]};
     float up[3] = {0.0f, 0.0f, -1.0f};
+    float from[3] = {eye[0], eye[1], eye[2]};
     float projection[16], look[16];
     Mat4::ortho(projection, -Half, Half, -Half, Half, 0.0f, Depth);
-    Mat4::lookAt(look, eye, centre, up);
+    Mat4::lookAt(look, from, centre, up);
     Mat4::multiply(enclosure.viewProjection, projection, look);
     enclosure.metresPerDepth = Depth;
     enclosure.filter = 2.0f / Size;
     enclosure.ambientFloor = route != NULL && route->trk != NULL && route->trk->tsreEnclosedAmbient >= 0.0f
             ? route->trk->tsreEnclosedAmbient : Game::enclosedAmbient;
+    if (!redraw) {
+        ++enclosureAge;
+        renderer->setSkyEnclosure(enclosure);
+        return;
+    }
     // Renderers without the map (OpenGL) draw nothing.
     if (!renderer->beginSkyEnclosure(Size)) {
+        enclosureAge = -1;
         renderer->setSkyEnclosure(Renderer::SkyEnclosure());
         return;
     }
+    std::copy(eye, eye + 3, enclosureEye);
+    enclosureAge = 0;
     // The shadow program draws with uShadowPMatrix.
     renderer->useProgram(Renderer::PROGRAM_SHADOW);
     Mat4::identity(gluu->mvMatrix);

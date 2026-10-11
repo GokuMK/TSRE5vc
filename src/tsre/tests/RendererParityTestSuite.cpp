@@ -697,8 +697,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         bool stable = true;
         double minCpuMs = -1.0;
         RenderStats::FrameStats stats;
+        // Whole frames: a grab waits for the GPU and reads the image back,
+        // so its time is the CPU's, the GPU's and a fixed readback.
+        std::vector<double> frameMs;
+        QElapsedTimer frameTimer;
         for (int i = 0; i < options.timingFrames; ++i) {
+            frameTimer.start();
             image = widget.grabFramebuffer();
+            frameMs.push_back(frameTimer.nsecsElapsed() / 1e6);
             const QByteArray hash = imageHash(image);
             if (i > 0 && hash != previousHash)
                 stable = false;
@@ -733,6 +739,15 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
 
         QJsonObject statsJson = RenderStats::toJson(stats);
         statsJson["minCpuMs"] = minCpuMs;
+        if (!frameMs.empty()) {
+            std::sort(frameMs.begin(), frameMs.end());
+            statsJson["minFrameMs"] = frameMs.front();
+            statsJson["medianFrameMs"] = frameMs[frameMs.size() / 2];
+            qInfo().noquote() << CaptureLog << spec.name << "frame ms: min"
+                              << QString::number(frameMs.front(), 'f', 1) << "median"
+                              << QString::number(frameMs[frameMs.size() / 2], 'f', 1)
+                              << "cpu" << QString::number(minCpuMs, 'f', 1);
+        }
 
         QJsonObject view;
         view["name"] = spec.name;

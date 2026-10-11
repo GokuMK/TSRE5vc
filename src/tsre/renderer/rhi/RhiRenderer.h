@@ -452,7 +452,13 @@ private:
         QRhiShaderResourceBindings *coverBindings[2] = {};
         QRhiGraphicsPipeline *coverPipeline = nullptr;
         std::vector<double> coverKey;
+        // The march (one texel per update block) and the cloud image.
         QSize size;
+        QSize imageSize;
+        QRhiBuffer *updateUniforms = nullptr;
+        quint32 updateStride = 0;
+        // What the cloud shadow map was last drawn for.
+        std::vector<double> shadowKey;
         QRhiTexture *march = nullptr;
         QRhiTexture *distance = nullptr;
         QRhiTextureRenderTarget *marchTarget = nullptr;
@@ -493,6 +499,13 @@ private:
     bool enclosureDrawn = false;
     void recordCasters(int statsSlot);
     bool cloudShadowPlane(float &altitude) const;
+    // The cloud shadow map's centre on whole texels: its offset from the
+    // camera (m east, north) and its place in the view's space (x, z).
+    void cloudShadowOffset(double &east, double &north) const;
+    void cloudShadowCentre(float &x, float &z) const;
+    // The planet radius of the cloud shell (km): smaller than the Earth's,
+    // so the clouds reach the horizon within the weather around the camera.
+    float cloudShellRadius() const;
     void writeCloudShadowUniforms(RhiProgram *program);
     void prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);
 public:

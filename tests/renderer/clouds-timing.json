@@ -1,0 +1,11 @@
+{
+  "notes": "Cloud timing on CMK (lake by the bridge): fair cumulus towards the horizon at 13:00 and towards the sun at 17:00. Compare medianFrameMs between core.rendering.clouds settings (QRhi, physical sky); run with QT_ENABLE_HIGHDPI_SCALING=0 for exactly 1280 x 800. Not still: temporal mode, as in use.",
+  "output": "build/renderer-clouds-timing",
+  "width": 1280, "height": 800, "pickGrid": [0, 0], "timingFrames": 30, "diffTolerance": 16,
+  "shadows": true,
+  "settle": { "minFrames": 20, "stableFrames": 2, "maxFrames": 40, "maxSeconds": 120 },
+  "views": [
+    {"name": "cumulus", "tile": [-5306, -14963], "pos": [650, 120, 0], "rot": [-0.6, 0.06], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "sun", "tile": [-5306, -14963], "pos": [650, 120, 0], "rot": [4.4, 0.1], "weatherPreset": "fair_cumulus", "time": 17}
+  ]
+}

@@ -500,8 +500,7 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     v.bands[3] = 0.99f;
     float plane = 0.0f;
     if (cloudShadowPlane(plane) && l.volumeCloudMap != nullptr) {
-        v.clouds[0] = viewPosition[0];
-        v.clouds[1] = viewPosition[2];
+        cloudShadowCentre(v.clouds[0], v.clouds[1]);
         v.clouds[2] = 1.0f / (12.0f * 1000.0f);
         v.clouds[3] = 1.0f;
         v.cloudSun[0] = sunDirection.x() / sunDirection.y();

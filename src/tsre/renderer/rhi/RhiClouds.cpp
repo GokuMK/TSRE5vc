@@ -34,6 +34,7 @@
 #include <QMatrix4x4>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <qfloat16.h>
 #include <tsre/environment/Atmosphere.h>
 #include <tsre/environment/CloudNoise.h>
@@ -57,14 +58,39 @@ constexpr int CurlSize = 128;
 constexpr double ShapePeriod = 6000.0;
 constexpr double DetailPeriod = 900.0;
 
-// Per quality: resolution divisor, march steps, light steps, distance (km).
+// Per quality: the cloud image's pixels (whatever the window's size or its
+// display scaling), march steps, light steps. Each frame marches one pixel
+// of every 4 x 4 block of the image (Schneider 2015); the others come from
+// the last frames, reprojected.
 struct Preset {
-    int divisor;
+    int pixels;
     int steps;
     int lightSteps;
-    float distance;
 };
-const Preset Presets[4] = {{0, 0, 0, 0.0f}, {4, 48, 4, 60.0f}, {2, 72, 6, 90.0f}, {1, 128, 6, 130.0f}};
+const Preset Presets[4] = {{0, 0, 0}, {320 * 180, 48, 3}, {480 * 270, 64, 4}, {640 * 360, 96, 6}};
+constexpr int UpdateBlock = 4;
+constexpr int UpdatePasses = UpdateBlock * UpdateBlock;
+// The order the pixels of a block are marched in (a Bayer pattern: each
+// frame's pixels spread evenly).
+const int UpdateOrder[UpdatePasses][2] = {{0, 0}, {2, 2}, {0, 2}, {2, 0}, {1, 1}, {3, 3}, {1, 3}, {3, 1},
+                                          {0, 1}, {2, 3}, {0, 3}, {2, 1}, {1, 0}, {3, 2}, {1, 2}, {3, 0}};
+// The march reaches this far (km): the weather around the camera reaches
+// about 58 km. The cloud shell curves down more than the Earth so that its
+// top meets the horizon within it (HorizonDistance; Horizon Zero Dawn's
+// clouds sat on a smaller planet too).
+constexpr float MarchDistance = 60.0f;
+constexpr float HorizonDistance = 55.0f;
+constexpr float EarthRadius = 6360.0f;
+constexpr float SmallestShellRadius = 120.0f;
+
+// Per update pass: the block's size and the pixel marched (x, y), the share
+// of a new sample in the history; the image's and the march's sizes; the
+// cloud shell's radius (km).
+struct UpdateParameters {
+    float update[4];
+    float sizes[4];
+    float shell[4];
+};
 
 struct CoverParameters {
     float map[4];          // the map's west, north edges in the weather texture (m from its NW corner), texel (m), weather extent (m)
@@ -88,7 +114,7 @@ struct MarchParameters {
     float noiseMid[4];
     float lighting[4];     // light steps, still, buffer texel w, h
     float high[4];         // high layer altitude (km)
-    float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km)
+    float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), its centre east and north of the camera (km)
     float night[4];        // the night sky's floor (display colour)
 };
 
@@ -264,6 +290,14 @@ layout(binding = 6) uniform sampler2D transmittanceTable;
 layout(binding = 7) uniform sampler2D skyView;
 layout(binding = 8) uniform sampler2D sceneDepth;
 layout(binding = 9) uniform sampler2D curlNoise;
+// The pass: the block's size, the pixel marched in each block (x, y), a new
+// sample's share; the image's and the march's sizes; the cloud shell's
+// planet radius (km), smaller than the Earth's.
+layout(std140, binding = 10) uniform Update {
+    vec4 update;
+    vec4 sizes;
+    vec4 shell;
+};
 
 const float BottomRadius = 6360.0;
 const float TopRadius = 6460.0;
@@ -427,32 +461,41 @@ layout(location = 1) out vec4 distanceOut;
 
 const char *MarchMain = R"(
 void main() {
-    vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
+    // This march texel is one pixel of its block of the cloud image: the
+    // one this pass updates.
+    vec2 pixel = floor(uv * sizes.zw) * update.x + update.yz;
+    vec2 imageUv = (pixel + 0.5) / sizes.xy;
+    vec2 ndc = vec2(imageUv.x * 2.0 - 1.0, (imageUv.y * 2.0 - 1.0) * camera.y);
     vec4 far = inverse * vec4(ndc, 1.0, 1.0);
     vec3 d = normalize(far.xyz / far.w);
-    // The farthest scene depth under this texel.
-    vec2 texel = 1.0 / vec2(textureSize(sceneDepth, 0));
-    vec2 full = uv / texel;
+    // The farthest scene depth under the image's pixel (3 x 3 samples over
+    // it), so clouds behind a hill's edge are marched; the composite cuts
+    // them at the full resolution.
+    vec2 depthSize = vec2(textureSize(sceneDepth, 0));
     float depth = 0.0;
-    for (int j = 0; j < 2; ++j)
-        for (int i = 0; i < 2; ++i)
-            depth = max(depth, texelFetch(sceneDepth, ivec2(clamp(floor(full + vec2(i, j) - 0.5), vec2(0.0),
-                                                                  vec2(textureSize(sceneDepth, 0) - 1))), 0).r);
+    for (int j = 0; j < 3; ++j)
+        for (int i = 0; i < 3; ++i) {
+            vec2 at = (pixel + (vec2(i, j) + 0.5) / 3.0) / sizes.xy * depthSize;
+            depth = max(depth, texelFetch(sceneDepth, ivec2(clamp(floor(at), vec2(0.0), depthSize - 1.0)), 0).r);
+        }
     float scene = sceneDistance(depth, ndc);
     float limit = scene > 0.0 ? min(scene, slab.z) : slab.z;
 
-    vec3 p0 = vec3(0.0, BottomRadius + max(camera.x, 0.001), 0.0);
+    // The shell around a smaller planet than the Earth (shell.x), so the
+    // clouds reach the horizon within the weather the march has.
+    float R = shell.x;
+    vec3 p0 = vec3(0.0, R + max(camera.x, 0.001), 0.0);
     float pr = length(p0);
-    vec2 bottomHits = sphereHits(p0, d, BottomRadius + slab.x);
-    vec2 topHits = sphereHits(p0, d, BottomRadius + slab.y);
-    vec2 groundHits = sphereHits(p0, d, BottomRadius);
+    vec2 bottomHits = sphereHits(p0, d, R + slab.x);
+    vec2 topHits = sphereHits(p0, d, R + slab.y);
+    vec2 groundHits = sphereHits(p0, d, R);
     float start, end;
-    if (pr < BottomRadius + slab.x) {
+    if (pr < R + slab.x) {
         // Below the clouds: from the bottom of the shell to its top, unless
         // the ground comes first.
         start = bottomHits.y;
         end = groundHits.x > 0.0 ? -1.0 : topHits.y;
-    } else if (pr < BottomRadius + slab.y) {
+    } else if (pr < R + slab.y) {
         start = 0.0;
         end = (bottomHits.x > 0.0) ? bottomHits.x : topHits.y;
     } else {
@@ -465,7 +508,9 @@ void main() {
     float cosAngle = dot(d, sunDir);
     // Each pixel starts the march at its own place (interleaved gradient
     // noise), moved on each frame unless still.
-    float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))) + camera.w);
+    // (by the image's pixel: the pixels of a block are marched by different
+    // passes on the same march texel)
+    float jitter = fract(52.9829189 * fract(dot(pixel + 0.5, vec2(0.06711056, 0.00583715))) + camera.w);
     float phaseScale[3] = float[3](1.0, 0.5, 0.25);
     vec3 luminance = vec3(0.0);
     float transmittance = 1.0;
@@ -486,7 +531,7 @@ void main() {
             previousT = t;
             vec3 p = p0 + d * t;
             float r = length(p);
-            float altitude = r - BottomRadius;
+            float altitude = r - R;
             vec2 offset = vec2(p.x, -p.z);
             float sigma = density(p, offset, altitude, true);
             if (sigma <= 0.0)
@@ -501,17 +546,22 @@ void main() {
             for (int k = 0; k < int(lighting.x); ++k) {
                 along += stepLength;
                 vec3 q = p + sunDir * along + Cone[k] * (stepLength * 0.6);
-                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - BottomRadius, false) * stepLength;
+                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * stepLength;
                 stepLength *= 1.8;
             }
             {
                 vec3 q = p + sunDir * (along + 2.0);
-                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - BottomRadius, false) * 0.8;
+                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * 0.8;
             }
-            vec3 up = p / r;
+            // The sun's light as on the Earth at this height and place: the
+            // smaller shell would tilt a far cloud's sky away from the sun
+            // and set it early.
+            vec3 earthPoint = vec3(p.x, BottomRadius + altitude, p.z);
+            float earthRadius = length(earthPoint);
+            vec3 up = earthPoint / earthRadius;
             float sunCos = dot(up, sunDir);
-            vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(r, sunCos), 0.0).rgb;
-            vec2 ground = sphereHits(p, sunDir, BottomRadius);
+            vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(earthRadius, sunCos), 0.0).rgb;
+            vec2 ground = sphereHits(earthPoint, sunDir, BottomRadius);
             if (ground.x > 0.0)
                 sunLight = vec3(0.0);
             // Multiple scattering in octaves (Wrenninge 2013).
@@ -554,9 +604,9 @@ void main() {
     }
     float distance = weights > 0.0 ? weightedDistance / weights : -1.0;
     // The flat high layer, behind the others.
-    if (high.x > 0.0 && pr < BottomRadius + high.x) {
-        float th = sphereHits(p0, d, BottomRadius + high.x).y;
-        if (th > 0.0 && th < slab.z * 1.6 && (scene < 0.0) && sphereHits(p0, d, BottomRadius).x < 0.0) {
+    if (high.x > 0.0 && pr < R + high.x) {
+        float th = sphereHits(p0, d, R + high.x).y;
+        if (th > 0.0 && th < slab.z * 1.6 && (scene < 0.0) && sphereHits(p0, d, R).x < 0.0) {
             vec3 p = p0 + d * th;
             vec2 offset = vec2(p.x, -p.z);
             float c = coverAt(offset, 2);
@@ -564,7 +614,9 @@ void main() {
                 vec3 metres = vec3(offset.x * 1000.0, 0.0, -offset.y * 1000.0);
                 vec4 s = textureLod(shapeNoise, vec3(metres.x / 9000.0, 0.37, metres.z / 3000.0), 0.0);
                 float alpha = c * clamp(0.25 + 0.6 * s.g, 0.0, 1.0) * 0.6;
-                vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(length(p), dot(normalize(p), sunDir)), 0.0).rgb;
+                vec3 earthPoint = vec3(p.x, BottomRadius + high.x, p.z);
+                vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(length(earthPoint),
+                                                                               dot(normalize(earthPoint), sunDir)), 0.0).rgb;
                 vec3 lit = sunLight * (henyeyGreenstein(cosAngle, 0.7) * 0.6 + 0.4 / (4.0 * Pi)) * 4.0 * Pi * 0.3
                         + skyAbove * 0.8;
                 luminance += transmittance * lit * alpha;
@@ -578,7 +630,7 @@ void main() {
     // path's mean height and the weather's low haze (high.y, per km), each
     // colour its own; the clouds fade towards the sky behind them.
     if (transmittance < 1.0 && distance > 0.0) {
-        float cloudAltitude = length(p0 + d * distance) - BottomRadius;
+        float cloudAltitude = length(p0 + d * distance) - R;
         float mean = max(0.5 * (camera.x + cloudAltitude), 0.0);
         vec3 sigma = vec3(5.802e-3, 13.558e-3, 33.1e-3) * exp(-mean / 8.0) + vec3(4.44e-3 * exp(-mean / 1.2))
                 + vec3(high.y * exp(-mean / 1.5));
@@ -603,8 +655,10 @@ void main() {
         result = vec4(1.0);
         return;
     }
-    // Rows from north to south; km east and north of the camera.
-    vec2 ground = vec2(uv.x - 0.5, 0.5 - uv.y) * shadow.x;
+    // Rows from north to south; km east and north of the camera. The map's
+    // centre stays on whole texels of the ground (shadow.zw from the
+    // camera), so moving the camera does not resample its edges.
+    vec2 ground = vec2(uv.x - 0.5, 0.5 - uv.y) * shadow.x + shadow.zw;
     float bottom = (slab.x - shadow.y) / sunDir.y;
     float top = (slab.y - shadow.y) / sunDir.y;
     const int Steps = 20;
@@ -645,37 +699,53 @@ layout(std140, binding = 0) uniform Clouds {
 };
 layout(binding = 1) uniform sampler2D current;
 layout(binding = 2) uniform sampler2D history;
+layout(std140, binding = 10) uniform Update {
+    vec4 update;
+    vec4 sizes;
+    vec4 shell;
+};
 
+// The cloud image: the pixels this pass marched (one of each block), the
+// others from the last frames in the same direction (rotation reprojected,
+// clamped to the marched neighbourhood); off the last frame's image, the
+// march's own result. While filling (still, or no history), the image is
+// built by one pass per pixel of the block in the same frame.
 void main() {
-    vec4 now = textureLod(current, uv, 0.0);
+    vec2 pixel = floor(uv * sizes.xy);
+    vec2 cell = floor(pixel / update.x);
+    bool marched = all(equal(pixel - cell * update.x, update.yz));
+    ivec2 marchTexel = ivec2(clamp(cell, vec2(0.0), sizes.zw - 1.0));
+    vec4 fresh = texelFetch(current, marchTexel, 0);
     if (lighting.y > 0.5) {
-        result = now;
+        result = marched ? fresh : textureLod(history, uv, 0.0);
         return;
     }
+    vec4 low = fresh, highValue = fresh;
+    for (int j = -1; j <= 1; ++j)
+        for (int i = -1; i <= 1; ++i) {
+            vec4 n = texelFetch(current, ivec2(clamp(cell + vec2(i, j), vec2(0.0), sizes.zw - 1.0)), 0);
+            low = min(low, n);
+            highValue = max(highValue, n);
+        }
     vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
     vec4 far = inverse * vec4(ndc, 1.0, 1.0);
     vec3 d = normalize(far.xyz / far.w);
     vec4 clip = previous * vec4(d, 0.0);
-    if (clip.w <= 0.0) {
-        result = now;
+    vec2 beforeUv = vec2(-1.0);
+    if (clip.w > 0.0) {
+        vec2 before = clip.xy / clip.w;
+        beforeUv = vec2(before.x * 0.5 + 0.5, (before.y * camera.y) * 0.5 + 0.5);
+    }
+    bool onImage = all(greaterThanEqual(beforeUv, vec2(0.0))) && all(lessThanEqual(beforeUv, vec2(1.0)));
+    if (!onImage) {
+        // New sky at the image's edge: the march's result near it.
+        result = marched ? fresh : textureLod(current, uv, 0.0);
         return;
     }
-    vec2 before = clip.xy / clip.w;
-    vec2 beforeUv = vec2(before.x * 0.5 + 0.5, (before.y * camera.y) * 0.5 + 0.5);
-    if (any(lessThan(beforeUv, vec2(0.0))) || any(greaterThan(beforeUv, vec2(1.0)))) {
-        result = now;
-        return;
-    }
-    vec4 low = now, highValue = now;
-    vec2 texel = lighting.zw;
-    for (int j = -1; j <= 1; ++j)
-        for (int i = -1; i <= 1; ++i) {
-            vec4 n = textureLod(current, uv + vec2(i, j) * texel, 0.0);
-            low = min(low, n);
-            highValue = max(highValue, n);
-        }
-    vec4 old = clamp(textureLod(history, beforeUv, 0.0), low, highValue);
-    result = mix(old, now, 0.15);
+    // Clamped loosely: the marched neighbours lie a block apart.
+    vec4 spread = (highValue - low) * 0.25;
+    vec4 old = clamp(textureLod(history, beforeUv, 0.0), low - spread, highValue + spread);
+    result = marched ? mix(old, fresh, update.w) : old;
 }
 )";
 
@@ -837,13 +907,22 @@ bool RhiRenderer::createCloudVolumes() {
 bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
     CloudResources &c = cloudResources;
     const Preset &preset = Presets[quality];
-    const QSize size(std::max(1, viewSize.width() / preset.divisor), std::max(1, viewSize.height() / preset.divisor));
-    if (c.march != nullptr && c.size == size && c.compositeColor == view.color)
+    // The image: the preset's pixels in the view's shape (never more than
+    // the view), whole blocks; the march: one texel per block.
+    const double viewPixels = double(std::max(1, viewSize.width())) * std::max(1, viewSize.height());
+    const double scale = std::min(1.0, std::sqrt(double(preset.pixels) / viewPixels));
+    auto blocks = [scale](int extent) {
+        return std::max(1, int(std::ceil(extent * scale / UpdateBlock)));
+    };
+    const QSize marchSize(blocks(viewSize.width()), blocks(viewSize.height()));
+    const QSize imageSize = marchSize * UpdateBlock;
+    if (c.march != nullptr && c.size == marchSize && c.compositeColor == view.color)
         return true;
     releaseCloudBuffers();
     if (!createCloudVolumes())
         return false;
-    c.size = size;
+    c.size = marchSize;
+    c.imageSize = imageSize;
     const auto format = QRhiTexture::RGBA16F;
     auto texture = [&](QSize s) {
         QRhiTexture *t = rhi->newTexture(format, s, 1, QRhiTexture::RenderTarget);
@@ -853,10 +932,10 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
         }
         return t;
     };
-    c.march = texture(size);
-    c.distance = texture(size);
-    c.history[0] = texture(size);
-    c.history[1] = texture(size);
+    c.march = texture(marchSize);
+    c.distance = texture(marchSize);
+    c.history[0] = texture(imageSize);
+    c.history[1] = texture(imageSize);
     if (c.coverNear == nullptr) {
         c.coverNear = texture(QSize(CoverSize, CoverSize));
         c.coverFar = texture(QSize(CoverSize, CoverSize));
@@ -874,6 +953,11 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
     c.repeat = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                QRhiSampler::Repeat, QRhiSampler::Repeat, QRhiSampler::Repeat);
     c.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(MarchParameters));
+    // One block per update pass, picked by a dynamic offset.
+    c.updateStride = quint32(rhi->ubufAligned(int(sizeof(UpdateParameters))));
+    c.updateUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer,
+                                      c.updateStride * UpdatePasses);
+    c.updateUniforms->create();
     c.coverUniforms[0] = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(CoverParameters));
     c.coverUniforms[1] = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(CoverParameters));
     for (QRhiResource *r : std::initializer_list<QRhiResource *>{c.linear, c.nearest, c.repeat})
@@ -933,13 +1017,17 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
                                 QRhiShaderResourceBinding::sampledTexture(7, fragment, skyResources.view,
                                                                           skyResources.linear),
                                 QRhiShaderResourceBinding::sampledTexture(8, fragment, view.depth, c.nearest),
-                                QRhiShaderResourceBinding::sampledTexture(9, fragment, c.curl, c.repeat)});
+                                QRhiShaderResourceBinding::sampledTexture(9, fragment, c.curl, c.repeat),
+                                QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
+                                        10, fragment, c.updateUniforms, sizeof(UpdateParameters))});
     for (int i = 0; i < 2; ++i) {
         // Writes history i from the march and history 1 - i.
         c.temporalBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
                                           QRhiShaderResourceBinding::sampledTexture(1, fragment, c.march, c.linear),
                                           QRhiShaderResourceBinding::sampledTexture(2, fragment, c.history[1 - i],
-                                                                                    c.linear)});
+                                                                                    c.linear),
+                                          QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
+                                                  10, fragment, c.updateUniforms, sizeof(UpdateParameters))});
         c.compositeBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
                                            QRhiShaderResourceBinding::sampledTexture(1, fragment, c.history[i], c.linear),
                                            QRhiShaderResourceBinding::sampledTexture(2, fragment, c.distance, c.nearest),
@@ -1002,9 +1090,34 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
 }
 
 bool RhiRenderer::cloudShadowPlane(float &altitude) const {
-    // Under the clouds, through the camera if it is under them.
-    altitude = std::min(sky.cameraHeight / 1000.0f, clouds.bottom - 0.05f);
+    // Just under the clouds: the map does not change with the camera's
+    // height (any plane under them gives the same light).
+    altitude = clouds.bottom - 0.05f;
     return cloudResources.shadowValid && cloudsWanted();
+}
+
+void RhiRenderer::cloudShadowOffset(double &east, double &north) const {
+    // The map's centre on whole texels of the ground, near the camera.
+    const double texel = CloudShadowExtent * 1000.0 / CloudShadowSize;
+    east = std::floor(clouds.cameraEast / texel + 0.5) * texel - clouds.cameraEast;
+    north = std::floor(clouds.cameraNorth / texel + 0.5) * texel - clouds.cameraNorth;
+}
+
+void RhiRenderer::cloudShadowCentre(float &x, float &z) const {
+    double east, north;
+    cloudShadowOffset(east, north);
+    // North is -z in the view's space.
+    x = viewPosition[0] + float(east);
+    z = viewPosition[2] - float(north);
+}
+
+float RhiRenderer::cloudShellRadius() const {
+    // The radius at which the top of the clouds, seen from the camera's
+    // height, meets the horizon HorizonDistance away: s^2 = 2 R (top - h).
+    const float above = clouds.top - std::max(sky.cameraHeight / 1000.0f, 0.0f);
+    if (above <= 0.1f)
+        return EarthRadius;
+    return std::clamp(HorizonDistance * HorizonDistance / (2.0f * above), SmallestShellRadius, EarthRadius);
 }
 
 void RhiRenderer::writeCloudShadowUniforms(RhiProgram *program) {
@@ -1016,7 +1129,9 @@ void RhiRenderer::writeCloudShadowUniforms(RhiProgram *program) {
         program->setVec("cloudShadowArea", 0.0f, 0.0f, 1.0f, 0.0f);
         return;
     }
-    program->setVec("cloudShadowArea", viewPosition[0], viewPosition[2], 1.0f / (CloudShadowExtent * 1000.0f), 1.0f);
+    float centreX, centreZ;
+    cloudShadowCentre(centreX, centreZ);
+    program->setVec("cloudShadowArea", centreX, centreZ, 1.0f / (CloudShadowExtent * 1000.0f), 1.0f);
     // Along the sun to the map's plane (y in the view's space).
     // Past the map: about the share of the sky the clouds leave open.
     program->setVec("cloudShadowSun", sky.sun[0] / sky.sun[1], sky.sun[2] / sky.sun[1],
@@ -1130,7 +1245,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     }
     parameters.slab[0] = clouds.bottom;
     parameters.slab[1] = std::max(clouds.top, clouds.bottom + 0.05f);
-    parameters.slab[2] = preset.distance;
+    parameters.slab[2] = MarchDistance;
     parameters.slab[3] = float(preset.steps);
     parameters.projection[0] = sceneProjection[0];
     parameters.projection[1] = sceneProjection[1];
@@ -1166,9 +1281,34 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     parameters.high[1] = std::clamp(sky.haze, 0.0f, 0.02f) * 1000.0f;
     float plane = 0.0f;
     cloudShadowPlane(plane);
+    double shadowEast, shadowNorth;
+    cloudShadowOffset(shadowEast, shadowNorth);
     parameters.shadow[0] = CloudShadowExtent;
-    parameters.shadow[1] = std::min(sky.cameraHeight / 1000.0f, clouds.bottom - 0.05f);
+    parameters.shadow[1] = plane;
+    parameters.shadow[2] = float(shadowEast / 1000.0);
+    parameters.shadow[3] = float(shadowNorth / 1000.0);
     updates->updateDynamicBuffer(c.uniforms, 0, sizeof(parameters), &parameters);
+    // The update passes' blocks: which pixel of each block they march.
+    {
+        std::vector<char> blocks(size_t(c.updateStride) * UpdatePasses, 0);
+        const float radius = cloudShellRadius();
+        for (int i = 0; i < UpdatePasses; ++i) {
+            UpdateParameters u = {};
+            u.update[0] = float(UpdateBlock);
+            u.update[1] = float(UpdateOrder[i][0]);
+            u.update[2] = float(UpdateOrder[i][1]);
+            // A new sample half of the pixel: the jittered march's noise
+            // settles over a few updates.
+            u.update[3] = 0.5f;
+            u.sizes[0] = float(c.imageSize.width());
+            u.sizes[1] = float(c.imageSize.height());
+            u.sizes[2] = float(c.size.width());
+            u.sizes[3] = float(c.size.height());
+            u.shell[0] = radius;
+            std::memcpy(blocks.data() + size_t(i) * c.updateStride, &u, sizeof(u));
+        }
+        updates->updateDynamicBuffer(c.updateUniforms, 0, quint32(blocks.size()), blocks.data());
+    }
     auto fullScreen = [cb](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
                            QRhiShaderResourceBindings *bindings, const QSize &size, QRhiResourceUpdateBatch *&batch) {
         cb->beginPass(target, Qt::white, {1.0f, 0}, batch);
@@ -1183,7 +1323,25 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         fullScreen(c.coverTargets[0], c.coverPipeline, c.coverBindings[0], QSize(CoverSize, CoverSize), updates);
         fullScreen(c.coverTargets[1], c.coverPipeline, c.coverBindings[1], QSize(CoverSize, CoverSize), updates);
     }
-    fullScreen(c.shadowTarget, c.shadowPipeline, c.marchBindings, QSize(CloudShadowSize, CloudShadowSize), updates);
+    // The shadow map holds the ground's own place: redrawn only when its
+    // centre moves a texel, the sun or the clouds change.
+    std::vector<double> shadowKey = c.coverKey;
+    shadowKey.push_back(std::floor(clouds.cameraEast + shadowEast + 0.5));
+    shadowKey.push_back(std::floor(clouds.cameraNorth + shadowNorth + 0.5));
+    shadowKey.push_back(plane);
+    for (int i = 0; i < 3; ++i)
+        shadowKey.push_back(std::round(parameters.sun[i] * 10000.0f));
+    if (!c.shadowValid || shadowKey != c.shadowKey) {
+        c.shadowKey = shadowKey;
+        cb->beginPass(c.shadowTarget, Qt::white, {1.0f, 0}, updates);
+        updates = nullptr;
+        cb->setGraphicsPipeline(c.shadowPipeline);
+        cb->setViewport(QRhiViewport(0, 0, float(CloudShadowSize), float(CloudShadowSize)));
+        const QRhiCommandBuffer::DynamicOffset offset(10, 0);
+        cb->setShaderResources(c.marchBindings, 1, &offset);
+        cb->draw(3);
+        cb->endPass();
+    }
     c.shadowValid = true;
 }
 
@@ -1202,19 +1360,33 @@ void RhiRenderer::applyClouds() {
     if (!cloudsPrepared || !skyResources.viewRendered || c.march == nullptr || c.compositeColor != view.color)
         return;
     QRhiCommandBuffer *cb = surfaceNow->frame().commandBuffer;
-    auto fullScreen = [cb](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
-                           QRhiShaderResourceBindings *bindings, const QSize &size) {
+    auto fullScreen = [cb, &c](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
+                               QRhiShaderResourceBindings *bindings, const QSize &size, int pass) {
         cb->beginPass(target, Qt::black, {1.0f, 0});
         cb->setGraphicsPipeline(pipeline);
         cb->setViewport(QRhiViewport(0, 0, float(size.width()), float(size.height())));
-        cb->setShaderResources(bindings);
+        if (pass >= 0) {
+            const QRhiCommandBuffer::DynamicOffset offset(10, quint32(pass) * c.updateStride);
+            cb->setShaderResources(bindings, 1, &offset);
+        } else {
+            cb->setShaderResources(bindings);
+        }
         cb->draw(3);
         cb->endPass();
     };
-    fullScreen(c.marchTarget, c.marchPipeline, c.marchBindings, c.size);
-    const int write = c.current = 1 - c.current;
-    fullScreen(c.historyTargets[write], c.temporalPipeline, c.temporalBindings[write], c.size);
-    fullScreen(c.compositeTarget, c.compositePipeline, c.compositeBindings[write], view.size);
+    // One pixel of each block a frame; all of them in one frame when the
+    // image must be complete (still captures, no history after a jump).
+    const bool fill = clouds.still || !c.historyValid;
+    const int first = fill ? 0 : c.frame % UpdatePasses;
+    const int passes = fill ? UpdatePasses : 1;
+    int write = c.current;
+    for (int p = 0; p < passes; ++p) {
+        fullScreen(c.marchTarget, c.marchPipeline, c.marchBindings, c.size, first + p);
+        write = c.current = 1 - c.current;
+        fullScreen(c.historyTargets[write], c.temporalPipeline, c.temporalBindings[write], c.imageSize,
+                   first + p);
+    }
+    fullScreen(c.compositeTarget, c.compositePipeline, c.compositeBindings[write], view.size, -1);
     c.historyValid = true;
     std::copy(skyForward[TARGET_VIEW], skyForward[TARGET_VIEW] + 16, c.previous);
     c.previousValid = true;
@@ -1261,6 +1433,11 @@ void RhiRenderer::releaseCloudBuffers() {
     delete c.coverNear;
     delete c.coverFar;
     delete c.uniforms;
+    delete c.updateUniforms;
+    c.updateUniforms = nullptr;
+    c.updateStride = 0;
+    c.shadowKey.clear();
+    c.imageSize = QSize();
     delete c.linear;
     delete c.nearest;
     delete c.repeat;

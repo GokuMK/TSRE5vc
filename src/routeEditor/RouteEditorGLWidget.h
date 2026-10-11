@@ -290,6 +290,10 @@ protected:
     void applyClouds();
     // The sky enclosure map (task 27), after the shadow maps.
     void renderSkyEnclosure();
+    // Where the sky enclosure map was last drawn from (snapped), and the
+    // frames since: it is kept while the camera stays in its cell.
+    float enclosureEye[3] = {0.0f, 0.0f, 0.0f};
+    int enclosureAge = -1;
     Renderer::Clouds cloudState;
     quint64 weatherRevision = 0;
     quint64 cloudWeatherRevision = ~0ull;

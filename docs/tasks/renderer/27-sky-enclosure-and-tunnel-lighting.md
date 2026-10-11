@@ -178,6 +178,15 @@ them off) and the enclosure at night. QRhi OpenGL keeps it. Recording the
 draws is not the cause; executing them is. Not fixed; to be checked on the
 Steam Deck at dusk (lamps glowing while the sun still casts shadows).
 
+### Cached map (2026-10-12)
+
+Drawing the map every frame was a second pass over everything within 300 m:
+in the CMK station hall about 6.5-8 ms and 1.6 ms of CPU on the Steam Deck.
+It is now drawn from a point snapped to 31.25 m cells (80 texels, so its
+texels keep their place) and 16 m in height, kept while the camera stays in
+its cell, and drawn anyway once a second for edits; the result is the same.
+See task 28, "Review and performance".
+
 ## Known Limitation (0.7.8)
 
 Lamps in tunnels are dimmed by daylight as in the open. Today this affects
