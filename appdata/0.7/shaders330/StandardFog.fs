@@ -155,13 +155,19 @@ void main() {
             // calculate light color
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
+#ifdef TSRE_RHI
+            float enclosed = skyEnclosed(vLightPosition, normal);
+            color += ambientColor.xyz * skyAmbient(enclosed);
+#else
             color += ambientColor.xyz;
+#endif
 #ifdef TSRE_RHI
             // Lamps and glowing surfaces add their light in linear terms.
-            vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals);
+            vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(enclosed);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
-            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * colorBrightness * (1.0 - fogFactor),
+            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * skyAmbient(enclosed) * colorBrightness
+                              * (1.0 - fogFactor),
                               fragColor.a);
 #endif
             fragColor.xyz *= color*colorBrightness;

@@ -807,6 +807,11 @@ void RouteEditorGLWidget::paintScene(){
         renderShadowMaps();
         RenderStats::endPhase(RenderStats::PhaseShadow);
     }
+    if (!selectionPass){
+        RenderStats::beginPhase(RenderStats::PhaseShadow);
+        renderSkyEnclosure();
+        RenderStats::endPhase(RenderStats::PhaseShadow);
+    }
     if (renderEnvironment){
         RenderStats::beginPhase(RenderStats::PhaseEnvironment);
         renderEnvironmentMap();
@@ -1361,6 +1366,50 @@ void RouteEditorGLWidget::renderShadowMaps() {
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
     renderer->releaseProgram();
+}
+
+// The sky enclosure (task 27): terrain and opaque surfaces seen from 300 m
+// above the camera, 400 m across at 1024 texels, snapped to its texels so it
+// does not crawl as the camera moves. The lit shaders find in it whether
+// something stands over a point.
+void RouteEditorGLWidget::renderSkyEnclosure() {
+    Renderer::SkyEnclosure enclosure;
+    enclosure.enabled = Game::skyEnclosure;
+    if (!enclosure.enabled) {
+        renderer->setSkyEnclosure(enclosure);
+        return;
+    }
+    constexpr int Size = 1024;
+    constexpr float Half = 200.0f;
+    constexpr float Above = 300.0f;
+    constexpr float Depth = 600.0f;
+    const float texel = 2.0f * Half / Size;
+    const float *position = camera->getPos();
+    float eye[3] = {std::floor(position[0] / texel) * texel, position[1] + Above, std::floor(position[2] / texel) * texel};
+    float centre[3] = {eye[0], position[1], eye[2]};
+    float up[3] = {0.0f, 0.0f, -1.0f};
+    float projection[16], look[16];
+    Mat4::ortho(projection, -Half, Half, -Half, Half, 0.0f, Depth);
+    Mat4::lookAt(look, eye, centre, up);
+    Mat4::multiply(enclosure.viewProjection, projection, look);
+    enclosure.metresPerDepth = Depth;
+    enclosure.filter = 2.0f / Size;
+    enclosure.ambientFloor = route != NULL && route->trk != NULL && route->trk->tsreEnclosedAmbient >= 0.0f
+            ? route->trk->tsreEnclosedAmbient : Game::enclosedAmbient;
+    // The shadow program draws with uShadowPMatrix.
+    renderer->useProgram(Renderer::PROGRAM_SHADOW);
+    Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(gluu->objStrMatrix);
+    float *saved = gluu->pShadowMatrix;
+    gluu->pShadowMatrix = enclosure.viewProjection;
+    renderer->applyFrameUniforms();
+    if (renderer->beginSkyEnclosure(Size))
+        renderer->renderEnclosureCasters(Half * 1.5f, RenderStats::FrameStats::PassSlots - 1,
+                                         enclosure.viewProjection);
+    gluu->pShadowMatrix = saved;
+    renderer->applyFrameUniforms();
+    renderer->releaseProgram();
+    renderer->setSkyEnclosure(enclosure);
 }
 
 // Renders the faces scheduled for this frame from the camera position, from

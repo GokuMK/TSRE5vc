@@ -125,6 +125,12 @@ struct PlacedObject {
     QString file;
     float offset[3] = {0.0f, 0.0f, 0.0f};
     float yaw = 0.0f;
+    // At a tile and position of its own (y absolute) instead of an offset
+    // from the start, which needs the terrain there.
+    bool absolute = false;
+    int tileX = 0;
+    int tileZ = 0;
+    float position[3] = {0.0f, 0.0f, 0.0f};
 };
 
 struct Options {
@@ -253,6 +259,12 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         placed.file = object.value("file").toString();
         readFloatArray(object.value("offset"), placed.offset, 3);
         placed.yaw = float(object.value("yaw").toDouble(0.0));
+        const QJsonArray objectTile = object.value("tile").toArray();
+        if (objectTile.size() == 2 && readFloatArray(object.value("pos"), placed.position, 3)) {
+            placed.absolute = true;
+            placed.tileX = objectTile[0].toInt();
+            placed.tileZ = objectTile[1].toInt();
+        }
         if (placed.file.isEmpty()) {
             error = "placed object without a file";
             return false;
@@ -516,8 +528,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         item.currentFilename = placed.file;
         int tileX = startTileX, tileZ = startTileZ;
         float position[3] = {startPos[0] + placed.offset[0], 0.0f, startPos[2] + placed.offset[2]};
-        Game::check_coords(tileX, tileZ, position);
-        position[1] = Game::terrainLib->getHeight(tileX, tileZ, position[0], position[2]) + placed.offset[1];
+        if (placed.absolute) {
+            tileX = placed.tileX;
+            tileZ = placed.tileZ;
+            std::copy(placed.position, placed.position + 3, position);
+        } else {
+            Game::check_coords(tileX, tileZ, position);
+            position[1] = Game::terrainLib->getHeight(tileX, tileZ, position[0], position[2]) + placed.offset[1];
+        }
         float rotation[4];
         float up[3] = {0.0f, 1.0f, 0.0f};
         Quat::setAxisAngle(rotation, up, placed.yaw * float(M_PI) / 180.0f);

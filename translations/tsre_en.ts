@@ -1539,6 +1539,21 @@ Consist with this file name already exist. Overwrite?
         <source>NO OBJECT</source>
         <translation>NO OBJECT</translation>
     </message>
+    <message id="route.editor.trk.window.item.enclosed.ambient.default">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="176"/>
+        <source>Default</source>
+        <translation>Default</translation>
+    </message>
+    <message id="route.editor.trk.window.label.enclosed.ambient">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="105"/>
+        <source>Enclosed ambient: </source>
+        <translation>Enclosed ambient: </translation>
+    </message>
+    <message id="route.editor.trk.window.tooltip.enclosed.ambient">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="179"/>
+        <source>The share of the sky's ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer).</source>
+        <translation>The share of the sky's ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer).</translation>
+    </message>
     <message id="route.error.location.coordinates">
         <location filename="../src/routeEditor/ErrorMessageProperties.cpp" line="130"/>
         <source>Tile: %1 %2. Coordinates: %3 %4 %5</source>
@@ -3682,6 +3697,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Off</source>
         <translation>Off</translation>
     </message>
+    <message id="settings.core.rendering.enclosed.ambient.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1124"/>
+        <source>The share of the sky's ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</source>
+        <translation>The share of the sky's ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</translation>
+    </message>
+    <message id="settings.core.rendering.enclosed.ambient.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1122"/>
+        <source>Enclosed ambient</source>
+        <translation>Enclosed ambient</translation>
+    </message>
     <message id="settings.core.rendering.light.shafts.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1110"/>
         <source>Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer.</source>
@@ -3691,6 +3716,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="1108"/>
         <source>Light shafts</source>
         <translation>Light shafts</translation>
+    </message>
+    <message id="settings.core.rendering.sky.enclosure.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>
+        <source>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky's ambient light drops to the enclosed ambient. QRhi renderer.</source>
+        <translation>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky's ambient light drops to the enclosed ambient. QRhi renderer.</translation>
+    </message>
+    <message id="settings.core.rendering.sky.enclosure.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1115"/>
+        <source>Sky enclosure</source>
+        <translation>Sky enclosure</translation>
     </message>
     <message id="settings.core.rendering.sky.model.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1082"/>

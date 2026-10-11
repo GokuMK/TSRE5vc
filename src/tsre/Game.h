@@ -171,6 +171,9 @@ public:
     static int skyModel;
     static int cloudQuality;
     static bool lightShafts;
+    // Sky enclosure and the ambient left where the sky is hidden (task 27).
+    static bool skyEnclosure;
+    static float enclosedAmbient;
     // QRhi renderer image: tone curve (0 off, 1 soft shoulder, 2 ACES,
     // 3 AgX), exposure in stops and bloom strength (0 off).
     static int toneMapping;

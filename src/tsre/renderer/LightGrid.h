@@ -31,6 +31,8 @@ public:
         float cosInner = 1.0f;
         float cosOuter = 1.0f;
         bool spot = false;
+        // A signal light's emitter (task 26).
+        bool signal = false;
     };
 
     static constexpr int CellsX = 64;

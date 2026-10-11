@@ -40,7 +40,7 @@ constexpr int MaxBloomLevels = 6;
 // faded by fog. It hands over to the surface's own glow while the emitter's
 // radius grows from 16 to 32 pixels (PbrShading.glsl).
 constexpr int GlowSplatStride = 8 * sizeof(float);
-constexpr int GlowSplatUniformBytes = 160;
+constexpr int GlowSplatUniformBytes = 240;
 
 const char *GlowSplatVertex = R"(#version 440
 layout(location = 0) in vec4 emitter; // position, radius
@@ -53,7 +53,10 @@ layout(std140, binding = 0) uniform Splats {
     mat4 fogMatrix;
     vec4 camera;   // position, focal length in pixels
     vec4 viewport; // width, height, fog lod, fog density
+    mat4 enclosure;        // the sky enclosure map (task 27)
+    vec4 enclosureParams;  // on, metres per depth unit
 };
+layout(binding = 1) uniform sampler2D enclosureMap;
 
 void main() {
     vec2 corner = vec2((gl_VertexIndex & 1) != 0 ? 1.0 : -1.0, (gl_VertexIndex & 2) != 0 ? 1.0 : -1.0);
@@ -66,7 +69,18 @@ void main() {
     vec4 fogPosition = fogMatrix * vec4(emitter.xyz, 1.0);
     float fog = sqrt(fogPosition.x * fogPosition.x + fogPosition.z * fogPosition.z) / (viewport.z * 1.4);
     fog = abs(min(clamp(fog, 0.0, viewport.w), viewport.z));
-    glow = power.rgb * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * (1.0 - fog);
+    // power.a: the daylight scale of the emitter's glow; where the sky is
+    // enclosed (a tunnel) it keeps its night strength.
+    float day = power.a;
+    if (enclosureParams.x > 0.0) {
+        vec4 c = enclosure * vec4(emitter.xyz, 1.0);
+        vec3 m = c.xyz / c.w * 0.5 + 0.5;
+        if (all(greaterThan(m.xy, vec2(0.02))) && all(lessThan(m.xy, vec2(0.98)))) {
+            float top = textureLod(enclosureMap, m.xy, 0.0).r;
+            day = mix(day, 1.0, smoothstep(1.5, 4.0, (m.z - top) * enclosureParams.y));
+        }
+    }
+    glow = power.rgb * day * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * (1.0 - fog);
     offset = corner;
     // Depth at the emitter's front, so its own housing does not hide it.
     vec3 front = emitter.xyz - toEmitter / distance * min(emitter.w, distance * 0.5);
@@ -371,9 +385,16 @@ void RhiRenderer::gatherGlowSplats() {
         return;
     glowSplats.gathered = true;
     glowSplats.emitters.clear();
-    if (bloomEnabled() && Game::localLightsEnabled)
-        gatherLights(glowSplats.emitters, 0.0f, gluu->localLightAdaptation, true,
-                     gluu->signalLightAdaptation);
+    if (bloomEnabled() && Game::localLightsEnabled) {
+        // With the sky enclosure the splats take the daylight scale each,
+        // and keep their strength where the sky is hidden (task 27).
+        glowSplats.enclosed = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
+        if (glowSplats.enclosed)
+            gatherLights(glowSplats.emitters, 0.0f, 1.0f, true, 1.0f);
+        else
+            gatherLights(glowSplats.emitters, 0.0f, gluu->localLightAdaptation, true,
+                         gluu->signalLightAdaptation);
+    }
 }
 
 // At the end of the main view: its scene band's projection, fog and
@@ -421,7 +442,7 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
         std::copy(e.position, e.position + 3, out);
         out[3] = e.radius;
         std::copy(e.color, e.color + 3, out + 4);
-        out[7] = 0.0f;
+        out[7] = !g.enclosed ? 1.0f : e.signal ? gluu->signalLightAdaptation : gluu->localLightAdaptation;
     }
     batch->updateDynamicBuffer(g.instances, 0, bytes, data.data());
     if (g.uniforms == nullptr) {
@@ -441,11 +462,26 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
     block[37] = g.viewport.viewport()[3];
     block[38] = g.lod;
     block[39] = g.fogDensity;
+    std::copy(enclosure.viewProjection, enclosure.viewProjection + 16, block + 40);
+    block[56] = g.enclosed ? 1.0f : 0.0f;
+    block[57] = enclosure.metresPerDepth;
+    block[58] = block[59] = 0.0f;
     batch->updateDynamicBuffer(g.uniforms, 0, GlowSplatUniformBytes, block);
+    QRhiTexture *enclosureTexture = g.enclosed ? enclosureMap.depth : dummyBlack;
+    if (g.bindings != nullptr && g.enclosureTexture != enclosureTexture) {
+        delete g.bindings;
+        g.bindings = nullptr;
+        delete g.pipeline;
+        g.pipeline = nullptr;
+    }
     if (g.bindings == nullptr) {
+        g.enclosureTexture = enclosureTexture;
         g.bindings = rhi->newShaderResourceBindings();
         g.bindings->setBindings({QRhiShaderResourceBinding::uniformBuffer(
-                0, QRhiShaderResourceBinding::VertexStage, g.uniforms)});
+                                         0, QRhiShaderResourceBinding::VertexStage, g.uniforms),
+                                 QRhiShaderResourceBinding::sampledTexture(
+                                         1, QRhiShaderResourceBinding::VertexStage, enclosureTexture,
+                                         sampler(false, true, true))});
         g.bindings->create();
     }
     if (g.pipeline == nullptr || g.pipelinePass != pass) {

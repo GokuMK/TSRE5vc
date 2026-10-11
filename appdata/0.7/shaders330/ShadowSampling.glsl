@@ -52,6 +52,52 @@ float cloudShadow(vec3 position) {
 }
 #endif
 
+#ifdef TSRE_RHI
+// The sky enclosure (task 27): the depth of the highest surface seen from
+// straight above around the camera. A point with something over it (terrain
+// over a tunnel, a deck, a roof) is enclosed: it gets less of the sky's
+// ambient light, and lamps keep their night strength there by day.
+uniform sampler2D skyEnclosureMap;
+uniform mat4 skyEnclosureMatrix;
+// On (1) or off (0), metres per unit of the map's depth, the filter's
+// spacing (map coordinates), the ambient light left where fully enclosed.
+uniform vec4 skyEnclosureParams;
+// The daylight scale of lamps where the sky is open (1 without the map).
+uniform float localLightDay;
+
+// 0 open to 1 enclosed: the share of 16 taps around the point with
+// something more than 1.5-4 m above it. The point is moved 2 m off walls
+// first, past the eaves, so they do not count their own roof.
+float skyEnclosed(vec3 position, vec3 normal) {
+    if (skyEnclosureParams.x <= 0.0)
+        return 0.0;
+    vec2 side = normal.xz;
+    float sideLength = length(side);
+    vec3 p = position;
+    if (sideLength > 1e-3)
+        p += vec3(side.x, 0.0, side.y) / sideLength * min(sideLength * 3.0, 1.0) * 2.0;
+    vec4 clip = skyEnclosureMatrix * vec4(p, 1.0);
+    vec3 m = clip.xyz / clip.w * 0.5 + 0.5;
+    if (any(lessThan(m.xy, vec2(0.02))) || any(greaterThan(m.xy, vec2(0.98))))
+        return 0.0;
+    float sum = 0.0;
+    for (int j = 0; j < 4; ++j)
+        for (int i = 0; i < 4; ++i) {
+            float top = textureLod(skyEnclosureMap, m.xy + (vec2(i, j) - 1.5) * skyEnclosureParams.z, 0.0).r;
+            sum += smoothstep(1.5, 4.0, (m.z - top) * skyEnclosureParams.y);
+        }
+    return sum / 16.0;
+}
+
+float skyAmbient(float enclosed) {
+    return mix(1.0, skyEnclosureParams.w, enclosed);
+}
+
+float lampScale(float enclosed) {
+    return mix(localLightDay, 1.0, enclosed);
+}
+#endif
+
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
     float shadowIntensity = 0.1;

@@ -72,6 +72,9 @@ public:
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
     void setClouds(const Clouds &clouds) override;
+    bool beginSkyEnclosure(int size) override;
+    void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection) override;
+    void setSkyEnclosure(const SkyEnclosure &enclosure) override;
 
     // The environment map and water reflection storage (RhiReflections.cpp)
     // drive these.
@@ -189,7 +192,8 @@ private:
     };
     // Targets by Renderer::Target, then selection, an environment map face
     // and the water reflection.
-    static constexpr int TargetSelection = TARGET_SHADOW_FAR + 1;
+    static constexpr int TargetEnclosure = TARGET_SHADOW_FAR + 1;
+    static constexpr int TargetSelection = TargetEnclosure + 1;
     static constexpr int TargetEnvironment = TargetSelection + 1;
     static constexpr int TargetReflection = TargetEnvironment + 1;
     static constexpr int TargetCount = TargetReflection + 1;
@@ -319,6 +323,9 @@ private:
         QRhiShaderResourceBindings *bindings = nullptr;
         QRhiGraphicsPipeline *pipeline = nullptr;
         QRhiRenderPassDescriptor *pipelinePass = nullptr;
+        // Gathered for the sky enclosure (task 27), and the map bound.
+        bool enclosed = false;
+        QRhiTexture *enclosureTexture = nullptr;
     } glowSplats;
     void gatherGlowSplats();
     void prepareGlowSplats();
@@ -471,6 +478,11 @@ private:
         bool shadowValid = false;
     } cloudResources;
     bool cloudsPrepared = false;
+    // The sky enclosure map (task 27).
+    Attachments enclosureMap;
+    SkyEnclosure enclosure;
+    bool enclosureDrawn = false;
+    void recordCasters(int statsSlot);
     bool cloudShadowPlane(float &altitude) const;
     void writeCloudShadowUniforms(RhiProgram *program);
     void prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);

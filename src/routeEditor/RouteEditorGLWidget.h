@@ -282,6 +282,8 @@ protected:
     bool physicalSkyApplied = false;
     // The clouds (task 28): the weather around the camera for the renderer.
     void applyClouds();
+    // The sky enclosure map (task 27), after the shadow maps.
+    void renderSkyEnclosure();
     Renderer::Clouds cloudState;
     quint64 weatherRevision = 0;
     quint64 cloudWeatherRevision = ~0ull;

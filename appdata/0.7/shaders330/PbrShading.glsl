@@ -59,6 +59,10 @@ uniform float glowFocal;
 // The daylight scale of this surface's glow, 0 with local lights off: the
 // lamps' (task 21), or the signal lights' for signals (task 26).
 uniform float pbrGlowScale;
+#ifdef TSRE_RHI
+// The glow's scale where the sky is enclosed (task 27).
+uniform float pbrGlowEnclosed;
+#endif
 #endif
 #include "EnvironmentLighting.glsl"
 
@@ -198,6 +202,8 @@ vec4 pbrShade() {
         color += (diffuse + specular) * sun * nDotL;
     }
 #ifdef TSRE_RHI
+    float enclosed = skyEnclosed(vLightPosition, n);
+    float lamps = lampScale(enclosed);
     // Lamps and glowing surfaces, shaded as the sun is.
     vec3 coatLocal = vec3(0.0);
     ivec2 lightCell = localLightCell(vWorldPosition);
@@ -205,6 +211,7 @@ vec4 pbrShade() {
         vec3 lightDir, radiance;
         if (!localLight(lightCell.x + i, vWorldPosition, lightDir, radiance))
             continue;
+        radiance *= lamps;
         float lightNDotL = max(dot(n, lightDir), 0.0);
         if (lightNDotL > 0.0) {
             vec3 fresnel;
@@ -247,6 +254,9 @@ vec4 pbrShade() {
         environment = environment * (1.0 - coatFresnel)
                 + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
     }
+#ifdef TSRE_RHI
+    environment *= skyAmbient(enclosed);
+#endif
     color += environment * occlusion;
 #ifdef TSRE_RHI
     vec3 ambientLight = environment * occlusion * colorBrightness;
@@ -279,7 +289,8 @@ vec4 pbrShade() {
                 / max(distance(cameraPosition, vWorldPosition), 0.001);
         glowShare = smoothstep(16.0, 32.0, pixels);
     }
-    pbrGlowOut = vec4(emissive * (1.0 - fogFactor) * glowShare * pbrGlowScale, alpha);
+    pbrGlowOut = vec4(emissive * (1.0 - fogFactor) * glowShare * mix(pbrGlowScale, pbrGlowEnclosed, enclosed),
+                      alpha);
     // The display-space share of the environment light, after fog.
     pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
                          * (1.0 - fogFactor), alpha);

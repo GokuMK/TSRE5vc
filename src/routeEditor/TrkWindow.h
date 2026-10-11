@@ -52,6 +52,7 @@ private:
     QDoubleSpinBox overheadWireHeight;
     QDoubleSpinBox speedLimit;
     QDoubleSpinBox terrainErrorScale;
+    QDoubleSpinBox enclosedAmbient;
     QLineEdit startTileX;
     QLineEdit startTileZ;
     QLineEdit startpX;

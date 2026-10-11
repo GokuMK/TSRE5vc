@@ -356,6 +356,12 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setVec("lightDirection", Game::sunLightDirection[0], Game::sunLightDirection[1],
                     Game::sunLightDirection[2]);
     writeCloudShadowUniforms(program);
+    // The sky enclosure (task 27): off leaves lamps and ambient as before.
+    const bool enclosed = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
+    program->setMat4("skyEnclosureMatrix", enclosure.viewProjection);
+    program->setVec("skyEnclosureParams", enclosed ? 1.0f : 0.0f, enclosure.metresPerDepth, enclosure.filter,
+                    enclosure.ambientFloor);
+    program->setFloat("localLightDay", enclosed ? gluu->localLightAdaptation : 1.0f);
     program->setFloat("isAlpha", gluu->alpha);
     program->setFloat("alphaTest", gluu->alphaTest);
     program->setFloat("textureEnabled", 1.0f);
@@ -462,6 +468,9 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
             glowScale = Game::localLightsEnabled ? daylight : 0.0f;
         }
         program->setFloat("pbrGlowScale", glowScale);
+        // Enclosed (task 27), glow keeps its night strength.
+        program->setFloat("pbrGlowEnclosed", p.glow == RenderItem::Pbr::GLOW_FULL ? glowScale
+                                             : (Game::localLightsEnabled ? 1.0f : 0.0f));
         program->setFloat("pbrNormalScale", p.normalScale);
         program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
         program->setFloat("pbrAlphaCutoff", p.alphaCutoff);
@@ -962,6 +971,38 @@ void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
         shadowMaps[map].openGlRows = true;
         targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
     }
+}
+
+bool RhiRenderer::beginSkyEnclosure(int size) {
+    beginFrameIfNeeded();
+    flushTarget();
+    const QSize pixels(std::max(1, size), std::max(1, size));
+    if ((!enclosureMap.valid() || enclosureMap.size != pixels)
+            && !createAttachments(enclosureMap, QRhiTexture::UnknownFormat, pixels, {}))
+        return false;
+    // Rows in OpenGL's order, as the shadow maps: the lit shaders look it up
+    // the same way.
+    enclosureMap.openGlRows = true;
+    targets[TargetEnclosure].attachments = &enclosureMap;
+    currentTarget = TargetEnclosure;
+    TargetState &state = target();
+    state.clearColor = false;
+    state.clearDepth = true;
+    setViewport(0, 0, pixels.width(), pixels.height());
+    enclosureDrawn = true;
+    return true;
+}
+
+void RhiRenderer::renderEnclosureCasters(float range, int statsSlot, const float *viewProjection) {
+    beginFrameIfNeeded();
+    if (currentTarget != TargetEnclosure || !targetReady())
+        return;
+    planShadowCasters(range, viewProjection, true);
+    recordCasters(statsSlot);
+}
+
+void RhiRenderer::setSkyEnclosure(const SkyEnclosure &next) {
+    enclosure = next;
 }
 
 bool RhiRenderer::openGlRowTarget() const {
@@ -1631,6 +1672,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         }
         default:
             texture = dummy2D;
+            if (slot.binding == RhiShaderSource::SkyEnclosureBinding) {
+                if (enclosureMap.valid() && enclosureDrawn) {
+                    texture = enclosureMap.depth;
+                    slotSampler = sampler(false, true, true);
+                }
+                break;
+            }
             if (slot.binding == RhiShaderSource::CloudShadowBinding) {
                 if (cloudResources.shadow != nullptr && cloudResources.shadowValid) {
                     texture = cloudResources.shadow;
@@ -1859,6 +1907,10 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
         return;
     // Casters in range and inside the light view, instanced by packet.
     planShadowCasters(range, viewProjection);
+    recordCasters(statsSlot);
+}
+
+void RhiRenderer::recordCasters(int statsSlot) {
     std::vector<const float *> matrices;
     for (const GroupPlan &plan : groupPlans) {
         RenderItem *item = shadowCasters[plan.begin]->packet;
@@ -2278,8 +2330,13 @@ void RhiRenderer::prepareLights() {
     timer.start();
     frameLights.clear();
     if (Game::localLightsEnabled)
-        gatherLights(frameLights, Game::localLightsExposure * gluu->localLightAdaptation,
-                     Game::localLightsEmissiveGain * gluu->localLightAdaptation);
+    {
+        // With the sky enclosure the lamps keep their strength here and the
+        // shaders dim them where the sky is open (task 27).
+        const float day = enclosure.enabled && enclosureDrawn && enclosureMap.valid()
+                ? 1.0f : gluu->localLightAdaptation;
+        gatherLights(frameLights, Game::localLightsExposure * day, Game::localLightsEmissiveGain * day);
+    }
     // Static scenes keep their grid: the lights and the camera's grid
     // window decide it.
     quint64 hash = 1469598103934665603ull;

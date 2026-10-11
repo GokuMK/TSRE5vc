@@ -1,0 +1,21 @@
+{
+  "output": "build/renderer-enclosure",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [0, 0],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": true,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 60,
+    "maxSeconds": 300
+  },
+  "views": [
+    {"name": "portal", "tile": [-6110, -15068], "pos": [-635.0, 346.0, 210.0], "rot": [3.1416, -0.1], "time": 12},
+    {"name": "portal-side", "tile": [-6110, -15068], "pos": [-600.0, 350.0, 190.0], "rot": [4.2, -0.15], "time": 12},
+    {"name": "bridge", "tile": [-6110, -15072], "pos": [410.4, 328.0, 100.0], "rot": [3.1416, -0.05], "time": 12},
+    {"name": "bridge-night", "tile": [-6110, -15072], "pos": [410.4, 328.0, 100.0], "rot": [3.1416, -0.05], "time": 23}
+  ]
+}

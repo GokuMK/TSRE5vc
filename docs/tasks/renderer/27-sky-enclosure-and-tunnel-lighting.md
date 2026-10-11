@@ -1,7 +1,8 @@
 # Task 27 - Sky Enclosure And Tunnel Lighting
 
-Status: design (user, 2026-10-10). Not started. Recommended to be done
-together with the clouds rendering task (not written yet): see "Clouds".
+Status: steps 1-3 done on `feature/clouds` with task 28 (2026-10-11, QRhi
+only, off by default); see "Done". Signal lights' glow follows through the
+splats; their own floor from enclosure is not separate yet.
 
 ## Problem
 
@@ -132,6 +133,50 @@ grayscale visibility from above, and they meet in the same shading terms:
 - Unit: the zenith projection, the filter's gradient at an edge, the TRK
   token round trip.
 - Hardware: the cost of the extra pass on the Steam Deck.
+
+## Done (2026-10-11, `feature/clouds`)
+
+- Map: `renderSkyEnclosure` (editor) after the shadow maps draws terrain
+  and opaque surfaces (passes terrain and opaque, alpha-tested vegetation
+  left out) with the shadow program from 300 m above the camera into a
+  1024 x 1024 depth map over 400 m, snapped to its texels
+  (`Renderer::beginSkyEnclosure`, `renderEnclosureCasters`,
+  `setSkyEnclosure`; QRhi: target `TargetEnclosure`, rows in OpenGL's order
+  as the shadow maps; `planShadowCasters(..., enclosure)` picks all opaque
+  surfaces).
+- Shaders (`ShadowSampling.glsl`, `TSRE_RHI`): `skyEnclosed(position,
+  normal)`: 16 taps 0.8 m apart around the point, each counting something
+  1.5-4 m or more above it; walls are looked up 2 m out along their normal,
+  past the eaves, so they do not count their own roof. Ambient (standard
+  and PBR environment light, and the ambient share AO reads) times
+  `mix(1, floor, enclosed)`; lamps (standard and PBR) times
+  `mix(day, 1, enclosed)`; the PBR glow `mix(pbrGlowScale, full, enclosed)`.
+  With the map on, the light grid is gathered without the day factor and
+  the shaders apply it (`localLightDay`).
+- Glow splats: gathered without the day factor; each carries its own
+  (local or signal) and the splat looks up the map at the emitter.
+- Settings `core.rendering.skyEnclosure` (off), `core.rendering.enclosedAmbient`
+  (0.3); TRK `TsreEnclosedAmbient ( x )` (written only when set); route
+  settings window: "Enclosed ambient" (Default = the setting's).
+- Checked: EUROPE1 tunnel portal (tile -6110 15068) and stone bridge
+  (-6110 15072) (`tests/renderer/enclosure-views.json`): the tunnel mouth
+  and the ground and pier under the arch darken, open ground and walls stay
+  (only thin strips at wall bases under eaves change); street lamps before
+  the portal (`enclosure-lamp-views.json`, game root from
+  `tests/renderer/lights/lamp-root.sh`) unchanged at noon and at night;
+  defaults pixel-identical.
+- Not shown yet: a lamp deep in a tunnel by day (the test lamp in the
+  tunnel mouth was hidden by the portal); the Steam Deck's cost of the
+  pass (another shadow-size depth pass, all opaque surfaces in 300 m).
+
+### Found on the way: glow lost after depth-only passes (QRhi Vulkan)
+
+On QRhi Vulkan (lavapipe), the glow (bloom input) of a frame is empty
+whenever a depth-only pass with draws ran before the main view: the shadow
+maps by day (lamps' 3 % glow at noon gone with shadows on, present with
+them off) and the enclosure at night. QRhi OpenGL keeps it. Recording the
+draws is not the cause; executing them is. Not fixed; to be checked on the
+Steam Deck at dusk (lamps glowing while the sun still casts shadows).
 
 ## Known Limitation (0.7.8)
 

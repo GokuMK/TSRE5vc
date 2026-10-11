@@ -161,6 +161,27 @@ public:
         double cameraNorth = 0.0;
     };
     virtual void setClouds(const Clouds &clouds) {}
+
+    // The sky enclosure (task 27): a depth map from straight above around
+    // the camera, of terrain and opaque surfaces. A surface with something
+    // over it (terrain over a tunnel, a bridge deck, a roof) is enclosed:
+    // its ambient light keeps only ambientFloor of the sky's, and lamps and
+    // their glow keep their night strength there by day.
+    struct SkyEnclosure {
+        bool enabled = false;
+        // World (view space of the queue) to the map, OpenGL clip space.
+        float viewProjection[16] = {};
+        // Metres one unit of the map's depth spans.
+        float metresPerDepth = 1.0f;
+        // The filter's spacing in map coordinates.
+        float filter = 0.0f;
+        float ambientFloor = 0.3f;
+    };
+    // Starts the map (size texels) when the renderer has one; the shadow
+    // program then draws enclosure casters into it.
+    virtual bool beginSkyEnclosure(int size) { return false; }
+    virtual void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection) {}
+    virtual void setSkyEnclosure(const SkyEnclosure &enclosure) {}
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.

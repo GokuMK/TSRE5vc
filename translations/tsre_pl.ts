@@ -1541,6 +1541,21 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <source>NO OBJECT</source>
         <translation>BRAK OBIEKTU</translation>
     </message>
+    <message id="route.editor.trk.window.item.enclosed.ambient.default">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="176"/>
+        <source>Default</source>
+        <translation>Domyślne</translation>
+    </message>
+    <message id="route.editor.trk.window.label.enclosed.ambient">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="105"/>
+        <source>Enclosed ambient: </source>
+        <translation>Światło pod zakryciem: </translation>
+    </message>
+    <message id="route.editor.trk.window.tooltip.enclosed.ambient">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="179"/>
+        <source>The share of the sky's ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer).</source>
+        <translation>Część światła otoczenia z nieba, która zostaje w tunelach i pod dachami przy włączonym zakryciu nieba (renderer QRhi).</translation>
+    </message>
     <message id="route.error.location.coordinates">
         <location filename="../src/routeEditor/ErrorMessageProperties.cpp" line="130"/>
         <source>Tile: %1 %2. Coordinates: %3 %4 %5</source>
@@ -3684,6 +3699,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Off</source>
         <translation>Wyłączone</translation>
     </message>
+    <message id="settings.core.rendering.enclosed.ambient.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1124"/>
+        <source>The share of the sky's ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</source>
+        <translation>Część światła otoczenia z nieba, która zostaje tam, gdzie niebo jest całkiem zasłonięte, aby tunele starych tras bez lamp były czytelne. Trasa może ustawić własną wartość w swoich ustawieniach (TsreEnclosedAmbient w pliku TRK).</translation>
+    </message>
+    <message id="settings.core.rendering.enclosed.ambient.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1122"/>
+        <source>Enclosed ambient</source>
+        <translation>Światło otoczenia pod zakryciem</translation>
+    </message>
     <message id="settings.core.rendering.light.shafts.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1110"/>
         <source>Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer.</source>
@@ -3693,6 +3718,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <location filename="../src/settings/SettingsRegistration.cpp" line="1108"/>
         <source>Light shafts</source>
         <translation>Smugi światła</translation>
+    </message>
+    <message id="settings.core.rendering.sky.enclosure.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>
+        <source>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky's ambient light drops to the enclosed ambient. QRhi renderer.</source>
+        <translation>Wykrywa, gdzie niebo jest zasłonięte (tunele, przejścia pod torami, mosty, dachy), z mapy głębokości widzianej z góry: lampy zachowują tam w dzień nocną moc, a światło otoczenia z nieba spada do światła otoczenia pod zakryciem. Renderer QRhi.</translation>
+    </message>
+    <message id="settings.core.rendering.sky.enclosure.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1115"/>
+        <source>Sky enclosure</source>
+        <translation>Zakrycie nieba</translation>
     </message>
     <message id="settings.core.rendering.sky.model.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1082"/>

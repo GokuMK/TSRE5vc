@@ -1,7 +1,7 @@
 # Task 28 - Volumetric Clouds and Sky
 
 Status: in progress on `feature/clouds` (from `feature/weather`), started
-2026-10-11; steps 1-3, 5 and 6 done, step 4 in part. Includes task 27 (sky enclosure). Reads its weather
+2026-10-11; steps 1-3, 5-7 done (7: task 27), step 4 in part. Includes task 27 (sky enclosure). Reads its weather
 from task environment 01. Authorized overnight through step 8 and task 27
 (user, 2026-10-11); verified on lavapipe with captures, timed by the user on
 the Steam Deck.
@@ -235,6 +235,11 @@ imports alike), and their shadow map shares the march's code.
 - Setting `core.rendering.lightShafts` (off by default).
 - Checked: EUROPE1, fair cumulus at 17:00 and 19:00 looking towards the
   sun: rays fan out under the cloud in front of the sun; `rhi-shaders`.
+
+## Step 7 (done, 2026-10-11)
+
+Task 27's steps 1-3: see "Done" in `27-sky-enclosure-and-tunnel-lighting.md`,
+including a glow problem found on QRhi Vulkan with depth-only passes.
 
 ## Verification
 

@@ -1109,6 +1109,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer."
                 QT_TRID_NOOP("settings.core.rendering.light.shafts.description")).inGroup("rendering").inSubgroup("environment"),
         "lightShafts", "Game::lightShafts", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.skyEnclosure", false)
+            .withNameId(
+                //% "Sky enclosure"
+                QT_TRID_NOOP("settings.core.rendering.sky.enclosure.name")).withDescriptionId(
+                //% "Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky's ambient light drops to the enclosed ambient. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.sky.enclosure.description")).inGroup("rendering").inSubgroup("lights"),
+        "skyEnclosure", "Game::skyEnclosure", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.enclosedAmbient", 0.3)
+            .withNameId(
+                //% "Enclosed ambient"
+                QT_TRID_NOOP("settings.core.rendering.enclosed.ambient.name")).withDescriptionId(
+                //% "The share of the sky's ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file)."
+                QT_TRID_NOOP("settings.core.rendering.enclosed.ambient.description")).withRange(0, 1, 0.05).inGroup("rendering").inSubgroup("lights"),
+        "enclosedAmbient", "Game::enclosedAmbient", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
                 //% "Render TrackDB items"
