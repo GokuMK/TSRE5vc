@@ -1509,6 +1509,16 @@ Consist with this file name already exist. Overwrite?
         <source>Last Action:</source>
         <translation>Last Action:</translation>
     </message>
+    <message id="route.editor.environment.tools.generate">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="188"/>
+        <source>Generate Weather...</source>
+        <translation>Generate Weather...</translation>
+    </message>
+    <message id="route.editor.environment.tools.generate.tooltip">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="192"/>
+        <source>A day of weather over the route from a scenario: a front sweeping across it, so part of the route can be clear while another part is under cloud or rain.</source>
+        <translation>A day of weather over the route from a scenario: a front sweeping across it, so part of the route can be clear while another part is under cloud or rain.</translation>
+    </message>
     <message id="route.editor.error.message.properties.label.label">
         <location filename="../src/routeEditor/ErrorMessageProperties.cpp" line="28"/>
         <source>Selected Message:</source>
@@ -1538,6 +1548,66 @@ Consist with this file name already exist. Overwrite?
         <location filename="../src/routeEditor/ErrorMessageProperties.cpp" line="123"/>
         <source>NO OBJECT</source>
         <translation>NO OBJECT</translation>
+    </message>
+    <message id="route.editor.weather.generate.arrival">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="84"/>
+        <source>Over the route at:</source>
+        <translation>Over the route at:</translation>
+    </message>
+    <message id="route.editor.weather.generate.arrival.tooltip">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="81"/>
+        <source>The hour the front's line crosses the middle of the route's area. The day repeats.</source>
+        <translation>The hour the front's line crosses the middle of the route's area. The day repeats.</translation>
+    </message>
+    <message id="route.editor.weather.generate.button">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="111"/>
+        <source>Generate</source>
+        <translation>Generate</translation>
+    </message>
+    <message id="route.editor.weather.generate.cold.front">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="47"/>
+        <source>Cold front: showers and storms on a narrow band, clearing behind</source>
+        <translation>Cold front: showers and storms on a narrow band, clearing behind</translation>
+    </message>
+    <message id="route.editor.weather.generate.heading">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="65"/>
+        <source>Moving towards:</source>
+        <translation>Moving towards:</translation>
+    </message>
+    <message id="route.editor.weather.generate.heading.tooltip">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="62"/>
+        <source>The direction the front moves towards, on the route's grid (0 north, 90 east). In Europe fronts mostly come from the west.</source>
+        <translation>The direction the front moves towards, on the route's grid (0 north, 90 east). In Europe fronts mostly come from the west.</translation>
+    </message>
+    <message id="route.editor.weather.generate.scenario">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="53"/>
+        <source>Scenario:</source>
+        <translation>Scenario:</translation>
+    </message>
+    <message id="route.editor.weather.generate.seed">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="90"/>
+        <source>Seed:</source>
+        <translation>Seed:</translation>
+    </message>
+    <message id="route.editor.weather.generate.speed">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="72"/>
+        <source>Speed:</source>
+        <translation>Speed:</translation>
+    </message>
+    <message id="route.editor.weather.generate.summary">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="157"/>
+        <source>Area %1 x %2 km. The front comes from the %3 and moves towards the %4; its line takes about %5 h to cross the area.</source>
+        <translation>Area %1 x %2 km. The front comes from the %3 and moves towards the %4; its line takes about %5 h to cross the area.</translation>
+    </message>
+    <message id="route.editor.weather.generate.title">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="39"/>
+        <source>Generate Weather</source>
+        <translation>Generate Weather</translation>
+    </message>
+    <message id="route.editor.weather.generate.warm.front">
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="50"/>
+        <source>Warm front: cloud thickening for hundreds of km, then steady rain</source>
+        <translation>Warm front: cloud thickening for hundreds of km, then steady rain</translation>
     </message>
     <message id="route.error.location.coordinates">
         <location filename="../src/routeEditor/ErrorMessageProperties.cpp" line="130"/>

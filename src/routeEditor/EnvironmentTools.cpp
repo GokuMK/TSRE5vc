@@ -12,6 +12,7 @@
 #include <routeEditor/EnvironmentWindow.h>
 #include <routeEditor/RouteEditorGLWidget.h>
 #include <routeEditor/WeatherImportDialog.h>
+#include <routeEditor/WeatherGenerateDialog.h>
 #include <settings/SettingsManager.h>
 #include <tsre/environment/Weather.h>
 #include <tsre/environment/WeatherPresets.h>
@@ -180,6 +181,18 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
     weatherGrid->addWidget(importButton, 4, 0, 1, 2);
     connect(importButton, &QPushButton::clicked, this, [this] {
         WeatherImportDialog dialog(this->view, this);
+        dialog.exec();
+    });
+    auto *generateButton = new QPushButton(
+        //% "Generate Weather..."
+        qtTrId("route.editor.environment.tools.generate"), content);
+    generateButton->setObjectName("weatherGenerate");
+    generateButton->setToolTip(
+        //% "A day of weather over the route from a scenario: a front sweeping across it, so part of the route can be clear while another part is under cloud or rain."
+        qtTrId("route.editor.environment.tools.generate.tooltip"));
+    weatherGrid->addWidget(generateButton, 5, 0, 1, 2);
+    connect(generateButton, &QPushButton::clicked, this, [this] {
+        WeatherGenerateDialog dialog(this->view, this);
         dialog.exec();
     });
     details = new QDialog(this);

@@ -2359,6 +2359,20 @@ bool RouteEditorGLWidget::importWeather(const WeatherImport::Request &asked, QSt
     return true;
 }
 
+bool RouteEditorGLWidget::generateWeather(const WeatherGenerator::Settings &settings) {
+    if (route == NULL || route->env == NULL)
+        return false;
+    Weather weather = WeatherGenerator::generate(settings);
+    weather.maps = "WEATHER/" + QFileInfo(route->env->path).completeBaseName();
+    route->env->weather = weather;
+    weatherModified = true;
+    if (weatherMap)
+        weatherMap->invalidate();
+    emit weatherChanged();
+    update();
+    return true;
+}
+
 void RouteEditorGLWidget::setDiagnosticWeather(const QString &preset, quint32 seed, double hours) {
     setWeatherPreset(preset, seed);
     diagnosticWeatherHours = hours;

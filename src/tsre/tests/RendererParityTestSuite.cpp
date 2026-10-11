@@ -21,6 +21,7 @@
 #include <QJsonArray>
 #include <tsre/geo/TerrainOverlays.h>
 #include <QJsonDocument>
+#include <tsre/environment/WeatherGenerator.h>
 #include <QJsonObject>
 #include <QScopedValueRollback>
 #include <QTextStream>
@@ -92,6 +93,11 @@ struct ViewSpec {
     bool weather = false;
     QString weatherPreset;
     quint32 weatherSeed = 1;
+    // A generated front instead of a preset (WeatherGenerator::scenarioNames).
+    QString weatherScenario;
+    double weatherHeading = 70.0;
+    double weatherSpeed = 35.0;
+    double weatherArrival = 14.0;
     double weatherTime = std::nan("");
     // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
     // overlay opacity (0 to 1).
@@ -119,6 +125,31 @@ struct ViewSpec {
 // A static object placed for the capture only (not saved): a shape of the
 // route's SHAPES directory, at an offset (x, height above the terrain, z)
 // from the start view's position, turned by yaw degrees.
+// A view's weather: a preset, or a front generated over the route's area
+// (40 km around its track), at the view's weather time.
+void applyViewWeather(RouteEditorGLWidget &widget, const ViewSpec &spec) {
+    const int scenario = WeatherGenerator::scenarioNames().indexOf(spec.weatherScenario);
+    if (scenario < 0) {
+        widget.setDiagnosticWeather(spec.weatherPreset, spec.weatherSeed, spec.weatherTime);
+        return;
+    }
+    WeatherGenerator::Settings s;
+    s.scenario = WeatherGenerator::Scenario(scenario);
+    s.heading = spec.weatherHeading;
+    s.speed = spec.weatherSpeed;
+    s.arrival = spec.weatherArrival;
+    s.seed = spec.weatherSeed;
+    double west, north, east, south;
+    if (!widget.routeArea(west, north, east, south))
+        return;
+    s.west = west - 40000.0;
+    s.east = east + 40000.0;
+    s.south = south - 40000.0;
+    s.north = north + 40000.0;
+    widget.generateWeather(s);
+    widget.setDiagnosticWeatherTime(spec.weatherTime);
+}
+
 struct PlacedObject {
     QString file;
     float offset[3] = {0.0f, 0.0f, 0.0f};
@@ -282,6 +313,10 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.weather = object.value("weather").toBool(false);
         view.weatherPreset = object.value("weatherPreset").toString();
         view.weatherSeed = quint32(object.value("weatherSeed").toInt(1));
+        view.weatherScenario = object.value("weatherScenario").toString();
+        view.weatherHeading = object.value("weatherHeading").toDouble(70.0);
+        view.weatherSpeed = object.value("weatherSpeed").toDouble(35.0);
+        view.weatherArrival = object.value("weatherArrival").toDouble(14.0);
         if (object.contains("weatherTime"))
             view.weatherTime = object.value("weatherTime").toDouble();
         for (const QJsonValue &action : object.value("overlay").toArray())
@@ -584,7 +619,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setMapLayerVisible(MapLayer::Imagery, spec.imagery);
             widget.setMapLayerVisible(MapLayer::Weather, spec.weather);
             if (spec.weather)
-                widget.setDiagnosticWeather(spec.weatherPreset, spec.weatherSeed, spec.weatherTime);
+                applyViewWeather(widget, spec);
             TerrainOverlays::setOpacity(float(spec.overlayOpacity));
             for (const QString &action : spec.overlayActions)
                 widget.runDiagnosticOverlayAction(action);

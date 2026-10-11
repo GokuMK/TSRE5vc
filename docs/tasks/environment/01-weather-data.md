@@ -1,6 +1,7 @@
 # Task Environment 01 - Weather Data
 
-Status: steps 1-3 and 3b done on `feature/weather` (2026-10-10). **Paused**
+Status: steps 1-3 and 3b done on `feature/weather` (2026-10-10); route-scale
+generator (fronts) added 2026-10-11. **Paused**
 (user, 2026-10-11) for renderer task 28: the data sources are to be
 rethought first (see "Sources rethink"), then step 4.
 
@@ -512,6 +513,47 @@ reanalyses. Europe first.
   limit; a chunk is one variable over the whole domain for a few days,
   about 40 MB, read in parts over HTTP ranges with the `.om` file format
   library. Worth it for large areas or fine sampling.
+
+## Generator: fronts over the route (2026-10-11)
+
+The user's direction after the sources review: real data is not as simple
+as it looked; rework the procedural generator so it makes route-scale
+weather, such as a front coming through: part of the route clear, part
+cloudy. Fronts first (user's choice).
+
+- `WeatherGenerator` (`src/tsre/environment/`): a scenario is a front's
+  cross-section, stations of cloud layers, rain, visibility and wind at
+  distances ahead of its line at the ground (km; behind negative):
+  - cold front: the warm sector's stratocumulus ahead; a band of
+    cumulonimbus at the line (to 9.5 km, up to 9 mm/h) about 50 km wide;
+    clearing behind with scattered cumulus, the wind veering;
+  - warm front: cirrus 650-950 km ahead, cirrostratus and altostratus
+    lowering, nimbostratus and steady rain over the last 100 km, the warm
+    sector's stratocumulus behind.
+  The line moves towards a heading (the route's grid) at a speed (km/h),
+  crossing the area's centre at a chosen hour; it bends (up to 45 km,
+  noise over 250 km) and its cover and rain vary along it (noise over
+  120 km); heaps grow through the day (fewer in the morning and at night).
+  Stations are blended linearly; a layer appearing takes the other's
+  heights and type.
+- The result is a day (25 hourly keyframes, relative, looping) with
+  per-cell maps over the route's area and margin, as an import, so the map
+  layer, saving and the 3D clouds take it unchanged. Keyframes hold the
+  area's means and the wind at the centre.
+- F5 > Generate Weather...: scenario, moving towards (degrees, the summary
+  names the compass points), speed, over the route at (hour), seed,
+  margin, cells. Not saved until Save.
+- Capture views: `weatherScenario` (`cold_front`, `warm_front`),
+  `weatherHeading`, `weatherSpeed`, `weatherArrival`
+  (`tests/renderer/map-front.json`).
+- Checked: weather suite (66: the cross-sections, a cold front passing a
+  100 km area at noon with rain at the centre then, more cloud ahead than
+  behind, none in the morning); EUROPE1 on the map at 11, 13, 15 and 17 h
+  (the band approaching over the warm sector, beside the route, passed
+  with the route clearing, clear) and a warm front at 8 and 13 h.
+- Next ideas: occluded fronts and a low's centre; showers (air-mass
+  cumulus) and fair days as scenarios; snow by temperature; several
+  scenarios a day.
 
 ## Sources rethink (paused, 2026-10-11)
 
