@@ -136,7 +136,7 @@ bool Game::localLightsEnabled = true;
 int Game::ambientOcclusionQuality = 0;
 int Game::skyModel = 0;
 int Game::cloudQuality = 0;
-bool Game::lightShafts = false;
+int Game::lightShafts = 0;
 bool Game::skyEnclosure = false;
 float Game::enclosedAmbient = 0.3f;
 int Game::toneMapping = 0;
@@ -401,7 +401,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.clouds", SettingType::Enum);
     if (appliesNow("core.rendering.clouds"))
         cloudQuality = settings.runtimeInt("core.rendering.clouds");
-    boolean("core.rendering.lightShafts", lightShafts);
+    claim("core.rendering.lightShafts", SettingType::Enum);
+    if (appliesNow("core.rendering.lightShafts"))
+        lightShafts = settings.runtimeInt("core.rendering.lightShafts");
     boolean("core.rendering.skyEnclosure", skyEnclosure);
     floating("core.rendering.enclosedAmbient", enclosedAmbient);
     floating("core.rendering.localLights.exposure", localLightsExposure);

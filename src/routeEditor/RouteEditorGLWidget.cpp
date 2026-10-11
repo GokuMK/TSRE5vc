@@ -1151,6 +1151,16 @@ void RouteEditorGLWidget::applySky() {
     // The night sky's floor, as the classic sky's (Daylight).
     const float night[3] = {0.015f, 0.022f, 0.05f};
     std::copy(night, night + 3, sky.night);
+    // Haze from the weather's visibility at the camera (Koschmieder).
+    if (const Weather *weather = currentWeather(); weather != nullptr && !weather->keyframes.isEmpty()) {
+        double east, north;
+        cameraWorldPosition(east, north);
+        const float visibility = weather->surface(weatherHours(), east, north).visibility;
+        if (visibility > 0.0f)
+            sky.haze = 3.912f / std::max(visibility, 200.0f);
+    }
+    // Last frame's (applyClouds measures it after this).
+    sky.overcast = Game::cloudQuality > 0 ? cloudOvercast : 0.0f;
     renderer->setSky(sky);
     if (!renderer->drawsPhysicalSky()) {
         if (physicalSkyApplied && !Game::timeOfDayEnabled) {

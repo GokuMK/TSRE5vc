@@ -170,7 +170,8 @@ public:
     // Sky (0 classic, 1 physical) and cloud quality (0 off to 3), task 28.
     static int skyModel;
     static int cloudQuality;
-    static bool lightShafts;
+    // Light shafts: 0 off, 1 screen space, 2 volumetric (task 28).
+    static int lightShafts;
     // Sky enclosure and the ambient left where the sky is hidden (task 27).
     static bool skyEnclosure;
     static float enclosedAmbient;

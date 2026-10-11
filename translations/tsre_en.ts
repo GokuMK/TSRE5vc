@@ -3707,15 +3707,30 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Enclosed ambient</source>
         <translation>Enclosed ambient</translation>
     </message>
-    <message id="settings.core.rendering.light.shafts.description">
+    <message id="settings.core.rendering.light.shafts.description.modes">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1110"/>
-        <source>Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer.</source>
-        <translation>Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer.</translation>
+        <source>Rays of sunlight through gaps in clouds, trees and buildings. Screen space draws them when the sun is on the screen or near it; volumetric marches the haze in front of the camera, so shafts under clouds and through trees show from any view, at more cost. QRhi renderer.</source>
+        <translation>Rays of sunlight through gaps in clouds, trees and buildings. Screen space draws them when the sun is on the screen or near it; volumetric marches the haze in front of the camera, so shafts under clouds and through trees show from any view, at more cost. QRhi renderer.</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1108"/>
         <source>Light shafts</source>
         <translation>Light shafts</translation>
+    </message>
+    <message id="settings.core.rendering.light.shafts.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1113"/>
+        <source>Off</source>
+        <translation>Off</translation>
+    </message>
+    <message id="settings.core.rendering.light.shafts.option.screen">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1115"/>
+        <source>Screen space</source>
+        <translation>Screen space</translation>
+    </message>
+    <message id="settings.core.rendering.light.shafts.option.volumetric">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>
+        <source>Volumetric</source>
+        <translation>Volumetric</translation>
     </message>
     <message id="settings.core.rendering.sky.enclosure.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>

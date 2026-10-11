@@ -512,10 +512,20 @@ private:
         QRhiGraphicsPipeline *addPipeline = nullptr;
         QRhiBuffer *uniforms = nullptr;
         QRhiSampler *linear = nullptr;
+        // Volumetric (step 8).
+        QRhiBuffer *volumeUniforms = nullptr;
+        QRhiShaderResourceBindings *volumeBindings = nullptr;
+        QRhiShaderResourceBindings *volumeAddBindings = nullptr;
+        QRhiGraphicsPipeline *volumePipeline = nullptr;
+        QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
+        const QRhiTexture *volumeCloudMap = nullptr;
+        const QRhiTexture *volumeSunMap = nullptr;
+        const QRhiTexture *volumeCloudDistance = nullptr;
     } lightShafts;
     bool shaftsApplied = false;
     bool createLightShafts(QRhiTexture *cloudTexture);
     void applyLightShafts();
+    void applyVolumetricShafts(const QVector3D &sunDirection, float elevation);
     void releaseLightShafts();
     bool cloudsWanted() const;
     bool createCloudVolumes();

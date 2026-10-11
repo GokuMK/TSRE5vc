@@ -3709,15 +3709,30 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Enclosed ambient</source>
         <translation>Światło otoczenia pod zakryciem</translation>
     </message>
-    <message id="settings.core.rendering.light.shafts.description">
+    <message id="settings.core.rendering.light.shafts.description.modes">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1110"/>
-        <source>Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer.</source>
-        <translation>Promienie słońca przez prześwity w chmurach, drzewach i budynkach, gdy słońce jest na ekranie lub blisko niego. Renderer QRhi.</translation>
+        <source>Rays of sunlight through gaps in clouds, trees and buildings. Screen space draws them when the sun is on the screen or near it; volumetric marches the haze in front of the camera, so shafts under clouds and through trees show from any view, at more cost. QRhi renderer.</source>
+        <translation>Promienie słońca przez prześwity w chmurach, drzewach i budynkach. Ekranowe rysują je, gdy słońce jest na ekranie lub blisko niego; wolumetryczne przechodzą przez mgiełkę przed kamerą, więc smugi pod chmurami i między drzewami widać z każdego widoku, większym kosztem. Renderer QRhi.</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1108"/>
         <source>Light shafts</source>
         <translation>Smugi światła</translation>
+    </message>
+    <message id="settings.core.rendering.light.shafts.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1113"/>
+        <source>Off</source>
+        <translation>Wyłączone</translation>
+    </message>
+    <message id="settings.core.rendering.light.shafts.option.screen">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1115"/>
+        <source>Screen space</source>
+        <translation>Ekranowe</translation>
+    </message>
+    <message id="settings.core.rendering.light.shafts.option.volumetric">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>
+        <source>Volumetric</source>
+        <translation>Wolumetryczne</translation>
     </message>
     <message id="settings.core.rendering.sky.enclosure.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>

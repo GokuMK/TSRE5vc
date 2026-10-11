@@ -1102,12 +1102,19 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "High"
                 QT_TRID_NOOP("settings.core.rendering.clouds.option.high")}})).inGroup("rendering").inSubgroup("environment"),
         "cloudQuality", "Game::cloudQuality", "RouteEditorGLWidget", true, "hot-cache");
-    ADD(SettingsDefinition::boolean("core.rendering.lightShafts", false)
+    ADD(SettingsDefinition::enumeration("core.rendering.lightShafts", 0)
             .withNameId(
                 //% "Light shafts"
                 QT_TRID_NOOP("settings.core.rendering.light.shafts.name")).withDescriptionId(
-                //% "Rays of sunlight through gaps in clouds, trees and buildings when the sun is on the screen or near it. QRhi renderer."
-                QT_TRID_NOOP("settings.core.rendering.light.shafts.description")).inGroup("rendering").inSubgroup("environment"),
+                //% "Rays of sunlight through gaps in clouds, trees and buildings. Screen space draws them when the sun is on the screen or near it; volumetric marches the haze in front of the camera, so shafts under clouds and through trees show from any view, at more cost. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.description.modes"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.option.off")}, {1,
+                //% "Screen space"
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.option.screen")}, {2,
+                //% "Volumetric"
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.option.volumetric")}})).inGroup("rendering").inSubgroup("environment"),
         "lightShafts", "Game::lightShafts", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.skyEnclosure", false)
             .withNameId(

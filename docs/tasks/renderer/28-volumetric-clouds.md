@@ -1,7 +1,8 @@
 # Task 28 - Volumetric Clouds and Sky
 
 Status: in progress on `feature/clouds` (from `feature/weather`), started
-2026-10-11; steps 1-3, 5-7 done (7: task 27), step 4 in part. Includes task 27 (sky enclosure). Reads its weather
+2026-10-11; steps 1-3 and 5-8 done (7: task 27), step 4 in part; step 9
+(OpenGL fallback, skydome) not started. Includes task 27 (sky enclosure). Reads its weather
 from task environment 01. Authorized overnight through step 8 and task 27
 (user, 2026-10-11); verified on lavapipe with captures, timed by the user on
 the Steam Deck.
@@ -240,6 +241,30 @@ imports alike), and their shadow map shares the march's code.
 
 Task 27's steps 1-3: see "Done" in `27-sky-enclosure-and-tunnel-lighting.md`,
 including a glow problem found on QRhi Vulkan with depth-only passes.
+
+## Step 8 (done, 2026-10-11)
+
+- `core.rendering.lightShafts` is now Off / Screen space (step 6) /
+  Volumetric. Volumetric (`applyVolumetricShafts`): at half resolution a
+  march of 40 steps through the low haze in front of the camera, up to the
+  scene's depth or 1.5 km (6 km towards the sky, but not past the clouds:
+  their distance from the march), the sun's light at each step through the
+  cloud shadow map and the far sun shadow map (terrain, trees, buildings);
+  single scattering, a forward-peaked phase. The haze's extinction comes
+  from the weather's visibility at the camera (Koschmieder, 3.912 / V),
+  passed in `Renderer::Sky::haze`.
+- Composite: the fog already holds the haze's light as if the sun reached
+  all of it, so the shafts are the shade: the view darkens by the share of
+  the haze's light blocked beyond the clouds' average shade
+  (`Sky::overcast`, from the editor's overcast measure) times the haze's
+  share of the view, at most 40 %; lit haze towards the sun adds a little.
+- Checked: EUROPE1 fair cumulus and broken at 17:00 (`tests/renderer/
+  shafts-views.json`, sun shadows on): rays under a gap in broken cloud,
+  a soft glow towards the sun, views across and away from the sun
+  unchanged; defaults pixel-identical.
+- To tune on hardware: the strength (subtle now), the step count and
+  temporal blending (the march is jittered each frame without history);
+  lamps in fog (froxels) remain later work.
 
 ## Verification
 

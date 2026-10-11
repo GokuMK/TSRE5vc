@@ -1,0 +1,21 @@
+{
+  "output": "build/renderer-shafts",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [0, 0],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": true,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 40,
+    "maxSeconds": 600
+  },
+  "views": [
+    {"name": "towards-sun", "rot": [4.0, 0.15], "weatherPreset": "fair_cumulus", "time": 17},
+    {"name": "sideways", "rot": [2.6, 0.05], "weatherPreset": "fair_cumulus", "time": 17},
+    {"name": "away", "rot": [0.9, 0.05], "weatherPreset": "fair_cumulus", "time": 17},
+    {"name": "broken-towards-sun", "rot": [4.0, 0.15], "weatherPreset": "broken", "time": 17}
+  ]
+}

@@ -128,6 +128,12 @@ public:
         float cameraHeight = 0.0f;
         // Display colour the sky keeps at least (night).
         float night[3] = {0.0f, 0.0f, 0.0f};
+        // Extinction of the low haze (1/m), from the weather's visibility:
+        // what volumetric light shafts scatter in.
+        float haze = 1.5e-4f;
+        // The share of the sun the clouds around the camera block on
+        // average (0-1).
+        float overcast = 0.0f;
     };
     virtual void setSky(const Sky &sky) { this->sky = sky; }
     // Whether the sky set is drawn here as the atmosphere.
