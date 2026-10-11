@@ -137,6 +137,34 @@ std::vector<quint8> shape(int size) {
     });
 }
 
+std::vector<quint8> curl(int size) {
+    // The potential on the texels, then its curl by central differences
+    // (wrapping), scaled to the largest.
+    std::vector<float> potential(size_t(size) * size);
+    for (int y = 0; y < size; ++y)
+        for (int x = 0; x < size; ++x)
+            potential[size_t(y) * size + x] = perlin((x + 0.5f) / size, (y + 0.5f) / size, 0.37f, 4, 3);
+    auto at = [&](int x, int y) { return potential[size_t(wrap(y, size)) * size + wrap(x, size)]; };
+    std::vector<float> field(size_t(size) * size * 2);
+    float largest = 1e-6f;
+    for (int y = 0; y < size; ++y)
+        for (int x = 0; x < size; ++x) {
+            const float vx = at(x, y + 1) - at(x, y - 1);
+            const float vy = -(at(x + 1, y) - at(x - 1, y));
+            field[(size_t(y) * size + x) * 2] = vx;
+            field[(size_t(y) * size + x) * 2 + 1] = vy;
+            largest = std::max(largest, std::max(std::abs(vx), std::abs(vy)));
+        }
+    std::vector<quint8> out(size_t(size) * size * 4);
+    for (size_t i = 0; i < size_t(size) * size; ++i) {
+        for (int c = 0; c < 2; ++c)
+            out[i * 4 + c] = quint8(std::lround(std::clamp(0.5f + 0.5f * field[i * 2 + c] / largest, 0.0f, 1.0f) * 255.0f));
+        out[i * 4 + 2] = 128;
+        out[i * 4 + 3] = 255;
+    }
+    return out;
+}
+
 std::vector<quint8> detail(int size) {
     return volume(size, [](float x, float y, float z, float *v) {
         const float w2 = worley(x, y, z, 2), w4 = worley(x, y, z, 4), w8 = worley(x, y, z, 8),

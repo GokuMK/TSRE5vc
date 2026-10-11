@@ -28,6 +28,10 @@ namespace CloudNoise {
 
 std::vector<quint8> shape(int size = 128);
 std::vector<quint8> detail(int size = 32);
+// 2D curl noise, size^2 RGBA8, tileable: R, G the curl of a fractal
+// potential (non-divergent, as a fluid's flow), 0.5 for none; it distorts
+// the detail noise into swirls (Schneider 2015).
+std::vector<quint8> curl(int size = 128);
 
 // Tileable Worley noise: 1 - the distance to the nearest of one random point
 // per cell (cells per period), clamped; p in periods.

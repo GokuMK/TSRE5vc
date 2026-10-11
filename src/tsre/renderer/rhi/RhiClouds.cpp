@@ -52,6 +52,7 @@ constexpr float NearCoverTexel = 120.0f;
 constexpr float FarCoverTexel = 600.0f;
 constexpr int ShapeSize = 128;
 constexpr int DetailSize = 32;
+constexpr int CurlSize = 128;
 // Metres one period of the shape and detail volumes spans.
 constexpr double ShapePeriod = 6000.0;
 constexpr double DetailPeriod = 900.0;
@@ -260,9 +261,14 @@ layout(binding = 5) uniform sampler3D detailNoise;
 layout(binding = 6) uniform sampler2D transmittanceTable;
 layout(binding = 7) uniform sampler2D skyView;
 layout(binding = 8) uniform sampler2D sceneDepth;
+layout(binding = 9) uniform sampler2D curlNoise;
 
 const float BottomRadius = 6360.0;
 const float TopRadius = 6460.0;
+// Light samples' offsets across the cone (unit-ish, fixed).
+const vec3 Cone[8] = vec3[8](vec3(0.38, 0.92, -0.12), vec3(-0.71, 0.17, 0.68), vec3(0.15, -0.62, 0.77),
+                             vec3(-0.85, -0.43, -0.30), vec3(0.62, -0.21, -0.75), vec3(-0.12, 0.81, 0.57),
+                             vec3(0.55, 0.55, 0.62), vec3(-0.40, -0.80, 0.45));
 
 vec2 transmittanceUv(float radius, float mu) {
     float h = sqrt(TopRadius * TopRadius - BottomRadius * BottomRadius);
@@ -380,7 +386,12 @@ float density(vec3 p, vec2 offset, float altitude, bool detail) {
             continue;
         if (detail) {
             // Wisps at the bottom, billows at the top, eroding the edges.
-            vec3 dn = textureLod(detailNoise, (metres + vec3(offsets.z, 0.0, -offsets.w))
+            // Distorted by curl noise into swirls, as turbulence would
+            // (Schneider 2015), more at the base.
+            vec2 swirl = (textureLod(curlNoise, (metres.xz + vec2(offsets.x, -offsets.y)) / (ShapePeriod * 0.5), 0.0).rg
+                          - 0.5) * 2.0;
+            vec3 swirled = metres + vec3(swirl.x, 0.0, swirl.y) * 150.0 * (1.0 - 0.6 * h);
+            vec3 dn = textureLod(detailNoise, (swirled + vec3(offsets.z, 0.0, -offsets.w))
                                  / (DetailPeriod * mix(0.9, 0.55, convective)), 0.0).rgb;
             float dfbm = dot(dn, vec3(0.625, 0.25, 0.125));
             float erosion = mix(dfbm, 1.0 - dfbm, clamp(h * 5.0, 0.0, 1.0));
@@ -478,15 +489,22 @@ void main() {
             float sigma = density(p, offset, altitude, true);
             if (sigma <= 0.0)
                 continue;
-            // Towards the sun, in growing steps.
+            // Towards the sun in growing steps spread in a cone, which
+            // smooths the banding and gathers the neighbours' density, then
+            // one far sample for the shadows of distant clouds (Schneider
+            // 2015).
             float opticalDepth = 0.0;
-            float stepLength = 0.06;
-            vec3 q = p;
+            float stepLength = 0.05;
+            float along = 0.0;
             for (int k = 0; k < int(lighting.x); ++k) {
-                q += sunDir * stepLength;
-                float qAltitude = length(q) - BottomRadius;
-                opticalDepth += density(q, vec2(q.x, -q.z), qAltitude, false) * stepLength;
+                along += stepLength;
+                vec3 q = p + sunDir * along + Cone[k] * (stepLength * 0.6);
+                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - BottomRadius, false) * stepLength;
                 stepLength *= 1.8;
+            }
+            {
+                vec3 q = p + sunDir * (along + 2.0);
+                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - BottomRadius, false) * 0.8;
             }
             vec3 up = p / r;
             float sunCos = dot(up, sunDir);
@@ -501,16 +519,25 @@ void main() {
                 float phase = mix(henyeyGreenstein(cosAngle, 0.6 * a), henyeyGreenstein(cosAngle, -0.3 * a), 0.3);
                 scattered += a * exp(-opticalDepth * a) * phase;
             }
-            // Powder: the inside of a heap lit through it looks darker at
-            // its sunny edges (Schneider 2015).
-            float powder = 1.0 - exp(-2.0 * sigma * 0.08);
-            scattered *= mix(1.0, powder * 2.0, 0.5);
+            // Beer-powder (Schneider 2015): cloud gathers light, so its
+            // edges facing the light are darker than its depths; seen only
+            // looking away from the sun.
+            float powder = 1.0 - exp(-2.0 * (opticalDepth + sigma * 0.05));
+            scattered *= mix(1.0, 2.0 * powder, clamp(0.5 - 0.5 * cosAngle, 0.0, 1.0) * 0.8);
             float h = clamp((altitude - slab.x) / max(slab.y - slab.x, 0.1), 0.0, 1.0);
             // The sky's light reaches less far in: less at the bottom of
             // the layer and where the sun's path is dense.
             float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05));
-            vec3 ambient = skyAbove * open * 0.7 + sunLight * max(sunCos, 0.0) * 0.05 * (1.0 - h);
-            vec3 lit = sunLight * scattered * 4.0 * Pi * 0.25 + ambient;
+            // The ground's light from below, where the sun reaches the
+            // ground (not under a covered sky).
+            float sunnyGround = 1.0 - 0.9 * max(weatherAt(offset, 0).x, weatherAt(offset, 1).x);
+            vec3 ambient = skyAbove * open * 0.7
+                    + vec3(0.11, 0.11, 0.09) * sunLight * max(sunCos, 0.0) * (1.0 - h) * sunnyGround / Pi;
+            // Light diffused through a thick layer, which the octaves miss
+            // (two-stream: 1 / (1 + 0.75 (1 - g) depth), g about 0.85): what
+            // lights an overcast's base; nothing near the surface.
+            float diffused = (1.0 - exp(-opticalDepth / 6.0)) / (1.0 + 0.11 * opticalDepth);
+            vec3 lit = sunLight * (scattered * Pi + max(sunCos, 0.0) * diffused * 0.14) + ambient;
             float sampleT = exp(-sigma * dt);
             luminance += transmittance * lit * (1.0 - sampleT);
             float before = transmittance;
@@ -545,10 +572,16 @@ void main() {
             }
         }
     }
-    // Haze between the camera and the clouds: towards the sky's colour.
+    // The air between the camera and the clouds: Rayleigh and Mie at the
+    // path's mean height and the weather's low haze (high.y, per km), each
+    // colour its own; the clouds fade towards the sky behind them.
     if (transmittance < 1.0 && distance > 0.0) {
-        float haze = exp(-distance / 45.0);
-        luminance = luminance * haze + skyLight(d) * (1.0 - haze) * (1.0 - transmittance);
+        float cloudAltitude = length(p0 + d * distance) - BottomRadius;
+        float mean = max(0.5 * (camera.x + cloudAltitude), 0.0);
+        vec3 sigma = vec3(5.802e-3, 13.558e-3, 33.1e-3) * exp(-mean / 8.0) + vec3(4.44e-3 * exp(-mean / 1.2))
+                + vec3(high.y * exp(-mean / 1.5));
+        vec3 air = exp(-sigma * distance);
+        luminance = luminance * air + skyLight(d) * (vec3(1.0) - air) * (1.0 - transmittance);
     }
     result = vec4(luminance, transmittance);
     distanceOut = vec4(distance, 0.0, 0.0, 1.0);
@@ -758,6 +791,8 @@ bool RhiRenderer::createCloudVolumes() {
     if (c.shape != nullptr)
         return true;
     c.shape = rhi->newTexture(QRhiTexture::RGBA8, ShapeSize, ShapeSize, ShapeSize, 1, QRhiTexture::ThreeDimensional);
+    c.curl = rhi->newTexture(QRhiTexture::RGBA8, QSize(CurlSize, CurlSize));
+    c.curl->create();
     c.detail = rhi->newTexture(QRhiTexture::RGBA8, DetailSize, DetailSize, DetailSize, 1, QRhiTexture::ThreeDimensional);
     if (!c.shape->create() || !c.detail->create()) {
         delete c.shape;
@@ -785,6 +820,10 @@ bool RhiRenderer::createCloudVolumes() {
     };
     upload(c.shape, shape, ShapeSize);
     upload(c.detail, detail, DetailSize);
+    const std::vector<quint8> curl = CloudNoise::curl(CurlSize);
+    QRhiTextureSubresourceUploadDescription curlData(curl.data(), quint32(curl.size()));
+    curlData.setSourceSize(QSize(CurlSize, CurlSize));
+    batch->uploadTexture(c.curl, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, curlData)));
     c.pendingUploads = batch;
     return true;
 }
@@ -887,7 +926,8 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
                                                                           skyResources.linear),
                                 QRhiShaderResourceBinding::sampledTexture(7, fragment, skyResources.view,
                                                                           skyResources.linear),
-                                QRhiShaderResourceBinding::sampledTexture(8, fragment, view.depth, c.nearest)});
+                                QRhiShaderResourceBinding::sampledTexture(8, fragment, view.depth, c.nearest),
+                                QRhiShaderResourceBinding::sampledTexture(9, fragment, c.curl, c.repeat)});
     for (int i = 0; i < 2; ++i) {
         // Writes history i from the march and history 1 - i.
         c.temporalBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
@@ -1109,6 +1149,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         const size_t centre = ((size_t(2) * n + n / 2) * n + n / 2) * 4;
         parameters.high[0] = (*clouds.layers)[centre] > 0.0f ? (*clouds.layers)[centre + 2] : 0.0f;
     }
+    parameters.high[1] = std::clamp(sky.haze, 0.0f, 0.02f) * 1000.0f;
     float plane = 0.0f;
     cloudShadowPlane(plane);
     parameters.shadow[0] = CloudShadowExtent;
@@ -1228,6 +1269,7 @@ void RhiRenderer::releaseCloudResources() {
     delete c.weather;
     delete c.shape;
     delete c.detail;
+    delete c.curl;
     if (c.pendingUploads != nullptr)
         c.pendingUploads->release();
     c = CloudResources();

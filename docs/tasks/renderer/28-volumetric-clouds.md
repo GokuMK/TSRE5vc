@@ -293,6 +293,43 @@ only nudged the edges; the half-resolution march blurred them. Now
 - Checked at High: fair cumulus towards the horizon, from below and
   towards the sun, broken, overcast, scattered, cumulus in the evening.
 
+## Against Schneider 2015 (Horizon Zero Dawn), 2026-10-11
+
+The user's review: the small white clouds' colours were off (too dense? no
+ambient? no air between?); compare with the talk (slide numbers; the PDF's
+pages are two more).
+
+| Talk | Here |
+|---|---|
+| Shape 128^3: Perlin-Worley + 3 Worley octaves (30) | Same layout (CPU-made, own frequencies) |
+| Detail 32^3: Worley octaves (31) | Same |
+| Curl noise 128^2 distorting the detail (32, 37) | Done (2026-10-11): 2 channels, up to 150 m, more at the base |
+| Height gradients: stratus, cumulus, cumulonimbus presets blended by type (33) | Stratus and cumulus profiles blended by type within each weather cell's base and top; no separate cumulonimbus (anvil) profile |
+| Coverage signal from the weather map (33, 39) | Local coverage from the weather's own 2D noise, so the clouds stand where the map shows them |
+| Base: shape x height gradient, then coverage remap, less density at the base (35-36) | Same form; no "denser towards the top" yet |
+| Erosion by detail at the edges, inverted Worley at the base (37, 76) | Same |
+| Precipitation: cumulonimbus at 70 %, rain clouds darker (42, 67) | Not yet (the weather has precipitation; the clouds ignore it) |
+| Cumulus pushed onto the horizon (45) | No: the weather decides |
+| Wind (47) | Each layer drifts with its own wind (weather drift) |
+| Beer's law, Henyey-Greenstein (51-55) | Same; two lobes, plus multiple-scattering octaves (Wrenninge) |
+| Beer-powder, view-dependent (57-66) | Done (2026-10-11): from the light's optical depth, only looking away from the sun |
+| Ambient from the sky, more with height (87) | Same, from the sky-view table; plus ground bounce where the ground is sunny (2026-10-11), and diffusion through thick layers (two-stream; overcast bases) |
+| Direct light the sun's colour (87) | The sun through the atmosphere at the cloud's height |
+| Atmosphere over depth (87) | Done (2026-10-11): Rayleigh and Mie per colour at the path's height and the weather's haze (visibility); before, a grey 45 km fade |
+| Spherical shell (72-74) | Same, at the Earth's radius |
+| Cheap march to the isosurface, step back, back to cheap after empty samples (75-80) | Not yet: only empty coverage is skipped (performance) |
+| 64-128 steps by angle, early exit (81-82) | Steps by quality, quadratic spacing; early exit |
+| Light: 6 samples in a cone and one far (83-84) | Done (2026-10-11): 4-6 cone samples growing 1.8x and one 2 km further |
+| Light samples cheap after alpha 0.3 (84) | Light samples always without detail |
+| 2D alto/cirrus textures scrolling (86) | One cirrus layer from the weather's high cover |
+| Quarter res, 1 of 16 pixels a frame, reprojection (92-93) | Full / half / quarter res every frame, blended with history |
+
+The colours: density stays (35-70 per km; real cumulus is about 50-100);
+the ambient was the sky's alone and dark under a covered sky (now ground
+bounce and diffusion); the air between was missing (now per colour). The
+editor's general ambient (PBR rough surfaces not taking the environment's
+colour) is a separate renderer question.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,
