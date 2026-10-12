@@ -1129,8 +1129,10 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     std::copy(light.fog, light.fog + 4, gluu->fogColor);
     std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
     std::copy(light.ambient, light.ambient + 4, gluu->ambientColor);
-    gluu->localLightAdaptation = light.localLights;
-    gluu->signalLightAdaptation = light.signalLights;
+    // Lamps by day (task 29): dimmed as the sun rises, or full strength.
+    const int lampsByDay = Settings::integer("core.rendering.lampsByDay");
+    gluu->localLightAdaptation = lampsByDay == 1 ? 1.0f : light.localLights;
+    gluu->signalLightAdaptation = lampsByDay == 1 ? 1.0f : light.signalLights;
     sunCastsShadows = light.sunUp;
     // The sun and the moon on the sky.
     std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, skyState.sunDirection);

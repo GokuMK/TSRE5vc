@@ -944,6 +944,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "glTF lamps and emissive surfaces light the scene around them. QRhi renderer only."
                 QT_TRID_NOOP("settings.core.rendering.local.lights.enabled.description")).inGroup("rendering").inSubgroup("lights"),
         "localLightsEnabled", "Game::localLightsEnabled", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.lampsByDay", 0)
+            .withNameId(
+                //% "Lamps by day"
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.name")).withDescriptionId(
+                //% "How lamps compare with daylight. Dimmed fades them as the sun rises, a stand-in for the eye's adaptation. Full strength keeps their night strength all day. Auto exposure keeps them at one strength and lets the view adapt to the light instead, as an eye or a camera does: tunnels brighten after a moment, night stays night. Auto exposure needs the QRhi renderer and tone mapping (AgX suits it); otherwise lamps are dimmed. Applies with time of day on."
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.description"))
+            .withOptions(numericChoices({{0,
+                //% "Dimmed"
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.option.dimmed")}, {1,
+                //% "Full strength"
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.option.full")}, {2,
+                //% "Auto exposure"
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.option.auto")}})).inGroup("rendering").inSubgroup("lights"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::enumeration("core.rendering.ambientOcclusion", 0)
             .withNameId(
                 //% "Ambient occlusion"

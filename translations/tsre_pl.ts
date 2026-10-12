@@ -8469,6 +8469,31 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Local lights</source>
         <translation>Światła lokalne</translation>
     </message>
+    <message id="settings.core.rendering.lamps.by.day.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="950"/>
+        <source>Lamps by day</source>
+        <translation>Lampy w dzień</translation>
+    </message>
+    <message id="settings.core.rendering.lamps.by.day.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="952"/>
+        <source>How lamps compare with daylight. Dimmed fades them as the sun rises, a stand-in for the eye&apos;s adaptation. Full strength keeps their night strength all day. Auto exposure keeps them at one strength and lets the view adapt to the light instead, as an eye or a camera does: tunnels brighten after a moment, night stays night. Auto exposure needs the QRhi renderer and tone mapping (AgX suits it); otherwise lamps are dimmed. Applies with time of day on.</source>
+        <translation>Jak lampy wypadają na tle światła dnia. Przyciemnione słabną, gdy wschodzi słońce, w zastępstwie adaptacji oka. Pełna moc zachowuje ich nocną moc przez cały dzień. Automatyczna ekspozycja utrzymuje je w jednej mocy, a obraz dostosowuje się do światła, jak oko lub aparat: tunele po chwili się rozjaśniają, noc pozostaje nocą. Automatyczna ekspozycja wymaga renderera QRhi i mapowania tonów (pasuje do niej AgX); w przeciwnym razie lampy są przyciemniane. Działa przy włączonej porze dnia.</translation>
+    </message>
+    <message id="settings.core.rendering.lamps.by.day.option.dimmed">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="955"/>
+        <source>Dimmed</source>
+        <translation>Przyciemnione</translation>
+    </message>
+    <message id="settings.core.rendering.lamps.by.day.option.full">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="957"/>
+        <source>Full strength</source>
+        <translation>Pełna moc</translation>
+    </message>
+    <message id="settings.core.rendering.lamps.by.day.option.auto">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="959"/>
+        <source>Auto exposure</source>
+        <translation>Automatyczna ekspozycja</translation>
+    </message>
     <message id="settings.core.rendering.local.lights.enabled.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="945"/>
         <source>glTF lamps and emissive surfaces light the scene around them. QRhi renderer only.</source>

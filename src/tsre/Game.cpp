@@ -377,6 +377,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.water.reflection", waterReflection);
     // Read by the renderers and WaterWaves each frame (task renderer 18).
     claim("core.rendering.water.depth", SettingType::Bool);
+    // Read by RouteEditorGLWidget each frame (task renderer 29).
+    claim("core.rendering.lampsByDay", SettingType::Enum);
     claim("core.rendering.water.windSpeed", SettingType::Float);
     claim("core.rendering.water.windDirection", SettingType::Float);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);
