@@ -134,6 +134,7 @@ tools(std::make_unique<ToolRegistry>()) {
     surface = RenderSurface::create(this, this);
     connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
+    lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
@@ -142,6 +143,8 @@ tools(std::make_unique<ToolRegistry>()) {
             if (key == "core.rendering.skyColor" || key == "core.rendering.fogColor"
                     || key == "core.rendering.fogDensity")
                 environmentChanged = true;
+            if (key == "core.rendering.lampsByDay")
+                lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 timer.start(renderTimerStep(), this);
@@ -1143,7 +1146,6 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
     std::copy(light.ambient, light.ambient + 4, gluu->ambientColor);
     // Lamps by day (task 29): dimmed as the sun rises, or full strength.
-    const int lampsByDay = Settings::integer("core.rendering.lampsByDay");
     gluu->localLightAdaptation = lampsByDay == 1 ? 1.0f : light.localLights;
     gluu->signalLightAdaptation = lampsByDay == 1 ? 1.0f : light.signalLights;
     // Auto exposure: lamps at one scale, the light of the sun and the sky in

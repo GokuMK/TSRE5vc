@@ -476,6 +476,9 @@ private:
     void loadWholeView(const char *reason, qint64 limitMs);
     // From a whole view's start to the next frame: the time it was shown.
     QElapsedTimer wholeViewShown;
+    // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),
+    // kept from the settings as they change: frames read no settings.
+    int lampsByDay = 0;
     // Auto exposure (task 29): this frame's control, set by applyTimeOfDay
     // and handed over once camera jumps are known.
     Renderer::ExposureControl exposure;

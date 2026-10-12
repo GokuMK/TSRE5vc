@@ -171,12 +171,23 @@ SettingsManager::instance().setSupported(
     "core.rendering.threadedTextureLoading", SettingType::Bool);
 ```
 
-The editor's disabled support checkbox reflects these runtime claims. A claimed
-key with a different stored type is shown as a type mismatch. Cold consumers use
-the typed `SettingsAccess` helpers, which claim the expected type beside the
-read. Transitional hot caches claim their values while `Game` initializes or
-updates the cache; that central cache list is being reduced as ownership moves to
-the actual component.
+The editor's disabled support checkbox ("Used") reflects these runtime claims. A
+claimed key with a different stored type is shown as a type mismatch. Cold
+consumers use the typed `SettingsAccess` helpers, which claim the expected type
+beside the read. Transitional hot caches claim their values while `Game`
+initializes or updates the cache; that central cache list is being reduced as
+ownership moves to the actual component.
+
+Hot paths never read settings. Code that runs every frame (rendering, per-frame
+updates, timers) keeps the values it needs cached in simple types (`bool`, `int`,
+`float`, a numeric enum) owned by its component. It reads them once at
+construction and again when `SettingsManager::runtimeSettingsChanged` names
+their keys, and claims them with their registered type. The `SettingsAccess`
+helpers belong to cold points only: startup, construction, load, save, an
+operation's start, the change notification. Each call looks the key up by string
+and claims it again. Read per frame, that costs time every frame; with a helper
+of another type (`Settings::integer` on an enum) it replaces the claim, and the
+editor shows the setting as unused.
 
 `SettingsRegistration::registerAll()` is the deterministic aggregation point.
 Forks and extensions can add providers before it runs; providers are ordered by
