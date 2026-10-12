@@ -119,6 +119,9 @@ namespace {
 // Tool panels are narrow: their scroll bars take a third of the style's width.
 class ThinScrollBars : public QProxyStyle {
 public:
+    // Over the application's own style (Fusion, drawn with its palette): a
+    // proxy without a base takes the platform's, which ignores the palette.
+    ThinScrollBars() : QProxyStyle(QStyleFactory::create(QApplication::style()->name())) {}
     int pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const override {
         const int value = QProxyStyle::pixelMetric(metric, option, widget);
         return metric == PM_ScrollBarExtent ? std::max(4, (value + 2) / 3) : value;
