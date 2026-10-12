@@ -570,6 +570,63 @@ About 4-5 ms more than High at the Deck's size: for faster machines.
 - Slight steps at the bright edges of clouds right by the sun, in motion.
 - The other items of the first round's list above.
 
+## Clouds in reflections (2026-10-12)
+
+The user: water reflects only the blue sky. The clouds are drawn in the main
+view only; the water reflection (PlanarReflection, the scene mirrored in the
+water's plane at half the window's size) and the environment cube (water off
+that plane, glTF metals) draw the physical sky alone.
+
+Options considered:
+
+1. **March the clouds in the reflection too**: its own small image and
+   history, with the same update of one pixel per 4 x 4 block a frame; the
+   mirrored view's directions, its own depth for the composite. Matches the
+   sky, holds on calm water; about 0.5-1 ms estimated on the Deck. Water off
+   the plane and glTF metals still read the cube.
+2. **Clouds in the environment cube**, marched per face as the round robin
+   draws it (about 128 x 128 per face; no reprojection, the cube does not
+   turn with the camera). Everything that reads the cube gets them (also
+   the sky's ambient under overcast later), but soft: about 1.4 cloud
+   pixels per degree, against about 5 at Low in the sky, so calm water
+   would show blurred clouds.
+3. **Screen space**: the water reads the main view's finished cloud image
+   along the reflected direction (the clouds are as good as infinitely far,
+   so one lookup; since the edge fix the image holds clouds behind near
+   objects too). Nearly free and as sharp as the sky, but only where the
+   reflected direction is on screen: looking down from a bridge, the
+   reflected zenith is off screen and the clouds would vanish mid-river.
+   Needs 2 behind it.
+
+Decision (user): 1 now; 2 later as its own step (glTF reflections, ambient,
+water off the plane); 3 in reserve.
+
+### Done (option 1)
+
+- A view's own cloud resources (march, image, histories, uniform buffers,
+  passes) are a `CloudView`; the main view's are part of `CloudResources`
+  (which holds the shared weather, cover and shadow maps), the reflection
+  has `reflectionClouds`.
+- The reflection is drawn before the main view prepares this frame's maps,
+  so it takes the main view's last march parameters (the camera moved a
+  step since, invisible at the clouds' distance) with its own view: the
+  mirrored view's directions and reprojection, its own history, its depth
+  for the composite. Run after the reflection's opaque passes, or at its
+  end when no later pass has draws.
+- Its image has a quarter of the main view's preset pixels (the reflection
+  has a quarter of the window's): 320 x 180 at High. It marches with Low's
+  steps (48, light 3) at every quality: the waves blur it, and the look in
+  captures matched the preset's steps.
+- Cost at 1280 x 800, CMK lake (two views, two runs, medians): about
+  +1-2 ms over the reflection without clouds (about 1.4 on average; the
+  run-to-run noise is 2-3 ms). The reflection itself costs 5-6 ms.
+- Checked: the lake at noon (fair cumulus, broken) and in the evening, and
+  the turning sequence (`clouds-turn.json`): the reflected clouds follow
+  the sky, no blocks in motion.
+- Seen on the way, not from this change (the same with the clouds off):
+  low over the lake, the far water just under the horizon shows a flat
+  light band with horizontal streaks.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

@@ -2302,6 +2302,7 @@ void RhiRenderer::resetFrame() {
     skyResources.usesThisFrame = 0;
     cloudsApplied = false;
     cloudsPrepared = false;
+    reflectionCloudsApplied = false;
     shaftsApplied = false;
     std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }

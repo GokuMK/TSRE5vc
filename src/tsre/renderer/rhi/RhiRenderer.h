@@ -436,29 +436,16 @@ private:
     // Volumetric clouds (RhiClouds.cpp).
     Clouds clouds;
     bool cloudsApplied = false;
-    struct CloudResources {
-        int quality = 0;
-        QRhiTexture *shape = nullptr;
-        QRhiTexture *detail = nullptr;
-        QRhiTexture *curl = nullptr;
-        QRhiResourceUpdateBatch *pendingUploads = nullptr;
-        QRhiTexture *weather = nullptr;
-        quint64 weatherRevision = ~0ull;
-        QRhiTexture *coverNear = nullptr;
-        QRhiTexture *coverFar = nullptr;
-        QRhiTextureRenderTarget *coverTargets[2] = {};
-        QRhiRenderPassDescriptor *coverPasses[2] = {};
-        QRhiBuffer *coverUniforms[2] = {};
-        QRhiShaderResourceBindings *coverBindings[2] = {};
-        QRhiGraphicsPipeline *coverPipeline = nullptr;
-        std::vector<double> coverKey;
+    // A view's own clouds: the march, the image built from it over frames
+    // and the composite into the view. The main view's are part of
+    // CloudResources, the water reflection's are reflectionClouds.
+    struct CloudView {
         // The march (one texel per update block) and the cloud image.
         QSize size;
         QSize imageSize;
+        QRhiBuffer *uniforms = nullptr;
         QRhiBuffer *updateUniforms = nullptr;
         quint32 updateStride = 0;
-        // What the cloud shadow map was last drawn for.
-        std::vector<double> shadowKey;
         QRhiTexture *march = nullptr;
         // The finished cloud image (the history alternates): the composite
         // and the light shafts read it.
@@ -483,13 +470,34 @@ private:
         bool previousValid = false;
         double lastEast = 0.0;
         double lastNorth = 0.0;
-        int frame = 0;
         QRhiTexture *compositeColor = nullptr;
         QRhiTextureRenderTarget *compositeTarget = nullptr;
         QRhiRenderPassDescriptor *compositePass = nullptr;
         QRhiShaderResourceBindings *compositeBindings[2] = {};
         QRhiGraphicsPipeline *compositePipeline = nullptr;
-        QRhiBuffer *uniforms = nullptr;
+    };
+    struct CloudResources : CloudView {
+        int quality = 0;
+        QRhiTexture *shape = nullptr;
+        QRhiTexture *detail = nullptr;
+        QRhiTexture *curl = nullptr;
+        QRhiResourceUpdateBatch *pendingUploads = nullptr;
+        QRhiTexture *weather = nullptr;
+        quint64 weatherRevision = ~0ull;
+        QRhiTexture *coverNear = nullptr;
+        QRhiTexture *coverFar = nullptr;
+        QRhiTextureRenderTarget *coverTargets[2] = {};
+        QRhiRenderPassDescriptor *coverPasses[2] = {};
+        QRhiBuffer *coverUniforms[2] = {};
+        QRhiShaderResourceBindings *coverBindings[2] = {};
+        QRhiGraphicsPipeline *coverPipeline = nullptr;
+        std::vector<double> coverKey;
+        // What the cloud shadow map was last drawn for.
+        std::vector<double> shadowKey;
+        int frame = 0;
+        // The main view's march parameters as last written: the reflection,
+        // drawn before this frame's are, takes them with its own view.
+        std::vector<float> parameters;
         QRhiSampler *linear = nullptr;
         QRhiSampler *nearest = nullptr;
         QRhiSampler *repeat = nullptr;
@@ -500,6 +508,16 @@ private:
         bool shadowValid = false;
     } cloudResources;
     bool cloudsPrepared = false;
+    // The clouds in the water reflection: their own image at a quarter of
+    // the main view's pixels (the reflection has a quarter of the view's).
+    CloudView reflectionClouds;
+    bool reflectionCloudsApplied = false;
+    bool createCloudView(CloudView &v, const QSize &viewSize, int pixels, QRhiTexture *color,
+                         QRhiTexture *glow, QRhiTexture *depth);
+    void releaseCloudView(CloudView &v);
+    void writeCloudUpdates(CloudView &v, QRhiResourceUpdateBatch *updates);
+    void runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize &viewSize, QRhiResourceUpdateBatch *updates);
+    void applyReflectionClouds();
     // The sky enclosure map (task 27).
     Attachments enclosureMap;
     SkyEnclosure enclosure;

@@ -405,6 +405,8 @@ void RhiRenderer::beginReflection(const float *clearColor) {
 void RhiRenderer::endReflection() {
     if (currentTarget != TargetReflection)
         return;
+    // The clouds, if no later pass of the reflection drew them.
+    applyReflectionClouds();
     flushTarget();
     currentTarget = TARGET_VIEW;
     RhiRenderSurface *s = surface();
@@ -427,5 +429,7 @@ void RhiRenderer::releaseReflection() {
     targets[TargetReflection].keys.clear();
     targets[TargetReflection].bindings.clear();
     reflectionSampled = nullptr;
+    // Its clouds draw into the reflection's colour and read its depth.
+    releaseCloudView(reflectionClouds);
     releaseAttachments(reflection);
 }

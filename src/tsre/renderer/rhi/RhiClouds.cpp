@@ -894,6 +894,98 @@ QList<QByteArray> RhiRenderer::cloudShaders() {
             cloudSource(CompositeFragment, false), glowVariant(cloudSource(CompositeFragment, false))};
 }
 
+namespace {
+
+struct CloudShaderSet {
+    QShader vertex, cover, march, shadow, temporal, composite, glowComposite;
+};
+
+const CloudShaderSet &cloudShaderSet(QRhi *rhi) {
+    static CloudShaderSet s;
+    if (!s.vertex.isValid()) {
+        s.vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
+        s.cover = bakeInline(cloudSource(CoverFragment, true).constData(), QShader::FragmentStage, rhi);
+        s.march = bakeInline(marchSource().constData(), QShader::FragmentStage, rhi);
+        s.shadow = bakeInline(shadowSource().constData(), QShader::FragmentStage, rhi);
+        s.temporal = bakeInline(cloudSource(TemporalFragment, false).constData(), QShader::FragmentStage, rhi);
+        s.composite = bakeInline(cloudSource(CompositeFragment, false).constData(), QShader::FragmentStage, rhi);
+        s.glowComposite = bakeInline(glowVariant(cloudSource(CompositeFragment, false)).constData(),
+                                     QShader::FragmentStage, rhi);
+    }
+    return s;
+}
+
+// The march's size for a view: the image is the given pixels in the view's
+// shape (never more than the view), whole blocks; the march one texel per
+// block.
+QSize cloudMarchSize(const QSize &viewSize, int pixels) {
+    const double viewPixels = double(std::max(1, viewSize.width())) * std::max(1, viewSize.height());
+    const double scale = std::min(1.0, std::sqrt(double(pixels) / viewPixels));
+    auto blocks = [scale](int extent) {
+        return std::max(1, int(std::ceil(extent * scale / UpdateBlock)));
+    };
+    return QSize(blocks(viewSize.width()), blocks(viewSize.height()));
+}
+
+QRhiTexture *cloudTexture(QRhi *rhi, const QSize &size) {
+    QRhiTexture *t = rhi->newTexture(QRhiTexture::RGBA16F, size, 1, QRhiTexture::RenderTarget);
+    if (!t->create()) {
+        delete t;
+        return nullptr;
+    }
+    return t;
+}
+
+bool cloudTarget(QRhi *rhi, std::initializer_list<QRhiTexture *> colors, bool preserve, QRhiTextureRenderTarget *&out,
+                 QRhiRenderPassDescriptor *&pass) {
+    QRhiTextureRenderTargetDescription description;
+    QVarLengthArray<QRhiColorAttachment, 4> attachments;
+    for (QRhiTexture *t : colors)
+        attachments.append(QRhiColorAttachment(t));
+    description.setColorAttachments(attachments.cbegin(), attachments.cend());
+    out = rhi->newTextureRenderTarget(description, preserve ? QRhiTextureRenderTarget::PreserveColorContents
+                                                            : QRhiTextureRenderTarget::Flags());
+    pass = out->newCompatibleRenderPassDescriptor();
+    out->setRenderPassDescriptor(pass);
+    return out->create();
+}
+
+QRhiShaderResourceBindings *cloudBindings(QRhi *rhi, std::initializer_list<QRhiShaderResourceBinding> list) {
+    QRhiShaderResourceBindings *set = rhi->newShaderResourceBindings();
+    set->setBindings(list.begin(), list.end());
+    set->create();
+    return set;
+}
+
+QRhiGraphicsPipeline *cloudPipeline(QRhi *rhi, const QShader &shader, QRhiShaderResourceBindings *set,
+                                    QRhiRenderPassDescriptor *pass, int outputs, bool blend) {
+    QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();
+    ps->setShaderStages({{QRhiShaderStage::Vertex, cloudShaderSet(rhi).vertex}, {QRhiShaderStage::Fragment, shader}});
+    QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 4> blends;
+    for (int i = 0; i < outputs; ++i) {
+        QRhiGraphicsPipeline::TargetBlend b;
+        if (blend) {
+            // colour + view * T; the view's alpha stays.
+            b.enable = true;
+            b.srcColor = QRhiGraphicsPipeline::One;
+            b.dstColor = QRhiGraphicsPipeline::SrcAlpha;
+            b.srcAlpha = QRhiGraphicsPipeline::Zero;
+            b.dstAlpha = QRhiGraphicsPipeline::One;
+        }
+        blends.append(b);
+    }
+    ps->setTargetBlends(blends.cbegin(), blends.cend());
+    ps->setShaderResourceBindings(set);
+    ps->setRenderPassDescriptor(pass);
+    if (!ps->create()) {
+        delete ps;
+        return nullptr;
+    }
+    return ps;
+}
+
+}
+
 void RhiRenderer::setClouds(const Clouds &next) {
     clouds = next;
 }
@@ -949,69 +1041,24 @@ bool RhiRenderer::createCloudVolumes() {
 
 bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
     CloudResources &c = cloudResources;
-    const Preset &preset = Presets[quality];
-    // The image: the preset's pixels in the view's shape (never more than
-    // the view), whole blocks; the march: one texel per block.
-    const double viewPixels = double(std::max(1, viewSize.width())) * std::max(1, viewSize.height());
-    const double scale = std::min(1.0, std::sqrt(double(preset.pixels) / viewPixels));
-    auto blocks = [scale](int extent) {
-        return std::max(1, int(std::ceil(extent * scale / UpdateBlock)));
-    };
-    const QSize marchSize(blocks(viewSize.width()), blocks(viewSize.height()));
-    const QSize imageSize = marchSize * UpdateBlock;
-    if (c.march != nullptr && c.size == marchSize && c.compositeColor == view.color)
+    const int pixels = Presets[quality].pixels;
+    if (c.march != nullptr && c.size == cloudMarchSize(viewSize, pixels) && c.compositeColor == view.color)
         return true;
     releaseCloudBuffers();
     if (!createCloudVolumes())
         return false;
-    c.size = marchSize;
-    c.imageSize = imageSize;
-    const auto format = QRhiTexture::RGBA16F;
-    auto texture = [&](QSize s) {
-        QRhiTexture *t = rhi->newTexture(format, s, 1, QRhiTexture::RenderTarget);
-        if (!t->create()) {
-            delete t;
-            return static_cast<QRhiTexture *>(nullptr);
-        }
-        return t;
-    };
-    c.march = texture(marchSize);
-    c.distance = texture(marchSize);
-    c.history[0] = texture(imageSize);
-    c.history[1] = texture(imageSize);
-    c.image = texture(imageSize);
-    c.distanceHistory[0] = texture(imageSize);
-    c.distanceHistory[1] = texture(imageSize);
-    c.distanceImage = texture(imageSize);
-    if (c.coverNear == nullptr) {
-        c.coverNear = texture(QSize(CoverSize, CoverSize));
-        c.coverFar = texture(QSize(CoverSize, CoverSize));
-    }
-    c.shadow = texture(QSize(CloudShadowSize, CloudShadowSize));
-    if (c.march == nullptr || c.distance == nullptr || c.history[0] == nullptr || c.history[1] == nullptr
-            || c.image == nullptr || c.distanceHistory[0] == nullptr || c.distanceHistory[1] == nullptr
-            || c.distanceImage == nullptr
-            || c.coverNear == nullptr || c.coverFar == nullptr || c.shadow == nullptr) {
-        releaseCloudBuffers();
-        return false;
-    }
+    // Shared by the views: the samplers, the weather, the cover maps and the
+    // shadow map.
     c.linear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     c.nearest = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
                                 QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     c.repeat = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                QRhiSampler::Repeat, QRhiSampler::Repeat, QRhiSampler::Repeat);
-    c.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(MarchParameters));
-    // One block per update pass, picked by a dynamic offset.
-    c.updateStride = quint32(rhi->ubufAligned(int(sizeof(UpdateParameters))));
-    c.updateUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer,
-                                      c.updateStride * UpdatePasses);
-    c.updateUniforms->create();
+    for (QRhiSampler *s : {c.linear, c.nearest, c.repeat})
+        s->create();
     c.coverUniforms[0] = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(CoverParameters));
     c.coverUniforms[1] = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(CoverParameters));
-    for (QRhiResource *r : std::initializer_list<QRhiResource *>{c.linear, c.nearest, c.repeat})
-        static_cast<QRhiSampler *>(r)->create();
-    c.uniforms->create();
     c.coverUniforms[0]->create();
     c.coverUniforms[1]->create();
     if (c.weather == nullptr) {
@@ -1019,127 +1066,118 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
         c.weather->create();
         c.weatherRevision = ~0ull;
     }
-    auto target = [&](std::initializer_list<QRhiTexture *> colors, bool preserve, QRhiTextureRenderTarget *&out,
-                      QRhiRenderPassDescriptor *&pass) {
-        QRhiTextureRenderTargetDescription description;
-        QVarLengthArray<QRhiColorAttachment, 2> attachments;
-        for (QRhiTexture *t : colors)
-            attachments.append(QRhiColorAttachment(t));
-        description.setColorAttachments(attachments.cbegin(), attachments.cend());
-        out = rhi->newTextureRenderTarget(description, preserve ? QRhiTextureRenderTarget::PreserveColorContents
-                                                                : QRhiTextureRenderTarget::Flags());
-        pass = out->newCompatibleRenderPassDescriptor();
-        out->setRenderPassDescriptor(pass);
-        return out->create();
-    };
-    bool ok = target({c.coverNear}, false, c.coverTargets[0], c.coverPasses[0])
-            && target({c.coverFar}, false, c.coverTargets[1], c.coverPasses[1])
-            && target({c.march, c.distance}, false, c.marchTarget, c.marchPass)
-            && target({c.shadow}, false, c.shadowTarget, c.shadowPass)
-            && target({c.history[0], c.image, c.distanceHistory[0], c.distanceImage}, false, c.historyTargets[0],
-                      c.historyPasses[0])
-            && target({c.history[1], c.image, c.distanceHistory[1], c.distanceImage}, false, c.historyTargets[1],
-                      c.historyPasses[1])
-            && (view.color3 != nullptr ? target({view.color, view.color3}, true, c.compositeTarget, c.compositePass)
-                                       : target({view.color}, true, c.compositeTarget, c.compositePass));
+    c.coverNear = cloudTexture(rhi, QSize(CoverSize, CoverSize));
+    c.coverFar = cloudTexture(rhi, QSize(CoverSize, CoverSize));
+    c.shadow = cloudTexture(rhi, QSize(CloudShadowSize, CloudShadowSize));
+    const bool ok = c.coverNear != nullptr && c.coverFar != nullptr && c.shadow != nullptr
+            && cloudTarget(rhi, {c.coverNear}, false, c.coverTargets[0], c.coverPasses[0])
+            && cloudTarget(rhi, {c.coverFar}, false, c.coverTargets[1], c.coverPasses[1])
+            && cloudTarget(rhi, {c.shadow}, false, c.shadowTarget, c.shadowPass)
+            && createCloudView(c, viewSize, pixels, view.color, view.color3, view.depth);
     if (!ok) {
         releaseCloudBuffers();
         return false;
     }
-    c.compositeColor = view.color;
     const auto fragment = QRhiShaderResourceBinding::FragmentStage;
-    auto bindings = [&](std::initializer_list<QRhiShaderResourceBinding> list) {
-        QRhiShaderResourceBindings *set = rhi->newShaderResourceBindings();
-        set->setBindings(list.begin(), list.end());
-        set->create();
-        return set;
-    };
     for (int i = 0; i < 2; ++i)
-        c.coverBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.coverUniforms[i]),
-                                       QRhiShaderResourceBinding::sampledTexture(1, fragment, c.weather, c.linear)});
-    c.marchBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
-                                QRhiShaderResourceBinding::sampledTexture(1, fragment, c.weather, c.linear),
-                                QRhiShaderResourceBinding::sampledTexture(2, fragment, c.coverNear, c.linear),
-                                QRhiShaderResourceBinding::sampledTexture(3, fragment, c.coverFar, c.linear),
-                                QRhiShaderResourceBinding::sampledTexture(4, fragment, c.shape, c.repeat),
-                                QRhiShaderResourceBinding::sampledTexture(5, fragment, c.detail, c.repeat),
-                                QRhiShaderResourceBinding::sampledTexture(6, fragment, skyResources.transmittance,
-                                                                          skyResources.linear),
-                                QRhiShaderResourceBinding::sampledTexture(7, fragment, skyResources.view,
-                                                                          skyResources.linear),
-                                QRhiShaderResourceBinding::sampledTexture(8, fragment, view.depth, c.nearest),
-                                QRhiShaderResourceBinding::sampledTexture(9, fragment, c.curl, c.repeat),
-                                QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
-                                        10, fragment, c.updateUniforms, sizeof(UpdateParameters))});
-    for (int i = 0; i < 2; ++i) {
-        // Writes history i from the march and history 1 - i.
-        c.temporalBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
-                                          QRhiShaderResourceBinding::sampledTexture(1, fragment, c.march, c.linear),
-                                          QRhiShaderResourceBinding::sampledTexture(2, fragment, c.history[1 - i],
-                                                                                    c.linear),
-                                          QRhiShaderResourceBinding::sampledTexture(3, fragment, c.distance, c.nearest),
-                                          QRhiShaderResourceBinding::sampledTexture(4, fragment, c.distanceHistory[1 - i],
-                                                                                    c.nearest),
-                                          QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
-                                                  10, fragment, c.updateUniforms, sizeof(UpdateParameters))});
-        c.compositeBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
-                                           QRhiShaderResourceBinding::sampledTexture(1, fragment, c.image, c.linear),
-                                           QRhiShaderResourceBinding::sampledTexture(2, fragment, c.distance, c.nearest),
-                                           QRhiShaderResourceBinding::sampledTexture(3, fragment, view.depth, c.nearest)});
-    }
-    static QShader vertex, coverShader, marchShader, shadowShader, temporalShader, compositeShader,
-            glowCompositeShader;
-    if (!vertex.isValid()) {
-        vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
-        coverShader = bakeInline(cloudSource(CoverFragment, true).constData(), QShader::FragmentStage, rhi);
-        marchShader = bakeInline(marchSource().constData(), QShader::FragmentStage, rhi);
-        shadowShader = bakeInline(shadowSource().constData(), QShader::FragmentStage, rhi);
-        temporalShader = bakeInline(cloudSource(TemporalFragment, false).constData(), QShader::FragmentStage, rhi);
-        compositeShader = bakeInline(cloudSource(CompositeFragment, false).constData(), QShader::FragmentStage, rhi);
-        glowCompositeShader = bakeInline(glowVariant(cloudSource(CompositeFragment, false)).constData(),
-                                         QShader::FragmentStage, rhi);
-    }
-    auto pipeline = [&](const QShader &shader, QRhiShaderResourceBindings *set, QRhiRenderPassDescriptor *pass,
-                        int outputs, bool blend) {
-        QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();
-        ps->setShaderStages({{QRhiShaderStage::Vertex, vertex}, {QRhiShaderStage::Fragment, shader}});
-        QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 2> blends;
-        for (int i = 0; i < outputs; ++i) {
-            QRhiGraphicsPipeline::TargetBlend b;
-            if (blend) {
-                // colour + view * T; the view's alpha stays.
-                b.enable = true;
-                b.srcColor = QRhiGraphicsPipeline::One;
-                b.dstColor = QRhiGraphicsPipeline::SrcAlpha;
-                b.srcAlpha = QRhiGraphicsPipeline::Zero;
-                b.dstAlpha = QRhiGraphicsPipeline::One;
-            }
-            blends.append(b);
-        }
-        ps->setTargetBlends(blends.cbegin(), blends.cend());
-        ps->setShaderResourceBindings(set);
-        ps->setRenderPassDescriptor(pass);
-        if (!ps->create()) {
-            delete ps;
-            return static_cast<QRhiGraphicsPipeline *>(nullptr);
-        }
-        return ps;
-    };
-    c.coverPipeline = pipeline(coverShader, c.coverBindings[0], c.coverPasses[0], 1, false);
-    c.marchPipeline = pipeline(marchShader, c.marchBindings, c.marchPass, 2, false);
-    c.shadowPipeline = pipeline(shadowShader, c.marchBindings, c.shadowPass, 1, false);
-    c.temporalPipeline = pipeline(temporalShader, c.temporalBindings[0], c.historyPasses[0], 4, false);
-    c.compositePipeline = view.color3 != nullptr
-            ? pipeline(glowCompositeShader, c.compositeBindings[0], c.compositePass, 2, true)
-            : pipeline(compositeShader, c.compositeBindings[0], c.compositePass, 1, true);
-    if (c.coverPipeline == nullptr || c.marchPipeline == nullptr || c.shadowPipeline == nullptr
-            || c.temporalPipeline == nullptr
-            || c.compositePipeline == nullptr) {
+        c.coverBindings[i] = cloudBindings(rhi, {QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.coverUniforms[i]),
+                                                 QRhiShaderResourceBinding::sampledTexture(1, fragment, c.weather, c.linear)});
+    const CloudShaderSet &shaders = cloudShaderSet(rhi);
+    c.coverPipeline = cloudPipeline(rhi, shaders.cover, c.coverBindings[0], c.coverPasses[0], 1, false);
+    // The shadow map takes the main view's march parameters.
+    c.shadowPipeline = cloudPipeline(rhi, shaders.shadow, c.marchBindings, c.shadowPass, 1, false);
+    if (c.coverPipeline == nullptr || c.shadowPipeline == nullptr) {
         releaseCloudBuffers();
         return false;
     }
-    c.historyValid = false;
     c.coverKey.clear();
+    return true;
+}
+
+bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixels, QRhiTexture *color,
+                                  QRhiTexture *glow, QRhiTexture *depth) {
+    const CloudResources &c = cloudResources;
+    const QSize marchSize = cloudMarchSize(viewSize, pixels);
+    if (v.march != nullptr && v.size == marchSize && v.compositeColor == color)
+        return true;
+    releaseCloudView(v);
+    v.size = marchSize;
+    v.imageSize = marchSize * UpdateBlock;
+    v.march = cloudTexture(rhi, marchSize);
+    v.distance = cloudTexture(rhi, marchSize);
+    for (int i = 0; i < 2; ++i) {
+        v.history[i] = cloudTexture(rhi, v.imageSize);
+        v.distanceHistory[i] = cloudTexture(rhi, v.imageSize);
+    }
+    v.image = cloudTexture(rhi, v.imageSize);
+    v.distanceImage = cloudTexture(rhi, v.imageSize);
+    v.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(MarchParameters));
+    v.uniforms->create();
+    // One block per update pass, picked by a dynamic offset.
+    v.updateStride = quint32(rhi->ubufAligned(int(sizeof(UpdateParameters))));
+    v.updateUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, v.updateStride * UpdatePasses);
+    v.updateUniforms->create();
+    const bool ok = v.march != nullptr && v.distance != nullptr && v.history[0] != nullptr && v.history[1] != nullptr
+            && v.distanceHistory[0] != nullptr && v.distanceHistory[1] != nullptr && v.image != nullptr
+            && v.distanceImage != nullptr
+            && cloudTarget(rhi, {v.march, v.distance}, false, v.marchTarget, v.marchPass)
+            && cloudTarget(rhi, {v.history[0], v.image, v.distanceHistory[0], v.distanceImage}, false,
+                           v.historyTargets[0], v.historyPasses[0])
+            && cloudTarget(rhi, {v.history[1], v.image, v.distanceHistory[1], v.distanceImage}, false,
+                           v.historyTargets[1], v.historyPasses[1])
+            && (glow != nullptr ? cloudTarget(rhi, {color, glow}, true, v.compositeTarget, v.compositePass)
+                                : cloudTarget(rhi, {color}, true, v.compositeTarget, v.compositePass));
+    if (!ok) {
+        releaseCloudView(v);
+        return false;
+    }
+    v.compositeColor = color;
+    const auto fragment = QRhiShaderResourceBinding::FragmentStage;
+    v.marchBindings = cloudBindings(rhi, {QRhiShaderResourceBinding::uniformBuffer(0, fragment, v.uniforms),
+                                          QRhiShaderResourceBinding::sampledTexture(1, fragment, c.weather, c.linear),
+                                          QRhiShaderResourceBinding::sampledTexture(2, fragment, c.coverNear, c.linear),
+                                          QRhiShaderResourceBinding::sampledTexture(3, fragment, c.coverFar, c.linear),
+                                          QRhiShaderResourceBinding::sampledTexture(4, fragment, c.shape, c.repeat),
+                                          QRhiShaderResourceBinding::sampledTexture(5, fragment, c.detail, c.repeat),
+                                          QRhiShaderResourceBinding::sampledTexture(6, fragment, skyResources.transmittance,
+                                                                                    skyResources.linear),
+                                          QRhiShaderResourceBinding::sampledTexture(7, fragment, skyResources.view,
+                                                                                    skyResources.linear),
+                                          QRhiShaderResourceBinding::sampledTexture(8, fragment, depth, c.nearest),
+                                          QRhiShaderResourceBinding::sampledTexture(9, fragment, c.curl, c.repeat),
+                                          QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
+                                                  10, fragment, v.updateUniforms, sizeof(UpdateParameters))});
+    for (int i = 0; i < 2; ++i) {
+        // Writes history i from the march and history 1 - i.
+        v.temporalBindings[i] = cloudBindings(rhi, {QRhiShaderResourceBinding::uniformBuffer(0, fragment, v.uniforms),
+                                                    QRhiShaderResourceBinding::sampledTexture(1, fragment, v.march, c.linear),
+                                                    QRhiShaderResourceBinding::sampledTexture(2, fragment, v.history[1 - i],
+                                                                                              c.linear),
+                                                    QRhiShaderResourceBinding::sampledTexture(3, fragment, v.distance,
+                                                                                              c.nearest),
+                                                    QRhiShaderResourceBinding::sampledTexture(4, fragment,
+                                                                                              v.distanceHistory[1 - i],
+                                                                                              c.nearest),
+                                                    QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
+                                                            10, fragment, v.updateUniforms, sizeof(UpdateParameters))});
+        v.compositeBindings[i] = cloudBindings(rhi, {QRhiShaderResourceBinding::uniformBuffer(0, fragment, v.uniforms),
+                                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, v.image, c.linear),
+                                                     QRhiShaderResourceBinding::sampledTexture(2, fragment, v.distance,
+                                                                                               c.nearest),
+                                                     QRhiShaderResourceBinding::sampledTexture(3, fragment, depth, c.nearest)});
+    }
+    const CloudShaderSet &shaders = cloudShaderSet(rhi);
+    v.marchPipeline = cloudPipeline(rhi, shaders.march, v.marchBindings, v.marchPass, 2, false);
+    v.temporalPipeline = cloudPipeline(rhi, shaders.temporal, v.temporalBindings[0], v.historyPasses[0], 4, false);
+    v.compositePipeline = glow != nullptr
+            ? cloudPipeline(rhi, shaders.glowComposite, v.compositeBindings[0], v.compositePass, 2, true)
+            : cloudPipeline(rhi, shaders.composite, v.compositeBindings[0], v.compositePass, 1, true);
+    if (v.marchPipeline == nullptr || v.temporalPipeline == nullptr || v.compositePipeline == nullptr) {
+        releaseCloudView(v);
+        return false;
+    }
+    v.historyValid = false;
+    v.previousValid = false;
     return true;
 }
 
@@ -1342,27 +1380,9 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     parameters.shadow[2] = float(shadowEast / 1000.0);
     parameters.shadow[3] = float(shadowNorth / 1000.0);
     updates->updateDynamicBuffer(c.uniforms, 0, sizeof(parameters), &parameters);
-    // The update passes' blocks: which pixel of each block they march.
-    {
-        std::vector<char> blocks(size_t(c.updateStride) * UpdatePasses, 0);
-        const float radius = cloudShellRadius();
-        for (int i = 0; i < UpdatePasses; ++i) {
-            UpdateParameters u = {};
-            u.update[0] = float(UpdateBlock);
-            u.update[1] = float(UpdateOrder[i][0]);
-            u.update[2] = float(UpdateOrder[i][1]);
-            // A new sample half of the pixel: the jittered march's noise
-            // settles over a few updates.
-            u.update[3] = 0.5f;
-            u.sizes[0] = float(c.imageSize.width());
-            u.sizes[1] = float(c.imageSize.height());
-            u.sizes[2] = float(c.size.width());
-            u.sizes[3] = float(c.size.height());
-            u.shell[0] = radius;
-            std::memcpy(blocks.data() + size_t(i) * c.updateStride, &u, sizeof(u));
-        }
-        updates->updateDynamicBuffer(c.updateUniforms, 0, quint32(blocks.size()), blocks.data());
-    }
+    const float *values = reinterpret_cast<const float *>(&parameters);
+    c.parameters.assign(values, values + sizeof(parameters) / sizeof(float));
+    writeCloudUpdates(c, updates);
     auto fullScreen = [cb](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
                            QRhiShaderResourceBindings *bindings, const QSize &size, QRhiResourceUpdateBatch *&batch) {
         cb->beginPass(target, Qt::white, {1.0f, 0}, batch);
@@ -1399,8 +1419,113 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     c.shadowValid = true;
 }
 
+void RhiRenderer::writeCloudUpdates(CloudView &v, QRhiResourceUpdateBatch *updates) {
+    // The update passes' blocks: which pixel of each block they march.
+    std::vector<char> blocks(size_t(v.updateStride) * UpdatePasses, 0);
+    const float radius = cloudShellRadius();
+    for (int i = 0; i < UpdatePasses; ++i) {
+        UpdateParameters u = {};
+        u.update[0] = float(UpdateBlock);
+        u.update[1] = float(UpdateOrder[i][0]);
+        u.update[2] = float(UpdateOrder[i][1]);
+        // A new sample half of the pixel: the jittered march's noise
+        // settles over a few updates.
+        u.update[3] = 0.5f;
+        u.sizes[0] = float(v.imageSize.width());
+        u.sizes[1] = float(v.imageSize.height());
+        u.sizes[2] = float(v.size.width());
+        u.sizes[3] = float(v.size.height());
+        u.shell[0] = radius;
+        std::memcpy(blocks.data() + size_t(i) * v.updateStride, &u, sizeof(u));
+    }
+    updates->updateDynamicBuffer(v.updateUniforms, 0, quint32(blocks.size()), blocks.data());
+}
+
+void RhiRenderer::runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize &viewSize,
+                               QRhiResourceUpdateBatch *updates) {
+    auto fullScreen = [cb, &v, &updates](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
+                                         QRhiShaderResourceBindings *bindings, const QSize &size, int pass) {
+        cb->beginPass(target, Qt::black, {1.0f, 0}, updates);
+        updates = nullptr;
+        cb->setGraphicsPipeline(pipeline);
+        cb->setViewport(QRhiViewport(0, 0, float(size.width()), float(size.height())));
+        if (pass >= 0) {
+            const QRhiCommandBuffer::DynamicOffset offset(10, quint32(pass) * v.updateStride);
+            cb->setShaderResources(bindings, 1, &offset);
+        } else {
+            cb->setShaderResources(bindings);
+        }
+        cb->draw(3);
+        cb->endPass();
+    };
+    // One pixel of each block a frame; all of them in one frame when the
+    // image must be complete (still captures, no history after a jump).
+    const bool fill = clouds.still || !v.historyValid;
+    const int first = fill ? 0 : cloudResources.frame % UpdatePasses;
+    const int passes = fill ? UpdatePasses : 1;
+    int write = v.current;
+    for (int p = 0; p < passes; ++p) {
+        fullScreen(v.marchTarget, v.marchPipeline, v.marchBindings, v.size, first + p);
+        write = v.current = 1 - v.current;
+        fullScreen(v.historyTargets[write], v.temporalPipeline, v.temporalBindings[write], v.imageSize, first + p);
+    }
+    fullScreen(v.compositeTarget, v.compositePipeline, v.compositeBindings[write], viewSize, -1);
+    v.historyValid = true;
+}
+
+void RhiRenderer::applyReflectionClouds() {
+    if (reflectionCloudsApplied || currentTarget != TargetReflection || !reflection.valid() || !cloudsWanted()
+            || !skyInverseValid[TargetReflection])
+        return;
+    RhiRenderSurface *surfaceNow = surface();
+    if (surfaceNow == nullptr || surfaceNow->frame().commandBuffer == nullptr)
+        return;
+    reflectionCloudsApplied = true;
+    // The reflection is drawn before this frame's maps and parameters are
+    // prepared: it takes the last frame's (the camera moved a step since).
+    const CloudResources &c = cloudResources;
+    if (c.march == nullptr || c.parameters.size() * sizeof(float) != sizeof(MarchParameters)
+            || !skyResources.viewRendered)
+        return;
+    // The reflection's opaque passes and sky so far.
+    flushTarget();
+    CloudView &v = reflectionClouds;
+    if (!createCloudView(v, reflection.size, Presets[c.quality].pixels / 4, reflection.color, nullptr,
+                         reflection.depth))
+        return;
+    MarchParameters parameters;
+    std::memcpy(&parameters, c.parameters.data(), sizeof(parameters));
+    // The mirrored view's directions (the sky's above the water); the march
+    // starts at the camera, the clouds being far.
+    std::copy(skyInverse[TargetReflection], skyInverse[TargetReflection] + 16, parameters.inverse);
+    const float *previous = v.previousValid ? v.previous : skyForward[TargetReflection];
+    std::copy(previous, previous + 16, parameters.previous);
+    parameters.camera[1] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
+    // Low's steps: the waves blur the reflection.
+    parameters.slab[3] = float(std::min(Presets[1].steps, Presets[c.quality].steps));
+    parameters.lighting[0] = float(std::min(Presets[1].lightSteps, Presets[c.quality].lightSteps));
+    if (std::hypot(clouds.cameraEast - v.lastEast, clouds.cameraNorth - v.lastNorth) > 300.0)
+        v.historyValid = false;
+    v.lastEast = clouds.cameraEast;
+    v.lastNorth = clouds.cameraNorth;
+    parameters.lighting[1] = (clouds.still || !v.historyValid) ? 1.0f : 0.0f;
+    parameters.lighting[2] = 1.0f / float(v.size.width());
+    parameters.lighting[3] = 1.0f / float(v.size.height());
+    QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
+    updates->updateDynamicBuffer(v.uniforms, 0, sizeof(parameters), &parameters);
+    writeCloudUpdates(v, updates);
+    runCloudView(v, surfaceNow->frame().commandBuffer, reflection.size, updates);
+    std::copy(skyForward[TargetReflection], skyForward[TargetReflection] + 16, v.previous);
+    v.previousValid = true;
+}
+
 void RhiRenderer::applyClouds() {
-    if (cloudsApplied || !cloudsWanted() || secondaryView || currentTarget != TARGET_VIEW
+    // The water reflection's own clouds, after its opaque passes.
+    if (secondaryView) {
+        applyReflectionClouds();
+        return;
+    }
+    if (cloudsApplied || !cloudsWanted() || currentTarget != TARGET_VIEW
             || baseProgram != PROGRAM_MAIN || !sceneProjectionValid || !skyInverseValid[TARGET_VIEW])
         return;
     RhiRenderSurface *surfaceNow = surface();
@@ -1413,105 +1538,71 @@ void RhiRenderer::applyClouds() {
     CloudResources &c = cloudResources;
     if (!cloudsPrepared || !skyResources.viewRendered || c.march == nullptr || c.compositeColor != view.color)
         return;
-    QRhiCommandBuffer *cb = surfaceNow->frame().commandBuffer;
-    auto fullScreen = [cb, &c](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
-                               QRhiShaderResourceBindings *bindings, const QSize &size, int pass) {
-        cb->beginPass(target, Qt::black, {1.0f, 0});
-        cb->setGraphicsPipeline(pipeline);
-        cb->setViewport(QRhiViewport(0, 0, float(size.width()), float(size.height())));
-        if (pass >= 0) {
-            const QRhiCommandBuffer::DynamicOffset offset(10, quint32(pass) * c.updateStride);
-            cb->setShaderResources(bindings, 1, &offset);
-        } else {
-            cb->setShaderResources(bindings);
-        }
-        cb->draw(3);
-        cb->endPass();
-    };
-    // One pixel of each block a frame; all of them in one frame when the
-    // image must be complete (still captures, no history after a jump).
-    const bool fill = clouds.still || !c.historyValid;
-    const int first = fill ? 0 : c.frame % UpdatePasses;
-    const int passes = fill ? UpdatePasses : 1;
-    int write = c.current;
-    for (int p = 0; p < passes; ++p) {
-        fullScreen(c.marchTarget, c.marchPipeline, c.marchBindings, c.size, first + p);
-        write = c.current = 1 - c.current;
-        fullScreen(c.historyTargets[write], c.temporalPipeline, c.temporalBindings[write], c.imageSize,
-                   first + p);
-    }
-    fullScreen(c.compositeTarget, c.compositePipeline, c.compositeBindings[write], view.size, -1);
-    c.historyValid = true;
+    runCloudView(c, surfaceNow->frame().commandBuffer, view.size, nullptr);
     std::copy(skyForward[TARGET_VIEW], skyForward[TARGET_VIEW] + 16, c.previous);
     c.previousValid = true;
 }
 
+void RhiRenderer::releaseCloudView(CloudView &v) {
+    delete v.marchPipeline;
+    delete v.temporalPipeline;
+    delete v.compositePipeline;
+    delete v.marchBindings;
+    for (int i = 0; i < 2; ++i) {
+        delete v.temporalBindings[i];
+        delete v.compositeBindings[i];
+        delete v.historyTargets[i];
+        delete v.historyPasses[i];
+        delete v.history[i];
+        delete v.distanceHistory[i];
+    }
+    delete v.marchTarget;
+    delete v.marchPass;
+    delete v.compositeTarget;
+    delete v.compositePass;
+    delete v.march;
+    delete v.distance;
+    delete v.image;
+    delete v.distanceImage;
+    delete v.uniforms;
+    delete v.updateUniforms;
+    v = CloudView();
+}
+
 void RhiRenderer::releaseCloudBuffers() {
     CloudResources &c = cloudResources;
+    // The reflection's resource sets hold the shared maps.
+    releaseCloudView(reflectionClouds);
+    releaseCloudView(c);
     delete c.coverPipeline;
-    delete c.marchPipeline;
-    delete c.temporalPipeline;
-    delete c.compositePipeline;
+    delete c.shadowPipeline;
     for (int i = 0; i < 2; ++i) {
         delete c.coverBindings[i];
-        delete c.temporalBindings[i];
-        delete c.compositeBindings[i];
         delete c.coverTargets[i];
         delete c.coverPasses[i];
-        delete c.historyTargets[i];
-        delete c.historyPasses[i];
-        delete c.history[i];
         delete c.coverUniforms[i];
-        c.coverBindings[i] = c.temporalBindings[i] = c.compositeBindings[i] = nullptr;
-        c.coverTargets[i] = c.historyTargets[i] = nullptr;
-        c.coverPasses[i] = c.historyPasses[i] = nullptr;
-        c.history[i] = nullptr;
+        c.coverBindings[i] = nullptr;
+        c.coverTargets[i] = nullptr;
+        c.coverPasses[i] = nullptr;
         c.coverUniforms[i] = nullptr;
     }
-    delete c.shadowPipeline;
     delete c.shadowTarget;
     delete c.shadowPass;
     delete c.shadow;
-    c.shadowPipeline = nullptr;
-    c.shadowTarget = nullptr;
-    c.shadowPass = nullptr;
-    c.shadow = nullptr;
-    c.shadowValid = false;
-    delete c.marchBindings;
-    delete c.marchTarget;
-    delete c.marchPass;
-    delete c.compositeTarget;
-    delete c.compositePass;
-    delete c.march;
-    delete c.distance;
-    delete c.image;
-    c.image = nullptr;
-    delete c.distanceHistory[0];
-    delete c.distanceHistory[1];
-    delete c.distanceImage;
-    c.distanceHistory[0] = c.distanceHistory[1] = c.distanceImage = nullptr;
     delete c.coverNear;
     delete c.coverFar;
-    delete c.uniforms;
-    delete c.updateUniforms;
-    c.updateUniforms = nullptr;
-    c.updateStride = 0;
-    c.shadowKey.clear();
-    c.imageSize = QSize();
     delete c.linear;
     delete c.nearest;
     delete c.repeat;
-    c.coverPipeline = c.marchPipeline = c.temporalPipeline = c.compositePipeline = nullptr;
-    c.marchBindings = nullptr;
-    c.marchTarget = c.compositeTarget = nullptr;
-    c.marchPass = c.compositePass = nullptr;
-    c.march = c.distance = c.coverNear = c.coverFar = nullptr;
-    c.uniforms = nullptr;
+    c.coverPipeline = c.shadowPipeline = nullptr;
+    c.shadowTarget = nullptr;
+    c.shadowPass = nullptr;
+    c.shadow = c.coverNear = c.coverFar = nullptr;
     c.linear = c.nearest = c.repeat = nullptr;
-    c.compositeColor = nullptr;
-    c.size = QSize();
-    c.historyValid = false;
+    c.shadowValid = false;
+    c.shadowKey.clear();
     c.coverKey.clear();
+    c.parameters.clear();
 }
 
 void RhiRenderer::releaseCloudResources() {
