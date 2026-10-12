@@ -164,18 +164,21 @@ float coverOver(vec3 q) {
 
 // The sun past the covers the shadow maps miss (terrain casts no shadow;
 // tunnel tubes, seen from inside, face the sun with their backs): where a
-// point is enclosed, the points 3 and 12 m higher on its way to the sun are
-// looked up; cover over either blocks the sun (deep under a roof or in a
-// tunnel), none lets it in (under a roof's edge). 1 in the open, with no
-// lookups (user, 2026-10-12: a tunnel floor in the noon sun).
-float enclosureSun(vec3 position, float enclosed, vec3 sunDirection) {
-    if (enclosed <= 0.0)
+// point lies deep under cover (shade, from skyEnclosed), the points 3 and
+// 12 m higher on its way to the sun are looked up; cover over either blocks
+// the sun (deep in a tunnel), none lets it in. Weighted by shade, not the
+// plain enclosure: under a viaduct, open at its sides, the sun passes the
+// deck before it gets that high, and the shadow maps cast the deck's
+// shadow (this drew a band under its footprint, user 2026-10-12). 1 in the
+// open, with no lookups (user, 2026-10-12: a tunnel floor in the noon sun).
+float enclosureSun(vec3 position, float shade, vec3 sunDirection) {
+    if (shade <= 0.0)
         return 1.0;
     vec3 s = normalize(sunDirection);
     if (s.y < 0.05)
         return 1.0;
     float blocked = max(coverOver(position + s * (3.0 / s.y)), coverOver(position + s * (12.0 / s.y)));
-    return 1.0 - blocked * enclosed;
+    return 1.0 - blocked * shade;
 }
 
 float skyAmbient(float enclosed) {

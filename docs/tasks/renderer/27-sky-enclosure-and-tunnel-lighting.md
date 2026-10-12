@@ -376,6 +376,14 @@ Now:
   from below); the lit shaders add one or two lookups.
 - To tune with the user: the radius (30 m), the falloff, the share an
   opening adds, the opening height (5 m).
+- The sun's block (`enclosureSun`) follows the depth under cover (shade)
+  too, not the plain enclosure: the user saw a sharp band under the EUROPE1
+  viaduct's footprint (`core.startup.camera=-6114,15060,203.12,356.71,852.20,492.08,-35.49`).
+  Its points 3 and 12 m up towards the noon sun had the deck high over
+  them, though the sun passes the deck before it gets that high; the deck's
+  shadow comes from the shadow maps. Under the viaduct the shade is near 0
+  now (open at its sides); deep in a tunnel it is 1 and the floor stays out
+  of the sun.
 - The CMK roofs (alpha-tested, textures with transparent texels): the user
   takes them as an asset fix (opaque textures, or an opaque material) for
   the new features.

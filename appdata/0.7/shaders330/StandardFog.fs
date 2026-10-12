@@ -152,7 +152,7 @@ void main() {
             visibility *= cloudShadow(vLightPosition);
             float shade;
             float enclosed = skyEnclosed(vLightPosition, normal, shade);
-            visibility *= enclosureSun(vLightPosition, enclosed, lights);
+            visibility *= enclosureSun(vLightPosition, shade, lights);
 #endif
 
             // calculate light color

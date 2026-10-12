@@ -195,7 +195,7 @@ vec4 pbrShade() {
     shadow *= cloudShadow(vLightPosition);
     float shade;
     float enclosed = skyEnclosed(vLightPosition, n, shade);
-    shadow *= enclosureSun(vLightPosition, enclosed, l);
+    shadow *= enclosureSun(vLightPosition, shade, l);
 #endif
     vec3 sun = PbrPi * toLinear(diffuseColor.rgb) * shadow;
     if (nDotL > 0.0) {
