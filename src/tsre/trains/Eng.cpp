@@ -29,6 +29,8 @@
 #include <tsre/sound/SoundBank.h>
 #include <tsre/sound/SoundSource.h>
 #include <tsre/sound/SoundSystem.h>
+#include <tsre/sound/TrackSound.h>
+#include <tsre/tdb/TRitem.h>
 #include <tsre/trains/TrainNetworkEng.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
@@ -76,6 +78,33 @@ Eng::Eng(Eng *o) {
 
 Eng::~Eng() {
     delete cabSound;
+    delete trackSound;
+}
+
+float Eng::soundRegion(bool ahead, int *trackType) {
+    if (ruch1 == NULL || Game::trackDB == NULL)
+        return -1;
+    auto isRegion = [](int id) {
+        TRitem *item = Game::trackDB->trackItems[id];
+        return item != NULL && item->type == "soundregionitem" && item->trItemSRData != NULL;
+    };
+    int id = -1;
+    const float distance = ruch1->distanceToItem(ahead, 8192, isRegion, &id);
+    if (distance >= 0 && trackType != NULL)
+        *trackType = (int)Game::trackDB->trackItems[id]->trItemSRData[1];
+    return distance;
+}
+
+void Eng::updateTrackSound(bool inside, int trackType, float speed, float move) {
+    if (ruch1 == NULL)
+        return;
+    if (trackSound == NULL)
+        trackSound = new TrackSound(this, inside);
+    trackSound->setType(trackType);
+    trackSoundDistance += fabs(move);
+    const float *at = ruch1->getCurrentPosition();
+    const float position[3] = {at[0], at[1], -at[2]};
+    trackSound->update(speed, trackSoundDistance, (int)at[5], -(int)at[6], position);
 }
 
 const SoundValues *Eng::soundValues() {
@@ -663,9 +692,16 @@ void Eng::updateSim(float deltaTime){
             //values.set(Sms::Control::Variable2, currentSpeed * 3.0);
         }
         if(ruch1->onJunction > 0){
-            float *pos = ruch1->getCurrentPosition();
-            const float at[3] = {pos[0], pos[1], -pos[2]};
-            SoundSystem::playOnce(path + "/j1.wav", (int)pos[5], -(int)pos[6], at);
+            // A click at junctions, if the engine has one.
+            static QHash<QString, bool> clicks;
+            const QString click = path + "/j1.wav";
+            if(!clicks.contains(click))
+                clicks.insert(click, QFile::exists(click));
+            if(clicks.value(click)){
+                float *pos = ruch1->getCurrentPosition();
+                const float at[3] = {pos[0], pos[1], -pos[2]};
+                SoundSystem::playOnce(click, (int)pos[5], -(int)pos[6], at);
+            }
             ruch1->onJunction = 0;
         }
     }

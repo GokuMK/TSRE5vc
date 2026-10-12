@@ -13,6 +13,7 @@
 #include <tsre/sound/SoundEngine.h>
 #include <tsre/sound/SoundSource.h>
 #include <tsre/sound/SoundSystem.h>
+#include <tsre/sound/TrackSound.h>
 #include <tsre/sound/StreamPlayer.h>
 #include <tsre/sound/WavFile.h>
 
@@ -706,6 +707,13 @@ Tr_SMS ( ScalabiltyGroup ( 5
         check(!car.active() && car.streamGain(0) == 0.0f, "riding another car, its cab sound stops");
         Q_UNUSED(start);
     }
+    // Sound regions around the leading car (behind, ahead; -1: none).
+    check(TrackSound::regionType(0, 30.0f, 2, 100.0f, 2) == 2, "between two regions of a type: that type");
+    check(TrackSound::regionType(2, 30.0f, 2, 100.0f, 3) == 0, "between regions of two types: the default track");
+    check(TrackSound::regionType(2, 30.0f, 2, 5.0f, 3) == 2, "next to a region of another type: the type kept");
+    check(TrackSound::regionType(0, -1.0f, 0, 80.0f, 4) == 4 && TrackSound::regionType(0, 80.0f, 5, -1.0f, 0) == 5,
+          "with one region near: its type");
+    check(TrackSound::regionType(3, -1.0f, 0, -1.0f, 0) == 3, "without regions near: the type kept");
     check(SoundSource::distanceGain(4.0f, 1.0f) == 1.0f
                   && std::abs(SoundSource::distanceGain(2000.0f, SoundSource::rolloffFor(2000.0f)) - 0.025f) < 1e-5f
                   && std::abs(SoundSource::distanceGain(100.0f, 0.4f) - 8.0f / (8.0f + 0.4f * 92.0f)) < 1e-6f,

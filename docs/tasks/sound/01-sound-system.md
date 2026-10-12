@@ -1,6 +1,7 @@
 # Task Sound 01 - Sound System
 
-Status: steps 1-3 done (2026-10-12), branch `feature/sound`; step 4 in progress.
+Status: steps 1-4 done (2026-10-12), branch `feature/sound`, not merged; steps 5-6
+(train sounds, environment) next.
 
 ## Objective
 
@@ -253,6 +254,33 @@ engine without a device: reach, activation and deactivation, initial
 trigger again after a release, variable, discrete and random triggers,
 frequency, gains).
 
+## Step 4: world sounds (done)
+
+- Route sound sources (`.ws` files' `SoundSource` objects, `SoundSourceObj`):
+  each owns a world `SoundSource` for its .sms (the route's SOUND, then the
+  root's), made when it loads with sound playing, made again when its file
+  changes in the properties, following the object as it moves and silent
+  when it is deleted. The heard ones are those within their activation
+  distance (and 2 km).
+- Track sounds (`TrackSound`): each car of the played consist has the
+  outside .sms of its track type from `ttype.dat` (the leading car also the
+  inside one, heard from its cab). The leading car takes its type from the
+  TDB's sound region items (each names a type) around it: `Ruch` (the
+  traveller that moves the train) searches up to 8 km ahead and behind on
+  the train's way (`Ruch::distanceToItem`), again once it passes the next
+  region (or every 50-200 m); Open Rails' rule picks the type
+  (`TrackSound::regionType`). The cars behind change where the leading car
+  changed.
+- `TSRE_SOUND_LOG=1` logs every 5 s how many sources there are, are heard
+  and are playing.
+
+Check in play mode, headless (EUROPE1, `aftstorm.act`, no audio server
+reachable, so miniaudio's null device; 2026-10-12): 63-66 sources (route
+sources, cab, track sounds), 13-16 heard, about 30 streams playing; the
+track type went to 2 at 643 m and back to the default at 855 m.
+
+`sound` suite: 83 cases (the region rule added).
+
 ## Verification
 
 - Suites run without a device: WAV reader cases, `.sms` parsing, trigger
@@ -261,3 +289,8 @@ frequency, gains).
   audio reaches the client), final judgement on the Steam Deck.
 - `core.system.soundEnabled` off (the default) must leave the editor
   unchanged: no device opened, no files read.
+- To listen: turn on `core.system.soundEnabled` (Settings, or
+  `--set core.system.soundEnabled=true`). In the editor the route's sound
+  sources play around the camera; play mode
+  (`--play --route EUROPE1 --file aftstorm.act`) adds the lead engine's cab
+  sound and the train's track sounds.

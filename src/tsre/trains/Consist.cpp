@@ -28,6 +28,8 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/hud/SimpleHud.h>
+#include <tsre/sound/SoundSystem.h>
+#include <tsre/sound/TrackSound.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
 
 std::unordered_map<int, TextObj*> Consist::txtNumbers;
@@ -670,7 +672,48 @@ void Consist::updateSim(float deltaTime){
         //engItems[i].engPointer->move(-55.5*deltaTime);
         engItems[i].engPointer->move(deltaMove);
     }
-    
+
+    if(Game::soundEnabled && SoundSystem::running())
+        updateTrackSounds(deltaMove);
+}
+
+void Consist::updateTrackSounds(float move){
+    Eng *lead = engItems[0].engPointer;
+    const float distance = trainTotalDistance;
+    const float since = distance - soundRegionSearchedAt;
+    if(soundRegionSearchedAt < 0 || since > (soundRegionAhead >= 0 ? soundRegionAhead : 50.0f) || since > 200.0f){
+        soundRegionSearchedAt = distance;
+        int aheadType = 0;
+        int behindType = 0;
+        soundRegionAhead = lead->soundRegion(true, &aheadType);
+        const float behind = lead->soundRegion(false, &behindType);
+        int type = TrackSound::regionType(soundRegionType, behind, behindType, soundRegionAhead, aheadType);
+        if(type < 0 || type >= TrackSound::types().size())
+            type = 0;
+        if(soundRegionChanges.isEmpty() || soundRegionChanges.last().second != type){
+            if(!soundRegionChanges.isEmpty())
+                qInfo() << "Sound: track type" << type << "at" << distance << "m";
+            soundRegionChanges.append(qMakePair(distance, type));
+        }
+        soundRegionType = type;
+    }
+    // Changes the last car has passed are kept only as the one in force.
+    float length = 0;
+    for(int i = 0; i < engItems.size(); i++)
+        length = std::max(length, (float)fabs(engItems[i].pos - engItems[0].pos));
+    while(soundRegionChanges.size() > 1 && soundRegionChanges[1].first <= distance - length - 10)
+        soundRegionChanges.removeFirst();
+    for(int i = 0; i < engItems.size(); i++){
+        Eng *car = engItems[i].engPointer;
+        if(car == NULL)
+            continue;
+        const float carDistance = distance - (float)fabs(engItems[i].pos - engItems[0].pos);
+        int type = soundRegionChanges.first().second;
+        for(const auto &change : soundRegionChanges)
+            if(change.first <= carDistance)
+                type = change.second;
+        car->updateTrackSound(i == 0, type, trainSpeed, move);
+    }
 }
 
 // Submits the consist for the Shape Viewer and Consist Editor; wagon i is

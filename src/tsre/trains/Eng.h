@@ -20,6 +20,7 @@ class OglObj;
 class GLUU;
 class Ruch;
 class SoundSource;
+class TrackSound;
 struct SoundValues;
 class TrainNetworkEng;
 class ContentHierarchyInfo;
@@ -108,6 +109,11 @@ public:
     void pushRenderItems(RenderQueue &queue, quint32 selectionId = 0);
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
+    // The nearest sound region item ahead of (or behind) the car on its
+    // way within 8 km: its distance and track type, or -1.
+    float soundRegion(bool ahead, int *trackType);
+    // Its wheels' sound for a track type; inside: heard from its cab.
+    void updateTrackSound(bool inside, int trackType, float speed, float move);
 private:
     long long int resolveShapeIds();
     void initBorder();
@@ -121,6 +127,8 @@ private:
     // The cab .sms ("Sound" of the Engine section), heard riding it.
     SoundSource *cabSound = NULL;
     bool cabSoundTried = false;
+    TrackSound *trackSound = NULL;
+    double trackSoundDistance = 0;
     float currentSpeed = 0;
     
     TrainNetworkEng* networkEng = NULL;

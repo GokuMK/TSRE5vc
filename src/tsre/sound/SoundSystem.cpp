@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Game.h>
 
+#include <QDebug>
 #include <QFileInfo>
 #include <algorithm>
 
@@ -27,6 +28,7 @@ struct Once {
 struct State {
     SoundListener listener;
     double clock = 0.0;
+    double nextLog = 0.0;
     std::mt19937 random{20161012u};
     std::vector<SoundSource *> sources;
     std::vector<Once> once;
@@ -80,6 +82,24 @@ void SoundSystem::update(float seconds) {
     for (SoundSource *source : sources)
         if (std::find(s.sources.begin(), s.sources.end(), source) != s.sources.end())
             source->update(s.listener, s.clock);
+    // TSRE_SOUND_LOG: what is heard, every 5 seconds.
+    static const bool logging = qEnvironmentVariableIsSet("TSRE_SOUND_LOG");
+    if (logging && s.clock >= s.nextLog) {
+        s.nextLog = s.clock + 5.0;
+        int heard = 0;
+        int streams = 0;
+        int playing = 0;
+        for (SoundSource *source : s.sources) {
+            heard += source->active() ? 1 : 0;
+            for (int i = 0; i < source->streamCount(); ++i) {
+                ++streams;
+                playing += source->active() && source->streamPlaying(i) ? 1 : 0;
+            }
+        }
+        qInfo().noquote() << QString("Sound: %1 sources, %2 heard, %3 of %4 streams playing, %5 clips")
+                                     .arg(s.sources.size()).arg(heard).arg(playing).arg(streams)
+                                     .arg(SoundEngine::get().bank().size());
+    }
     for (auto i = s.once.begin(); i != s.once.end();) {
         if (!i->voice->player().busy()) {
             i = s.once.erase(i);

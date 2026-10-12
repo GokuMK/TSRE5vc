@@ -174,6 +174,53 @@ QString Ruch::getLastItemName(){
     return lastItemName;
 }
 
+float Ruch::distanceToItem(bool ahead, float maxDistance, const std::function<bool(int)> &wanted, int *itemId) const {
+    TDB *tdb = Game::trackDB;
+    if (tdb == NULL)
+        return -1;
+    // A copy walks node by node as the traveller would move.
+    Ruch walker = *this;
+    walker.trackItems = false;
+    const float sign = ahead ? 1.0f : -1.0f;
+    float travelled = 0;
+    for (int nodes = 0; nodes < 10000 && travelled <= maxDistance; nodes++) {
+        auto node = tdb->trackNodes.find(walker.nodeIdx);
+        if (node == tdb->trackNodes.end() || node->second == NULL || node->second->typ != 1)
+            return -1;
+        TRnode *n = node->second;
+        // Positive: the walk goes towards the node's end.
+        const float dir = walker.direction * sign;
+        float nearest = -1;
+        int nearestId = -1;
+        for (int i = 0; i < n->iTri; i++) {
+            const int id = n->trItemRef[i];
+            auto item = tdb->trackItems.find(id);
+            if (item == tdb->trackItems.end() || item->second == NULL || !wanted(id))
+                continue;
+            const float along = (item->second->getTrackPosition() - walker.nodeDist) * dir;
+            if (along >= 0 && (nearest < 0 || along < nearest)) {
+                nearest = along;
+                nearestId = id;
+            }
+        }
+        if (nearest >= 0) {
+            if (travelled + nearest > maxDistance)
+                return -1;
+            if (itemId != NULL)
+                *itemId = nearestId;
+            return travelled + nearest;
+        }
+        // On to the next node; the end of the track ends the search.
+        auto beyond = tdb->trackNodes.find(n->pins[dir > 0 ? 1 : 0].link);
+        if (beyond == tdb->trackNodes.end() || beyond->second == NULL || beyond->second->typ == 0)
+            return -1;
+        const float left = dir > 0 ? walker.nodeLength - walker.nodeDist : walker.nodeDist;
+        walker.toNext(sign * (left + 0.01f));
+        travelled += left + 0.01f;
+    }
+    return -1;
+}
+
 void Ruch::checkPassingItems(){
     if(lastNodeDist == nodeDist)
         return;
