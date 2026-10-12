@@ -92,6 +92,11 @@ public:
     // cast, excluding terrain and terrain decals.
     void setShadowCasting(bool cast);
     bool shadowCastingEnabled() const { return shadowCasting; }
+    // The reach (m) of the lights of following submissions, set by a placed
+    // object that asks for more than the default; 0 for the default. A new
+    // frame turns it back to 0.
+    void setLightReach(float metres);
+    float lightReach() const { return currentLightReach; }
 
 protected:
     void resetQueueState();
@@ -100,6 +105,7 @@ protected:
     float *mvMatrix = nullptr;
     Layer currentLayer = LAYER_SCENE;
     bool shadowCasting = true;
+    float currentLightReach = 0.0f;
 
 private:
     float ownMvMatrix[16];

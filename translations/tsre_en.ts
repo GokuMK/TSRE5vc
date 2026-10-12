@@ -7088,6 +7088,21 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Z:</source>
         <translation>Z:</translation>
     </message>
+    <message id="route.editor.properties.static.label.light.reach">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="198"/>
+        <source>Light Reach (m):</source>
+        <translation>Light Reach (m):</translation>
+    </message>
+    <message id="route.editor.properties.static.placeholder.light.reach">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="205"/>
+        <source>Default: %1</source>
+        <translation>Default: %1</translation>
+    </message>
+    <message id="route.editor.properties.static.tooltip.light.reach">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="208"/>
+        <source>How far the lights of this object reach. Empty for the default, which suits most lamps; set more only where this object should light a larger area (up to %1 m). Each metre more costs drawing time wherever its light reaches.</source>
+        <translation>How far the lights of this object reach. Empty for the default, which suits most lamps; set more only where this object should light a larger area (up to %1 m). Each metre more costs drawing time wherever its light reaches.</translation>
+    </message>
     <message id="route.editor.properties.static.label.rot">
         <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="101"/>
         <source>Rot:</source>

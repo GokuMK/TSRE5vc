@@ -376,6 +376,19 @@ Follow-up (2026-10-12):
   lamps in the open, by night and by day, change by at most 2. So a cap of
   30-40 m costs nothing visible and saves about 20 ms here (lamps off:
   64 ms).
+- Done (user's choice): every light reaches at most 30 m
+  (`LightGrid::DefaultReach`) on top of the brightness rule; the asset's
+  glTF `range` can only shorten it. A placed object may ask for more, up
+  to 250 m (`LightGrid::MaxReach`): `TSRELightRange ( metres )` in the world
+  file (TSRE only; `WorldObj::tsreLightRange`, written by `StaticObj` for
+  static, gantry and collide objects), set in the properties panel
+  ("Light Reach (m)", empty for the default). Per object, not per asset
+  (user): the route designer raises it where that object, at that place,
+  should light more; an asset could not stop it being placed recklessly.
+  The object sets it on the render queue around its draws
+  (`RenderQueue::setLightReach`), each draw instance carries it to the
+  light gathering. Underground scene: 79-81 ms (97-98 before), largest
+  pixel difference 4 of 765.
 
 ### Gradual darkening under cover (2026-10-12)
 

@@ -147,6 +147,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.category = RenderStats::category();
     instance.owned = owned;
     instance.castsShadow = castsShadow(packet);
+    instance.lightReach = currentLightReach;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
         float origin[3];
@@ -361,7 +362,11 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     light.radius = source.radius * scale;
                     light.signal = source.signal;
                     const float brightness = std::max({light.color[0], light.color[1], light.color[2]});
-                    const float reach = LightGrid::rangeFor(brightness, light.radius);
+                    // Up to the default reach, or the reach its object asks
+                    // for; the asset's own range can only shorten it.
+                    const float reach = LightGrid::rangeFor(brightness, light.radius,
+                            instance.lightReach > 0.0f ? std::min(instance.lightReach, LightGrid::MaxReach)
+                                                       : LightGrid::DefaultReach);
                     light.range = source.range > 0.0f ? std::min(source.range * scale, reach) : reach;
                     light.spot = source.type == RenderItem::Light::SPOT;
                     light.cosInner = std::cos(source.innerCone);

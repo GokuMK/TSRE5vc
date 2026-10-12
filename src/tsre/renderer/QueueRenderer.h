@@ -60,6 +60,8 @@ public:
         quint8 category = 0;
         bool owned = false;
         bool castsShadow = false;
+        // Its object's light reach (m), 0 for the default.
+        float lightReach = 0.0f;
     };
 
 protected:

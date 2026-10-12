@@ -53,6 +53,14 @@ public:
     // Where a light of this brightness (colour times intensity, largest
     // channel) fades under 1/512 of white, limited to maxRange.
     static float rangeFor(float brightness, float radius, float maxRange = 250.0f);
+    // The reach of every light unless its object says otherwise: strong
+    // lamps are already faint there, weak ones fade sooner anyway. (With
+    // 1/512 alone, 49 strong lamps underground reached 175 m each, up to 58
+    // in a cell; at 30 m, 32, about 20 ms less at 1080p, nothing visible;
+    // task renderer 27.)
+    static constexpr float DefaultReach = 30.0f;
+    // The longest reach an object may ask for.
+    static constexpr float MaxReach = 250.0f;
 
     // Bins the lights around eye. Lights whose range does not reach the
     // grid are left out.

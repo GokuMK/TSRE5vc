@@ -43,6 +43,10 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
           "a light of brightness 1 reaches about 40 m");
     check(LightGrid::rangeFor(1e6f, 0.0f) == 250.0f && LightGrid::rangeFor(0.0f, 0.0f) == 0.0f,
           "ranges are limited, and dark lights reach nowhere");
+    // The default reach caps strong lights only: a weak glow fades sooner.
+    check(LightGrid::rangeFor(1e6f, 0.0f, LightGrid::DefaultReach) == LightGrid::DefaultReach
+          && LightGrid::rangeFor(0.05f, 0.33f, LightGrid::DefaultReach) == LightGrid::rangeFor(0.05f, 0.33f),
+          "the default reach caps strong lights and leaves weak ones");
 
     const float eye[3] = {1000.0f, 50.0f, -2000.0f};
     auto light = [](float x, float y, float z, float brightness, float range) {
