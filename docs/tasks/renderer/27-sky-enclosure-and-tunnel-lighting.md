@@ -360,6 +360,22 @@ Follow-up (2026-10-12):
   the cut-off caps every asset light, the asset's `range` can only shorten
   it, and a lamp that should reach farther says so in a TSRE field (glTF
   `extras`, or later a per-object override in the world file).
+- One rule for every light instead (user: no split by kind of light): a
+  maximum reach on top of the brightness rule. Weak lights (glows, MSTS
+  lamps) fade out sooner and keep their reach; strong ones are capped.
+  Same scene:
+
+  | Cap | Frame | Lights a cell (max / mean) | Change against no cap |
+  |---|---|---|---|
+  | None (now) | 97.7 ms | 58 / 24.9 | |
+  | 60 m | 87-88 ms | 50 / 12.0 | max 2 of 765 |
+  | 40 m | 79-83 ms | 40 / 8.6 | max 3 |
+  | 30 m | 78.3-78.5 ms | 32 / 6.8 | max 4 |
+
+  No pixel changes by more than 12 at any cap; at 30 m the CMK station's
+  lamps in the open, by night and by day, change by at most 2. So a cap of
+  30-40 m costs nothing visible and saves about 20 ms here (lamps off:
+  64 ms).
 
 ### Gradual darkening under cover (2026-10-12)
 
