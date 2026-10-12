@@ -108,6 +108,24 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
     light = Daylight::forElevation(-8.0, sky, fog);
     check(light.sky[2] > light.sky[0] && light.sky[2] > 0.15f && light.diffuse[0] == 0.0f,
           "twilight is blue");
+    // Auto exposure (task 29).
+    check(near(Daylight::forElevation(60.0, sky, fog).sceneLight, 1.0, 1e-6)
+              && near(light.sceneLight, Daylight::DayLocalLights, 1e-6)
+              && near(lowSunLamps * Daylight::forElevation(10.0, sky, fog).sceneLight, Daylight::DayLocalLights, 1e-6),
+          "the scene light keeps lamps at their day scale: 1 by day, the lamps' day scale at night");
+    float curveLuminance[24], curveExposure[24];
+    const int points = Daylight::adaptationCurve(curveLuminance, curveExposure, 24);
+    bool ascending = points > 4;
+    for (int i = 1; i < points; ++i)
+        ascending = ascending && curveLuminance[i] > curveLuminance[i - 1] && curveExposure[i] <= curveExposure[i - 1];
+    check(ascending && near(curveExposure[0], -std::log2(Daylight::DayLocalLights), 1e-4)
+              && near(curveExposure[points - 1], 0.0, 1e-6)
+              && near(curveLuminance[points - 1], Daylight::viewLuminanceLog2(60.0), 1e-6),
+          "the eye's curve runs from the night's exposure to the day's as views get brighter");
+    check(Daylight::viewLuminanceLog2(60.0) > Daylight::viewLuminanceLog2(2.0)
+              && Daylight::viewLuminanceLog2(2.0) > Daylight::viewLuminanceLog2(-14.0)
+              && near(Daylight::viewLuminanceLog2(-30.0), Daylight::viewLuminanceLog2(-14.0), 1e-6),
+          "ordinary views get darker as the sun sets, then stay at the night's");
 
     // The moon against published events of 2026 (UTC).
     const MoonPosition::Result lunarEclipse = MoonPosition::compute(0.0, 0.0, QDate(2026, 3, 3), 11.55);

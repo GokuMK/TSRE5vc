@@ -32,10 +32,28 @@ struct Light {
     // Scale of signal lights' glow (task 26): signals must stay visible by
     // day, so they keep DaySignalLights; full at night.
     float signalLights = 1.0f;
+    // Auto exposure (task 29): the light of the sun and the sky in one scale
+    // with lamps kept at DayLocalLights: DayLocalLights / localLights, 1 by
+    // day, DayLocalLights at night. An exposure of 1 / sceneLight shows the
+    // picture the lamps' scale gives.
+    float sceneLight = 1.0f;
 };
 
 constexpr float DayLocalLights = 0.03f;
 constexpr float DaySignalLights = 0.5f;
+// The log2 luminance (log average) an ordinary outdoor view has at this sun
+// elevation, in the scale of the light's display colours (plus
+// log2(sceneLight) for auto exposure). Measured on CMK (the lake, fair
+// cumulus, physical sky; task 29): about flat by day, the bright sky holding
+// it up around sunset, then the night.
+float viewLuminanceLog2(double elevationDegrees);
+// The eye's adaptation for auto exposure (task 29): for ordinary outdoor
+// views from night to a high sun, their luminance (log2, scene light,
+// ascending) and the exposure (log2) that shows them as the lamps' scale
+// does (1 / sceneLight). A view takes the exposure of the ordinary view as
+// bright as it is; no view gets more than the night's. Returns the points
+// written, up to capacity.
+int adaptationCurve(float *luminanceLog2, float *exposureLog2, int capacity);
 
 // daySky and dayFog: the colours of a high sun (the sky and fog settings).
 Light forElevation(double elevationDegrees, const float *daySky, const float *dayFog);

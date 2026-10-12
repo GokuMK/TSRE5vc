@@ -36,7 +36,7 @@ struct SkyParameters {
     float inverse[16];  // inverse of projection x camera rotation
     float sun[4];       // towards the sun
     float camera[4];    // height (km), y sign of the view's rows, exposure, 0
-    float night[4];     // display colour kept at least
+    float night[4];     // display colour kept at least; the scene's scale (auto exposure, task 29)
 };
 
 // The atmosphere, as Atmosphere.cpp.
@@ -201,7 +201,7 @@ void main() {
     float u = sqrt(clamp(-lightViewCos * 0.5 + 0.5, 0.0, 1.0));
     vec3 light = textureLod(skyView, vec2(fromUnitToSubUvs(u, 192.0), fromUnitToSubUvs(v, 108.0)), 0.0).rgb;
     vec3 display = pow(1.0 - exp(-light * camera.z), vec3(1.0 / 2.2));
-    result = vec4(max(display, night.rgb), 1.0);
+    result = vec4(max(display, night.rgb) * night.w, 1.0);
 }
 )";
 
@@ -348,6 +348,7 @@ void RhiRenderer::drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiR
     parameters.camera[0] = std::max(0.001f, sky.cameraHeight / 1000.0f);
     parameters.camera[2] = Atmosphere::SkyExposure;
     std::copy(sky.night, sky.night + 3, parameters.night);
+    parameters.night[3] = sceneScaleDisplay();
     if (!s.viewRendered) {
         // The sky-view table, once a frame.
         s.viewRendered = true;

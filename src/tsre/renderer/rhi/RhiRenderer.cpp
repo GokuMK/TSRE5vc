@@ -254,6 +254,7 @@ void RhiRenderer::releaseResources() {
     releaseCloudResources();
     releaseSkyResources();
     releaseEnclosureOpenness();
+    releaseLuminance();
     delete presentUniforms;
     delete presentLinear;
     delete dummyBlack;
@@ -348,11 +349,20 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
-    program->setVec("skyColor", gluu->fogColor[0], gluu->fogColor[1], gluu->fogColor[2], gluu->fogColor[3]);
-    program->setVec("diffuseColor", gluu->diffuseColor[0], gluu->diffuseColor[1], gluu->diffuseColor[2],
-                    gluu->diffuseColor[3]);
-    program->setVec("ambientColor", gluu->ambientColor[0], gluu->ambientColor[1], gluu->ambientColor[2],
-                    gluu->ambientColor[3]);
+    // With auto exposure (task 29) the light of the sun and the sky in the
+    // scene's scale (display colours: linear light by sceneLight); unlit
+    // shading and emissive colour are designed for the screen: undone by the
+    // exposure.
+    const float scene = sceneScaleDisplay();
+    program->setVec("skyColor", gluu->fogColor[0] * scene, gluu->fogColor[1] * scene, gluu->fogColor[2] * scene,
+                    gluu->fogColor[3]);
+    program->setVec("diffuseColor", gluu->diffuseColor[0] * scene, gluu->diffuseColor[1] * scene,
+                    gluu->diffuseColor[2] * scene, gluu->diffuseColor[3]);
+    program->setVec("ambientColor", gluu->ambientColor[0] * scene, gluu->ambientColor[1] * scene,
+                    gluu->ambientColor[2] * scene, gluu->ambientColor[3]);
+    const float exposure = autoExposure();
+    program->setFloat("unlitScale", std::pow(1.0f / exposure, 1.0f / 2.2f));
+    program->setFloat("emissiveScale", 1.0f / exposure);
     program->setVec("specularColor", 1.0f, 1.0f, 1.0f, 1.0f);
     program->setVec("lightDirection", Game::sunLightDirection[0], Game::sunLightDirection[1],
                     Game::sunLightDirection[2]);
@@ -367,7 +377,9 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setVec("skyEnclosureFar", farEnclosed ? 1.0f : 0.0f, enclosure.farFilter);
     program->setVec("skyEnclosureOpen", enclosed && enclosureOpen[0].valid ? 1.0f : 0.0f,
                     farEnclosed && enclosureOpen[1].valid ? 1.0f : 0.0f);
-    program->setFloat("localLightDay", enclosed ? gluu->localLightAdaptation : 1.0f);
+    // With auto exposure lamps keep one scale (gathered at it), enclosed or
+    // not: the exposure finds the tunnel dark.
+    program->setFloat("localLightDay", enclosed && !exposureActive() ? gluu->localLightAdaptation : 1.0f);
     program->setFloat("isAlpha", gluu->alpha);
     program->setFloat("alphaTest", gluu->alphaTest);
     program->setFloat("textureEnabled", 1.0f);
@@ -469,13 +481,13 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         // lights keep more of it by day (task 26); the sun all of it.
         float glowScale = 1.0f;
         if (p.glow != RenderItem::Pbr::GLOW_FULL) {
-            const float daylight = p.glow == RenderItem::Pbr::GLOW_SIGNAL ? gluu->signalLightAdaptation
+            const float daylight = p.glow == RenderItem::Pbr::GLOW_SIGNAL ? signalScale()
                                                                           : gluu->localLightAdaptation;
             glowScale = Game::localLightsEnabled ? daylight : 0.0f;
         }
         program->setFloat("pbrGlowScale", glowScale);
         // Enclosed (task 27), glow keeps its night strength.
-        program->setFloat("pbrGlowEnclosed", p.glow == RenderItem::Pbr::GLOW_FULL ? glowScale
+        program->setFloat("pbrGlowEnclosed", p.glow == RenderItem::Pbr::GLOW_FULL || exposureActive() ? glowScale
                                              : (Game::localLightsEnabled ? 1.0f : 0.0f));
         program->setFloat("pbrNormalScale", p.normalScale);
         program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
@@ -869,6 +881,7 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     // mapping, which keeps the size, crashed; user, 2026-10-12).
     releaseLightShafts();
     releaseCloudBuffers();
+    releaseLuminance();
     waterDepth.boundDepth = nullptr;
     depthProbe.boundDepth = nullptr;
     return createAttachments(view, format, size, QRhiTexture::UsedAsTransferSource,
@@ -1247,8 +1260,12 @@ void RhiRenderer::clear(bool color, bool depth, const float *clearColor) {
     if ((color || depth) && !state.draws.empty())
         flushTarget();
     // As glClearColor: the colour of this and later clears.
-    if (clearColor != nullptr)
-        nextClearColor = QColor::fromRgbF(clearColor[0], clearColor[1], clearColor[2], 1.0f);
+    if (clearColor != nullptr) {
+        // The sky's colour, in the scene's scale with auto exposure.
+        const float scene = sceneScaleDisplay();
+        nextClearColor = QColor::fromRgbF(std::min(clearColor[0] * scene, 1.0f), std::min(clearColor[1] * scene, 1.0f),
+                                          std::min(clearColor[2] * scene, 1.0f), 1.0f);
+    }
     if (color)
         state.color = nextClearColor;
     state.clearColor = state.clearColor || color;
@@ -2331,6 +2348,9 @@ void RhiRenderer::present() {
         gpuMs = float(gpuSeconds * 1000.0);
     // Bloom from the view's glow, before the frame's pass begins.
     QRhiTexture *bloomTexture = renderBloom(frame.commandBuffer);
+    // The view's brightness for auto exposure (task 29).
+    if (exposureActive())
+        measureLuminance(frame.commandBuffer);
     QRhiTexture *bloomSource = bloomTexture != nullptr ? bloomTexture : dummyBlack;
     if (presentUniforms == nullptr) {
         presentUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
@@ -2462,7 +2482,7 @@ void main() {
     }
     // Tone curve, exposure and bloom strength (bloom levels add up, so
     // their sum is averaged).
-    const float image[4] = {float(toneMapping()), std::exp2(Game::exposure),
+    const float image[4] = {float(toneMapping()), std::exp2(Game::exposure) * autoExposure(),
                             bloomTexture != nullptr
                                     ? Game::bloomStrength / float(std::max<size_t>(1, bloom.levels.size()))
                                     : 0.0f,
@@ -2575,9 +2595,14 @@ void RhiRenderer::prepareLights() {
     {
         // With the sky enclosure the lamps keep their strength here and the
         // shaders dim them where the sky is open (task 27).
-        const float day = enclosure.enabled && enclosureDrawn && enclosureMap.valid()
+        const float day = enclosure.enabled && enclosureDrawn && enclosureMap.valid() && !exposureActive()
                 ? 1.0f : gluu->localLightAdaptation;
-        gatherLights(frameLights, Game::localLightsExposure * day, Game::localLightsEmissiveGain * day);
+        // With auto exposure the lamps reach as far as they show: their
+        // ranges follow the exposure, in half stops so that adapting does
+        // not rebuild the grid each frame (task 29).
+        const float shown = exposureActive() ? std::exp2(std::round(std::log2(autoExposure()) * 2.0f) * 0.5f) : 1.0f;
+        gatherLights(frameLights, Game::localLightsExposure * day, Game::localLightsEmissiveGain * day, false, 0.0f,
+                     shown);
     }
     // Static scenes keep their grid: the lights and the camera's grid
     // window decide it.

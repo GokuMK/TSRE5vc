@@ -35,6 +35,11 @@ flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
 uniform float enableNormals;
 uniform float colorBrightness;
+#ifdef TSRE_RHI
+// Undoes auto exposure (task 29) for unlit shading, designed for the screen
+// (display space; 1 without it).
+uniform float unlitScale;
+#endif
 
 vec2 poissonDisk[16] = vec2[]( 
    vec2( -0.94201624, -0.39906216 ), 
@@ -78,6 +83,10 @@ void main() {
 #endif
         if(textureEnabled == 0) {
             fragColor = shapeColor;
+#ifdef TSRE_RHI
+            // Plain colours are for the screen: undo auto exposure (task 29).
+            fragColor.rgb *= unlitScale;
+#endif
         } else {
             fragColor = texture(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
@@ -99,6 +108,9 @@ void main() {
 #ifdef TSRE_UNLIT
             // Overlays: no sun lighting, shadows or fog.
             fragColor.xyz *= colorBrightness;
+#ifdef TSRE_RHI
+            fragColor.xyz *= unlitScale;
+#endif
 #else
             // calculate normals
             vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);

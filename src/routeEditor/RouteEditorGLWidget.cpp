@@ -723,6 +723,17 @@ void RouteEditorGLWidget::paintScene(){
         // The first view waits for all its shapes; after a jump the wait is
         // limited, so a long load does not hold the editor.
         const qint64 jumpWaitMs = 2000;
+        // The exposure takes its target at once after a jump of the camera
+        // or of the time of day; it adapts over time otherwise.
+        const qint64 frameNs = exposureClock.isValid() ? exposureClock.nsecsElapsed() : 0;
+        exposureClock.restart();
+        exposure.seconds = float(frameNs * 1e-9);
+        exposure.snap = jumped || wholeViewPending || frameNs == 0
+                || std::abs(Game::timeOfDayHours - lastExposureHours) > 0.1f
+                || std::abs(std::log2(std::max(exposure.sceneLight, 1e-6f) / std::max(lastSceneLight, 1e-6f))) > 0.5f;
+        lastSceneLight = exposure.sceneLight;
+        lastExposureHours = Game::timeOfDayHours;
+        renderer->setExposureControl(exposure);
         if (wholeViewPending)
             loadWholeView("first view", -1);
         else if (jumped)
@@ -1029,6 +1040,8 @@ constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
 
 void RouteEditorGLWidget::applyTimeOfDay() {
     TimeOfDayState &state = timeOfDay;
+    // Off unless time of day runs with lamps by day on auto exposure.
+    exposure = Renderer::ExposureControl();
     if (!state.saved) {
         std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, state.sunDirection);
         std::copy(gluu->skyColor, gluu->skyColor + 4, state.sky);
@@ -1133,6 +1146,17 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     const int lampsByDay = Settings::integer("core.rendering.lampsByDay");
     gluu->localLightAdaptation = lampsByDay == 1 ? 1.0f : light.localLights;
     gluu->signalLightAdaptation = lampsByDay == 1 ? 1.0f : light.signalLights;
+    // Auto exposure: lamps at one scale, the light of the sun and the sky in
+    // the scene's scale, the view adapting (task 29). Signals keep their
+    // scale; the renderer undoes the exposure on them.
+    if (lampsByDay == 2 && renderer != NULL && renderer->autoExposureAvailable()) {
+        gluu->localLightAdaptation = Daylight::DayLocalLights;
+        exposure.enabled = true;
+        exposure.sceneLight = light.sceneLight;
+        exposure.referenceLog2 = std::log2(light.sceneLight) + Daylight::viewLuminanceLog2(sun.elevation);
+        exposure.curvePoints = Daylight::adaptationCurve(exposure.curveLuminance, exposure.curveExposure,
+                                                         Renderer::ExposureControl::CurveSize);
+    }
     sunCastsShadows = light.sunUp;
     // The sun and the moon on the sky.
     std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, skyState.sunDirection);

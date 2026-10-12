@@ -81,7 +81,10 @@ void RhiRenderer::beginOffscreen(int which, Attachments *attachments, const floa
     TargetState &state = targets[which];
     state.attachments = attachments;
     // As glClearColor: later clears take this colour too.
-    nextClearColor = QColor::fromRgbF(clearColor[0], clearColor[1], clearColor[2], 1.0f);
+    // In the scene's scale with auto exposure (task 29).
+    const float scene = sceneScaleDisplay();
+    nextClearColor = QColor::fromRgbF(std::min(clearColor[0] * scene, 1.0f), std::min(clearColor[1] * scene, 1.0f),
+                                      std::min(clearColor[2] * scene, 1.0f), 1.0f);
     state.color = nextClearColor;
     state.clearColor = state.clearDepth = true;
     setViewport(0, 0, attachments->size.width(), attachments->size.height());

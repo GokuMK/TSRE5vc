@@ -476,6 +476,12 @@ private:
     void loadWholeView(const char *reason, qint64 limitMs);
     // From a whole view's start to the next frame: the time it was shown.
     QElapsedTimer wholeViewShown;
+    // Auto exposure (task 29): this frame's control, set by applyTimeOfDay
+    // and handed over once camera jumps are known.
+    Renderer::ExposureControl exposure;
+    QElapsedTimer exposureClock;
+    float lastSceneLight = 1.0f;
+    float lastExposureHours = 0.0f;
     const char *wholeViewReason = nullptr;
     // Its phases, from its start: loaded, frame gathered, frame drawn.
     qint64 wholeViewMarks[3] = {0, 0, 0};

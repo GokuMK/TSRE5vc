@@ -67,7 +67,39 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     // linear fade left them invisible until the sun had set.
     light.localLights = std::pow(DayLocalLights, smoothstep(0.0f, 20.0f, h));
     light.signalLights = std::pow(DaySignalLights, smoothstep(0.0f, 20.0f, h));
+    light.sceneLight = DayLocalLights / light.localLights;
     return light;
+}
+
+float viewLuminanceLog2(double elevationDegrees) {
+    // Sun elevation (degrees), log2 luminance.
+    static const float Table[][2] = {{-14.0f, -12.9f}, {-10.0f, -12.6f}, {-7.5f, -11.7f}, {-4.5f, -10.0f},
+                                     {-1.5f, -7.6f}, {2.0f, -5.6f}, {6.0f, -4.9f}, {14.0f, -4.7f},
+                                     {28.0f, -4.55f}, {60.0f, -4.4f}};
+    const int count = int(sizeof(Table) / sizeof(Table[0]));
+    const float h = float(elevationDegrees);
+    if (h <= Table[0][0])
+        return Table[0][1];
+    for (int i = 1; i < count; ++i)
+        if (h <= Table[i][0])
+            return mix(Table[i - 1][1], Table[i][1], (h - Table[i - 1][0]) / (Table[i][0] - Table[i - 1][0]));
+    return Table[count - 1][1];
+}
+
+int adaptationCurve(float *luminanceLog2, float *exposureLog2, int capacity) {
+    // Sun elevations: the table's, denser where the scene light changes.
+    static const float Elevations[] = {-14.0f, -10.0f, -7.5f, -4.5f, -1.5f, 0.0f, 2.0f, 4.0f, 6.0f,
+                                       8.0f, 10.0f, 12.0f, 14.0f, 16.0f, 18.0f, 20.0f, 28.0f, 60.0f};
+    int count = 0;
+    for (float h : Elevations) {
+        if (count == capacity)
+            break;
+        const float scene = std::log2(DayLocalLights / std::pow(DayLocalLights, smoothstep(0.0f, 20.0f, h)));
+        luminanceLog2[count] = scene + viewLuminanceLog2(h);
+        exposureLog2[count] = -scene;
+        ++count;
+    }
+    return count;
 }
 
 }

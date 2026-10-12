@@ -24,6 +24,11 @@ flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
 uniform float enableNormals;
 uniform float colorBrightness;
+#ifdef TSRE_RHI
+// Undoes auto exposure (task 29) for unlit shading, designed for the screen
+// (display space; 1 without it).
+uniform float unlitScale;
+#endif
 
 #ifdef TSRE_TERRAIN
 #include "TerrainMaterial.glsl"
@@ -58,6 +63,9 @@ void main() {
 #ifdef TSRE_UNLIT
     // Overlays: no sun lighting, shadows or fog.
     fragColor.xyz *= colorBrightness;
+#ifdef TSRE_RHI
+    fragColor.xyz *= unlitScale;
+#endif
 #else
     vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);
     float cosTheta = clamp(dot(normal, normalize(lightDirection)), 0.0, 1.0);

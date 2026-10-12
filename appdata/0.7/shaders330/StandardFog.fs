@@ -50,6 +50,11 @@ flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
 uniform float enableNormals;
 uniform float colorBrightness;
+#ifdef TSRE_RHI
+// Undoes auto exposure (task 29) for unlit shading, designed for the screen
+// (display space; 1 without it).
+uniform float unlitScale;
+#endif
 // 1 - RenderItem::Material::opacity; 0 (opaque) where nothing sets it.
 uniform float materialTransparency;
 
@@ -120,6 +125,11 @@ void main() {
         if(textureEnabled == 0) {
             fragColor = shapeColor;
             fragColor.a *= 1.0 - materialTransparency;
+#ifdef TSRE_RHI
+            // Plain colours (editor lines, markers) are for the screen, never
+            // lit: undo auto exposure (task 29).
+            fragColor.rgb *= unlitScale;
+#endif
         } else {
             fragColor = texture(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
@@ -142,6 +152,9 @@ void main() {
 #ifdef TSRE_UNLIT
             // Overlays: no sun lighting, shadows or fog.
             fragColor.xyz *= colorBrightness;
+#ifdef TSRE_RHI
+            fragColor.xyz *= unlitScale;
+#endif
 #else
             // calculate normals
             vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);
@@ -176,7 +189,13 @@ void main() {
 
             // Fog tints the colour only; mixing alpha towards the sky's 1 made
             // translucent surfaces turn opaque with distance.
+#ifdef TSRE_RHI
+            // Under cover the haze is lit as the ambient is: no bright fog
+            // deep in a tunnel.
+            fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * skyAmbient(shade), fogFactor);
+#else
             fragColor.rgb = mix(fragColor.rgb, skyColor.rgb, fogFactor);
+#endif
 #endif
         }
 #endif

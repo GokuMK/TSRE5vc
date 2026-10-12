@@ -467,7 +467,7 @@ void RhiRenderer::applyLightShafts() {
                                                                   sunDirection.y());
     const float peak = std::max({sunLight[0], sunLight[1], sunLight[2], 1e-4f});
     for (int i = 0; i < 3; ++i)
-        parameters.colour[i] = std::pow(sunLight[i] / peak, 1.0f / 2.2f);
+        parameters.colour[i] = std::pow(sunLight[i] / peak, 1.0f / 2.2f) * sceneScaleDisplay();
     parameters.camera[0] = ySign;
     parameters.camera[2] = 0.99f;
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, parameters.inverse);
@@ -551,7 +551,7 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
                                                                   sunDirection.y());
     const float peak = std::max({sunLight[0], sunLight[1], sunLight[2], 1e-4f});
     for (int i = 0; i < 3; ++i)
-        parameters.colour[i] = std::pow(sunLight[i] / peak, 1.0f / 2.2f);
+        parameters.colour[i] = std::pow(sunLight[i] / peak, 1.0f / 2.2f) * sceneScaleDisplay();
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
     if (l.whiteUpload != nullptr) {
         batch->merge(l.whiteUpload);

@@ -122,7 +122,7 @@ struct MarchParameters {
     float lighting[4];     // light steps, still, buffer texel w, h
     float high[4];         // high layer altitude (km)
     float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), its centre east and north of the camera (km)
-    float night[4];        // the night sky's floor (display colour)
+    float night[4];        // the night sky's floor (display colour); the scene's scale (auto exposure, task 29)
 };
 
 const char *CloudCommon = R"(
@@ -813,7 +813,7 @@ void main() {
     vec3 colour = c.rgb / max(covered, 1e-3);
     vec3 display = pow(1.0 - exp(-colour * camera.z), vec3(1.0 / 2.2));
     // At night a little darker than the night sky's floor, not black.
-    display = max(display, night.rgb * 0.8);
+    display = max(display, night.rgb * 0.8) * night.w;
     result = vec4(display * covered, c.a);
 #ifdef GLOW
     glow = vec4(0.0, 0.0, 0.0, c.a);
@@ -1322,6 +1322,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         out[3] = float(positiveModulo(clouds.cameraNorth - clouds.drift[l][1], DetailPeriod));
     }
     std::copy(sky.night, sky.night + 3, parameters.night);
+    parameters.night[3] = sceneScaleDisplay();
     // A jump of the camera leaves the last frames' clouds behind.
     if (std::hypot(clouds.cameraEast - c.lastEast, clouds.cameraNorth - c.lastNorth) > 300.0)
         c.historyValid = false;

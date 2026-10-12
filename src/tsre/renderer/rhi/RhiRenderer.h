@@ -77,6 +77,8 @@ public:
     void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
                                 float minRadius = 0.0f) override;
     void setSkyEnclosure(const SkyEnclosure &enclosure) override;
+    void setExposureControl(const ExposureControl &control) override;
+    bool autoExposureAvailable() const override;
 
     // The environment map and water reflection storage (RhiReflections.cpp)
     // drive these.
@@ -290,6 +292,48 @@ private:
     // adds, or null without bloom.
     QRhiTexture *renderBloom(QRhiCommandBuffer *cb);
     void releaseBloom();
+    // Auto exposure (task 29; RhiImage.cpp). The view's log-average
+    // luminance is measured (64 x 64, then 1 x 1) and read back a frame or
+    // two later; the exposure follows it around the exposure of an ordinary
+    // view (1 / sceneLight).
+    ExposureControl exposureControl;
+    bool exposureActive() const;
+    // The scale of gamma-space light colours (sceneLight^(1/2.2)), 1 off.
+    float sceneScaleDisplay() const;
+    // The exposure (linear) the final pass applies besides the setting.
+    float autoExposure() const;
+    // The signals' glow scale: signals are to be seen, so with auto
+    // exposure they keep the look the lamps' scale gives them.
+    float signalScale() const;
+    void measureLuminance(QRhiCommandBuffer *cb);
+    void releaseLuminance();
+    struct Luminance {
+        QRhiTexture *grid = nullptr;     // 64 x 64 log2 luminance
+        QRhiTexture *mean = nullptr;     // 1 x 1
+        QRhiTextureRenderTarget *gridTarget = nullptr;
+        QRhiTextureRenderTarget *meanTarget = nullptr;
+        QRhiRenderPassDescriptor *gridPass = nullptr;
+        QRhiRenderPassDescriptor *meanPass = nullptr;
+        QRhiShaderResourceBindings *gridBindings = nullptr;
+        QRhiShaderResourceBindings *meanBindings = nullptr;
+        QRhiGraphicsPipeline *gridPipeline = nullptr;
+        QRhiGraphicsPipeline *meanPipeline = nullptr;
+        QRhiSampler *linear = nullptr;
+        const QRhiTexture *boundView = nullptr;
+        QRhiReadbackResult readback;
+        bool pending = false;
+        // The last measurement (log2 luminance, scene light).
+        float measuredLog2 = 0.0f;
+        bool measured = false;
+        // The adapted correction (stops) around an ordinary view's exposure.
+        float correction = 0.0f;
+        // Measured frames to take the target at once after a snap (the
+        // read-back lags).
+        int snapFrames = 0;
+        // Bumped by a snap: read-backs issued before it are dropped.
+        int generation = 0;
+        int pendingGeneration = 0;
+    } luminance;
     struct Bloom {
         QSize viewSize;
         std::vector<QRhiTexture *> levels;

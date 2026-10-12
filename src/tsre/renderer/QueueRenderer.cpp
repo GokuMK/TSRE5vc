@@ -318,7 +318,7 @@ void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances){
 }
 
 void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
-                                 float emissiveGain, bool emittersOnly, float signalGain) const{
+                                 float emissiveGain, bool emittersOnly, float signalGain, float rangeGain) const{
     lights.clear();
     for(const PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
@@ -361,7 +361,7 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                         light.color[c] = source.color[c] * source.intensity * gain;
                     light.radius = source.radius * scale;
                     light.signal = source.signal;
-                    const float brightness = std::max({light.color[0], light.color[1], light.color[2]});
+                    const float brightness = std::max({light.color[0], light.color[1], light.color[2]}) * rangeGain;
                     // Up to the default reach, or the reach its object asks
                     // for; the asset's own range can only shorten it.
                     const float reach = LightGrid::rangeFor(brightness, light.radius,

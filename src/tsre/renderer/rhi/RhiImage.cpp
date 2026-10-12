@@ -20,6 +20,9 @@
 #include "RhiProgram.h"
 #include <QDebug>
 #include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <qfloat16.h>
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
@@ -239,6 +242,250 @@ QList<QByteArray> RhiRenderer::imageShaders() {
     return {RhiPresentFragment, BloomDownFragment, BloomUpFragment};
 }
 
+namespace {
+
+// Auto exposure (task 29). Views within IgnoredStops of the hour's ordinary
+// view keep its exposure: the adaptation is for tunnels and stations, not
+// for a darker field. Beyond the brightest ordinary view the exposure falls
+// by DarkenStrength of the excess, down to MaxDarken stops.
+constexpr float IgnoredStops = 1.0f;
+constexpr float DarkenStrength = 0.75f;
+constexpr float MaxDarken = 2.0f;
+// Towards a brighter picture (into the dark) slowly, towards a darker one
+// (into the light) fast.
+constexpr float BrightenSeconds = 2.5f;
+constexpr float DarkenSeconds = 0.5f;
+constexpr int LuminanceGrid = 64;
+
+// The view's log2 luminance over a 64 x 64 grid, 4 x 4 samples a cell.
+const char *LuminanceGridFragment = R"(#version 440
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 result;
+layout(binding = 0) uniform sampler2D view;
+
+void main() {
+    vec2 cell = vec2(1.0 / 64.0);
+    vec2 corner = uv - cell * 0.5;
+    float sum = 0.0;
+    for (int j = 0; j < 4; ++j)
+        for (int i = 0; i < 4; ++i) {
+            vec3 c = textureLod(view, corner + (vec2(i, j) + 0.5) * cell * 0.25, 0.0).rgb;
+            vec3 l = pow(max(c, vec3(0.0)), vec3(2.2));
+            sum += log2(max(dot(l, vec3(0.2126, 0.7152, 0.0722)), 1e-6));
+        }
+    result = vec4(sum / 16.0, 0.0, 0.0, 1.0);
+}
+)";
+
+// Their mean.
+const char *LuminanceMeanFragment = R"(#version 440
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 result;
+layout(binding = 0) uniform sampler2D grid;
+
+void main() {
+    float sum = 0.0;
+    for (int y = 0; y < 64; ++y)
+        for (int x = 0; x < 64; ++x)
+            sum += texelFetch(grid, ivec2(x, y), 0).r;
+    result = vec4(sum / 4096.0, 0.0, 0.0, 1.0);
+}
+)";
+
+// The exposure (log2) of an adapted eye at a view's luminance (log2): the
+// curve's, the night's below it, falling above it.
+float adaptedExposure(const Renderer::ExposureControl &control, float luminance) {
+    const float *l = control.curveLuminance;
+    const float *e = control.curveExposure;
+    const int last = control.curvePoints - 1;
+    if (luminance <= l[0])
+        return e[0];
+    for (int i = 1; i <= last; ++i)
+        if (luminance <= l[i])
+            return e[i - 1] + (e[i] - e[i - 1]) * (luminance - l[i - 1]) / std::max(l[i] - l[i - 1], 1e-6f);
+    return e[last] - DarkenStrength * (luminance - l[last]);
+}
+
+template <typename T>
+void deleteResourceLater(T *&resource) {
+    if (resource != nullptr)
+        resource->deleteLater();
+    resource = nullptr;
+}
+
+}
+
+bool RhiRenderer::autoExposureAvailable() const {
+    return toneMapping() > 0 && rhi->isTextureFormatSupported(QRhiTexture::RGBA16F);
+}
+
+bool RhiRenderer::exposureActive() const {
+    return exposureControl.enabled && autoExposureAvailable();
+}
+
+float RhiRenderer::sceneScaleDisplay() const {
+    return exposureActive() ? std::pow(std::max(exposureControl.sceneLight, 1e-6f), 1.0f / 2.2f) : 1.0f;
+}
+
+float RhiRenderer::autoExposure() const {
+    if (!exposureActive())
+        return 1.0f;
+    return std::exp2(-std::log2(std::max(exposureControl.sceneLight, 1e-6f)) + luminance.correction);
+}
+
+float RhiRenderer::signalScale() const {
+    return gluu->signalLightAdaptation / autoExposure();
+}
+
+void RhiRenderer::setExposureControl(const ExposureControl &control) {
+    exposureControl = control;
+    Luminance &l = luminance;
+    if (!exposureActive()) {
+        l.correction = 0.0f;
+        l.snapFrames = 0;
+        return;
+    }
+    if (control.snap) {
+        // The read-backs in flight show the view before the jump: the
+        // target is taken at once until two measurements of the new view.
+        l.snapFrames = 2;
+        l.measured = false;
+        ++l.generation;
+    }
+    // An ordinary view of the hour keeps its exposure; another takes the
+    // exposure of the ordinary view as bright as it is (a tunnel by day that
+    // of dusk, a station lit by its lamps that of the night).
+    float target = 0.0f;
+    if (l.measured && control.curvePoints > 1) {
+        const float off = l.measuredLog2 - control.referenceLog2;
+        const float luminance = l.measuredLog2 - std::copysign(std::min(std::abs(off), IgnoredStops), off);
+        target = std::max(adaptedExposure(control, luminance) - adaptedExposure(control, control.referenceLog2),
+                          -MaxDarken);
+    }
+    if (l.snapFrames > 0) {
+        l.correction = target;
+        if (l.measured)
+            --l.snapFrames;
+    } else {
+        const float seconds = std::max(control.seconds, 0.0f);
+        const float tau = target > l.correction ? BrightenSeconds : DarkenSeconds;
+        l.correction += (target - l.correction) * (1.0f - std::exp(-seconds / tau));
+    }
+}
+
+void RhiRenderer::measureLuminance(QRhiCommandBuffer *cb) {
+    Luminance &l = luminance;
+    const auto fragment = QRhiShaderResourceBinding::FragmentStage;
+    if (l.grid == nullptr) {
+        l.grid = rhi->newTexture(QRhiTexture::RGBA16F, QSize(LuminanceGrid, LuminanceGrid), 1,
+                                 QRhiTexture::RenderTarget);
+        l.mean = rhi->newTexture(QRhiTexture::RGBA16F, QSize(1, 1), 1,
+                                 QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource);
+        l.linear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
+                                   QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+        if (!l.grid->create() || !l.mean->create() || !l.linear->create()) {
+            releaseLuminance();
+            return;
+        }
+        l.gridTarget = rhi->newTextureRenderTarget({QRhiColorAttachment(l.grid)});
+        l.gridPass = l.gridTarget->newCompatibleRenderPassDescriptor();
+        l.gridTarget->setRenderPassDescriptor(l.gridPass);
+        l.meanTarget = rhi->newTextureRenderTarget({QRhiColorAttachment(l.mean)});
+        l.meanPass = l.meanTarget->newCompatibleRenderPassDescriptor();
+        l.meanTarget->setRenderPassDescriptor(l.meanPass);
+        if (!l.gridTarget->create() || !l.meanTarget->create()) {
+            releaseLuminance();
+            return;
+        }
+        l.meanBindings = rhi->newShaderResourceBindings();
+        l.meanBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(0, fragment, l.grid, l.linear)});
+        l.meanBindings->create();
+        l.readback.completed = [this] {
+            Luminance &m = luminance;
+            m.pending = false;
+            if (m.pendingGeneration != m.generation || m.readback.data.size() < 2)
+                return;
+            qfloat16 value;
+            std::memcpy(&value, m.readback.data.constData(), sizeof(value));
+            if (std::isfinite(float(value))) {
+                m.measuredLog2 = float(value);
+                m.measured = true;
+            }
+        };
+    }
+    if (l.gridBindings == nullptr || l.boundView != view.color) {
+        delete l.gridBindings;
+        l.gridBindings = rhi->newShaderResourceBindings();
+        l.gridBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(0, fragment, view.color, l.linear)});
+        l.gridBindings->create();
+        l.boundView = view.color;
+    }
+    static QShader vertex, gridShader, meanShader;
+    if (!vertex.isValid()) {
+        vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
+        gridShader = bakeInline(LuminanceGridFragment, QShader::FragmentStage, rhi);
+        meanShader = bakeInline(LuminanceMeanFragment, QShader::FragmentStage, rhi);
+    }
+    auto pipeline = [&](const QShader &shader, QRhiShaderResourceBindings *set, QRhiRenderPassDescriptor *pass) {
+        QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();
+        ps->setShaderStages({{QRhiShaderStage::Vertex, vertex}, {QRhiShaderStage::Fragment, shader}});
+        ps->setShaderResourceBindings(set);
+        ps->setRenderPassDescriptor(pass);
+        if (!ps->create()) {
+            delete ps;
+            return static_cast<QRhiGraphicsPipeline *>(nullptr);
+        }
+        return ps;
+    };
+    if (l.gridPipeline == nullptr)
+        l.gridPipeline = pipeline(gridShader, l.gridBindings, l.gridPass);
+    if (l.meanPipeline == nullptr)
+        l.meanPipeline = pipeline(meanShader, l.meanBindings, l.meanPass);
+    if (l.gridPipeline == nullptr || l.meanPipeline == nullptr)
+        return;
+    cb->beginPass(l.gridTarget, Qt::black, {1.0f, 0});
+    cb->setGraphicsPipeline(l.gridPipeline);
+    cb->setViewport(QRhiViewport(0, 0, float(LuminanceGrid), float(LuminanceGrid)));
+    cb->setShaderResources(l.gridBindings);
+    cb->draw(3);
+    cb->endPass();
+    cb->beginPass(l.meanTarget, Qt::black, {1.0f, 0});
+    cb->setGraphicsPipeline(l.meanPipeline);
+    cb->setViewport(QRhiViewport(0, 0, 1.0f, 1.0f));
+    cb->setShaderResources(l.meanBindings);
+    cb->draw(3);
+    cb->endPass();
+    // One read-back at a time; it completes a frame or two later.
+    if (!l.pending) {
+        QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+        batch->readBackTexture(QRhiReadbackDescription(l.mean), &l.readback);
+        cb->resourceUpdate(batch);
+        l.pending = true;
+        l.pendingGeneration = l.generation;
+    }
+}
+
+void RhiRenderer::releaseLuminance() {
+    Luminance &l = luminance;
+    // Deleted after the frame: a read-back may be in flight.
+    deleteResourceLater(l.gridPipeline);
+    deleteResourceLater(l.meanPipeline);
+    deleteResourceLater(l.gridBindings);
+    deleteResourceLater(l.meanBindings);
+    deleteResourceLater(l.gridTarget);
+    deleteResourceLater(l.meanTarget);
+    deleteResourceLater(l.gridPass);
+    deleteResourceLater(l.meanPass);
+    deleteResourceLater(l.grid);
+    deleteResourceLater(l.mean);
+    deleteResourceLater(l.linear);
+    l.boundView = nullptr;
+    // A read-back still in flight is dropped.
+    ++l.generation;
+    l.pending = false;
+    l.measured = false;
+}
+
 int RhiRenderer::toneMapping() const {
     return std::clamp(Game::toneMapping, 0, 3);
 }
@@ -391,12 +638,11 @@ void RhiRenderer::gatherGlowSplats() {
     if (bloomEnabled() && Game::localLightsEnabled) {
         // With the sky enclosure the splats take the daylight scale each,
         // and keep their strength where the sky is hidden (task 27).
-        glowSplats.enclosed = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
+        glowSplats.enclosed = enclosure.enabled && enclosureDrawn && enclosureMap.valid() && !exposureActive();
         if (glowSplats.enclosed)
             gatherLights(glowSplats.emitters, 0.0f, 1.0f, true, 1.0f);
         else
-            gatherLights(glowSplats.emitters, 0.0f, gluu->localLightAdaptation, true,
-                         gluu->signalLightAdaptation);
+            gatherLights(glowSplats.emitters, 0.0f, gluu->localLightAdaptation, true, signalScale());
     }
 }
 

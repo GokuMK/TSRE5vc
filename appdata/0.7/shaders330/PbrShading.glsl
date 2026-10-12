@@ -19,6 +19,12 @@ uniform float pbrOcclusionStrength;
 uniform float pbrAlphaCutoff;
 uniform int pbrBlend;
 uniform int pbrUnlit;
+#ifdef TSRE_RHI
+// Undoes auto exposure (task 29) for unlit materials and emissive colour,
+// designed for the screen (linear; 1 without it). Their glow is not undone:
+// it follows the lamps.
+uniform float emissiveScale;
+#endif
 // Bit per map present: 1 metallic-roughness, 2 normal, 4 occlusion, 8 emissive,
 // 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal, 128 specular,
 // 256 specular colour, 512 transmission, 1024 thickness.
@@ -126,7 +132,11 @@ vec4 pbrShade() {
         discard;
     float alpha = pbrBlend != 0 ? base.a : 1.0;
     if (pbrUnlit != 0) {
-        vec3 unlit = toDisplay(base.rgb * colorBrightness);
+        vec3 unlitLight = base.rgb * colorBrightness;
+#ifdef TSRE_RHI
+        unlitLight *= emissiveScale;
+#endif
+        vec3 unlit = toDisplay(unlitLight);
         return vec4(mix(unlit, skyColor.rgb, fogFactor), alpha);
     }
 
@@ -278,7 +288,11 @@ vec4 pbrShade() {
     vec3 emissive = pbrEmissive;
     if ((pbrTextures & 8) != 0)
         emissive *= toLinear(texture(pbrEmissiveMap, pbrUv(4)).rgb);
+#ifdef TSRE_RHI
+    color += emissive * emissiveScale;
+#else
     color += emissive;
+#endif
 
 #ifdef TSRE_RHI
     // Shrinking below 32 pixels, the surface hands its glow to its emitters'
@@ -296,6 +310,9 @@ vec4 pbrShade() {
     // The display-space share of the environment light, after fog.
     pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
                          * (1.0 - fogFactor), alpha);
-#endif
+    // Under cover the haze is lit as the ambient is.
+    return vec4(mix(toDisplay(color), skyColor.rgb * skyAmbient(shade), fogFactor), alpha);
+#else
     return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor), alpha);
+#endif
 }

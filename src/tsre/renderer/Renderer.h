@@ -188,6 +188,31 @@ public:
         float farViewProjection[16] = {};
         float farFilter = 0.0f;
     };
+    // Auto exposure (task 29): with it on, the light of the sun and the sky
+    // is scaled by sceneLight (1 by day, Daylight::DayLocalLights at night),
+    // lamps keep one scale, and the view's exposure adapts to its measured
+    // brightness: it takes the exposure of an ordinary outdoor view as bright
+    // as it is (the curve), an ordinary view of the hour 1 / sceneLight.
+    struct ExposureControl {
+        static constexpr int CurveSize = 24;
+        bool enabled = false;
+        float sceneLight = 1.0f;
+        // log2 of the luminance an ordinary outdoor view has (scene light).
+        float referenceLog2 = 0.0f;
+        // Daylight::adaptationCurve: luminance (log2, ascending) to exposure
+        // (log2).
+        float curveLuminance[CurveSize] = {};
+        float curveExposure[CurveSize] = {};
+        int curvePoints = 0;
+        // Take the exposure at once (camera jump, a jump of the time of day).
+        bool snap = false;
+        // Since the last frame.
+        float seconds = 0.0f;
+    };
+    virtual void setExposureControl(const ExposureControl &control) {}
+    // Whether the view can hold the light auto exposure needs (QRhi with
+    // tone mapping).
+    virtual bool autoExposureAvailable() const { return false; }
     // Starts a map (size texels) when the renderer has them: 0 the near map,
     // 1 the far one, 2 and 3 the same seen from below (the lowest surfaces).
     // The shadow program then draws enclosure casters into it, the far maps

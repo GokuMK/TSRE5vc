@@ -1,6 +1,6 @@
 # Task 29 - Auto Exposure
 
-Status: in progress (2026-10-13, `feature/clouds`).
+Status: implemented (2026-10-13, `feature/clouds`); Dimmed stays the default.
 
 ## Objective
 
@@ -53,28 +53,47 @@ s(h) = `DayLocalLights` / A(h): 1 by day, 0.03 at night. An exposure of
 - Lamps: gathered at `DayLocalLights`, no per-pixel day scale (the
   enclosure's night strength under cover is not needed: the exposure
   finds the tunnel dark). Their glow likewise.
-- Signals: a constant between their day and night look (the ratio of a
-  signal to a lamp is not physical today; to calibrate).
+- Signals: they only glow, they light nothing, and they must be seen: they
+  keep their Dimmed scale (`signalLights`) and the renderer divides their
+  glow by E, so they look as in Dimmed at any exposure. One constant scale
+  could not do both: a quarter of Dimmed by day was too weak, four times
+  at night glared.
 - Display-designed parts are compensated by 1 / E so they look as today:
-  unlit shading (editor overlays, MSTS unlit parts), the colour of
-  emissive lenses.
+  unlit shading (editor overlays, MSTS unlit parts, plain-coloured lines
+  and markers), the colour of emissive lenses.
+- Fog under cover is lit as the ambient is (`skyAmbient(shade)`): the full
+  sky colour as haze deep in a tunnel was invisible at today's exposure
+  and a bright fog at a tunnel's.
 
 ### Exposure
 
-E = exposure setting x (1 / s(h)) x correction.
+E = exposure setting x 2^e, e = log2(1 / s(h)) + correction.
 
-- Correction: (Lref / L)^k, limited to a few stops each way. L is the
-  log-average luminance of the view (scene light, before the exposure),
-  measured on the GPU (64 x 64, then 1 x 1) and read back a frame or two
-  later. Lref is the log-average an ordinary outdoor scene has at that
-  hour: s(h) x c x (sun + sky light of that hour), c calibrated on
-  ordinary views. An ordinary scene needs no correction: night stays
-  night by construction. A tunnel by day (L far under Lref) brightens a
-  few stops, partially (k < 1), and its portal glows; a station full of
-  lamps at night darkens a little.
-- Adaptation over time in log space: faster towards a brighter picture
-  than towards a darker one, as the eye. Still captures, camera jumps and
-  large jumps of the time of day take the target at once.
+- L is the log-average luminance of the view (scene light, before the
+  exposure), measured on the GPU (64 x 64, then 1 x 1) and read back a
+  frame or two later. Lref(h) is the log-average of an ordinary outdoor
+  view at that hour (`Daylight::viewLuminanceLog2`, a table measured on
+  the CMK lake, plus log2 s(h)).
+- The eye's curve (`Daylight::adaptationCurve`): ordinary views from night
+  to a high sun give pairs (Lref(h), log2(1 / s(h))), luminance against
+  the exposure that shows them as Dimmed. A view takes the exposure of the
+  ordinary view as bright as it is: a tunnel by day that of dusk, a
+  station lit by its lamps that of the night, at any hour. Below the
+  darkest point the night's exposure: no view is shown brighter than the
+  eye sees at night, so night stays night by construction (night views
+  are Dimmed's). Above the brightest point the exposure falls by 0.75 of
+  the excess, at most 2 stops (snow, the sun).
+- Views within 1 stop of the hour's ordinary view keep its exposure (L is
+  moved up to 1 stop towards Lref first): the adaptation is for tunnels
+  and stations, not for a darker field.
+- The first attempt, a correction k (Lref(h) - L) around the hour's
+  exposure, made a station at dusk ten times brighter than at night: the
+  hour's reference, not the light, set the target.
+- Adaptation over time in log space: towards a brighter picture in 2.5 s,
+  towards a darker one in 0.5 s, as the eye. Camera jumps, the first
+  view, jumps of the time of day (over 0.1 h) and of the scene light (over
+  half a stop) take the target at once until two measurements of the new
+  view, dropping read-backs of the view before.
 - Time of day off (the editing light): no auto exposure.
 
 ## Steps
@@ -94,3 +113,43 @@ E = exposure setting x (1 / s(h)) x correction.
 - Tunnel by day: brighter inside than Dimmed, the portal bright; night
   views about as Dimmed; overlays unchanged.
 - Cost: the measurement and read-back, a fraction of a millisecond.
+
+## Results (2026-10-13)
+
+Captures at 1280 x 800, AgX, physical sky, fair cumulus, bloom; Dimmed
+against Auto exposure (`build/renderer-autoexposure`).
+
+- CMK lake, 12 hours from 6:00 to 23:00: correction 0.00 at every hour
+  (the table is calibrated there); against Dimmed a mean difference of
+  0.1 to 3 levels of 255, no pixel over 24. The plain-coloured overlays
+  were blown out at night until the untextured branch got the unlit
+  compensation.
+- EUROPE1 portal, seen from outside (a stone cut in shade): +3.2 stops at
+  noon (the cut reads as a day view in shade, the tunnel mouth visible),
+  +1.4 at 19:30, Dimmed's picture at 22:00.
+- EUROPE1 deep tunnel (enclosed ambient 0.1): the night's exposure by day
+  (+5.06 stops), walls faint, the exit glowing; black at night as Dimmed.
+  Before the fog fix the haze lit it five stops brighter than its walls.
+- CMK underground station (enclosed ambient 0.1): at noon and at 19:30
+  the night's exposure, the station lit by its lamps as at night (what
+  Dimmed's night strength under cover gave by a rule); at 22:00 equal to
+  Dimmed (mean difference 0.02 levels).
+- CMK hall: +0.26 stops at noon (the hall is open at its sides, the lamps
+  outshone by day), 0 at 19:30, equal to Dimmed at 22:00 (means 15.66 and
+  15.66).
+- Signals: as Dimmed at 19:30 and 22:00; at noon the whole sky-heavy view
+  0.35 stops darker (past the dead zone), the lens with it.
+- Lamp ranges follow the exposure (`gatherLights` rangeGain, in half
+  stops): gathered at 0.03 they reached about 7 m instead of the 30 m cap,
+  and the station at night was darker than Dimmed.
+- Suites: rhi-shaders, time-of-day (three new cases), local-lights,
+  settings, sky, water-gl, environment-map-gl, editor-tools, map-view,
+  token-world pass.
+
+## Later
+
+- The enclosed ambient sets how bright a deep tunnel is by day: with auto
+  exposure it is seen at the night's exposure, 0.3 (the default) shows
+  grey walls, 0.1 faint ones.
+- The dead zone (1 stop) and the darkening above the brightest ordinary
+  view (0.75, at most 2 stops) are first values; to tune on routes.
