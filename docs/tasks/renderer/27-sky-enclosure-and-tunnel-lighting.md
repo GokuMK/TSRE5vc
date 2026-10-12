@@ -238,6 +238,38 @@ Fixed:
 - With the enclosure on, terrain is gathered all around the camera (as for
   the environment map).
 
+Follow-up (2026-10-12):
+
+- Alpha-tested parts whose texture has no transparent texels are drawn as
+  opaque now (`RenderItem::drawSurface`, under Blended shape parts option 1
+  and up, as blended parts already were), so they count in the map. The
+  CMK roofs above are not among them: their textures have transparent
+  texels. (The worktree profile has Blended shape parts at 0, "as marked
+  in the shape", which turns all of this off.)
+- EUROPE1 tunnel (`core.startup.camera=-6113,15062,-163.85,368.01,-168.45,493.94,-4.69`,
+  route under `C:\MagiPacks\Microsoft Train Simulator`): enclosed in every
+  capture (enclosed ambient 0 shows it black), also with the state before
+  the fixes above (300 m viewpoint, culling, the old shader). At the
+  default enclosed ambient of 0.3 a tunnel keeps 30 % of the sky's ambient
+  light everywhere inside, so its walls stay plainly visible; deep inside,
+  that may read as no enclosure. An idea: less ambient the farther the open
+  sky is (the map sampled wider, so the light fades from the portals in).
+- Cost of a redraw of the map (forced every frame, median frame minus the
+  cached run; Steam Deck, 1280 x 800):
+
+  | | CMK station (two runs) | bbb spheres |
+  |---|---|---|
+  | 1024 x 1024, 400 m (now) | +4.8 / +3.1 ms | +2.7 ms |
+  | 2048 x 2048, 1200 m | +5.0 / +6.1 ms | +11.0 ms |
+  | 2048 x 2048, 1600 m | +4.9 ms | +9.9 ms |
+  | 1024 x 1024, 2 km, objects of 5 m radius and up | +4.1 / +3.0 ms | +6.7 ms |
+
+  CPU about 1-3 ms of it. A bigger single map costs up to four times as
+  much per redraw and has to be redrawn as often as now (a cell move, once
+  a second); a coarse second map costs about as much as the near one but
+  can be redrawn rarely (every few hundred metres, every few seconds).
+  So: keep the near map, add the coarse one behind it.
+
 Open (for the user):
 
 - Alpha-tested surfaces: include them (roofs) and keep vegetation out.

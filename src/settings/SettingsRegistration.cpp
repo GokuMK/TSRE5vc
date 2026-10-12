@@ -843,7 +843,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Blended shape parts"
                 QT_TRID_NOOP("settings.core.rendering.blended.parts.name")).withDescriptionId(
-                //% "MSTS shapes mark many opaque parts as blended. Draw such parts with the opaque ones when their texture has no partly transparent texels, so they sort correctly and receive ambient occlusion."
+                //% "MSTS shapes mark many opaque parts as blended or alpha-tested. Draw such parts with the opaque ones when their texture has no transparent texels, so they sort correctly, receive ambient occlusion and count as cover in the sky enclosure."
                 QT_TRID_NOOP("settings.core.rendering.blended.parts.description"))
             .withOptions(numericChoices({{0,
                 //% "As marked in the shape"

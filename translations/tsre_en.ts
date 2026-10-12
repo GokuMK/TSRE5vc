@@ -9508,8 +9508,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.rendering.blended.parts.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="847"/>
-        <source>MSTS shapes mark many opaque parts as blended. Draw such parts with the opaque ones when their texture has no partly transparent texels, so they sort correctly and receive ambient occlusion.</source>
-        <translation>MSTS shapes mark many opaque parts as blended. Draw such parts with the opaque ones when their texture has no partly transparent texels, so they sort correctly and receive ambient occlusion.</translation>
+        <source>MSTS shapes mark many opaque parts as blended or alpha-tested. Draw such parts with the opaque ones when their texture has no transparent texels, so they sort correctly, receive ambient occlusion and count as cover in the sky enclosure.</source>
+        <translation>MSTS shapes mark many opaque parts as blended or alpha-tested. Draw such parts with the opaque ones when their texture has no transparent texels, so they sort correctly, receive ambient occlusion and count as cover in the sky enclosure.</translation>
     </message>
     <message id="settings.core.rendering.blended.parts.option.0">
         <location filename="../src/settings/SettingsRegistration.cpp" line="850"/>
