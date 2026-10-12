@@ -330,6 +330,36 @@ Follow-up (2026-10-12):
   stronger cut-off by day and a weaker one at night, as night frames cost
   less (no shadow maps are drawn; the bbb scene with many lamps runs much
   faster at night). Settings tuned by the time of day in general.
+- Underground test scene on CMK, 49 lamps (`core.startup.camera=-5306,14962,-985.03,104.82,-142.96,-69.09,-3.77`;
+  1920 x 1080, the user's settings, medians of the capture's frame
+  times). Each lamp (`SCOstreetlamp.glb`) is a spotlight of intensity 60
+  with a 75 degree cone and `range: 200` (Blender's export), plus its
+  glowing head gathered as a faint point light. The renderer takes the
+  shorter of the asset's range and its own reach (1/512 of the noon sun):
+  175 m for these spots, so up to 58 lights a cell (25 on average). The
+  bbb lamp (`tsre_street_lamp.gltf`, also intensity 60) says `range: 30`,
+  which is why it costs so much less.
+
+  | | Frame | Lights a cell (max / mean) |
+  |---|---|---|
+  | Now (1/512) | 97-98 ms | 58 / 25 |
+  | All lights 1/64 | 87-93 ms | 48 / 12 |
+  | All lights 1/32 | 81-85 ms | |
+  | All lights 1/16 | 73.6 ms | 29 / 6.6 |
+  | Spotlights 1/16, glows at 1/512 | 77 ms | 33 / 7.0 |
+  | Lamps off | 64.4 ms | |
+
+  Any cut-off on all lights shrinks the glows (8.9 m to 1.5-3 m), and here
+  they light the ceiling and the pillars around the lamps (the spots point
+  down): visibly darker (2 % of pixels, up to 40 of 765). With the glows
+  kept at 1/512 the frame is the same as now (largest difference 3 of 765)
+  and 21 ms faster. So: the cut-off on lights from assets (glTF lamps), not
+  on emissive glows, which are short anyway.
+- The asset's range: taking it as given (the earlier proposal) would make
+  this lamp reach 200 m, its exporter's value rather than a choice. Better:
+  the cut-off caps every asset light, the asset's `range` can only shorten
+  it, and a lamp that should reach farther says so in a TSRE field (glTF
+  `extras`, or later a per-object override in the world file).
 
 ### Gradual darkening under cover (2026-10-12)
 
