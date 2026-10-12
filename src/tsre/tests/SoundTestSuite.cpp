@@ -775,7 +775,7 @@ namespace {
 
 // The stand-in driver and what the wheels do.
 void motionCases(Checker &check) {
-    PlayDriver driver(20.0f, 160.0f);
+    PlayDriver driver(PlayDriver::Mode::Sine, 20.0f, 160.0f);
     float top = 0.0f;
     float pullingThrottle = 0.0f;
     float brakingBrake = 0.0f;
@@ -794,10 +794,17 @@ void motionCases(Checker &check) {
     check(std::abs(top - 20.0f) < 0.01f, "the stand-in driver runs up to its top speed");
     check(pullingThrottle > 0.6f && brakingBrake > 0.5f && stoodBraked,
           "throttle while speeding up, brake while slowing down, brakes on standing");
-    PlayDriver follower(20.0f, 160.0f);
+    PlayDriver follower(PlayDriver::Mode::Sine, 20.0f, 160.0f);
     for (int i = 0; i < 20; ++i)
         follower.follow(i * 0.5f, 0.1f);
     check(follower.throttle() > 0.3f && follower.brake() == 0.0f, "a speed from elsewhere gives throttle as it rises");
+    PlayDriver constant(PlayDriver::Mode::Constant, 40.0f);
+    bool steady = true;
+    for (int i = 0; i < 100; ++i) {
+        constant.run(0.1f);
+        steady &= constant.speed() == 40.0f && std::abs(constant.throttle() - 0.3f) < 1e-4f && constant.brake() == 0.0f;
+    }
+    check(steady, "the constant mode runs at its speed from the start, holding throttle");
     // 50 t at 20 m/s in a 300 m curve: base and speed resistance.
     const float base = 9.81f * 50000.0f * 0.35f * (1.435f + 1.6764f) / 600.0f;
     const float speed = 9.81f * 50.0f * 1.5f * 400.0f / 300.0f;

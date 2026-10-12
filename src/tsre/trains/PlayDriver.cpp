@@ -13,12 +13,23 @@
 #include <algorithm>
 #include <cmath>
 
-PlayDriver::PlayDriver(float topSpeed, float period) : top(std::max(topSpeed, 1.0f)), period(std::max(period, 10.0f)) {
+PlayDriver::PlayDriver(Mode mode, float topSpeed, float period)
+    : driving(mode), top(std::max(topSpeed, 1.0f)), period(std::max(period, 10.0f)) {
+    if (driving == Mode::Constant) {
+        // Running from the start: no standing first.
+        currentSpeed = lastSpeed = top;
+        currentThrottle = 0.3f;
+        currentBrake = 0.0f;
+    }
 }
 
 void PlayDriver::run(float seconds) {
-    time = std::fmod(time + std::max(seconds, 0.0f), double(period));
-    currentSpeed = top * float(std::max(0.0, std::sin(2.0 * M_PI * time / period)));
+    if (driving == Mode::Constant) {
+        currentSpeed = top;
+    } else {
+        time = std::fmod(time + std::max(seconds, 0.0f), double(period));
+        currentSpeed = top * float(std::max(0.0, std::sin(2.0 * M_PI * time / period)));
+    }
     derive(seconds);
 }
 

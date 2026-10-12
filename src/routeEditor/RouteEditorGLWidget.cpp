@@ -436,8 +436,8 @@ QString RouteEditorGLWidget::cameraSetting() const {
             .arg(rotX * 180.0 / M_PI, 0, 'f', 2).arg(rotY * 180.0 / M_PI, 0, 'f', 2);
 }
 
-// The camera is the listener; riding a consist (play mode) it is in the
-// lead engine's cab, whose cab sounds play.
+// The camera is the listener; riding a consist (play mode) it hears the
+// train as playSoundView says: from outside, or in the lead engine's cab.
 void RouteEditorGLWidget::updateSound(float seconds) {
     SoundListener listener;
     listener.tileX = (int)camera->pozT[0];
@@ -455,7 +455,7 @@ void RouteEditorGLWidget::updateSound(float seconds) {
     Consist *consist = dynamic_cast<Consist*>(camera->getCameraObject());
     if (consist != NULL && consist->engItems.size() > 0 && consist->engItems[0].engPointer != NULL) {
         Eng *lead = consist->engItems[0].engPointer;
-        listener.view = SoundView::Cab;
+        listener.view = playSoundView;
         listener.attachedTo = lead;
         listener.attachedValues = lead->soundValues();
     }

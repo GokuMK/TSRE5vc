@@ -225,9 +225,11 @@ taken); TSRE's own parsers read the files.
 - `SoundSystem` (replaces `SoundManager`): the listener (camera, its view,
   the car it rides), the clock random triggers count on, the registry of
   sources, one update per frame from the editor (not 50/200 ms ticks).
-- Editor: the play-mode camera rides the activity's lead engine, so the
-  listener's view is its cab; the engine's cab .sms is a car source fed
-  with the (still faked) speed and Variable2; the junction click stays.
+- Editor: the play-mode camera rides the activity's lead engine from
+  outside, so the train is heard from outside by default
+  (`RouteEditorGLWidget::playSoundView`; `SoundView::Cab` hears the lead
+  engine's cab .sms and inside track sounds instead); the junction click
+  stays.
   The old `MstsSoundDefinition`, `SoundManager`, `SoundVariables` and
   `SoundLib` are gone.
 
@@ -288,12 +290,14 @@ TSRE does not simulate trains yet: play mode moves the activity's consist
 along its path (`Ruch`). What a train's sounds can take from motion and
 geometry alone is done; what needs a power and brake model is a stand-in.
 
-- Stand-in driver (`PlayDriver`, `src/tsre/trains`): the speed on a sine,
-  running half the period and standing the other half (22 m/s, 160 s;
-  `TSRE_PLAY_TOP_SPEED`, `TSRE_PLAY_PERIOD`), replacing the constant
-  40 m/s; throttle and brake from its rises and falls (a third of the
-  throttle to hold the speed, brakes on standing). With a network engine it
-  takes the network's speed and derives the same.
+- Stand-in driver (`PlayDriver`, `src/tsre/trains`), its mode chosen in
+  code where `Eng::updateSim` makes it: Sine (the default) runs half the
+  period and stands the other half (22 m/s, 160 s); Constant runs at
+  40 m/s from the start, the old test drive. `TSRE_PLAY_TOP_SPEED` and
+  `TSRE_PLAY_PERIOD` override the speed and period. Throttle and brake
+  follow from the speed's rises and falls (a third of the throttle to hold
+  the speed, brakes on standing). With a network engine it takes the
+  network's speed and derives the same.
 - Every car: its outside .sms (the Wagon section's `Sound`, looked for in
   the car's SOUND and the root's SOUND) besides the leading engine's cab
   .sms and the track sounds; heard as far as the train is long and 50 m
@@ -328,7 +332,7 @@ to standing, Variable1 followed the wheels (35.8 at 22 m/s with 0.975 m
 driving wheels), the brake cylinder rose to 50 psi while slowing, curve
 force appeared in curves (700-740 N at 21 m/s).
 
-`sound` suite: 91 cases (the driver's profile, curve force, angle of attack,
+`sound` suite: 92 cases (the driver's profiles, curve force, angle of attack,
 wheel turns, Doppler, pass-through, the longer reach).
 
 ## Verification

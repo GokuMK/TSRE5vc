@@ -708,13 +708,17 @@ void Eng::pushDrawBorder3d(RenderQueue &queue) {
 }
 
 void Eng::updateSim(float deltaTime){
-    // A stand-in driver until TSRE simulates trains: the speed on a sine,
-    // running and standing in turn (TSRE_PLAY_TOP_SPEED m/s,
-    // TSRE_PLAY_PERIOD s); throttle and brake follow from it.
+    // A stand-in driver until TSRE simulates trains; throttle and brake
+    // follow from its speed. Choose its mode here: Sine runs and stands in
+    // turn (22 m/s, a 160 s period), Constant runs at 40 m/s from the start
+    // (the old test drive). TSRE_PLAY_TOP_SPEED (m/s) and TSRE_PLAY_PERIOD
+    // (s) override the speed and period.
     if(driver == NULL){
-        const float top = qEnvironmentVariableIsSet("TSRE_PLAY_TOP_SPEED") ? qEnvironmentVariable("TSRE_PLAY_TOP_SPEED").toFloat() : 22;
+        const PlayDriver::Mode mode = PlayDriver::Mode::Sine;
+        const float defaultSpeed = mode == PlayDriver::Mode::Constant ? 40 : 22;
+        const float top = qEnvironmentVariableIsSet("TSRE_PLAY_TOP_SPEED") ? qEnvironmentVariable("TSRE_PLAY_TOP_SPEED").toFloat() : defaultSpeed;
         const float period = qEnvironmentVariableIsSet("TSRE_PLAY_PERIOD") ? qEnvironmentVariable("TSRE_PLAY_PERIOD").toFloat() : 160;
-        driver = new PlayDriver(top, period);
+        driver = new PlayDriver(mode, top, period);
     }
     if(!Game::useNetworkEng){
         driver->run(deltaTime);

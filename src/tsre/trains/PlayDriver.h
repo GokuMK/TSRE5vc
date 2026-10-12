@@ -11,15 +11,19 @@
 #ifndef PLAYDRIVER_H
 #define PLAYDRIVER_H
 
-// A stand-in for driving the played train until TSRE simulates one: the
-// speed follows a sine, running half the period and standing the other
-// half; throttle and brake follow from its rises and falls, so sounds have
-// something to follow. Without the sine (follow()) it takes a speed from
-// elsewhere (the network) and derives the same.
+// A stand-in for driving the played train until TSRE simulates one, in one
+// of two modes: the speed on a sine, running half the period and standing
+// the other half, or a constant speed from the start; throttle and brake
+// follow from its rises and falls, so sounds have something to follow.
+// follow() takes a speed from elsewhere (the network) and derives the same.
 class PlayDriver {
 public:
-    // Top speed in m/s, period in seconds.
-    explicit PlayDriver(float topSpeed = 25.0f, float period = 160.0f);
+    enum class Mode { Sine, Constant };
+
+    // Top (or constant) speed in m/s, the sine's period in seconds.
+    explicit PlayDriver(Mode mode = Mode::Sine, float topSpeed = 25.0f, float period = 160.0f);
+
+    Mode mode() const { return driving; }
 
     void run(float seconds);
     void follow(float speed, float seconds);
@@ -33,6 +37,7 @@ public:
 private:
     void derive(float seconds);
 
+    Mode driving;
     float top;
     float period;
     double time = 0.0;
