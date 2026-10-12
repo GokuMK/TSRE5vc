@@ -222,6 +222,38 @@ Path* ActLib::GetPathByName(QString name, QString routePath){
     return NULL;
 }
 
+void ActLib::PathChanged(Path *path) {
+    for (Service *service : Services)
+        if (service != NULL)
+            service->pathChanged(path);
+}
+
+int ActLib::AddNewPath(Path *path) {
+    Paths[jestpath] = path;
+    return jestpath++;
+}
+
+void ActLib::RemovePath(Path *path) {
+    for (auto it = Paths.begin(); it != Paths.end(); ++it)
+        if (it.value() == path)
+            it.value() = NULL;
+}
+
+QStringList ActLib::PathUsers(Path *path) {
+    QStringList users;
+    if (path == NULL)
+        return users;
+    for (Service *service : Services)
+        if (service != NULL && service->routeHashid == path->routeHashid
+                && service->pathId.compare(path->trPathName, Qt::CaseInsensitive) == 0)
+            users << service->name;
+    for (Activity *activity : Act)
+        if (activity != NULL && activity->header != NULL && activity->routeHashid == path->routeHashid
+                && activity->header->pathid.compare(path->trPathName, Qt::CaseInsensitive) == 0)
+            users << activity->name;
+    return users;
+}
+
 int ActLib::AddPath(QString path, QString name) {
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
@@ -367,7 +399,7 @@ void ActLib::SaveAll(){
         if(p == NULL) continue;
         if(p->loaded != 1) continue;
         if(p->isModified()){
-            //p->save();
+            p->save();
         }
     }
 }

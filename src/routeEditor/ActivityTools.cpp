@@ -27,6 +27,14 @@
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/gui/UnsavedDialog.h>
 #include <tsre/world/Trk.h>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDir>
+#include <QFile>
+#include <QFormLayout>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QRegularExpression>
 
 ActivityTools::ActivityTools(QString name)
     : QWidget(){
@@ -71,6 +79,10 @@ ActivityTools::ActivityTools(QString name)
     buttonTools["actNewSpeedZoneTool"] = new QPushButton(
         //% "New"
         qtTrId("route.editor.activity.tools.button.new"), this);
+    // Edits the chosen path with the path tool (task editor 06).
+    buttonTools["trackPathTool"] = new QPushButton(
+        //% "Edit"
+        qtTrId("route.editor.activity.tools.button.act.paths.edit"), this);
 
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
@@ -164,16 +176,18 @@ ActivityTools::ActivityTools(QString name)
     QPushButton *actPathsNew = new QPushButton(
         //% "New"
         qtTrId("route.editor.activity.tools.button.act.paths.new"));
-    QPushButton *actPathsEdit = new QPushButton(
-        //% "Edit"
-        qtTrId("route.editor.activity.tools.button.act.paths.edit"));
-    QObject::connect(actPathsEdit, SIGNAL(released()), this, SLOT(actPathsEditToolEnabled()));
+    QPushButton *actPathsEdit = buttonTools["trackPathTool"];
+    QObject::connect(actPathsEdit, SIGNAL(toggled(bool)), this, SLOT(actPathsEditToolEnabled(bool)));
+    QObject::connect(&cPath, SIGNAL(currentIndexChanged(int)), this, SLOT(cPathSelected(int)));
     QPushButton *actPathsClone = new QPushButton(
         //% "Clone"
         qtTrId("route.editor.activity.tools.button.act.paths.clone"));
     QPushButton *actPathsDelete = new QPushButton(
         //% "Delete"
         qtTrId("route.editor.activity.tools.button.act.paths.delete"));
+    QObject::connect(actPathsNew, SIGNAL(released()), this, SLOT(actPathsNewSelected()));
+    QObject::connect(actPathsClone, SIGNAL(released()), this, SLOT(actPathsCloneSelected()));
+    QObject::connect(actPathsDelete, SIGNAL(released()), this, SLOT(actPathsDeleteSelected()));
     vlist1->addWidget(actPathsNew,0,0);
     vlist1->addWidget(actPathsEdit,0,1);
     vlist1->addWidget(actPathsClone,0,2);
@@ -800,13 +814,156 @@ void ActivityTools::actNewLooseConsistToolEnabled(bool val){
     }
 }
 
-void ActivityTools::actPathsEditToolEnabled(){
+void ActivityTools::actPathsEditToolEnabled(bool val){
+    if(!val){
+        emit enableTool("");
+        return;
+    }
+    selectCurrentPath();
+    emit enableTool("trackPathTool");
+}
+
+void ActivityTools::cPathSelected(int index){
+    Q_UNUSED(index);
+    // While the path tool is on, it edits the path chosen.
+    if(buttonTools["trackPathTool"] != NULL && buttonTools["trackPathTool"]->isChecked())
+        selectCurrentPath();
+}
+
+bool ActivityTools::askPathNames(QString &id, QString &name){
+    const QString directory = Game::root + "/ROUTES/" + Game::route + "/PATHS";
+    for(;;){
+        QDialog dialog(this);
+        dialog.setWindowTitle(
+            //% "Path"
+            qtTrId("route.editor.activity.tools.path.dialog.title"));
+        QFormLayout *form = new QFormLayout(&dialog);
+        QLineEdit *idEdit = new QLineEdit(id);
+        QLineEdit *nameEdit = new QLineEdit(name);
+        form->addRow(
+            //% "File name"
+            qtTrId("route.editor.activity.tools.path.dialog.file"), idEdit);
+        form->addRow(
+            //% "Display name"
+            qtTrId("route.editor.activity.tools.path.dialog.name"), nameEdit);
+        QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        form->addRow(buttons);
+        QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        if(dialog.exec() != QDialog::Accepted)
+            return false;
+        id = idEdit->text().trimmed();
+        name = nameEdit->text().trimmed();
+        if(name.isEmpty())
+            name = id;
+        // Services and activities name a path by its id, the file's name.
+        bool taken = QFile::exists(directory + "/" + id + ".pat");
+        for(int i = 0; i < route->path.size() && !taken; i++)
+            taken = route->path[i] != NULL
+                    && (route->path[i]->nameId.compare(id, Qt::CaseInsensitive) == 0
+                        || route->path[i]->trPathName.compare(id, Qt::CaseInsensitive) == 0);
+        const bool valid = !id.isEmpty() && !id.contains(QRegularExpression("[\\\\/:*?\"<>|]"));
+        if(valid && !taken)
+            return true;
+        QMessageBox::warning(this, qtTrId("route.editor.activity.tools.path.dialog.title"),
+            valid ?
+            //% "A path named %1 exists already."
+            qtTrId("route.editor.activity.tools.path.dialog.taken").arg(id) :
+            //% "A file name cannot be empty or contain \\ / : * ? \" < > |."
+            qtTrId("route.editor.activity.tools.path.dialog.invalid"));
+    }
+}
+
+void ActivityTools::addEditedPath(Path *path){
+    ActLib::AddNewPath(path);
+    route->path.push_back(path);
+    reloadPathsList();
+    cPath.setCurrentIndex(cPath.findData(QVariant(int(route->path.size()) - 1)));
+    // Edit it: a click on the track starts a new path.
+    if(buttonTools["trackPathTool"]->isChecked())
+        selectCurrentPath();
+    else
+        buttonTools["trackPathTool"]->setChecked(true);
+}
+
+void ActivityTools::actPathsNewSelected(){
+    if(route == NULL)
+        return;
+    QString id, name;
+    if(!askPathNames(id, name))
+        return;
+    const QString directory = Game::root + "/ROUTES/" + Game::route + "/PATHS";
+    QDir().mkpath(directory);
+    Path *path = new Path(directory, id + ".pat", true);
+    path->displayName = name;
+    addEditedPath(path);
+}
+
+void ActivityTools::actPathsCloneSelected(){
+    if(route == NULL || cPath.currentIndex() < 0)
+        return;
+    const int sourceId = cPath.currentData().toInt();
+    if(sourceId < 0 || sourceId >= route->path.size() || route->path[sourceId] == NULL)
+        return;
+    Path *source = route->path[sourceId];
+    QString id = source->nameId + "_copy";
+    QString name = source->displayName + " copy";
+    if(!askPathNames(id, name))
+        return;
+    Path *path = new Path(source->path, id + ".pat", true);
+    path->copyFrom(*source);
+    path->displayName = name;
+    addEditedPath(path);
+}
+
+void ActivityTools::actPathsDeleteSelected(){
+    if(route == NULL || cPath.currentIndex() < 0)
+        return;
+    const int pathId = cPath.currentData().toInt();
+    if(pathId < 0 || pathId >= route->path.size() || route->path[pathId] == NULL)
+        return;
+    Path *path = route->path[pathId];
+    //% "Delete Path"
+    const QString title = qtTrId("route.editor.activity.tools.path.delete.title");
+    if(!Game::writeEnabled){
+        QMessageBox::warning(this, title,
+            //% "The route is read-only."
+            qtTrId("route.editor.activity.tools.path.delete.read.only"));
+        return;
+    }
+    QString question =
+        //% "Delete the path %1 and its file? This cannot be undone."
+        qtTrId("route.editor.activity.tools.path.delete.question").arg(path->displayName);
+    const QStringList users = ActLib::PathUsers(path);
+    if(!users.isEmpty())
+        question += "\n\n" +
+            //% "These services and activities name it: %1"
+            qtTrId("route.editor.activity.tools.path.delete.users").arg(users.join(", "));
+    if(QMessageBox::question(this, title, question) != QMessageBox::Yes)
+        return;
+    if(QFile::exists(path->pathid) && !QFile::remove(path->pathid)){
+        QMessageBox::warning(this, title,
+            //% "The file %1 could not be deleted."
+            qtTrId("route.editor.activity.tools.path.delete.failed").arg(path->pathid));
+        return;
+    }
+    if(path->isSelected())
+        emit objectSelected(NULL);
+    path->unselect();
+    ActLib::RemovePath(path);
+    route->path.removeAll(path);
+    reloadPathsList();
+}
+
+void ActivityTools::selectCurrentPath(){
+    if(route == NULL || cPath.currentIndex() < 0)
+        return;
     int currentPathId = cPath.currentData().toInt();
+    if(currentPathId < 0 || currentPathId >= route->path.size())
+        return;
     for(int i = 0; i < route->path.size(); i++){
         route->path[i]->unselect();
     }
-    qDebug() << "aa";
-    //route->path[currentPathId]->select();
     emit objectSelected(route->path[currentPathId]);
 }
 

@@ -61,6 +61,9 @@ public:
     int iTRnodes = 0;
     int iTRitems = 0;
     int serial = 0;
+    // Grows with every refresh() after an edit, so what holds track node ids
+    // (paths) can tell the database changed.
+    unsigned int revision = 0;
     TDB(TSectionDAT* tsection, bool road);
     TDB(const TDB& o);
     virtual ~TDB();

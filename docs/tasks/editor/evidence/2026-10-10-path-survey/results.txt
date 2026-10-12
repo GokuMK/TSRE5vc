@@ -1,0 +1,157 @@
+   146  PDP 1 1 | node flags 00000000 | first
+    20  PDP 1 1 | node flags 00000000 | first [broken path]
+   152  PDP 1 1 | node flags 00000000 | last
+    27  PDP 1 1 | node flags 00000000 | last [broken path]
+    14  PDP 1 1 | node flags 00000001 | mid
+     9  PDP 1 1 | node flags 00000001 | mid [broken path]
+     4  PDP 1 1 | node flags 00000002 | mid
+   190  PDP 1 1 | node flags 00000004 | mid
+    31  PDP 1 1 | node flags 00000004 | mid [broken path]
+     1  PDP 1 1 | node flags 00000008 | first
+     3  PDP 1 1 | node flags 00000008 | first [broken path]
+     1  PDP 1 1 | node flags 00000009 | mid
+     1  PDP 1 1 | node flags 00000009 | mid [broken path]
+     1  PDP 1 1 | node flags 0000000c | mid [broken path]
+     2  PDP 1 1 | node flags 00000010 | first
+     1  PDP 1 1 | node flags 00000010 | first [broken path]
+     1  PDP 1 1 | node flags 00000011 | mid [broken path]
+     2  PDP 1 1 | node flags 00000014 | mid
+     2  PDP 1 1 | node flags 00000014 | mid [broken path]
+     2  PDP 1 13 | node flags 00000000 | first
+     1  PDP 1 13 | node flags 00000000 | first [broken path]
+     3  PDP 1 13 | node flags 00000000 | last
+     2  PDP 1 13 | node flags 00000000 | last [broken path]
+     1  PDP 1 13 | node flags 00000001 | mid
+     1  PDP 1 13 | node flags 00000001 | mid [broken path]
+     1  PDP 1 3 | node flags 00000000 | first [broken path]
+     1  PDP 1 3 | node flags 00000000 | last [broken path]
+    13  PDP 1 9 | node flags 00000000 | first
+     4  PDP 1 9 | node flags 00000000 | first [broken path]
+     9  PDP 1 9 | node flags 00000000 | last
+     7  PDP 1 9 | node flags 00000001 | mid
+  5053  PDP 2 0 | node flags 00000000 | mid
+  1113  PDP 2 0 | node flags 00000000 | mid [broken path]
+    47  PDP 2 0 | node flags 00000008 | mid
+    27  PDP 2 0 | node flags 00000008 | mid [broken path]
+    44  PDP 2 0 | node flags 00000010 | mid
+    17  PDP 2 0 | node flags 00000010 | mid [broken path]
+    32  PDP 2 12 | node flags 00000000 | mid
+    13  PDP 2 12 | node flags 00000000 | mid [broken path]
+     2  PDP 2 12 | node flags 00000008 | mid
+    19  PDP 2 12 | node flags 00000008 | mid [broken path]
+    45  PDP 2 2 | node flags 00000008 | mid [broken path]
+     9  PDPs shared by several nodes
+     4  PDPs shared by several nodes [broken path]
+     6  TrPathFlags 00000004
+    15  TrPathFlags 00000008
+    30  TrPathFlags 0000000c
+    13  TrPathFlags 00000010
+     1  TrPathFlags 00000014
+     5  TrPathFlags 00000018
+     5  TrPathFlags 0000001c
+     3  TrPathFlags 00000020
+     4  TrPathFlags 00000024
+     3  TrPathFlags 00000028
+    24  TrPathFlags 0000002c
+     5  TrPathFlags 00000030
+    11  TrPathFlags 0000003c
+    69  TrPathFlags absent
+   152  end PDP flags 1 1
+    27  end PDP flags 1 1 [broken path]
+     3  end PDP flags 1 13
+     2  end PDP flags 1 13 [broken path]
+     1  end PDP flags 1 3 [broken path]
+     9  end PDP flags 1 9
+     3  end point: nearest node of its track is a end, 1-5 m
+    14  end point: nearest node of its track is a end, 5-50 m
+     1  end point: nearest node of its track is a end, 5-50 m [broken path]
+    77  end point: nearest node of its track is a end, <1 m
+     4  end point: nearest node of its track is a end, <1 m [broken path]
+     9  end point: nearest node of its track is a end, >50 m
+     8  end point: nearest node of its track is a end, >50 m [broken path]
+     2  end point: nearest node of its track is a junction, 1-5 m
+    11  end point: nearest node of its track is a junction, 5-50 m
+    48  end point: nearest node of its track is a junction, >50 m
+    17  end point: nearest node of its track is a junction, >50 m [broken path]
+   160  halfway node on the MAIN route
+    32  halfway node on the MAIN route [broken path]
+    28  halfway node on the SIDING route
+     2  halfway node on the SIDING route [broken path]
+     6  intermediate (flag 4) node: on a single track
+   186  intermediate (flag 4) node: on one of parallel tracks
+    34  intermediate (flag 4) node: on one of parallel tracks [broken path]
+   127  intermediate node at 40% of its track node
+    59  intermediate node at 50% of its track node
+    35  junction PDP 1-10 m off
+   144  junction PDP >10 m off
+  6233  junction PDP on TDB junction
+   496  junction node flags 0: facing, OTHER exit
+    98  junction node flags 0: facing, OTHER exit [broken path]
+  1884  junction node flags 0: facing, main exit
+   344  junction node flags 0: facing, main exit [broken path]
+  2704  junction node flags 0: trailing
+   523  junction node flags 0: trailing [broken path]
+     3  junction node flags 10: facing, OTHER exit
+     2  junction node flags 10: facing, OTHER exit [broken path]
+    15  junction node flags 10: facing, main exit
+     7  junction node flags 10: facing, main exit [broken path]
+    26  junction node flags 10: trailing
+     8  junction node flags 10: trailing [broken path]
+    12  junction node flags 8: facing, OTHER exit
+     4  junction node flags 8: facing, OTHER exit [broken path]
+    15  junction node flags 8: facing, main exit
+     9  junction node flags 8: facing, main exit [broken path]
+    21  junction node flags 8: trailing
+    16  junction node flags 8: trailing [broken path]
+     0  nodes off the main chain
+     1  pair J-J NOT adjacent (junctions skipped)
+   126  pair J-J NOT adjacent (junctions skipped) [broken path]
+  5774  pair J-J adjacent
+     7  pair J-J adjacent, two tracks (ambiguous)
+    10  pair J-J adjacent, two tracks (ambiguous) [broken path]
+    28  pair J-J same junction, flags 0 0 [broken path]
+     1  pair J-J same junction, flags 0 8 [broken path]
+    14  pair J-J same junction, flags 8 8 [broken path]
+     7  pair J-J two tracks, usable by a train: 2
+    10  pair J-J two tracks, usable by a train: 2 [broken path]
+    14  pair J-P NOT adjacent
+   437  pair J-P adjacent
+   222  pair J-P on one of two parallel tracks
+    13  pair P-J NOT adjacent
+   438  pair P-J adjacent
+     1  pair P-P NOT adjacent
+     7  pair P-P same track node
+   194  path ends at a point
+   194  path starts at a point
+   194  paths
+    30  paths broken (a PDP off the TDB)
+    26  point PDP >2 m off track
+   627  point PDP on track
+   164  point PDP within 2 m of a junction/end
+    24  route EUROPE1 paths
+    21  route EUROPE2 paths
+    27  route JAPAN1 paths
+    27  route JAPAN2 paths
+     3  route TUTORIAL ROUTE paths
+    36  route USA1 paths
+    56  route USA2 paths
+   149  start PDP flags 1 1
+    24  start PDP flags 1 1 [broken path]
+     2  start PDP flags 1 13
+     1  start PDP flags 1 13 [broken path]
+     1  start PDP flags 1 3 [broken path]
+    13  start PDP flags 1 9
+     4  start PDP flags 1 9 [broken path]
+     1  start point: nearest node of its track is a end, 1-5 m
+     8  start point: nearest node of its track is a end, 5-50 m
+    74  start point: nearest node of its track is a end, <1 m
+     4  start point: nearest node of its track is a end, <1 m [broken path]
+     8  start point: nearest node of its track is a end, >50 m
+     6  start point: nearest node of its track is a end, >50 m [broken path]
+     1  start point: nearest node of its track is a junction, 1-5 m
+     2  start point: nearest node of its track is a junction, 1-5 m [broken path]
+     6  start point: nearest node of its track is a junction, 5-50 m
+     1  start point: nearest node of its track is a junction, 5-50 m [broken path]
+     1  start point: nearest node of its track is a junction, <1 m
+    65  start point: nearest node of its track is a junction, >50 m
+    17  start point: nearest node of its track is a junction, >50 m [broken path]

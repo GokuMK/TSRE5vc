@@ -22,7 +22,12 @@ public:
     virtual ~PropertiesActivityPath();
     bool support(GameObj* obj);
     void showObj(GameObj* obj);
-    
+
+private slots:
+    void nameEdited();
+    void startEdited();
+    void endEdited();
+
 private:
     Path *pathObj = NULL;
     QLineEdit ePathFName;

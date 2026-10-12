@@ -18,6 +18,7 @@ class Route;
 class GameObj;
 class Activity;
 class ActivityServiceDefinition;
+class Path;
 class PreciseTileCoordinate;
 
 class ActivityTools : public QWidget{
@@ -32,7 +33,11 @@ public slots:
     void conFilesShowEnabled(QString);
     void routeLoaded(Route* r);
     void actNewLooseConsistToolEnabled(bool val);
-    void actPathsEditToolEnabled();
+    void actPathsEditToolEnabled(bool val);
+    void actPathsNewSelected();
+    void actPathsCloneSelected();
+    void actPathsDeleteSelected();
+    void cPathSelected(int index);
     void actConsistDeleteEnabled();
     void actConsistJumpEnabled();
     void actFailedSignalsJumpEnabled();
@@ -102,6 +107,13 @@ signals:
     void jumpTo(PreciseTileCoordinate* c);
     
 private:
+    // Selects the path chosen in the list, which the path tool edits.
+    void selectCurrentPath();
+    // Asks for a new path's file name (its id) and display name; false when
+    // cancelled.
+    bool askPathNames(QString &id, QString &name);
+    // A new or cloned path: listed, chosen and edited.
+    void addEditedPath(Path *path);
     Route *route = NULL;
     QComboBox consists;
     QComboBox speedZones;

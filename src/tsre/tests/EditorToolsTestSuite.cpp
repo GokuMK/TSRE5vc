@@ -226,11 +226,15 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     // Geo and activity tools; every name the panels send.
     const QStringList dataTools = {"terrainOverlayTool", "heightTileLoadTool", "actNewLooseConsistTool",
                                    "actNewSpeedZoneTool", "pickNewEventLocationTool",
-                                   "quadTreeTool"};
+                                   "quadTreeTool", "trackPathTool"};
     allFound = true;
     for (const QString &id : dataTools)
         allFound = allFound && registry.find(id) != nullptr;
     check(allFound, "the geo and activity tools are registered by their panel names");
+    // The path tool (task editor 06) edits in 3D and on the map.
+    check(registry.allowed("trackPathTool", ViewMode::Scene3D)
+              && registry.allowed("trackPathTool", ViewMode::Map),
+          "the path tool works in both modes");
     // Names the panels send that need no mouse handling (live flex is a
     // view state; the others act in their panels).
     const QStringList withoutTool = {"liveFlexTool", "proceduralPickTool", "proceduralLockTool",

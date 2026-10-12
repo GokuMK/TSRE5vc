@@ -53,6 +53,12 @@ QVBoxLayout *vbox = new QVBoxLayout;
     //vlist->setContentsMargins(3,0,3,0);
     //vbox->addItem(vlist);
 
+    // The file name is the path's id; services and activities name it.
+    ePathFName.setReadOnly(true);
+    QObject::connect(&eName, &QLineEdit::editingFinished, this, &PropertiesActivityPath::nameEdited);
+    QObject::connect(&ePathStart, &QLineEdit::editingFinished, this, &PropertiesActivityPath::startEdited);
+    QObject::connect(&ePathEnd, &QLineEdit::editingFinished, this, &PropertiesActivityPath::endEdited);
+
     vbox->addStretch(1);
     this->setLayout(vbox);
 }
@@ -75,6 +81,43 @@ void PropertiesActivityPath::showObj(GameObj* obj){
     this->eName.setText(pathObj->displayName);
     this->ePathStart.setText(pathObj->trPathStart);
     this->ePathEnd.setText(pathObj->trPathEnd);
+
+    // The start, end, reversal and wait points, and how many junctions.
+    nodeList.clear();
+    int junctions = 0;
+    for (const PathTrack::Node &node : pathObj->nodes()) {
+        QString text;
+        switch (node.type) {
+        case PathTrack::NodeType::Start:
+            //% "Start"
+            text = qtTrId("route.editor.properties.activity.path.node.start");
+            break;
+        case PathTrack::NodeType::End:
+            //% "End"
+            text = qtTrId("route.editor.properties.activity.path.node.end");
+            break;
+        case PathTrack::NodeType::Reverse:
+            //% "Reversal"
+            text = qtTrId("route.editor.properties.activity.path.node.reverse");
+            break;
+        case PathTrack::NodeType::Wait:
+            //% "Wait %1 s"
+            text = qtTrId("route.editor.properties.activity.path.node.wait").arg(node.waitTime);
+            break;
+        case PathTrack::NodeType::Junction:
+            ++junctions;
+            continue;
+        default:
+            continue;
+        }
+        if (node.broken)
+            //% "%1 (not on the track database)"
+            text = qtTrId("route.editor.properties.activity.path.node.broken").arg(text);
+        nodeList.addItem(text);
+    }
+    nodeList.addItem(
+        //% "%n junction(s)"
+        qtTrId("route.editor.properties.activity.path.node.junctions", junctions));
 }
 
 bool PropertiesActivityPath::support(GameObj* obj){
@@ -83,4 +126,17 @@ bool PropertiesActivityPath::support(GameObj* obj){
     if(obj->typeObj == GameObj::activitypath)
         return true;
     return false;
+}void PropertiesActivityPath::nameEdited(){
+    if(pathObj != NULL)
+        pathObj->setDisplayName(eName.text());
+}
+
+void PropertiesActivityPath::startEdited(){
+    if(pathObj != NULL)
+        pathObj->setStartName(ePathStart.text());
+}
+
+void PropertiesActivityPath::endEdited(){
+    if(pathObj != NULL)
+        pathObj->setEndName(ePathEnd.text());
 }

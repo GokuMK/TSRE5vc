@@ -57,6 +57,8 @@ ActivityMapLayer::~ActivityMapLayer() = default;
 QColor ActivityMapLayer::colour(const MapPalette &palette, int group) {
     switch (group) {
     case Path: return palette.pathNode;
+    case PathStart: return palette.pathStart;
+    case PathEnd: return palette.pathEnd;
     case Vehicles: return palette.wagon;
     case Engines: return palette.engine;
     case SpeedZone: return palette.speedZone;
@@ -192,6 +194,8 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     TrackMapLayer::appendRibbons(bandVertices, path.lines.data(), int(path.lines.size() / 6),
                                  PathPixels * mpp);
     circles(path.points, Path);
+    circles(path.starts, PathStart);
+    circles(path.ends, PathEnd);
     // Consists.
     const int vehicleCount = int(consists.vehicles.size()) / MapFeatures::VehicleFloats;
     for (int i = 0; i < vehicleCount; ++i) {

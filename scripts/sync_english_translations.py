@@ -18,6 +18,7 @@ PLURAL_FORMS = {
     'route.properties.group.object.count': ('Group: %n object', 'Group: %n objects'),
     'route.properties.group.children.count': ('%n object', '%n objects'),
     'route.properties.speedpost.fixed.track.items': ('Fixed %n track item.', 'Fixed %n track items.'),
+    'route.editor.properties.activity.path.node.junctions': ('%n junction', '%n junctions'),
 }
 
 MESSAGE = re.compile(r'<message( [^>]*)?>.*?</message>', re.S)

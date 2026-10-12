@@ -2553,6 +2553,44 @@ bool RouteEditorGLWidget::runDiagnosticOverlayAction(const QString &action) {
     return true;
 }
 
+bool RouteEditorGLWidget::runDiagnosticPathAction(const QString &action, float dx, float dz) {
+    EditorTool *tool = tools->find(QStringLiteral("trackPathTool"));
+    if (tool == nullptr || currentViewMode != ViewMode::Map || route == NULL)
+        return false;
+    for (Path *path : route->path)
+        if (path != NULL && path->isSelected())
+            setSelectedObj(path);
+    const int width = qRound(float(this->width()) * Game::PixelRatio);
+    const int height = qRound(float(this->height()) * Game::PixelRatio);
+    cameraMap->setViewport(width, height);
+    mousex = float(width) / 2.0f;
+    mousey = float(height) / 2.0f;
+    updateMapPointer();
+    aktPointerPos[0] += dx;
+    aktPointerPos[2] += dz;
+    QMenu menu;
+    tool->contextMenu(*this, menu);
+    static const QStringList order = {"start", "end", "other", "reverse"};
+    QList<QAction *> entries;
+    for (QAction *entry : menu.actions())
+        if (!entry->isSeparator())
+            entries << entry;
+    for (QAction *entry : entries)
+        qInfo().noquote() << "path tool menu:" << entry->text()
+                          << (entry->isEnabled() ? "enabled" : "disabled");
+    const int index = order.indexOf(action);
+    if (index < 0 || index >= entries.size() || !entries[index]->isEnabled())
+        return false;
+    entries[index]->trigger();
+    if (Path *path = dynamic_cast<Path *>(selectedObj))
+        qInfo().noquote() << "path tool: the path has" << path->nodes().size() << "nodes,"
+                          << path->legs().size() << "legs";
+    if (activityMap)
+        activityMap->invalidate();
+    update();
+    return true;
+}
+
 void RouteEditorGLWidget::terrainChanged() {
     if (terrainMap)
         terrainMap->invalidate();
@@ -3968,6 +4006,10 @@ void RouteEditorGLWidget::editUndo() {
         setSelectedObj(NULL);
     }
     Undo::UndoLast();
+    // Undone path edits show on the map's next draw.
+    if (activityMap)
+        activityMap->invalidate();
+    update();
 }
 
 void RouteEditorGLWidget::showTrkEditr() {

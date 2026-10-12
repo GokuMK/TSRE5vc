@@ -91,6 +91,10 @@ struct ViewSpec {
     // overlay opacity (0 to 1).
     QStringList overlayActions;
     double overlayOpacity = 1.0;
+    // Path tool menu entries run on the selected path (task editor 06):
+    // [entry, dx, dz], the entry "start", "end", "other" or "reverse" at the
+    // view's centre moved by dx, dz metres.
+    QJsonArray pathActions;
     // Measure Distance: from and to, metres from the view's centre (x east, z south).
     bool hasMeasure = false;
     float measure[4] = {0, 0, 0, 0};
@@ -276,6 +280,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         for (const QJsonValue &action : object.value("overlay").toArray())
             view.overlayActions << action.toString();
         view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
+        view.pathActions = object.value("pathActions").toArray();
         const QJsonArray measure = object.value("measure").toArray();
         view.hasMeasure = measure.size() == 4;
         for (int i = 0; i < 4 && view.hasMeasure; ++i)
@@ -574,6 +579,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             TerrainOverlays::setOpacity(float(spec.overlayOpacity));
             for (const QString &action : spec.overlayActions)
                 widget.runDiagnosticOverlayAction(action);
+            for (const QJsonValue &value : spec.pathActions) {
+                const QJsonArray entry = value.toArray();
+                const bool done = widget.runDiagnosticPathAction(
+                    entry.at(0).toString(), float(entry.at(1).toDouble()), float(entry.at(2).toDouble()));
+                qInfo().noquote() << "path action" << entry.at(0).toString() << (done ? "done" : "not available");
+            }
             const MapGroundPoint measureFrom{tileX, tileZ, pos[0] + spec.measure[0], pos[2] + spec.measure[1]};
             const MapGroundPoint measureTo{tileX, tileZ, pos[0] + spec.measure[2], pos[2] + spec.measure[3]};
             widget.setDiagnosticMapMeasurement(spec.hasMeasure ? &measureFrom : nullptr,

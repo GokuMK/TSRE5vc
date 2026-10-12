@@ -260,6 +260,13 @@ void Service::initToPlay(){
     }
 }
 
+void Service::pathChanged(Path *path){
+    if(path == NULL || pathPointer != path || conPointer == NULL)
+        return;
+    float start[4];
+    conPointer->initOnTrack(pathPointer->getStartPositionTXZ(start), pathPointer->getStartDirection(), pathPointer->getJunctionDirections());
+}
+
 Consist *Service::getConsistPointer(){
     return conPointer;
 }
