@@ -67,7 +67,8 @@ struct Preset {
     int steps;
     int lightSteps;
 };
-const Preset Presets[4] = {{0, 0, 0}, {320 * 180, 48, 3}, {480 * 270, 64, 4}, {640 * 360, 96, 6}};
+const Preset Presets[5] = {{0, 0, 0}, {320 * 180, 48, 3}, {480 * 270, 64, 4}, {640 * 360, 96, 6},
+                           {960 * 540, 128, 6}};
 constexpr int UpdateBlock = 4;
 constexpr int UpdatePasses = UpdateBlock * UpdateBlock;
 // The order the pixels of a block are marched in (a Bayer pattern: each
@@ -479,7 +480,13 @@ void main() {
             depth = max(depth, texelFetch(sceneDepth, ivec2(clamp(floor(at), vec2(0.0), depthSize - 1.0)), 0).r);
         }
     float scene = sceneDistance(depth, ndc);
-    float limit = scene > 0.0 ? min(scene, slab.z) : slab.z;
+    // Only distant terrain stops the march. Nearer things (the scene band:
+    // objects, near terrain) never stand behind a cloud; the composite cuts
+    // the clouds at them at the full resolution. Stopped at them, a pixel
+    // would keep "no cloud" in the history after they moved off it (with
+    // the camera) until its next update.
+    bool distantScene = depth >= bands.z && depth < bands.w;
+    float limit = distantScene ? min(scene, slab.z) : slab.z;
 
     // The shell around a smaller planet than the Earth (shell.x), so the
     // clouds reach the horizon within the weather the march has.
@@ -606,7 +613,7 @@ void main() {
     // The flat high layer, behind the others.
     if (high.x > 0.0 && pr < R + high.x) {
         float th = sphereHits(p0, d, R + high.x).y;
-        if (th > 0.0 && th < slab.z * 1.6 && (scene < 0.0) && sphereHits(p0, d, R).x < 0.0) {
+        if (th > 0.0 && th < slab.z * 1.6 && !distantScene && sphereHits(p0, d, R).x < 0.0) {
             vec3 p = p0 + d * th;
             vec2 offset = vec2(p.x, -p.z);
             float c = coverAt(offset, 2);
@@ -679,6 +686,9 @@ void main() {
 const char *TemporalFragment = R"(
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
+layout(location = 1) out vec4 imageOut;
+layout(location = 2) out vec4 distanceOut;
+layout(location = 3) out vec4 distanceImageOut;
 layout(std140, binding = 0) uniform Clouds {
     mat4 inverse;
     mat4 previous;
@@ -699,6 +709,8 @@ layout(std140, binding = 0) uniform Clouds {
 };
 layout(binding = 1) uniform sampler2D current;
 layout(binding = 2) uniform sampler2D history;
+layout(binding = 3) uniform sampler2D currentDistance;
+layout(binding = 4) uniform sampler2D historyDistance;
 layout(std140, binding = 10) uniform Update {
     vec4 update;
     vec4 sizes;
@@ -710,16 +722,14 @@ layout(std140, binding = 10) uniform Update {
 // clamped to the marched neighbourhood); off the last frame's image, the
 // march's own result. While filling (still, or no history), the image is
 // built by one pass per pixel of the block in the same frame.
-void main() {
+vec4 cloudImage() {
     vec2 pixel = floor(uv * sizes.xy);
     vec2 cell = floor(pixel / update.x);
     bool marched = all(equal(pixel - cell * update.x, update.yz));
     ivec2 marchTexel = ivec2(clamp(cell, vec2(0.0), sizes.zw - 1.0));
     vec4 fresh = texelFetch(current, marchTexel, 0);
-    if (lighting.y > 0.5) {
-        result = marched ? fresh : textureLod(history, uv, 0.0);
-        return;
-    }
+    if (lighting.y > 0.5)
+        return marched ? fresh : textureLod(history, uv, 0.0);
     vec4 low = fresh, highValue = fresh;
     for (int j = -1; j <= 1; ++j)
         for (int i = -1; i <= 1; ++i) {
@@ -739,13 +749,44 @@ void main() {
     bool onImage = all(greaterThanEqual(beforeUv, vec2(0.0))) && all(lessThanEqual(beforeUv, vec2(1.0)));
     if (!onImage) {
         // New sky at the image's edge: the march's result near it.
-        result = marched ? fresh : textureLod(current, uv, 0.0);
-        return;
+        return marched ? fresh : textureLod(current, uv, 0.0);
     }
     // Clamped loosely: the marched neighbours lie a block apart.
     vec4 spread = (highValue - low) * 0.25;
     vec4 old = clamp(textureLod(history, beforeUv, 0.0), low - spread, highValue + spread);
-    result = marched ? mix(old, fresh, update.w) : old;
+    return marched ? mix(old, fresh, update.w) : old;
+}
+
+// The clouds' distance (km, -1 for none) the same way, for the light
+// shafts: marched pixels take the new one, the others the reprojected one,
+// read nearest (a blend of "none" and a distance would be neither).
+vec4 cloudDistanceImage() {
+    vec2 pixel = floor(uv * sizes.xy);
+    vec2 cell = floor(pixel / update.x);
+    bool marched = all(equal(pixel - cell * update.x, update.yz));
+    vec4 fresh = texelFetch(currentDistance, ivec2(clamp(cell, vec2(0.0), sizes.zw - 1.0)), 0);
+    if (marched)
+        return fresh;
+    if (lighting.y > 0.5)
+        return texelFetch(historyDistance, ivec2(pixel), 0);
+    vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
+    vec4 far = inverse * vec4(ndc, 1.0, 1.0);
+    vec4 clip = previous * vec4(normalize(far.xyz / far.w), 0.0);
+    if (clip.w <= 0.0)
+        return fresh;
+    vec2 beforeUv = vec2(clip.x / clip.w * 0.5 + 0.5, (clip.y / clip.w * camera.y) * 0.5 + 0.5);
+    if (any(lessThan(beforeUv, vec2(0.0))) || any(greaterThan(beforeUv, vec2(1.0))))
+        return fresh;
+    return texelFetch(historyDistance, ivec2(clamp(floor(beforeUv * sizes.xy), vec2(0.0), sizes.xy - 1.0)), 0);
+}
+
+// The histories (alternating) and the same images in fixed textures for the
+// composite and the light shafts.
+void main() {
+    result = cloudImage();
+    imageOut = result;
+    distanceOut = cloudDistanceImage();
+    distanceImageOut = distanceOut;
 }
 )";
 
@@ -796,13 +837,15 @@ float sceneDistance(float depth, vec2 ndc) {
 
 void main() {
     vec4 c = textureLod(clouds, uv, 0.0);
-    float distance = textureLod(cloudDistance, uv, 0.0).r;
-    vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
-    float scene = sceneDistance(textureLod(sceneDepth, uv, 0.0).r, ndc);
+    // Clouds only over the sky and distant terrain (the march stops at that
+    // terrain, so the image holds the clouds in front of it). Nearer things,
+    // objects and near terrain within a few km, always stand in front of the
+    // clouds: cut here at the full resolution.
+    float depth = textureLod(sceneDepth, uv, 0.0).r;
 #ifdef GLOW
     glow = vec4(0.0, 0.0, 0.0, 1.0);
 #endif
-    if (c.a >= 0.999 || (scene > 0.0 && distance > 0.0 && scene < distance * 0.97)) {
+    if (c.a >= 0.999 || depth < bands.z) {
         result = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
@@ -936,12 +979,18 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
     c.distance = texture(marchSize);
     c.history[0] = texture(imageSize);
     c.history[1] = texture(imageSize);
+    c.image = texture(imageSize);
+    c.distanceHistory[0] = texture(imageSize);
+    c.distanceHistory[1] = texture(imageSize);
+    c.distanceImage = texture(imageSize);
     if (c.coverNear == nullptr) {
         c.coverNear = texture(QSize(CoverSize, CoverSize));
         c.coverFar = texture(QSize(CoverSize, CoverSize));
     }
     c.shadow = texture(QSize(CloudShadowSize, CloudShadowSize));
     if (c.march == nullptr || c.distance == nullptr || c.history[0] == nullptr || c.history[1] == nullptr
+            || c.image == nullptr || c.distanceHistory[0] == nullptr || c.distanceHistory[1] == nullptr
+            || c.distanceImage == nullptr
             || c.coverNear == nullptr || c.coverFar == nullptr || c.shadow == nullptr) {
         releaseCloudBuffers();
         return false;
@@ -987,8 +1036,10 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
             && target({c.coverFar}, false, c.coverTargets[1], c.coverPasses[1])
             && target({c.march, c.distance}, false, c.marchTarget, c.marchPass)
             && target({c.shadow}, false, c.shadowTarget, c.shadowPass)
-            && target({c.history[0]}, false, c.historyTargets[0], c.historyPasses[0])
-            && target({c.history[1]}, false, c.historyTargets[1], c.historyPasses[1])
+            && target({c.history[0], c.image, c.distanceHistory[0], c.distanceImage}, false, c.historyTargets[0],
+                      c.historyPasses[0])
+            && target({c.history[1], c.image, c.distanceHistory[1], c.distanceImage}, false, c.historyTargets[1],
+                      c.historyPasses[1])
             && (view.color3 != nullptr ? target({view.color, view.color3}, true, c.compositeTarget, c.compositePass)
                                        : target({view.color}, true, c.compositeTarget, c.compositePass));
     if (!ok) {
@@ -1026,10 +1077,13 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
                                           QRhiShaderResourceBinding::sampledTexture(1, fragment, c.march, c.linear),
                                           QRhiShaderResourceBinding::sampledTexture(2, fragment, c.history[1 - i],
                                                                                     c.linear),
+                                          QRhiShaderResourceBinding::sampledTexture(3, fragment, c.distance, c.nearest),
+                                          QRhiShaderResourceBinding::sampledTexture(4, fragment, c.distanceHistory[1 - i],
+                                                                                    c.nearest),
                                           QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
                                                   10, fragment, c.updateUniforms, sizeof(UpdateParameters))});
         c.compositeBindings[i] = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, c.uniforms),
-                                           QRhiShaderResourceBinding::sampledTexture(1, fragment, c.history[i], c.linear),
+                                           QRhiShaderResourceBinding::sampledTexture(1, fragment, c.image, c.linear),
                                            QRhiShaderResourceBinding::sampledTexture(2, fragment, c.distance, c.nearest),
                                            QRhiShaderResourceBinding::sampledTexture(3, fragment, view.depth, c.nearest)});
     }
@@ -1074,7 +1128,7 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
     c.coverPipeline = pipeline(coverShader, c.coverBindings[0], c.coverPasses[0], 1, false);
     c.marchPipeline = pipeline(marchShader, c.marchBindings, c.marchPass, 2, false);
     c.shadowPipeline = pipeline(shadowShader, c.marchBindings, c.shadowPass, 1, false);
-    c.temporalPipeline = pipeline(temporalShader, c.temporalBindings[0], c.historyPasses[0], 1, false);
+    c.temporalPipeline = pipeline(temporalShader, c.temporalBindings[0], c.historyPasses[0], 4, false);
     c.compositePipeline = view.color3 != nullptr
             ? pipeline(glowCompositeShader, c.compositeBindings[0], c.compositePass, 2, true)
             : pipeline(compositeShader, c.compositeBindings[0], c.compositePass, 1, true);
@@ -1143,7 +1197,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     if (cloudsPrepared || !cloudsWanted() || secondaryView || !view.valid())
         return;
     cloudsPrepared = true;
-    const int quality = std::clamp(clouds.quality, 1, 3);
+    const int quality = std::clamp(clouds.quality, 1, 4);
     CloudResources &c = cloudResources;
     if (c.weather != nullptr && c.weather->pixelSize() != QSize(3 * clouds.size, clouds.size)) {
         releaseCloudBuffers();
@@ -1430,6 +1484,12 @@ void RhiRenderer::releaseCloudBuffers() {
     delete c.compositePass;
     delete c.march;
     delete c.distance;
+    delete c.image;
+    c.image = nullptr;
+    delete c.distanceHistory[0];
+    delete c.distanceHistory[1];
+    delete c.distanceImage;
+    c.distanceHistory[0] = c.distanceHistory[1] = c.distanceImage = nullptr;
     delete c.coverNear;
     delete c.coverFar;
     delete c.uniforms;

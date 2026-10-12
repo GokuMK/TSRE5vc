@@ -89,7 +89,11 @@ float skyEnclosed(vec3 position, vec3 normal) {
             float top = textureLod(skyEnclosureMap, m.xy + (vec2(i, j) - 1.5) * skyEnclosureParams.z, 0.0).r;
             sum += smoothstep(1.5, 4.0, (m.z - top) * skyEnclosureParams.y);
         }
-    return sum / 16.0;
+    // Only wide cover counts: a roof or the terrain over a tunnel covers all
+    // the taps (half at its edge), while thin things overhead (wires, lamp
+    // heads, gantries) cover a few, which lit the ground under them in the
+    // map's texels with lamps at night strength by day (user, 2026-10-12).
+    return smoothstep(0.3, 0.9, sum / 16.0);
 }
 
 float skyAmbient(float enclosed) {

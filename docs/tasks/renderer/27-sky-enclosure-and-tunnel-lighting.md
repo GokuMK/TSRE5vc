@@ -187,6 +187,18 @@ texels keep their place) and 16 m in height, kept while the camera stays in
 its cell, and drawn anyway once a second for edits; the result is the same.
 See task 28, "Review and performance".
 
+### Only wide cover (2026-10-12)
+
+The user saw a grid of lit patches on the ground around lamps in the open
+by day (CMK, by the station hall). Thin things overhead (lamp heads,
+catenary wires, gantries) covered a few of the 16 taps, so the ground
+under them in the map's texels counted partly enclosed and its lamps kept
+part of their night strength, in squares of the map's texels. Now only
+wide cover counts: the share of covered taps goes through
+`smoothstep(0.3, 0.9, ...)`, so a roof or the terrain over a tunnel (all
+the taps, half at its edge) still encloses, a few taps do not. The hall's
+lamps keep their strength by day; the night is unchanged.
+
 ## Known Limitation (0.7.8)
 
 Lamps in tunnels are dimmed by daylight as in the open. Today this affects

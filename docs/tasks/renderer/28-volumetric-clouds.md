@@ -497,6 +497,79 @@ canopies (patchy cover leaves the corners open) and was dropped.
 - Clouds in the water reflection and the environment map; precipitation;
   cumulonimbus anvils.
 
+## Second round on the Steam Deck (2026-10-12)
+
+The user's notes on the above: horizon, performance and look much better;
+the clouds very soft even at High (is a higher level worth it?); the cloud
+shadow no longer dances, but the map's 47 m texel edge shows on the
+terrain; where the sky meets terrain or objects, large blocky artifacts in
+motion that fade over time ("unacceptable"); the light shafts broken by
+them too, the screen-space ones nice but short, the volumetric ones cast
+from every cloud far too strongly; a grid of lit patches around lamps
+(task 27, "Only wide cover").
+
+### Edges in motion
+
+The march stopped at the scene's depth under each pixel and the composite
+cut the clouds where the scene was nearer than the clouds' distance. With
+the temporal update, a pixel over a building or a hill keeps "no cloud"
+(stopped at it) until its next march, up to 16 frames later, after the
+camera has moved the object off it, and the per-block distance cut the
+image in 4 x 4 blocks along every edge. Now:
+
+- Only distant terrain (the distant depth band) stops the march. The
+  scene band (objects, terrain within a few km) never stands behind a
+  cloud: the march goes through it, so the history holds the clouds there
+  too.
+- The composite draws the clouds only over the sky and the distant band,
+  cut at the full resolution by the scene's depth, with no distance test.
+- The flat high layer is skipped over distant terrain only.
+
+Checked with captures of the camera moving along the track and turning
+(`clouds-motion.json`, `clouds-turn.json`): no blocks along roofs, masts or
+the hills.
+
+### The finished image for the shafts
+
+The temporal pass writes the finished image to a fixed texture besides the
+alternating history (and rebuilds the clouds' distance the same way:
+marched pixels the new distance, the others the reprojected one, read
+nearest). The composite and both kinds of shafts read these; the shafts
+read the march buffer before, which holds one pixel of each block per
+frame (the blocks around the sun).
+
+### Light shafts
+
+- Screen space: the glow the rays start from reaches 30 degrees around the
+  sun (12), and the rays fade more slowly along the blur (0.99 a sample,
+  0.98): longer shafts.
+- Volumetric: the haze's shade now follows forward scattering, full
+  towards the sun and a fifth away from it (the cube of the cosine), at
+  about half the strength (0.8, 1.5) and at most 35 % of the view (60 %).
+  Shafts from clouds away from the sun are faint.
+
+### Ultra
+
+A fourth preset: 960 x 540 pixels, 128 steps, 6 light steps; sharper
+clouds. Added ms over the physical sky without clouds (horizon / sun
+views):
+
+| | 1280 x 800 | 3200 x 1800 |
+|---|---|---|
+| Clouds High | +2.8 / +2.6 | |
+| Clouds Ultra | +6.8 / +7.9 | +8.3 / +7.1 |
+
+About 4-5 ms more than High at the Deck's size: for faster machines.
+
+### Still open (this round)
+
+- The cloud shadow map's edge: 47 m texels show on the terrain as a grid
+  edge (user: "note it, leave alone in this step"). A finer map near the
+  camera (a second cascade, or 512 x 512 over the same 12 km) and a
+  softer filter.
+- Slight steps at the bright edges of clouds right by the sun, in motion.
+- The other items of the first round's list above.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

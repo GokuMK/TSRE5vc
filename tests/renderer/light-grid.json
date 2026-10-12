@@ -1,0 +1,10 @@
+{
+  "notes": "Lamps by the CMK station hall at noon and at night with the sky enclosure (task 27, Only wide cover): no lit squares around the lamps in the open by day. Run with --set core.rendering.timeOfDay.enabled=true --set core.rendering.skyEnclosure=true --set=core.startup.camera=-5355,14853,-638.74,224.30,-768.36,40.15,-29.88 (the views take the startup camera).",
+  "output": "build/renderer-light-grid",
+  "width": 1280, "height": 800, "pickGrid": [0, 0], "timingFrames": 1, "diffTolerance": 16, "shadows": true,
+  "settle": { "minFrames": 8, "stableFrames": 2, "maxFrames": 30, "maxSeconds": 120 },
+  "views": [
+    {"name": "grid-noon", "time": 13},
+    {"name": "grid-night", "time": 23}
+  ]
+}

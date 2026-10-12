@@ -3767,6 +3767,11 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Off</source>
         <translation>Off</translation>
     </message>
+    <message id="settings.core.rendering.clouds.option.ultra">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1105"/>
+        <source>Ultra</source>
+        <translation>Ultra</translation>
+    </message>
     <message id="settings.core.rendering.enclosed.ambient.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1124"/>
         <source>The share of the sky's ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</source>

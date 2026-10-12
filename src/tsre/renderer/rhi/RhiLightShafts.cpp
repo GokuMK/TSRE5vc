@@ -79,7 +79,7 @@ void main() {
     float sum = 0.0;
     for (int i = 0; i < Samples; ++i) {
         sum += textureLod(mask, p, 0.0).r * decay;
-        decay *= 0.98;
+        decay *= 0.99;
         p += step;
     }
     result = vec4(vec3(sum / float(Samples) * 3.0), 1.0);
@@ -213,7 +213,14 @@ void main() {
     float shade = max(blocked - colour.a, 0.0);
     // The share of the view the haze makes up over this distance.
     float haze = clamp(s.b, 0.0, 1.0);
-    result = vec4(colour.rgb * s.r * sun.z, 1.0 - clamp(shade * haze * sun.w, 0.0, 0.6));
+    // The haze's light is strongest towards the sun (forward scattering):
+    // the shade of its shafts shows mostly there, faintly elsewhere (shafts
+    // from every cloud at full strength looked wrong, user 2026-10-12).
+    vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.x);
+    vec4 far = inverse * vec4(ndc, 1.0, 1.0);
+    float towards = max(dot(normalize(far.xyz / far.w), normalize(direction.xyz)), 0.0);
+    float forward = mix(0.2, 1.0, towards * towards * towards);
+    result = vec4(colour.rgb * s.r * sun.z, 1.0 - clamp(shade * haze * sun.w * forward, 0.0, 0.35));
 }
 )";
 
@@ -263,7 +270,7 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     const QRhiTexture *sunMap = shadowMaps[2].valid() && Game::shadowsEnabled > 0 ? shadowMaps[2].depth : nullptr;
     if (l.addPipeline != nullptr && l.size == size && l.viewColor == view.color && l.cloudTexture == cloudTexture
             && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap
-            && l.volumeCloudDistance == cloudResources.distance)
+            && l.volumeCloudDistance == cloudResources.distanceImage)
         return true;
     QRhiTexture *white = l.white;
     l.white = nullptr;
@@ -360,10 +367,10 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
                                  QRhiShaderResourceBinding::sampledTexture(3, fragment, sunMap != nullptr
                                                                            ? shadowMaps[2].depth : dummyDepth,
                                                                            shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(4, fragment, cloudResources.distance != nullptr
-                                                                           ? cloudResources.distance : l.white,
+                                 QRhiShaderResourceBinding::sampledTexture(4, fragment, cloudResources.distanceImage != nullptr
+                                                                           ? cloudResources.distanceImage : l.white,
                                                                            sampler(false, true, true))});
-    l.volumeCloudDistance = cloudResources.distance;
+    l.volumeCloudDistance = cloudResources.distanceImage;
     l.volumeAddBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.uniforms),
                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, l.blurred, l.linear)});
     static QShader volume, volumeAdd;
@@ -430,9 +437,10 @@ void RhiRenderer::applyLightShafts() {
         return;
     // Everything before: the opaque passes, the sky, the clouds.
     flushTarget();
-    // The clouds' march result: one texture (the history alternates, which
-    // would rebuild everything each frame).
-    if (!createLightShafts(cloudsApplied ? cloudResources.march : nullptr))
+    // The finished cloud image: one texture (the history alternates, which
+    // would rebuild everything each frame; the march holds a different
+    // pixel of each block every frame).
+    if (!createLightShafts(cloudsApplied ? cloudResources.image : nullptr))
         return;
     LightShafts &l = lightShafts;
     ShaftParameters parameters = {};
@@ -440,7 +448,9 @@ void RhiRenderer::applyLightShafts() {
     parameters.sun[1] = ny * ySign * 0.5f + 0.5f;
     // Weaker towards the horizon and as the sun leaves the screen.
     parameters.sun[2] = 0.4f * onScreen * std::clamp((elevation + 1.0f) / 6.0f, 0.0f, 1.0f);
-    parameters.sun[3] = std::cos(12.0f * float(M_PI) / 180.0f);
+    // The glow the rays start from: 30 degrees around the sun (12 left the
+    // shafts short, user 2026-10-12).
+    parameters.sun[3] = std::cos(30.0f * float(M_PI) / 180.0f);
     const Atmosphere::Rgb sunLight = Atmosphere::model().sunLight(std::max(0.001f, sky.cameraHeight / 1000.0f),
                                                                   sunDirection.y());
     const float peak = std::max({sunLight[0], sunLight[1], sunLight[2], 1e-4f});
@@ -481,7 +491,7 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
         return;
     // Everything before: the opaque passes, the sky, the clouds.
     flushTarget();
-    if (!createLightShafts(cloudsApplied ? cloudResources.march : nullptr))
+    if (!createLightShafts(cloudsApplied ? cloudResources.image : nullptr))
         return;
     LightShafts &l = lightShafts;
     VolumeParameters v = {};
@@ -511,14 +521,20 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     v.march[0] = 1500.0f;
     v.march[1] = 40.0f;
     v.march[2] = cloudsApplied && clouds.still ? 0.5f : float(std::fmod(0.5 + cloudResources.frame * 0.618034, 1.0));
-    v.march[3] = cloudsApplied && cloudResources.distance != nullptr ? 1.0f : 0.0f;
+    v.march[3] = cloudsApplied && cloudResources.distanceImage != nullptr ? 1.0f : 0.0f;
     ShaftParameters parameters = {};
     // The haze's light; the sun's colour as the screen-space shafts.
     const float fade = std::clamp((elevation - 1.0f) / 5.0f, 0.0f, 1.0f);
     parameters.sun[2] = 0.1f * fade;
     // How much of the haze's light the shadows take away (the haze is
     // brighter than the scene behind it, so more than its share).
-    parameters.sun[3] = 1.5f * fade;
+    parameters.sun[3] = 0.8f * fade;
+    // For the view's directions (forward scattering).
+    parameters.camera[0] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
+    std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, parameters.inverse);
+    parameters.direction[0] = sunDirection.x();
+    parameters.direction[1] = sunDirection.y();
+    parameters.direction[2] = sunDirection.z();
     parameters.colour[3] = std::clamp(sky.overcast, 0.0f, 0.9f);
     const Atmosphere::Rgb sunLight = Atmosphere::model().sunLight(std::max(0.001f, sky.cameraHeight / 1000.0f),
                                                                   sunDirection.y());

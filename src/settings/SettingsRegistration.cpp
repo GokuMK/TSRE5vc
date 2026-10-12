@@ -1100,7 +1100,9 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Medium"
                 QT_TRID_NOOP("settings.core.rendering.clouds.option.medium")}, {3,
                 //% "High"
-                QT_TRID_NOOP("settings.core.rendering.clouds.option.high")}})).inGroup("rendering").inSubgroup("environment"),
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.high")}, {4,
+                //% "Ultra"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.ultra")}})).inGroup("rendering").inSubgroup("environment"),
         "cloudQuality", "Game::cloudQuality", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::enumeration("core.rendering.lightShafts", 0)
             .withNameId(
