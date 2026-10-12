@@ -651,6 +651,21 @@ both plainly.
 - Changing tone mapping at run time in the Settings Editor can crash
   TSRE (user): see "Crash on changing tone mapping" below.
 
+### Overexposure by the sun without tone mapping (2026-10-12)
+
+The user: looking at the sun with clouds nearby and shafts on, the view
+overexposes with tone mapping off. Measured on CMK views centred on the sun
+(17:00, share of fully white pixels within 200 px of it): no shafts 0.4 /
+2.8 % (fair cumulus / scattered), volumetric 0.7 / 1.1 % (slightly darker
+than none), screen space 3.8 / 15-18 %. Bloom makes no difference (it is
+the lamps' glow). So it is the screen-space shafts, added onto a sky that
+is nearly white already.
+
+Without tone mapping the view holds display colours up to 1: the shafts
+are now screened over it (view + shafts (1 - view)), so they brighten
+without clipping, at 0.4 again (screening limits itself); with tone mapping
+(float view) they are added at 0.2. Scattered, by the sun: 4.4 % white.
+
 ## Clouds in the environment cube (option 2, 2026-10-12)
 
 The user: render the clouds into the cube too, with a preset below Low (the

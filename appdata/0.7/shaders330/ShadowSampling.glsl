@@ -81,7 +81,13 @@ float skyEnclosed(vec3 position, vec3 normal) {
         p += vec3(side.x, 0.0, side.y) / sideLength * min(sideLength * 3.0, 1.0) * 2.0;
     vec4 clip = skyEnclosureMatrix * vec4(p, 1.0);
     vec3 m = clip.xyz / clip.w * 0.5 + 0.5;
-    if (any(lessThan(m.xy, vec2(0.02))) || any(greaterThan(m.xy, vec2(0.98))))
+    // Outside the map, above or below its depth range: open sky, the map
+    // knows nothing there (below its far plane every tap read as covered).
+    if (m.z <= 0.0 || m.z >= 1.0)
+        return 0.0;
+    // Towards the map's edge back to open sky gradually, not at a line.
+    float inside = 1.0 - smoothstep(0.35, 0.48, max(abs(m.x - 0.5), abs(m.y - 0.5)));
+    if (inside <= 0.0)
         return 0.0;
     float sum = 0.0;
     for (int j = 0; j < 4; ++j)
@@ -93,7 +99,7 @@ float skyEnclosed(vec3 position, vec3 normal) {
     // the taps (half at its edge), while thin things overhead (wires, lamp
     // heads, gantries) cover a few, which lit the ground under them in the
     // map's texels with lamps at night strength by day (user, 2026-10-12).
-    return smoothstep(0.3, 0.9, sum / 16.0);
+    return smoothstep(0.3, 0.9, sum / 16.0) * inside;
 }
 
 float skyAmbient(float enclosed) {

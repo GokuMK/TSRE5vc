@@ -342,6 +342,10 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
         blur = bakeInline(shaftSource(BlurFragment).constData(), QShader::FragmentStage, rhi);
         add = bakeInline(shaftSource(AddFragment).constData(), QShader::FragmentStage, rhi);
     }
+    // Without tone mapping the view holds display colours up to 1: the
+    // shafts are screened over it (view + shafts (1 - view)), so they brighten
+    // without clipping the sky by the sun to white; with it, added.
+    const bool screen = view.color->format() == QRhiTexture::RGBA8;
     auto pipeline = [&](const QShader &shader, QRhiShaderResourceBindings *set, QRhiRenderPassDescriptor *pass,
                         bool additive) {
         QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();
@@ -349,7 +353,7 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
         if (additive) {
             QRhiGraphicsPipeline::TargetBlend b;
             b.enable = true;
-            b.srcColor = QRhiGraphicsPipeline::One;
+            b.srcColor = screen ? QRhiGraphicsPipeline::OneMinusDstColor : QRhiGraphicsPipeline::One;
             b.dstColor = QRhiGraphicsPipeline::One;
             b.srcAlpha = QRhiGraphicsPipeline::Zero;
             b.dstAlpha = QRhiGraphicsPipeline::One;
@@ -451,9 +455,11 @@ void RhiRenderer::applyLightShafts() {
     parameters.sun[0] = nx * 0.5f + 0.5f;
     parameters.sun[1] = ny * ySign * 0.5f + 0.5f;
     // Weaker towards the horizon and as the sun leaves the screen.
-    // (0.4 with the wider glow washed out the clouds by the sun without HDR,
-    // user 2026-10-12.)
-    parameters.sun[2] = 0.2f * onScreen * std::clamp((elevation + 1.0f) / 6.0f, 0.0f, 1.0f);
+    // Screened over display colours (no tone mapping) they cannot clip and
+    // take more; added (tone mapping), 0.4 with the wider glow washed out the
+    // clouds by the sun (user 2026-10-12).
+    const float strength = view.color->format() == QRhiTexture::RGBA8 ? 0.4f : 0.2f;
+    parameters.sun[2] = strength * onScreen * std::clamp((elevation + 1.0f) / 6.0f, 0.0f, 1.0f);
     // The glow the rays start from: 30 degrees around the sun (12 left the
     // shafts short, user 2026-10-12).
     parameters.sun[3] = std::cos(30.0f * float(M_PI) / 180.0f);

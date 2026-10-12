@@ -1801,7 +1801,9 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && target().attachments->color != nullptr;
     key.depthWrite = !(item->pbr.enabled && item->pbr.blend);
     key.decal = item->material.decal && selectionId == 0;
-    key.cullBack = !item->material.doubleSided;
+    // The sky enclosure looks down on everything: single-sided roofs and
+    // tunnel tubes, made to be seen from below, count too.
+    key.cullBack = !item->material.doubleSided && currentTarget != TargetEnclosure;
     // Targets flipped against the backend's convention turn the winding
     // around.
     key.frontCw = frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer());

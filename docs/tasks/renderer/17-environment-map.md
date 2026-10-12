@@ -81,3 +81,9 @@ six per frame is clearly visible. Two per frame is a candidate default.
   with reflections blurred through the mipmaps.
 - [ ] MSTS shapes: reflecting materials need defaults chosen from their
   shader names.
+- [ ] Note (user, 2026-10-12): glTF shapes are expensive to draw in the
+  reflections. On `bbb`, with a field of reflective test spheres in the air
+  (`core.startup.camera=-5306,14961,-468.29,69.05,-58.96,-175.54,2.80`),
+  the cube cost 3.8-4.7 ms a frame on the Steam Deck at one face a frame
+  (1280 x 800). To look at later: what the glTF draws cost per face, and
+  whether they need their own distance or size limit in the cube.

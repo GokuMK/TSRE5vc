@@ -199,6 +199,59 @@ wide cover counts: the share of covered taps goes through
 the taps, half at its edge) still encloses, a few taps do not. The hall's
 lamps keep their strength by day; the night is unchanged.
 
+### Depth range, tunnels, roofs (2026-10-12)
+
+The user: a dark square on the ground seen from more than 300 m above it
+(bbb, `core.startup.camera=-5306,14961,-920.38,501.13,-146.80,2.80,-89.95`);
+no enclosure in deep tunnels (EUROPE1, not installed here); in the CMK
+station only the thick roofs enclose; the map's edge too near and visible
+(EUROPE1 bridge, `-6114,15060,435.06,354.40,800.22,244.63,-14.93`).
+
+Found (captures with the enclosed ambient at 0, so enclosed is black):
+
+- **The square**: the map looked down from 300 m above the camera with
+  600 m of depth. Ground more than 300 m below the camera lay past its far
+  plane, where every tap read as covered: the whole map (400 m) went dark.
+  It was not the shadow maps, clouds or terrain detail (the same with all
+  of them off; gone with the enclosure off). The bridge's "edge" may be the
+  same square, the valley floor being that far below.
+- **Deep tunnels**: terrain more than 300 m over the camera was above the
+  map's viewpoint and cut off. Also the terrain gathered for the frame is
+  culled against the main view unless the environment map is on, so the
+  terrain over a tunnel (above the view) could be missing from the queue.
+- **Thin roofs**: the map draws the terrain and opaque passes only; the
+  station's other roofs and the covered platform use alpha-tested
+  materials (task 27's choice, to keep tree canopies out). Drawing the
+  alpha-tested pass too encloses them (checked). Back-face culling made no
+  difference there.
+
+Fixed:
+
+- Points outside the map's depth range (and outside the map) are open; the
+  enclosure fades to open over the map's outer part (35-48% of its
+  half-width) instead of stopping at a line. The glow splats read it the
+  same way.
+- The map looks down from 2 km above the camera with 4 km of depth (depth
+  precision of the 32-bit float map: under a millimetre).
+- No back-face culling in the map: single-sided roofs and tunnel tubes
+  made to be seen from below count.
+- With the enclosure on, terrain is gathered all around the camera (as for
+  the environment map).
+
+Open (for the user):
+
+- Alpha-tested surfaces: include them (roofs) and keep vegetation out.
+  Forests can be told apart (`ForestObj`) with a flag on the render item
+  (a rebuild of most of the project); single tree shapes cannot easily.
+  Including everything alpha-tested would make tree canopies roofs: darker
+  ambient under trees (rather true), lamps under trees at night strength
+  by day (wrong, rare).
+- Working distance: 200 m from the camera, now fading out from 140 m.
+  Options: a larger map (more casters in each redraw; the cell and the
+  periodic redraw would need to grow), or a second, coarse map (about 2 km
+  across, terrain and large objects only, redrawn rarely) behind the near
+  one.
+
 ## Known Limitation (0.7.8)
 
 Lamps in tunnels are dimmed by daylight as in the open. Today this affects

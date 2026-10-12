@@ -752,10 +752,11 @@ void RouteEditorGLWidget::paintScene(){
     RenderStats::setCategory(RenderStats::CategoryTerrain);
     // Terrain receives shadows but does not cast them.
     renderer->setShadowCasting(false);
-    // Environment map faces look in every direction: gather terrain patches
+    // Environment map faces look in every direction, and the sky enclosure
+    // needs the terrain over a tunnel, above the view: gather terrain patches
     // all around the camera and let the renderer cull each view.
     const bool renderEnvironment = !selectionPass && Game::environmentMapEnabled;
-    Terrain::gatherAllDirections = renderEnvironment;
+    Terrain::gatherAllDirections = renderEnvironment || (!selectionPass && Game::skyEnclosure);
     Game::terrainLib->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
     renderer->setShadowCasting(true);
     RenderStats::setCategory(RenderStats::CategoryWorld);
@@ -1383,8 +1384,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
     renderer->releaseProgram();
 }
 
-// The sky enclosure (task 27): terrain and opaque surfaces seen from 300 m
-// above the camera, 400 m across at 1024 texels. The lit shaders find in it
+// The sky enclosure (task 27): terrain and opaque surfaces seen from 2 km
+// above the camera, down to 2 km below it, 400 m across at 1024 texels. The lit shaders find in it
 // whether something stands over a point. The map is drawn from a point
 // snapped to cells of 80 of its texels (31.25 m; 16 m in height), so its
 // texels keep their place on the ground, and kept while the camera stays in
@@ -1401,8 +1402,12 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     }
     constexpr int Size = 1024;
     constexpr float Half = 200.0f;
-    constexpr float Above = 300.0f;
-    constexpr float Depth = 600.0f;
+    // Over the terrain above deep tunnels, and down to the ground under high
+    // bridges (from 300 m above with 600 m of depth, the terrain over a
+    // deep tunnel was cut off, and ground more than 300 m below the camera
+    // read as covered: a dark square seen from above; user, 2026-10-12).
+    constexpr float Above = 2000.0f;
+    constexpr float Depth = 4000.0f;
     constexpr float Cell = 80.0f * 2.0f * Half / Size;
     constexpr float CellHeight = 16.0f;
     constexpr int RedrawFrames = 60;

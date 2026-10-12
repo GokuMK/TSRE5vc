@@ -75,9 +75,12 @@ void main() {
     if (enclosureParams.x > 0.0) {
         vec4 c = enclosure * vec4(emitter.xyz, 1.0);
         vec3 m = c.xyz / c.w * 0.5 + 0.5;
-        if (all(greaterThan(m.xy, vec2(0.02))) && all(lessThan(m.xy, vec2(0.98)))) {
+        // As the lit shaders: open outside the map and its depth range,
+        // fading to open towards its edge.
+        float inside = 1.0 - smoothstep(0.35, 0.48, max(abs(m.x - 0.5), abs(m.y - 0.5)));
+        if (m.z > 0.0 && m.z < 1.0 && inside > 0.0) {
             float top = textureLod(enclosureMap, m.xy, 0.0).r;
-            day = mix(day, 1.0, smoothstep(1.5, 4.0, (m.z - top) * enclosureParams.y));
+            day = mix(day, 1.0, smoothstep(1.5, 4.0, (m.z - top) * enclosureParams.y) * inside);
         }
     }
     glow = power.rgb * day * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * (1.0 - fog);
