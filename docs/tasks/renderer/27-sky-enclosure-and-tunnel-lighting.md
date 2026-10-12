@@ -294,6 +294,38 @@ Follow-up (2026-10-12):
   the CMK station, within the noise on bbb.
 - Not yet: the lamps' glow splats read the near map only (a lamp beyond
   140-200 m keeps its daytime glow under cover).
+
+### The sun under covers, cost at 4K (2026-10-12)
+
+- The shadow maps keep back-face culling after all: unculled they seemed
+  to cost 5-10 ms at the CMK station at 4K (camera
+  `-5355,14853,-627.24,219.83,-764.57,-4.67,-9.34`, looking down the
+  hall). The tunnel floor is kept out of the sun by the enclosure maps
+  instead (`enclosureSun` in `ShadowSampling.glsl`): where a point is
+  enclosed, the points 3 and 12 m higher on its way to the sun are looked
+  up; cover over either blocks the sun (in a tunnel, deep under a roof),
+  none lets it in (under a roof's edge). No lookups in the open. The
+  EUROPE1 tunnel at noon in June: as dark as with unculled shadow maps.
+- The 16 taps are 4 `textureGather`s (2 x 2 texels each), the far map's
+  4 one gather.
+- The user saw 14 fps at 4K in that hall and suspected a regression. A
+  build of 6024399 (the user's earlier good state) against now, same
+  settings (the user's profile, High clouds), about 3200 x 2000, median
+  frame times of the capture (with its read-back): 6024399 119.0 ms (three
+  runs), now 115.8 ms, now with Ultra clouds 119.7 ms. No regression; the
+  scene is that heavy. Of it, at that size: the enclosure about 20 ms
+  (taps 5-7 ms, the rest the hall's lamps at full strength by day), clouds
+  (Ultra) 12, volumetric shafts 11, AO 8.
+- Lamp reach: a lamp's light is cut where it would add 1/512 of the noon
+  sun's light (`LightGrid::rangeFor`), up to 250 m: the hall's 26 lamps
+  reached 9-175 m (mean 92 m), up to 15 in a pixel's cell (5.8 on
+  average), 11 231 cells holding lights. At 1/16: 1.5-31 m (mean 16 m), up
+  to 9 a cell (2.7), 1 242 cells, frame 101.6 ms instead of 115.8 (1/64:
+  about 108). No visible difference at 1/16 by day or at night (largest
+  pixel difference 9 of 765), even at 1/4. Proposed (waiting for the
+  user): no setting; 1/16 for every lamp, and a glTF light's own `range`
+  taken as given (capped at 250 m) rather than the shorter of the two, so
+  assets that should reach farther say so.
 - The CMK roofs (alpha-tested, textures with transparent texels): the user
   takes them as an asset fix (opaque textures, or an opaque material) for
   the new features.

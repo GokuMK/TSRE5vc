@@ -1812,12 +1812,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && target().attachments->color != nullptr;
     key.depthWrite = !(item->pbr.enabled && item->pbr.blend);
     key.decal = item->material.decal && selectionId == 0;
-    // The sky enclosure and the sun's shadow maps look down on everything:
-    // single-sided roofs and tunnel tubes, made to be seen from below,
-    // cover and cast too (a tunnel's floor lay in the noon sun).
-    const bool depthOnlyView = currentTarget == TargetEnclosure || currentTarget == TargetEnclosureFar
-            || (currentTarget >= TARGET_SHADOW_NEAR && currentTarget <= TARGET_SHADOW_FAR);
-    key.cullBack = !item->material.doubleSided && !depthOnlyView;
+    // The sky enclosure maps look down on everything: single-sided roofs and
+    // tunnel tubes, made to be seen from below, count too. (The sun's shadow
+    // maps keep culling: unculled they cost 5-10 ms at the CMK station; the
+    // lit shaders take the sun out under such covers from the enclosure.)
+    key.cullBack = !item->material.doubleSided
+            && currentTarget != TargetEnclosure && currentTarget != TargetEnclosureFar;
     // Targets flipped against the backend's convention turn the winding
     // around.
     key.frontCw = frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer());

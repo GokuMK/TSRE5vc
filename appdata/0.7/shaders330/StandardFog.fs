@@ -150,13 +150,14 @@ void main() {
             float visibility = shadowedVisibility(cosTheta);
 #ifdef TSRE_RHI
             visibility *= cloudShadow(vLightPosition);
+            float enclosed = skyEnclosed(vLightPosition, normal);
+            visibility *= enclosureSun(vLightPosition, enclosed, lights);
 #endif
 
             // calculate light color
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
 #ifdef TSRE_RHI
-            float enclosed = skyEnclosed(vLightPosition, normal);
             color += ambientColor.xyz * skyAmbient(enclosed);
 #else
             color += ambientColor.xyz;

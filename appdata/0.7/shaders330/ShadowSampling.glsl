@@ -91,24 +91,22 @@ float enclosureShare(mat4 matrix, vec3 p, float fadeStart, float fadeEnd, out ve
 // thin things overhead (wires, lamp heads, gantries) cover a few, which lit
 // the ground under them in the map's texels with lamps at night strength by
 // day (user, 2026-10-12).
+// The 16 texels come in 4 gathers (2 x 2 texels each, a filter step
+// apart): a quarter of the fetches of 16 taps (5-7 ms at 4K).
 float enclosureTaps(sampler2D map, vec3 m, float spacing) {
     float sum = 0.0;
-    for (int j = 0; j < 4; ++j)
-        for (int i = 0; i < 4; ++i) {
-            float top = textureLod(map, m.xy + (vec2(i, j) - 1.5) * spacing, 0.0).r;
-            sum += smoothstep(1.5, 4.0, (m.z - top) * skyEnclosureParams.y);
+    for (int j = 0; j < 2; ++j)
+        for (int i = 0; i < 2; ++i) {
+            vec4 top = textureGather(map, m.xy + (vec2(i, j) - 0.5) * 2.0 * spacing);
+            sum += dot(smoothstep(vec4(1.5), vec4(4.0), (m.z - top) * skyEnclosureParams.y), vec4(1.0));
         }
     return smoothstep(0.3, 0.9, sum / 16.0);
 }
 
-// The same in the far map, coarse anyway: 4 taps.
+// The same in the far map, coarse anyway: one gather.
 float enclosureTapsCoarse(sampler2D map, vec3 m, float spacing) {
-    float sum = 0.0;
-    for (int j = 0; j < 2; ++j)
-        for (int i = 0; i < 2; ++i) {
-            float top = textureLod(map, m.xy + (vec2(i, j) - 0.5) * spacing, 0.0).r;
-            sum += smoothstep(1.5, 4.0, (m.z - top) * skyEnclosureParams.y);
-        }
+    vec4 top = textureGather(map, m.xy);
+    float sum = dot(smoothstep(vec4(1.5), vec4(4.0), (m.z - top) * skyEnclosureParams.y), vec4(1.0));
     return smoothstep(0.3, 0.9, sum / 4.0);
 }
 
@@ -133,6 +131,33 @@ float skyEnclosed(vec3 position, vec3 normal) {
             enclosed += enclosureTapsCoarse(skyEnclosureFarMap, f, skyEnclosureFar.y) * far * (1.0 - near);
     }
     return enclosed;
+}
+
+// Whether the maps have cover more than 0.5-2 m over a point (0-1): the
+// near map, else the far one, else none.
+float coverOver(vec3 q) {
+    vec3 m;
+    if (enclosureShare(skyEnclosureMatrix, q, 0.45, 0.48, m) > 0.5)
+        return smoothstep(0.5, 2.0, (m.z - textureLod(skyEnclosureMap, m.xy, 0.0).r) * skyEnclosureParams.y);
+    if (skyEnclosureFar.x > 0.0 && enclosureShare(skyEnclosureFarMatrix, q, 0.45, 0.49, m) > 0.5)
+        return smoothstep(0.5, 2.0, (m.z - textureLod(skyEnclosureFarMap, m.xy, 0.0).r) * skyEnclosureParams.y);
+    return 0.0;
+}
+
+// The sun past the covers the shadow maps miss (terrain casts no shadow;
+// tunnel tubes, seen from inside, face the sun with their backs): where a
+// point is enclosed, the points 3 and 12 m higher on its way to the sun are
+// looked up; cover over either blocks the sun (deep under a roof or in a
+// tunnel), none lets it in (under a roof's edge). 1 in the open, with no
+// lookups (user, 2026-10-12: a tunnel floor in the noon sun).
+float enclosureSun(vec3 position, float enclosed, vec3 sunDirection) {
+    if (enclosed <= 0.0)
+        return 1.0;
+    vec3 s = normalize(sunDirection);
+    if (s.y < 0.05)
+        return 1.0;
+    float blocked = max(coverOver(position + s * (3.0 / s.y)), coverOver(position + s * (12.0 / s.y)));
+    return 1.0 - blocked * enclosed;
 }
 
 float skyAmbient(float enclosed) {
