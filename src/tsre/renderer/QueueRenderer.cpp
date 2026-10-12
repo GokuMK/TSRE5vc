@@ -374,7 +374,8 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
     }
 }
 
-void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure){
+void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
+                                      float minRadius){
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Depth does not depend on draw order, so repeated packets draw instanced.
     shadowCasters.clear();
@@ -396,6 +397,9 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
                 const float dz = center[2] - viewPosition[2];
                 const float reach = range + radius;
                 if(dx * dx + dz * dz > reach * reach || !visible(instance, lightFrustum))
+                    continue;
+                // The far enclosure map: terrain and large objects only.
+                if(pass != PASS_TERRAIN && radius < minRadius)
                     continue;
                 shadowCasters.push_back(&instance);
             }

@@ -41,6 +41,7 @@ const QHash<QString, int> &samplerBindings() {
         {"waterWaveMap", 15}, {"waterSceneColor", 11}, {"waterSceneDepth", 12}, {"uSampler4", 18}, {"environmentSource", 0},
         {"localLightData", 22}, {"localLightCells", 23}, {"localLightIndices", 24},
         {"cloudShadowMap", CloudShadowBinding}, {"skyEnclosureMap", SkyEnclosureBinding},
+        {"skyEnclosureFarMap", SkyEnclosureFarBinding},
         {"terrainPatchData", TerrainPatchDataBinding}};
     return bindings;
 }

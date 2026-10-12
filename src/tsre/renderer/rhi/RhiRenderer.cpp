@@ -361,6 +361,9 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("skyEnclosureMatrix", enclosure.viewProjection);
     program->setVec("skyEnclosureParams", enclosed ? 1.0f : 0.0f, enclosure.metresPerDepth, enclosure.filter,
                     enclosure.ambientFloor);
+    const bool farEnclosed = enclosed && enclosure.farEnabled && enclosureFarDrawn && enclosureFarMap.valid();
+    program->setMat4("skyEnclosureFarMatrix", enclosure.farViewProjection);
+    program->setVec("skyEnclosureFar", farEnclosed ? 1.0f : 0.0f, enclosure.farFilter);
     program->setFloat("localLightDay", enclosed ? gluu->localLightAdaptation : 1.0f);
     program->setFloat("isAlpha", gluu->alpha);
     program->setFloat("alphaTest", gluu->alphaTest);
@@ -981,31 +984,32 @@ void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
     }
 }
 
-bool RhiRenderer::beginSkyEnclosure(int size) {
+bool RhiRenderer::beginSkyEnclosure(int size, bool far) {
     beginFrameIfNeeded();
     flushTarget();
+    Attachments &map = far ? enclosureFarMap : enclosureMap;
+    const int which = far ? TargetEnclosureFar : TargetEnclosure;
     const QSize pixels(std::max(1, size), std::max(1, size));
-    if ((!enclosureMap.valid() || enclosureMap.size != pixels)
-            && !createAttachments(enclosureMap, QRhiTexture::UnknownFormat, pixels, {}))
+    if ((!map.valid() || map.size != pixels) && !createAttachments(map, QRhiTexture::UnknownFormat, pixels, {}))
         return false;
     // Rows in OpenGL's order, as the shadow maps: the lit shaders look it up
     // the same way.
-    enclosureMap.openGlRows = true;
-    targets[TargetEnclosure].attachments = &enclosureMap;
-    currentTarget = TargetEnclosure;
+    map.openGlRows = true;
+    targets[which].attachments = &map;
+    currentTarget = which;
     TargetState &state = target();
     state.clearColor = false;
     state.clearDepth = true;
     setViewport(0, 0, pixels.width(), pixels.height());
-    enclosureDrawn = true;
+    (far ? enclosureFarDrawn : enclosureDrawn) = true;
     return true;
 }
 
-void RhiRenderer::renderEnclosureCasters(float range, int statsSlot, const float *viewProjection) {
+void RhiRenderer::renderEnclosureCasters(float range, int statsSlot, const float *viewProjection, float minRadius) {
     beginFrameIfNeeded();
-    if (currentTarget != TargetEnclosure || !targetReady())
+    if ((currentTarget != TargetEnclosure && currentTarget != TargetEnclosureFar) || !targetReady())
         return;
-    planShadowCasters(range, viewProjection, true);
+    planShadowCasters(range, viewProjection, true, minRadius);
     recordCasters(statsSlot);
 }
 
@@ -1694,6 +1698,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                 }
                 break;
             }
+            if (slot.binding == RhiShaderSource::SkyEnclosureFarBinding) {
+                if (enclosureFarMap.valid() && enclosureFarDrawn) {
+                    texture = enclosureFarMap.depth;
+                    slotSampler = sampler(false, true, true);
+                }
+                break;
+            }
             if (slot.binding == RhiShaderSource::CloudShadowBinding) {
                 if (cloudResources.shadow != nullptr && cloudResources.shadowValid) {
                     texture = cloudResources.shadow;
@@ -1801,9 +1812,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && target().attachments->color != nullptr;
     key.depthWrite = !(item->pbr.enabled && item->pbr.blend);
     key.decal = item->material.decal && selectionId == 0;
-    // The sky enclosure looks down on everything: single-sided roofs and
-    // tunnel tubes, made to be seen from below, count too.
-    key.cullBack = !item->material.doubleSided && currentTarget != TargetEnclosure;
+    // The sky enclosure and the sun's shadow maps look down on everything:
+    // single-sided roofs and tunnel tubes, made to be seen from below,
+    // cover and cast too (a tunnel's floor lay in the noon sun).
+    const bool depthOnlyView = currentTarget == TargetEnclosure || currentTarget == TargetEnclosureFar
+            || (currentTarget >= TARGET_SHADOW_NEAR && currentTarget <= TARGET_SHADOW_FAR);
+    key.cullBack = !item->material.doubleSided && !depthOnlyView;
     // Targets flipped against the backend's convention turn the winding
     // around.
     key.frontCw = frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer());

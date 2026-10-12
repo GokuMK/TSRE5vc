@@ -67,10 +67,54 @@ uniform mat4 skyEnclosureMatrix;
 uniform vec4 skyEnclosureParams;
 // The daylight scale of lamps where the sky is open (1 without the map).
 uniform float localLightDay;
+// The far map behind it (wider, coarser; terrain and large objects): on (1)
+// or off (0), its filter's spacing.
+uniform sampler2D skyEnclosureFarMap;
+uniform mat4 skyEnclosureFarMatrix;
+uniform vec2 skyEnclosureFar;
 
-// 0 open to 1 enclosed: the share of 16 taps around the point with
-// something more than 1.5-4 m above it. The point is moved 2 m off walls
-// first, past the eaves, so they do not count their own roof.
+// Where a map has the point: its map coordinates and depth, and how much the
+// map counts there (1 inside, fading to 0 towards its edge; 0 outside it or
+// its depth range, where it knows nothing: below its far plane every tap
+// read as covered).
+float enclosureShare(mat4 matrix, vec3 p, float fadeStart, float fadeEnd, out vec3 m) {
+    vec4 clip = matrix * vec4(p, 1.0);
+    m = clip.xyz / clip.w * 0.5 + 0.5;
+    if (m.z <= 0.0 || m.z >= 1.0)
+        return 0.0;
+    return 1.0 - smoothstep(fadeStart, fadeEnd, max(abs(m.x - 0.5), abs(m.y - 0.5)));
+}
+
+// 0 open to 1 enclosed in one map: the share of 16 taps around the point
+// with something more than 1.5-4 m above it. Only wide cover counts: a roof
+// or the terrain over a tunnel covers all the taps (half at its edge), while
+// thin things overhead (wires, lamp heads, gantries) cover a few, which lit
+// the ground under them in the map's texels with lamps at night strength by
+// day (user, 2026-10-12).
+float enclosureTaps(sampler2D map, vec3 m, float spacing) {
+    float sum = 0.0;
+    for (int j = 0; j < 4; ++j)
+        for (int i = 0; i < 4; ++i) {
+            float top = textureLod(map, m.xy + (vec2(i, j) - 1.5) * spacing, 0.0).r;
+            sum += smoothstep(1.5, 4.0, (m.z - top) * skyEnclosureParams.y);
+        }
+    return smoothstep(0.3, 0.9, sum / 16.0);
+}
+
+// The same in the far map, coarse anyway: 4 taps.
+float enclosureTapsCoarse(sampler2D map, vec3 m, float spacing) {
+    float sum = 0.0;
+    for (int j = 0; j < 2; ++j)
+        for (int i = 0; i < 2; ++i) {
+            float top = textureLod(map, m.xy + (vec2(i, j) - 0.5) * spacing, 0.0).r;
+            sum += smoothstep(1.5, 4.0, (m.z - top) * skyEnclosureParams.y);
+        }
+    return smoothstep(0.3, 0.9, sum / 4.0);
+}
+
+// 0 open to 1 enclosed: the near map, fading into the far one towards its
+// edge, the far one into open sky towards its own. The point is moved 2 m off
+// walls first, past the eaves, so they do not count their own roof.
 float skyEnclosed(vec3 position, vec3 normal) {
     if (skyEnclosureParams.x <= 0.0)
         return 0.0;
@@ -79,27 +123,16 @@ float skyEnclosed(vec3 position, vec3 normal) {
     vec3 p = position;
     if (sideLength > 1e-3)
         p += vec3(side.x, 0.0, side.y) / sideLength * min(sideLength * 3.0, 1.0) * 2.0;
-    vec4 clip = skyEnclosureMatrix * vec4(p, 1.0);
-    vec3 m = clip.xyz / clip.w * 0.5 + 0.5;
-    // Outside the map, above or below its depth range: open sky, the map
-    // knows nothing there (below its far plane every tap read as covered).
-    if (m.z <= 0.0 || m.z >= 1.0)
-        return 0.0;
-    // Towards the map's edge back to open sky gradually, not at a line.
-    float inside = 1.0 - smoothstep(0.35, 0.48, max(abs(m.x - 0.5), abs(m.y - 0.5)));
-    if (inside <= 0.0)
-        return 0.0;
-    float sum = 0.0;
-    for (int j = 0; j < 4; ++j)
-        for (int i = 0; i < 4; ++i) {
-            float top = textureLod(skyEnclosureMap, m.xy + (vec2(i, j) - 1.5) * skyEnclosureParams.z, 0.0).r;
-            sum += smoothstep(1.5, 4.0, (m.z - top) * skyEnclosureParams.y);
-        }
-    // Only wide cover counts: a roof or the terrain over a tunnel covers all
-    // the taps (half at its edge), while thin things overhead (wires, lamp
-    // heads, gantries) cover a few, which lit the ground under them in the
-    // map's texels with lamps at night strength by day (user, 2026-10-12).
-    return smoothstep(0.3, 0.9, sum / 16.0) * inside;
+    vec3 m;
+    float near = enclosureShare(skyEnclosureMatrix, p, 0.35, 0.48, m);
+    float enclosed = near > 0.0 ? enclosureTaps(skyEnclosureMap, m, skyEnclosureParams.z) * near : 0.0;
+    if (near < 1.0 && skyEnclosureFar.x > 0.0) {
+        vec3 f;
+        float far = enclosureShare(skyEnclosureFarMatrix, p, 0.4, 0.49, f);
+        if (far > 0.0)
+            enclosed += enclosureTapsCoarse(skyEnclosureFarMap, f, skyEnclosureFar.y) * far * (1.0 - near);
+    }
+    return enclosed;
 }
 
 float skyAmbient(float enclosed) {

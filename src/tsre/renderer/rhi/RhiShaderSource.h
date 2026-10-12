@@ -32,6 +32,8 @@ constexpr int TerrainPatchDataBinding = 19;
 constexpr int CloudShadowBinding = 25;
 // The sky enclosure's depth map (task 27).
 constexpr int SkyEnclosureBinding = 26;
+// The far sky enclosure map behind it.
+constexpr int SkyEnclosureFarBinding = 27;
 
 // Vertex attribute locations (as GLUU binds them), and the per-instance
 // matrix columns the QRhi renderer adds.

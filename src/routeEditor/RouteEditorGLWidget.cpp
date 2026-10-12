@@ -1385,23 +1385,28 @@ void RouteEditorGLWidget::renderShadowMaps() {
 }
 
 // The sky enclosure (task 27): terrain and opaque surfaces seen from 2 km
-// above the camera, down to 2 km below it, 400 m across at 1024 texels. The lit shaders find in it
-// whether something stands over a point. The map is drawn from a point
-// snapped to cells of 80 of its texels (31.25 m; 16 m in height), so its
-// texels keep their place on the ground, and kept while the camera stays in
-// its cell: the scene under it rarely changes, and drawing it again is a
-// second pass over everything within 300 m. Once a second it is drawn
-// anyway, for edits.
+// above the camera, down to 2 km below it, in two maps. The lit shaders find
+// in them whether something stands over a point.
+// - Near: 400 m across at 1024 texels (0.39 m), everything opaque within
+//   300 m. Drawn from a point snapped to cells of 80 of its texels (31.25 m;
+//   16 m in height), so its texels keep their place on the ground, and kept
+//   while the camera stays in its cell; once a second it is drawn anyway,
+//   for edits.
+// - Far: 1200 m across at 1024 texels (1.17 m), terrain and objects of 3 m
+//   radius and more, behind the near map (bridges, halls, tunnels farther
+//   off). Cells of 128 texels (150 m), drawn anyway every 600 frames, and
+//   never in a frame the near map is drawn in (a redraw costs a few ms).
 void RouteEditorGLWidget::renderSkyEnclosure() {
     Renderer::SkyEnclosure enclosure;
     enclosure.enabled = Game::skyEnclosure;
     if (!enclosure.enabled) {
-        enclosureAge = -1;
+        enclosureAge = farEnclosureAge = -1;
         renderer->setSkyEnclosure(enclosure);
         return;
     }
     constexpr int Size = 1024;
     constexpr float Half = 200.0f;
+    constexpr float FarHalf = 600.0f;
     // Over the terrain above deep tunnels, and down to the ground under high
     // bridges (from 300 m above with 600 m of depth, the terrain over a
     // deep tunnel was cut off, and ground more than 300 m below the camera
@@ -1409,49 +1414,86 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     constexpr float Above = 2000.0f;
     constexpr float Depth = 4000.0f;
     constexpr float Cell = 80.0f * 2.0f * Half / Size;
+    constexpr float FarCell = 128.0f * 2.0f * FarHalf / Size;
     constexpr float CellHeight = 16.0f;
     constexpr int RedrawFrames = 60;
+    constexpr int FarRedrawFrames = 600;
+    constexpr float FarMinRadius = 3.0f;
     const float *position = camera->getPos();
-    const float eye[3] = {std::floor(position[0] / Cell + 0.5f) * Cell,
-                          std::floor(position[1] / CellHeight + 0.5f) * CellHeight + Above,
-                          std::floor(position[2] / Cell + 0.5f) * Cell};
+    auto snap = [position](float cell, float *eye) {
+        eye[0] = std::floor(position[0] / cell + 0.5f) * cell;
+        eye[1] = std::floor(position[1] / CellHeight + 0.5f) * CellHeight + Above;
+        eye[2] = std::floor(position[2] / cell + 0.5f) * cell;
+    };
+    auto look = [](float half, const float *eye, float *viewProjection) {
+        float centre[3] = {eye[0], eye[1] - Above, eye[2]};
+        float up[3] = {0.0f, 0.0f, -1.0f};
+        float from[3] = {eye[0], eye[1], eye[2]};
+        float projection[16], view[16];
+        Mat4::ortho(projection, -half, half, -half, half, 0.0f, Depth);
+        Mat4::lookAt(view, from, centre, up);
+        Mat4::multiply(viewProjection, projection, view);
+    };
+    auto draw = [this](bool far, const float *viewProjection, float range, float minRadius) {
+        // Renderers without the maps (OpenGL) draw nothing.
+        if (!renderer->beginSkyEnclosure(Size, far))
+            return false;
+        // The shadow program draws with uShadowPMatrix.
+        renderer->useProgram(Renderer::PROGRAM_SHADOW);
+        Mat4::identity(gluu->mvMatrix);
+        Mat4::identity(gluu->objStrMatrix);
+        float *saved = gluu->pShadowMatrix;
+        float matrix[16];
+        std::copy(viewProjection, viewProjection + 16, matrix);
+        gluu->pShadowMatrix = matrix;
+        renderer->applyFrameUniforms();
+        renderer->renderEnclosureCasters(range, RenderStats::FrameStats::PassSlots - 1, matrix, minRadius);
+        gluu->pShadowMatrix = saved;
+        renderer->applyFrameUniforms();
+        renderer->releaseProgram();
+        return true;
+    };
+    float eye[3], farEye[3];
+    snap(Cell, eye);
+    snap(FarCell, farEye);
     const bool redraw = enclosureAge < 0 || enclosureAge >= RedrawFrames
             || !std::equal(eye, eye + 3, enclosureEye);
-    float centre[3] = {eye[0], eye[1] - Above, eye[2]};
-    float up[3] = {0.0f, 0.0f, -1.0f};
-    float from[3] = {eye[0], eye[1], eye[2]};
-    float projection[16], look[16];
-    Mat4::ortho(projection, -Half, Half, -Half, Half, 0.0f, Depth);
-    Mat4::lookAt(look, from, centre, up);
-    Mat4::multiply(enclosure.viewProjection, projection, look);
+    const bool farRedraw = farEnclosureAge < 0
+            || (!redraw && (farEnclosureAge >= FarRedrawFrames || !std::equal(farEye, farEye + 3, farEnclosureEye)));
+    look(Half, eye, enclosure.viewProjection);
     enclosure.metresPerDepth = Depth;
     enclosure.filter = 2.0f / Size;
+    enclosure.farFilter = 2.0f / Size;
     enclosure.ambientFloor = route != NULL && route->trk != NULL && route->trk->tsreEnclosedAmbient >= 0.0f
             ? route->trk->tsreEnclosedAmbient : Game::enclosedAmbient;
-    if (!redraw) {
+    if (redraw) {
+        if (!draw(false, enclosure.viewProjection, Half * 1.5f, 0.0f)) {
+            enclosureAge = farEnclosureAge = -1;
+            renderer->setSkyEnclosure(Renderer::SkyEnclosure());
+            return;
+        }
+        std::copy(eye, eye + 3, enclosureEye);
+        enclosureAge = 0;
+    } else {
         ++enclosureAge;
-        renderer->setSkyEnclosure(enclosure);
-        return;
     }
-    // Renderers without the map (OpenGL) draw nothing.
-    if (!renderer->beginSkyEnclosure(Size)) {
-        enclosureAge = -1;
-        renderer->setSkyEnclosure(Renderer::SkyEnclosure());
-        return;
+    if (farRedraw) {
+        float farViewProjection[16];
+        look(FarHalf, farEye, farViewProjection);
+        if (draw(true, farViewProjection, FarHalf * 1.5f, FarMinRadius)) {
+            std::copy(farEye, farEye + 3, farEnclosureEye);
+            farEnclosureAge = 0;
+        } else {
+            farEnclosureAge = -1;
+        }
+    } else {
+        ++farEnclosureAge;
     }
-    std::copy(eye, eye + 3, enclosureEye);
-    enclosureAge = 0;
-    // The shadow program draws with uShadowPMatrix.
-    renderer->useProgram(Renderer::PROGRAM_SHADOW);
-    Mat4::identity(gluu->mvMatrix);
-    Mat4::identity(gluu->objStrMatrix);
-    float *saved = gluu->pShadowMatrix;
-    gluu->pShadowMatrix = enclosure.viewProjection;
-    renderer->applyFrameUniforms();
-    renderer->renderEnclosureCasters(Half * 1.5f, RenderStats::FrameStats::PassSlots - 1, enclosure.viewProjection);
-    gluu->pShadowMatrix = saved;
-    renderer->applyFrameUniforms();
-    renderer->releaseProgram();
+    // The far map as last drawn (its redraw may wait a frame for the near
+    // map's).
+    enclosure.farEnabled = farEnclosureAge >= 0;
+    if (enclosure.farEnabled)
+        look(FarHalf, farEnclosureEye, enclosure.farViewProjection);
     renderer->setSkyEnclosure(enclosure);
 }
 

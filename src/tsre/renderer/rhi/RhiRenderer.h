@@ -72,8 +72,9 @@ public:
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
     void setClouds(const Clouds &clouds) override;
-    bool beginSkyEnclosure(int size) override;
-    void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection) override;
+    bool beginSkyEnclosure(int size, bool far = false) override;
+    void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
+                                float minRadius = 0.0f) override;
     void setSkyEnclosure(const SkyEnclosure &enclosure) override;
 
     // The environment map and water reflection storage (RhiReflections.cpp)
@@ -190,13 +191,15 @@ private:
         std::vector<PipelineKey> keys;
         std::vector<BindingKey> bindings;
     };
-    // Targets by Renderer::Target, then selection, an environment map face
-    // and the water reflection.
+    // Targets by Renderer::Target, then the near sky enclosure map,
+    // selection, an environment map face, the water reflection and the far
+    // sky enclosure map.
     static constexpr int TargetEnclosure = TARGET_SHADOW_FAR + 1;
     static constexpr int TargetSelection = TargetEnclosure + 1;
     static constexpr int TargetEnvironment = TargetSelection + 1;
     static constexpr int TargetReflection = TargetEnvironment + 1;
-    static constexpr int TargetCount = TargetReflection + 1;
+    static constexpr int TargetEnclosureFar = TargetReflection + 1;
+    static constexpr int TargetCount = TargetEnclosureFar + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -533,10 +536,12 @@ private:
     void applySecondaryClouds();
     void applyViewClouds(CloudView &v, int target, const Attachments &attachments, int colorLayer, int pixels,
                          int steps, int lightSteps, int passes, const CloudView *share);
-    // The sky enclosure map (task 27).
+    // The sky enclosure maps (task 27): near, and far behind it.
     Attachments enclosureMap;
+    Attachments enclosureFarMap;
     SkyEnclosure enclosure;
     bool enclosureDrawn = false;
+    bool enclosureFarDrawn = false;
     void recordCasters(int statsSlot);
     bool cloudShadowPlane(float &altitude) const;
     // The cloud shadow map's centre on whole texels: its offset from the

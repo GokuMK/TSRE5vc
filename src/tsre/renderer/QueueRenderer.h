@@ -108,7 +108,8 @@ protected:
     // groupPlans and instanceUpload.
     // Shadow casters in range and inside the light's view; with enclosure,
     // terrain and every opaque surface instead (the sky enclosure, task 27).
-    void planShadowCasters(float range, const float *viewProjection, bool enclosure = false);
+    void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
+                           float minRadius = 0.0f);
     // The lights of every queued instance in submission space, punctual
     // lights scaled by exposure and emissive ones by emissiveGain, with
     // ranges derived where missing (task 21). emittersOnly keeps only the

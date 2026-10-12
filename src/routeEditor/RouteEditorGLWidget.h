@@ -294,6 +294,8 @@ protected:
     // frames since: it is kept while the camera stays in its cell.
     float enclosureEye[3] = {0.0f, 0.0f, 0.0f};
     int enclosureAge = -1;
+    float farEnclosureEye[3] = {0.0f, 0.0f, 0.0f};
+    int farEnclosureAge = -1;
     Renderer::Clouds cloudState;
     quint64 weatherRevision = 0;
     quint64 cloudWeatherRevision = ~0ull;

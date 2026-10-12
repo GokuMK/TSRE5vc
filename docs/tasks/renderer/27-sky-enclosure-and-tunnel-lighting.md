@@ -270,6 +270,34 @@ Follow-up (2026-10-12):
   can be redrawn rarely (every few hundred metres, every few seconds).
   So: keep the near map, add the coarse one behind it.
 
+### Far map, the tunnel's noon sun (2026-10-12)
+
+- The user's EUROPE1 tunnel looked lit on screen, mine dark: the user's
+  settings (noon on 21 June, sun nearly overhead) showed it. The walls were
+  enclosed, but the floor lay in direct sunlight: terrain casts no sun
+  shadows, and the tunnel tube, single-sided and seen from inside, faced
+  the sun with its back and was culled in the shadow passes. The shadow
+  maps now draw without back-face culling, as the enclosure map: closed
+  shapes cast as before (an outdoor CMK view: no pixel changed), open
+  shells such as tunnel tubes cast too. About 1 ms at the CMK station
+  (within the noise).
+- The far map (user: 1200 m rather than 2 km, more detail): 1024 x 1024
+  over 1200 m (1.17 m texels), terrain and objects of 3 m radius and more,
+  behind the near map. Cells of 150 m, drawn anyway every 600 frames, never
+  in a frame the near map is drawn in. The near map fades into it over its
+  outer part (from 140 m), it into open sky from 480 m. Four taps in it
+  (sixteen made no visible difference: 0.18 % of the pixels on the
+  viaduct). Sampler binding 27 (`skyEnclosureFarMap`).
+- Checked on the EUROPE1 viaduct (`core.startup.camera=-6114,15060,435.06,354.40,800.22,244.63,-14.93`):
+  the arches are enclosed evenly along the whole viaduct, no edge. The CMK
+  station within 140 m: unchanged. Cost in use (maps kept): about 1 ms at
+  the CMK station, within the noise on bbb.
+- Not yet: the lamps' glow splats read the near map only (a lamp beyond
+  140-200 m keeps its daytime glow under cover).
+- The CMK roofs (alpha-tested, textures with transparent texels): the user
+  takes them as an asset fix (opaque textures, or an opaque material) for
+  the new features.
+
 Open (for the user):
 
 - Alpha-tested surfaces: include them (roofs) and keep vegetation out.
@@ -278,11 +306,7 @@ Open (for the user):
   Including everything alpha-tested would make tree canopies roofs: darker
   ambient under trees (rather true), lamps under trees at night strength
   by day (wrong, rare).
-- Working distance: 200 m from the camera, now fading out from 140 m.
-  Options: a larger map (more casters in each redraw; the cell and the
-  periodic redraw would need to grow), or a second, coarse map (about 2 km
-  across, terrain and large objects only, redrawn rarely) behind the near
-  one.
+- Working distance: done with the far map (see above).
 
 ## Known Limitation (0.7.8)
 

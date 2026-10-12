@@ -182,11 +182,18 @@ public:
         // The filter's spacing in map coordinates.
         float filter = 0.0f;
         float ambientFloor = 0.3f;
+        // The far map behind it: wider and coarser, of terrain and large
+        // objects; the near map fades into it, it into open sky.
+        bool farEnabled = false;
+        float farViewProjection[16] = {};
+        float farFilter = 0.0f;
     };
-    // Starts the map (size texels) when the renderer has one; the shadow
-    // program then draws enclosure casters into it.
-    virtual bool beginSkyEnclosure(int size) { return false; }
-    virtual void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection) {}
+    // Starts the near or the far map (size texels) when the renderer has
+    // them; the shadow program then draws enclosure casters into it, the far
+    // map only those of minRadius and more.
+    virtual bool beginSkyEnclosure(int size, bool far = false) { return false; }
+    virtual void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
+                                        float minRadius = 0.0f) {}
     virtual void setSkyEnclosure(const SkyEnclosure &enclosure) {}
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
