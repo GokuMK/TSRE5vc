@@ -1062,14 +1062,35 @@ const float OpeningHeight = 5.0;
 float topAt(vec2 p) { return textureLod(topMap, p, 0.0).r; }
 float bottomAt(vec2 p) { return textureLod(bottomMap, vec2(p.x, 1.0 - p.y), 0.0).r; }
 
+// A column without cover: open sky (1), unless it is solid ground rising
+// high over the floor of a hollow beside it (the rock beside a tunnel, where
+// points moved off the walls land): 0. (All of them 0 darkened the ground
+// along a viaduct's footprint: filtered against the hollow's value under
+// the deck, user 2026-10-12.)
+float uncovered(vec2 p, float top, float step) {
+    for (int d = 0; d < 8; ++d) {
+        float angle = float(d) * 0.785398;
+        for (int s = 1; s <= 2; ++s) {
+            vec2 q = p + vec2(cos(angle), sin(angle)) * step * float(s);
+            float floorThere = bottomAt(q);
+            bool hollowThere = (1.0 - topAt(q) - floorThere) * params.y > 3.0;
+            if (hollowThere && (1.0 - top - floorThere) * params.y > OpeningHeight)
+                return 0.0;
+        }
+    }
+    return 1.0;
+}
+
 void main() {
     float floorDepth = bottomAt(uv);
-    // Only for points in a hollow (cover over a floor): in solid columns
-    // (the rock beside a tunnel, which points moved off the walls land in)
-    // the floor is the top itself.
-    float hollow = smoothstep(2.0, 4.0, (1.0 - topAt(uv) - floorDepth) * params.y);
+    float topHere = topAt(uv);
+    // Points in a hollow (cover over a floor) look for openings; in columns
+    // without cover the floor is the top itself.
+    float hollow = smoothstep(2.0, 4.0, (1.0 - topHere - floorDepth) * params.y);
+    // Steps of about 1.5 m (the rays' are 2.5 m).
+    float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6) : 1.0;
     if (hollow <= 0.0) {
-        result = vec4(0.0, 0.0, 0.0, 1.0);
+        result = vec4(open, 0.0, 0.0, 1.0);
         return;
     }
     float light = 0.0;
@@ -1093,7 +1114,7 @@ void main() {
         }
     }
     // Two open sides near by (a viaduct's arches) light it fully.
-    result = vec4(clamp(light * 0.5, 0.0, 1.0) * hollow, 0.0, 0.0, 1.0);
+    result = vec4(mix(open, clamp(light * 0.5, 0.0, 1.0), hollow), 0.0, 0.0, 1.0);
 }
 )";
 

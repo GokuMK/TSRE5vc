@@ -384,6 +384,16 @@ Now:
   shadow comes from the shadow maps. Under the viaduct the shade is near 0
   now (open at its sides); deep in a tunnel it is 1 and the floor stays out
   of the sun.
+- A thin dark strip remained along the viaduct's footprint, on the sunlit
+  side (`core.startup.camera=-6114,15060,222.92,334.68,872.64,135.39,-42.02`):
+  columns without cover stored openness 0 (so wall points moved into the
+  rock beside a tunnel stay deep), and the texture's filter blended that
+  with the high openness under the deck, so points just outside the
+  footprint read half enclosed (less sky light, and the sun block). Columns
+  without cover are open (1) now, unless they rise more than 5 m over the
+  floor of a hollow within 3 m (the rock beside a tunnel). At that camera
+  no pixel differs from the view with the enclosure off; the tunnel and
+  its portal are as before.
 - The CMK roofs (alpha-tested, textures with transparent texels): the user
   takes them as an asset fix (opaque textures, or an opaque material) for
   the new features.
