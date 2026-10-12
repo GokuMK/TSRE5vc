@@ -371,7 +371,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.core.system.sound.enabled.name")).withDescriptionId(
                 //% "Load and update route, rolling-stock, and ambient sounds in the Route Editor."
                 QT_TRID_NOOP("settings.core.system.sound.enabled.description")).inGroup("system").inSubgroup("audio"),
-        "soundEnabled", "Game::soundEnabled", "SoundManager", true, "route-reload");
+        "soundEnabled", "Game::soundEnabled", "SoundSystem", true, "route-reload");
 
     order = 0;
     ADD(SettingsDefinition::string("core.paths.gameRoot", "", SettingType::Directory)

@@ -7,8 +7,12 @@
 #include <QMap>
 #include <cmath>
 #include <cstring>
+#include <QTemporaryDir>
+#include <tsre/sound/SmsFile.h>
 #include <tsre/sound/SoundBank.h>
 #include <tsre/sound/SoundEngine.h>
+#include <tsre/sound/SoundSource.h>
+#include <tsre/sound/SoundSystem.h>
 #include <tsre/sound/StreamPlayer.h>
 #include <tsre/sound/WavFile.h>
 
@@ -465,6 +469,251 @@ void engineCases(Checker &check) {
     check(!engine.running(), "the engine shuts down");
 }
 
+const char *SampleSms = R"(SIMISA@@@@@@@@@@JINX0x1t______
+
+Tr_SMS (
+	comment ( a definition for the tests )
+	ScalabiltyGroup( 5
+		Activation ( ExternalCam () Distance ( 0.2km ) )
+		Deactivation ( Distance ( 250 ) )
+		Volume ( 0.8 )
+		Stereo ()
+		Streams ( 2
+			Stream (
+				Priority ( 6 )
+				Triggers ( 6
+					Initial_Trigger ( StartLoop ( 1 File ( "idle.wav" -1 ) SelectionMethod ( SequentialSelection ) ) )
+					Variable_Trigger ( Speed_Inc_Past 18mph StartLoopRelease ( 2 File ( "run1.wav" -1 ) File ( "run2.wav" -1 ) File ( "extra.wav" -1 ) SelectionMethod ( RandomSelection ) ) )
+					Variable_Trigger ( Distance_Dec_Past 10 ReleaseLoopReleaseWithJump () )
+					Discrete_Trigger ( 8 PlayOneShot ( 1 File ( "horn.wav" -1 ) ) )
+					Random_Trigger ( Delay_Min_Max ( 2 4 ) Volume_Min_Max ( 0.5 0.6 ) PlayOneShot ( 1 File ( "click.wav" -1 ) ) )
+					Dist_Travelled_Trigger ( Dist_Min_Max ( 1km 2km ) DisableTrigger ( 4 ) )
+				)
+				VolumeCurve ( DistanceControlled CurvePoints ( 2 10 1.0 100 0.5 ) Granularity ( 0.1 ) )
+				FrequencyCurve ( Variable1_2Controlled CurvePoints ( 2 0 11025 1 22050 ) )
+				Skip ( VolumeCurve ( SpeedControlled CurvePoints ( 1 0 0 ) ) )
+			)
+			Stream (
+				Triggers ( 2
+					Switch_4axle_Trigger ( Car_Camera_Dist ( 50 ) PlayOneShot ( 1 File ( "switch.wav" -1 ) ) )
+					Variable_Trigger ( BrakeCyl_Dec_Past 2bar SetStreamVolume ( 0.3 ) )
+				)
+				Volume ( 0.5 )
+				ORTSSeason ( Winter () Summer ( 0 ) )
+			)
+			Stream ( )
+		)
+	)
+	ScalabiltyGroup( 2 Streams ( 0 ) )
+)
+)";
+
+void smsCases(Checker &check) {
+    Sms::File file;
+    check(Sms::parse(SampleSms, file) && file.groups.size() == 2, "an .sms reads its scalability groups");
+    if (file.groups.size() != 2)
+        return;
+    const Sms::Group &g = file.groups[0];
+    check(g.detailLevel == 5 && std::abs(g.volume - 0.8f) < 1e-6f && g.stereo && !g.ignore3d,
+          "a group's level, volume and flags");
+    check(g.activation.present && g.activation.externalCam && !g.activation.cabCam
+                  && std::abs(g.activation.distance - 200.0f) < 1e-3f && g.deactivation.present
+                  && g.deactivation.distance == 250.0f,
+          "activation and deactivation, distances with units");
+    check(g.streams.size() == 2 && file.warnings.contains("skipped an extra stream"),
+          "as many streams as the count says");
+    const Sms::Stream &s = g.streams[0];
+    check(s.priority == 6 && s.triggers.size() == 6 && s.volumeCurves.size() == 1 && s.frequencyCurve.has_value(),
+          "a stream's triggers and curves; a Skip block is skipped");
+    const Sms::Trigger &run = s.triggers[1];
+    check(run.type == Sms::Trigger::Type::Variable && run.control == Sms::Control::Speed && run.increasing
+                  && std::abs(run.threshold - 8.04672f) < 1e-3f,
+          "a speed threshold in mph is read in m/s");
+    check(run.command.type == Sms::Command::Type::StartLoopRelease && run.command.randomSelection
+                  && run.command.files == QStringList({"run1.wav", "run2.wav"}),
+          "a play command's files (no more than its count) and selection");
+    check(s.triggers[2].control == Sms::Control::Distance && !s.triggers[2].increasing
+                  && s.triggers[2].threshold == 100.0f
+                  && s.triggers[2].command.type == Sms::Command::Type::ReleaseLoopReleaseWithJump,
+          "a distance threshold is squared");
+    check(s.triggers[3].type == Sms::Trigger::Type::Discrete && s.triggers[3].event == 8,
+          "a discrete trigger's event");
+    check(s.triggers[4].type == Sms::Trigger::Type::Random && s.triggers[4].min == 2.0f && s.triggers[4].max == 4.0f
+                  && s.triggers[4].volumeMin == 0.5f && s.triggers[4].volumeMax == 0.6f,
+          "a random trigger's delays and volumes");
+    check(s.triggers[5].type == Sms::Trigger::Type::DistanceTravelled && s.triggers[5].min == 1000.0f
+                  && s.triggers[5].max == 2000.0f && s.triggers[5].command.type == Sms::Command::Type::DisableTrigger
+                  && s.triggers[5].command.trigger == 4,
+          "a distance-travelled trigger in km and a disable command");
+    const Sms::Curve &volume = s.volumeCurves[0];
+    check(volume.control == Sms::Control::Distance && volume.points.size() == 2 && volume.points[1].first == 10000.0f
+                  && std::abs(volume.granularity - 0.1f) < 1e-6f,
+          "distance curve points are squared");
+    check(s.frequencyCurve->control == Sms::Control::Variable1 && s.frequencyCurve->index == 1,
+          "Variable1_2 is the second Variable1");
+    check(std::abs(volume.valueAt(0.0f) - 1.0f) < 1e-6f && std::abs(volume.valueAt(5050.0f) - 0.75f) < 1e-6f
+                  && std::abs(volume.valueAt(1e6f) - 0.5f) < 1e-6f,
+          "curves interpolate and keep their end values");
+    const Sms::Stream &second = g.streams[1];
+    check(second.triggers.size() == 2 && second.triggers[0].type == Sms::Trigger::Type::Switch
+                  && second.triggers[0].axles == 4 && second.triggers[0].cameraDistance == 50.0f,
+          "switch triggers with their axles");
+    check(std::abs(second.triggers[1].threshold - 29.0075f) < 1e-3f && second.volume == 0.5f
+                  && second.seasons == (1 << 3),
+          "a brake cylinder threshold in bar is read in psi; Open Rails' seasons");
+    check(file.group(5) == &file.groups[0] && file.group(3) == &file.groups[1] && file.group(1) == nullptr,
+          "the group of a detail level: the first at or below it");
+    Sms::File noStreams;
+    Sms::parse("Tr_SMS ( ScalabiltyGroup ( 5 Volume ( 1 ) ) )", noStreams);
+    check(noStreams.groups.size() == 1 && noStreams.group(5) == nullptr, "a group without streams plays nothing");
+}
+
+// A mono sine wave of the given length in a temporary folder.
+void writeWave(const QString &path, double seconds, double frequency = 441.0) {
+    std::vector<int16_t> samples;
+    for (int i = 0; i < int(seconds * 11025); ++i)
+        samples.push_back(int16_t(std::lround(8000.0 * std::sin(2.0 * M_PI * frequency * i / 11025.0))));
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly))
+        file.write(riff(fmtChunk(1, 1, 11025, 16) + chunk("data", pcm16(samples))));
+}
+
+void writeText(const QString &path, const QString &text) {
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly))
+        file.write(text.toUtf8());
+}
+
+// Updates the sounds and plays what they queued, in steps of a frame.
+void advance(double seconds) {
+    std::vector<float> out(800 * 2);
+    for (double t = 0.0; t < seconds; t += 1.0 / 60.0) {
+        SoundSystem::update(1.0f / 60.0f);
+        SoundEngine::get().render(out.data(), 800);
+    }
+}
+
+void sourceCases(Checker &check) {
+    QTemporaryDir dir;
+    if (!SoundSystem::start(false) || !dir.isValid()) {
+        check(false, "the sound system runs without a device");
+        return;
+    }
+    for (const char *name : {"idle.wav", "run.wav", "horn.wav", "click.wav", "loop.wav"})
+        writeWave(dir.filePath(name), 0.5);
+    // A world sound: heard within 100 m, until 150 m.
+    writeText(dir.filePath("world.sms"), R"(SIMISA@@@@@@@@@@JINX0x1t______
+Tr_SMS ( ScalabiltyGroup ( 5
+    Activation ( ExternalCam ( ) Distance ( 100 ) )
+    Deactivation ( Distance ( 150 ) )
+    Streams ( 1 Stream ( Triggers ( 1 Initial_Trigger ( StartLoop ( 1 File ( "loop.wav" -1 ) ) ) )
+        VolumeCurve ( DistanceControlled CurvePoints ( 2 0 1 120 0.5 ) ) ) ) ) )
+)");
+    // A car's: idle, running above 1 m/s with its frequency, a horn, clicks.
+    writeText(dir.filePath("car.sms"), R"(SIMISA@@@@@@@@@@JINX0x1t______
+Tr_SMS ( ScalabiltyGroup ( 5
+    Activation ( CabCam ( ) )
+    Deactivation ( ExternalCam ( ) )
+    Streams ( 3
+        Stream ( Triggers ( 3
+                Initial_Trigger ( StartLoop ( 1 File ( "idle.wav" -1 ) ) )
+                Variable_Trigger ( Speed_Inc_Past 1 StartLoopRelease ( 1 File ( "run.wav" -1 ) ) )
+                Variable_Trigger ( Speed_Dec_Past 1 ReleaseLoopRelease ( ) ) )
+            FrequencyCurve ( SpeedControlled CurvePoints ( 2 0 11025 10 22050 ) ) )
+        Stream ( Triggers ( 1 Discrete_Trigger ( 8 PlayOneShot ( 1 File ( "horn.wav" -1 ) ) ) ) )
+        Stream ( Triggers ( 1 Random_Trigger ( Delay_Min_Max ( 2 4 ) Volume_Min_Max ( 0.5 0.6 ) PlayOneShot ( 1 File ( "click.wav" -1 ) ) ) ) )
+    ) ) )
+)");
+    SoundListener listener;
+    {
+        QStringList log;
+        SoundSource world(dir.filePath("world.sms"), SoundSource::Kind::World);
+        world.log = &log;
+        const float at[3] = {0.0f, 0.0f, 0.0f};
+        world.setLocation(0, 0, at);
+        listener.position[0] = 50.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        const float expected = SoundSource::distanceGain(50.0f, SoundSource::SlowRolloff) * (1.0f - 0.5f * 2500.0f / 14400.0f);
+        check(world.valid() && world.active() && log == QStringList({"0: StartLoop loop.wav"})
+                      && std::abs(world.streamGain(0) - expected) < 1e-4f,
+              "a world sound within reach starts its initial loop, its gain by distance and curve");
+        listener.position[0] = 140.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(world.active() && world.streamGain(0) > 0.0f, "past the activation distance it stays until deactivated");
+        listener.position[0] = 160.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(!world.active() && world.streamGain(0) == 0.0f, "past the deactivation distance it is silent");
+        listener.position[0] = 90.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(world.active() && log.size() == 1, "back within reach it plays on");
+        listener.tileX = 2;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(!world.inRange() && world.voice(0) != nullptr && world.voice(0)->placed(),
+              "a world sound is placed in 3D; two tiles away it is out of reach");
+        listener.tileX = 0;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(world.inRange() && log.size() == 2 && log.last() == "0: StartLoop loop.wav",
+              "coming within reach again runs the initial trigger again");
+        world.setEnabled(false);
+        advance(0.1);
+        check(!world.inRange(), "a disabled sound is silent");
+    }
+    {
+        QStringList log;
+        int owner = 0;
+        SoundSource car(dir.filePath("car.sms"), SoundSource::Kind::Car, &owner);
+        car.log = &log;
+        const float at[3] = {0.0f, 0.0f, 0.0f};
+        car.setLocation(0, 0, at);
+        listener = SoundListener();
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(!car.active() && log.size() == 1, "a cab sound is not heard from outside");
+        listener.view = SoundView::Cab;
+        listener.attachedTo = &owner;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(car.active() && log == QStringList({"0: StartLoop idle.wav"}), "riding the car, its cab sound plays");
+        car.values().set(Sms::Control::Speed, 5.0f);
+        advance(0.1);
+        check(log.last() == "0: StartLoopRelease run.wav" && std::abs(car.streamSpeed(0) - 1.5f) < 1e-4f,
+              "rising past a threshold starts a loop; the frequency curve sets its speed");
+        car.values().set(Sms::Control::Speed, 0.0f);
+        advance(0.1);
+        // A released loop no longer plays, so with every variable trigger
+        // below, the initial trigger queues the idle loop after it.
+        check(log.mid(log.size() - 2) == QStringList({"0: ReleaseLoopRelease", "0: StartLoop idle.wav"}),
+              "falling past it releases the loop, and the initial trigger runs again");
+        advance(1.5);
+        check(car.streamPlaying(0), "the idle loop plays after the release");
+        car.event(8);
+        advance(0.1);
+        check(log.contains("1: PlayOneShot horn.wav"), "a discrete event plays its one-shot");
+        log.clear();
+        const double start = SoundSystem::clock();
+        advance(9.0);
+        QStringList clicks = log.filter("2: PlayOneShot click.wav");
+        check(clicks.size() >= 2 && clicks.size() <= 5, "random triggers fire every 2 to 4 seconds");
+        listener.attachedTo = nullptr;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(!car.active() && car.streamGain(0) == 0.0f, "riding another car, its cab sound stops");
+        Q_UNUSED(start);
+    }
+    check(SoundSource::distanceGain(4.0f, 1.0f) == 1.0f
+                  && std::abs(SoundSource::distanceGain(2000.0f, SoundSource::rolloffFor(2000.0f)) - 0.025f) < 1e-5f
+                  && std::abs(SoundSource::distanceGain(100.0f, 0.4f) - 8.0f / (8.0f + 0.4f * 92.0f)) < 1e-6f,
+          "gain with distance: full within 8 m, 0.025 at 2 km");
+    SoundSystem::shutdown();
+    check(!SoundSystem::running() && SoundSystem::sourceCount() == 0, "the sound system stops");
+}
+
 }
 
 int TsreTests::runSoundSuite(bool verbose) {
@@ -472,6 +721,8 @@ int TsreTests::runSoundSuite(bool verbose) {
     waveCases(check);
     playerCases(check);
     engineCases(check);
+    smsCases(check);
+    sourceCases(check);
     qInfo().noquote() << QString("[tests:sound] passed %1 failed %2").arg(check.passed).arg(check.failed);
     return check.failed == 0 ? 0 : 1;
 }
@@ -511,5 +762,84 @@ int TsreTests::runSoundCorpus(const QString &root, bool verbose) {
         qInfo().noquote() << QString("[tests:sound-corpus]   %1 Hz: %2").arg(i.key()).arg(i.value());
     for (auto i = reasons.cbegin(); i != reasons.cend(); ++i)
         qInfo().noquote() << QString("[tests:sound-corpus]   unreadable, %1: %2").arg(i.key()).arg(i.value());
-    return waveFailures == 0 ? 0 : 1;
+
+    // Sound definitions: each read, its warnings, what it uses, and whether
+    // its waves are where Open Rails looks (its folder, the route's SOUND,
+    // the content root's SOUND).
+    int definitions = 0;
+    int smsFailures = 0;
+    int withWarnings = 0;
+    int missingWaves = 0;
+    int noGroup = 0;
+    QMap<QString, int> warnings;
+    QMap<QString, int> triggers;
+    QMap<QString, int> controls;
+    static const char *triggerNames[] = {"unknown", "initial", "discrete", "variable", "random",
+                                         "distance travelled", "joint", "switch", "crossover"};
+    QDirIterator sms(root, QDir::Files, QDirIterator::Subdirectories);
+    while (sms.hasNext()) {
+        const QString path = sms.next();
+        if (!path.endsWith(".sms", Qt::CaseInsensitive))
+            continue;
+        ++definitions;
+        Sms::File file;
+        QString error;
+        if (!Sms::load(path, file, &error)) {
+            ++smsFailures;
+            qWarning().noquote() << "[tests:sound-corpus] sms" << path << error;
+            continue;
+        }
+        if (!file.warnings.isEmpty()) {
+            ++withWarnings;
+            for (const QString &w : file.warnings)
+                warnings[w.section(' ', 0, 1)]++;
+            if (verbose)
+                qInfo().noquote() << "[tests:sound-corpus] sms" << path << file.warnings.join("; ");
+        }
+        const Sms::Group *group = file.group(5);
+        if (group == nullptr) {
+            ++noGroup;
+            if (verbose)
+                qInfo().noquote() << "[tests:sound-corpus] no group to play in" << path;
+            continue;
+        }
+        QString contentRoot = path;
+        const int routes = int(path.lastIndexOf("/ROUTES/", -1, Qt::CaseInsensitive));
+        const int trains = int(path.lastIndexOf("/TRAINS/", -1, Qt::CaseInsensitive));
+        const int cut = std::max(routes, trains);
+        contentRoot = cut > 0 ? path.left(cut) : QFileInfo(path).path();
+        QString routeSound;
+        if (routes > 0) {
+            const int end = int(path.indexOf('/', routes + 8));
+            routeSound = path.left(end) + "/SOUND";
+        }
+        const QStringList folders = {QFileInfo(path).path(), routeSound, contentRoot + "/SOUND"};
+        for (const Sms::Stream &stream : group->streams) {
+            for (const Sms::Trigger &t : stream.triggers) {
+                triggers[triggerNames[int(t.type)]]++;
+                if (t.type == Sms::Trigger::Type::Variable)
+                    controls[QString("trigger %1").arg(int(t.control))]++;
+                for (const QString &name : t.command.files)
+                    if (SoundBank::find(name, folders).isEmpty()) {
+                        ++missingWaves;
+                        if (verbose)
+                            qInfo().noquote() << "[tests:sound-corpus] missing" << name << "for" << path;
+                    }
+            }
+            for (const Sms::Curve &c : stream.volumeCurves)
+                controls[QString("volume %1").arg(int(c.control))]++;
+            if (stream.frequencyCurve)
+                controls[QString("frequency %1").arg(int(stream.frequencyCurve->control))]++;
+        }
+    }
+    qInfo().noquote() << QString("[tests:sound-corpus] sms %1 unreadable %2 with warnings %3 no group at level 5 %4 "
+                                 "waves not found %5")
+                                 .arg(definitions).arg(smsFailures).arg(withWarnings).arg(noGroup).arg(missingWaves);
+    for (auto i = triggers.cbegin(); i != triggers.cend(); ++i)
+        qInfo().noquote() << QString("[tests:sound-corpus]   trigger %1: %2").arg(i.key()).arg(i.value());
+    for (auto i = controls.cbegin(); i != controls.cend(); ++i)
+        qInfo().noquote() << QString("[tests:sound-corpus]   control %1: %2").arg(i.key()).arg(i.value());
+    for (auto i = warnings.cbegin(); i != warnings.cend(); ++i)
+        qInfo().noquote() << QString("[tests:sound-corpus]   warning \"%1\": %2").arg(i.key()).arg(i.value());
+    return waveFailures == 0 && smsFailures == 0 ? 0 : 1;
 }

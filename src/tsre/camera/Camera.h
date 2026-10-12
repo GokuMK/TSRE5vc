@@ -57,6 +57,8 @@ public:
     virtual void update(float fps);
     virtual void pushRenderHud(RenderQueue &queue);
     virtual void setCameraObject(GameObj* o);
+    // What the camera rides (a consist in play mode), or NULL.
+    GameObj* getCameraObject() const { return cameraObject; }
     virtual PreciseTileCoordinate* getCurrentPos();
     float * pozT = NULL;
     float starex, starey;

@@ -19,7 +19,8 @@ class RenderQueue;
 class OglObj;
 class GLUU;
 class Ruch;
-class SoundVariables;
+class SoundSource;
+struct SoundValues;
 class TrainNetworkEng;
 class ContentHierarchyInfo;
 
@@ -94,6 +95,8 @@ public:
     bool searchFilter(QString q);
     void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections);
     void getCameraPosition(float *out = NULL);
+    // What its sounds read (speed, throttle...); NULL without sound.
+    const SoundValues *soundValues();
     void pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected = false);
     void move(float m);
     float getCurrentElevation();
@@ -115,8 +118,9 @@ private:
     Ruch *ruch2 = NULL;
     void addToFileList(QString val);
     
-    int camSoundSourceId = -1;
-    SoundVariables* soundVariables = NULL;
+    // The cab .sms ("Sound" of the Engine section), heard riding it.
+    SoundSource *cabSound = NULL;
+    bool cabSoundTried = false;
     float currentSpeed = 0;
     
     TrainNetworkEng* networkEng = NULL;

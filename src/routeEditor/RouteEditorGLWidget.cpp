@@ -60,7 +60,8 @@
 #include <tsre/trains/Path.h>
 #include <tsre/trains/Activity.h>
 #include "PlayActivitySelectWindow.h"
-#include <tsre/sound/SoundManager.h>
+#include <tsre/sound/SoundSystem.h>
+#include <tsre/trains/Consist.h>
 #include <tsre/world/Skydome.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/EnvironmentMap.h>
@@ -256,16 +257,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         }
     }
     
-    if(Game::soundEnabled){
-        if (timeNow % 200 < lastTime % 200) {
-            SoundManager::UpdateListenerPos((int)camera->pozT[0], (int)camera->pozT[1], camera->getPos(), camera->getTarget(), camera->getUp());
-            SoundManager::UpdateAll();
-        }
-
-        if (timeNow % 50 < lastTime % 50) {
-            SoundManager::UpdateAll();
-        }
-    }
+    if(Game::soundEnabled && SoundSystem::running())
+        updateSound((float) (timeNow - lastTime) / 1000.0f);
 
     if (!simulationPaused)
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
@@ -443,10 +436,37 @@ QString RouteEditorGLWidget::cameraSetting() const {
             .arg(rotX * 180.0 / M_PI, 0, 'f', 2).arg(rotY * 180.0 / M_PI, 0, 'f', 2);
 }
 
+// The camera is the listener; riding a consist (play mode) it is in the
+// lead engine's cab, whose cab sounds play.
+void RouteEditorGLWidget::updateSound(float seconds) {
+    SoundListener listener;
+    listener.tileX = (int)camera->pozT[0];
+    listener.tileZ = (int)camera->pozT[1];
+    const float *pos = camera->getPos();
+    const float *target = camera->getTarget();
+    const float *up = camera->getUp();
+    float forward[3] = {target[0] - pos[0], target[1] - pos[1], target[2] - pos[2]};
+    const float length = std::sqrt(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]);
+    for (int i = 0; i < 3; i++) {
+        listener.position[i] = pos[i];
+        listener.forward[i] = length > 0.0f ? forward[i] / length : (i == 2 ? -1.0f : 0.0f);
+        listener.up[i] = up[i];
+    }
+    Consist *consist = dynamic_cast<Consist*>(camera->getCameraObject());
+    if (consist != NULL && consist->engItems.size() > 0 && consist->engItems[0].engPointer != NULL) {
+        Eng *lead = consist->engItems[0].engPointer;
+        listener.view = SoundView::Cab;
+        listener.attachedTo = lead;
+        listener.attachedValues = lead->soundValues();
+    }
+    SoundSystem::setListener(listener);
+    SoundSystem::update(seconds);
+}
+
 void RouteEditorGLWidget::surfaceInitialize() {
     
     if(Game::soundEnabled)
-        SoundManager::InitAl();
+        SoundSystem::start();
 
     gluu = GLUU::get();
     qDebug() << "# InitializeOpenGLFunctions";
@@ -519,8 +539,6 @@ void RouteEditorGLWidget::surfaceInitialize() {
     imageryWindow = new ImageryWindow();
     Quat::fill(this->placeRot);
 
-    SoundManager::listenerX = camera->pozT[0];
-    SoundManager::listenerZ = camera->pozT[1];
     
     //emit routeLoaded(route);
     emit mkrList(route->getMkrList());

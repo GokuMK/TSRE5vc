@@ -26,10 +26,9 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/Ruch.h>
-#include <tsre/sound/MstsSoundDefinition.h>
-#include <tsre/sound/SoundManager.h>
+#include <tsre/sound/SoundBank.h>
 #include <tsre/sound/SoundSource.h>
-#include <tsre/sound/SoundVariables.h>
+#include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/TrainNetworkEng.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
@@ -76,6 +75,11 @@ Eng::Eng(Eng *o) {
 }
 
 Eng::~Eng() {
+    delete cabSound;
+}
+
+const SoundValues *Eng::soundValues() {
+    return cabSound != NULL ? &cabSound->values() : NULL;
 }
 
 Eng::Eng(QString p, QString n) {
@@ -577,21 +581,13 @@ void Eng::updateSim(float deltaTime){
     
     if(!Game::useNetworkEng || fakesound){
     // Local Sound Speed test:
-        static SoundDefinitionGroup::Stream::Curve curve1("SpeedControlled");
-        static SoundDefinitionGroup::Stream::Curve curve2("SpeedControlled");
-        static SoundDefinitionGroup::Stream::Curve *curve = &curve1;
-        if(curve1.points.size() == 0){
-            curve1.points.push_back(Vector2f(-1.0, 0.1));
-            curve1.points.push_back(Vector2f(2.0, 0.5));
-            curve1.points.push_back(Vector2f(25.0, 1.0));
-            curve1.points.push_back(Vector2f(56.0, 0.0));
-        }
-        if(curve2.points.size() == 0){
-            curve2.points.push_back(Vector2f(-1.0, -0.1));
-            curve2.points.push_back(Vector2f(2.0, -0.5));
-            curve2.points.push_back(Vector2f(25.0, -1.0));
-            curve2.points.push_back(Vector2f(56.0, 0.0));
-        }
+        static Sms::Curve curve1;
+        static Sms::Curve curve2;
+        static Sms::Curve *curve = &curve1;
+        if(curve1.points.size() == 0)
+            curve1.points = {{-1.0f, 0.1f}, {2.0f, 0.5f}, {25.0f, 1.0f}, {56.0f, 0.0f}};
+        if(curve2.points.size() == 0)
+            curve2.points = {{-1.0f, -0.1f}, {2.0f, -0.5f}, {25.0f, -1.0f}, {56.0f, 0.0f}};
 
         if(currentSpeed > 55 && curve == &curve1){
             curve = &curve2;
@@ -600,8 +596,8 @@ void Eng::updateSim(float deltaTime){
             curve = &curve1;
         }
 
-        if(soundVariables != NULL)
-            acceleration = curve->getValue(soundVariables);
+        if(cabSound != NULL)
+            acceleration = curve->valueAt(currentSpeed);
 
         currentSpeed += acceleration*deltaTime;
 
@@ -639,23 +635,37 @@ void Eng::updateSim(float deltaTime){
     }
     
     //qDebug() << acceleration << currentSpeed << lastSpeed;
-    if(soundVariables != NULL){
-        // vectron
-        //soundVariables->value[SoundVariables::VARIABLE2] = currentSpeed * 100 / 55.0;
-        soundVariables->value[SoundVariables::VARIABLE2] = acceleration * 100;
-        soundVariables->value[SoundVariables::SPEED] = currentSpeed;
-        // acela
-        //soundVariables->value[SoundVariables::VARIABLE2] = currentSpeed * 3.0;
-    }
-    
-    if(Game::soundEnabled){
+    if(Game::soundEnabled && SoundSystem::running()){
+        if(!cabSoundTried){
+            cabSoundTried = true;
+            const QString sms = SoundBank::find(souncCabFile, {path + "/SOUND"});
+            if(!sms.isEmpty()){
+                cabSound = new SoundSource(sms, SoundSource::Kind::Car, this);
+                cabSound->locator = [this](int &tileX, int &tileZ, float *position){
+                    const float *at = ruch1->getCurrentPosition();
+                    tileX = (int)at[5];
+                    tileZ = -(int)at[6];
+                    position[0] = at[0];
+                    position[1] = at[1];
+                    position[2] = -at[2];
+                    return true;
+                };
+            }
+        }
+        if(cabSound != NULL){
+            SoundValues &values = cabSound->values();
+            // vectron
+            //values.set(Sms::Control::Variable2, currentSpeed * 100 / 55.0);
+            values.set(Sms::Control::Variable2, acceleration * 100);
+            values.set(Sms::Control::Speed, fabs(currentSpeed));
+            values.distanceTravelled += fabs(currentSpeed) * deltaTime;
+            // acela
+            //values.set(Sms::Control::Variable2, currentSpeed * 3.0);
+        }
         if(ruch1->onJunction > 0){
-            qDebug() << "--------------";
-            int soundSourceId = SoundManager::AddSoundSource(path, "j1.wav");
             float *pos = ruch1->getCurrentPosition();
-            pos[2] = -pos[2];
-            SoundManager::Sources[soundSourceId]->setPosition(pos[5], -pos[6], pos);
-            //SoundManager::Sources[camSoundSourceId]->setRelative(true);
+            const float at[3] = {pos[0], pos[1], -pos[2]};
+            SoundSystem::playOnce(path + "/j1.wav", (int)pos[5], -(int)pos[6], at);
             ruch1->onJunction = 0;
         }
     }
@@ -733,24 +743,6 @@ float *Eng::getCurrentPositionOnTrack(){
 }
 
 void Eng::getCameraPosition(float* out){
-    if(Game::soundEnabled){
-        if(camSoundSourceId == -1){
-            QString spath = path+"/SOUND";
-            int sid = MstsSoundDefinition::AddDefinition(spath, souncCabFile);
-
-            if(sid != -1){
-                if(MstsSoundDefinition::Definitions[sid]->group.size() > 0){
-                    camSoundSourceId = SoundManager::AddSoundSource(MstsSoundDefinition::Definitions[sid]->group.first());
-                    SoundManager::Sources[camSoundSourceId]->setRelative(true);
-                    soundVariables = new SoundVariables();
-                    SoundManager::Sources[camSoundSourceId]->variables = soundVariables;
-                }
-            } else {
-                camSoundSourceId = -2;
-            }
-        }
-    }
-    
     if(out == NULL)
         return;
     //qDebug() << "get position";

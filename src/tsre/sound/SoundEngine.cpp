@@ -173,10 +173,10 @@ void SoundVoice::setGain(float gain) {
         ma_sound_set_volume(sound.get(), gain);
 }
 
-void SoundVoice::update() {
+void SoundVoice::update(bool allowed) {
     if (sound == nullptr)
         return;
-    const bool busy = stream->busy();
+    const bool busy = stream->busy() && allowed;
     if (busy && !started) {
         ma_sound_start(sound.get());
         started = true;

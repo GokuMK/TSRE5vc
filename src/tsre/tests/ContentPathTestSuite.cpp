@@ -18,7 +18,7 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Activity.h>
-#include <tsre/sound/MstsSoundDefinition.h>
+#include <tsre/sound/SmsFile.h>
 #include <tsre/world/TerrainSeason.h>
 #include <tsre/world/Trk.h>
 #include <settings/SettingsAccess.h>
@@ -245,9 +245,9 @@ int TsreTests::runContentPathSuite(bool verbose) {
     unsavedCon->setFileName("RenamedConsist");
     test.check(ConLib::addCon(root+"/TRAINS/CONSISTS","RENAMEDCONSIST.CON")==conId,
             "consist rename refreshes hashid");
-    put(a+"/SOUND/Mixed.sms","SIMISA@@@@@@@@@@JINX0t1t______\nTr_SMS ( )");
-    const int sms=MstsSoundDefinition::AddDefinition(a+"/SOUND","Mixed.sms");
-    test.check(MstsSoundDefinition::AddDefinition((a+"/SOUND").toLower(),"MIXED.SMS")==sms,
+    put(a+"/SOUND/Mixed.sms","SIMISA@@@@@@@@@@JINX0t1t______\nTr_SMS ( ScalabiltyGroup ( 5 Streams ( 0 ) ) )");
+    const auto sms=Sms::shared(a+"/SOUND/Mixed.sms");
+    test.check(sms!=nullptr && Sms::shared((a+"/SOUND").toLower()+"/MIXED.SMS")==sms,
             "SMS definitions reuse stored case-insensitive identity");
     EngLib lookupBenchmark;
     QVector<QString> requests;

@@ -222,6 +222,7 @@ signals:
 protected:
     bool eventFilter(QObject *object, QEvent *event);
     void surfaceInitialize() override;
+    void updateSound(float seconds);
     void surfacePaint() override;
     void surfaceRelease() override;
     void renderShadowMaps();

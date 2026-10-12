@@ -67,8 +67,9 @@ public:
 
     void setPosition(float x, float y, float z);
     void setGain(float gain);
-    // Runs the sound while its player has something, stops it when idle.
-    void update();
+    // Runs the sound while its player has something (and it is allowed:
+    // its source heard), stops it otherwise; a stopped player is not read.
+    void update(bool allowed = true);
 
 private:
     bool inSpace = false;

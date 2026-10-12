@@ -1,6 +1,6 @@
 # Task Sound 01 - Sound System
 
-Status: steps 1-2 done (2026-10-12), branch `feature/sound`; steps 3-4 in progress.
+Status: steps 1-3 done (2026-10-12), branch `feature/sound`; step 4 in progress.
 
 ## Objective
 
@@ -187,6 +187,71 @@ precedence, truncated data, refusals, mono).
 `sound` suite: 43 cases; the player's (exact sample order through intro,
 sustain, release and jump, queue rules, speed, clip rates) and offline
 renders (pitch and gain of a clip at 11025 Hz, speed, panning, stop).
+
+## Step 3: MSTS sound semantics (done)
+
+Open Rails is the reference for what MSTS sounds do (its code is not
+taken); TSRE's own parsers read the files.
+
+- `SmsFile` (`Sms::File`): the .sms grammar on `SimisTextReader` (the
+  reader the quadtree code uses): scalability groups, activation and
+  deactivation, streams (as many as the count says), the trigger types
+  (initial, discrete, variable with every control, random, distance
+  travelled, joint/switch/crossover by axles), the commands (play one-shot,
+  start loop, start loop release, release, release with jump, enable and
+  disable trigger, stream volume), volume and frequency curves with
+  granularity, Open Rails' season, weather and time extensions. Numbers
+  take unit suffixes by what they measure (distance m, speed m/s, brake
+  cylinder psi, force N, power W; "mph", "km", "bar"...), commas between
+  numbers are separators, distance thresholds and curve points are squared
+  as Open Rails compares them; comment, Skip, `_` and `#` blocks and
+  `LoadAllWaves` are skipped. Files are read once (`Sms::shared`).
+- `SoundSource`: one sound definition playing for one thing (a car, a place
+  in the world, or everywhere), with its own streams and trigger state
+  (the old code shared streams between sources, which is why world
+  sources were commented out). Per update: within 2 km or out of reach
+  (cleared); coming within reach runs the initial triggers and restarts
+  loops that should play; activation and deactivation by camera view and
+  distance; each stream's triggers; the initial trigger again when nothing
+  plays and every variable trigger is below; frequency curve (Hz over the
+  playing clip's rate, doubled for mono waves in groups marked Stereo) and
+  volume curves; gain by OpenAL's inverse distance clamped model with Open
+  Rails' values (full within 8 m, 0.025 at 2 km or at the deactivation
+  distance, world sounds rolling off slower at 0.4); a released clip whose
+  volume reaches 0 is stopped. Cars set their values (`SoundValues`);
+  sounds without a car read the car the camera rides.
+- `SoundSystem` (replaces `SoundManager`): the listener (camera, its view,
+  the car it rides), the clock random triggers count on, the registry of
+  sources, one update per frame from the editor (not 50/200 ms ticks).
+- Editor: the play-mode camera rides the activity's lead engine, so the
+  listener's view is its cab; the engine's cab .sms is a car source fed
+  with the (still faked) speed and Variable2; the junction click stays.
+  The old `MstsSoundDefinition`, `SoundManager`, `SoundVariables` and
+  `SoundLib` are gone.
+
+Differences from Open Rails, on purpose: sequential selection starts with
+the first file (Open Rails starts with the second); stereo loop points are
+not halved (step 1); a stream not heard keeps only its newest loop (Open
+Rails cleans only streams with discrete triggers). Not yet: joint, switch
+and crossover triggers (they need the track under the wheels, step 5), the
+player train's longer cutoff, cab pass-through of outside sounds, Open
+Rails' season/weather/time extensions (read, not applied).
+
+Content (`sound-corpus`, `~/ORTS`, 2026-10-12): 419 definitions, none
+unreadable; triggers: 2397 variable, 1455 discrete, 367 initial, 264
+random, 90 distance travelled. 16 have warnings, all content defects:
+`TS_COMMON_SOUND/caboose*.sms` close each stream with one `)` too many
+(every reader loses all but the first stream), some declare more streams
+than they have. 15 have nothing to play (empty `signal.sms` groups,
+`gui.sms`). 154 waves are not where any reader looks (trainsets naming
+waves of other trainsets' folders; `TS_STARTER_ROUTE` relies on the MSTS
+root's SOUND).
+
+`sound` suite: 78 cases (parsing with units, commas, comments and
+squared distances; group choice; curves; world and car sources through the
+engine without a device: reach, activation and deactivation, initial
+trigger again after a release, variable, discrete and random triggers,
+frequency, gains).
 
 ## Verification
 

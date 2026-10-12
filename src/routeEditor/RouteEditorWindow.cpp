@@ -24,7 +24,7 @@
 #include "NaviBox.h"
 #include "ShapeViewWindow.h"
 #include <routeEditor/AboutWindow.h>
-#include <tsre/sound/SoundManager.h>
+#include <tsre/sound/SoundSystem.h>
 #include <routeEditor/properties/PropertiesAbstract.h>
 #include <routeEditor/properties/PropertiesUndefined.h>
 #include <routeEditor/properties/PropertiesStatic.h>
@@ -870,7 +870,7 @@ void RouteEditorWindow::closeEvent(QCloseEvent * event ){
         qDebug() << "nic do zapisania";
         emit exitNow();
         event->accept();
-        SoundManager::CloseAl();
+        SoundSystem::shutdown();
         qApp->quit();
         return;
     }
@@ -893,7 +893,7 @@ void RouteEditorWindow::closeEvent(QCloseEvent * event ){
     if(unsavedDialog.changed == 2){
         emit exitNow();
         event->accept();
-        SoundManager::CloseAl();
+        SoundSystem::shutdown();
         qApp->quit();
         return;
     }
@@ -903,7 +903,7 @@ void RouteEditorWindow::closeEvent(QCloseEvent * event ){
     emit exitNow();
     event->accept();
     
-    SoundManager::CloseAl();
+    SoundSystem::shutdown();
     qApp->quit();
 }
 
@@ -1382,7 +1382,7 @@ void RouteEditorWindow::showRoute(){
     if(Game::serverClient == NULL){
         if(!glWidget->initRoute()){
             emit exitNow();
-            SoundManager::CloseAl();
+            SoundSystem::shutdown();
             qApp->quit();
             return;
         }
