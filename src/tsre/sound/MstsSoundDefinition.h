@@ -18,6 +18,9 @@
 
 #include <tsre/sound/SoundVariables.h>
 
+struct SoundClip;
+class SoundVoice;
+
 class FileBuffer;
 
 class SoundDefinitionGroup {
@@ -71,7 +74,7 @@ class SoundDefinitionGroup {
                 float volumeMin = 1.0;	
                 float volumeMax = 1.0;		
                 QString selectionMethod;
-                int alBid = -1;
+                const SoundClip *clip = NULL;
                 
                 bool initialtriggeract = false;
                 
@@ -102,13 +105,13 @@ class SoundDefinitionGroup {
             
             Stream();
             Stream(Stream *o);
+            ~Stream();
             
             float X;
             float Y;
             float tilePos[3];
             float distance = 1000;
-            int alSid = -1;
-            bool isInit = false;
+            SoundVoice *voice = NULL;
             
             float lastVolume = -1;
         
@@ -118,7 +121,6 @@ class SoundDefinitionGroup {
             void updatePosition();
             void setRelative(bool v);
             void init(QString path, bool stereo);
-            void bindTo(int i);
         };
         
         Activation activation;

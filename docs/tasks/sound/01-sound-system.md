@@ -1,6 +1,6 @@
 # Task Sound 01 - Sound System
 
-Status: step 1 done (2026-10-12), branch `feature/sound`; steps 2-4 in progress.
+Status: steps 1-2 done (2026-10-12), branch `feature/sound`; steps 3-4 in progress.
 
 ## Objective
 
@@ -153,6 +153,40 @@ the wrong place; TSRE keeps them.
 
 `sound` suite: 17 cases (formats, chunk order, padding, loop point
 precedence, truncated data, refusals, mono).
+
+## Step 2: miniaudio backend (done)
+
+- `src/thirdparty/miniaudio/`: miniaudio 0.11.25 unchanged, its licence and
+  a README with the version and checksums. `Miniaudio.cpp` compiles it once
+  (no warnings shown) with the options of `MiniaudioConfig.h`: no
+  decoders, encoders, generators or resource manager. CMake links threads
+  and `dl` instead of OpenAL (and the Windows OpenAL SDK path is gone).
+- `SoundEngine`: one per process, the default device or none (tests mix
+  with `render()`); the listener is the camera; calls do nothing when it
+  is not running.
+- `SoundBank` / `SoundClip`: a wave read once per file (and once more as
+  mono for 3D), split at its loop points into intro, sustain parts and
+  release as Open Rails splits them (fewer than two points: one part).
+  `SoundBank::find` looks for a wave in the folders Open Rails searches.
+- `StreamPlayer`: a stream's queue of clips in Open Rails' play modes,
+  with its queue rules (repeated commands ignored, a waiting loop-release
+  of the same clip turned loop, a release dropping loops still waiting,
+  out of reach keeping only the newest loop, a released clip without
+  volume stopped). Read on the audio thread, sample-accurate: the next
+  clip or part follows without a gap, which Open Rails approximates by
+  polling OpenAL's buffer queue. The player resamples itself (cubic) from
+  each clip's rate with the stream's speed, so clips of different rates
+  can follow each other in one stream; miniaudio gets the engine's rate.
+- `SoundVoice`: a player as a miniaudio sound, placed in 3D (mono, panned)
+  or heard as it is (stereo). The gain with distance is TSRE's (Open
+  Rails' model, step 3); miniaudio only pans. Its attenuation model "none"
+  turns panning off too, so it gets inverse distance with no rolloff.
+- The old stream code (`MstsSoundDefinition`, `SoundManager`) plays
+  through voices until step 3 replaces it.
+
+`sound` suite: 43 cases; the player's (exact sample order through intro,
+sustain, release and jump, queue rules, speed, clip rates) and offline
+renders (pitch and gain of a clip at 11025 Hz, speed, panning, stop).
 
 ## Verification
 

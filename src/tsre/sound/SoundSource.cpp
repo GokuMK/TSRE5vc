@@ -43,6 +43,8 @@ SoundSource::SoundSource(SoundDefinitionGroup *g) {
 }
 
 SoundSource::~SoundSource() {
+    for(int i = 0; i < stream.size(); i++)
+        delete stream[i];
 }
 
 void SoundSource::setPosition(int x, int y, float *pos){

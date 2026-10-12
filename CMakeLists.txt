@@ -44,17 +44,11 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_package(OpenGL REQUIRED)
-
-    # Keep the existing local OpenAL SDK working while allowing CI and other
-    # machines to provide OpenAL through a normal CMake package.
-    set(TSRE5_LOCAL_OPENAL_ROOT "C:/programy/openal-soft-1.18.2-bin")
-    if(EXISTS "${TSRE5_LOCAL_OPENAL_ROOT}/include/AL/al.h")
-        set(OPENAL_INCLUDE_DIR "${TSRE5_LOCAL_OPENAL_ROOT}/include")
-        set(OPENAL_LIBRARY "${TSRE5_LOCAL_OPENAL_ROOT}/libs/Win64/libOpenAL32.dll.a")
-    endif()
 endif()
 
-find_package(OpenAL REQUIRED)
+# Sound plays through miniaudio (src/thirdparty/miniaudio), compiled into
+# TSRE; it loads the system's audio libraries at run time.
+find_package(Threads REQUIRED)
 
 qt_standard_project_setup()
 
@@ -149,8 +143,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     target_link_libraries(TSRE5vc PRIVATE OpenGL::GL )
 endif()
 
-target_link_libraries(TSRE5vc PRIVATE OpenAL::OpenAL Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets
-    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate)
+target_link_libraries(TSRE5vc PRIVATE Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets
+    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate Threads::Threads ${CMAKE_DL_LIBS})
+# miniaudio is not ours to fix: no warnings from its implementation.
+if(MSVC)
+    set_source_files_properties(src/tsre/sound/Miniaudio.cpp PROPERTIES COMPILE_OPTIONS "/w")
+else()
+    set_source_files_properties(src/tsre/sound/Miniaudio.cpp PROPERTIES COMPILE_OPTIONS "-w")
+endif()
 
 qt_add_translations(
     TSRE5vc

@@ -7,6 +7,9 @@
 #include <QMap>
 #include <cmath>
 #include <cstring>
+#include <tsre/sound/SoundBank.h>
+#include <tsre/sound/SoundEngine.h>
+#include <tsre/sound/StreamPlayer.h>
 #include <tsre/sound/WavFile.h>
 
 namespace {
@@ -205,11 +208,270 @@ void waveCases(Checker &check) {
           "mono keeps the second channel and the cue points");
 }
 
+// A clip whose samples are their own values (read back exactly at speed 1),
+// split at the given loop points.
+SoundClip numbered(int rate, std::vector<int> values, std::vector<uint32_t> points = {}) {
+    WavData wave;
+    wave.sampleRate = rate;
+    wave.channels = 1;
+    for (int v : values)
+        wave.samples.push_back(int16_t(v));
+    wave.cuePoints = points;
+    return *SoundClip::fromWave("test", wave);
+}
+
+std::vector<int> range(int from, int to) {
+    std::vector<int> values;
+    for (int v = from; v <= to; ++v)
+        values.push_back(v);
+    return values;
+}
+
+// The next frames as the clips' sample values; the resampler holds two
+// frames back, so the first read of a player drops them.
+std::vector<int> play(StreamPlayer &player, int frames, bool first = false) {
+    std::vector<float> out(size_t(frames + (first ? 2 : 0)));
+    player.read(out.data(), out.size());
+    std::vector<int> values;
+    for (size_t i = first ? 2 : 0; i < out.size(); ++i)
+        values.push_back(int(std::lround(out[i] * 32768.0f)));
+    return values;
+}
+
+std::vector<int> join(std::initializer_list<std::vector<int>> parts) {
+    std::vector<int> all;
+    for (const auto &p : parts)
+        all.insert(all.end(), p.begin(), p.end());
+    return all;
+}
+
+void playerCases(Checker &check) {
+    using Mode = StreamPlayer::Mode;
+    const SoundClip a = numbered(1000, range(1, 5));
+    // Intro 10-11, sustain 12-13 and 14-15, release 16-19.
+    const SoundClip b = numbered(1000, range(10, 19), {2, 4, 6});
+    const std::vector<int> silence(4, 0);
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&a, Mode::OneShot);
+        check(player.isPlaying() && player.busy(), "a queued one-shot is playing");
+        check(play(player, 9, true) == join({range(1, 5), silence}) && !player.busy() && !player.isPlaying(),
+              "a one-shot plays once");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&a, Mode::Loop);
+        const std::vector<int> start = play(player, 7, true);
+        player.queue(nullptr, Mode::Release);
+        check(!player.isPlaying() && player.busy(), "a released loop is on its way out");
+        check(start == join({range(1, 5), {1, 2}}) && play(player, 7) == join({{3, 4, 5}, silence}),
+              "a loop repeats and a release lets it finish the pass");
+    }
+    // The player reads two frames ahead of what is heard: commands act on
+    // the part being read.
+    {
+        // Read up to the second pass's first sustain part (12).
+        StreamPlayer player(1000, 1);
+        player.queue(&b, Mode::LoopRelease);
+        const std::vector<int> start = play(player, 5, true);
+        player.queue(nullptr, Mode::Release);
+        check(start == std::vector<int>({10, 11, 12, 13, 14})
+                      && play(player, 11) == std::vector<int>({15, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0}),
+              "loop-release: intro, sustain looping, a release plays on to the sustain's end");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&b, Mode::LoopRelease);
+        const std::vector<int> start = play(player, 5, true);
+        player.queue(nullptr, Mode::ReleaseWithJump);
+        check(start == std::vector<int>({10, 11, 12, 13, 14})
+                      && play(player, 9) == std::vector<int>({15, 12, 13, 16, 17, 18, 19, 0, 0}),
+              "a release with jump goes to the release after the part playing");
+    }
+    {
+        // Read into the last sustain part (14).
+        StreamPlayer player(1000, 1);
+        player.queue(&b, Mode::LoopRelease);
+        const std::vector<int> start = play(player, 7, true);
+        player.queue(nullptr, Mode::Release);
+        check(start == std::vector<int>({10, 11, 12, 13, 14, 15, 12})
+                      && play(player, 9) == std::vector<int>({13, 14, 15, 16, 17, 18, 19, 0, 0}),
+              "a release in the last sustain part goes on to the release");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&b, Mode::LoopRelease);
+        play(player, 0, true);
+        player.queue(nullptr, Mode::Release);
+        check(play(player, 7) == std::vector<int>({10, 11, 16, 17, 18, 19, 0}),
+              "a release in the intro goes straight to the release");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&a, Mode::OneShot);
+        player.queue(&b, Mode::LoopRelease);
+        check(play(player, 9, true) == std::vector<int>({1, 2, 3, 4, 5, 10, 11, 12, 13}),
+              "queued clips follow each other without a gap");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&a, Mode::OneShot);
+        player.queue(&b, Mode::Loop);
+        player.queue(nullptr, Mode::Release);
+        check(play(player, 7, true) == join({range(1, 5), {0, 0}}), "a release drops loops still waiting");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&a, Mode::OneShot);
+        player.queue(&a, Mode::OneShot);
+        player.queue(&a, Mode::OneShot, true);
+        check(play(player, 12, true) == join({range(1, 5), range(1, 5), {0, 0}}),
+              "one-shots stack, but not from a trigger repeating");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&b, Mode::OneShot);
+        player.queue(&a, Mode::Loop);
+        player.queue(&a, Mode::Loop);
+        player.queue(&b, Mode::LoopRelease);
+        player.queue(&b, Mode::Loop);
+        const std::vector<int> start = play(player, 17, true);
+        check(start == join({range(10, 19), range(1, 5), {1, 2}}), "a repeated loop is queued once");
+        player.queue(nullptr, Mode::Release);
+        check(play(player, 5) == std::vector<int>({3, 4, 5, 0, 0}),
+              "a waiting loop-release turned loop is released with the rest");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&b, Mode::LoopRelease);
+        play(player, 7, true);
+        player.deactivate();
+        check(player.busy() && play(player, 4, true) == std::vector<int>({10, 11, 12, 13}),
+              "out of reach, a loop starts again from its beginning");
+        player.queue(nullptr, Mode::Release);
+        play(player, 1);
+        player.dropIfReleasing();
+        check(!player.busy(), "a releasing loop without volume stops at once");
+    }
+    {
+        StreamPlayer player(1000, 1);
+        player.queue(&a, Mode::OneShot);
+        player.deactivate();
+        check(!player.busy(), "out of reach, short one-shots are dropped");
+    }
+    {
+        // Speed 2 reads every other frame (the cubic passes through them).
+        const SoundClip c = numbered(1000, range(1, 12));
+        StreamPlayer player(1000, 1);
+        player.setSpeed(2.0f);
+        player.queue(&c, Mode::OneShot);
+        std::vector<float> out(9);
+        player.read(out.data(), out.size());
+        check(std::lround(out[2] * 32768) == 3 && std::lround(out[3] * 32768) == 5
+                      && std::lround(out[6] * 32768) == 11,
+              "speed 2 plays the clip twice as fast");
+    }
+    {
+        // A clip at half the output rate: each frame lasts two.
+        const SoundClip c = numbered(500, {0, 1000, 2000, 3000, 4000});
+        StreamPlayer player(1000, 1);
+        player.queue(&c, Mode::OneShot);
+        std::vector<float> out(9);
+        player.read(out.data(), out.size());
+        check(std::lround(out[6] * 32768) == 1000 && std::lround(out[7] * 32768) == 1500
+                      && std::lround(out[8] * 32768) == 2000,
+              "a clip's own rate is kept, frames in between interpolated");
+    }
+}
+
+// Frequency of a channel by its rising zero crossings.
+double frequency(const std::vector<float> &out, int channels, int channel, int rate) {
+    int crossings = 0;
+    size_t firstCrossing = 0;
+    size_t lastCrossing = 0;
+    for (size_t i = 1; i < out.size() / size_t(channels); ++i) {
+        const float before = out[(i - 1) * channels + channel];
+        const float now = out[i * channels + channel];
+        if (before < 0.0f && now >= 0.0f) {
+            if (crossings == 0)
+                firstCrossing = i;
+            lastCrossing = i;
+            ++crossings;
+        }
+    }
+    return crossings > 1 ? double(crossings - 1) * rate / double(lastCrossing - firstCrossing) : 0.0;
+}
+
+double peak(const std::vector<float> &out, int channels, int channel) {
+    double value = 0.0;
+    for (size_t i = size_t(channel); i < out.size(); i += size_t(channels))
+        value = std::max(value, double(std::abs(out[i])));
+    return value;
+}
+
+void engineCases(Checker &check) {
+    SoundEngine &engine = SoundEngine::get();
+    const bool started = engine.start(false, 48000);
+    check(started && engine.sampleRate() == 48000 && engine.channels() == 2, "the engine runs without a device");
+    if (!started)
+        return;
+    WavData wave;
+    wave.sampleRate = 11025;
+    wave.channels = 1;
+    for (int i = 0; i < 11025; ++i)
+        wave.samples.push_back(int16_t(std::lround(16000.0 * std::sin(2.0 * M_PI * 441.0 * i / 11025.0))));
+    const auto clip = SoundClip::fromWave("sine", wave);
+    std::vector<float> out(48000 * 2);
+    {
+        SoundVoice voice(false);
+        check(voice.valid(), "a voice heard as it is");
+        voice.player().queue(clip.get(), StreamPlayer::Mode::Loop);
+        voice.setGain(0.5f);
+        voice.update();
+        engine.render(out.data(), 48000);
+        const double f = frequency(out, 2, 0, 48000);
+        const double a = peak(out, 2, 0);
+        check(std::abs(f - 441.0) < 2.0 && std::abs(a - 0.5 * 16000.0 / 32768.0) < 0.02,
+              "a clip at 11025 Hz plays at its pitch and gain through the engine");
+        voice.player().setSpeed(1.5f);
+        engine.render(out.data(), 48000);
+        check(std::abs(frequency(out, 2, 1, 48000) - 661.5) < 3.0, "the speed raises the pitch");
+    }
+    {
+        SoundVoice voice(true);
+        const float position[3] = {0, 0, 0};
+        const float forward[3] = {0, 0, -1};
+        const float up[3] = {0, 1, 0};
+        engine.setListener(position, forward, up);
+        voice.setPosition(10.0f, 0.0f, 0.0f);
+        voice.setGain(1.0f);
+        voice.player().queue(clip.get(), StreamPlayer::Mode::Loop);
+        voice.update();
+        std::vector<float> placed(4800 * 2);
+        engine.render(placed.data(), 4800);
+        engine.render(placed.data(), 4800);
+        check(peak(placed, 2, 1) > 2.0 * peak(placed, 2, 0), "a sound to the right is heard on the right");
+        voice.setPosition(0.0f, 0.0f, -10.0f);
+        engine.render(placed.data(), 4800);
+        engine.render(placed.data(), 4800);
+        check(std::abs(peak(placed, 2, 1) - peak(placed, 2, 0)) < 0.02 && peak(placed, 2, 0) > 0.2,
+              "a sound ahead is heard on both sides, its gain kept");
+        voice.player().stop();
+        voice.update();
+        engine.render(placed.data(), 4800);
+        check(peak(placed, 2, 0) == 0.0 && peak(placed, 2, 1) == 0.0, "a stopped voice is silent");
+    }
+    engine.shutdown();
+    check(!engine.running(), "the engine shuts down");
+}
+
 }
 
 int TsreTests::runSoundSuite(bool verbose) {
     Checker check{"sound", verbose};
     waveCases(check);
+    playerCases(check);
+    engineCases(check);
     qInfo().noquote() << QString("[tests:sound] passed %1 failed %2").arg(check.passed).arg(check.failed);
     return check.failed == 0 ? 0 : 1;
 }
