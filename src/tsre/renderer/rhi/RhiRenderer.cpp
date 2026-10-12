@@ -1039,12 +1039,12 @@ namespace {
 // How open the sky is around a point of an enclosure map, from 8 rays out
 // to the radius over the maps: under cover a ray goes on; at the first
 // column without cover it finds an opening if that column's surface lies
-// near the point's floor (the cutting at a tunnel's portal, the ground
-// beside a viaduct), and is blocked if it rises high above it (the rock
-// beside a tunnel). An opening adds the more light the nearer it is. A
-// column has cover where its highest surface (the map from above) lies more
-// than 3 m over its lowest (the view from below, its rows the other way
-// round).
+// low in the space under the cover here (the cutting at a tunnel's portal,
+// the ground beside a viaduct or a bridge), and is blocked if it rises
+// nearly to the cover (the rock beside a tunnel). An opening adds the more
+// light the nearer it is. A column has cover where its highest surface (the
+// map from above) lies more than 3 m over its lowest (the view from below,
+// its rows the other way round).
 const char *OpennessFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
@@ -1055,15 +1055,23 @@ layout(binding = 1) uniform sampler2D topMap;
 layout(binding = 2) uniform sampler2D bottomMap;
 
 const int Steps = 12;
-// Metres an opening's surface may lie above the floor (a cutting's floor,
-// ground sloping off a little).
+// An opening's surface lies within 5 m of the floor, or in the lower 60 %
+// of the space between the floor and the cover over it. (The floor is the
+// lowest surface: by a river, the river bed under a bridge lies well below
+// the ground its arches stand on; measured from it alone, the fields beside
+// the bridge rose like walls, user 2026-10-12.)
 const float OpeningHeight = 5.0;
+const float OpeningShare = 0.6;
+
+bool opening(float surfaceOverFloor, float coverOverFloor) {
+    return surfaceOverFloor < max(OpeningHeight, OpeningShare * coverOverFloor);
+}
 
 float topAt(vec2 p) { return textureLod(topMap, p, 0.0).r; }
 float bottomAt(vec2 p) { return textureLod(bottomMap, vec2(p.x, 1.0 - p.y), 0.0).r; }
 
 // A column without cover: open sky (1), unless it is solid ground rising
-// high over the floor of a hollow beside it (the rock beside a tunnel, where
+// nearly to the cover of a hollow beside it (the rock beside a tunnel, where
 // points moved off the walls land): 0. (All of them 0 darkened the ground
 // along a viaduct's footprint: filtered against the hollow's value under
 // the deck, user 2026-10-12.)
@@ -1073,8 +1081,8 @@ float uncovered(vec2 p, float top, float step) {
         for (int s = 1; s <= 2; ++s) {
             vec2 q = p + vec2(cos(angle), sin(angle)) * step * float(s);
             float floorThere = bottomAt(q);
-            bool hollowThere = (1.0 - topAt(q) - floorThere) * params.y > 3.0;
-            if (hollowThere && (1.0 - top - floorThere) * params.y > OpeningHeight)
+            float coverThere = (1.0 - topAt(q) - floorThere) * params.y;
+            if (coverThere > 3.0 && !opening((1.0 - top - floorThere) * params.y, coverThere))
                 return 0.0;
         }
     }
@@ -1086,7 +1094,8 @@ void main() {
     float topHere = topAt(uv);
     // Points in a hollow (cover over a floor) look for openings; in columns
     // without cover the floor is the top itself.
-    float hollow = smoothstep(2.0, 4.0, (1.0 - topHere - floorDepth) * params.y);
+    float coverHere = (1.0 - topHere - floorDepth) * params.y;
+    float hollow = smoothstep(2.0, 4.0, coverHere);
     // Steps of about 1.5 m (the rays' are 2.5 m).
     float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6) : 1.0;
     if (hollow <= 0.0) {
@@ -1105,7 +1114,7 @@ void main() {
                 continue;
             // The views from above and below start the same distance from
             // the map's middle height: the top there over the floor here.
-            if ((1.0 - top - floorDepth) * params.y < OpeningHeight) {
+            if (opening((1.0 - top - floorDepth) * params.y, coverHere)) {
                 // Falling off as an opening's view does with distance.
                 float near = 1.0 - float(s - 1) / float(Steps);
                 light += near * near;

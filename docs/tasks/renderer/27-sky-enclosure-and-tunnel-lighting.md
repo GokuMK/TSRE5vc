@@ -394,6 +394,17 @@ Now:
   floor of a hollow within 3 m (the rock beside a tunnel). At that camera
   no pixel differs from the view with the enclosure off; the tunnel and
   its portal are as before.
+- The arches of a river bridge next to the river went black
+  (`core.startup.camera=-6113,15056,561.17,266.63,598.33,188.60,-42.94`):
+  the floor is the lowest surface, there the river bed under the bridge,
+  well below the ground the arches stand on; measured from it, the fields
+  beside the bridge rose more than 5 m and read as walls. An opening is
+  now a column whose surface lies within 5 m of the floor or in the lower
+  60 % of the space between the floor and the cover over it (the fields
+  beside the bridge lie far below its deck; the rock beside a tunnel
+  reaches nearly to the terrain over it). The same rule decides whether an
+  uncovered column beside a hollow is solid. The bridge now looks as with
+  the enclosure off; the tunnel, its portal and the viaduct as before.
 - The CMK roofs (alpha-tested, textures with transparent texels): the user
   takes them as an asset fix (opaque textures, or an opaque material) for
   the new features.
