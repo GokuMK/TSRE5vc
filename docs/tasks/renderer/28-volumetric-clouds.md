@@ -625,7 +625,31 @@ water off the plane); 3 in reserve.
   the sky, no blocks in motion.
 - Seen on the way, not from this change (the same with the clouds off):
   low over the lake, the far water just under the horizon shows a flat
-  light band with horizontal streaks.
+  light band with horizontal streaks. The user does not see it on screen:
+  kept as a note only.
+
+## Light shafts, third pass (2026-10-12)
+
+The user, looking straight at the sun: screen-space shafts overblown
+(without HDR); the volumetric ones pixelated along the clouds' outlines,
+as the cloud edges were before. The earlier test views had the sun off
+their centre; views centred on it (CMK, 17:00, sun at 27.7 degrees) showed
+both plainly.
+
+- Screen space: half the strength (0.2) and a glow falling off faster
+  towards its 30 degree edge (cubed): the rays keep their reach, the
+  clouds by the sun no longer wash out white.
+- Volumetric: the haze march went 6 km into open sky, up through the
+  cloud layer (where the cloud shadow map, a plane under their base, says
+  nothing), and stopped at each cloud's own distance where the cloud
+  image had any cloud: the path changed length at every outline, in the
+  cloud image's pixels, with stray squares at wisps. It now ends at the
+  plane under the clouds' base (the crepuscular rays are under the
+  clouds) and the map is read only below it. The clouds' distance image
+  had no other reader: removed from the march and the temporal pass
+  (two render targets fewer per pass).
+- Changing tone mapping at run time in the Settings Editor can crash
+  TSRE (user): not looked at yet.
 
 ## Verification
 

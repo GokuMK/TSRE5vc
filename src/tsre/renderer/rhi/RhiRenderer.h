@@ -450,11 +450,6 @@ private:
         // The finished cloud image (the history alternates): the composite
         // and the light shafts read it.
         QRhiTexture *image = nullptr;
-        // The clouds' distance the same way (km, -1 for none), for the
-        // volumetric light shafts.
-        QRhiTexture *distanceHistory[2] = {};
-        QRhiTexture *distanceImage = nullptr;
-        QRhiTexture *distance = nullptr;
         QRhiTextureRenderTarget *marchTarget = nullptr;
         QRhiRenderPassDescriptor *marchPass = nullptr;
         QRhiShaderResourceBindings *marchBindings = nullptr;
@@ -567,7 +562,6 @@ private:
         QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
         const QRhiTexture *volumeCloudMap = nullptr;
         const QRhiTexture *volumeSunMap = nullptr;
-        const QRhiTexture *volumeCloudDistance = nullptr;
     } lightShafts;
     bool shaftsApplied = false;
     bool createLightShafts(QRhiTexture *cloudTexture);

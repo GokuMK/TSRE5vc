@@ -61,7 +61,8 @@ void main() {
     vec3 d = normalize(far.xyz / far.w);
     float c = dot(d, normalize(direction.xyz));
     // A glow around the sun, wider than its disc.
-    float glow = pow(clamp((c - sun.w) / (1.0 - sun.w), 0.0, 1.0), 2.0);
+    // Strongest at the sun: its rays reach far, the sky around stays.
+    float glow = pow(clamp((c - sun.w) / (1.0 - sun.w), 0.0, 1.0), 3.0);
     float transmittance = textureLod(clouds, uv, 0.0).a;
     result = vec4(vec3(open * transmittance * glow), 1.0);
 }
@@ -112,7 +113,7 @@ struct VolumeParameters {
     float bands[4];       // distant near and far, scene and distant depth ends
     float clouds[4];      // cloud shadow map: centre x, z, 1 / extent, on
     float cloudSun[4];    // sun x / y, z / y, the map's plane y, shadow map on
-    float march[4];       // distance (m), steps, jitter, clouds' distance on
+    float march[4];       // distance (m), steps, jitter, 0
     float colour[4];      // the sun's colour (display)
 };
 
@@ -134,8 +135,6 @@ layout(std140, binding = 0) uniform Volume {
 layout(binding = 1) uniform sampler2D sceneDepth;
 layout(binding = 2) uniform sampler2D cloudShadowMap;
 layout(binding = 3) uniform sampler2DShadow shadowMap;
-// The clouds' distance (km), where there are clouds (march.w > 0).
-layout(binding = 4) uniform sampler2D cloudDistance;
 
 float sceneDistance(float depth, vec2 ndc) {
     float viewZ;
@@ -163,11 +162,14 @@ void main() {
     float scene = sceneDistance(texelFetch(sceneDepth, ivec2(uv * vec2(textureSize(sceneDepth, 0))), 0).r, ndc);
     // The sky far behind: a longer path, so rays under the clouds show.
     float limit = scene > 0.0 ? min(scene, march.x) : march.x * 4.0;
-    // Up to the clouds, not through them.
-    if (march.w > 0.0) {
-        float cloud = textureLod(cloudDistance, uv, 0.0).r;
-        if (cloud > 0.0)
-            limit = min(limit, cloud * 1000.0);
+    // Up to the plane under the clouds' base, where their shadow map lies:
+    // the shafts are in the air under them. (Stopped at each cloud's own
+    // distance, the path changed length at every cloud's outline, in the
+    // cloud image's pixels, user 2026-10-12.)
+    if (clouds.w > 0.0) {
+        float below = cloudSun.z - camera.y;
+        if (below > 0.0 && d.y > 1e-4)
+            limit = min(limit, below / d.y);
     }
     vec3 s = normalize(sun.xyz);
     float phase = mix(henyeyGreenstein(dot(d, s), 0.7), 1.0 / (4.0 * 3.14159265), 0.3);
@@ -179,7 +181,8 @@ void main() {
     for (int i = 0; i < steps; ++i) {
         vec3 p = camera.xyz + d * ((float(i) + jitter) * dt);
         float visible = 1.0;
-        if (clouds.w > 0.0) {
+        // (The map holds the light under the clouds only.)
+        if (clouds.w > 0.0 && p.y < cloudSun.z) {
             vec2 c = p.xz + cloudSun.xy * (cloudSun.z - p.y);
             visible *= textureLod(cloudShadowMap, (c - clouds.xy) * clouds.z + 0.5, 0.0).r;
         }
@@ -269,8 +272,7 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
             ? cloudResources.shadow : nullptr;
     const QRhiTexture *sunMap = shadowMaps[2].valid() && Game::shadowsEnabled > 0 ? shadowMaps[2].depth : nullptr;
     if (l.addPipeline != nullptr && l.size == size && l.viewColor == view.color && l.cloudTexture == cloudTexture
-            && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap
-            && l.volumeCloudDistance == cloudResources.distanceImage)
+            && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap)
         return true;
     QRhiTexture *white = l.white;
     l.white = nullptr;
@@ -366,11 +368,7 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
                                                                            ? cloudResources.shadow : l.white, l.linear),
                                  QRhiShaderResourceBinding::sampledTexture(3, fragment, sunMap != nullptr
                                                                            ? shadowMaps[2].depth : dummyDepth,
-                                                                           shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(4, fragment, cloudResources.distanceImage != nullptr
-                                                                           ? cloudResources.distanceImage : l.white,
-                                                                           sampler(false, true, true))});
-    l.volumeCloudDistance = cloudResources.distanceImage;
+                                                                           shadowSampler)});
     l.volumeAddBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.uniforms),
                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, l.blurred, l.linear)});
     static QShader volume, volumeAdd;
@@ -447,7 +445,9 @@ void RhiRenderer::applyLightShafts() {
     parameters.sun[0] = nx * 0.5f + 0.5f;
     parameters.sun[1] = ny * ySign * 0.5f + 0.5f;
     // Weaker towards the horizon and as the sun leaves the screen.
-    parameters.sun[2] = 0.4f * onScreen * std::clamp((elevation + 1.0f) / 6.0f, 0.0f, 1.0f);
+    // (0.4 with the wider glow washed out the clouds by the sun without HDR,
+    // user 2026-10-12.)
+    parameters.sun[2] = 0.2f * onScreen * std::clamp((elevation + 1.0f) / 6.0f, 0.0f, 1.0f);
     // The glow the rays start from: 30 degrees around the sun (12 left the
     // shafts short, user 2026-10-12).
     parameters.sun[3] = std::cos(30.0f * float(M_PI) / 180.0f);
@@ -521,7 +521,6 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     v.march[0] = 1500.0f;
     v.march[1] = 40.0f;
     v.march[2] = cloudsApplied && clouds.still ? 0.5f : float(std::fmod(0.5 + cloudResources.frame * 0.618034, 1.0));
-    v.march[3] = cloudsApplied && cloudResources.distanceImage != nullptr ? 1.0f : 0.0f;
     ShaftParameters parameters = {};
     // The haze's light; the sun's colour as the screen-space shafts.
     const float fade = std::clamp((elevation - 1.0f) / 5.0f, 0.0f, 1.0f);
