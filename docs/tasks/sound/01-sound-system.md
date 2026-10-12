@@ -1,6 +1,6 @@
 # Task Sound 01 - Sound System
 
-Status: planned (2026-10-12), branch `feature/sound`. Nothing implemented yet.
+Status: step 1 done (2026-10-12), branch `feature/sound`; steps 2-4 in progress.
 
 ## Objective
 
@@ -126,6 +126,33 @@ reference for MSTS semantics, not for the backend.
 
 Step 1 and 2 first; 3-6 in that order unless play-mode testing asks
 otherwise.
+
+## Step 1: WAV reader (done)
+
+`WavFile` (`src/tsre/sound/WavFile.h`): RIFF chunks in any order, padded
+odd chunks, a data chunk longer than the file cut to what is there; PCM 8
+and 16 bit and 32-bit float, also as `WAVE_FORMAT_EXTENSIBLE`, one or two
+channels, all read as 16-bit samples. Loop points from the last `cue `
+chunk (chunk start + block start + sample offset, as Open Rails) or the last
+`smpl` chunk with loops (start and end of each), whichever comes later;
+sorted, points past the end dropped. Compressed formats are refused with
+the format number. `toMono` keeps the second channel, as Open Rails does
+for 3D sounds.
+
+Survey (`--test-suite sound-corpus --test-cases <root>`, 2026-10-12): under
+`~/ORTS` 1712 waves, none unreadable, 541 with loop points; 11025 Hz 1431,
+22050 Hz 80, 24000 Hz 11, 44100 Hz 190; all 16-bit PCM, so no ADPCM
+decoder is needed for now. Loop points follow the data in 541 files, and
+`smpl` and `cue ` disagree in some (`SLI.BNSF/SOUND/auto_brake_int.wav`:
+the cue chunk comes last and wins).
+
+Stereo loop points count frames: 117 of 120 stereo files with cue points
+have them within the frame count (the other 3 past it). Open Rails halves
+them when it makes a stereo sound mono for 3D, which moves the loops to
+the wrong place; TSRE keeps them.
+
+`sound` suite: 17 cases (formats, chunk order, padding, loop point
+precedence, truncated data, refusals, mono).
 
 ## Verification
 
