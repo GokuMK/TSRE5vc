@@ -112,7 +112,7 @@ grayscale visibility from above, and they meet in the same shading terms:
   bloom downsample chain) sets the exposure over 1-3 s, and the lamp
   dimming gives way to physical lamp intensities. Tunnels brighten after a
   moment and portals glare. Needs the enclosed ambient first (otherwise a
-  tunnel does not measure as dark) and long tuning.
+  tunnel does not measure as dark) and long tuning. Now task 29.
 
 ## Steps
 
