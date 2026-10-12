@@ -174,7 +174,28 @@ QString Ruch::getLastItemName(){
     return lastItemName;
 }
 
-float Ruch::distanceToItem(bool ahead, float maxDistance, const std::function<bool(int)> &wanted, int *itemId) const {
+float Ruch::curveRadius() const {
+    TDB *tdb = Game::trackDB;
+    if (tdb == NULL || tdb->tsection == NULL)
+        return 0;
+    auto node = tdb->trackNodes.find(nodeIdx);
+    if (node == tdb->trackNodes.end() || node->second == NULL)
+        return 0;
+    TRnode *n = node->second;
+    float along = 0;
+    for (int i = 0; i < n->iTrv; i++) {
+        auto section = tdb->tsection->sekcja.find((int)n->trVectorSection[i].sectionIndex);
+        if (section == tdb->tsection->sekcja.end() || section->second == NULL)
+            continue;
+        const float length = section->second->getDlugosc();
+        if (nodeDist <= along + length || i == n->iTrv - 1)
+            return section->second->type == 1 ? fabs(section->second->radius) : 0;
+        along += length;
+    }
+    return 0;
+}
+
+float Ruch::distanceToItem(bool ahead,float maxDistance, const std::function<bool(int)> &wanted, int *itemId) const {
     TDB *tdb = Game::trackDB;
     if (tdb == NULL)
         return -1;

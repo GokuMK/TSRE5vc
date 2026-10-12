@@ -44,6 +44,28 @@ float SoundSource::rolloffFor(float maxDistance) {
     return ReferenceDistance * (1.0f / GainAtMaxDistance - 1.0f) / (distance - ReferenceDistance);
 }
 
+float SoundSource::dopplerFactor(const float *toSource, const float *sourceVelocity, const float *listenerVelocity) {
+    constexpr float SpeedOfSound = 343.3f;
+    const float length = std::sqrt(toSource[0] * toSource[0] + toSource[1] * toSource[1] + toSource[2] * toSource[2]);
+    if (length < 0.001f)
+        return 1.0f;
+    float listenerTowards = 0.0f;
+    float sourceAway = 0.0f;
+    for (int i = 0; i < 3; ++i) {
+        listenerTowards += listenerVelocity[i] * toSource[i] / length;
+        sourceAway += sourceVelocity[i] * toSource[i] / length;
+    }
+    // Nothing goes near the speed of sound here; keep it finite.
+    const float limit = 0.9f * SpeedOfSound;
+    listenerTowards = std::clamp(listenerTowards, -limit, limit);
+    sourceAway = std::clamp(sourceAway, -limit, limit);
+    return (SpeedOfSound + listenerTowards) / (SpeedOfSound + sourceAway);
+}
+
+void SoundSource::setCutoffDistance(float metres) {
+    cutoff2 = std::max(CutoffDistanceSquared, metres * metres);
+}
+
 float SoundSource::distanceGain(float distance, float rolloff) {
     const float d = std::clamp(distance, ReferenceDistance, MaxDistance);
     return ReferenceDistance / (ReferenceDistance + rolloff * (d - ReferenceDistance));
@@ -166,9 +188,28 @@ void SoundSource::update(const SoundListener &listener, double clock) {
         return;
 
     // Out of reach (or off): the streams are cleared once.
-    float relative[3] = {0.0f, 0.0f, 0.0f};
+    relative[0] = relative[1] = relative[2] = 0.0f;
     distance2 = 0.0f;
     if (hasLocation) {
+        // Its velocity from its moves, smoothed; a jump (a new place) is not
+        // a move.
+        const double place[3] = {location[0] + 2048.0 * locationTile[0], location[1],
+                                 location[2] + 2048.0 * locationTile[1]};
+        const double step = clock - lastClock;
+        if (lastClock >= 0.0 && step > 0.0) {
+            float moved[3];
+            float speed2 = 0.0f;
+            for (int i = 0; i < 3; ++i) {
+                moved[i] = float((place[i] - lastPlace[i]) / step);
+                speed2 += moved[i] * moved[i];
+            }
+            const float k = float(std::min(1.0, step / 0.25));
+            for (int i = 0; i < 3; ++i)
+                velocity[i] += ((speed2 > 150.0f * 150.0f ? 0.0f : moved[i]) - velocity[i]) * k;
+        }
+        if (step != 0.0)
+            std::copy(place, place + 3, lastPlace);
+        lastClock = clock;
         relative[0] = location[0] + 2048.0f * float(locationTile[0] - listener.tileX);
         relative[1] = location[1];
         relative[2] = location[2] + 2048.0f * float(locationTile[1] - listener.tileZ);
@@ -177,7 +218,7 @@ void SoundSource::update(const SoundListener &listener, double clock) {
         const float dz = relative[2] - listener.position[2];
         distance2 = dx * dx + dy * dy + dz * dz;
     }
-    const bool outOfDistance = !enabled || (hasLocation && distance2 > CutoffDistanceSquared);
+    const bool outOfDistance = !enabled || (hasLocation && distance2 > cutoff2);
     if (outOfDistance) {
         if (!wasOutOfDistance) {
             for (StreamState &s : streams) {
@@ -256,7 +297,7 @@ bool SoundSource::activate(const SoundListener &listener) const {
         return false;
     if (!hasLocation)
         return true;
-    return (a.distance == 0.0f || distance2 < a.distance * a.distance) && distance2 < CutoffDistanceSquared;
+    return (a.distance == 0.0f || distance2 < a.distance * a.distance) && distance2 < cutoff2;
 }
 
 bool SoundSource::deactivate(const SoundListener &listener) const {
@@ -266,7 +307,7 @@ bool SoundSource::deactivate(const SoundListener &listener) const {
     if (conditionsMet(d, listener))
         return true;
     return hasLocation
-            && ((d.distance != 0.0f && distance2 > d.distance * d.distance) || distance2 > CutoffDistanceSquared);
+            && ((d.distance != 0.0f && distance2 > d.distance * d.distance) || distance2 > cutoff2);
 }
 
 void SoundSource::hardActivate(StreamState &s) {
@@ -457,11 +498,11 @@ void SoundSource::run(StreamState &s, int index) {
     }
 }
 
-void SoundSource::updateStream(StreamState &s, const float *relative) {
+void SoundSource::updateStream(StreamState &s, const float *at) {
     if (s.voice == nullptr || !s.voice->valid())
         return;
     StreamPlayer &player = s.voice->player();
-    s.voice->setPosition(relative[0], relative[1], relative[2]);
+    s.voice->setPosition(at[0], at[1], at[2]);
     for (size_t i = 0; i < s.triggers.size(); ++i)
         if (s.triggers[i].def != nullptr)
             tryTrigger(s, int(i));
@@ -513,16 +554,26 @@ void SoundSource::setFrequencyAndVolume(StreamState &s) {
         // MSTS plays mono waves of groups marked stereo at twice the rate.
         if (current != nullptr && group->stereo && current->originallyMono)
             hz *= 2.0f;
-        if (current != nullptr && current->sampleRate > 0 && hz > 0.0f) {
-            s.speed = hz / float(current->sampleRate);
-            player.setSpeed(s.speed);
-        }
+        if (current != nullptr && current->sampleRate > 0 && hz > 0.0f)
+            s.baseSpeed = hz / float(current->sampleRate);
     }
+    // A sound placed in 3D pitches with its and the listener's moves.
+    float doppler = 1.0f;
+    if (s.voice->placed() && currentListener != nullptr) {
+        const float toSource[3] = {relative[0] - currentListener->position[0], relative[1] - currentListener->position[1],
+                                   relative[2] - currentListener->position[2]};
+        doppler = dopplerFactor(toSource, velocity, currentListener->velocity);
+    }
+    s.speed = s.baseSpeed * doppler;
+    player.setSpeed(s.speed);
     float volume = group->volume * s.volume;
     for (const Sms::Curve &curve : s.def->volumeCurves) {
         const float x = values != nullptr ? readValue(curve.control, curve.index, values) : distance2;
         volume *= curve.valueAt(x);
     }
+    // Outside sounds through the cab's walls.
+    if (external && currentListener != nullptr && currentListener->view != SoundView::External)
+        volume *= OutsideHeardInside;
     volume = std::max(volume, 0.0f);
     if (volume == 0.0f)
         player.dropIfReleasing();

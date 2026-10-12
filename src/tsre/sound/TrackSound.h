@@ -17,6 +17,7 @@
 #include <memory>
 
 class SoundSource;
+struct SoundValues;
 
 // A car's wheels on the track: the route's track types (ttype.dat) each name
 // a sound definition heard outside the car and one heard inside it; the
@@ -31,7 +32,7 @@ public:
 
     void setType(int type);
     int type() const { return current; }
-    void update(float speed, double travelled, int tileX, int tileZ, const float *position);
+    void update(const SoundValues &values, float cutoff, int tileX, int tileZ, const float *position);
 
     // The route's track types: (inside, outside) .sms names in ttype.dat's
     // order.

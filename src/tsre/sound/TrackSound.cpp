@@ -67,12 +67,12 @@ void TrackSound::setType(int type) {
         inside = std::make_unique<SoundSource>(insidePath, SoundSource::Kind::Car, car);
 }
 
-void TrackSound::update(float speed, double travelled, int tileX, int tileZ, const float *position) {
+void TrackSound::update(const SoundValues &values, float cutoff, int tileX, int tileZ, const float *position) {
     for (SoundSource *source : {outside.get(), inside.get()}) {
         if (source == nullptr)
             continue;
-        source->values().set(Sms::Control::Speed, std::fabs(speed));
-        source->values().distanceTravelled = travelled;
+        source->values() = values;
         source->setLocation(tileX, tileZ, position);
+        source->setCutoffDistance(cutoff);
     }
 }

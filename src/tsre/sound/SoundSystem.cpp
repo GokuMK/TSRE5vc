@@ -29,6 +29,10 @@ struct State {
     SoundListener listener;
     double clock = 0.0;
     double nextLog = 0.0;
+    // The listener's last place, for its velocity.
+    double lastPlace[3] = {0.0, 0.0, 0.0};
+    bool hasLastPlace = false;
+    float velocity[3] = {0.0f, 0.0f, 0.0f};
     std::mt19937 random{20161012u};
     std::vector<SoundSource *> sources;
     std::vector<Once> once;
@@ -64,7 +68,9 @@ bool SoundSystem::running() {
 }
 
 void SoundSystem::setListener(const SoundListener &listener) {
-    state().listener = listener;
+    State &s = state();
+    s.listener = listener;
+    std::copy(s.velocity, s.velocity + 3, s.listener.velocity);
 }
 
 const SoundListener &SoundSystem::listener() {
@@ -74,6 +80,24 @@ const SoundListener &SoundSystem::listener() {
 void SoundSystem::update(float seconds) {
     State &s = state();
     s.clock += std::max(seconds, 0.0f);
+    // The listener's velocity from its moves, smoothed; a jump (teleport,
+    // another view) is not a move.
+    const double place[3] = {s.listener.position[0] + 2048.0 * s.listener.tileX, s.listener.position[1],
+                             s.listener.position[2] + 2048.0 * s.listener.tileZ};
+    if (s.hasLastPlace && seconds > 0.0f) {
+        float moved[3];
+        float speed2 = 0.0f;
+        for (int i = 0; i < 3; ++i) {
+            moved[i] = float((place[i] - s.lastPlace[i]) / seconds);
+            speed2 += moved[i] * moved[i];
+        }
+        const float k = std::min(1.0f, seconds / 0.25f);
+        for (int i = 0; i < 3; ++i)
+            s.velocity[i] += ((speed2 > 150.0f * 150.0f ? 0.0f : moved[i]) - s.velocity[i]) * k;
+    }
+    std::copy(place, place + 3, s.lastPlace);
+    s.hasLastPlace = true;
+    std::copy(s.velocity, s.velocity + 3, s.listener.velocity);
     if (!running())
         return;
     SoundEngine::get().setListener(s.listener.position, s.listener.forward, s.listener.up);
@@ -99,6 +123,14 @@ void SoundSystem::update(float seconds) {
         qInfo().noquote() << QString("Sound: %1 sources, %2 heard, %3 of %4 streams playing, %5 clips")
                                      .arg(s.sources.size()).arg(heard).arg(playing).arg(streams)
                                      .arg(SoundEngine::get().bank().size());
+        if (const SoundValues *car = s.listener.attachedValues)
+            qInfo().noquote() << QString("Sound: riding at %1 m/s, Variable1 %2, Variable2 %3, brake %4 psi, "
+                                         "curve force %5 N")
+                                         .arg(car->get(Sms::Control::Speed, 0), 0, 'f', 1)
+                                         .arg(car->get(Sms::Control::Variable1, 0), 0, 'f', 2)
+                                         .arg(car->get(Sms::Control::Variable2, 0), 0, 'f', 2)
+                                         .arg(car->get(Sms::Control::BrakeCyl, 0), 0, 'f', 0)
+                                         .arg(car->get(Sms::Control::CurveForce, 0), 0, 'f', 0);
     }
     for (auto i = s.once.begin(); i != s.once.end();) {
         if (!i->voice->player().busy()) {

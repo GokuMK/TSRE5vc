@@ -1,7 +1,8 @@
 # Task Sound 01 - Sound System
 
-Status: steps 1-4 done (2026-10-12), branch `feature/sound`, not merged; steps 5-6
-(train sounds, environment) next.
+Status: steps 1-4 and the motion half of step 5 done (2026-10-12), branch
+`feature/sound`, not merged. The rest of step 5 needs a train simulation;
+step 6 (environment) next.
 
 ## Objective
 
@@ -280,6 +281,55 @@ sources, cab, track sounds), 13-16 heard, about 30 streams playing; the
 track type went to 2 at 643 m and back to the default at 855 m.
 
 `sound` suite: 83 cases (the region rule added).
+
+## Step 5: train sounds from the train's motion (done; the rest needs a simulation)
+
+TSRE does not simulate trains yet: play mode moves the activity's consist
+along its path (`Ruch`). What a train's sounds can take from motion and
+geometry alone is done; what needs a power and brake model is a stand-in.
+
+- Stand-in driver (`PlayDriver`, `src/tsre/trains`): the speed on a sine,
+  running half the period and standing the other half (22 m/s, 160 s;
+  `TSRE_PLAY_TOP_SPEED`, `TSRE_PLAY_PERIOD`), replacing the constant
+  40 m/s; throttle and brake from its rises and falls (a third of the
+  throttle to hold the speed, brakes on standing). With a network engine it
+  takes the network's speed and derives the same.
+- Every car: its outside .sms (the Wagon section's `Sound`, looked for in
+  the car's SOUND and the root's SOUND) besides the leading engine's cab
+  .sms and the track sounds; heard as far as the train is long and 50 m
+  more (at least 2 km). Each car's values: speed, distance run, wheel turns
+  (`WheelRadius`), brake cylinder (the brake share of 50 psi), curve force
+  and angle of attack in curves (`Ruch::curveRadius` from the TDB's
+  sections; curve resistance after Allen 1912 and Astakhov 1966, as Open
+  Rails computes it, without superelevation and none standing; smoothed
+  over a second).
+- Engines: Variable1-3 by engine type as Open Rails fills them, from the
+  stand-in throttle: diesel Variable1 the throttle (0-1) and Variable2 the
+  engine speed share following it; electric Variable1 the throttle in %
+  and Variable2 the pull in % following it; steam Variable1 the driving
+  wheels' turning (speed / driving wheel radius / pi x 5, Open Rails'
+  formula), Variable2 the cylinder cocks while starting.
+- Doppler for sounds placed in 3D: the source's and the listener's
+  velocities from their moves (smoothed; jumps are not moves), the speed
+  of sound 343.3 m/s.
+- Outside sounds heard from a cab or passenger view at half their volume
+  (Open Rails' default pass-through).
+
+Not done, needing a train simulation: engine RPM, power, torque and
+tractive effort controls, dynamic brake (Variable3), real brake timing,
+and the discrete events of cab controls (horn, bell, notches, doors,
+couplers...). Joint, switch and crossover triggers are Open Rails
+extensions (joints need `ORTSDistanceBetweenTrackJoints` in the route) that
+no local content uses; left out.
+
+Check in play mode (EUROPE1, `aftstorm.act`, a steam engine, 2026-10-12):
+75 sources; riding the leading engine the speed ran 5 to 22 m/s and back
+to standing, Variable1 followed the wheels (35.8 at 22 m/s with 0.975 m
+driving wheels), the brake cylinder rose to 50 psi while slowing, curve
+force appeared in curves (700-740 N at 21 m/s).
+
+`sound` suite: 91 cases (the driver's profile, curve force, angle of attack,
+wheel turns, Doppler, pass-through, the longer reach).
 
 ## Verification
 

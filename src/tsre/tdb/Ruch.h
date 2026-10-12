@@ -45,6 +45,8 @@ public:
     // maxDistance: its distance and id, or -1 (none, or the track ends).
     float distanceToItem(bool ahead, float maxDistance, const std::function<bool(int)> &wanted,
                          int *itemId = NULL) const;
+    // The radius of the curve under the traveller, 0 on straight track.
+    float curveRadius() const;
 
 private:
     void checkNode(int mSign);

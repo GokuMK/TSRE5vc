@@ -30,6 +30,7 @@
 #include <tsre/sound/SoundSource.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/sound/TrackSound.h>
+#include <tsre/trains/PlayDriver.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/TrainNetworkEng.h>
 #include <tsre/geo/GeoCoordinates.h>
@@ -74,11 +75,17 @@ Eng::Eng(Eng *o) {
     ref = o->ref;
     
     souncCabFile = o->souncCabFile;
+    soundFile = o->soundFile;
+    wheelRadius = o->wheelRadius;
+    driverWheelRadius = o->driverWheelRadius;
 }
 
 Eng::~Eng() {
     delete cabSound;
+    delete outsideSound;
     delete trackSound;
+    delete soundData;
+    delete driver;
 }
 
 float Eng::soundRegion(bool ahead, int *trackType) {
@@ -95,20 +102,103 @@ float Eng::soundRegion(bool ahead, int *trackType) {
     return distance;
 }
 
-void Eng::updateTrackSound(bool inside, int trackType, float speed, float move) {
-    if (ruch1 == NULL)
+float Eng::soundThrottle() const {
+    return driver != NULL ? driver->throttle() : 0;
+}
+
+float Eng::soundBrake() const {
+    return driver != NULL ? driver->brake() : 1;
+}
+
+void Eng::updateSounds(bool lead, int trackType, float speed, float move, float throttle, float brake,
+                       float cutoff, float seconds) {
+    if (ruch1 == NULL || ruch2 == NULL)
         return;
+    if (soundData == NULL)
+        soundData = new SoundValues();
+    SoundValues &values = *soundData;
+    const float absSpeed = fabs(speed);
+    values.set(Sms::Control::Speed, absSpeed);
+    values.distanceTravelled += fabs(move);
+    values.set(Sms::Control::WheelRpm, TrainMotion::wheelRpm(absSpeed, wheelRadius > 0 ? wheelRadius : 0.45f));
+    // Full brake as a full service application, 50 psi.
+    values.set(Sms::Control::BrakeCyl, brake * 50.0f);
+    // Curve squeal: smoothed over a second, as the wheels settle.
+    const float radius = ruch1->curveRadius();
+    float massKg = std::isfinite(mass) && mass > 0 ? mass : 50;
+    if (massKg < 1000)
+        massKg *= 1000;
+    const float k = std::min(seconds, 1.0f);
+    curveForceHeard += (TrainMotion::curveForce(massKg, absSpeed, radius) - curveForceHeard) * k;
+    angleOfAttackHeard += (TrainMotion::angleOfAttack(radius) - angleOfAttackHeard) * k;
+    values.set(Sms::Control::CurveForce, curveForceHeard);
+    values.set(Sms::Control::AngleOfAttack, angleOfAttackHeard);
+    // Engines: Variable1-3 as Open Rails fills them for the engine type,
+    // from the stand-in driver's throttle.
+    if (type.toLower() == "engine") {
+        const QString kind = engType.toLower();
+        float variable1 = 0;
+        float variable2Target = 0;
+        float variable2Rate = 1;
+        if (kind.contains("diesel")) {
+            variable1 = throttle;
+            variable2Target = throttle;
+            variable2Rate = 0.2f;
+        } else if (kind.contains("electric")) {
+            variable1 = throttle * 100;
+            variable2Target = throttle * 100;
+            variable2Rate = 100;
+        } else if (kind.contains("steam")) {
+            const float driving = driverWheelRadius > 0 ? driverWheelRadius : 0.9f;
+            variable1 = absSpeed / driving / float(M_PI) * 5;
+            // Cylinder cocks open while starting.
+            variable2Target = throttle > 0 && absSpeed < 3 ? 70 : 0;
+            variable2Rate = 1000;
+        }
+        const float step = variable2Rate * seconds;
+        variable2Heard += std::clamp(variable2Target - variable2Heard, -step, step);
+        values.set(Sms::Control::Variable1, variable1);
+        values.variable1.assign(1, variable1);
+        values.set(Sms::Control::Variable2, variable2Heard);
+        values.set(Sms::Control::Variable3, 0);
+    }
+
+    // The car's middle.
+    float *front = ruch1->getCurrentPosition();
+    const int tileX = (int)front[5];
+    const int tileZ = (int)front[6];
+    const float x1 = front[0], y1 = front[1], z1 = front[2];
+    float *back = ruch2->getCurrentPosition();
+    const float position[3] = {(x1 + back[0] + 2048 * (back[5] - tileX)) / 2, (y1 + back[1]) / 2,
+                               -(z1 + back[2] + 2048 * (back[6] - tileZ)) / 2};
+
+    if (!outsideSoundTried) {
+        outsideSoundTried = true;
+        const QString sms = SoundBank::find(soundFile, {path + "/SOUND", Game::root + "/SOUND"});
+        if (!sms.isEmpty())
+            outsideSound = new SoundSource(sms, SoundSource::Kind::Car, this);
+    }
+    if (lead && !cabSoundTried) {
+        cabSoundTried = true;
+        const QString sms = SoundBank::find(souncCabFile, {path + "/SOUND", Game::root + "/SOUND"});
+        if (!sms.isEmpty())
+            cabSound = new SoundSource(sms, SoundSource::Kind::Car, this);
+    }
+    for (SoundSource *source : {outsideSound, cabSound}) {
+        if (source == NULL)
+            continue;
+        source->values() = values;
+        source->setLocation(tileX, -tileZ, position);
+        source->setCutoffDistance(cutoff);
+    }
     if (trackSound == NULL)
-        trackSound = new TrackSound(this, inside);
+        trackSound = new TrackSound(this, lead);
     trackSound->setType(trackType);
-    trackSoundDistance += fabs(move);
-    const float *at = ruch1->getCurrentPosition();
-    const float position[3] = {at[0], at[1], -at[2]};
-    trackSound->update(speed, trackSoundDistance, (int)at[5], -(int)at[6], position);
+    trackSound->update(values, cutoff, tileX, -tileZ, position);
 }
 
 const SoundValues *Eng::soundValues() {
-    return cabSound != NULL ? &cabSound->values() : NULL;
+    return soundData;
 }
 
 Eng::Eng(QString p, QString n) {
@@ -254,6 +344,16 @@ void Eng::load(){
                 }
                 if (sh == ("mass")) {
                     mass = ParserX::GetNumberInside(data);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("sound")) {
+                    soundFile = ParserX::GetStringInside(data);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("wheelradius")) {
+                    wheelRadius = ParserX::GetNumberInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -424,6 +524,11 @@ void Eng::load(){
                 }
                 if (sh == ("sound")) {
                     souncCabFile = ParserX::GetStringInside(data);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("wheelradius")) {
+                    driverWheelRadius = ParserX::GetNumberInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -603,37 +708,17 @@ void Eng::pushDrawBorder3d(RenderQueue &queue) {
 }
 
 void Eng::updateSim(float deltaTime){
-    static float acceleration = 0;
-    static float lastSpeed = 0;
-    // Use True for fake acceleration sound
-    static bool fakesound = true;
-    
-    if(!Game::useNetworkEng || fakesound){
-    // Local Sound Speed test:
-        static Sms::Curve curve1;
-        static Sms::Curve curve2;
-        static Sms::Curve *curve = &curve1;
-        if(curve1.points.size() == 0)
-            curve1.points = {{-1.0f, 0.1f}, {2.0f, 0.5f}, {25.0f, 1.0f}, {56.0f, 0.0f}};
-        if(curve2.points.size() == 0)
-            curve2.points = {{-1.0f, -0.1f}, {2.0f, -0.5f}, {25.0f, -1.0f}, {56.0f, 0.0f}};
-
-        if(currentSpeed > 55 && curve == &curve1){
-            curve = &curve2;
-        }
-        if(currentSpeed < 0.1 && curve == &curve2){
-            curve = &curve1;
-        }
-
-        if(cabSound != NULL)
-            acceleration = curve->valueAt(currentSpeed);
-
-        currentSpeed += acceleration*deltaTime;
-
-        // Static speed
-        currentSpeed = 40;
-    
-    // Network Speed
+    // A stand-in driver until TSRE simulates trains: the speed on a sine,
+    // running and standing in turn (TSRE_PLAY_TOP_SPEED m/s,
+    // TSRE_PLAY_PERIOD s); throttle and brake follow from it.
+    if(driver == NULL){
+        const float top = qEnvironmentVariableIsSet("TSRE_PLAY_TOP_SPEED") ? qEnvironmentVariable("TSRE_PLAY_TOP_SPEED").toFloat() : 22;
+        const float period = qEnvironmentVariableIsSet("TSRE_PLAY_PERIOD") ? qEnvironmentVariable("TSRE_PLAY_PERIOD").toFloat() : 160;
+        driver = new PlayDriver(top, period);
+    }
+    if(!Game::useNetworkEng){
+        driver->run(deltaTime);
+        currentSpeed = driver->speed();
     }
     if(Game::useNetworkEng) {
         static IghCoordinate* igh = new IghCoordinate();
@@ -643,6 +728,7 @@ void Eng::updateSim(float deltaTime){
             networkEng = new TrainNetworkEng();
         }
         currentSpeed = networkEng->getSpeed();
+        driver->follow(currentSpeed, deltaTime);
         
         float data[4];
         data[0] = getCurrentElevation();
@@ -659,38 +745,7 @@ void Eng::updateSim(float deltaTime){
         networkEng->writeData(data);
     } 
     
-    if(currentSpeed != lastSpeed && !fakesound){
-        acceleration = (currentSpeed - lastSpeed) / (deltaTime);
-    }
-    
-    //qDebug() << acceleration << currentSpeed << lastSpeed;
     if(Game::soundEnabled && SoundSystem::running()){
-        if(!cabSoundTried){
-            cabSoundTried = true;
-            const QString sms = SoundBank::find(souncCabFile, {path + "/SOUND"});
-            if(!sms.isEmpty()){
-                cabSound = new SoundSource(sms, SoundSource::Kind::Car, this);
-                cabSound->locator = [this](int &tileX, int &tileZ, float *position){
-                    const float *at = ruch1->getCurrentPosition();
-                    tileX = (int)at[5];
-                    tileZ = -(int)at[6];
-                    position[0] = at[0];
-                    position[1] = at[1];
-                    position[2] = -at[2];
-                    return true;
-                };
-            }
-        }
-        if(cabSound != NULL){
-            SoundValues &values = cabSound->values();
-            // vectron
-            //values.set(Sms::Control::Variable2, currentSpeed * 100 / 55.0);
-            values.set(Sms::Control::Variable2, acceleration * 100);
-            values.set(Sms::Control::Speed, fabs(currentSpeed));
-            values.distanceTravelled += fabs(currentSpeed) * deltaTime;
-            // acela
-            //values.set(Sms::Control::Variable2, currentSpeed * 3.0);
-        }
         if(ruch1->onJunction > 0){
             // A click at junctions, if the engine has one.
             static QHash<QString, bool> clicks;
@@ -705,8 +760,6 @@ void Eng::updateSim(float deltaTime){
             ruch1->onJunction = 0;
         }
     }
-    
-    lastSpeed = currentSpeed;
 }
 
 float Eng::getCurrentSpeed(){

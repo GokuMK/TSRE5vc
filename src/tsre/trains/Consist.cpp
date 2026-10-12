@@ -674,10 +674,10 @@ void Consist::updateSim(float deltaTime){
     }
 
     if(Game::soundEnabled && SoundSystem::running())
-        updateTrackSounds(deltaMove);
+        updateSounds(deltaMove, deltaTime);
 }
 
-void Consist::updateTrackSounds(float move){
+void Consist::updateSounds(float move, float seconds){
     Eng *lead = engItems[0].engPointer;
     const float distance = trainTotalDistance;
     const float since = distance - soundRegionSearchedAt;
@@ -712,7 +712,8 @@ void Consist::updateTrackSounds(float move){
         for(const auto &change : soundRegionChanges)
             if(change.first <= carDistance)
                 type = change.second;
-        car->updateTrackSound(i == 0, type, trainSpeed, move);
+        car->updateSounds(i == 0, type, trainSpeed, move, lead->soundThrottle(), lead->soundBrake(),
+                          length + 50.0f, seconds);
     }
 }
 

@@ -141,7 +141,7 @@ private:
     float soundRegionSearchedAt = -1;
     float soundRegionAhead = -1;
     QVector<QPair<float, int>> soundRegionChanges;
-    void updateTrackSounds(float move);
+    void updateSounds(float move, float seconds);
     
     void replaceEngItem(int id, int pos);
 };

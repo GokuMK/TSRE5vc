@@ -14,6 +14,7 @@
 #include <tsre/sound/SoundSource.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/sound/TrackSound.h>
+#include <tsre/trains/PlayDriver.h>
 #include <tsre/sound/StreamPlayer.h>
 #include <tsre/sound/WavFile.h>
 
@@ -707,6 +708,52 @@ Tr_SMS ( ScalabiltyGroup ( 5
         check(!car.active() && car.streamGain(0) == 0.0f, "riding another car, its cab sound stops");
         Q_UNUSED(start);
     }
+    // Outside sounds through the cab's walls; a train's cars heard farther.
+    {
+        QStringList log;
+        SoundSource world(dir.filePath("world.sms"), SoundSource::Kind::World);
+        world.log = &log;
+        const float at[3] = {0.0f, 0.0f, 0.0f};
+        world.setLocation(0, 0, at);
+        listener = SoundListener();
+        listener.position[0] = 50.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        const float outside = world.streamGain(0);
+        int owner = 0;
+        listener.view = SoundView::Cab;
+        listener.attachedTo = &owner;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(outside > 0.0f && std::abs(world.streamGain(0) - outside * SoundSource::OutsideHeardInside) < 1e-5f,
+              "an outside sound heard from a cab at half its volume");
+    }
+    {
+        int owner = 0;
+        SoundSource car(dir.filePath("car.sms"), SoundSource::Kind::Car, &owner);
+        const float at[3] = {0.0f, 0.0f, 0.0f};
+        car.setLocation(0, 0, at);
+        listener = SoundListener();
+        listener.position[0] = 2500.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        const bool far = !car.inRange();
+        car.setCutoffDistance(3000.0f);
+        advance(0.1);
+        check(far && car.inRange(), "a car of the played train is heard farther than 2 km");
+    }
+    // Doppler: towards or away from the listener at 20 m/s.
+    {
+        const float ahead[3] = {100.0f, 0.0f, 0.0f};
+        const float still[3] = {0.0f, 0.0f, 0.0f};
+        const float coming[3] = {-20.0f, 0.0f, 0.0f};
+        const float going[3] = {20.0f, 0.0f, 0.0f};
+        check(std::abs(SoundSource::dopplerFactor(ahead, coming, still) - 343.3f / 323.3f) < 1e-4f
+                      && std::abs(SoundSource::dopplerFactor(ahead, going, still) - 343.3f / 363.3f) < 1e-4f
+                      && std::abs(SoundSource::dopplerFactor(ahead, still, going) - 363.3f / 343.3f) < 1e-4f
+                      && SoundSource::dopplerFactor(ahead, still, still) == 1.0f,
+              "Doppler: higher coming closer, lower going away");
+    }
     // Sound regions around the leading car (behind, ahead; -1: none).
     check(TrackSound::regionType(0, 30.0f, 2, 100.0f, 2) == 2, "between two regions of a type: that type");
     check(TrackSound::regionType(2, 30.0f, 2, 100.0f, 3) == 0, "between regions of two types: the default track");
@@ -724,6 +771,47 @@ Tr_SMS ( ScalabiltyGroup ( 5
 
 }
 
+namespace {
+
+// The stand-in driver and what the wheels do.
+void motionCases(Checker &check) {
+    PlayDriver driver(20.0f, 160.0f);
+    float top = 0.0f;
+    float pullingThrottle = 0.0f;
+    float brakingBrake = 0.0f;
+    bool stoodBraked = true;
+    for (int i = 0; i < 160 * 10; ++i) {
+        driver.run(0.1f);
+        const float t = (i + 1) * 0.1f;
+        top = std::max(top, driver.speed());
+        if (t > 5.0f && t < 30.0f)
+            pullingThrottle = std::max(pullingThrottle, driver.throttle());
+        if (t > 50.0f && t < 75.0f)
+            brakingBrake = std::max(brakingBrake, driver.brake());
+        if (t > 85.0f && t < 155.0f)
+            stoodBraked &= driver.speed() == 0.0f && driver.brake() == 1.0f && driver.throttle() == 0.0f;
+    }
+    check(std::abs(top - 20.0f) < 0.01f, "the stand-in driver runs up to its top speed");
+    check(pullingThrottle > 0.6f && brakingBrake > 0.5f && stoodBraked,
+          "throttle while speeding up, brake while slowing down, brakes on standing");
+    PlayDriver follower(20.0f, 160.0f);
+    for (int i = 0; i < 20; ++i)
+        follower.follow(i * 0.5f, 0.1f);
+    check(follower.throttle() > 0.3f && follower.brake() == 0.0f, "a speed from elsewhere gives throttle as it rises");
+    // 50 t at 20 m/s in a 300 m curve: base and speed resistance.
+    const float base = 9.81f * 50000.0f * 0.35f * (1.435f + 1.6764f) / 600.0f;
+    const float speed = 9.81f * 50.0f * 1.5f * 400.0f / 300.0f;
+    check(std::abs(TrainMotion::curveForce(50000.0f, 20.0f, 300.0f) - (base + speed)) < 1.0f
+                  && TrainMotion::curveForce(50000.0f, 20.0f, 0.0f) == 0.0f
+                  && TrainMotion::curveForce(50000.0f, 0.0f, 300.0f) == 0.0f,
+          "curve force in a curve, none on straight track or standing");
+    check(std::abs(TrainMotion::angleOfAttack(300.0f) - std::asin(2.0f * 1.6764f / 300.0f) * 1000.0f) < 1e-3f
+                  && std::abs(TrainMotion::wheelRpm(10.0f, 0.5f) - 10.0f / (2.0f * float(M_PI) * 0.5f) * 60.0f) < 1e-3f,
+          "angle of attack and wheel turns");
+}
+
+}
+
 int TsreTests::runSoundSuite(bool verbose) {
     Checker check{"sound", verbose};
     waveCases(check);
@@ -731,6 +819,7 @@ int TsreTests::runSoundSuite(bool verbose) {
     engineCases(check);
     smsCases(check);
     sourceCases(check);
+    motionCases(check);
     qInfo().noquote() << QString("[tests:sound] passed %1 failed %2").arg(check.passed).arg(check.failed);
     return check.failed == 0 ? 0 : 1;
 }

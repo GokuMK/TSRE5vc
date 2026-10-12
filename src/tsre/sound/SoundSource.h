@@ -48,6 +48,8 @@ struct SoundListener {
     float position[3] = {0.0f, 0.0f, 0.0f};
     float forward[3] = {0.0f, 0.0f, -1.0f};
     float up[3] = {0.0f, 1.0f, 0.0f};
+    // m/s, from its moves (SoundSystem).
+    float velocity[3] = {0.0f, 0.0f, 0.0f};
     SoundView view = SoundView::External;
     // The car the camera rides (cab sounds are its own), and its values,
     // which sounds without a car read (Open Rails' attached car).
@@ -104,6 +106,16 @@ public:
     static constexpr float CutoffDistanceSquared = 2000.0f * 2000.0f;
     static float rolloffFor(float maxDistance);
     static float distanceGain(float distance, float rolloff);
+    // The pitch of a sound moving relative to the listener (the speed of
+    // sound 343.3 m/s): toListener from the listener to the source.
+    static float dopplerFactor(const float *toListener, const float *sourceVelocity, const float *listenerVelocity);
+    // Outside sounds heard from a cab or a passenger view (Open Rails'
+    // default external sound pass-through, 50 %).
+    static constexpr float OutsideHeardInside = 0.5f;
+
+    // Heard farther than 2 km (the played train's cars, the train's length
+    // away and more).
+    void setCutoffDistance(float metres);
 
     // For tests: the commands run, as "stream: Command file".
     QStringList *log = nullptr;
@@ -140,6 +152,8 @@ private:
         bool releasedWithJump = false;
         float gain = 0.0f;
         float speed = 1.0f;
+        // From the frequency curve; the Doppler factor scales it.
+        float baseSpeed = 1.0f;
     };
 
     bool conditionsMet(const Sms::Activation &conditions, const SoundListener &listener) const;
@@ -153,7 +167,7 @@ private:
     void initTrigger(StreamState &stream, int index);
     void tryTrigger(StreamState &stream, int index);
     void run(StreamState &stream, int index);
-    void updateStream(StreamState &stream, const float *relative);
+    void updateStream(StreamState &stream, const float *at);
     void setFrequencyAndVolume(StreamState &stream);
     float readValue(Sms::Control control, int index, const SoundValues *car) const;
     float distanceGain() const;
@@ -180,6 +194,12 @@ private:
     bool isActive = false;
     bool wasOutOfDistance = true;
     float distance2 = 0.0f;
+    float cutoff2 = CutoffDistanceSquared;
+    // From the listener, and the source's velocity from its moves.
+    float relative[3] = {0.0f, 0.0f, 0.0f};
+    double lastPlace[3] = {0.0, 0.0, 0.0};
+    double lastClock = -1.0;
+    float velocity[3] = {0.0f, 0.0f, 0.0f};
     // Per update.
     const SoundListener *currentListener = nullptr;
     double currentClock = 0.0;
