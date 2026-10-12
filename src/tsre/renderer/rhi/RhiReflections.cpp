@@ -207,6 +207,11 @@ bool RhiRenderer::createEnvironment(int faceSize, int levels) {
 void RhiRenderer::beginEnvironmentFace(int face, const float *clearColor) {
     if (environment.cube == nullptr || face < 0 || face >= EnvironmentMap::FaceCount)
         return;
+    // The last face's clouds, if no later pass of it drew them.
+    if (currentTarget == TargetEnvironment)
+        applySecondaryClouds();
+    environmentFace = face;
+    environmentCloudsApplied = false;
     beginOffscreen(TargetEnvironment, &environment.faces[face], clearColor);
 }
 
@@ -214,9 +219,11 @@ void RhiRenderer::endEnvironmentFaces(const QVector<int> &prefilterFaces) {
     if (environment.cube == nullptr)
         return;
     if (currentTarget == TargetEnvironment) {
+        applySecondaryClouds();
         flushTarget();
         currentTarget = TARGET_VIEW;
     }
+    environmentFace = -1;
     environment.mipmapsPending = true;
     for (int face : prefilterFaces)
         if (!environment.prefilterPending.contains(face))
@@ -361,6 +368,9 @@ void RhiRenderer::releaseEnvironment() {
     e.previewPass = nullptr;
     if (currentTarget == TargetEnvironment)
         currentTarget = TARGET_VIEW;
+    // Their clouds draw into the cube's faces and read its depth.
+    releaseEnvironmentClouds();
+    environmentFace = -1;
     targets[TargetEnvironment].attachments = nullptr;
     targets[TargetEnvironment].draws.clear();
     targets[TargetEnvironment].keys.clear();
@@ -406,7 +416,7 @@ void RhiRenderer::endReflection() {
     if (currentTarget != TargetReflection)
         return;
     // The clouds, if no later pass of the reflection drew them.
-    applyReflectionClouds();
+    applySecondaryClouds();
     flushTarget();
     currentTarget = TARGET_VIEW;
     RhiRenderSurface *s = surface();

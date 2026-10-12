@@ -262,6 +262,8 @@ void RhiRenderer::releaseLightShafts() {
     delete l.volumeAddBindings;
     delete l.volumePipeline;
     delete l.volumeAddPipeline;
+    if (l.whiteUpload != nullptr)
+        l.whiteUpload->release();
     l = LightShafts();
 }
 
@@ -274,10 +276,14 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     if (l.addPipeline != nullptr && l.size == size && l.viewColor == view.color && l.cloudTexture == cloudTexture
             && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap)
         return true;
+    // The white texture and its upload, if not done yet, stay.
     QRhiTexture *white = l.white;
+    QRhiResourceUpdateBatch *whiteUpload = l.whiteUpload;
     l.white = nullptr;
+    l.whiteUpload = nullptr;
     releaseLightShafts();
     l.white = white;
+    l.whiteUpload = whiteUpload;
     l.size = size;
     l.viewColor = view.color;
     l.cloudTexture = cloudTexture;

@@ -857,6 +857,14 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     releaseAmbientOcclusion();
     releaseBloom();
     releaseGlowClear();
+    // Everything else drawing into or reading the view's textures: the new
+    // ones can take the old ones' addresses, so a pointer comparison would
+    // keep targets and resource sets of deleted textures (changing tone
+    // mapping, which keeps the size, crashed; user, 2026-10-12).
+    releaseLightShafts();
+    releaseCloudBuffers();
+    waterDepth.boundDepth = nullptr;
+    depthProbe.boundDepth = nullptr;
     return createAttachments(view, format, size, QRhiTexture::UsedAsTransferSource,
                              ambient ? QRhiTexture::RGBA8 : QRhiTexture::UnknownFormat,
                              glow ? QRhiTexture::RGBA16F : QRhiTexture::UnknownFormat);
@@ -1278,6 +1286,13 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         depthRange[0] = 0.99f;
         depthRange[1] = 1.0f;
         return;
+    }
+    if (band == BAND_SCENE) {
+        // The clouds of every view read it.
+        float scene[16];
+        view.projection(0.2f, view.sceneFar, scene);
+        bandScale[currentTarget][0] = scene[0];
+        bandScale[currentTarget][1] = scene[5];
     }
     if (band == BAND_SCENE && !secondaryView && currentTarget == TARGET_VIEW) {
         // Ambient occlusion reads this band's depth back.

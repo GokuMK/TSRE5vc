@@ -69,8 +69,14 @@ struct Preset {
 };
 const Preset Presets[5] = {{0, 0, 0}, {320 * 180, 48, 3}, {480 * 270, 64, 4}, {640 * 360, 96, 6},
                            {960 * 540, 128, 6}};
+// The environment cube's clouds, a face at a time: below Low (the cube is
+// read blurred, by rough surfaces or through waves; user, 2026-10-12).
+const Preset EnvironmentPreset = {96 * 96, 32, 2};
 constexpr int UpdateBlock = 4;
 constexpr int UpdatePasses = UpdateBlock * UpdateBlock;
+// A face is drawn every few frames (round robin): four of a block's pixels
+// each time.
+constexpr int EnvironmentPasses = 4;
 // The order the pixels of a block are marched in (a Bayer pattern: each
 // frame's pixels spread evenly).
 const int UpdateOrder[UpdatePasses][2] = {{0, 0}, {2, 2}, {0, 2}, {2, 0}, {1, 1}, {3, 3}, {1, 3}, {3, 1},
@@ -824,6 +830,15 @@ QByteArray cloudSource(const char *body, bool common) {
     return source + body;
 }
 
+// Deleted when the frame being recorded is submitted: views drawn earlier
+// in the frame (the reflection, the cube's faces) may use it still, and
+// QRhi objects a frame refers to must stay until then.
+template <typename T>
+void dropLater(T *resource) {
+    if (resource != nullptr)
+        resource->deleteLater();
+}
+
 double positiveModulo(double value, double period) {
     const double r = std::fmod(value, period);
     return r < 0.0 ? r + period : r;
@@ -890,12 +905,17 @@ QRhiTexture *cloudTexture(QRhi *rhi, const QSize &size) {
     return t;
 }
 
+// A target of the textures; the first drawn into at the layer given (a
+// cube's face).
 bool cloudTarget(QRhi *rhi, std::initializer_list<QRhiTexture *> colors, bool preserve, QRhiTextureRenderTarget *&out,
-                 QRhiRenderPassDescriptor *&pass) {
+                 QRhiRenderPassDescriptor *&pass, int layer = 0) {
     QRhiTextureRenderTargetDescription description;
     QVarLengthArray<QRhiColorAttachment, 4> attachments;
-    for (QRhiTexture *t : colors)
+    for (QRhiTexture *t : colors) {
         attachments.append(QRhiColorAttachment(t));
+        if (attachments.size() == 1)
+            attachments.back().setLayer(layer);
+    }
     description.setColorAttachments(attachments.cbegin(), attachments.cend());
     out = rhi->newTextureRenderTarget(description, preserve ? QRhiTextureRenderTarget::PreserveColorContents
                                                             : QRhiTextureRenderTarget::Flags());
@@ -1049,7 +1069,7 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
 }
 
 bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixels, QRhiTexture *color,
-                                  QRhiTexture *glow, QRhiTexture *depth) {
+                                  QRhiTexture *glow, QRhiTexture *depth, int colorLayer, const CloudView *share) {
     const CloudResources &c = cloudResources;
     const QSize marchSize = cloudMarchSize(viewSize, pixels);
     if (v.march != nullptr && v.size == marchSize && v.compositeColor == color)
@@ -1071,8 +1091,8 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
             && cloudTarget(rhi, {v.march}, false, v.marchTarget, v.marchPass)
             && cloudTarget(rhi, {v.history[0], v.image}, false, v.historyTargets[0], v.historyPasses[0])
             && cloudTarget(rhi, {v.history[1], v.image}, false, v.historyTargets[1], v.historyPasses[1])
-            && (glow != nullptr ? cloudTarget(rhi, {color, glow}, true, v.compositeTarget, v.compositePass)
-                                : cloudTarget(rhi, {color}, true, v.compositeTarget, v.compositePass));
+            && (glow != nullptr ? cloudTarget(rhi, {color, glow}, true, v.compositeTarget, v.compositePass, colorLayer)
+                                : cloudTarget(rhi, {color}, true, v.compositeTarget, v.compositePass, colorLayer));
     if (!ok) {
         releaseCloudView(v);
         return false;
@@ -1105,12 +1125,20 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
                                                      QRhiShaderResourceBinding::sampledTexture(1, fragment, v.image, c.linear),
                                                      QRhiShaderResourceBinding::sampledTexture(2, fragment, depth, c.nearest)});
     }
-    const CloudShaderSet &shaders = cloudShaderSet(rhi);
-    v.marchPipeline = cloudPipeline(rhi, shaders.march, v.marchBindings, v.marchPass, 1, false);
-    v.temporalPipeline = cloudPipeline(rhi, shaders.temporal, v.temporalBindings[0], v.historyPasses[0], 2, false);
-    v.compositePipeline = glow != nullptr
-            ? cloudPipeline(rhi, shaders.glowComposite, v.compositeBindings[0], v.compositePass, 2, true)
-            : cloudPipeline(rhi, shaders.composite, v.compositeBindings[0], v.compositePass, 1, true);
+    if (share != nullptr && share->marchPipeline != nullptr) {
+        // Targets of the same formats, resource sets of the same layout.
+        v.marchPipeline = share->marchPipeline;
+        v.temporalPipeline = share->temporalPipeline;
+        v.compositePipeline = share->compositePipeline;
+        v.ownsPipelines = false;
+    } else {
+        const CloudShaderSet &shaders = cloudShaderSet(rhi);
+        v.marchPipeline = cloudPipeline(rhi, shaders.march, v.marchBindings, v.marchPass, 1, false);
+        v.temporalPipeline = cloudPipeline(rhi, shaders.temporal, v.temporalBindings[0], v.historyPasses[0], 2, false);
+        v.compositePipeline = glow != nullptr
+                ? cloudPipeline(rhi, shaders.glowComposite, v.compositeBindings[0], v.compositePass, 2, true)
+                : cloudPipeline(rhi, shaders.composite, v.compositeBindings[0], v.compositePass, 1, true);
+    }
     if (v.marchPipeline == nullptr || v.temporalPipeline == nullptr || v.compositePipeline == nullptr) {
         releaseCloudView(v);
         return false;
@@ -1178,7 +1206,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     CloudResources &c = cloudResources;
     if (c.weather != nullptr && c.weather->pixelSize() != QSize(3 * clouds.size, clouds.size)) {
         releaseCloudBuffers();
-        delete c.weather;
+        dropLater(c.weather);
         c.weather = nullptr;
     }
     if (c.quality != quality) {
@@ -1381,7 +1409,7 @@ void RhiRenderer::writeCloudUpdates(CloudView &v, QRhiResourceUpdateBatch *updat
 }
 
 void RhiRenderer::runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize &viewSize,
-                               QRhiResourceUpdateBatch *updates) {
+                               QRhiResourceUpdateBatch *updates, int passes) {
     auto fullScreen = [cb, &v, &updates](QRhiTextureRenderTarget *target, QRhiGraphicsPipeline *pipeline,
                                          QRhiShaderResourceBindings *bindings, const QSize &size, int pass) {
         cb->beginPass(target, Qt::black, {1.0f, 0}, updates);
@@ -1397,52 +1425,90 @@ void RhiRenderer::runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize 
         cb->draw(3);
         cb->endPass();
     };
-    // One pixel of each block a frame; all of them in one frame when the
+    // The given pixels of each block a run; all of them at once when the
     // image must be complete (still captures, no history after a jump).
     const bool fill = clouds.still || !v.historyValid;
-    const int first = fill ? 0 : cloudResources.frame % UpdatePasses;
-    const int passes = fill ? UpdatePasses : 1;
+    const int first = fill ? 0 : v.nextPass;
+    if (fill)
+        passes = UpdatePasses;
     int write = v.current;
     for (int p = 0; p < passes; ++p) {
-        fullScreen(v.marchTarget, v.marchPipeline, v.marchBindings, v.size, first + p);
+        const int pass = (first + p) % UpdatePasses;
+        fullScreen(v.marchTarget, v.marchPipeline, v.marchBindings, v.size, pass);
         write = v.current = 1 - v.current;
-        fullScreen(v.historyTargets[write], v.temporalPipeline, v.temporalBindings[write], v.imageSize, first + p);
+        fullScreen(v.historyTargets[write], v.temporalPipeline, v.temporalBindings[write], v.imageSize, pass);
     }
+    v.nextPass = (first + passes) % UpdatePasses;
     fullScreen(v.compositeTarget, v.compositePipeline, v.compositeBindings[write], viewSize, -1);
     v.historyValid = true;
 }
 
-void RhiRenderer::applyReflectionClouds() {
-    if (reflectionCloudsApplied || currentTarget != TargetReflection || !reflection.valid() || !cloudsWanted()
-            || !skyInverseValid[TargetReflection])
+void RhiRenderer::applySecondaryClouds() {
+    const CloudResources &c = cloudResources;
+    if (currentTarget == TargetReflection) {
+        if (reflectionCloudsApplied || !reflection.valid())
+            return;
+        reflectionCloudsApplied = true;
+        // A quarter of the main view's pixels (the reflection has a quarter
+        // of the window's); Low's steps: the waves blur it.
+        const Preset &preset = Presets[std::clamp(c.quality, 1, 4)];
+        applyViewClouds(reflectionClouds, TargetReflection, reflection, 0, preset.pixels / 4,
+                        std::min(Presets[1].steps, preset.steps), std::min(Presets[1].lightSteps, preset.lightSteps),
+                        1, nullptr);
+    } else if (currentTarget == TargetEnvironment) {
+        const int face = environmentFace;
+        if (environmentCloudsApplied || face < 0 || face >= 6 || environment.cube == nullptr)
+            return;
+        environmentCloudsApplied = true;
+        // The faces share face 0's pipelines: made first, the others after.
+        CloudView &first = environmentClouds[0];
+        const Attachments &target = environment.faces[face];
+        if (first.march == nullptr) {
+            for (int i = 1; i < 6; ++i)
+                releaseCloudView(environmentClouds[i]);
+            if (cloudsWanted() && c.march != nullptr && skyResources.view != nullptr
+                    && !createCloudView(first, target.size, EnvironmentPreset.pixels, environment.cube, nullptr,
+                                        environment.depth, 0, nullptr))
+                return;
+        }
+        applyViewClouds(environmentClouds[face], TargetEnvironment, target, face, EnvironmentPreset.pixels,
+                        EnvironmentPreset.steps, EnvironmentPreset.lightSteps, EnvironmentPasses,
+                        face == 0 ? nullptr : &first);
+    }
+}
+
+void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &attachments, int colorLayer,
+                                  int pixels, int steps, int lightSteps, int passes, const CloudView *share) {
+    if (!cloudsWanted() || !skyInverseValid[target])
         return;
     RhiRenderSurface *surfaceNow = surface();
     if (surfaceNow == nullptr || surfaceNow->frame().commandBuffer == nullptr)
         return;
-    reflectionCloudsApplied = true;
-    // The reflection is drawn before this frame's maps and parameters are
-    // prepared: it takes the last frame's (the camera moved a step since).
+    // The view's opaque passes and sky so far (the first view of a frame
+    // draws the sky-view table with its sky).
+    flushTarget();
+    // These views are drawn before this frame's maps and parameters are
+    // prepared: they take the last frame's (the camera moved a step since).
     const CloudResources &c = cloudResources;
     if (c.march == nullptr || c.parameters.size() * sizeof(float) != sizeof(MarchParameters)
             || !skyResources.viewRendered)
         return;
-    // The reflection's opaque passes and sky so far.
-    flushTarget();
-    CloudView &v = reflectionClouds;
-    if (!createCloudView(v, reflection.size, Presets[c.quality].pixels / 4, reflection.color, nullptr,
-                         reflection.depth))
+    if (!createCloudView(v, attachments.size, pixels, attachments.color, nullptr, attachments.depth, colorLayer,
+                         share))
         return;
     MarchParameters parameters;
     std::memcpy(&parameters, c.parameters.data(), sizeof(parameters));
-    // The mirrored view's directions (the sky's above the water); the march
-    // starts at the camera, the clouds being far.
-    std::copy(skyInverse[TargetReflection], skyInverse[TargetReflection] + 16, parameters.inverse);
-    const float *previous = v.previousValid ? v.previous : skyForward[TargetReflection];
+    // The view's directions (the reflection's: the sky's above the water);
+    // the march starts at the camera, the clouds being far.
+    std::copy(skyInverse[target], skyInverse[target] + 16, parameters.inverse);
+    const float *previous = v.previousValid ? v.previous : skyForward[target];
     std::copy(previous, previous + 16, parameters.previous);
-    parameters.camera[1] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
-    // Low's steps: the waves blur the reflection.
-    parameters.slab[3] = float(std::min(Presets[1].steps, Presets[c.quality].steps));
-    parameters.lighting[0] = float(std::min(Presets[1].lightSteps, Presets[c.quality].lightSteps));
+    // Rows as the sky's pass of the view takes them.
+    parameters.camera[1] = (attachments.openGlRows || rhi->isYUpInFramebuffer()) ? 1.0f : -1.0f;
+    parameters.projection[0] = bandScale[target][0];
+    parameters.projection[1] = bandScale[target][1];
+    parameters.slab[3] = float(steps);
+    parameters.lighting[0] = float(lightSteps);
     if (std::hypot(clouds.cameraEast - v.lastEast, clouds.cameraNorth - v.lastNorth) > 300.0)
         v.historyValid = false;
     v.lastEast = clouds.cameraEast;
@@ -1453,15 +1519,16 @@ void RhiRenderer::applyReflectionClouds() {
     QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
     updates->updateDynamicBuffer(v.uniforms, 0, sizeof(parameters), &parameters);
     writeCloudUpdates(v, updates);
-    runCloudView(v, surfaceNow->frame().commandBuffer, reflection.size, updates);
-    std::copy(skyForward[TargetReflection], skyForward[TargetReflection] + 16, v.previous);
+    runCloudView(v, surfaceNow->frame().commandBuffer, attachments.size, updates, passes);
+    std::copy(skyForward[target], skyForward[target] + 16, v.previous);
     v.previousValid = true;
 }
 
 void RhiRenderer::applyClouds() {
-    // The water reflection's own clouds, after its opaque passes.
+    // The water reflection's and the cube faces' own clouds, after their
+    // opaque passes.
     if (secondaryView) {
-        applyReflectionClouds();
+        applySecondaryClouds();
         return;
     }
     if (cloudsApplied || !cloudsWanted() || currentTarget != TARGET_VIEW
@@ -1477,59 +1544,68 @@ void RhiRenderer::applyClouds() {
     CloudResources &c = cloudResources;
     if (!cloudsPrepared || !skyResources.viewRendered || c.march == nullptr || c.compositeColor != view.color)
         return;
-    runCloudView(c, surfaceNow->frame().commandBuffer, view.size, nullptr);
+    runCloudView(c, surfaceNow->frame().commandBuffer, view.size, nullptr, 1);
     std::copy(skyForward[TARGET_VIEW], skyForward[TARGET_VIEW] + 16, c.previous);
     c.previousValid = true;
 }
 
+void RhiRenderer::releaseEnvironmentClouds() {
+    // Face 0 owns the pipelines the others use.
+    for (int i = 5; i >= 0; --i)
+        releaseCloudView(environmentClouds[i]);
+}
+
 void RhiRenderer::releaseCloudView(CloudView &v) {
-    delete v.marchPipeline;
-    delete v.temporalPipeline;
-    delete v.compositePipeline;
-    delete v.marchBindings;
-    for (int i = 0; i < 2; ++i) {
-        delete v.temporalBindings[i];
-        delete v.compositeBindings[i];
-        delete v.historyTargets[i];
-        delete v.historyPasses[i];
-        delete v.history[i];
+    if (v.ownsPipelines) {
+        dropLater(v.marchPipeline);
+        dropLater(v.temporalPipeline);
+        dropLater(v.compositePipeline);
     }
-    delete v.marchTarget;
-    delete v.marchPass;
-    delete v.compositeTarget;
-    delete v.compositePass;
-    delete v.march;
-    delete v.image;
-    delete v.uniforms;
-    delete v.updateUniforms;
+    dropLater(v.marchBindings);
+    for (int i = 0; i < 2; ++i) {
+        dropLater(v.temporalBindings[i]);
+        dropLater(v.compositeBindings[i]);
+        dropLater(v.historyTargets[i]);
+        dropLater(v.historyPasses[i]);
+        dropLater(v.history[i]);
+    }
+    dropLater(v.marchTarget);
+    dropLater(v.marchPass);
+    dropLater(v.compositeTarget);
+    dropLater(v.compositePass);
+    dropLater(v.march);
+    dropLater(v.image);
+    dropLater(v.uniforms);
+    dropLater(v.updateUniforms);
     v = CloudView();
 }
 
 void RhiRenderer::releaseCloudBuffers() {
     CloudResources &c = cloudResources;
-    // The reflection's resource sets hold the shared maps.
+    // The reflection's and the cube's resource sets hold the shared maps.
     releaseCloudView(reflectionClouds);
+    releaseEnvironmentClouds();
     releaseCloudView(c);
-    delete c.coverPipeline;
-    delete c.shadowPipeline;
+    dropLater(c.coverPipeline);
+    dropLater(c.shadowPipeline);
     for (int i = 0; i < 2; ++i) {
-        delete c.coverBindings[i];
-        delete c.coverTargets[i];
-        delete c.coverPasses[i];
-        delete c.coverUniforms[i];
+        dropLater(c.coverBindings[i]);
+        dropLater(c.coverTargets[i]);
+        dropLater(c.coverPasses[i]);
+        dropLater(c.coverUniforms[i]);
         c.coverBindings[i] = nullptr;
         c.coverTargets[i] = nullptr;
         c.coverPasses[i] = nullptr;
         c.coverUniforms[i] = nullptr;
     }
-    delete c.shadowTarget;
-    delete c.shadowPass;
-    delete c.shadow;
-    delete c.coverNear;
-    delete c.coverFar;
-    delete c.linear;
-    delete c.nearest;
-    delete c.repeat;
+    dropLater(c.shadowTarget);
+    dropLater(c.shadowPass);
+    dropLater(c.shadow);
+    dropLater(c.coverNear);
+    dropLater(c.coverFar);
+    dropLater(c.linear);
+    dropLater(c.nearest);
+    dropLater(c.repeat);
     c.coverPipeline = c.shadowPipeline = nullptr;
     c.shadowTarget = nullptr;
     c.shadowPass = nullptr;
@@ -1544,10 +1620,10 @@ void RhiRenderer::releaseCloudBuffers() {
 void RhiRenderer::releaseCloudResources() {
     releaseCloudBuffers();
     CloudResources &c = cloudResources;
-    delete c.weather;
-    delete c.shape;
-    delete c.detail;
-    delete c.curl;
+    dropLater(c.weather);
+    dropLater(c.shape);
+    dropLater(c.detail);
+    dropLater(c.curl);
     if (c.pendingUploads != nullptr)
         c.pendingUploads->release();
     c = CloudResources();

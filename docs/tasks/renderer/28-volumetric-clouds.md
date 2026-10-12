@@ -494,8 +494,8 @@ canopies (patchy cover leaves the corners open) and was dropped.
   enclosed ambient): to move to their classes when a full rebuild happens
   anyway (user, 2026-10-12: settings read every frame may live in `Game`,
   but their own class is better).
-- Clouds in the water reflection and the environment map; precipitation;
-  cumulonimbus anvils.
+- Clouds in the water reflection and the environment map (done below);
+  precipitation; cumulonimbus anvils.
 
 ## Second round on the Steam Deck (2026-10-12)
 
@@ -649,7 +649,54 @@ both plainly.
   had no other reader: removed from the march and the temporal pass
   (two render targets fewer per pass).
 - Changing tone mapping at run time in the Settings Editor can crash
-  TSRE (user): not looked at yet.
+  TSRE (user): see "Crash on changing tone mapping" below.
+
+## Clouds in the environment cube (option 2, 2026-10-12)
+
+The user: render the clouds into the cube too, with a preset below Low (the
+reflections are distorted anyway). Test place: reflective spheres on `bbb`
+(`core.startup.camera=-5306,14961,-468.29,69.05,-58.96,-175.54,2.80`).
+
+- Each face has its own `CloudView`: 96 x 96 pixels, 32 steps, 2 light
+  steps, its own history (a face does not turn: the reprojection is the
+  identity). Faces are drawn round robin, one a frame by default: each draw
+  marches 4 of a block's 16 pixels, so a face is renewed every 4 of its
+  draws. The faces share face 0's pipelines (same formats, same layouts):
+  no extra pipeline builds.
+- After each face's opaque passes (or when the next face begins), with the
+  main view's last march parameters, like the reflection; the face's
+  projection scale and rows (OpenGL's) are taken from its own band.
+- Everything reading the cube gets the clouds: glTF metals (smooth spheres
+  show them sharp, rough ones blurred and greyer under broken cloud, as the
+  sky), water off the reflection's plane.
+- Cost on the Deck at 1280 x 800 (bbb spheres, two runs): the cube costs
+  3.0-3.4 ms with the clouds and 3.8-4.7 ms without; no measurable cost.
+- Found on the way: with the first face of a frame, the check that the
+  sky-view table was drawn came before the face's sky was flushed, so the
+  faces never got clouds: the view is flushed first now.
+
+## Crash on changing tone mapping (2026-10-12)
+
+Reproduced headless by switching tone mapping every 5 frames during a
+capture (a temporary hook): an access violation in the driver at the
+frame's submit, with the clouds and the reflection or the cube on. Two
+causes, both fixed:
+
+- Tone mapping on or off changes the view's format, so its textures are
+  made anew. The clouds' composite (and march resource sets) and the light
+  shafts decided whether to rebuild by comparing the view's colour texture
+  pointer; a new texture can take the old one's address, and they kept
+  targets and resource sets of deleted textures. The view's recreation now
+  releases them (and resets the water depth copy's and the depth probe's
+  bound depth).
+- The reflection and the cube's faces use the cloud resources early in the
+  frame; a rebuild later in the same frame (the view recreated, the
+  quality or window changed) deleted them while that frame's commands
+  still referred to them. The cloud resources are released with
+  `deleteLater()` now (kept until the frame is submitted).
+
+With both, the stress run passes with everything on; either alone still
+crashed. (The Settings Editor's own path was not run on screen.)
 
 ## Verification
 

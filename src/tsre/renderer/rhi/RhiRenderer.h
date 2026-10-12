@@ -438,7 +438,8 @@ private:
     bool cloudsApplied = false;
     // A view's own clouds: the march, the image built from it over frames
     // and the composite into the view. The main view's are part of
-    // CloudResources, the water reflection's are reflectionClouds.
+    // CloudResources; the water reflection and each environment cube face
+    // have their own.
     struct CloudView {
         // The march (one texel per update block) and the cloud image.
         QSize size;
@@ -460,6 +461,8 @@ private:
         QRhiShaderResourceBindings *temporalBindings[2] = {};
         QRhiGraphicsPipeline *temporalPipeline = nullptr;
         int current = 0;
+        // The update pass (pixel of each block) the next run starts with.
+        int nextPass = 0;
         bool historyValid = false;
         float previous[16] = {};
         bool previousValid = false;
@@ -470,6 +473,9 @@ private:
         QRhiRenderPassDescriptor *compositePass = nullptr;
         QRhiShaderResourceBindings *compositeBindings[2] = {};
         QRhiGraphicsPipeline *compositePipeline = nullptr;
+        // Off where another view's pipelines are used (the cube's faces
+        // share face 0's).
+        bool ownsPipelines = true;
     };
     struct CloudResources : CloudView {
         int quality = 0;
@@ -490,8 +496,9 @@ private:
         // What the cloud shadow map was last drawn for.
         std::vector<double> shadowKey;
         int frame = 0;
-        // The main view's march parameters as last written: the reflection,
-        // drawn before this frame's are, takes them with its own view.
+        // The main view's march parameters as last written: the reflection
+        // and the cube, drawn before this frame's are, take them with their
+        // own views.
         std::vector<float> parameters;
         QRhiSampler *linear = nullptr;
         QRhiSampler *nearest = nullptr;
@@ -507,12 +514,25 @@ private:
     // the main view's pixels (the reflection has a quarter of the view's).
     CloudView reflectionClouds;
     bool reflectionCloudsApplied = false;
+    // The environment cube's clouds, per face (task 28): a preset below
+    // Low, as the cube is read blurred.
+    CloudView environmentClouds[6];
+    int environmentFace = -1;
+    bool environmentCloudsApplied = false;
+    // Each target's scene band projection scale (x, y), for the clouds.
+    float bandScale[TargetCount][2] = {};
     bool createCloudView(CloudView &v, const QSize &viewSize, int pixels, QRhiTexture *color,
-                         QRhiTexture *glow, QRhiTexture *depth);
+                         QRhiTexture *glow, QRhiTexture *depth, int colorLayer = 0,
+                         const CloudView *share = nullptr);
     void releaseCloudView(CloudView &v);
+    void releaseEnvironmentClouds();
     void writeCloudUpdates(CloudView &v, QRhiResourceUpdateBatch *updates);
-    void runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize &viewSize, QRhiResourceUpdateBatch *updates);
-    void applyReflectionClouds();
+    void runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize &viewSize, QRhiResourceUpdateBatch *updates,
+                      int passes);
+    // The clouds of the reflection or a cube face, after its opaque passes.
+    void applySecondaryClouds();
+    void applyViewClouds(CloudView &v, int target, const Attachments &attachments, int colorLayer, int pixels,
+                         int steps, int lightSteps, int passes, const CloudView *share);
     // The sky enclosure map (task 27).
     Attachments enclosureMap;
     SkyEnclosure enclosure;
