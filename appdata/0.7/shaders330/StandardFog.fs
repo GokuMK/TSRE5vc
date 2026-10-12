@@ -150,7 +150,8 @@ void main() {
             float visibility = shadowedVisibility(cosTheta);
 #ifdef TSRE_RHI
             visibility *= cloudShadow(vLightPosition);
-            float enclosed = skyEnclosed(vLightPosition, normal);
+            float shade;
+            float enclosed = skyEnclosed(vLightPosition, normal, shade);
             visibility *= enclosureSun(vLightPosition, enclosed, lights);
 #endif
 
@@ -158,16 +159,16 @@ void main() {
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
 #ifdef TSRE_RHI
-            color += ambientColor.xyz * skyAmbient(enclosed);
+            color += ambientColor.xyz * skyAmbient(shade);
 #else
             color += ambientColor.xyz;
 #endif
 #ifdef TSRE_RHI
             // Lamps and glowing surfaces add their light in linear terms.
-            vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(enclosed);
+            vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(shade);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
-            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * skyAmbient(enclosed) * colorBrightness
+            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * skyAmbient(shade) * colorBrightness
                               * (1.0 - fogFactor),
                               fragColor.a);
 #endif

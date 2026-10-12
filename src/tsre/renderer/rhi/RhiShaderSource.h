@@ -34,6 +34,9 @@ constexpr int CloudShadowBinding = 25;
 constexpr int SkyEnclosureBinding = 26;
 // The far sky enclosure map behind it.
 constexpr int SkyEnclosureFarBinding = 27;
+// How open the sky is around points of the near and the far map.
+constexpr int SkyEnclosureOpenBinding = 28;
+constexpr int SkyEnclosureFarOpenBinding = 29;
 
 // Vertex attribute locations (as GLUU binds them), and the per-instance
 // matrix columns the QRhi renderer adds.

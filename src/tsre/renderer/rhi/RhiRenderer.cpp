@@ -253,6 +253,7 @@ void RhiRenderer::releaseResources() {
     releaseLightShafts();
     releaseCloudResources();
     releaseSkyResources();
+    releaseEnclosureOpenness();
     delete presentUniforms;
     delete presentLinear;
     delete dummyBlack;
@@ -364,6 +365,8 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     const bool farEnclosed = enclosed && enclosure.farEnabled && enclosureFarDrawn && enclosureFarMap.valid();
     program->setMat4("skyEnclosureFarMatrix", enclosure.farViewProjection);
     program->setVec("skyEnclosureFar", farEnclosed ? 1.0f : 0.0f, enclosure.farFilter);
+    program->setVec("skyEnclosureOpen", enclosed && enclosureOpen[0].valid ? 1.0f : 0.0f,
+                    farEnclosed && enclosureOpen[1].valid ? 1.0f : 0.0f);
     program->setFloat("localLightDay", enclosed ? gluu->localLightAdaptation : 1.0f);
     program->setFloat("isAlpha", gluu->alpha);
     program->setFloat("alphaTest", gluu->alphaTest);
@@ -984,33 +987,200 @@ void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
     }
 }
 
-bool RhiRenderer::beginSkyEnclosure(int size, bool far) {
+bool RhiRenderer::enclosureTarget(int which) const {
+    return which == TargetEnclosure || which == TargetEnclosureFar || which == TargetEnclosureBottom
+            || which == TargetEnclosureFarBottom;
+}
+
+bool RhiRenderer::beginSkyEnclosure(int size, int map) {
     beginFrameIfNeeded();
     flushTarget();
-    Attachments &map = far ? enclosureFarMap : enclosureMap;
-    const int which = far ? TargetEnclosureFar : TargetEnclosure;
+    if (map < 0 || map > 3)
+        return false;
+    Attachments *maps[4] = {&enclosureMap, &enclosureFarMap, &enclosureBottomMap, &enclosureFarBottomMap};
+    const int which[4] = {TargetEnclosure, TargetEnclosureFar, TargetEnclosureBottom, TargetEnclosureFarBottom};
+    Attachments &attachments = *maps[map];
     const QSize pixels(std::max(1, size), std::max(1, size));
-    if ((!map.valid() || map.size != pixels) && !createAttachments(map, QRhiTexture::UnknownFormat, pixels, {}))
+    if ((!attachments.valid() || attachments.size != pixels)
+            && !createAttachments(attachments, QRhiTexture::UnknownFormat, pixels, {}))
         return false;
     // Rows in OpenGL's order, as the shadow maps: the lit shaders look it up
     // the same way.
-    map.openGlRows = true;
-    targets[which].attachments = &map;
-    currentTarget = which;
+    attachments.openGlRows = true;
+    targets[which[map]].attachments = &attachments;
+    currentTarget = which[map];
     TargetState &state = target();
     state.clearColor = false;
     state.clearDepth = true;
     setViewport(0, 0, pixels.width(), pixels.height());
-    (far ? enclosureFarDrawn : enclosureDrawn) = true;
+    if (map == 0)
+        enclosureDrawn = true;
+    else if (map == 1)
+        enclosureFarDrawn = true;
+    // A map drawn anew: its openness waits for its view from below.
+    if (map < 2)
+        enclosureOpen[map].valid = false;
     return true;
 }
 
 void RhiRenderer::renderEnclosureCasters(float range, int statsSlot, const float *viewProjection, float minRadius) {
     beginFrameIfNeeded();
-    if ((currentTarget != TargetEnclosure && currentTarget != TargetEnclosureFar) || !targetReady())
+    if (!enclosureTarget(currentTarget) || !targetReady())
         return;
-    planShadowCasters(range, viewProjection, true, minRadius);
+    // The views from below look for the lowest surfaces, which are often
+    // alpha-tested (tracks, tunnel tubes).
+    const bool below = currentTarget == TargetEnclosureBottom || currentTarget == TargetEnclosureFarBottom;
+    planShadowCasters(range, viewProjection, true, minRadius, below);
     recordCasters(statsSlot);
+}
+
+namespace {
+
+// How open the sky is around a point of an enclosure map, from 8 rays out
+// to the radius over the maps: under cover a ray goes on; at the first
+// column without cover it finds an opening if that column's surface lies
+// near the point's floor (the cutting at a tunnel's portal, the ground
+// beside a viaduct), and is blocked if it rises high above it (the rock
+// beside a tunnel). An opening adds the more light the nearer it is. A
+// column has cover where its highest surface (the map from above) lies more
+// than 3 m over its lowest (the view from below, its rows the other way
+// round).
+const char *OpennessFragment = R"(#version 440
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 result;
+layout(std140, binding = 0) uniform Openness {
+    vec4 params; // radius (map coordinates), metres per depth unit
+};
+layout(binding = 1) uniform sampler2D topMap;
+layout(binding = 2) uniform sampler2D bottomMap;
+
+const int Steps = 12;
+// Metres an opening's surface may lie above the floor (a cutting's floor,
+// ground sloping off a little).
+const float OpeningHeight = 5.0;
+
+float topAt(vec2 p) { return textureLod(topMap, p, 0.0).r; }
+float bottomAt(vec2 p) { return textureLod(bottomMap, vec2(p.x, 1.0 - p.y), 0.0).r; }
+
+void main() {
+    float floorDepth = bottomAt(uv);
+    // Only for points in a hollow (cover over a floor): in solid columns
+    // (the rock beside a tunnel, which points moved off the walls land in)
+    // the floor is the top itself.
+    float hollow = smoothstep(2.0, 4.0, (1.0 - topAt(uv) - floorDepth) * params.y);
+    if (hollow <= 0.0) {
+        result = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+    float light = 0.0;
+    for (int d = 0; d < 8; ++d) {
+        float angle = float(d) * 0.785398 + 0.2;
+        vec2 direction = vec2(cos(angle), sin(angle)) * (params.x / float(Steps));
+        for (int s = 1; s <= Steps; ++s) {
+            vec2 q = uv + direction * float(s);
+            float top = topAt(q);
+            // Still under cover: on.
+            if ((1.0 - top - bottomAt(q)) * params.y > 3.0)
+                continue;
+            // The views from above and below start the same distance from
+            // the map's middle height: the top there over the floor here.
+            if ((1.0 - top - floorDepth) * params.y < OpeningHeight) {
+                // Falling off as an opening's view does with distance.
+                float near = 1.0 - float(s - 1) / float(Steps);
+                light += near * near;
+            }
+            break;
+        }
+    }
+    // Two open sides near by (a viaduct's arches) light it fully.
+    result = vec4(clamp(light * 0.5, 0.0, 1.0) * hollow, 0.0, 0.0, 1.0);
+}
+)";
+
+
+}
+
+void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDepth) {
+    beginFrameIfNeeded();
+    // The view from below.
+    flushTarget();
+    RhiRenderSurface *s = surface();
+    if (s == nullptr || s->frame().commandBuffer == nullptr)
+        return;
+    Attachments &top = far ? enclosureFarMap : enclosureMap;
+    Attachments &bottom = far ? enclosureFarBottomMap : enclosureBottomMap;
+    if (!top.valid() || !bottom.valid())
+        return;
+    EnclosureOpenness &o = enclosureOpen[far ? 1 : 0];
+    constexpr int Size = 256;
+    if (o.texture == nullptr) {
+        o.texture = rhi->newTexture(QRhiTexture::RGBA8, QSize(Size, Size), 1, QRhiTexture::RenderTarget);
+        o.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
+        if (!o.texture->create() || !o.uniforms->create()) {
+            releaseEnclosureOpenness();
+            return;
+        }
+        o.target = rhi->newTextureRenderTarget({QRhiColorAttachment(o.texture)});
+        o.pass = o.target->newCompatibleRenderPassDescriptor();
+        o.target->setRenderPassDescriptor(o.pass);
+        if (!o.target->create()) {
+            releaseEnclosureOpenness();
+            return;
+        }
+    }
+    if (o.bindings == nullptr || o.boundTop != top.depth || o.boundBottom != bottom.depth) {
+        delete o.bindings;
+        const auto fragment = QRhiShaderResourceBinding::FragmentStage;
+        o.bindings = rhi->newShaderResourceBindings();
+        o.bindings->setBindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, o.uniforms),
+                                 QRhiShaderResourceBinding::sampledTexture(1, fragment, top.depth,
+                                                                           sampler(false, true, true)),
+                                 QRhiShaderResourceBinding::sampledTexture(2, fragment, bottom.depth,
+                                                                           sampler(false, true, true))});
+        o.bindings->create();
+        o.boundTop = top.depth;
+        o.boundBottom = bottom.depth;
+    }
+    if (opennessPipeline == nullptr) {
+        static QShader vertex, fragment;
+        if (!vertex.isValid()) {
+            vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
+            fragment = bakeInline(OpennessFragment, QShader::FragmentStage, rhi);
+        }
+        opennessPipeline = rhi->newGraphicsPipeline();
+        opennessPipeline->setShaderStages({{QRhiShaderStage::Vertex, vertex}, {QRhiShaderStage::Fragment, fragment}});
+        opennessPipeline->setShaderResourceBindings(o.bindings);
+        opennessPipeline->setRenderPassDescriptor(o.pass);
+        if (!opennessPipeline->create()) {
+            delete opennessPipeline;
+            opennessPipeline = nullptr;
+            return;
+        }
+    }
+    const float params[4] = {radius, metresPerDepth, 0.0f, 0.0f};
+    QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    batch->updateDynamicBuffer(o.uniforms, 0, sizeof(params), params);
+    QRhiCommandBuffer *cb = s->frame().commandBuffer;
+    cb->beginPass(o.target, Qt::black, {1.0f, 0}, batch);
+    cb->setGraphicsPipeline(opennessPipeline);
+    cb->setViewport(QRhiViewport(0, 0, float(Size), float(Size)));
+    cb->setShaderResources(o.bindings);
+    cb->draw(3);
+    cb->endPass();
+    o.valid = true;
+}
+
+void RhiRenderer::releaseEnclosureOpenness() {
+    for (EnclosureOpenness &o : enclosureOpen) {
+        delete o.bindings;
+        delete o.target;
+        delete o.pass;
+        delete o.uniforms;
+        delete o.texture;
+        o = EnclosureOpenness();
+    }
+    delete opennessPipeline;
+    opennessPipeline = nullptr;
 }
 
 void RhiRenderer::setSkyEnclosure(const SkyEnclosure &next) {
@@ -1705,6 +1875,16 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                 }
                 break;
             }
+            if (slot.binding == RhiShaderSource::SkyEnclosureOpenBinding
+                    || slot.binding == RhiShaderSource::SkyEnclosureFarOpenBinding) {
+                const EnclosureOpenness &o
+                        = enclosureOpen[slot.binding == RhiShaderSource::SkyEnclosureFarOpenBinding ? 1 : 0];
+                if (o.valid && o.texture != nullptr) {
+                    texture = o.texture;
+                    slotSampler = sampler(false, true);
+                }
+                break;
+            }
             if (slot.binding == RhiShaderSource::CloudShadowBinding) {
                 if (cloudResources.shadow != nullptr && cloudResources.shadowValid) {
                     texture = cloudResources.shadow;
@@ -1816,8 +1996,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow
     // maps keep culling: unculled they cost 5-10 ms at the CMK station; the
     // lit shaders take the sun out under such covers from the enclosure.)
-    key.cullBack = !item->material.doubleSided
-            && currentTarget != TargetEnclosure && currentTarget != TargetEnclosureFar;
+    key.cullBack = !item->material.doubleSided && !enclosureTarget(currentTarget);
     // Targets flipped against the backend's convention turn the winding
     // around.
     key.frontCw = frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer());

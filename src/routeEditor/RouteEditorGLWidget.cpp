@@ -1396,6 +1396,9 @@ void RouteEditorGLWidget::renderShadowMaps() {
 //   radius and more, behind the near map (bridges, halls, tunnels farther
 //   off). Cells of 128 texels (150 m), drawn anyway every 600 frames, and
 //   never in a frame the near map is drawn in (a redraw costs a few ms).
+// Each map is drawn again from below (the lowest surfaces); where the two
+// lie apart there is cover, and the renderer finds from both how open the sky
+// is around each point (OpenRadius), so the light fades from the open sky in.
 void RouteEditorGLWidget::renderSkyEnclosure() {
     Renderer::SkyEnclosure enclosure;
     enclosure.enabled = Game::skyEnclosure;
@@ -1419,24 +1422,30 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     constexpr int RedrawFrames = 60;
     constexpr int FarRedrawFrames = 600;
     constexpr float FarMinRadius = 3.0f;
+    // How far around a point open sky counts for the gradual darkening
+    // under cover (a tunnel from its portals in).
+    constexpr float OpenRadius = 30.0f;
     const float *position = camera->getPos();
     auto snap = [position](float cell, float *eye) {
         eye[0] = std::floor(position[0] / cell + 0.5f) * cell;
         eye[1] = std::floor(position[1] / CellHeight + 0.5f) * CellHeight + Above;
         eye[2] = std::floor(position[2] / cell + 0.5f) * cell;
     };
-    auto look = [](float half, const float *eye, float *viewProjection) {
-        float centre[3] = {eye[0], eye[1] - Above, eye[2]};
-        float up[3] = {0.0f, 0.0f, -1.0f};
-        float from[3] = {eye[0], eye[1], eye[2]};
+    // From above, or from as far below (the lowest surfaces; its rows run
+    // the other way round).
+    auto look = [](float half, const float *eye, float *viewProjection, bool below = false) {
+        const float sign = below ? -1.0f : 1.0f;
+        float from[3] = {eye[0], eye[1] - (below ? 2.0f * Above : 0.0f), eye[2]};
+        float centre[3] = {eye[0], from[1] - sign * Above, eye[2]};
+        float up[3] = {0.0f, 0.0f, -sign};
         float projection[16], view[16];
         Mat4::ortho(projection, -half, half, -half, half, 0.0f, Depth);
         Mat4::lookAt(view, from, centre, up);
         Mat4::multiply(viewProjection, projection, view);
     };
-    auto draw = [this](bool far, const float *viewProjection, float range, float minRadius) {
+    auto draw = [this](int map, const float *viewProjection, float range, float minRadius) {
         // Renderers without the maps (OpenGL) draw nothing.
-        if (!renderer->beginSkyEnclosure(Size, far))
+        if (!renderer->beginSkyEnclosure(Size, map))
             return false;
         // The shadow program draws with uShadowPMatrix.
         renderer->useProgram(Renderer::PROGRAM_SHADOW);
@@ -1467,11 +1476,15 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     enclosure.ambientFloor = route != NULL && route->trk != NULL && route->trk->tsreEnclosedAmbient >= 0.0f
             ? route->trk->tsreEnclosedAmbient : Game::enclosedAmbient;
     if (redraw) {
-        if (!draw(false, enclosure.viewProjection, Half * 1.5f, 0.0f)) {
+        if (!draw(0, enclosure.viewProjection, Half * 1.5f, 0.0f)) {
             enclosureAge = farEnclosureAge = -1;
             renderer->setSkyEnclosure(Renderer::SkyEnclosure());
             return;
         }
+        float below[16];
+        look(Half, eye, below, true);
+        if (draw(2, below, Half * 1.5f, 0.0f))
+            renderer->finishSkyEnclosure(false, OpenRadius / (2.0f * Half), Depth);
         std::copy(eye, eye + 3, enclosureEye);
         enclosureAge = 0;
     } else {
@@ -1480,7 +1493,11 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     if (farRedraw) {
         float farViewProjection[16];
         look(FarHalf, farEye, farViewProjection);
-        if (draw(true, farViewProjection, FarHalf * 1.5f, FarMinRadius)) {
+        if (draw(1, farViewProjection, FarHalf * 1.5f, FarMinRadius)) {
+            float below[16];
+            look(FarHalf, farEye, below, true);
+            if (draw(3, below, FarHalf * 1.5f, FarMinRadius))
+                renderer->finishSkyEnclosure(true, OpenRadius / (2.0f * FarHalf), Depth);
             std::copy(farEye, farEye + 3, farEnclosureEye);
             farEnclosureAge = 0;
         } else {

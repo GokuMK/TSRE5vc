@@ -322,10 +322,60 @@ Follow-up (2026-10-12):
   average), 11 231 cells holding lights. At 1/16: 1.5-31 m (mean 16 m), up
   to 9 a cell (2.7), 1 242 cells, frame 101.6 ms instead of 115.8 (1/64:
   about 108). No visible difference at 1/16 by day or at night (largest
-  pixel difference 9 of 765), even at 1/4. Proposed (waiting for the
-  user): no setting; 1/16 for every lamp, and a glTF light's own `range`
-  taken as given (capped at 250 m) rather than the shorter of the two, so
-  assets that should reach farther say so.
+  pixel difference 9 of 765), even at 1/4. Proposed: no setting; 1/16 for
+  every lamp, and a glTF light's own `range` taken as given (capped at
+  250 m) rather than the shorter of the two, so assets that should reach
+  farther say so.
+- Lamp cut-off: a fine-tuning step for later (user). The user's idea: a
+  stronger cut-off by day and a weaker one at night, as night frames cost
+  less (no shadow maps are drawn; the bbb scene with many lamps runs much
+  faster at night). Settings tuned by the time of day in general.
+
+### Gradual darkening under cover (2026-10-12)
+
+Why the enclosure at all (asked by the user): the light has separate parts.
+The sun comes from one direction; the shadow maps (and, under covers they
+miss, `enclosureSun`, which looks along the sun's direction) block it. The
+sky's light comes from the whole dome and is added to every surface alike;
+no shadow map can block it, as it comes from no one direction. The
+enclosure says how much of the sky a point sees (from above, as the sky
+overhead counts most for a floor), and lamps keep their night strength
+where the sky is hidden. The plain test from above only asks whether the
+zenith is hidden: under a narrow viaduct the sky still shows from the
+sides, and a tunnel was as dark at its portal as deep inside.
+
+Now:
+
+- Each map is drawn again from below (targets `TargetEnclosureBottom`,
+  `TargetEnclosureFarBottom`), with alpha-tested surfaces too: the lowest
+  surface of each column (a tunnel's floor, the ground under an arch, a
+  platform under a roof). A column has cover where its highest surface
+  lies more than 3 m over its lowest.
+- After both, an openness pass (`finishSkyEnclosure`, 256 x 256 per map)
+  walks 8 rays out to 30 m from each point in 2.5 m steps: under cover a
+  ray goes on; at the first column without cover it finds an opening if
+  that column's surface lies within 5 m of the point's floor (the cutting
+  at a portal, the ground beside a viaduct), and is blocked if it rises
+  higher (the rock beside a tunnel). An opening adds (1 - distance /
+  30 m)^2; two near open sides light a point fully. Only for points in a
+  hollow (points moved off the walls into solid rock columns stay deep).
+- The lit shaders read it with one lookup (`skyEnclosureOpenMap`,
+  `skyEnclosureFarOpenMap`, bindings 28 and 29): the sky's ambient light
+  and the lamps' day scale follow the enclosure times (1 - openness); the
+  sun's block (`enclosureSun`) the enclosure itself.
+- Found on the way: a first version counted columns near the floor's
+  height as open sky in a disc around the point; the rock beside a tunnel
+  (only the terrain in its column) then read as open, and in a cutting
+  only the track bed did. The rays fix both.
+- Checked (EUROPE1, noon in June, enclosed ambient 0.1): the portal
+  (`core.startup.camera=-6112,15063,-524.26,344.04,-667.18,322.12,-2.82`)
+  lights the tunnel's first metres and darkens inwards; deep inside it
+  stays dark; the viaduct's arches are lit nearly as in the open; the CMK
+  hall (open at its sides between pillars) is darker under the roof than
+  outside, not black. A redraw of the maps draws each twice now (the view
+  from below); the lit shaders add one or two lookups.
+- To tune with the user: the radius (30 m), the falloff, the share an
+  opening adds, the opening height (5 m).
 - The CMK roofs (alpha-tested, textures with transparent texels): the user
   takes them as an asset fix (opaque textures, or an opaque material) for
   the new features.

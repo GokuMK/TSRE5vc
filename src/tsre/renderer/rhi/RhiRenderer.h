@@ -72,7 +72,8 @@ public:
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
     void setClouds(const Clouds &clouds) override;
-    bool beginSkyEnclosure(int size, bool far = false) override;
+    bool beginSkyEnclosure(int size, int map = 0) override;
+    void finishSkyEnclosure(bool far, float radius, float metresPerDepth) override;
     void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
                                 float minRadius = 0.0f) override;
     void setSkyEnclosure(const SkyEnclosure &enclosure) override;
@@ -192,14 +193,16 @@ private:
         std::vector<BindingKey> bindings;
     };
     // Targets by Renderer::Target, then the near sky enclosure map,
-    // selection, an environment map face, the water reflection and the far
-    // sky enclosure map.
+    // selection, an environment map face, the water reflection, the far sky
+    // enclosure map and both seen from below.
     static constexpr int TargetEnclosure = TARGET_SHADOW_FAR + 1;
     static constexpr int TargetSelection = TargetEnclosure + 1;
     static constexpr int TargetEnvironment = TargetSelection + 1;
     static constexpr int TargetReflection = TargetEnvironment + 1;
     static constexpr int TargetEnclosureFar = TargetReflection + 1;
-    static constexpr int TargetCount = TargetEnclosureFar + 1;
+    static constexpr int TargetEnclosureBottom = TargetEnclosureFar + 1;
+    static constexpr int TargetEnclosureFarBottom = TargetEnclosureBottom + 1;
+    static constexpr int TargetCount = TargetEnclosureFarBottom + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -536,12 +539,29 @@ private:
     void applySecondaryClouds();
     void applyViewClouds(CloudView &v, int target, const Attachments &attachments, int colorLayer, int pixels,
                          int steps, int lightSteps, int passes, const CloudView *share);
-    // The sky enclosure maps (task 27): near, and far behind it.
+    // The sky enclosure maps (task 27): near, and far behind it; each also
+    // seen from below.
     Attachments enclosureMap;
     Attachments enclosureFarMap;
+    Attachments enclosureBottomMap;
+    Attachments enclosureFarBottomMap;
     SkyEnclosure enclosure;
     bool enclosureDrawn = false;
     bool enclosureFarDrawn = false;
+    // How open the sky is around each point of the near and the far map.
+    struct EnclosureOpenness {
+        QRhiTexture *texture = nullptr;
+        QRhiTextureRenderTarget *target = nullptr;
+        QRhiRenderPassDescriptor *pass = nullptr;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        const QRhiTexture *boundTop = nullptr;
+        const QRhiTexture *boundBottom = nullptr;
+        bool valid = false;
+    } enclosureOpen[2];
+    QRhiGraphicsPipeline *opennessPipeline = nullptr;
+    bool enclosureTarget(int which) const;
+    void releaseEnclosureOpenness();
     void recordCasters(int statsSlot);
     bool cloudShadowPlane(float &altitude) const;
     // The cloud shadow map's centre on whole texels: its offset from the

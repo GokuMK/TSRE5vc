@@ -72,6 +72,11 @@ uniform float localLightDay;
 uniform sampler2D skyEnclosureFarMap;
 uniform mat4 skyEnclosureFarMatrix;
 uniform vec2 skyEnclosureFar;
+// How open the sky is around each point of the near and the far map (0 deep
+// under cover, towards 1 near open sky), on (1) or off (0) each.
+uniform sampler2D skyEnclosureOpenMap;
+uniform sampler2D skyEnclosureFarOpenMap;
+uniform vec2 skyEnclosureOpen;
 
 // Where a map has the point: its map coordinates and depth, and how much the
 // map counts there (1 inside, fading to 0 towards its edge; 0 outside it or
@@ -113,7 +118,12 @@ float enclosureTapsCoarse(sampler2D map, vec3 m, float spacing) {
 // 0 open to 1 enclosed: the near map, fading into the far one towards its
 // edge, the far one into open sky towards its own. The point is moved 2 m off
 // walls first, past the eaves, so they do not count their own roof.
-float skyEnclosed(vec3 position, vec3 normal) {
+// shade: how deep under cover, for the sky's ambient light and the lamps:
+// the enclosure less where open sky is near, so a tunnel darkens from its
+// portals in and the arches of a viaduct, open at both sides, stay lighter
+// (user, 2026-10-12).
+float skyEnclosed(vec3 position, vec3 normal, out float shade) {
+    shade = 0.0;
     if (skyEnclosureParams.x <= 0.0)
         return 0.0;
     vec2 side = normal.xz;
@@ -123,12 +133,20 @@ float skyEnclosed(vec3 position, vec3 normal) {
         p += vec3(side.x, 0.0, side.y) / sideLength * min(sideLength * 3.0, 1.0) * 2.0;
     vec3 m;
     float near = enclosureShare(skyEnclosureMatrix, p, 0.35, 0.48, m);
-    float enclosed = near > 0.0 ? enclosureTaps(skyEnclosureMap, m, skyEnclosureParams.z) * near : 0.0;
+    float enclosed = 0.0;
+    if (near > 0.0) {
+        float e = enclosureTaps(skyEnclosureMap, m, skyEnclosureParams.z) * near;
+        enclosed = e;
+        shade = skyEnclosureOpen.x > 0.0 ? e * (1.0 - textureLod(skyEnclosureOpenMap, m.xy, 0.0).r) : e;
+    }
     if (near < 1.0 && skyEnclosureFar.x > 0.0) {
         vec3 f;
         float far = enclosureShare(skyEnclosureFarMatrix, p, 0.4, 0.49, f);
-        if (far > 0.0)
-            enclosed += enclosureTapsCoarse(skyEnclosureFarMap, f, skyEnclosureFar.y) * far * (1.0 - near);
+        if (far > 0.0) {
+            float e = enclosureTapsCoarse(skyEnclosureFarMap, f, skyEnclosureFar.y) * far * (1.0 - near);
+            enclosed += e;
+            shade += skyEnclosureOpen.y > 0.0 ? e * (1.0 - textureLod(skyEnclosureFarOpenMap, f.xy, 0.0).r) : e;
+        }
     }
     return enclosed;
 }

@@ -375,12 +375,14 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
 }
 
 void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
-                                      float minRadius){
+                                      float minRadius, bool alphaTested){
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Depth does not depend on draw order, so repeated packets draw instanced.
     shadowCasters.clear();
     for(int pass = 0; pass < PASS_COUNT; ++pass){
-        if(enclosure && pass != PASS_TERRAIN && pass != PASS_OPAQUE)
+        // The enclosure maps: opaque surfaces; the views from below (the
+        // lowest surfaces: track beds, tunnel floors) alpha-tested ones too.
+        if(enclosure && pass != PASS_TERRAIN && pass != PASS_OPAQUE && !(alphaTested && pass == PASS_ALPHA_TEST))
             continue;
         PassQueue &queue = passes[pass];
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){

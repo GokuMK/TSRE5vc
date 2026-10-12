@@ -42,6 +42,7 @@ const QHash<QString, int> &samplerBindings() {
         {"localLightData", 22}, {"localLightCells", 23}, {"localLightIndices", 24},
         {"cloudShadowMap", CloudShadowBinding}, {"skyEnclosureMap", SkyEnclosureBinding},
         {"skyEnclosureFarMap", SkyEnclosureFarBinding},
+        {"skyEnclosureOpenMap", SkyEnclosureOpenBinding}, {"skyEnclosureFarOpenMap", SkyEnclosureFarOpenBinding},
         {"terrainPatchData", TerrainPatchDataBinding}};
     return bindings;
 }

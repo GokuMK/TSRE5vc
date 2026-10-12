@@ -188,10 +188,15 @@ public:
         float farViewProjection[16] = {};
         float farFilter = 0.0f;
     };
-    // Starts the near or the far map (size texels) when the renderer has
-    // them; the shadow program then draws enclosure casters into it, the far
-    // map only those of minRadius and more.
-    virtual bool beginSkyEnclosure(int size, bool far = false) { return false; }
+    // Starts a map (size texels) when the renderer has them: 0 the near map,
+    // 1 the far one, 2 and 3 the same seen from below (the lowest surfaces).
+    // The shadow program then draws enclosure casters into it, the far maps
+    // only those of minRadius and more.
+    virtual bool beginSkyEnclosure(int size, int map = 0) { return false; }
+    // After a map and its view from below: how open the sky is around each
+    // point (radius in map coordinates), for the gradual darkening under
+    // cover.
+    virtual void finishSkyEnclosure(bool far, float radius, float metresPerDepth) {}
     virtual void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
                                         float minRadius = 0.0f) {}
     virtual void setSkyEnclosure(const SkyEnclosure &enclosure) {}

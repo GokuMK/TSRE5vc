@@ -193,7 +193,8 @@ vec4 pbrShade() {
     float shadow = clamp(shadowedVisibility(1.0), 0.0, 1.0);
 #ifdef TSRE_RHI
     shadow *= cloudShadow(vLightPosition);
-    float enclosed = skyEnclosed(vLightPosition, n);
+    float shade;
+    float enclosed = skyEnclosed(vLightPosition, n, shade);
     shadow *= enclosureSun(vLightPosition, enclosed, l);
 #endif
     vec3 sun = PbrPi * toLinear(diffuseColor.rgb) * shadow;
@@ -204,7 +205,7 @@ vec4 pbrShade() {
         color += (diffuse + specular) * sun * nDotL;
     }
 #ifdef TSRE_RHI
-    float lamps = lampScale(enclosed);
+    float lamps = lampScale(shade);
     // Lamps and glowing surfaces, shaded as the sun is.
     vec3 coatLocal = vec3(0.0);
     ivec2 lightCell = localLightCell(vWorldPosition);
@@ -256,7 +257,7 @@ vec4 pbrShade() {
                 + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
     }
 #ifdef TSRE_RHI
-    environment *= skyAmbient(enclosed);
+    environment *= skyAmbient(shade);
 #endif
     color += environment * occlusion;
 #ifdef TSRE_RHI
