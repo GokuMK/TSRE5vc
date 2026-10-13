@@ -1,7 +1,7 @@
 # Task 31 - Moonlight
 
-Status: implemented (2026-10-13, `feature/clouds`). Strength 0.2 kept for now
-(user: a little bright, but cloud shadows give the night its variety).
+Status: implemented (2026-10-13, `feature/clouds`). Full moon 0.15, the clouds a
+quarter of it (user, after seeing 0.2 with moonlit clouds: still strong).
 
 ## Objective
 
@@ -26,7 +26,7 @@ the moon's phase and height, and the moon casts shadows. In every mode
 
 - Moonlight (`Daylight::moonlight`): a directional light in display units
   as the sun's (0.7 by day). Its strength: full moon high up
-  `FullMoonLight` 0.2 (0.1 tried first, see Results), times the phase (illuminated fraction to the
+  `FullMoonLight` 0.15 (0.1 and 0.2 tried, see Results), times the phase (illuminated fraction to the
   power 2.5: a half moon about a fifth of a full one, physically about a
   tenth), times the moon's height (as the sun's, from 1 degree under the
   horizon to 20 degrees up), times the night (from the sun 1 degree to 8
@@ -94,6 +94,11 @@ environment-map-gl, editor-tools, map-view pass.
   patches in the clouds are gaps in the deck, the night sky behind.
 - Unchanged: a new-moon night (the clouds unlit), the afterglow at 20:30
   (pixel-identical), the day.
+- Then the moon itself lowered to 0.15, the clouds keeping their quarter
+  (user: the full moon still strong; the clouds too bright without the
+  quarter). Full moon, clear: ground 16.0 to 11.3; half moon 3.9 to 3.1;
+  broken clouds: sky 46.3 to 30.5, ground 7.4 to 6.1; scattered: sky 38.7 to
+  24.7, ground 5.7 to 4.7.
 
 ## Later
 
