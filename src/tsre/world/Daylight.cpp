@@ -74,10 +74,14 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
 }
 
 float viewLuminanceLog2(double elevationDegrees) {
-    // Sun elevation (degrees), log2 luminance.
-    static const float Table[][2] = {{-14.0f, -12.9f}, {-10.0f, -12.6f}, {-7.5f, -11.7f}, {-4.5f, -10.0f},
-                                     {-1.5f, -7.6f}, {2.0f, -5.6f}, {6.0f, -4.8f}, {14.0f, -4.3f},
-                                     {28.0f, -3.75f}, {60.0f, -3.1f}};
+    // Sun elevation (degrees), log2 luminance: measured with the sky a fifth
+    // of the scene (RhiImage.cpp SkyWeight), the aerial haze at the fog
+    // density 0.3; the sun up from the user's CMK camera turned away from it
+    // in clear weather, under the horizon from the CMK lake view (they agree
+    // there: -9.48 and -9.42 at -2.8 degrees). 2026-10-14.
+    static const float Table[][2] = {{-14.0f, -13.2f}, {-10.0f, -12.65f}, {-7.5f, -11.55f}, {-4.5f, -10.17f},
+                                     {-1.5f, -8.62f}, {2.0f, -7.83f}, {6.0f, -6.97f}, {14.0f, -5.75f},
+                                     {28.0f, -4.68f}, {46.0f, -4.33f}, {60.0f, -4.18f}};
     const int count = int(sizeof(Table) / sizeof(Table[0]));
     const float h = float(elevationDegrees);
     if (h <= Table[0][0])

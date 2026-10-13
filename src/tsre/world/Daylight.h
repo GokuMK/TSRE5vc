@@ -43,10 +43,10 @@ constexpr float DayLocalLights = 0.03f;
 constexpr float DaySignalLights = 0.5f;
 // The log2 luminance (log average) an ordinary outdoor view has at this sun
 // elevation, in the scale of the light's display colours (plus
-// log2(sceneLight) for auto exposure). Measured on CMK (task 29): by day a
-// well-lit view, open fields and track with the sun behind the camera, clear
-// sky; from sunset the lake (fair cumulus): the bright sky holding it up
-// around sunset, then the night.
+// log2(sceneLight) for auto exposure), the sky weighted a fifth. Measured on
+// CMK (task 29): while the sun is up a well-lit view, open fields and track
+// with the sun behind the camera, clear sky; under the horizon the lake (fair
+// cumulus).
 float viewLuminanceLog2(double elevationDegrees);
 // The eye's adaptation for auto exposure (task 29): for ordinary outdoor
 // views from night to a high sun, their luminance (log2, scene light,

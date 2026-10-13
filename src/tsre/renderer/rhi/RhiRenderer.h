@@ -338,7 +338,9 @@ private:
         QRhiGraphicsPipeline *gridPipeline = nullptr;
         QRhiGraphicsPipeline *meanPipeline = nullptr;
         QRhiSampler *linear = nullptr;
+        QRhiSampler *nearest = nullptr;
         const QRhiTexture *boundView = nullptr;
+        const QRhiTexture *boundDepth = nullptr;
         QRhiReadbackResult readback;
         bool pending = false;
         // The last measurement (log2 luminance, scene light).

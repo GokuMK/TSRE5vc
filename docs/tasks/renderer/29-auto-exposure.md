@@ -214,8 +214,45 @@ days"):
   (darkest towards the sun, the ground in the clouds' shadow).
 - Next: the sky weighted down in the measurement against this reference.
 
+## The sky weighted down (2026-10-14)
+
+After the aerial haze (task 32) the user found the cloud shadows darker and
+realistic, and asked for the step left above: the sky weighted down in the
+measurement, so a cloudy day's bright sky no longer darkens its ground.
+
+- The luminance grid reads the view's depth: the sky (the sky band, depth
+  0.99 and beyond, clouds over it included) counts a fifth (`SkyWeight`),
+  each cell its weighted mean and weight, the mean weighted by them.
+- The ordinary views measured again the same way (`Daylight::
+  viewLuminanceLog2`), with the haze at the new fog density default 0.3:
+  while the sun is up the user's CMK camera turned away from it (clear),
+  under the horizon the lake (fair cumulus); the two agree at -2.8 degrees
+  (-9.48 and -9.42). About a stop under the old table by day (the sky's
+  share, and the far terrain no longer brightened by the old fog), 1.2 to
+  2.2 around sunset.
+- The user's CMK camera (82.16, -5.60), corrections before and after (the
+  same build, the old metric and table switched in for before):
+
+| View | Before | After | Ground (of 255) |
+|---|---|---|---|
+| Clear 7:00, 12:00, 19:30, 20:30 | 0 | 0 | 74 at noon, as before |
+| Broken 12:00 | +0.44 | +0.84 | 38 to 45 |
+| Broken, facing away from the sun | +0.48 | +0.79 | |
+| Broken, facing the sun | +1.51 | +1.20 | |
+| Overcast 12:00 | +0.29 | +0.64 | 41 to 47 |
+| Rain 12:00 | +0.43 | +0.59 | 45 to 48 |
+| Overcast 19:30 | 0 | -0.32 | 51 to 45 |
+
+- Overcast at 19:30 measures brighter than the clear evening: its ground is
+  lit evenly and the editor raises the ambient under an overcast (1.5
+  times) whatever the sun's height, while the clear reference's ground has
+  a low sun across it. Its sky held the old measurement down; now it is
+  darkened a third of a stop, still brighter than the clear evening (45
+  against 33).
+
 ## Later
 
+- The overcast's ambient boost at a low sun (above).
 - The enclosed ambient sets how bright a deep tunnel is by day: with auto
   exposure it is seen at the night's exposure, 0.3 (the default) shows
   grey walls, 0.1 faint ones.

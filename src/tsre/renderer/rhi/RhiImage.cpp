@@ -273,39 +273,53 @@ constexpr float AutoSignalBoost = 2.0f;
 constexpr float BrightenSeconds = 2.5f;
 constexpr float DarkenSeconds = 0.5f;
 constexpr int LuminanceGrid = 64;
+// The sky's share in the measurement against the scene's: a bright sky (a
+// cloudy day's) metered as much as the ground darkened the ground; the
+// ordinary views (Daylight::viewLuminanceLog2) are measured the same way.
+constexpr float SkyWeight = 0.2f;
 
-// The view's log2 luminance over a 64 x 64 grid, 4 x 4 samples a cell.
-const char *LuminanceGridFragment = R"(#version 440
+// The view's log2 luminance over a 64 x 64 grid, 4 x 4 samples a cell, the
+// sky (the sky band of the depth and beyond) weighted SkyWeight: the cell's
+// weighted mean and its weight.
+const char *LuminanceGridFragment = R"(
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
 layout(binding = 0) uniform sampler2D view;
+layout(binding = 1) uniform sampler2D depth;
+// (SkyWeight and SkyDepth, the sky band's start, put before it.)
 
 void main() {
     vec2 cell = vec2(1.0 / 64.0);
     vec2 corner = uv - cell * 0.5;
-    float sum = 0.0;
+    float sum = 0.0, total = 0.0;
     for (int j = 0; j < 4; ++j)
         for (int i = 0; i < 4; ++i) {
-            vec3 c = textureLod(view, corner + (vec2(i, j) + 0.5) * cell * 0.25, 0.0).rgb;
+            vec2 at = corner + (vec2(i, j) + 0.5) * cell * 0.25;
+            vec3 c = textureLod(view, at, 0.0).rgb;
             vec3 l = pow(max(c, vec3(0.0)), vec3(2.2));
-            sum += log2(max(dot(l, vec3(0.2126, 0.7152, 0.0722)), 1e-6));
+            float w = textureLod(depth, at, 0.0).r >= SkyDepth ? SkyWeight : 1.0;
+            sum += w * log2(max(dot(l, vec3(0.2126, 0.7152, 0.0722)), 1e-6));
+            total += w;
         }
-    result = vec4(sum / 16.0, 0.0, 0.0, 1.0);
+    result = vec4(sum / total, total, 0.0, 1.0);
 }
 )";
 
-// Their mean.
+// Their weighted mean.
 const char *LuminanceMeanFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
 layout(binding = 0) uniform sampler2D grid;
 
 void main() {
-    float sum = 0.0;
+    float sum = 0.0, total = 0.0;
     for (int y = 0; y < 64; ++y)
-        for (int x = 0; x < 64; ++x)
-            sum += texelFetch(grid, ivec2(x, y), 0).r;
-    result = vec4(sum / 4096.0, 0.0, 0.0, 1.0);
+        for (int x = 0; x < 64; ++x) {
+            vec2 c = texelFetch(grid, ivec2(x, y), 0).rg;
+            sum += c.x * c.y;
+            total += c.y;
+        }
+    result = vec4(sum / max(total, 1e-6), 0.0, 0.0, 1.0);
 }
 )";
 
@@ -415,7 +429,9 @@ void RhiRenderer::measureLuminance(QRhiCommandBuffer *cb) {
                                  QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource);
         l.linear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                    QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
-        if (!l.grid->create() || !l.mean->create() || !l.linear->create()) {
+        l.nearest = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
+                                    QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+        if (!l.grid->create() || !l.mean->create() || !l.linear->create() || !l.nearest->create()) {
             releaseLuminance();
             return;
         }
@@ -445,17 +461,23 @@ void RhiRenderer::measureLuminance(QRhiCommandBuffer *cb) {
             }
         };
     }
-    if (l.gridBindings == nullptr || l.boundView != view.color) {
+    if (view.depth == nullptr)
+        return;
+    if (l.gridBindings == nullptr || l.boundView != view.color || l.boundDepth != view.depth) {
         delete l.gridBindings;
         l.gridBindings = rhi->newShaderResourceBindings();
-        l.gridBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(0, fragment, view.color, l.linear)});
+        l.gridBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(0, fragment, view.color, l.linear),
+                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, view.depth, l.nearest)});
         l.gridBindings->create();
         l.boundView = view.color;
+        l.boundDepth = view.depth;
     }
     static QShader vertex, gridShader, meanShader;
     if (!vertex.isValid()) {
         vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
-        gridShader = bakeInline(LuminanceGridFragment, QShader::FragmentStage, rhi);
+        const QByteArray gridSource = QByteArray("#version 440\nconst float SkyWeight = ")
+                + QByteArray::number(SkyWeight, 'f', 3) + ";\nconst float SkyDepth = 0.99;\n" + LuminanceGridFragment;
+        gridShader = bakeInline(gridSource.constData(), QShader::FragmentStage, rhi);
         meanShader = bakeInline(LuminanceMeanFragment, QShader::FragmentStage, rhi);
     }
     auto pipeline = [&](const QShader &shader, QRhiShaderResourceBindings *set, QRhiRenderPassDescriptor *pass) {
@@ -511,7 +533,9 @@ void RhiRenderer::releaseLuminance() {
     deleteResourceLater(l.grid);
     deleteResourceLater(l.mean);
     deleteResourceLater(l.linear);
+    deleteResourceLater(l.nearest);
     l.boundView = nullptr;
+    l.boundDepth = nullptr;
     // A read-back still in flight is dropped.
     ++l.generation;
     l.pending = false;
