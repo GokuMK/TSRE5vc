@@ -134,6 +134,19 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
               && Daylight::exposureBias(-6.0) > Daylight::EveningExposureBias
               && Daylight::exposureBias(-6.0) < Daylight::NightExposureBias,
           "auto exposure adds a little by day, more at sunset and most at night");
+    // Moonlight (task 31).
+    const Daylight::Moonlight fullMoon = Daylight::moonlight(-20.0, 60.0, 1.0);
+    const float halfMoon = Daylight::moonlight(-20.0, 60.0, 0.5).strength;
+    check(near(fullMoon.strength, 1.0, 1e-4) && near(fullMoon.diffuse[3], Daylight::FullMoonLight, 1e-4)
+              && fullMoon.diffuse[2] > fullMoon.diffuse[0] && fullMoon.ambient[2] > 0.0f
+              && halfMoon > 0.1f && halfMoon < 0.3f
+              && Daylight::moonlight(-20.0, 60.0, 0.0).strength == 0.0f,
+          "a full moon high at night lights the scene bluish, a half moon a fifth of it, a new moon not");
+    check(Daylight::moonlight(30.0, 60.0, 1.0).strength == 0.0f
+              && Daylight::moonlight(-0.5, 60.0, 1.0).strength == 0.0f
+              && Daylight::moonlight(-20.0, -5.0, 1.0).strength == 0.0f
+              && Daylight::moonlight(-20.0, 10.0, 1.0).strength < fullMoon.strength,
+          "the moon lights nothing with the sun up or itself down, little when low");
 
     // The moon against published events of 2026 (UTC).
     const MoonPosition::Result lunarEclipse = MoonPosition::compute(0.0, 0.0, QDate(2026, 3, 3), 11.55);

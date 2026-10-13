@@ -1136,7 +1136,9 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     // From true bearings to the world's grid.
     sun.azimuth -= state.gridNorth;
     moon.azimuth -= state.gridNorth;
-    SunPosition::direction(sun, Game::sunLightDirection);
+    float sunDirection[3];
+    SunPosition::direction(sun, sunDirection);
+    std::copy(sunDirection, sunDirection + 3, Game::sunLightDirection);
     // Shadows of a sun near the horizon would stretch across the maps.
     SunPosition::Result shadowSun = sun;
     shadowSun.elevation = std::max(sun.elevation, Daylight::MinShadowElevation);
@@ -1146,6 +1148,20 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     std::copy(light.fog, light.fog + 4, gluu->fogColor);
     std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
     std::copy(light.ambient, light.ambient + 4, gluu->ambientColor);
+    // The moon lights the night (task 31): up at night, it is the light of
+    // the shading and the shadows; the sky keeps the sun.
+    const Daylight::Moonlight moonLight = Daylight::moonlight(sun.elevation, moon.elevation,
+                                                              moon.illuminatedFraction);
+    const bool moonLit = moonLight.strength > 0.0f;
+    if (moonLit) {
+        MoonPosition::direction(moon, Game::sunLightDirection);
+        MoonPosition::Result shadowMoon = moon;
+        shadowMoon.elevation = std::max(moon.elevation, Daylight::MinShadowElevation);
+        MoonPosition::direction(shadowMoon, shadowSunDirection);
+        std::copy(moonLight.diffuse, moonLight.diffuse + 4, gluu->diffuseColor);
+    }
+    for (int c = 0; c < 3; ++c)
+        gluu->ambientColor[c] += moonLight.ambient[c];
     // Lamps by day (task 29): dimmed as the sun rises, or full strength.
     gluu->localLightAdaptation = lampsByDay == 1 ? 1.0f : light.localLights;
     gluu->signalLightAdaptation = lampsByDay == 1 ? 1.0f : light.signalLights;
@@ -1161,9 +1177,9 @@ void RouteEditorGLWidget::applyTimeOfDay() {
                                                          Renderer::ExposureControl::CurveSize);
         exposure.biasStops = Daylight::exposureBias(sun.elevation);
     }
-    sunCastsShadows = light.sunUp;
+    sunCastsShadows = light.sunUp || moonLit;
     // The sun and the moon on the sky.
-    std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, skyState.sunDirection);
+    std::copy(sunDirection, sunDirection + 3, skyState.sunDirection);
     skyState.sunElevation = float(sun.elevation);
     skyState.moon = true;
     MoonPosition::direction(moon, skyState.moonDirection);
@@ -1177,7 +1193,8 @@ void RouteEditorGLWidget::applyTimeOfDay() {
 void RouteEditorGLWidget::applySky() {
     Renderer::Sky sky;
     sky.physical = Game::skyModel == 1;
-    std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, sky.sun);
+    // The sun of the sky, also when the moon lights the scene (task 31).
+    std::copy(skyState.sunDirection, skyState.sunDirection + 3, sky.sun);
     sky.cameraHeight = camera->getPos()[1];
     // The night sky's floor, as the classic sky's (Daylight).
     const float night[3] = {0.015f, 0.022f, 0.05f};

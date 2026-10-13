@@ -31,6 +31,8 @@ const float SunsetSky[3] = {0.93f, 0.62f, 0.45f};
 const float TwilightSky[3] = {0.18f, 0.24f, 0.42f};
 const float NightSky[3] = {0.015f, 0.022f, 0.05f};
 const float NightAmbient[3] = {0.035f, 0.045f, 0.075f};
+const float MoonColour[3] = {0.8f, 0.88f, 1.0f};
+const float MoonSkyColour[3] = {0.7f, 0.8f, 1.0f};
 
 }
 
@@ -84,6 +86,21 @@ float viewLuminanceLog2(double elevationDegrees) {
         if (h <= Table[i][0])
             return mix(Table[i - 1][1], Table[i][1], (h - Table[i - 1][0]) / (Table[i][0] - Table[i - 1][0]));
     return Table[count - 1][1];
+}
+
+Moonlight moonlight(double sunElevationDegrees, double moonElevationDegrees, double illuminatedFraction) {
+    Moonlight light;
+    const float phase = std::pow(std::clamp(float(illuminatedFraction), 0.0f, 1.0f), 2.5f);
+    const float height = smoothstep(-1.0f, 20.0f, float(moonElevationDegrees));
+    const float night = 1.0f - smoothstep(-8.0f, -1.0f, float(sunElevationDegrees));
+    light.strength = phase * height * night;
+    for (int c = 0; c < 3; ++c) {
+        light.diffuse[c] = FullMoonLight * light.strength * MoonColour[c];
+        // The moonlit sky: a quarter of the moon's light.
+        light.ambient[c] = 0.25f * FullMoonLight * light.strength * MoonSkyColour[c];
+    }
+    light.diffuse[3] = FullMoonLight * light.strength;
+    return light;
 }
 
 float exposureBias(double elevationDegrees) {

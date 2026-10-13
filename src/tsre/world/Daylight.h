@@ -70,6 +70,21 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
 // keeps at least this elevation (degrees).
 constexpr double MinShadowElevation = 6.0;
 
+// The moon's light (task 31), in the display units of Light: a directional
+// light and what the moonlit sky adds to the ambient.
+struct Moonlight {
+    float diffuse[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    float ambient[3] = {0.0f, 0.0f, 0.0f};
+    // Of a full moon high up at night, 0 to 1.
+    float strength = 0.0f;
+};
+// A full moon high up at night, as the sun's 0.7 by day.
+constexpr float FullMoonLight = 0.2f;
+// With the phase (a half moon about a fifth of a full one), the moon's
+// height (as the sun's) and the night: from the sun 1 degree under the
+// horizon, where its own light is gone, to 8 degrees under it.
+Moonlight moonlight(double sunElevationDegrees, double moonElevationDegrees, double illuminatedFraction);
+
 }
 
 #endif
