@@ -880,7 +880,39 @@ with the sky's colour, not the terrain behind them):
   file's weather: the whole range shows with faded clouds over it.
 - The terrain's fog is the fog setting's, not the weather's visibility, so
   hazy mountains can stand out more clearly than the clouds in front of
-  them.
+  them. (Since task 32 the terrain takes the same air.)
+
+## Light scattered through the clouds (2026-10-14)
+
+The user, after the aerial haze and the sky weighted down in auto exposure
+(task 29): cloud shadows still a little too dark; later, with rain and
+storms, clouds should shade by their density, storms dark.
+
+- The shadow map held what passes straight through (exp(-depth)): nothing
+  for any ordinary cumulus, so in its shadow only the sky's ambient lit the
+  ground, 0.3 against 1.0 in the sun, about 3.8 stops (real cumulus shadows
+  are about 1.5 to 2.5).
+- It now also holds what passes in all, the light scattered through the
+  cloud too (two-stream: 1 / (1 + 0.75 (1 - g) depth), g about 0.85, the
+  march's diffused light), in its blue (low) and alpha (mid). The lit
+  shaders take that, the two layers' depths added; the light shafts keep the
+  direct light (crisp rays). By depth: a thin cloud's shadow light, a
+  cumulus's about a quarter of the sun, the depth of a storm's dense tower
+  almost nothing.
+- Past the map, the clouds' average shade 1 - 0.7 overcast (was 0.85).
+- Captures, auto exposure (`build/cloud-light/cloud-light.png`): from 550 m
+  over CMK the sunlit and shaded ground (the darkest and brightest tenth,
+  linear) 2.6 to 3.0 stops apart before (fair, scattered, broken), 1.7 to
+  2.1 after; ground at the track, broken 41 to 52 (of 255), overcast 47 to
+  60; POLAND scattered 61 to 73.
+- Under an overcast the light through it (a quarter to a third of the sun)
+  falls from the sun's direction: slopes facing it lighter. The editor's
+  overcast ambient (1.5 times) was meant to stand for it; to watch.
+- Storms: the presets' layer density (thunderstorm 1.2) does not reach the
+  march (its extinction is the type's, 35 to 70 per km); a storm's tower is
+  as dense as a cumulus, and its shadow came out brighter now (the track
+  under the thunderstorm preset 46 to 64). With rain and storms the
+  density goes into the weather texture and the extinction.
 
 ## Verification
 

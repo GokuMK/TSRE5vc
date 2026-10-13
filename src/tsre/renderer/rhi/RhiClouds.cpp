@@ -739,8 +739,13 @@ layout(location = 0) out vec4 result;
 const char *ShadowMain = R"(
 // Transmittance along the clouds' light (the sun, or the moon at night) from
 // points of a plane under the clouds, around the camera: the lit shaders
-// take that light through it. A map per layer, the low one in red, the mid
-// one in green, each on a grid that drifts with its layer.
+// take that light through it. A map per layer, each on a grid that drifts
+// with its layer: what passes straight through, low in red, mid in green
+// (the light shafts' rays); and what passes in all, the light scattered
+// through the cloud too (two-stream, 1 / (1 + 0.75 (1 - g) depth), g about
+// 0.85, as the march's diffused light), low in blue, mid in alpha: a thin
+// cloud's shadow light, a cumulus's about a quarter of the sun, a storm's
+// tower almost none (the lit shaders).
 void main() {
     vec3 lightDir = normalize(light.xyz);
     if (lightDir.y < 0.03) {
@@ -766,7 +771,7 @@ void main() {
         opticalDepth.x += layerDensity(low + along, altitude, false, 0) * dt;
         opticalDepth.y += layerDensity(mid + along, altitude, false, 1) * dt;
     }
-    result = vec4(exp(-opticalDepth), 1.0, 1.0);
+    result = vec4(exp(-opticalDepth), 1.0 / (1.0 + 0.11 * opticalDepth));
 }
 )";
 
@@ -1451,10 +1456,12 @@ void RhiRenderer::writeCloudShadowUniforms(RhiProgram *program) {
     program->setVec("cloudShadowArea", low[0], low[1], 1.0f / (CloudShadowExtent * 1000.0f), 1.0f);
     program->setVec("cloudShadowMid", mid[0], mid[1], 0.0f, 0.0f);
     // Along the light to the map's plane (y in the view's space).
-    // Past the map: about the share of the sky the clouds leave open.
+    // Past the map: about the share of the sky the clouds leave open, and
+    // under the clouds the light scattered through them (a cumulus about a
+    // quarter or a third of the sun).
     program->setVec("cloudShadowSun", light[0] / light[1], light[2] / light[1],
                     viewPosition[1] + plane * 1000.0f - sky.cameraHeight,
-                    1.0f - 0.85f * std::clamp(sky.overcast, 0.0f, 1.0f));
+                    1.0f - 0.7f * std::clamp(sky.overcast, 0.0f, 1.0f));
 }
 
 void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates) {

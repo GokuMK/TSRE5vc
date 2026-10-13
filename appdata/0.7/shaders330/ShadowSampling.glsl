@@ -33,10 +33,12 @@ float receiverPlaneBias(vec2 gradient, vec2 offset, float limit) {
 }
 
 #ifdef TSRE_RHI
-// Clouds between the sun and a point (task 28): maps of their
-// transmittance along the sun from a plane under them, around the camera,
-// the low layer's in red, the mid layer's in green; each drifts with its
-// layer.
+// Clouds between the sun and a point (task 28): maps of what they let
+// through along the sun from a plane under them, around the camera, each
+// drifting with its layer: straight through (red low, green mid; the light
+// shafts') and in all, the light scattered through the cloud too (blue low,
+// alpha mid; two-stream, by the cloud's optical depth: thin clouds' shadows
+// light, a cumulus's about a quarter of the sun, a storm's dark).
 uniform sampler2D cloudShadowMap;
 // The low layer's map's centre (x, z), 1 / the maps' extent, on (1) or off
 // (0).
@@ -57,7 +59,11 @@ float cloudShadow(vec3 position) {
     // stretch into stripes), with no hard border.
     float inside = smoothstep(0.5, 0.45, max(max(abs(low.x - 0.5), abs(low.y - 0.5)),
                                              max(abs(mid.x - 0.5), abs(mid.y - 0.5))));
-    float through = textureLod(cloudShadowMap, low, 0.0).r * textureLod(cloudShadowMap, mid, 0.0).g;
+    // The two layers' optical depths add: 1 / (1 + k (d1 + d2)) from each
+    // 1 / (1 + k d).
+    float lowThrough = max(textureLod(cloudShadowMap, low, 0.0).b, 1e-3);
+    float midThrough = max(textureLod(cloudShadowMap, mid, 0.0).a, 1e-3);
+    float through = 1.0 / max(1.0 / lowThrough + 1.0 / midThrough - 1.0, 1.0);
     float shade = mix(cloudShadowSun.w, through, inside);
     return mix(1.0, shade, cloudShadowArea.w);
 }
