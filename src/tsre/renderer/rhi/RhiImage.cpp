@@ -245,10 +245,13 @@ QList<QByteArray> RhiRenderer::imageShaders() {
 namespace {
 
 // Auto exposure (task 29). Views within IgnoredStops of the hour's ordinary
-// view keep its exposure: the adaptation is for tunnels and stations, not
-// for a darker field. Beyond the brightest ordinary view the exposure falls
-// by DarkenStrength of the excess, down to MaxDarken stops.
-constexpr float IgnoredStops = 1.0f;
+// view keep its exposure. Beyond the brightest ordinary view the exposure
+// falls by DarkenStrength of the excess, down to MaxDarken stops. By day the
+// exposure also follows the view as a camera's metering does, by
+// DayAdaptation of its difference from the ordinary view (a cloudy field
+// brightened; the user, 2026-10-13: cloudy days were too dark).
+constexpr float IgnoredStops = 0.5f;
+constexpr float DayAdaptation = 0.75f;
 constexpr float DarkenStrength = 0.75f;
 constexpr float MaxDarken = 2.0f;
 // Signals' glow over Dimmed's look (user, 2026-10-13: with the exposure
@@ -364,13 +367,21 @@ void RhiRenderer::setExposureControl(const ExposureControl &control) {
     }
     // An ordinary view of the hour keeps its exposure; another takes the
     // exposure of the ordinary view as bright as it is (a tunnel by day that
-    // of dusk, a station lit by its lamps that of the night).
+    // of dusk, a station lit by its lamps that of the night), or by day the
+    // metered one if that adapts more. Never more than the night's exposure.
     float target = 0.0f;
     if (l.measured && control.curvePoints > 1) {
         const float off = l.measuredLog2 - control.referenceLog2;
         const float luminance = l.measuredLog2 - std::copysign(std::min(std::abs(off), IgnoredStops), off);
-        target = std::max(adaptedExposure(control, luminance) - adaptedExposure(control, control.referenceLog2),
-                          -MaxDarken);
+        const float curve = std::max(adaptedExposure(control, luminance)
+                                     - adaptedExposure(control, control.referenceLog2), -MaxDarken);
+        // The day's share: 1 with the sun 20 degrees up, 0 from sunset.
+        const float night = control.curveExposure[0];
+        const float sceneLog2 = std::log2(std::max(control.sceneLight, 1e-6f));
+        const float day = std::clamp(1.0f + sceneLog2 / night, 0.0f, 1.0f);
+        const float metered = std::clamp(DayAdaptation * day * (control.referenceLog2 - luminance), -MaxDarken,
+                                         night + sceneLog2);
+        target = off < 0.0f ? std::max(curve, metered) : std::min(curve, metered);
     }
     if (l.snapFrames > 0) {
         l.correction = target;
