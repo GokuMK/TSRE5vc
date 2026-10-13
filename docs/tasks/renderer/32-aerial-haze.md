@@ -55,8 +55,10 @@ is unlit too (not modelled here).
 - Glow (bloom) of surfaces and the lamps' glow splats are dimmed by the same
   transmittance; the ambient occlusion share likewise.
 - The fog density setting scales the weather's haze (terrain, clouds and
-  light shafts alike, `sky.haze`): 0.7, the default, the weather's own; 0
-  clear air, Rayleigh and Mie only; 1 about twice ((density / 0.7)^2).
+  light shafts alike, `sky.haze`): (density / 0.7)^2, 0.7 the weather's own, 0
+  clear air (Rayleigh and Mie only), 1 about twice. Default 0.3, about a
+  fifth (user, 2026-10-14: above it the far mountains' blue goes; it was
+  0.7, the classic fog's).
 - Only with a physical sky on QRhi and not in the map view (`hazeParams.z`);
   otherwise the classic fog as before, and the sky band never.
 
@@ -86,10 +88,18 @@ textures), `build/haze/POLAND/grid-*.png`:
   environment-map-gl, local-lights, map-view, editor-tools,
   consist-preview-gl, environment-window, settings, translations.
 
+## The env file's visibility (2026-10-14)
+
+MSTS `world_fog_distance` values were set for MSTS's view of about 2 km;
+read as visibility they make the env files' weather very hazy. POLAND's
+editor.env (2000) at the density 0.3, 7:30, 12:00 and 18:00
+(`build/haze/POLAND/envvis-comparison.png`): as read (2 km), the range
+faint blue-grey and the near town hazy; scaled ten times (20 km) and the
+fair cumulus preset's own (40 km) nearly the same, the range dark blue. Left
+as read for the user to choose.
+
 ## Later
 
-- MSTS `world_fog_distance` values were set for MSTS's view of about 2 km;
-  read as visibility they make the env files' weather very hazy.
 - The air in mountains' shadows at a low sun (a march along the terrain's
   height towards the sun), and an aerial perspective volume (Hillaire 2020)
   for flights above the haze and an exact match with the sky.

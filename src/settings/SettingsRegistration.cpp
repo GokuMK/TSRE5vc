@@ -1025,11 +1025,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "OpenGL width used for editor line primitives when an item does not request a custom width."
                 QT_TRID_NOOP("settings.core.rendering.default.line.width.description")).withRange(1, 16, 1).withUnit("px").inGroup("rendering").inSubgroup("overlays"),
         "oglDefaultLineWidth", "Game::oglDefaultLineWidth", "OpenGL renderer", true, "hot-cache");
-    ADD(SettingsDefinition::floating("core.rendering.fogDensity", 0.7)
+    ADD(SettingsDefinition::floating("core.rendering.fogDensity", 0.3)
             .withNameId(
                 //% "Fog density"
                 QT_TRID_NOOP("settings.core.rendering.fog.density.name")).withDescriptionId(
-                //% "With the physical sky: how hazy the air is, scaling the weather's visibility (0.7 as the weather has it, 0 clear air, 1 about twice as hazy). Otherwise the most the classic fog covers."
+                //% "With the physical sky: how hazy the air is, scaling the weather's haze (0.3 about a fifth of it, 0.7 all of it, 0 clear air). Otherwise the most the classic fog covers."
                 QT_TRID_NOOP("settings.core.rendering.fog.density.description")).withRange(0, 1, 0.01).inGroup("rendering").inSubgroup("environment"),
         "fogDensity", "Game::fogDensity", "GLUU", true, "hot-cache");
     ADD(SettingsDefinition::string("core.rendering.fogColor", "#E6F8FF", SettingType::Color)

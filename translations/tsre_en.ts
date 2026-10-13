@@ -9765,8 +9765,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.rendering.fog.density.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1019"/>
-        <source>With the physical sky: how hazy the air is, scaling the weather&apos;s visibility (0.7 as the weather has it, 0 clear air, 1 about twice as hazy). Otherwise the most the classic fog covers.</source>
-        <translation>With the physical sky: how hazy the air is, scaling the weather&apos;s visibility (0.7 as the weather has it, 0 clear air, 1 about twice as hazy). Otherwise the most the classic fog covers.</translation>
+        <source>With the physical sky: how hazy the air is, scaling the weather&apos;s haze (0.3 about a fifth of it, 0.7 all of it, 0 clear air). Otherwise the most the classic fog covers.</source>
+        <translation>With the physical sky: how hazy the air is, scaling the weather&apos;s haze (0.3 about a fifth of it, 0.7 all of it, 0 clear air). Otherwise the most the classic fog covers.</translation>
     </message>
     <message id="settings.core.rendering.fog.color.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1024"/>
