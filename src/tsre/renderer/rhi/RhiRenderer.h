@@ -504,6 +504,13 @@ private:
         // The finished cloud image (the history alternates): the composite
         // and the light shafts read it.
         QRhiTexture *image = nullptr;
+        // Where the clouds of each pixel are (front, mean distance, layer,
+        // each times their cover, and the cover): from the march, kept with
+        // the image's history; the composite tests the scene's depth against
+        // it, the history follows each pixel's own cloud.
+        QRhiTexture *marchDepth = nullptr;
+        QRhiTexture *historyDepth[2] = {};
+        QRhiTexture *imageDepth = nullptr;
         QRhiTextureRenderTarget *marchTarget = nullptr;
         QRhiRenderPassDescriptor *marchPass = nullptr;
         QRhiShaderResourceBindings *marchBindings = nullptr;
@@ -521,8 +528,8 @@ private:
         bool previousValid = false;
         double lastEast = 0.0;
         double lastNorth = 0.0;
-        // The low layer's drift at the last frame (m east, north).
-        float lastDrift[2] = {};
+        // The layers' drift at the last frame (m east, north).
+        float lastDrift[3][2] = {};
         bool driftValid = false;
         QRhiTexture *compositeColor = nullptr;
         QRhiTextureRenderTarget *compositeTarget = nullptr;
@@ -638,9 +645,9 @@ private:
     // relative to the sun's. The sun, also under the horizon while it still
     // reaches the clouds; then the moon, fading in.
     void cloudLight(float *direction, float *colour) const;
-    // The low layer's move since the view's last frame (km east, north) and
-    // the clouds' middle height (km), for its history.
-    void cloudMotion(CloudView &v, float *motion);
+    // The layers' moves since the view's last frame (km east, north: low and
+    // mid; high) and the low layer's middle height (km), for its history.
+    void cloudMotion(CloudView &v, float *motion, float *motionHigh);
     void writeCloudShadowUniforms(RhiProgram *program);
     void prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);
 public:

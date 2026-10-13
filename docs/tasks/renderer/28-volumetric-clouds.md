@@ -811,12 +811,49 @@ ground between frames, of 255):
   one-frame placement error. That error cannot happen now, since the place
   is set before the draws.
 
-Next: the clouds' depth (the user's review point 2). The march gives each
-pixel its cloud's distance, the history keeps it, and the composite
-compares it with the scene's depth. It also gives the reprojection the
-pixel's own cloud height and layer, in place of the clouds' middle. The
-middle sits about twice as high as the low layer, so a timelapse from
-2 min/s showed little gain from the reprojection.
+## The clouds' depth (2026-10-13)
+
+The user's review point 2: near terrain and objects always stood in front
+of the clouds (the composite cut the clouds at the whole scene band), so
+the clouds could not be flown into or over, and a mountain did not reach
+into their base. Point 0 too: the timelapse from 2 min/s showed little
+gain from the history following the clouds.
+
+- The march gives each pixel where its clouds are: the front (where 2 %
+  of the light is taken), the mean distance by the light each sample
+  takes, the layer (low 0, mid 1, high 2) the same way, each times the
+  cover, and the cover (a second target, `marchDepth`). Times the cover,
+  the history blends them as it blends the clouds, and a pixel without
+  clouds adds nothing. The history and the composite's image keep them
+  (`historyDepth`, `imageDepth`; the temporal pass writes four targets).
+- The composite, at the view's resolution: none of the clouds where the
+  scene lies before their front, all of them past their mean distance,
+  in part between. The march still stops only at distant terrain, so a
+  moving object leaves no outline in the history. Objects in front of the
+  clouds stay sharp, as before (the user's hybrid: the near scene is cut
+  each frame at the full resolution, the far one the march stops at).
+- The history follows each pixel's own clouds: at the march's mean
+  distance along the ray, moved by its layer's drift (low, mid or high,
+  between them by the layer). Before, every pixel moved with the low
+  layer at the clouds' middle height, about twice the low layer's.
+
+Captures (CMK, broken clouds at noon, `TSRE_CLOUDS_STILL` for the views):
+
+- The field view from 550 m and the lake view: the same image to the bit.
+- In the cloud base (1000 m) and inside a cloud (1300 m): the cloud's
+  inside, where before the terrain showed through. At 900 m, in the thin
+  base, the terrain is hazy. Above the clouds (3200 m): their tops over
+  the terrain below (beyond 3 to 4 km the editor's fog greys the terrain,
+  and as distant terrain it was clouded before too).
+- The history against a still image, one pass a frame (the capture
+  harness steps the time once a view), pixels more than 8 off: at 30 s/s
+  3.0 % before, 1.9 % after; at 4 min/s 3.3 %, 2.4 %. The still images
+  are the same as before, so the march is unchanged.
+- Cost on the Steam Deck at High (lake view, 60 frames): median frame
+  30.1 and 30.8 ms before, 30.5 to 31.7 after (one run 34.7). That is
+  about half a millisecond, within the noise of the moment (clouds off
+  measured 26.4 to 39.3). The capture harness has no GPU time:
+  `lastCompletedGpuTime` stays 0 for its frames.
 
 ## Verification
 

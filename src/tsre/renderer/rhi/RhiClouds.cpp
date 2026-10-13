@@ -23,8 +23,10 @@
 //    two-lobe phase) and from the sky; the flat high layer behind them;
 //    haze over the distance from the sky-view table;
 // 3. the result blended with the last frames' where the clouds were in the
-//    same direction (the march starts at a different jitter each frame);
-// 4. composited over the view where nothing nearer stands in front.
+//    same direction (the march starts at a different jitter each frame),
+//    with where each pixel's clouds are (their front and mean distance);
+// 4. composited over the view: in front of the scene where the scene lies
+//    past the clouds' front, at the view's resolution.
 
 #include "RhiRenderer.h"
 #include "RhiProgram.h"
@@ -131,10 +133,12 @@ struct MarchParameters {
     // since they were drawn (km east, north): low, mid; high.
     float shiftLowMid[4];
     float shiftHigh[4];
-    // The low layer's move since this view's last frame (km east, north),
-    // the layer's middle height (km): the history follows the clouds.
+    // The layers' moves since this view's last frame (km east, north): low
+    // and mid; high, and the low layer's middle height (km) for pixels
+    // without clouds. The history follows each pixel's clouds.
     float motion[4];
     float shadowMid[4];    // the mid layer's cloud shadow map: its centre east and north of the camera (km)
+    float motionHigh[4];
 };
 
 const char *CloudCommon = R"(
@@ -305,6 +309,7 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 shiftHigh;
     vec4 motion;
     vec4 shadowMid;
+    vec4 motionHigh;
 };
 layout(binding = 1) uniform sampler2D weatherTexture;
 layout(binding = 2) uniform sampler2D nearCover;
@@ -474,7 +479,10 @@ float density(vec3 p, vec2 offset, float altitude, bool detail) {
         sum += layerDensity(offset, altitude, detail, layer);
     return sum;
 }
+)";
 
+// After the Clouds block (the march's and the composite's).
+const char *SceneDistance = R"(
 // Scene depth to distance along the view ray (km); -1 for none (sky).
 float sceneDistance(float depth, vec2 ndc) {
     float viewZ;
@@ -493,6 +501,9 @@ float sceneDistance(float depth, vec2 ndc) {
 
 const char *MarchFragment = R"(
 layout(location = 0) out vec4 result;
+// Where the pixel's clouds are, times their cover (km: front, mean
+// distance; layer 0 low to 2 high), the cover.
+layout(location = 1) out vec4 cloudDepth;
 )";
 
 const char *MarchMain = R"(
@@ -558,8 +569,10 @@ void main() {
     float phaseScale[3] = float[3](1.0, 0.5, 0.25);
     vec3 luminance = vec3(0.0);
     float transmittance = 1.0;
-    float hit = -1.0;
-    float weightedDistance = 0.0, weights = 0.0;
+    // Where the cloud starts (2 % of the light taken), the mean distance
+    // by the light each sample takes, the layer by it (mid 1, high 2).
+    float front = -1.0;
+    float weightedDistance = 0.0, weights = 0.0, layers = 0.0;
     // Light of the sky from above and of the ground from below.
     vec3 skyAbove = skyLight(vec3(0.0, 1.0, 0.0)) * 0.6 + skyLight(normalize(vec3(sun.x, 0.0, sun.z) + vec3(0.0, 0.3, 0.0))) * 0.4;
     if (start >= 0.0 && end > start) {
@@ -577,7 +590,13 @@ void main() {
             float r = length(p);
             float altitude = r - R;
             vec2 offset = vec2(p.x, -p.z);
-            float sigma = density(p, offset, altitude, true);
+            float sigma = 0.0, sigmaMid = 0.0;
+            for (int layer = 0; layer < 2; ++layer) {
+                float s = layerDensity(offset, altitude, true, layer);
+                sigma += s;
+                if (layer == 1)
+                    sigmaMid = s;
+            }
             if (sigma <= 0.0)
                 continue;
             // Towards the sun in growing steps spread in a cone, which
@@ -641,13 +660,15 @@ void main() {
             transmittance *= sampleT;
             weightedDistance += t * (before - transmittance);
             weights += before - transmittance;
-            if (hit < 0.0 && transmittance < 0.9)
-                hit = t;
+            layers += (before - transmittance) * sigmaMid / sigma;
+            if (front < 0.0 && transmittance < 0.98)
+                front = t;
             if (transmittance < 0.01)
                 break;
         }
     }
     float distance = weights > 0.0 ? weightedDistance / weights : -1.0;
+    float highShare = 0.0, highDistance = 0.0;
     // The flat high layer, behind the others.
     if (high.x > 0.0 && pr < R + high.x) {
         float th = sphereHits(p0, d, R + high.x).y;
@@ -666,7 +687,11 @@ void main() {
                 vec3 lit = sunLight * (henyeyGreenstein(cosAngle, 0.7) * 0.6 + 0.4 / (4.0 * Pi)) * 4.0 * Pi * 0.3
                         + skyAbove * 0.8;
                 luminance += transmittance * lit * alpha;
+                highShare = transmittance * alpha;
+                highDistance = th;
                 transmittance *= 1.0 - alpha;
+                if (front < 0.0 && transmittance < 0.98)
+                    front = th;
                 if (distance < 0.0)
                     distance = th;
             }
@@ -684,6 +709,12 @@ void main() {
         luminance = luminance * air + skyLight(d) * (vec3(1.0) - air) * (1.0 - transmittance);
     }
     result = vec4(luminance, transmittance);
+    // Times the cover, so the history blends them as it blends the clouds
+    // (a pixel without clouds adds nothing).
+    float cover = weights + highShare;
+    if (front < 0.0)
+        front = cover > 0.0 ? (weightedDistance + highDistance * highShare) / cover : 0.0;
+    cloudDepth = vec4(front * cover, weightedDistance + highDistance * highShare, layers + 2.0 * highShare, cover);
 }
 )";
 
@@ -731,6 +762,8 @@ const char *TemporalFragment = R"(
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
 layout(location = 1) out vec4 imageOut;
+layout(location = 2) out vec4 depthResult;
+layout(location = 3) out vec4 depthOut;
 layout(std140, binding = 0) uniform Clouds {
     mat4 inverse;
     mat4 previous;
@@ -754,44 +787,63 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 shiftHigh;
     vec4 motion;
     vec4 shadowMid;
+    vec4 motionHigh;
 };
 layout(binding = 1) uniform sampler2D current;
 layout(binding = 2) uniform sampler2D history;
+layout(binding = 3) uniform sampler2D currentDepth;
+layout(binding = 4) uniform sampler2D historyDepth;
 layout(std140, binding = 10) uniform Update {
     vec4 update;
     vec4 sizes;
     vec4 shell;
 };
 
-// The cloud image: the pixels this pass marched (one of each block), the
-// others from the last frames where the clouds were (the view's turn and
-// the wind's drift reprojected, clamped to the marched neighbourhood); off the last frame's image, the
-// march's own result. While filling (still, or no history), the image is
-// built by one pass per pixel of the block in the same frame.
-vec4 cloudImage() {
+// The cloud image and where its clouds are: the pixels this pass marched
+// (one of each block), the others from the last frames where the clouds
+// were (the view's turn and the wind's drift reprojected, clamped to the
+// marched neighbourhood); off the last frame's image, the march's own
+// result. While filling (still, or no history), the image is built by one
+// pass per pixel of the block in the same frame.
+void cloudImage(out vec4 image, out vec4 depth) {
     vec2 pixel = floor(uv * sizes.xy);
     vec2 cell = floor(pixel / update.x);
     bool marched = all(equal(pixel - cell * update.x, update.yz));
     ivec2 marchTexel = ivec2(clamp(cell, vec2(0.0), sizes.zw - 1.0));
     vec4 fresh = texelFetch(current, marchTexel, 0);
-    if (lighting.y > 0.5)
-        return marched ? fresh : textureLod(history, uv, 0.0);
+    vec4 freshDepth = texelFetch(currentDepth, marchTexel, 0);
+    if (lighting.y > 0.5) {
+        image = marched ? fresh : textureLod(history, uv, 0.0);
+        depth = marched ? freshDepth : textureLod(historyDepth, uv, 0.0);
+        return;
+    }
     vec4 low = fresh, highValue = fresh;
+    vec4 lowDepth = freshDepth, highDepth = freshDepth;
     for (int j = -1; j <= 1; ++j)
         for (int i = -1; i <= 1; ++i) {
-            vec4 n = texelFetch(current, ivec2(clamp(cell + vec2(i, j), vec2(0.0), sizes.zw - 1.0)), 0);
+            ivec2 at = ivec2(clamp(cell + vec2(i, j), vec2(0.0), sizes.zw - 1.0));
+            vec4 n = texelFetch(current, at, 0);
             low = min(low, n);
             highValue = max(highValue, n);
+            vec4 nd = texelFetch(currentDepth, at, 0);
+            lowDepth = min(lowDepth, nd);
+            highDepth = max(highDepth, nd);
         }
     vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
     vec4 far = inverse * vec4(ndc, 1.0, 1.0);
     vec3 d = normalize(far.xyz / far.w);
-    // Where the clouds seen here were at the last frame: they drift with the
-    // wind (the low layer's, at its middle height along the ray); far off
-    // only the view's turn counts.
+    // Where the clouds seen here were at the last frame: they drift with
+    // their layer's wind, at their own distance along the ray (the march's
+    // mean; its layer between low, mid and high). Without clouds, the low
+    // layer's middle height; far off only the view's turn counts.
     vec3 before = d;
-    if (d.y > 0.01 && dot(motion.xy, motion.xy) > 0.0) {
-        float t = min(max(motion.z - camera.x, 0.05) / d.y, slab.z);
+    if (freshDepth.w > 0.01) {
+        float t = freshDepth.y / freshDepth.w;
+        float layer = clamp(freshDepth.z / freshDepth.w, 0.0, 2.0);
+        vec2 move = layer < 1.0 ? mix(motion.xy, motion.zw, layer) : mix(motion.zw, motionHigh.xy, layer - 1.0);
+        before = d * t - vec3(move.x, 0.0, -move.y);
+    } else if (d.y > 0.01) {
+        float t = min(max(motionHigh.z - camera.x, 0.05) / d.y, slab.z);
         before = d * t - vec3(motion.x, 0.0, -motion.y);
     }
     vec4 clip = previous * vec4(before, 0.0);
@@ -803,19 +855,25 @@ vec4 cloudImage() {
     bool onImage = all(greaterThanEqual(beforeUv, vec2(0.0))) && all(lessThanEqual(beforeUv, vec2(1.0)));
     if (!onImage) {
         // New sky at the image's edge: the march's result near it.
-        return marched ? fresh : textureLod(current, uv, 0.0);
+        image = marched ? fresh : textureLod(current, uv, 0.0);
+        depth = marched ? freshDepth : textureLod(currentDepth, uv, 0.0);
+        return;
     }
     // Clamped loosely: the marched neighbours lie a block apart.
     vec4 spread = (highValue - low) * 0.25;
     vec4 old = clamp(textureLod(history, beforeUv, 0.0), low - spread, highValue + spread);
-    return marched ? mix(old, fresh, update.w) : old;
+    vec4 depthSpread = (highDepth - lowDepth) * 0.25;
+    vec4 oldDepth = clamp(textureLod(historyDepth, beforeUv, 0.0), lowDepth - depthSpread, highDepth + depthSpread);
+    image = marched ? mix(old, fresh, update.w) : old;
+    depth = marched ? mix(oldDepth, freshDepth, update.w) : oldDepth;
 }
 
 // The history (alternating) and the same image in a fixed texture for the
-// composite and the light shafts.
+// composite and the light shafts; their depths likewise.
 void main() {
-    result = cloudImage();
+    cloudImage(result, depthResult);
     imageOut = result;
+    depthOut = depthResult;
 }
 )";
 
@@ -851,21 +909,44 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 shiftHigh;
     vec4 motion;
     vec4 shadowMid;
+    vec4 motionHigh;
 };
 layout(binding = 1) uniform sampler2D clouds;
 layout(binding = 2) uniform sampler2D sceneDepth;
+layout(binding = 3) uniform sampler2D cloudDepth;
+)";
 
+const char *CompositeMain = R"(
 void main() {
     vec4 c = textureLod(clouds, uv, 0.0);
-    // Clouds only over the sky and distant terrain (the march stops at that
-    // terrain, so the image holds the clouds in front of it). Nearer things,
-    // objects and near terrain within a few km, always stand in front of the
-    // clouds: cut here at the full resolution.
     float depth = textureLod(sceneDepth, uv, 0.0).r;
 #ifdef GLOW
     glow = vec4(0.0, 0.0, 0.0, 1.0);
 #endif
-    if (c.a >= 0.999 || depth < bands.z) {
+    if (c.a >= 0.999) {
+        result = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+    // How much of the clouds stands in front of the scene here, at the full
+    // resolution: none of a cloud behind it, all of it past the clouds' mean
+    // distance, between them in part. The march stops at distant terrain
+    // only; nearer things (objects, near terrain) are cut here, so a moving
+    // object leaves no outline in the clouds' history. Above the clouds, in
+    // them, or a mountain in their base: the scene behind them is clouded.
+    float share = 1.0;
+    float scene = sceneDistance(depth, vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y));
+    if (scene >= 0.0) {
+        vec4 where = textureLod(cloudDepth, uv, 0.0);
+        if (where.w > 1e-3) {
+            float front = where.x / where.w;
+            float mean = max(where.y / where.w, front);
+            share = clamp((scene - front) / max(mean - front, 0.05), 0.0, 1.0);
+        } else {
+            // (no place known: nearer things in front, as before)
+            share = depth < bands.z ? 0.0 : 1.0;
+        }
+    }
+    if (share <= 0.0) {
         result = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
@@ -874,9 +955,10 @@ void main() {
     vec3 display = pow(1.0 - exp(-colour * camera.z), vec3(1.0 / 2.2));
     // At night a little darker than the night sky's floor, not black.
     display = max(display, night.rgb * 0.8) * night.w;
-    result = vec4(display * covered, c.a);
+    covered *= share;
+    result = vec4(display * covered, 1.0 - covered);
 #ifdef GLOW
-    glow = vec4(0.0, 0.0, 0.0, c.a);
+    glow = vec4(0.0, 0.0, 0.0, 1.0 - covered);
 #endif
 }
 )";
@@ -911,16 +993,20 @@ static QByteArray glowVariant(QByteArray source) {
 }
 
 static QByteArray marchSource() {
-    return cloudSource(MarchFragment, true) + CloudField + MarchMain;
+    return cloudSource(MarchFragment, true) + CloudField + SceneDistance + MarchMain;
 }
 
 static QByteArray shadowSource() {
     return cloudSource(ShadowFragment, true) + CloudField + ShadowMain;
 }
 
+static QByteArray compositeSource() {
+    return cloudSource(CompositeFragment, false) + SceneDistance + CompositeMain;
+}
+
 QList<QByteArray> RhiRenderer::cloudShaders() {
     return {cloudSource(CoverFragment, true), marchSource(), shadowSource(), cloudSource(TemporalFragment, false),
-            cloudSource(CompositeFragment, false), glowVariant(cloudSource(CompositeFragment, false))};
+            compositeSource(), glowVariant(compositeSource())};
 }
 
 namespace {
@@ -937,9 +1023,8 @@ const CloudShaderSet &cloudShaderSet(QRhi *rhi) {
         s.march = bakeInline(marchSource().constData(), QShader::FragmentStage, rhi);
         s.shadow = bakeInline(shadowSource().constData(), QShader::FragmentStage, rhi);
         s.temporal = bakeInline(cloudSource(TemporalFragment, false).constData(), QShader::FragmentStage, rhi);
-        s.composite = bakeInline(cloudSource(CompositeFragment, false).constData(), QShader::FragmentStage, rhi);
-        s.glowComposite = bakeInline(glowVariant(cloudSource(CompositeFragment, false)).constData(),
-                                     QShader::FragmentStage, rhi);
+        s.composite = bakeInline(compositeSource().constData(), QShader::FragmentStage, rhi);
+        s.glowComposite = bakeInline(glowVariant(compositeSource()).constData(), QShader::FragmentStage, rhi);
     }
     return s;
 }
@@ -1142,6 +1227,10 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
     for (int i = 0; i < 2; ++i)
         v.history[i] = cloudTexture(rhi, v.imageSize);
     v.image = cloudTexture(rhi, v.imageSize);
+    v.marchDepth = cloudTexture(rhi, marchSize);
+    for (int i = 0; i < 2; ++i)
+        v.historyDepth[i] = cloudTexture(rhi, v.imageSize);
+    v.imageDepth = cloudTexture(rhi, v.imageSize);
     v.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(MarchParameters));
     v.uniforms->create();
     // One block per update pass, picked by a dynamic offset.
@@ -1149,9 +1238,13 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
     v.updateUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, v.updateStride * UpdatePasses);
     v.updateUniforms->create();
     const bool ok = v.march != nullptr && v.history[0] != nullptr && v.history[1] != nullptr && v.image != nullptr
-            && cloudTarget(rhi, {v.march}, false, v.marchTarget, v.marchPass)
-            && cloudTarget(rhi, {v.history[0], v.image}, false, v.historyTargets[0], v.historyPasses[0])
-            && cloudTarget(rhi, {v.history[1], v.image}, false, v.historyTargets[1], v.historyPasses[1])
+            && v.marchDepth != nullptr && v.historyDepth[0] != nullptr && v.historyDepth[1] != nullptr
+            && v.imageDepth != nullptr
+            && cloudTarget(rhi, {v.march, v.marchDepth}, false, v.marchTarget, v.marchPass)
+            && cloudTarget(rhi, {v.history[0], v.image, v.historyDepth[0], v.imageDepth}, false, v.historyTargets[0],
+                           v.historyPasses[0])
+            && cloudTarget(rhi, {v.history[1], v.image, v.historyDepth[1], v.imageDepth}, false, v.historyTargets[1],
+                           v.historyPasses[1])
             && (glow != nullptr ? cloudTarget(rhi, {color, glow}, true, v.compositeTarget, v.compositePass, colorLayer)
                                 : cloudTarget(rhi, {color}, true, v.compositeTarget, v.compositePass, colorLayer));
     if (!ok) {
@@ -1180,11 +1273,15 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
                                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, v.march, c.linear),
                                                     QRhiShaderResourceBinding::sampledTexture(2, fragment, v.history[1 - i],
                                                                                               c.linear),
+                                                    QRhiShaderResourceBinding::sampledTexture(3, fragment, v.marchDepth, c.linear),
+                                                    QRhiShaderResourceBinding::sampledTexture(4, fragment, v.historyDepth[1 - i],
+                                                                                              c.linear),
                                                     QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
                                                             10, fragment, v.updateUniforms, sizeof(UpdateParameters))});
         v.compositeBindings[i] = cloudBindings(rhi, {QRhiShaderResourceBinding::uniformBuffer(0, fragment, v.uniforms),
                                                      QRhiShaderResourceBinding::sampledTexture(1, fragment, v.image, c.linear),
-                                                     QRhiShaderResourceBinding::sampledTexture(2, fragment, depth, c.nearest)});
+                                                     QRhiShaderResourceBinding::sampledTexture(2, fragment, depth, c.nearest),
+                                                     QRhiShaderResourceBinding::sampledTexture(3, fragment, v.imageDepth, c.linear)});
     }
     if (share != nullptr && share->marchPipeline != nullptr) {
         // Targets of the same formats, resource sets of the same layout.
@@ -1194,8 +1291,8 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
         v.ownsPipelines = false;
     } else {
         const CloudShaderSet &shaders = cloudShaderSet(rhi);
-        v.marchPipeline = cloudPipeline(rhi, shaders.march, v.marchBindings, v.marchPass, 1, false);
-        v.temporalPipeline = cloudPipeline(rhi, shaders.temporal, v.temporalBindings[0], v.historyPasses[0], 2, false);
+        v.marchPipeline = cloudPipeline(rhi, shaders.march, v.marchBindings, v.marchPass, 2, false);
+        v.temporalPipeline = cloudPipeline(rhi, shaders.temporal, v.temporalBindings[0], v.historyPasses[0], 4, false);
         v.compositePipeline = glow != nullptr
                 ? cloudPipeline(rhi, shaders.glowComposite, v.compositeBindings[0], v.compositePass, 2, true)
                 : cloudPipeline(rhi, shaders.composite, v.compositeBindings[0], v.compositePass, 1, true);
@@ -1289,14 +1386,19 @@ void RhiRenderer::cloudLight(float *direction, float *colour) const {
         colour[c] = sky.moonLight[c] * fade * CloudMoonlight;
 }
 
-void RhiRenderer::cloudMotion(CloudView &v, float *motion) {
+void RhiRenderer::cloudMotion(CloudView &v, float *motion, float *motionHigh) {
     const bool known = v.historyValid && v.driftValid;
-    motion[0] = known ? (clouds.drift[0][0] - v.lastDrift[0]) / 1000.0f : 0.0f;
-    motion[1] = known ? (clouds.drift[0][1] - v.lastDrift[1]) / 1000.0f : 0.0f;
-    motion[2] = 0.5f * (clouds.bottom + clouds.top);
-    motion[3] = 0.0f;
-    v.lastDrift[0] = clouds.drift[0][0];
-    v.lastDrift[1] = clouds.drift[0][1];
+    for (int l = 0; l < 3; ++l) {
+        float *out = l == 2 ? motionHigh : motion + 2 * l;
+        out[0] = known ? (clouds.drift[l][0] - v.lastDrift[l][0]) / 1000.0f : 0.0f;
+        out[1] = known ? (clouds.drift[l][1] - v.lastDrift[l][1]) / 1000.0f : 0.0f;
+        v.lastDrift[l][0] = clouds.drift[l][0];
+        v.lastDrift[l][1] = clouds.drift[l][1];
+    }
+    // Without a cloud in the pixel: the low layer's middle (the lowest
+    // clouds' base and the layers' top halve it, about twice too high).
+    motionHigh[2] = 0.5f * (clouds.bottom + clouds.top);
+    motionHigh[3] = 0.0f;
     v.driftValid = true;
 }
 
@@ -1455,7 +1557,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         out[0] = (clouds.drift[l][0] - clouds.built[l][0]) / 1000.0f;
         out[1] = (clouds.drift[l][1] - clouds.built[l][1]) / 1000.0f;
     }
-    cloudMotion(c, parameters.motion);
+    cloudMotion(c, parameters.motion, parameters.motionHigh);
     // A jump of the camera leaves the last frames' clouds behind.
     if (std::hypot(clouds.cameraEast - c.lastEast, clouds.cameraNorth - c.lastNorth) > 300.0)
         c.historyValid = false;
@@ -1666,7 +1768,7 @@ void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &a
     v.lastNorth = clouds.cameraNorth;
     parameters.lighting[1] = (clouds.still || !v.historyValid) ? 1.0f : 0.0f;
     // This view's own history: the clouds' move since its last frame.
-    cloudMotion(v, parameters.motion);
+    cloudMotion(v, parameters.motion, parameters.motionHigh);
     parameters.lighting[2] = 1.0f / float(v.size.width());
     parameters.lighting[3] = 1.0f / float(v.size.height());
     QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();
@@ -1721,6 +1823,7 @@ void RhiRenderer::releaseCloudView(CloudView &v) {
         dropLater(v.historyTargets[i]);
         dropLater(v.historyPasses[i]);
         dropLater(v.history[i]);
+        dropLater(v.historyDepth[i]);
     }
     dropLater(v.marchTarget);
     dropLater(v.marchPass);
@@ -1728,6 +1831,8 @@ void RhiRenderer::releaseCloudView(CloudView &v) {
     dropLater(v.compositePass);
     dropLater(v.march);
     dropLater(v.image);
+    dropLater(v.marchDepth);
+    dropLater(v.imageDepth);
     dropLater(v.uniforms);
     dropLater(v.updateUniforms);
     v = CloudView();
