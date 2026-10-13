@@ -11,6 +11,7 @@
 #include <settings/SettingsManager.h>
 #include <QCheckBox>
 #include <QColorDialog>
+#include <QComboBox>
 #include <QDateEdit>
 #include <QDoubleSpinBox>
 #include <QGridLayout>
@@ -44,8 +45,6 @@ const char *const Exposure = "core.rendering.exposure";
 const char *const Sun = "core.rendering.sky.sun";
 const char *const Moon = "core.rendering.sky.moon";
 const char *const SunSize = "core.rendering.sky.sunSize";
-// The timelapse: minutes of the day (and of the weather) a real second.
-constexpr double TimelapseMinutesPerSecond = 4.0;
 
 SettingsManager &settings() {
     return SettingsManager::instance();
@@ -241,28 +240,45 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     connect(dateEdit, &QDateEdit::dateChanged, this,
             [this](QDate date) { set(Date, date.toString("yyyy-MM-dd")); });
     connect(today, &QToolButton::clicked, this, [this] { dateEdit->setDate(QDate::currentDate()); });
-    // The timelapse: time and weather run on while it is pressed.
+    // The timelapse: time and weather run on at the chosen speed (minutes of
+    // the day a real second) while it is on.
+    timelapseRate = new QComboBox(this);
+    timelapseRate->setObjectName("timelapseRate");
+    timelapseRate->setStyleSheet("combobox-popup: 0;");
+    timelapseRate->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    timelapseRate->setToolTip(
+        //% "How far the time of day and the weather run on in a real second."
+        qtTrId("route.editor.environment.window.timelapse.tooltip"));
+    //% "%1 s/s"
+    timelapseRate->addItem(qtTrId("route.editor.environment.window.timelapse.seconds").arg(30), 0.5);
+    for (int minutes : {1, 2, 3, 4})
+        //% "%1 min/s"
+        timelapseRate->addItem(qtTrId("route.editor.environment.window.timelapse.minutes").arg(minutes),
+                               double(minutes));
     timelapse = new QToolButton(this);
     timelapse->setObjectName("timelapse");
     timelapse->setCheckable(true);
-    timelapse->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    timelapse->setText(
-        //% "4 min/s"
-        qtTrId("route.editor.environment.window.timelapse.rate"));
-    timelapse->setToolTip(
-        //% "Runs the time of day and the weather on, 4 minutes a second."
-        qtTrId("route.editor.environment.window.timelapse.tooltip"));
+    timelapse->setFixedWidth(ValueWidth);
+    auto showTimelapse = [this] {
+        timelapse->setText(timelapse->isChecked()
+            //% "Stop"
+            ? qtTrId("route.editor.environment.window.timelapse.stop")
+            //% "Start"
+            : qtTrId("route.editor.environment.window.timelapse.start"));
+    };
+    showTimelapse();
     {
         const int r = grid->rowCount();
         grid->addWidget(GuiFunct::newQLabel(
             //% "Timelapse:"
             qtTrId("route.editor.environment.window.timelapse"), LabelWidth), r, 0);
-        grid->addWidget(timelapse, r, 1);
+        grid->addWidget(line({timelapseRate, timelapse}), r, 1);
     }
     timelapseTimer = new QTimer(this);
     timelapseTimer->setInterval(33);
     connect(timelapseTimer, &QTimer::timeout, this, [this] { advanceTimelapse(timelapseClock.restart() / 1000.0); });
-    connect(timelapse, &QToolButton::toggled, this, [this](bool on) {
+    connect(timelapse, &QToolButton::toggled, this, [this, showTimelapse](bool on) {
+        showTimelapse();
         if (on) {
             timelapseClock.start();
             timelapseTimer->start();
@@ -373,7 +389,8 @@ QToolButton *EnvironmentWindow::resetButtonFor(const QString &key) {
 void EnvironmentWindow::advanceTimelapse(double seconds) {
     // A stalled editor goes on from where it was, not with a jump.
     seconds = std::clamp(seconds, 0.0, 1.0);
-    double hours = settings().runtimeFloat(Time) + seconds * TimelapseMinutesPerSecond / 60.0;
+    const double minutesPerSecond = timelapseRate->currentData().toDouble();
+    double hours = settings().runtimeFloat(Time) + seconds * minutesPerSecond / 60.0;
     if (hours >= 24.0) {
         hours -= 24.0;
         QDate date = QDate::fromString(settings().runtimeString(Date).trimmed(), "yyyy-MM-dd");

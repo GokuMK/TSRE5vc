@@ -103,6 +103,7 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
     QGridLayout *fileGrid = grid();
     file = new QComboBox(content);
     file->setObjectName("environmentFile");
+    file->setStyleSheet("combobox-popup: 0;");
     file->setToolTip(
         //% "The env file the editor shows: a season and weather of the route (TRK), or any file in ENVFILES."
         qtTrId("route.editor.environment.tools.file.tooltip"));
@@ -143,6 +144,7 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
     QGridLayout *weatherGrid = grid();
     preset = new QComboBox(content);
     preset->setObjectName("weatherPreset");
+    preset->setStyleSheet("combobox-popup: 0;");
     //% "From the file"
     preset->addItem(qtTrId("route.editor.environment.tools.preset.file"), QString());
     for (const QString &name : WeatherPresets::names())

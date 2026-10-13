@@ -17,6 +17,7 @@
 #include <functional>
 
 class QCheckBox;
+class QComboBox;
 class QDateEdit;
 class QDoubleSpinBox;
 class QLabel;
@@ -44,8 +45,7 @@ public slots:
     // Writes the current values into the profile and saves it.
     bool saveToProfile(QString *error = nullptr);
     // The timelapse's step for this many real seconds: the time of day and
-    // with it the weather, TimelapseMinutesPerSecond a second, the date on
-    // past midnight.
+    // with it the weather, at the chosen speed, the date on past midnight.
     void advanceTimelapse(double seconds);
 
 signals:
@@ -74,6 +74,7 @@ private:
     QCheckBox *sun = nullptr;
     QCheckBox *moon = nullptr;
     QDoubleSpinBox *sunSize = nullptr;
+    QComboBox *timelapseRate = nullptr;
     QToolButton *timelapse = nullptr;
     QTimer *timelapseTimer = nullptr;
     QElapsedTimer timelapseClock;

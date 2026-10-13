@@ -1,6 +1,7 @@
 #include "EnvironmentWindowTestSuite.h"
 #include "TokenTestSupport.h"
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDateEdit>
 #include <QDoubleSpinBox>
 #include <QFile>
@@ -85,9 +86,18 @@ int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose)
                    && std::abs(settings.runtimeFloat(fog) - newFog) < 1e-6,
                "after saving the values come from the profile");
 
-    // The timelapse: 4 minutes a second, the date on past midnight.
+    // The timelapse: its speed from 30 s to 4 min a second, the date on past
+    // midnight.
     const QString time = "core.rendering.timeOfDay.time";
     auto *timelapse = window.findChild<QToolButton *>("timelapse");
+    auto *rate = window.findChild<QComboBox *>("timelapseRate");
+    test.check(rate && rate->count() == 5 && std::abs(rate->currentData().toDouble() - 0.5) < 1e-9
+                   && std::abs(rate->itemData(4).toDouble() - 4.0) < 1e-9
+                   && rate->styleSheet().contains("combobox-popup: 0"),
+               "the timelapse's speeds, 30 s a second first, in TSRE's combo box style");
+    if (!rate)
+        return test.finish();
+    rate->setCurrentIndex(4);
     settings.setSessionValue(time, 23.96);
     settings.setSessionValue(date, "2026-06-21");
     window.advanceTimelapse(0.75);

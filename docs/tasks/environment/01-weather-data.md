@@ -618,14 +618,19 @@ Proposal (to decide when resuming):
 
 ## Timelapse (2026-10-13)
 
-The Environment panel's time section has a Timelapse button (user: to watch
-the weather and the light change, with auto exposure). While pressed, a
-timer runs the session's time of day on at 4 minutes a real second
-(`EnvironmentWindow::advanceTimelapse`); the weather follows, as its hours
-come from the date and the time, and past midnight the date moves on. A
-stalled editor goes on from where it was (at most one second's step). The
-clouds' weather is sampled again whenever its hours change, so with the
-timelapse every frame.
+The Environment panel's time section has a Timelapse row (user: to watch
+the weather and the light change, with auto exposure): a speed (30 s, 1, 2,
+3 or 4 min of the day a real second) and Start / Stop. While on, a timer
+runs the session's time of day on (`EnvironmentWindow::advanceTimelapse`);
+the weather follows, as its hours come from the date and the time, and past
+midnight the date moves on. A stalled editor goes on from where it was (at
+most one second's step). The clouds' weather is sampled again whenever its
+hours change, so with the timelapse every frame. First a fixed 4 min/s: the
+clouds showed complete pixelation at that speed (the user), hence the
+speeds, to find where it starts.
+
+The panel's combo boxes (env file, weather preset, timelapse speed) take
+TSRE's combo box style (`combobox-popup: 0`: a list under the box).
 
 ## Verification
 

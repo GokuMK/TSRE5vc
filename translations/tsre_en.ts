@@ -3427,15 +3427,30 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <source>Date:</source>
         <translation>Date:</translation>
     </message>
-    <message id="route.editor.environment.window.timelapse.rate">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247"/>
-        <source>4 min/s</source>
-        <translation>4 min/s</translation>
+    <message id="route.editor.environment.window.timelapse.seconds">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="254"/>
+        <source>%1 s/s</source>
+        <translation>%1 s/s</translation>
+    </message>
+    <message id="route.editor.environment.window.timelapse.minutes">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="257"/>
+        <source>%1 min/s</source>
+        <translation>%1 min/s</translation>
+    </message>
+    <message id="route.editor.environment.window.timelapse.stop">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="265"/>
+        <source>Stop</source>
+        <translation>Stop</translation>
+    </message>
+    <message id="route.editor.environment.window.timelapse.start">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="267"/>
+        <source>Start</source>
+        <translation>Start</translation>
     </message>
     <message id="route.editor.environment.window.timelapse.tooltip">
         <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="250"/>
-        <source>Runs the time of day and the weather on, 4 minutes a second.</source>
-        <translation>Runs the time of day and the weather on, 4 minutes a second.</translation>
+        <source>How far the time of day and the weather run on in a real second.</source>
+        <translation>How far the time of day and the weather run on in a real second.</translation>
     </message>
     <message id="route.editor.environment.window.timelapse">
         <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="255"/>
