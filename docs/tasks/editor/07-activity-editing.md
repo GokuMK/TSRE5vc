@@ -1,8 +1,8 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 to 4 done (2026-10-14, branch `feature/activity-editing`);
-phase 5 (paths to services and timetables) next. Design decisions taken
-(below).
+Status: phases 1 to 4 done (2026-10-14, branch `feature/activity-editing`).
+Phase 5 (paths to services and timetables) waits on the meaning of
+`SkipCount` (Reference, MSTS). Design decisions taken (below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -351,6 +351,16 @@ Smaller:
   saves the file (Open Rails manual).
 - Unknown meanings remain: `SkipCount` on repeated visits, start/end in
   world, MSAE's timetable computation.
+- **`SkipCount` (checked 2026-10-14):** in 65 of the 302 local services
+  the stops' counts jump (3, 8, 10, 14): a stop's place among the
+  platforms along the path, those passed without stopping counted, not
+  its number among the stops. Compared with TSRE's platform list for the
+  path (each platform pair once, at its far end; `Path::rebuildDerived`)
+  on the routes' track databases: equal for every stop on EUROPE1,
+  EUROPE2 and USA1; different for 1413 stops on JAPAN1, 89 on JAPAN2 and
+  37 on USA2, MSTS's count sometimes higher, sometimes lower. MSTS counts
+  platforms in a way TSRE's list does not reproduce there (both items of a
+  platform, platforms beside the track, repeated visits: not known).
 
 ### Open Rails additions (manual and code, checked 2026-10-13)
 
@@ -542,6 +552,10 @@ that jumps to each item:
   on it is removed; new platforms on the path are offered, not ticked. A
   report lists what changed, per service, activity and traffic; undo takes
   it all back.
+- **Open (2026-10-14):** what MSTS counts in `SkipCount` (Reference,
+  MSTS). Until it is known, phase 5 must not rewrite the `SkipCount` of
+  stops it keeps, and new stops can only take TSRE's count, which MSTS may
+  read differently on routes like JAPAN1.
 - **Times move, they do not reset:** a new start time for an instance
   moves every arrival and departure by the difference; **the activity's
   start time moves the player timetable (decided)**.
