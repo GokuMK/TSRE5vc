@@ -13,6 +13,7 @@
 #include <QMap>
 #include <QStringList>
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 namespace {
@@ -166,6 +167,60 @@ void updateRegion(unsigned int handle, int x, int y, int width, int height, cons
     description.setSourceSize(QSize(width, height));
     description.setDestinationTopLeft(QPoint(x, y));
     updates()->uploadTexture(target, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, description)));
+}
+
+Contents readBack(unsigned int handle, QByteArray &data) {
+    data.clear();
+    RhiContext *context = RhiContext::instance();
+    QRhi *rhi = context != nullptr ? context->rhi() : nullptr;
+    QRhiTexture *source = texture(handle);
+    // An offscreen frame cannot start inside the frame being recorded.
+    if (rhi == nullptr || source == nullptr || rhi->isRecordingFrame())
+        return Contents::None;
+    Contents contents;
+    int blockBytes = 0;
+    switch (source->format()) {
+    case QRhiTexture::RGBA8: contents = Contents::Rgba8; break;
+    case QRhiTexture::BC1: contents = Contents::Bc1; blockBytes = 8; break;
+    case QRhiTexture::BC2: contents = Contents::Bc2; blockBytes = 16; break;
+    case QRhiTexture::BC3: contents = Contents::Bc3; blockBytes = 16; break;
+    default: return Contents::None;
+    }
+    QRhiCommandBuffer *commandBuffer = nullptr;
+    if (rhi->beginOffscreenFrame(&commandBuffer) != QRhi::FrameOpSuccess)
+        return Contents::None;
+    // The texture's own upload may still wait for the next frame.
+    if (QRhiResourceUpdateBatch *waiting = takeUpdates())
+        commandBuffer->resourceUpdate(waiting);
+    QRhiReadbackResult result;
+    QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    batch->readBackTexture(QRhiReadbackDescription(source), &result);
+    commandBuffer->resourceUpdate(batch);
+    rhi->endOffscreenFrame();
+
+    const QSize size = source->pixelSize();
+    if (contents != Contents::Rgba8) {
+        const qsizetype expected =
+                qsizetype((size.width() + 3) / 4) * ((size.height() + 3) / 4) * blockBytes;
+        if (result.data.size() != expected)
+            return Contents::None;
+        data = result.data;
+        return contents;
+    }
+    // RGBA8 rows, tightly packed; a backend may pad them.
+    const qsizetype row = qsizetype(size.width()) * 4;
+    if (size.height() <= 0 || result.data.size() < row * size.height()
+            || result.data.size() % size.height() != 0)
+        return Contents::None;
+    const qsizetype stride = result.data.size() / size.height();
+    if (stride == row) {
+        data = result.data;
+    } else {
+        data.resize(row * size.height());
+        for (int y = 0; y < size.height(); ++y)
+            std::memcpy(data.data() + y * row, result.data.constData() + y * stride, row);
+    }
+    return contents;
 }
 
 unsigned int createArray(int side, const QVector<QByteArray> &layers) {

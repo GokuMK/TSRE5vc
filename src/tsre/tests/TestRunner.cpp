@@ -81,6 +81,7 @@
 #include <tsre/tests/OsmDataTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
 #include <tsre/tests/TdbRoundTripTestSuite.h>
+#include <tsre/tests/TextureReadbackTestSuite.h>
 #include <tsre/tests/ParserExponentTestSuite.h>
 #include <tsre/tests/TdbOrderingTestSuite.h>
 #include <tsre/tests/TdbEditingTestSuite.h>
@@ -4113,6 +4114,7 @@ QStringList TsreTests::listSuites() {
         "environment-map-gl",
         "water-gl",
         "rhi-shaders",
+        "texture-readback",
         "local-lights",
         "time-of-day",
         "weather",
@@ -4198,6 +4200,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runWaterGlSuite(opts.verbose);
     if (suite == "rhi-shaders")
         return runRhiShaderSuite(opts.verbose);
+    if (suite == "texture-readback")
+        return runTextureReadbackSuite(opts.verbose);
     if (suite == "local-lights")
         return runLocalLightsSuite(opts.verbose);
     if (suite == "time-of-day")

@@ -41,6 +41,16 @@ unsigned int createData(int width, int height, bool floats, const QByteArray &da
 // Replaces a rectangle of a texture's level 0 (rows tightly packed).
 void updateRegion(unsigned int handle, int x, int y, int width, int height,
                   const QByteArray &data);
+// What readBack gives: level 0 as RGBA8 rows, or as the blocks of a
+// block-compressed texture; None when it could not read the texture.
+enum class Contents { None, Rgba8, Bc1, Bc2, Bc3 };
+// Reads a texture's level 0 back to the CPU, rows tightly packed, waiting
+// for the GPU: what Texture::setEditable and texture copies need once the
+// CPU pixels went with the upload (the OpenGL renderer reads its textures
+// back the same way). Uploads not yet submitted go first. None without a
+// QRhi, while a frame is being recorded, or when the backend cannot read
+// the texture's format.
+Contents readBack(unsigned int handle, QByteArray &data);
 // A mipmapped RGBA8 2D array of side x side RGBA layers.
 unsigned int createArray(int side, const QVector<QByteArray> &layers);
 // How a texture is sampled: with its mipmaps (an OpenGL texture uploaded

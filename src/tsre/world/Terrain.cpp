@@ -1422,8 +1422,10 @@ void Terrain::removeTextureFromMap(){
     if (!proceduralToolAllowed()) return;
     if (!editable)
         return;
-    QString name = this->getTileName(mojex, -mojez) + "_map.ace";
-    int newMat = tfile->getMatByTexture(name);
+    // The name Make from Overlay gave the texture: the tile's own, which for a
+    // distant tile is not the detailed tile name getTileName(x, y) makes.
+    const QString mapTexture = name + "_map.ace";
+    int newMat = tfile->getMatByTexture(mapTexture);
     if(newMat <= 0){
         return;
     }
@@ -2251,7 +2253,9 @@ void Terrain::paintTextureOnTile(Brush* brush, int y, int u, float x, float z) {
     int patches = tfile->patchCount();
     if (y > patches-1 || u > patches-1 || y < 0 || u < 0) return;
     //qDebug() << "painttile " << y << " " << u;
-    QString name = this->getTileName(mojex, -mojez) + "_" + QString::number(y) + "_" + QString::number(u) + ".ace";
+    // The tile's own name, as loading recognises its painted textures (a
+    // distant tile's is not the detailed tile name getTileName(x, y) makes).
+    QString name = this->name + "_" + QString::number(y) + "_" + QString::number(u) + ".ace";
     if (texid[y * patches + u] < 0)
         return;
     
