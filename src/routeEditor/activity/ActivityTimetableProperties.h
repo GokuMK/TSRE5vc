@@ -15,6 +15,7 @@
 #include <QString>
 
 class ActivityServiceDefinition;
+class Activity;
 
 class ActivityTimetableProperties : public QWidget {
     Q_OBJECT
@@ -23,7 +24,7 @@ public:
     virtual ~ActivityTimetableProperties();
     // The instance's timetable, or nothing: then the panel is empty and
     // disabled.
-    void showTimetable(ActivityServiceDefinition* s);
+    void showTimetable(ActivityServiceDefinition* s, Activity *owner = NULL);
     
 public slots:
     void lTimetableSelected(int row, int column);
@@ -34,6 +35,8 @@ signals:
     
 private:
     ActivityServiceDefinition *service = NULL;
+    // The activity the instance is in.
+    Activity *activity = NULL;
     QTableWidget lTimetable;
     QTimeEdit eTime;
     QLineEdit eMainEng;

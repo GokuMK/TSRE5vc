@@ -33,6 +33,9 @@ public slots:
     void serviceNameChanged(int id);
     void bNewServiceSelected();
     void bDeleteServiceSelected();
+    // Undo replaces activity data (ActivityNotifier).
+    void activityDataRestoring();
+    void activityDataRestored();
 
 signals:
     void reloadServicesList();

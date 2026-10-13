@@ -59,7 +59,6 @@ Service::~Service() {
 }
 
 void Service::load(){
-    QString sh;
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
@@ -73,7 +72,13 @@ void Service::load(){
     file->close();
     data->toUtf16();
     data->skipBOM();
+    parse(data);
+    delete data;
+    loaded = 1;
+}
 
+void Service::parse(FileBuffer *data){
+    QString sh;
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         if (sh == ("simisa@@@@@@@@@@jinx0v0t______")) {
             continue;
@@ -168,7 +173,35 @@ void Service::load(){
         qDebug() << "#SRV - undefined token: " << sh;
         ParserX::SkipToken(data);
     }
-    loaded = 1;
+}
+
+std::shared_ptr<TextSnapshot> Service::snapshot(){
+    auto copy = std::make_shared<TextSnapshot>();
+    copy->text = toText();
+    copy->unsaved = isModified();
+    copy->saves = saves;
+    return copy;
+}
+
+void Service::restore(const TextSnapshot &snapshot){
+    const QString oldPath = pathId, oldConsist = trainConfig;
+    displayName.clear();
+    trainConfig.clear();
+    pathId.clear();
+    maxWheelAcceleration = efficiency = startingSpeed = endingSpeed = startInWorld = endInWorld = 0;
+    stationStop.clear();
+    kept.clear();
+    keptTimetable.clear();
+    serial = -1;
+    FileBuffer *data = FileBuffer::fromText(snapshot.text);
+    parse(data);
+    delete data;
+    // The train shown on its path is made again when they changed.
+    if(pathId != oldPath || trainConfig != oldConsist){
+        pathPointer = NULL;
+        conPointer = NULL;
+    }
+    modified = snapshot.unsaved || snapshot.saves != saves;
 }
 
 void Service::save(){
@@ -191,7 +224,16 @@ void Service::save(){
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
-    
+    out << toText();
+    out.flush();
+    file.close();
+    modified = false;
+    ++saves;
+}
+
+QString Service::toText(){
+    QString text;
+    QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0v0t______\n";
     out << "\n";
     out << "Service_Definition (\n";
@@ -220,9 +262,8 @@ void Service::save(){
     out << "	)\n";
     ParserX::WriteKept(&out, kept, "	");
     out << ")\n";
-    
-    file.close();
-    modified = false;
+    out.flush();
+    return text;
 }
 
 void Service::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId) {

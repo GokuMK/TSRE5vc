@@ -17,6 +17,8 @@
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/ActivityTimetable.h>
+#include <tsre/trains/TextSnapshot.h>
+#include <memory>
 
 class RenderQueue;
 
@@ -47,6 +49,8 @@ public:
     QStringList kept;
     void load(FileBuffer* data);
     void save(QTextStream* out);
+    // Saved: it and its timetable unchanged since.
+    void setModified(bool val);
     void reloadTimetable();
     void reloadDefinition();
     bool isModified();
@@ -137,6 +141,12 @@ public:
 
     void load();
     void save();
+    // The file's text, as save writes it.
+    QString toText();
+    // Undo: the activity as text, and back. Restoring replaces its events,
+    // objects and services with new ones: windows let go of them first.
+    std::shared_ptr<TextSnapshot> snapshot();
+    void restore(const TextSnapshot &snapshot);
     bool isInitActivityObjects = false;
     //void initActivityObjects();
     void updateSim(float *playerT, float deltaTime);
@@ -199,6 +209,13 @@ public:
 private:
     bool modified = false;
     bool nowe = false;
+    // Times saved: a state restored from before a save is not on disk.
+    int saves = 0;
+    void parse(FileBuffer *data);
+    // Everything read from the file, gone.
+    void clearContent();
+    // Saved: nothing in it changed since.
+    void setSaved();
     //QVector<Service*>* Services;
     //QVector<Traffic*>* Traffics;
     //QVector<Path*>* Paths;

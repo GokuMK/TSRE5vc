@@ -110,6 +110,8 @@ private:
     ActivityEvent::Outcome* outcome = NULL;
     
     QMap<QString, QPushButton*> buttonTools;
+    // The activity of the event shown, or NULL.
+    Activity *eventActivity();
     PreciseTileCoordinate* coordinate = NULL;
     
     void selctOutcomeOnList(int id);

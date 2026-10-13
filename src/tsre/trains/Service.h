@@ -14,12 +14,15 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <memory>
+#include <tsre/trains/TextSnapshot.h>
 
 class RenderQueue;
 
 class GLUU;
 class Path;
 class Consist;
+class FileBuffer;
 
 struct MapFeatures;
 
@@ -70,6 +73,11 @@ public:
     void setTrainConfig(QString val);
     void load();
     void save();
+    // The file's text, as save writes it.
+    QString toText();
+    // Undo: the service as text, and back.
+    std::shared_ptr<TextSnapshot> snapshot();
+    void restore(const TextSnapshot &snapshot);
     Consist *getConsistPointer();
     void updateSim(float *playerT, float deltaTime);
     void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId);
@@ -83,8 +91,11 @@ public:
 private:
     bool modified = false;
     int serial = -1;
+    // Times saved: a state restored from before a save is not on disk.
+    int saves = 0;
     Path *pathPointer = NULL;
     Consist *conPointer = NULL;
+    void parse(FileBuffer *data);
 };
 
 #endif	/* SERVICE_H */

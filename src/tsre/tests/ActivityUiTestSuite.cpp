@@ -37,12 +37,14 @@
 #include <routeEditor/activity/ActivityTimetableWindow.h>
 #include <routeEditor/activity/ActivityTrafficWindow.h>
 #include <tsre/Game.h>
+#include <tsre/Undo.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ActivityEvent.h>
+#include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/Service.h>
@@ -415,8 +417,20 @@ public:
 
     explicit Monkey(quint32 seed) : random(seed) {}
 
+    int undos = 0;
+
     void run(int steps) {
         for (int i = 0; i < steps; ++i) {
+            // Undo now and then (Ctrl+Z): the windows let go of what it
+            // replaces.
+            if (random.bounded(25) == 0) {
+                ++undos;
+                if (trace)
+                    qInfo().noquote() << "[tests:activity-ui] undo";
+                Undo::UndoLast();
+                QApplication::processEvents();
+                continue;
+            }
             QList<QPointer<QWidget>> widgets = usable();
             if (widgets.isEmpty())
                 return;
@@ -837,7 +851,10 @@ for (QWidget *window : windows)
     const bool trace = qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_TRACE");
     bool seedSet = false;
     const quint32 seed = qEnvironmentVariableIntValue("TSRE_ACTIVITY_UI_SEED", &seedSet);
-    int actions = 0;
+    int actions = 0, undos = 0, restores = 0;
+    Undo::Clear();
+    const QMetaObject::Connection restoring = QObject::connect(
+            ActivityNotifier::instance(), &ActivityNotifier::restored, [&] { ++restores; });
     for (int round = 0; round < 4; ++round) {
         Monkey monkey((seedSet ? seed : 20261013) + round);
         monkey.windows = windows;
@@ -850,7 +867,6 @@ for (QWidget *window : windows)
         for (QWidget *window : windows)
             window->show();
         monkey.run(1500);
-        actions += monkey.actions;
         if (activities) {
             activities->setCurrentIndex(-1);
             emit activities->textActivated(QString());
@@ -859,6 +875,7 @@ for (QWidget *window : windows)
         timetable.showTimetable(nullptr);
         monkey.run(300);
         actions += monkey.actions;
+        undos += monkey.undos;
         if (activities && activities->count() > 0) {
             activities->setCurrentIndex(0);
             emit activities->textActivated(activities->currentText());
@@ -869,8 +886,11 @@ for (QWidget *window : windows)
         tools.actTimetableOpenEnabled();
     }
     Game::trackDB = nullptr;
-    check(actions > 4000, QString("the windows survive %1 random actions, %2 dialogs answered")
-          .arg(actions).arg(closer.answered));
+    QObject::disconnect(restoring);
+    check(actions > 4000 && restores > 50,
+          QString("the windows survive %1 random actions, %2 undos (%3 restoring activity data), %4 dialogs answered")
+          .arg(actions).arg(undos).arg(restores).arg(closer.answered));
+    Undo::Clear();
 
     for (QWidget *window : windows)
         window->hide();

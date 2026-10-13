@@ -1623,7 +1623,10 @@ void Route::actPickNewEventLocation(int x, int z, float* p, bool useHeight){
     posT[1] = z;            
     int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
+        Undo::StateBegin();
+        Undo::PushActivityData(currentActivity);
         currentActivity->pickNewEventLocation(tpos);
+        Undo::StateEnd();
     }
 }
 
@@ -1640,7 +1643,10 @@ void Route::actNewLooseConsist(int x, int z, float* p, bool useHeight){
     posT[1] = z;            
     int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
+        Undo::StateBegin();
+        Undo::PushActivityData(currentActivity);
         currentActivity->newLooseConsist(tpos);
+        Undo::StateEnd();
     }
 }
 
@@ -1672,7 +1678,10 @@ void Route::actNewNewSpeedZone(int x, int z, float* p, bool useHeight){
     posT[1] = z;            
     int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
+        Undo::StateBegin();
+        Undo::PushActivityData(currentActivity);
         currentActivity->newSpeedZone(tpos);
+        Undo::StateEnd();
     }
 }
 

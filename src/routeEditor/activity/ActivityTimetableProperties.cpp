@@ -9,6 +9,7 @@
  */
 
 #include "ActivityTimetableProperties.h"
+#include <routeEditor/activity/ActivityEdit.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTimetable.h>
@@ -103,8 +104,9 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
 ActivityTimetableProperties::~ActivityTimetableProperties() {
 }
 
-void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
+void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s, Activity *owner){
     service = s;
+    activity = s != NULL ? owner : NULL;
     ActivityTimetable *t = service != NULL ? service->trafficDefinition : NULL;
     if(t == NULL){
         service = NULL;
@@ -180,9 +182,11 @@ void ActivityTimetableProperties::bCalculateSelected(){
     if(service == NULL)
         return;
     
+    ActivityEdit edit(activity);
+    edit.alsoTrafficOf(activity);
     service->calculateTimetable();
 
-    showTimetable(service);
+    showTimetable(service, activity);
 }
 
 void ActivityTimetableProperties::lTimetableSelected(int row, int column){
@@ -192,8 +196,10 @@ void ActivityTimetableProperties::lTimetableSelected(int row, int column){
         return;
     ActivityTimetable *t = service->trafficDefinition;
     
-    if(column < 1)
+    if(column < 1 || t == NULL)
         return;
+    ActivityEdit edit(activity);
+    edit.alsoTrafficOf(activity);
     QTime time;
     if(column == 1){
         time = QTime::fromString(lTimetable.item(row, column)->text(), "HH:mm:ss");

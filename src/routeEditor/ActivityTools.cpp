@@ -28,6 +28,8 @@
 #include <tsre/gui/UnsavedDialog.h>
 #include <tsre/world/Trk.h>
 #include <tsre/fileFunctions/ContentPath.h>
+#include <routeEditor/activity/ActivityEdit.h>
+#include <tsre/trains/ActivityNotifier.h>
 #include <QDialog>
 #include <QEvent>
 #include <QDialogButtonBox>
@@ -40,6 +42,11 @@
 
 ActivityTools::ActivityTools(QString name)
     : QWidget(){
+    // Undo replaces the activity's data: its settings and lists again.
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored, this, [this] {
+        if(currentActivity() != NULL)
+            activitySelected(QString());
+    });
     setFixedWidth(250);
     cSeason.setStyleSheet("combobox-popup: 0;");
     cSeason.addItem(
@@ -1043,6 +1050,7 @@ void ActivityTools::cServiceEnabled(QString val){
     if(a == NULL)
         return;
 
+    ActivityEdit edit(a);
     if(id == -1){
         a->clearPlayerService();
     } else if(ActLib::Services.value(id) != NULL) {
@@ -1059,6 +1067,7 @@ void ActivityTools::cTrafficEnabled(QString val){
     if(a == NULL)
         return;
 
+    ActivityEdit edit(a);
     if(id == -1){
         a->clearTraffic();
     } else if(ActLib::Traffics.value(id) != NULL) {
@@ -1100,6 +1109,7 @@ void ActivityTools::actConsistDeleteEnabled(){
     if(i < 0)
         return;
     
+    ActivityEdit edit(a);
     a->activityObjects[i]->remove();
     reloadActivityObjectLists();
     emit sendMsg("unselect");
@@ -1162,8 +1172,10 @@ void ActivityTools::actFailedSignalNewToolEnabled(){
     Activity *a = currentActivity();
     if(a == NULL)
         return;
+    ActivityEdit edit(a);
     bool ok = a->newFailedSignalFromSelected();
     if(!ok){
+        edit.cancel();
         QMessageBox msgBox;
         msgBox.setWindowTitle(
             //% "Signal not disabled!"
@@ -1190,6 +1202,7 @@ void ActivityTools::actFailedSignalDeleteEnabled(){
         return;
     if(i < 0)
         return;
+    ActivityEdit edit(a);
     a->activityFailedSignal[i]->remove();
     reloadActivityObjectLists();
     emit sendMsg("unselect");
@@ -1202,6 +1215,7 @@ void ActivityTools::actFailedSignalDeleteAllEnabled(){
     if(a == NULL)
         return;
     
+    ActivityEdit edit(a);
     a->removeAllFailedSignals();
     reloadActivityObjectLists();
     emit sendMsg("unselect");
@@ -1250,6 +1264,7 @@ void ActivityTools::actZoneDeleteEnabled(){
         return;
     if(i < 0)
         return;
+    ActivityEdit edit(a);
     a->restrictedSpeedZone[i]->remove();
     
     reloadActivityObjectLists();
@@ -1263,6 +1278,7 @@ void ActivityTools::actZoneDeleteAllEnabled(){
     if(a == NULL)
         return;
     
+    ActivityEdit edit(a);
     a->removeAllSpeedZones();
     reloadActivityObjectLists();
     emit sendMsg("unselect");
@@ -1285,6 +1301,7 @@ void ActivityTools::eFileNameEnabled(QString val){
     Activity *a = currentActivity();
     if(a == NULL)
         return;
+    ActivityEdit edit(a, true);
     a->setFileName(val);
 }
 
@@ -1293,6 +1310,7 @@ void ActivityTools::eDisplayNameEnabled(QString val){
     if(a == NULL)
         return;
     const int id = actShow.currentData().toInt();
+    ActivityEdit edit(a, true);
     a->setDisplayName(val);
     
     // The list shows the new name; the same activity stays chosen.
@@ -1305,6 +1323,7 @@ void ActivityTools::cDifficultyEnabled(int val){
     Activity *a = currentActivity();
     if(a == NULL)
         return;
+    ActivityEdit edit(a);
     a->setDifficulty(val);
 }
 
@@ -1312,6 +1331,7 @@ void ActivityTools::eDurationEnabled(){
     Activity *a = currentActivity();
     if(a == NULL)
         return;
+    ActivityEdit edit(a);
     a->setDuration(eDuration.time().hour(),  eDuration.time().minute());
 }
 
@@ -1319,6 +1339,7 @@ void ActivityTools::eStartTimeEnabled(){
     Activity *a = currentActivity();
     if(a == NULL)
         return;
+    ActivityEdit edit(a);
     a->setStartTime(eStartTime.time().hour(), eStartTime.time().minute(), eStartTime.time().second());
 }
 
@@ -1326,6 +1347,7 @@ void ActivityTools::cSeasonEnabled(int val){
     Activity *a = currentActivity();
     if(a == NULL)
         return;
+    ActivityEdit edit(a);
     a->setSeason(val);
 }
 
@@ -1333,6 +1355,7 @@ void ActivityTools::cWeatherEnabled(int val){
     Activity *a = currentActivity();
     if(a == NULL)
         return;
+    ActivityEdit edit(a);
     a->setWeather(val);
 }
 
@@ -1340,6 +1363,7 @@ void ActivityTools::cHornAtCrossingsEnabled(int val){
     Activity *a = currentActivity();
     if(a == NULL)
         return;
+    ActivityEdit edit(a);
     if(val == Qt::Checked)
         a->setOrtsHornAtCrossigns(true);
     else
@@ -1354,6 +1378,7 @@ void ActivityTools::eFuelCoalEnabled(QString val){
     int ival = val.toInt(&ok);
     if(!ok)
         return;
+    ActivityEdit edit(a, true);
     sFuelCoal.setValue(ival);
     a->setFuelCoal(ival);
 }
@@ -1363,6 +1388,7 @@ void ActivityTools::sFuelCoalEnabled(){
     if(a == NULL)
         return;
     eFuelCoal->setText(QString::number(sFuelCoal.value()));
+    ActivityEdit edit(a);
     a->setFuelCoal(sFuelCoal.value());
 }
 
@@ -1374,6 +1400,7 @@ void ActivityTools::eFuelDieselEnabled(QString val){
     int ival = val.toInt(&ok);
     if(!ok)
         return;
+    ActivityEdit edit(a, true);
     sFuelDiesel.setValue(ival);
     a->setFuelDiesel(ival);
 }
@@ -1383,6 +1410,7 @@ void ActivityTools::sFuelDieselEnabled(){
     if(a == NULL)
         return;
     eFuelDiesel->setText(QString::number(sFuelDiesel.value()));
+    ActivityEdit edit(a);
     a->setFuelDiesel(sFuelDiesel.value());
 }
 
@@ -1394,6 +1422,7 @@ void ActivityTools::eFuelWaterEnabled(QString val){
     int ival = val.toInt(&ok);
     if(!ok)
         return;
+    ActivityEdit edit(a, true);
     sFuelWater.setValue(ival);
     a->setFuelWater(ival);
 }
@@ -1403,6 +1432,7 @@ void ActivityTools::sFuelWaterEnabled(){
     if(a == NULL)
         return;
     eFuelWater->setText(QString::number(sFuelWater.value()));
+    ActivityEdit edit(a);
     a->setFuelWater(sFuelWater.value());
 }
 
@@ -1414,6 +1444,7 @@ void ActivityTools::eHazardAnimalEnabled(QString val){
     int ival = val.toInt(&ok);
     if(!ok)
         return;
+    ActivityEdit edit(a, true);
     sHazardAnimal.setValue(ival);
     a->setHazardAnimals(ival);
 }
@@ -1423,6 +1454,7 @@ void ActivityTools::sHazardAnimalEnabled(){
     if(a == NULL)
         return;
     eHazardAnimal->setText(QString::number(sHazardAnimal.value()));
+    ActivityEdit edit(a);
     a->setHazardAnimals(sHazardAnimal.value());
 }
 
@@ -1434,6 +1466,7 @@ void ActivityTools::eHazardPeopleEnabled(QString val){
     int ival = val.toInt(&ok);
     if(!ok)
         return;
+    ActivityEdit edit(a, true);
     sHazardPeople.setValue(ival);
     a->setHazardWorkers(ival);
 }
@@ -1443,6 +1476,7 @@ void ActivityTools::sHazardPeopleEnabled(){
     if(a == NULL)
         return;
     eHazardPeople->setText(QString::number(sHazardPeople.value()));
+    ActivityEdit edit(a);
     a->setHazardWorkers(sHazardPeople.value());
 }
 
@@ -1451,6 +1485,7 @@ void ActivityTools::eDescriptionEnabled(){
     if(a == NULL)
         return;
     QString txt = eDescription.toPlainText();
+    ActivityEdit edit(a, true);
     txt.replace("\n","\\n");
     a->setDescription(txt);
 }
@@ -1460,6 +1495,7 @@ void ActivityTools::eBriefingEnabled(){
     if(a == NULL)
         return;
     QString txt = eBriefing.toPlainText();
+    ActivityEdit edit(a, true);
     txt.replace("\n","\\n");
     a->setBriefing(txt);
 }
@@ -1478,6 +1514,7 @@ void ActivityTools::descriptionOpenEnabled(){
     dialog.exec();
     if(dialog.changed == 1){
         txt = dialog.textBox.toPlainText();
+        ActivityEdit edit(a);
         txt.replace("\n","\\n");
         a->setDescription(txt);
     }
@@ -1497,6 +1534,7 @@ void ActivityTools::briefingOpenEnabled(){
     dialog.exec();
     if(dialog.changed == 1){
         txt = dialog.textBox.toPlainText();
+        ActivityEdit edit(a);
         txt.replace("\n","\\n");
         a->setBriefing(txt);
     }

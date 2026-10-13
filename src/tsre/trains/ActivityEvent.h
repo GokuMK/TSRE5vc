@@ -193,6 +193,7 @@ public:
     QString getSidingDescription();
     bool setSidingFromSelected();
     void setParentActivity(Activity* a);
+    Activity *getParentActivity() const { return parentActivity; }
     void pushRenderItem(RenderQueue &queue, float *playerT, float playerRot, int renderMode);
     // A location event for the map mode: its place as a point and its
     // trigger area.

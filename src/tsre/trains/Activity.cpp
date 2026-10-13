@@ -119,7 +119,6 @@ Activity::Activity(QString src, QString p, QString n, bool isnew) {
 
 void Activity::load() {
 
-    QString sh;
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
@@ -133,7 +132,13 @@ void Activity::load() {
     file->close();
     data->toUtf16();
     data->skipBOM();
+    parse(data);
+    delete data;
+    loaded = 1;
+}
 
+void Activity::parse(FileBuffer *data) {
+    QString sh;
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         if (sh == ("simisa@@@@@@@@@@jinx0a0t______")) {
             continue;
@@ -331,11 +336,6 @@ void Activity::load() {
         ParserX::SkipToken(data);
         continue;
     }
-    delete data;
-    loaded = 1;
-
-    //save();
-    return;
 }
 
 void Activity::save() {
@@ -358,6 +358,86 @@ void Activity::save() {
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
+    out << toText();
+    out.flush();
+    file.close();
+    setSaved();
+    nowe = false;
+    ++saves;
+    
+    tpath = pathid;
+    tpath.remove(tpath.length()-4, 4);
+    tpath += ".asv";
+    tpath = ContentPath::normalize(tpath);
+    qDebug() << tpath;
+    QFile::remove(tpath);
+}
+
+void Activity::setSaved() {
+    modified = false;
+    for(ActivityObject *o : activityObjects)
+        o->setModified(false);
+    for(ActivityObject *o : restrictedSpeedZone)
+        o->setModified(false);
+    for(ActivityObject *o : activityFailedSignal)
+        o->setModified(false);
+    for(ActivityEvent *e : event)
+        e->setModified(false);
+    if(playerServiceDefinition != NULL)
+        playerServiceDefinition->setModified(false);
+    if(traffic != NULL)
+        for(ActivityServiceDefinition &s : traffic->service)
+            s.setModified(false);
+}
+
+std::shared_ptr<TextSnapshot> Activity::snapshot() {
+    auto copy = std::make_shared<TextSnapshot>();
+    copy->text = toText();
+    copy->unsaved = isUnSaved();
+    copy->saves = saves;
+    return copy;
+}
+
+void Activity::restore(const TextSnapshot &snapshot) {
+    clearContent();
+    FileBuffer *data = FileBuffer::fromText(snapshot.text);
+    parse(data);
+    delete data;
+    setSaved();
+    modified = snapshot.unsaved || snapshot.saves != saves;
+}
+
+void Activity::clearContent() {
+    currentEventSelected = NULL;
+    qDeleteAll(event);
+    event.clear();
+    qDeleteAll(activityObjects);
+    activityObjects.clear();
+    qDeleteAll(restrictedSpeedZone);
+    restrictedSpeedZone.clear();
+    qDeleteAll(activityFailedSignal);
+    activityFailedSignal.clear();
+    platformNumPassengersWaiting.clear();
+    delete header;
+    header = NULL;
+    delete playerServiceDefinition;
+    playerServiceDefinition = NULL;
+    delete traffic;
+    traffic = NULL;
+    for(QStringList *list : {&kept, &keptFile, &keptEvents, &keptObjects, &keptSpeedZones,
+                             &keptFailedSignals, &keptPassengers})
+        list->clear();
+    serial = -1;
+    nextServiceUID = -1;
+    nextActivityObjectUID = -1;
+    nextEventUID = 0;
+    ortsAIHornAtCrossings = -9999;
+    isInitActivityObjects = false;
+}
+
+QString Activity::toText() {
+    QString text;
+    QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0a0t______\n";
     out << "\n";
     out << "Tr_Activity (\n";
@@ -431,22 +511,7 @@ void Activity::save() {
     out << ")";
 
     out.flush();
-    file.close();
-    modified = false;
-    nowe = false;
-    for(int i = 0; i < activityObjects.size(); i++){
-        activityObjects[i]->setModified(false);
-    }
-    for(int i = 0; i < event.size(); i++){
-        event[i]->setModified(false);
-    }
-    
-    tpath = pathid;
-    tpath.remove(tpath.length()-4, 4);
-    tpath += ".asv";
-    tpath = ContentPath::normalize(tpath);
-    qDebug() << tpath;
-    QFile::remove(tpath);
+    return text;
 }
 
 void ActivityServiceDefinition::reloadTimetable(){
@@ -590,7 +655,6 @@ void ActivityServiceDefinition::save(QTextStream* out) {
             woff = "	";
             *out << woff << "		Service_Definition ( )\n";
         }
-        modified = false;
         return;
     }
     
@@ -624,8 +688,12 @@ void ActivityServiceDefinition::save(QTextStream* out) {
     }
     ParserX::WriteKept(out, kept, woff + "			");
     *out << woff << "		)\n";
-    
-    modified = false;
+}
+
+void ActivityServiceDefinition::setModified(bool val){
+    modified = val;
+    if(trafficDefinition != NULL)
+        trafficDefinition->setModified(val);
 }
 
 void ActivityServiceDefinition::pushRenderItems(RenderQueue &queue, float* playerT, int renderMode) {

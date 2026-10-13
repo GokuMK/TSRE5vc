@@ -65,6 +65,7 @@ public:
     QString getSpeedZoneName();
     void setModified(bool val);
     bool isUnSaved();
+    Activity *getParentActivity() const { return parentActivity; }
     int getId();
     int getSelectedElementId();
     int getFailedSignalId();

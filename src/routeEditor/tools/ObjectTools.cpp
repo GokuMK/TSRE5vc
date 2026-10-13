@@ -221,7 +221,10 @@ bool ObjectEditTool::key(ToolContext &ctx, QKeyEvent *event) {
                 }
             }
             if (object->typeObj == GameObj::activityobj) {
+                Undo::StateBegin();
+                Undo::PushGameObjData(object);
                 object->remove();
+                Undo::StateEnd();
                 ctx.message("refreshActivityTools");
             }
             ctx.select(nullptr);

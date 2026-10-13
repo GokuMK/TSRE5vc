@@ -9,6 +9,8 @@
  */
 
 #include "ActivityEventWindow.h"
+#include <tsre/trains/ActivityNotifier.h>
+#include <routeEditor/activity/ActivityEdit.h>
 #include "ActivityEventProperties.h"
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
@@ -110,6 +112,11 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     QObject::connect(&timeList, SIGNAL(itemClicked(QListWidgetItem*)),
                       this, SLOT(eventListSelected(QListWidgetItem*)));
     
+    // Undo replaces activity data: let go of it before, show it after.
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
+                     this, &ActivityEventWindow::activityDataRestoring);
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored,
+                     this, &ActivityEventWindow::activityDataRestored);
     QObject::connect(eventProperties, SIGNAL(eventNameChanged(int)),
                       this, SLOT(eventNameChanged(int)));
     
@@ -195,6 +202,7 @@ void ActivityEventWindow::bNewEventSelected(){
     if(category == ActivityEvent::CategoryUndefined)
         return;
 
+    ActivityEdit edit(activity);
     ActivityEvent *e = activity->newEvent(category);
     activity->currentEventSelected = e;
     eventProperties->showEvent(e);
@@ -204,6 +212,7 @@ void ActivityEventWindow::bNewEventSelected(){
 void ActivityEventWindow::bDeleteEventSelected(){
     if(activity == NULL || activity->currentEventSelected == NULL)
         return;
+    ActivityEdit edit(activity);
     // The properties stop showing it before it is freed.
     eventProperties->showEvent(NULL);
     activity->deleteEvent(activity->currentEventSelected);
@@ -211,4 +220,25 @@ void ActivityEventWindow::bDeleteEventSelected(){
 }
 
 ActivityEventWindow::~ActivityEventWindow() {
+}
+// The event shown is found again by its ID.
+void ActivityEventWindow::activityDataRestoring(){
+    restoredEventId = activity != NULL && activity->currentEventSelected != NULL
+            ? activity->currentEventSelected->id : -99999;
+    eventProperties->showEvent(NULL);
+    actionList.clear();
+    locationList.clear();
+    timeList.clear();
+}
+
+void ActivityEventWindow::activityDataRestored(){
+    if(activity == NULL)
+        return;
+    for(ActivityEvent *e : activity->event)
+        if(e != NULL && e->id == restoredEventId){
+            activity->currentEventSelected = e;
+            eventProperties->showEvent(e);
+            break;
+        }
+    showEvents(activity);
 }

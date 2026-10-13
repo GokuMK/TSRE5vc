@@ -26,6 +26,7 @@ public:
     // The service, or nothing: then the panel is empty and disabled.
     void showService(Service *s);
     void setPaths(QVector<Path*> &path);
+    Service *shownService() const;
 public slots:
     void cPathEnabled(int val);
     void cConFilesEnabled(int val);

@@ -139,11 +139,13 @@ void ActivityTimetable::load(FileBuffer* data) {
     }
 }
 
+void ActivityTimetable::setModified(bool val){
+    modified = val;
+}
+
 void ActivityTimetable::save(QTextStream* out, QString off) {
-    if(empty){
-        modified = false;
+    if(empty)
         return;
-    }
     if(actTimetable)
         *out << off << "Player_Traffic_Definition ( "<< time <<"\n";
     else
@@ -167,6 +169,4 @@ void ActivityTimetable::save(QTextStream* out, QString off) {
     }
     ParserX::WriteKept(out, kept, off + "	");
     *out << off << ")\n";
-    
-    modified = false;
 }

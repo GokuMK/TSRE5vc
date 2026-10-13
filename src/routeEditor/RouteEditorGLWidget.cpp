@@ -106,6 +106,7 @@
 #include <tsre/shape/ShapeLoader.h>
 #include <QDir>
 #include <QMessageBox>
+#include <tsre/trains/ActivityNotifier.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
@@ -126,6 +127,14 @@ m_zRot(0),
 tools(std::make_unique<ToolRegistry>()) {
     surface = RenderSurface::create(this, this);
     this->installEventFilter(this);
+    // Undo replaces activity data: a selected loose consist, speed zone or
+    // failed signal is gone.
+    connect(ActivityNotifier::instance(), &ActivityNotifier::restoring, this, [this] {
+        if (selectedObj != NULL && selectedObj->typeObj == GameObj::activityobj)
+            setSelectedObj(NULL);
+        if (lastSelectedObj != NULL && lastSelectedObj->typeObj == GameObj::activityobj)
+            lastSelectedObj = NULL;
+    });
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,

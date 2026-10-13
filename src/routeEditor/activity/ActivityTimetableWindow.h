@@ -30,6 +30,9 @@ public:
 public slots:
     void showTimetable(Activity *a);
     void listSelected(QListWidgetItem *item);
+    // Undo replaces activity data (ActivityNotifier).
+    void activityDataRestoring();
+    void activityDataRestored();
     
 signals:
     

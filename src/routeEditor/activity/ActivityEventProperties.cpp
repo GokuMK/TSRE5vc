@@ -9,6 +9,7 @@
  */
 
 #include "ActivityEventProperties.h"
+#include <routeEditor/activity/ActivityEdit.h>
 #include <routeEditor/tools/ToolButtons.h>
 #include <tsre/Game.h>
 #include <tsre/trains/ActivityEvent.h>
@@ -653,8 +654,10 @@ void ActivityEventProperties::showEvent(ActivityEvent *e){
 void ActivityEventProperties::bActionSidingSelected(){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     bool ok = event->setSidingFromSelected();
     if(!ok){
+        edit.cancel();
         QMessageBox msgBox;
         msgBox.setWindowTitle(
             //% "Siding not linked!"
@@ -673,6 +676,7 @@ void ActivityEventProperties::bActionSidingSelected(){
 void ActivityEventProperties::bAddOutcomeSelected(){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     int id = event->newOutcome();
     this->showEvent(event);   
     selctOutcomeOnList(id);
@@ -684,6 +688,7 @@ void ActivityEventProperties::bRemoveOutcomeSelected(){
     int id = outcomeList.currentRow();
     if(id < 0)
         return;
+    ActivityEdit edit(eventActivity());
     outcome = NULL;
     event->removeOutcome(id);
     this->showEvent(event);
@@ -750,6 +755,7 @@ void ActivityEventProperties::cActionTypeSelected(QString item){
     if(event == NULL)
         return;
 
+    ActivityEdit edit(eventActivity());
     event->setActionToNewType((ActivityEvent::EventType)cActionType.currentData().toInt());
     int id = outcomeList.currentRow();
     showEvent(event);
@@ -759,6 +765,7 @@ void ActivityEventProperties::cActionTypeSelected(QString item){
 void ActivityEventProperties::cStationStopActionSelected(QString item){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     event->setStationStop(cStationStopAction.currentData().toInt());
 }
 
@@ -766,6 +773,7 @@ void ActivityEventProperties::outcomeActoionListSelected(QString item){
     if(outcome == NULL)
         return;
 
+    ActivityEdit edit(eventActivity());
     outcome->setToNewType((ActivityEvent::Outcome::OutcomeType)cOutcome.currentData().toInt());
     
     int id = outcomeList.currentRow();
@@ -776,12 +784,14 @@ void ActivityEventProperties::outcomeActoionListSelected(QString item){
 void ActivityEventProperties::cOutcomeEventSelected(QString val){
     if(outcome == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     outcome->setEventLinkId(cOutcomeEvent.currentData().toInt());
 }
 
 void ActivityEventProperties::eSoundFileNameEdited(QString val){
     if(outcome == NULL)
         return;
+    ActivityEdit edit(eventActivity(), true);
     outcome->setSoundFileName(val);
 }
 
@@ -789,6 +799,7 @@ void ActivityEventProperties::cSoundTypeSelected(QString val){
     if(outcome == NULL)
         return;
     Q_UNUSED(val);
+    ActivityEdit edit(eventActivity());
     outcome->setSoundType(cSoundType.currentData().toString());
 }
 
@@ -796,6 +807,7 @@ void ActivityEventProperties::cWeatherChangeSelected(QString val){
     if(outcome == NULL)
         return;
     Q_UNUSED(val);
+    ActivityEdit edit(eventActivity());
     outcome->setWeatherName(cWeatherChange.currentData().toString());
 }
 
@@ -832,12 +844,14 @@ void ActivityEventProperties::selctOutcomeOnList(int id){
 void ActivityEventProperties::eOutcomeMessageSelected(){
     if(outcome == NULL)
         return;
+    ActivityEdit edit(eventActivity(), true);
     outcome->setMessage(eOutcomeMessage.toPlainText());
 }
 
 void ActivityEventProperties::eActivationLevelSelected(){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     event->setActivationLevel(eActivationLevel.value());
 }
 
@@ -846,6 +860,7 @@ void ActivityEventProperties::eNameSelected(){
         return;
     if(eName.text() == event->name)
         return;
+    ActivityEdit edit(eventActivity());
     event->setName(eName.text());
     emit eventNameChanged(event->id);
 }
@@ -853,12 +868,14 @@ void ActivityEventProperties::eNameSelected(){
 void ActivityEventProperties::eTriggeredTextSelected(QString val){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity(), true);
     event->setTriggeredText(val);
 }
 
 void ActivityEventProperties::eUntriggeredTextSelected(QString val){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity(), true);
     event->setUntriggeredText(val);
 }
 
@@ -866,24 +883,28 @@ void ActivityEventProperties::eActionSpeedSelected(){
     if(event == NULL)
         return;
     
+    ActivityEdit edit(eventActivity());
     event->setSpeed(eActionSpeed.value());
 }
 
 void ActivityEventProperties::eNotesSelected(QString val){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity(), true);
     event->setNotes(val);
 }
 
 void ActivityEventProperties::eLocationRadiusSelected(){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     event->setLocationRadius(eLocationRadius.value());
 }
 
 void ActivityEventProperties::cLocationStopSelected(int val){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     if(val == Qt::Checked)
         event->setLocationStop(true);
     else
@@ -893,6 +914,7 @@ void ActivityEventProperties::cLocationStopSelected(int val){
 void ActivityEventProperties::cReversableSelected(int val){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     if(val == Qt::Checked)
         event->setReversable(true);
     else
@@ -902,12 +924,14 @@ void ActivityEventProperties::cReversableSelected(int val){
 void ActivityEventProperties::eAutoContinueSelected(){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     event->setAutoContinue(eAutoContinue.value());
 }
 
 void ActivityEventProperties::cAutoContinueLabelSelected(int val){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     if(val == Qt::Checked){
         event->setAutoContinue(0);
         eAutoContinue.show();
@@ -918,9 +942,14 @@ void ActivityEventProperties::cAutoContinueLabelSelected(int val){
     }
 }
 
+Activity *ActivityEventProperties::eventActivity(){
+    return event != NULL ? event->getParentActivity() : NULL;
+}
+
 void ActivityEventProperties::eTimeSelected(QTime val){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity(), true);
     event->setTime(val.msecsSinceStartOfDay()/1000);
 }
 
@@ -949,6 +978,7 @@ void ActivityEventProperties::bPickEventLocationSelected(bool val){
 void ActivityEventProperties::bPickNewEventWagonToolSelected(){
     if(event == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     event->addSelectedWagonToList();
     
     int id = outcomeList.currentRow();
@@ -1003,6 +1033,7 @@ void ActivityEventProperties::bJumpToCarSelected(){
 void ActivityEventProperties::bRemoveCarSelected(){
     if(event == NULL || wagonList.currentItem() == NULL)
         return;
+    ActivityEdit edit(eventActivity());
     event->removeWagonListItem(wagonList.currentItem()->type());
     
     int id = outcomeList.currentRow();
@@ -1020,8 +1051,10 @@ void ActivityEventProperties::bDescCarSelected(){
         qtTrId("route.editor.activity.event.properties.title.wagon.item.description"));
     dialog.name.setText(event->getWagonListItemDescription(wagon));
     dialog.exec();
-    if(dialog.isOk && event != NULL)
+    if(dialog.isOk && event != NULL){
+        ActivityEdit edit(eventActivity());
         event->setWagonListItemDescription(wagon, dialog.name.text());
+    }
     
     int id = outcomeList.currentRow();
     showEvent(event);

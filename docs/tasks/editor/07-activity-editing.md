@@ -1,8 +1,7 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 and 2 done, phase 3 in progress (2026-10-13, branch
-`feature/activity-editing`): saving fixes done, undo for activity data
-next. Design decisions taken (below).
+Status: phases 1 to 3 done (2026-10-14, branch `feature/activity-editing`);
+phase 4 (Check Activity) next. Design decisions taken (below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -85,7 +84,7 @@ Suite `activity-roundtrip`: the written fixtures keep every block and
 save the same twice; all 441 local ACT, SRV and TRF files (`~/ORTS`) are
 read, written and read back with no difference.
 
-**Phase 3, saving (done 2026-10-13); undo for activity data next.**
+**Phase 3, saving and undo (done 2026-10-14).**
 - Save counts instead of a saved flag: a snapshot keeps how often its
   object had been saved; restoring one from before a save leaves the
   object unsaved, restoring the saved state leaves it saved. Paths have
@@ -104,8 +103,31 @@ read, written and read back with no difference.
 - The unsaved list already names each file. Narrowing (`SkipCount` above
   65535) is reported by Check Activity (phase 4).
 
+- Undo for activity data: `Undo::PushActivityData`, `PushServiceData`,
+  `PushTrafficData` keep the file's text (`toText`, the writer without the
+  file), whether it was unsaved and its save count; undo reads the text
+  back into the same object (`restore`). Writers no longer mark anything
+  saved (the timetable and service definition writers did); `save` does,
+  after writing.
+- `ActivityEdit` (activity windows) opens a step per edit, typing
+  continues one; service edits also keep the activities using the
+  service, timetable edits the activity's traffic. Map tools (new loose
+  consist, speed zone, event location) and the Delete key on activity
+  objects make steps too; `Undo::PushGameObjData` keeps an activity
+  object's activity, so dragging one is undone. A step that changed
+  nothing (a field left as it was) is dropped when it ends.
+- Restoring replaces events, objects and instances with new ones:
+  `ActivityNotifier` tells the windows before (they let go, the 3D view
+  drops a selected activity object) and after (they show the activity,
+  service, traffic and the event, by its ID, again). Activities naming
+  a restored traffic look its instances up again.
+
 Suite `activity-edit` (new): path naming, stops, instance keys, instance
-add and remove, on written files; `path-edit` gained save-then-undo.
+add and remove, undo of activities, services and traffic (text, saved
+state, notifications, no empty steps, instances found again), on written
+files; `path-edit` gained save-then-undo; the `activity-ui` monkey now
+also undoes (about 300 undos restoring activity data per run, 30 other
+seeds clean).
 
 ## Objective
 
@@ -580,10 +602,11 @@ stands alone.
   nothing chosen change nothing; selecting every row of every list changes
   nothing (`ActLib::GetUnsavedInfo` empty) and keeps the traffic
   timetables; event delete and new; service and traffic New refusing bad
-  and taken names, Delete removing the files. Then 12,000 random actions
+  and taken names, Delete removing the files. Then about 6,000 random actions
   (buttons, fields, combos, lists, tables, sliders) in four rounds,
   dialogs cancelled and confirmed, without and with a track database,
-  with and without an activity chosen: no crash. The sequence is fixed;
+  with and without an activity chosen, undoing now and then (phase
+  3): no crash. The sequence is fixed;
   `TSRE_ACTIVITY_UI_SEED` tries others, `TSRE_ACTIVITY_UI_TRACE` logs each
   action. Play is left out (it places the train on terrain the test route
   does not have).

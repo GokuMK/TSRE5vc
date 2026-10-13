@@ -9,6 +9,7 @@
  */
 
 #include "ActivityTimetableWindow.h"
+#include <tsre/trains/ActivityNotifier.h>
 #include "ActivityTimetableProperties.h"
 #include <tsre/trains/Activity.h>
 
@@ -32,6 +33,11 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     v->addWidget(timetableProperties);
     this->setLayout(v);
     
+    // Undo replaces activity data: let go of it before, show it after.
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
+                     this, &ActivityTimetableWindow::activityDataRestoring);
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored,
+                     this, &ActivityTimetableWindow::activityDataRestored);
     QObject::connect(&list, SIGNAL(itemClicked(QListWidgetItem*)),
                       this, SLOT(listSelected(QListWidgetItem*)));
 }
@@ -75,5 +81,16 @@ void ActivityTimetableWindow::listSelected(QListWidgetItem *item){
     services = activity->getServiceList();
     if(item->type() < 0 || item->type() >= services.size())
         return;
-    timetableProperties->showTimetable(services[item->type()]);
+    timetableProperties->showTimetable(services[item->type()], activity);
+}
+// The activity's instances are replaced: let go of them, list them again.
+void ActivityTimetableWindow::activityDataRestoring(){
+    timetableProperties->showTimetable(NULL);
+    list.clear();
+    services.clear();
+}
+
+void ActivityTimetableWindow::activityDataRestored(){
+    if(activity != NULL)
+        showTimetable(activity);
 }

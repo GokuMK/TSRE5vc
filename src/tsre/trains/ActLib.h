@@ -57,6 +57,9 @@ public:
     // Take a deleted service or traffic out of the library; the objects
     // stay, as activities may still point at them.
     static void RemoveService(Service *service);
+    // The activities stop pointing at the traffic's instances (it is
+    // restored by undo); they look them up again when used.
+    static void ForgetInstances(Traffic *traffic);
     static void RemoveTraffic(Traffic *traffic);
     // The activities and traffic of its route that name the service; the
     // activities that name the traffic.

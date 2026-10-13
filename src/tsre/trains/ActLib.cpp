@@ -250,6 +250,20 @@ void ActLib::RemoveService(Service *service) {
             it.value() = NULL;
 }
 
+void ActLib::ForgetInstances(Traffic *traffic) {
+    if (traffic == NULL)
+        return;
+    // Every instance of the traffic, removed ones too: activities naming it.
+    for (Activity *activity : Act) {
+        if (activity == NULL || activity->loaded != 1 || activity->traffic == NULL
+                || activity->routeHashid != traffic->routeHashid
+                || activity->traffic->name.compare(traffic->nameId, Qt::CaseInsensitive) != 0)
+            continue;
+        for (ActivityServiceDefinition &instance : activity->traffic->service)
+            instance.trafficDefinition = NULL;
+    }
+}
+
 void ActLib::RemoveTraffic(Traffic *traffic) {
     for (auto it = Traffics.begin(); it != Traffics.end(); ++it)
         if (it.value() == traffic)

@@ -10,6 +10,7 @@
 
 #include "ActivityTrafficProperties.h"
 #include <QDialogButtonBox>
+#include <routeEditor/activity/ActivityEdit.h>
 #include <QTime>
 #include <tsre/Game.h>
 #include <tsre/trains/Service.h>
@@ -151,6 +152,10 @@ void ActivityTrafficProperties::showTraffic(Traffic* t){
     lServcies.insertTopLevelItems(0, items);
 }
 
+Traffic *ActivityTrafficProperties::shownTraffic() const {
+    return traffic;
+}
+
 ActivityTimetable *ActivityTrafficProperties::selectedInstance(){
     if(traffic == NULL)
         return NULL;
@@ -228,6 +233,7 @@ void ActivityTrafficProperties::bCloneOutcomeSelected(){
     if(!ok)
         return;
     
+    ActivityEdit edit(traffic);
     for(int i = 0; i < count; i++){
         ActivityTimetable *copy = new ActivityTimetable();
         copy->routePath = s->routePath;
@@ -242,6 +248,7 @@ void ActivityTrafficProperties::bCloneOutcomeSelected(){
 void ActivityTrafficProperties::bAddServiceSelected(){
     if(traffic == NULL)
         return;
+    ActivityEdit edit(traffic);
     traffic->addInstance(new ActivityTimetable());
     //QModelIndex row = lServcies.currentIndex();
     showTraffic(traffic);
@@ -252,6 +259,7 @@ void ActivityTrafficProperties::bAddServiceSelected(){
 void ActivityTrafficProperties::bRemoveServiceSelected(){
     if(selectedInstance() == NULL)
         return;
+    ActivityEdit edit(traffic);
     traffic->removeInstance(lServcies.currentItem()->type());
     showTraffic(traffic);
 }
@@ -265,6 +273,7 @@ void ActivityTrafficProperties::serviceActoionListSelected(QString val){
     if(s == NULL)
         return;
 
+    ActivityEdit edit(traffic);
     if(index == "")
         s->clear();
     else
@@ -277,6 +286,7 @@ void ActivityTrafficProperties::eTimeSelected(QTime val){
     ActivityTimetable* s = selectedInstance();
     if(s == NULL)
         return;
+    ActivityEdit edit(traffic, true);
     s->setTime(val.msecsSinceStartOfDay()/1000);
     lServcies.currentItem()->setText(1, val.toString("HH:mm:ss"));
 }

@@ -31,6 +31,9 @@ public slots:
     void showTraffic(Route* r);
     void bNewTrafficSelected();
     void bDeleteTrafficSelected();
+    // Undo replaces activity data (ActivityNotifier).
+    void activityDataRestoring();
+    void activityDataRestored();
     
 signals:
     void reloadTrafficsList();

@@ -14,8 +14,11 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <memory>
+#include <tsre/trains/TextSnapshot.h>
 
 class ActivityTimetable;
+class FileBuffer;
 
 class Traffic {
 public:
@@ -39,6 +42,12 @@ public:
     virtual ~Traffic();
     void load();
     void save();
+    // The file's text, as save writes it.
+    QString toText();
+    // Undo: the traffic as text, and back. Restoring replaces its
+    // instances: activities pointing at the old ones look them up again.
+    std::shared_ptr<TextSnapshot> snapshot();
+    void restore(const TextSnapshot &snapshot);
     bool isModified();
     // The instance of the service starting at the time, as Open Rails
     // matches them (the pair, not a joined text: "a1" at 23 is not "a" at
@@ -51,6 +60,9 @@ public:
 private:
     bool modified = false;
     int serial = -1;
+    // Times saved: a state restored from before a save is not on disk.
+    int saves = 0;
+    void parse(FileBuffer *data);
 };
 
 #endif	/* TRAFFIC_H */

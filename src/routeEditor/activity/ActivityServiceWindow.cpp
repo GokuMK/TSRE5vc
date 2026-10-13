@@ -9,6 +9,7 @@
  */
 
 #include "ActivityServiceWindow.h"
+#include <tsre/trains/ActivityNotifier.h>
 #include <routeEditor/activity/ActivityServiceProperties.h>
 #include <tsre/Game.h>
 #include <tsre/trains/Activity.h>
@@ -31,6 +32,11 @@ ActivityServiceWindow::ActivityServiceWindow(QWidget* parent) : QWidget(parent) 
     QPushButton *bNewActionEvent = new QPushButton(
         //% "New Service"
         qtTrId("route.editor.activity.service.window.button.b.new.action.event"));
+    // Undo replaces activity data: let go of it before, show it after.
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
+                     this, &ActivityServiceWindow::activityDataRestoring);
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored,
+                     this, &ActivityServiceWindow::activityDataRestored);
     QObject::connect(bNewActionEvent, SIGNAL(released()),
                       this, SLOT(bNewServiceSelected()));
     QPushButton *bDeleteActionEvent = new QPushButton(
@@ -193,4 +199,16 @@ void ActivityServiceWindow::bDeleteServiceSelected(){
     ActLib::RemoveService(service);
     showServices(route);
     emit reloadServicesList();
+}
+// Services are restored in place: the one shown is shown again.
+void ActivityServiceWindow::activityDataRestoring(){
+}
+
+void ActivityServiceWindow::activityDataRestored(){
+    if(route == NULL)
+        return;
+    Service *service = serviceProperties->shownService();
+    showServices(route);
+    if(service != NULL)
+        serviceProperties->showService(service);
 }

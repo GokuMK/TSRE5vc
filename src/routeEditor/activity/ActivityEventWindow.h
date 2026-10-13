@@ -29,10 +29,15 @@ public slots:
     void eventNameChanged(int id);
     void bNewEventSelected();
     void bDeleteEventSelected();
+    // Undo replaces activity data (ActivityNotifier).
+    void activityDataRestoring();
+    void activityDataRestored();
 signals:
     
         
 private:
+    // The ID of the event shown when undo replaced the activity's events.
+    int restoredEventId = -99999;
     QWidget actionWidget;
     QWidget locationWidget;
     QWidget timeWidget;

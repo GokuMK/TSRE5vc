@@ -9,6 +9,7 @@
  */
 
 #include "ActivityTrafficWindow.h"
+#include <tsre/trains/ActivityNotifier.h>
 #include "ActivityTrafficProperties.h"
 #include <tsre/world/Route.h>
 #include <tsre/trains/Traffic.h>
@@ -31,6 +32,11 @@ ActivityTrafficWindow::ActivityTrafficWindow(QWidget* parent) : QWidget(parent) 
     QPushButton *bNew = new QPushButton(
         //% "New Traffic"
         qtTrId("route.editor.activity.traffic.window.button.b.new"));
+    // Undo replaces activity data: let go of it before, show it after.
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
+                     this, &ActivityTrafficWindow::activityDataRestoring);
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored,
+                     this, &ActivityTrafficWindow::activityDataRestored);
     QObject::connect(bNew, SIGNAL(released()),
                       this, SLOT(bNewTrafficSelected()));
     QPushButton *bDelete = new QPushButton(
@@ -185,4 +191,13 @@ void ActivityTrafficWindow::bDeleteTrafficSelected(){
     ActLib::RemoveTraffic(traffic);
     showTraffic(route);
     emit reloadTrafficsList();
+}
+// Traffic is restored in place, its instances anew: shown again.
+void ActivityTrafficWindow::activityDataRestoring(){
+}
+
+void ActivityTrafficWindow::activityDataRestored(){
+    Traffic *traffic = trafficProperties->shownTraffic();
+    if(traffic != NULL)
+        trafficProperties->showTraffic(traffic);
 }

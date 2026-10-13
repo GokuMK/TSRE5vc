@@ -38,6 +38,7 @@ public:
     // end of the instance.
     QStringList kept;
     void load(FileBuffer* data);
+    void setModified(bool val);
     void save(QTextStream* out, QString off = "");
     void reloadTimetable();
     void setService(QString sn);

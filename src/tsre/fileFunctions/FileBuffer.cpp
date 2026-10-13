@@ -34,6 +34,14 @@ FileBuffer::FileBuffer(const FileBuffer* orig) {
     std::copy ( orig->data, orig->data+length, data );
 }
 
+FileBuffer* FileBuffer::fromText(const QString &text) {
+    const int length = text.size() * 2;
+    unsigned char *bytes = new unsigned char[length];
+    for (int i = 0; i < text.size(); ++i)
+        qToLittleEndian<quint16>(text[i].unicode(), bytes + 2 * i);
+    return new FileBuffer(bytes, length);
+}
+
 FileBuffer::~FileBuffer() {
     delete[] this->data;
 }

@@ -15,6 +15,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/ActLib.h>
+#include <routeEditor/activity/ActivityEdit.h>
 
 ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(parent) {
     //this->setMinimumHeight(400);
@@ -194,6 +195,8 @@ void ActivityServiceProperties::showService(Service *s){
 void ActivityServiceProperties::cPathEnabled(int val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service);
+    edit.alsoUsersOf(service);
     if(cPath.currentIndex() <= 0 || cPath.currentIndex() > paths.size()){
         service->setNewPath("");
         setStationList();
@@ -213,29 +216,39 @@ void ActivityServiceProperties::cPathEnabled(int val){
 void ActivityServiceProperties::eDisplayNameEnabled(QString val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service, true);
+    edit.alsoUsersOf(service);
     service->setDisplayName(val);
 }
 void ActivityServiceProperties::ePlayerPerformanceEnabled(QString val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service, true);
+    edit.alsoUsersOf(service);
     service->setEfficiency(val.toFloat());
 }
 
 void ActivityServiceProperties::eStartSpeedEnabled(QString val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service, true);
+    edit.alsoUsersOf(service);
     service->setStartSpeed(val.toFloat());
 }
 
 void ActivityServiceProperties::eEndSpeedEnabled(QString val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service, true);
+    edit.alsoUsersOf(service);
     service->setEndSpeed(val.toFloat());
 }
     
 void ActivityServiceProperties::cConFilesEnabled(int val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service);
+    edit.alsoUsersOf(service);
     if(cConFiles.currentIndex() <= 0){
         service->setTrainConfig("");
         return;
@@ -255,6 +268,10 @@ void ActivityServiceProperties::bOkEnabled(){
     this->close();
 }
 */
+Service *ActivityServiceProperties::shownService() const {
+    return service;
+}
+
 void ActivityServiceProperties::setStationList(){
     stationList.clear();
     QStringList list;
@@ -319,6 +336,8 @@ void ActivityServiceProperties::setUsedByList(){
 void ActivityServiceProperties::stationListSelected(QTreeWidgetItem* item, int column){
     if(service == NULL || item == NULL)
         return;
+    ActivityEdit edit(service);
+    edit.alsoUsersOf(service);
     if(item->checkState(0) == Qt::Checked){
         qDebug() << "item->checkState(0) == Qt::Checked";
         service->enableStationStop(item->type());

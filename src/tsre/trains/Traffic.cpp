@@ -19,6 +19,8 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/trains/ActivityTimetable.h>
+#include <tsre/trains/ActLib.h>
+#include <tsre/trains/Activity.h>
 
 Traffic::Traffic(QString p, QString n, bool nowe) {
     pathid = p + "/" + n;
@@ -45,7 +47,6 @@ Traffic::~Traffic() {
 }
 
 void Traffic::load(){
-    QString sh;
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
@@ -59,7 +60,13 @@ void Traffic::load(){
     file->close();
     data->toUtf16();
     data->skipBOM();
+    parse(data);
+    delete data;
+    loaded = 1;
+}
 
+void Traffic::parse(FileBuffer *data){
+    QString sh;
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         //qDebug() << sh;
         if (sh == ("simisa@@@@@@@@@@jinx0f0t______")) {
@@ -88,7 +95,26 @@ void Traffic::load(){
         qDebug() << "#TRF - undefined token: " << sh;
         ParserX::SkipToken(data);
     }
-    loaded = 1;
+}
+
+std::shared_ptr<TextSnapshot> Traffic::snapshot(){
+    auto copy = std::make_shared<TextSnapshot>();
+    copy->text = toText();
+    copy->unsaved = isModified();
+    copy->saves = saves;
+    return copy;
+}
+
+void Traffic::restore(const TextSnapshot &snapshot){
+    ActLib::ForgetInstances(this);
+    qDeleteAll(service);
+    service.clear();
+    kept.clear();
+    serial = -1;
+    FileBuffer *data = FileBuffer::fromText(snapshot.text);
+    parse(data);
+    delete data;
+    modified = snapshot.unsaved || snapshot.saves != saves;
 }
 
 ActivityTimetable* Traffic::getInstance(const QString &serviceName, int time){
@@ -139,7 +165,18 @@ void Traffic::save(){
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
-    
+    out << toText();
+    out.flush();
+    file.close();
+    modified = false;
+    for(ActivityTimetable *instance : service)
+        instance->setModified(false);
+    ++saves;
+}
+
+QString Traffic::toText(){
+    QString text;
+    QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0f0t______\n";
     out << "\n";
     out << "Traffic_Definition ( " << ParserX::AddComIfReq(nameId) << "\n";
@@ -153,7 +190,4 @@ void Traffic::save(){
     }
     ParserX::WriteKept(&out, kept, off);
     out << ")\n";
-    
-    file.close();
-    modified = false;
-}
+    out.flush();    return text;}

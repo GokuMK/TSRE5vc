@@ -6,7 +6,11 @@
 #include <QScopedValueRollback>
 #include <QTemporaryDir>
 #include <tsre/Game.h>
+#include <tsre/Undo.h>
 #include <tsre/trains/ActLib.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/EngLib.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/Service.h>
@@ -86,6 +90,68 @@ Traffic_Definition ( Keys
 )
 )";
 
+// Three events, a comment kept, an AI instance of Keys.trf.
+const char *activityText = R"(SIMISA@@@@@@@@@@JINX0a0t______
+
+Tr_Activity (
+	Serial ( 1 )
+	Tr_Activity_Header (
+		RouteID ( TEST )
+		Name ( "Undo" )
+		Description ( "Text" )
+		Briefing ( "Text" )
+		CompleteActivity ( 1 )
+		Type ( 0 )
+		Mode ( 2 )
+		StartTime ( 8 0 0 )
+		Season ( 1 )
+		Weather ( 0 )
+		PathID ( Other )
+		StartingSpeed ( 0 )
+		Duration ( 1 0 )
+		Difficulty ( 1 )
+		Animals ( 0 )
+		Workers ( 0 )
+		FuelWater ( 100 )
+		FuelCoal ( 100 )
+		FuelDiesel ( 100 )
+	)
+	Tr_Activity_File (
+		Player_Service_Definition ( Stops
+			Player_Traffic_Definition ( 28800
+			)
+			UiD ( 0 )
+		)
+		NextServiceUID ( 2 )
+		NextActivityObjectUID ( 32768 )
+		ORTSAICrossingHornPattern ( US )
+		Traffic_Definition ( Keys
+			Service_Definition ( a1 23
+				UiD ( 1 )
+			)
+		)
+		Events (
+			EventCategoryTime (
+				EventTypeTime ( )
+				ID ( 1 )
+				Activation_Level ( 1 )
+				Outcomes ( )
+				Name ( "One" )
+				Time ( 60 )
+			)
+			EventCategoryTime (
+				EventTypeTime ( )
+				ID ( 2 )
+				Activation_Level ( 1 )
+				Outcomes ( )
+				Name ( "Two" )
+				Time ( 120 )
+			)
+		)
+	)
+)
+)";
+
 }
 
 int TsreTests::runActivityEditSuite(bool verbose) {
@@ -97,13 +163,14 @@ int TsreTests::runActivityEditSuite(bool verbose) {
 
     QTemporaryDir temp;
     const QString route = temp.path() + "/ROUTES/TEST";
-    for (const QString &dir : {"PATHS", "SERVICES", "TRAFFIC"})
+    for (const QString &dir : {"PATHS", "SERVICES", "TRAFFIC", "ACTIVITIES"})
         QDir().mkpath(route + "/" + dir);
     // Other.pat is named "Different" inside; Trap.pat is named "Other".
     check(writeSimis(route + "/PATHS/Other.pat", pathText("Different"))
           && writeSimis(route + "/PATHS/Trap.pat", pathText("Other"))
           && writeSimis(route + "/SERVICES/Stops.srv", serviceText)
-          && writeSimis(route + "/TRAFFIC/Keys.trf", trafficText),
+          && writeSimis(route + "/TRAFFIC/Keys.trf", trafficText)
+          && writeSimis(route + "/ACTIVITIES/Undo.act", activityText),
           "write the test route");
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "TEST");
@@ -154,6 +221,100 @@ int TsreTests::runActivityEditSuite(bool verbose) {
     removed.removeInstance(0);
     check(removed.service.size() == 1 && removed.isModified(), "a removed instance marks the traffic changed");
 
+    // Undo of activity data: the text kept, restored into the same objects.
+    EngLib engines;
+    const QScopedValueRollback<EngLib*> engineLibrary(Game::currentEngLib,
+            Game::currentEngLib != nullptr ? Game::currentEngLib : &engines);
+    const int firstAct = ActLib::jestact, firstTraffic = ActLib::jesttraffic;
+    Activity *activity = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "Undo.act"));
+    Traffic *keys = ActLib::Traffics.value(ActLib::AddTraffic(route + "/TRAFFIC", "Keys.trf"));
+    check(activity && activity->loaded == 1 && activity->event.size() == 2 && keys && keys->loaded == 1,
+          "the activity and its traffic load");
+    if (activity && keys) {
+        const QString original = activity->toText();
+        int restoring = 0, restored = 0;
+        QMetaObject::Connection before = QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
+                                                          [&] { ++restoring; });
+        QMetaObject::Connection after = QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored,
+                                                         [&] { ++restored; });
+        Undo::StateBegin();
+        Undo::PushActivityData(activity);
+        activity->setDisplayName("Renamed");
+        activity->deleteEvent(activity->event[0]);
+        activity->newEvent(ActivityEvent::CategoryAction);
+        Undo::StateEnd();
+        check(activity->isUnSaved() && activity->header->name == "Renamed", "the edit is made");
+        Undo::UndoLast();
+        check(activity->toText() == original && activity->event.size() == 2 && activity->event[0]->name == "One",
+              "undo restores the activity's text, events and kept blocks");
+        check(!activity->isUnSaved(), "undo back to the loaded state leaves it saved");
+        check(restoring == 1 && restored == 1, "the windows are told before and after");
+
+        // An edit that changes nothing is no step: undo goes to the one before.
+        Undo::StateBegin();
+        Undo::PushActivityData(activity);
+        activity->setDisplayName("First");
+        Undo::StateEnd();
+        Undo::StateBegin();
+        Undo::PushActivityData(activity);
+        Undo::StateEnd();
+        Undo::UndoLast();
+        check(activity->header->name == "Undo", "an edit that changed nothing leaves no undo step");
+
+        // Saved, then undone: what is restored is not on disk.
+        const QString activityPath = activity->path, activityFile = activity->pathid;
+        activity->path = temp.path();
+        activity->pathid = temp.path() + "/Undo.act";
+        Undo::StateBegin();
+        Undo::PushActivityData(activity);
+        activity->setDisplayName("Saved");
+        Undo::StateEnd();
+        activity->save();
+        check(!activity->isUnSaved(), "saved");
+        Undo::UndoLast();
+        check(activity->header->name == "Undo" && activity->isUnSaved(), "undo after a save leaves the activity unsaved");
+        activity->path = activityPath;
+        activity->pathid = activityFile;
+
+        // Traffic: its instances are new objects after undo; the activity
+        // finds them again.
+        QVector<ActivityServiceDefinition*> instances = activity->getServiceList();
+        ActivityServiceDefinition *ai = nullptr;
+        for (ActivityServiceDefinition *s : instances)
+            if (!s->player)
+                ai = s;
+        check(ai && ai->trafficDefinition == keys->getInstance("a1", 23), "the AI instance points at its timetable");
+        Undo::StateBegin();
+        Undo::PushTrafficData(keys);
+        keys->removeInstance(0);
+        Undo::StateEnd();
+        Undo::UndoLast();
+        check(ai && ai->trafficDefinition == nullptr && keys->service.size() == 2 && !keys->isModified(),
+              "undo restores the traffic; activities let go of its old instances");
+        activity->getServiceList();
+        check(ai && ai->trafficDefinition == keys->getInstance("a1", 23), "and find the new ones");
+
+        // Services restore in place.
+        Service *stops = ActLib::Services.value(ActLib::AddService(route + "/SERVICES", "Stops.srv"));
+        if (stops) {
+            const QString text = stops->toText();
+            Undo::StateBegin();
+            Undo::PushServiceData(stops);
+            stops->disableStationStop(1);
+            stops->setDisplayName("Changed");
+            Undo::StateEnd();
+            Undo::UndoLast();
+            check(stops->toText() == text && stops->stationStop.size() == 2 && !stops->isModified(),
+                  "undo restores a service");
+        } else {
+            check(false, "the service loads");
+        }
+        QObject::disconnect(before);
+        QObject::disconnect(after);
+    }
+    Undo::Clear();
+    for (int id = firstAct; id < ActLib::jestact; ++id) ActLib::Act[id] = nullptr;
+    for (int id = firstTraffic; id < ActLib::jesttraffic; ++id) ActLib::Traffics[id] = nullptr;
     for (int id = firstPath; id < ActLib::jestpath; ++id)
         ActLib::Paths[id] = nullptr;
     qInfo().noquote() << QString("activity-edit: %1 passed, %2 failed").arg(passed).arg(failed);

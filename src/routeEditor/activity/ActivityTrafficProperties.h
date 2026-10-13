@@ -25,6 +25,7 @@ public:
     virtual ~ActivityTrafficProperties();
     // The traffic, or nothing: then the panel is empty and disabled.
     void showTraffic(Traffic* t);
+    Traffic *shownTraffic() const;
     
 public slots:
     void lServciesSelected(QTreeWidgetItem* item, int column);
