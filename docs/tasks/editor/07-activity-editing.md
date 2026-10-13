@@ -1,7 +1,8 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 and 2 done (2026-10-13, branch `feature/activity-editing`);
-phase 3 next. Design decisions taken (below).
+Status: phases 1 and 2 done, phase 3 in progress (2026-10-13, branch
+`feature/activity-editing`): saving fixes done, undo for activity data
+next. Design decisions taken (below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -83,6 +84,28 @@ windows list the library's objects of every loaded route.
 Suite `activity-roundtrip`: the written fixtures keep every block and
 save the same twice; all 441 local ACT, SRV and TRF files (`~/ORTS`) are
 read, written and read back with no difference.
+
+**Phase 3, saving (done 2026-10-13); undo for activity data next.**
+- Save counts instead of a saved flag: a snapshot keeps how often its
+  object had been saved; restoring one from before a save leaves the
+  object unsaved, restoring the saved state leaves it saved. Paths have
+  it now (task 06's save-then-undo defect); activity, service and traffic
+  snapshots get it with their undo.
+- Dirty state: unticking a stop, choosing no path, a new speed zone or
+  failed signal, an added or cloned traffic instance mark their file
+  changed; ticking a stop beyond the path's platforms does nothing (it
+  read past the end).
+- Instances are found by the pair (service, start time), names in any
+  case (`Traffic::getInstance`); the joined `nameTime` is gone.
+- `PathID` is the file name: `ActLib::GetPathByName` tries the file
+  first, then `TrPathName`; the service panel lists paths by file and
+  writes the file name; `Service::initToPlay` and `PathUsers` use the
+  same (`Path::isNamed`).
+- The unsaved list already names each file. Narrowing (`SkipCount` above
+  65535) is reported by Check Activity (phase 4).
+
+Suite `activity-edit` (new): path naming, stops, instance keys, instance
+add and remove, on written files; `path-edit` gained save-then-undo.
 
 ## Objective
 

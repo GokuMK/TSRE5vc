@@ -413,6 +413,23 @@ int TsreTests::runPathEditSuite(bool verbose) {
         // A new path without nodes is not written.
         Path empty("C:/tsre-path-test", "empty.pat", true);
         check(!empty.save() && empty.isModified(), "an empty path is not saved");
+
+        // Saved, edited, saved, undone: the file holds the edit, so the
+        // path restored from before it is unsaved.
+        QTemporaryDir folder;
+        Path saved(folder.path(), "saved.pat", true);
+        saved.apply(start.nodes);
+        const bool firstSave = saved.save();
+        const auto clean = saved.snapshot();
+        saved.apply(reverse.nodes);
+        const bool secondSave = saved.save();
+        saved.restore(*clean);
+        check(firstSave && secondSave && saved.isModified(), "undo after a save leaves the path unsaved");
+        saved.save();
+        const auto afterSave = saved.snapshot();
+        saved.apply(reverse.nodes);
+        saved.restore(*afterSave);
+        check(!saved.isModified(), "undo back to the saved state leaves the path saved");
         Game::trackDB = previous;
     }
 

@@ -40,7 +40,11 @@ public:
     void load();
     void save();
     bool isModified();
-    ActivityTimetable* getTimetableByServiceName(QString nameTime);
+    // The instance of the service starting at the time, as Open Rails
+    // matches them (the pair, not a joined text: "a1" at 23 is not "a" at
+    // 123).
+    ActivityTimetable* getInstance(const QString &serviceName, int time);
+    void addInstance(ActivityTimetable *instance);
     // Takes the instance out of the traffic; the object stays, as
     // activities may point at it.
     void removeInstance(int index);

@@ -14,6 +14,7 @@
 #include <tsre/tests/ElevationUiTestSuite.h>
 #include <tsre/tests/ActivityUiTestSuite.h>
 #include <tsre/tests/ActivityRoundTripTestSuite.h>
+#include <tsre/tests/ActivityEditTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
@@ -4143,6 +4144,7 @@ QStringList TsreTests::listSuites() {
         "elevation-ui",
         "activity-ui",
         "activity-roundtrip",
+        "activity-edit",
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
@@ -4299,6 +4301,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "activity-roundtrip")
         return runActivityRoundTripSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "activity-edit")
+        return runActivityEditSuite(opts.verbose);
 
     if (suite == "new-route")
         return runNewRouteSuite(opts.verbose);

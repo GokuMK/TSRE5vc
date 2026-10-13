@@ -975,7 +975,7 @@ bool Activity::newFailedSignalFromSelected(){
     activityFailedSignal.back()->setFailedSignalData(tid);
     activityFailedSignal.back()->id = activityFailedSignal.size()-1;
     activityFailedSignal.back()->setParentActivity(this);
-    
+    modified = true;
     return true;
 }
 
@@ -990,6 +990,7 @@ void Activity::newSpeedZone(float *tdbPos){
     restrictedSpeedZone.back()->setSpeedZoneData(drawPosition);
     restrictedSpeedZone.back()->id = restrictedSpeedZone.size()-1;
     restrictedSpeedZone.back()->setParentActivity(this);
+    modified = true;
 }
 
 void Activity::newLooseConsist(float *tdbPos){
@@ -1295,7 +1296,7 @@ QVector<ActivityServiceDefinition*> Activity::getServiceList(){
     for(int i = 0; i < traffic->service.size(); i++){
         if(traffic->service[i].trafficDefinition == NULL){
             qDebug() << "trafficDefinition == NULL";
-            traffic->service[i].trafficDefinition = t->getTimetableByServiceName(traffic->service[i].name+QString::number(traffic->service[i].time));
+            traffic->service[i].trafficDefinition = t->getInstance(traffic->service[i].name, traffic->service[i].time);
         }
         if(traffic->service[i].trafficDefinition != NULL){
             qDebug() << "s.push_back";

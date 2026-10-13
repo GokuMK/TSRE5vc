@@ -173,12 +173,11 @@ void ActivityServiceProperties::showService(Service *s){
     cPath.addItem(
         //% "UNDEFINED"
         qtTrId("route.editor.activity.service.properties.item.undefined.2"), "#");
-    for(int i = 0; i < paths.size(); i++ )
-        cPath.addItem(paths[i]->displayName, /*QVariant(i)*/QVariant(paths[i]->trPathName));
-    if(s->pathId.length() > 0){
-        cPath.setCurrentIndex(cPath.findData(s->pathId));
-    } else {
-        cPath.setCurrentIndex(0);
+    cPath.setCurrentIndex(0);
+    for(int i = 0; i < paths.size(); i++ ){
+        cPath.addItem(paths[i]->displayName, QVariant(paths[i]->nameId));
+        if(s->pathId.length() > 0 && paths[i]->isNamed(s->pathId))
+            cPath.setCurrentIndex(i + 1);
     }
     
     eFileName.setText(s->nameId);
@@ -207,7 +206,7 @@ void ActivityServiceProperties::cPathEnabled(int val){
         setStationList();
         return;
     }
-    service->setNewPath(p->trPathName);
+    service->setNewPath(p->nameId);
     setStationList();
 }
 

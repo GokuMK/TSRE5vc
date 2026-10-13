@@ -245,6 +245,8 @@ Path *Service::getPathPointer() {
 }
 
 void Service::initToPlay(){
+    if(pathPointer == NULL)
+        pathPointer = ActLib::GetPathByName(pathId, ContentPath::parentDirectory(path));
     if(pathPointer == NULL){
         QDir dir(Game::root + "/ROUTES/" + Game::route + "/PATHS");
         int pathPointerId;
@@ -292,6 +294,7 @@ void Service::setNameId(QString val){
 void Service::setNewPath(QString pathName){
     stationStop.clear();
     pathId = pathName;
+    modified = true;
     if(pathId.length() <= 0)
         return;
     qDebug() << "new path:" << pathId;
@@ -319,11 +322,11 @@ void Service::disableStationStop(int count){
     for(int ii = 0; ii < stationStop.size(); ii++ ){
         if(stationStop[ii].skipCount == count){
             stationStop.remove(ii);
+            modified = true;
             ActLib::UpdateServiceChanges(nameId, ContentPath::parentDirectory(path));
             return;
         }
     }
-    modified = true;
 }
 
 void Service::setDisplayName(QString val){
@@ -361,7 +364,7 @@ void Service::enableStationStop(int count){
         return;
     }
     p->init3dShapes(false);
-    if(p->pathObjects.size() < count)
+    if(count < 0 || count >= p->pathObjects.size() || p->pathObjects[count] == NULL)
         return;
     
     float dist = p->pathObjects[count]->distanceDownPath;

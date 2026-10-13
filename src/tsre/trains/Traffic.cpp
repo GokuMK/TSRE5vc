@@ -91,13 +91,17 @@ void Traffic::load(){
     loaded = 1;
 }
 
-ActivityTimetable* Traffic::getTimetableByServiceName(QString nameTime){
+ActivityTimetable* Traffic::getInstance(const QString &serviceName, int time){
     for(int i = 0; i < service.size(); i++){
-        //qDebug() << nameTime << service[i]->nameTime;
-        if(service[i]->nameTime == nameTime)
+        if(service[i]->time == time && service[i]->name.compare(serviceName, Qt::CaseInsensitive) == 0)
             return service[i];
     }
     return NULL;
+}
+
+void Traffic::addInstance(ActivityTimetable *instance){
+    service.push_back(instance);
+    modified = true;
 }
 
 void Traffic::removeInstance(int index){

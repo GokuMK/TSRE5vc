@@ -566,13 +566,14 @@ std::shared_ptr<PathSnapshot> Path::snapshot() {
     copy->nodes = mainNodes;
     copy->passing = passing;
     copy->modified = modified;
+    copy->saves = saves;
     return copy;
 }
 
 void Path::restore(const PathSnapshot &snapshot) {
     mainNodes = snapshot.nodes;
     passing = snapshot.passing;
-    modified = snapshot.modified;
+    modified = snapshot.modified || snapshot.saves != saves;
     rebuildDerived();
     ActLib::PathChanged(this);
 }
@@ -727,8 +728,14 @@ bool Path::save() {
     if (out.status() != QTextStream::Ok)
         return false;
     modified = false;
+    ++saves;
     loaded = 1;
     return true;
+}
+
+bool Path::isNamed(const QString &pathId) const {
+    return nameId.compare(pathId, Qt::CaseInsensitive) == 0
+            || trPathName.compare(pathId, Qt::CaseInsensitive) == 0;
 }
 
 QMap<int, int>* Path::getJunctionDirections(){

@@ -209,17 +209,22 @@ Traffic* ActLib::GetTrafficByName(QString name, QString routePath){
     return NULL;
 }
 
+// A PathID is the path's file name (as MSTS opens it); TrPathName is
+// tried after, for content where the two differ.
 Path* ActLib::GetPathByName(QString name, QString routePath){
     const QString ownerKey = routeKey(routePath);
+    Path *byTrPathName = NULL;
     QHashIterator<int, Path*> i(Paths);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
         if(i.value()->routeHashid != ownerKey) continue;
-        if(i.value()->trPathName.compare(name, Qt::CaseInsensitive) == 0)
+        if(i.value()->nameId.compare(name, Qt::CaseInsensitive) == 0)
             return i.value();
+        if(byTrPathName == NULL && i.value()->trPathName.compare(name, Qt::CaseInsensitive) == 0)
+            byTrPathName = i.value();
     }
-    return NULL;
+    return byTrPathName;
 }
 
 void ActLib::PathChanged(Path *path) {
@@ -318,12 +323,11 @@ QStringList ActLib::PathUsers(Path *path) {
     if (path == NULL)
         return users;
     for (Service *service : Services)
-        if (service != NULL && service->routeHashid == path->routeHashid
-                && service->pathId.compare(path->trPathName, Qt::CaseInsensitive) == 0)
+        if (service != NULL && service->routeHashid == path->routeHashid && path->isNamed(service->pathId))
             users << service->name;
     for (Activity *activity : Act)
         if (activity != NULL && activity->header != NULL && activity->routeHashid == path->routeHashid
-                && activity->header->pathid.compare(path->trPathName, Qt::CaseInsensitive) == 0)
+                && path->isNamed(activity->header->pathid))
             users << activity->name;
     return users;
 }

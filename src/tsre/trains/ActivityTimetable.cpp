@@ -24,7 +24,6 @@ ActivityTimetable::ActivityTimetable() {
 ActivityTimetable::ActivityTimetable(QString n, int t){
     name = n;
     time = t;
-    nameTime = name + QString::number(time);
     empty = false;
 }
 
@@ -36,14 +35,12 @@ ActivityTimetable::~ActivityTimetable() {
 
 void ActivityTimetable::setService(QString sn){
     name = sn;
-    nameTime = name + QString::number(time);
     reloadTimetable();
     modified = true;
 }
 
 void ActivityTimetable::setTime(int t){
     time = t;
-    nameTime = name + QString::number(time);
     reloadTimetable();
     modified = true;
 }
@@ -108,7 +105,6 @@ void ActivityTimetable::load(FileBuffer* data) {
         name = ParserX::GetStringInside(data);
         time = ParserX::GetNumber(data);
     } 
-    nameTime = name+QString::number(time);
     empty = false;
     
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {

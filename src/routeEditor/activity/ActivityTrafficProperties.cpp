@@ -229,9 +229,11 @@ void ActivityTrafficProperties::bCloneOutcomeSelected(){
         return;
     
     for(int i = 0; i < count; i++){
-        traffic->service.push_back(new ActivityTimetable());
-        traffic->service.back()->setService(s->name);
-        traffic->service.back()->setTime(s->time + secs*(i+1));
+        ActivityTimetable *copy = new ActivityTimetable();
+        copy->routePath = s->routePath;
+        traffic->addInstance(copy);
+        copy->setService(s->name);
+        copy->setTime(s->time + secs*(i+1));
     }
     
     showTraffic(traffic);
@@ -240,7 +242,7 @@ void ActivityTrafficProperties::bCloneOutcomeSelected(){
 void ActivityTrafficProperties::bAddServiceSelected(){
     if(traffic == NULL)
         return;
-    traffic->service.push_back(new ActivityTimetable());
+    traffic->addInstance(new ActivityTimetable());
     //QModelIndex row = lServcies.currentIndex();
     showTraffic(traffic);
     //lServcies.setCurrentIndex(row);

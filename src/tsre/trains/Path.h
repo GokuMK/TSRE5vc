@@ -35,6 +35,8 @@ struct PathSnapshot {
     };
     QVector<Passing> passing;
     bool modified = false;
+    // Saves of the path when the snapshot was taken.
+    int saves = 0;
 };
 
 // An activity path (.pat). Its nodes are read once and resolved on the
@@ -64,6 +66,9 @@ public:
     QString routeHashid;
     QString pathId;
     QString trPathName;
+    // A service's or activity's PathID names this path: its file name, or
+    // its TrPathName in content where the two differ.
+    bool isNamed(const QString &pathId) const;
     QString trPathStart;
     QString trPathEnd;
     unsigned int trPathFlags = 0;
@@ -118,6 +123,8 @@ public:
 
 private:
     bool modified = false;
+    // Times saved: a state restored from before a save is not on disk.
+    int saves = 0;
     bool isinit1 = false;
     bool isinit2 = false;
     bool hasPathFlags = false;
