@@ -1,7 +1,8 @@
 # Task 31 - Moonlight
 
-Status: implemented (2026-10-13, `feature/clouds`). Full moon 0.15, the clouds a
-quarter of it (user, after seeing 0.2 with moonlit clouds: still strong).
+Status: implemented (2026-10-13, `feature/clouds`). Full moon 0.15, the clouds
+0.18 of it (user: after 0.2 with moonlit clouds still strong; the clouds' lit
+surfaces then still too strong at a quarter).
 
 ## Objective
 
@@ -72,7 +73,7 @@ environment-map-gl, editor-tools, map-view pass.
   about 3 degrees under; the afterglow), until 5 degrees under; then the
   moon, fading in to 9 degrees under. The moon's light on them is the
   scene's moonlight relative to the sun (linear, `Renderer::Sky::moon`,
-  `moonLight`), times a quarter (`CloudMoonlight`). The march, the flat high
+  `moonLight`), times `CloudMoonlight` (a quarter, then 0.18). The march, the flat high
   layer and the cloud shadow map take that light's direction and colour
   (through the atmosphere's transmittance: a low moon reddens); the sky's
   light on the clouds keeps the sun (its table is built around the sun).
@@ -99,6 +100,9 @@ environment-map-gl, editor-tools, map-view pass.
   quarter). Full moon, clear: ground 16.0 to 11.3; half moon 3.9 to 3.1;
   broken clouds: sky 46.3 to 30.5, ground 7.4 to 6.1; scattered: sky 38.7 to
   24.7, ground 5.7 to 4.7.
+- The clouds then lowered to 0.18 of the moonlight (user: their lit surfaces
+  still too strong): broken sky 30.5 to 24.1, scattered 24.7 to 19.1; the
+  ground unchanged.
 
 ## Later
 

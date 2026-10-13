@@ -1209,9 +1209,10 @@ void RhiRenderer::cloudLight(float *direction, float *colour) const {
     normalized(sky.moon, direction);
     const float t = std::clamp((-5.0f - sunElevation) / 4.0f, 0.0f, 1.0f);
     const float fade = t * t * (3.0f - 2.0f * t);
-    // A quarter of the scene's moonlight: in full, the moonlit clouds made
-    // the night sky a grey overcast dusk (task 31).
-    constexpr float CloudMoonlight = 0.25f;
+    // Under a fifth of the scene's moonlight: in full, the moonlit clouds
+    // made the night sky a grey overcast dusk; a quarter still lit them too
+    // strongly (task 31).
+    constexpr float CloudMoonlight = 0.18f;
     for (int c = 0; c < 3; ++c)
         colour[c] = sky.moonLight[c] * fade * CloudMoonlight;
 }
