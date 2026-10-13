@@ -193,6 +193,26 @@ the camera, 1.3 stops brighter) with a smaller dead zone, watching for the
 exposure jumping as the camera turns; if it does, sky weighting against a
 well-lit reference.
 
+Tried (2026-10-13), paused by the user; on the local branch
+`wip/auto-exposure-cloudy-days`:
+
+- The daytime table from the user's CMK camera turned away from the sun
+  (clear sky): +0.4 stops over the lake at 6:00 and 18:00, +1.0 to +1.4 from
+  9:00 to 15:00. The table from sunset down unchanged.
+- The dead zone 0.5 stops (the user's first value).
+- The curve gives every hour with the sun 20 degrees up the same exposure,
+  so it cannot adapt within the day: a daytime metering term besides, 0.75
+  of the difference beyond the dead zone, gone from sunset, never above the
+  night's exposure; the stronger of the two wins.
+- The user's camera at noon, correction and ground brightness before and
+  after: clear -0.28 / 0 (56.4 / 62.1), broken 0 / +0.43 (24.2 / 31.0),
+  overcast 0 / +0.29 (28.7 / 33.3), rain 0 / +0.44 (28.9 / 35.5). Cloudy
+  views measure only about 1 stop under the clear one, their bright sky in
+  the measurement: clear ground stays about twice the overcast.
+- Turning the camera: clear 0 in every direction; broken +0.38 to +1.46
+  (darkest towards the sun, the ground in the clouds' shadow).
+- Next: the sky weighted down in the measurement against this reference.
+
 ## Later
 
 - The enclosed ambient sets how bright a deep tunnel is by day: with auto
