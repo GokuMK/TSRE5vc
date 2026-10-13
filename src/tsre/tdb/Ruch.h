@@ -24,6 +24,7 @@
 #include <tsre/math3d/Vector2f.h>
 
 #include <QMap>
+#include <functional>
 
 class Ruch {
 public:
@@ -39,6 +40,13 @@ public:
     int getVectorDirection();
     void trackPassingItems(bool val);
     QString getLastItemName();
+    // The nearest track item ahead of the traveller (or behind it) that
+    // wanted() accepts, on its way (the junctions it would take) within
+    // maxDistance: its distance and id, or -1 (none, or the track ends).
+    float distanceToItem(bool ahead, float maxDistance, const std::function<bool(int)> &wanted,
+                         int *itemId = NULL) const;
+    // The radius of the curve under the traveller, 0 on straight track.
+    float curveRadius() const;
 
 private:
     void checkNode(int mSign);

@@ -13,9 +13,11 @@
 
 #include <tsre/world/objects/WorldObj.h>
 #include <QString>
+#include <memory>
 #include <tsre/fileFunctions/FileBuffer.h>
 
 class RenderQueue;
+class SoundSource;
 
 class PoleObj;
 
@@ -39,8 +41,9 @@ private:
     PoleObj* pointer3d = NULL;
     PoleObj* pointer3dSelected = NULL;
     
-    int soundDefinitionId;
-    int soundSourceId;
+    // Its sound, playing while the object is loaded (sound enabled).
+    std::unique_ptr<SoundSource> sound;
+    void syncSound();
 };
 
 #endif	/* SOUNDSOURCEOBJ_H */

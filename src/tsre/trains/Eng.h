@@ -19,7 +19,10 @@ class RenderQueue;
 class OglObj;
 class GLUU;
 class Ruch;
-class SoundVariables;
+class SoundSource;
+class TrackSound;
+class PlayDriver;
+struct SoundValues;
 class TrainNetworkEng;
 class ContentHierarchyInfo;
 
@@ -63,7 +66,7 @@ public:
     QString type;
     QString brakeSystemType;
     int wagonTypeId = 0;
-    float mass;
+    float mass = 0;
     float sizex;
     float sizey;
     float sizez;
@@ -72,6 +75,11 @@ public:
     float maxPower = 0;
     float maxCurrent = 0;
     QString souncCabFile;
+    // The outside .sms ("Sound" of the Wagon section) and the wheels' radii
+    // (the Engine section's are the driving wheels), in metres.
+    QString soundFile;
+    float wheelRadius = 0;
+    float driverWheelRadius = 0;
     int flip = flip;
     int loaded = -1;
     bool kierunek = false;
@@ -94,6 +102,8 @@ public:
     bool searchFilter(QString q);
     void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections);
     void getCameraPosition(float *out = NULL);
+    // What its sounds read (speed, throttle...); NULL without sound.
+    const SoundValues *soundValues();
     void pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected = false);
     void move(float m);
     float getCurrentElevation();
@@ -105,6 +115,18 @@ public:
     void pushRenderItems(RenderQueue &queue, quint32 selectionId = 0);
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
+    // The nearest sound region item ahead of (or behind) the car on its
+    // way within 8 km: its distance and track type, or -1.
+    float soundRegion(bool ahead, int *trackType);
+    // Its sounds: the outside .sms, the cab's when it leads (heard riding
+    // it), the wheels' for the track type; their values from its motion and
+    // the leading car's throttle and brake (0 to 1). cutoff: how far its
+    // sounds are heard (the train's length and more).
+    void updateSounds(bool lead, int trackType, float speed, float move, float throttle, float brake,
+                      float cutoff, float seconds);
+    // The stand-in driver's throttle and brake (the leading car's).
+    float soundThrottle() const;
+    float soundBrake() const;
 private:
     long long int resolveShapeIds();
     void initBorder();
@@ -115,8 +137,17 @@ private:
     Ruch *ruch2 = NULL;
     void addToFileList(QString val);
     
-    int camSoundSourceId = -1;
-    SoundVariables* soundVariables = NULL;
+    // The cab .sms ("Sound" of the Engine section), heard riding it.
+    SoundSource *cabSound = NULL;
+    bool cabSoundTried = false;
+    TrackSound *trackSound = NULL;
+    SoundSource *outsideSound = NULL;
+    bool outsideSoundTried = false;
+    SoundValues *soundData = NULL;
+    float curveForceHeard = 0;
+    float angleOfAttackHeard = 0;
+    float variable2Heard = 0;
+    PlayDriver *driver = NULL;
     float currentSpeed = 0;
     
     TrainNetworkEng* networkEng = NULL;

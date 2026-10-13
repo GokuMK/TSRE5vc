@@ -133,6 +133,15 @@ private:
     float trainSpeed = 0.0;
     float trainTotalDistance = 0.0;
     SimpleHud *hud = NULL;
+    // Track sounds: the type the leading car is in, from the sound regions
+    // around it (searched again once it passes the next one), and the
+    // distances along the way where it changed, which the cars behind
+    // reach later.
+    int soundRegionType = 0;
+    float soundRegionSearchedAt = -1;
+    float soundRegionAhead = -1;
+    QVector<QPair<float, int>> soundRegionChanges;
+    void updateSounds(float move, float seconds);
     
     void replaceEngItem(int id, int pos);
 };

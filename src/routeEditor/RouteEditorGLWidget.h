@@ -34,6 +34,7 @@
 #include "tools/ToolContext.h"
 #include <tsre/map/MapLayers.h>
 #include <tsre/map/MapPalette.h>
+#include <tsre/sound/SoundSource.h>
 
 class Tile;
 class Eng;
@@ -227,6 +228,10 @@ signals:
 protected:
     bool eventFilter(QObject *object, QEvent *event);
     void surfaceInitialize() override;
+    void updateSound(float seconds);
+    // How the camera hears the consist it rides (play mode): from outside
+    // (it sits outside the train), or Cab for the lead engine's cab sounds.
+    SoundView playSoundView = SoundView::External;
     void surfacePaint() override;
     void surfaceRelease() override;
     void renderShadowMaps();

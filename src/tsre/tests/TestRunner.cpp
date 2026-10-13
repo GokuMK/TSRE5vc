@@ -64,6 +64,7 @@
 #include <tsre/tests/WaterTestSuite.h>
 #include <tsre/tests/LocalLightsTestSuite.h>
 #include <tsre/tests/TimeOfDayTestSuite.h>
+#include <tsre/tests/SoundTestSuite.h>
 #include <tsre/tests/DxtCodecTestSuite.h>
 #include <tsre/tests/RhiShaderTestSuite.h>
 #include <tsre/tests/GltfPbrTestSuite.h>
@@ -4114,6 +4115,8 @@ QStringList TsreTests::listSuites() {
         "rhi-shaders",
         "local-lights",
         "time-of-day",
+        "sound",
+        "sound-corpus",
         "dxt-codec",
         "gltf-pbr-gl",
         "consist-preview-gl",
@@ -4201,6 +4204,10 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runLocalLightsSuite(opts.verbose);
     if (suite == "time-of-day")
         return runTimeOfDaySuite(opts.verbose);
+    if (suite == "sound")
+        return runSoundSuite(opts.verbose);
+    if (suite == "sound-corpus")
+        return runSoundCorpus(opts.casesFile, opts.verbose);
     if (suite == "dxt-codec")
         return runDxtCodecSuite(opts.verbose);
     if (suite == "gltf-pbr-gl")

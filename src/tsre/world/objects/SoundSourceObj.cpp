@@ -17,8 +17,7 @@
 #include <tsre/world/SoundList.h>
 #include <tsre/Game.h>
 #include <tsre/sound/SoundSource.h>
-#include <tsre/sound/SoundManager.h>
-#include <tsre/sound/MstsSoundDefinition.h>
+#include <tsre/sound/SoundSystem.h>
 #include <tsre/renderer/Renderer.h>
 
 SoundSourceObj::SoundSourceObj() {
@@ -49,19 +48,35 @@ void SoundSourceObj::load(int x, int y) {
     this->position[2] = -this->position[2];
     Quat::fill(this->qDirection);
     this->loaded = true;
-    
-    if(Game::soundEnabled){
-        QString path = Game::root+"/ROUTES/"+Game::route+"/SOUND";
-        int sid = MstsSoundDefinition::AddDefinition(path, fileName);
-        if(sid != -1){
-            if(MstsSoundDefinition::Definitions[sid]->group.size() > 0){
-                //soundSourceId = SoundManager::AddSoundSource(MstsSoundDefinition::Definitions[sid]->group.first());
-                //SoundManager::Sources[soundSourceId]->setPosition(x, y, position);
-            }
-        }
-    }
+    syncSound();
 
     setMartix();
+}
+
+// A sound for the object's file: made when sound plays, again when the file
+// changes; it follows the object and falls silent when it is deleted.
+void SoundSourceObj::syncSound(){
+    if(!Game::soundEnabled || !SoundSystem::running()){
+        sound.reset();
+        return;
+    }
+    if(sound != NULL && sound->path().endsWith("/" + fileName, Qt::CaseInsensitive))
+        return;
+    sound.reset();
+    const QString sms = SoundSystem::findSms(fileName);
+    if(sms.isEmpty())
+        return;
+    sound = std::make_unique<SoundSource>(sms, SoundSource::Kind::World);
+    sound->locator = [this](int &tileX, int &tileZ, float *at){
+        if(!loaded)
+            return false;
+        tileX = x;
+        tileZ = y;
+        at[0] = position[0];
+        at[1] = position[1];
+        at[2] = position[2];
+        return true;
+    };
 }
 
 void SoundSourceObj::set(QString sh, long long int val){
@@ -82,6 +97,8 @@ void SoundSourceObj::set(QString sh, long long int val){
 void SoundSourceObj::set(QString sh, QString val){
     if (sh == ("filename")) {
         fileName = val;
+        if (loaded)
+            syncSound();
         return;
     }
     if (sh == ("ref_filename")) {
