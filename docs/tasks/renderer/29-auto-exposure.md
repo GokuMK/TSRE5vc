@@ -171,6 +171,14 @@ now turns auto exposure off and draws a plain image
 map without tone mapping within 2 levels. Back in 3D, the first frame with
 auto exposure takes its target at once.
 
+Signals (user: too weak against the sun's and the moon's bloom after the
+offset): their glow undid the whole exposure, the offset too. It now takes
+the offset as the view does, not the adaptation (no glare in a tunnel by
+day), times 2 (`AutoSignalBoost`; 1 was barely visible by day, 3 a
+floodlight at night). Red of the CMK signal head against Dimmed: 1.7 times
+at 13:00, 2.3 at 19:30, 3.7 at 22:00. The lit lens itself keeps Dimmed's
+brightness.
+
 Tried and reverted on the way: the sky weighted a fifth in the measurement
 with the table recalibrated, and the offset carried by the adaptation curve.
 Recalibrating on the same view cancels any overall gain from the weighting;

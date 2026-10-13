@@ -251,6 +251,9 @@ namespace {
 constexpr float IgnoredStops = 1.0f;
 constexpr float DarkenStrength = 0.75f;
 constexpr float MaxDarken = 2.0f;
+// Signals' glow over Dimmed's look (user, 2026-10-13: with the exposure
+// offset the sun's and the moon's bloom outgrew it).
+constexpr float AutoSignalBoost = 2.0f;
 // Towards a brighter picture (into the dark) slowly, towards a darker one
 // (into the light) fast.
 constexpr float BrightenSeconds = 2.5f;
@@ -335,7 +338,11 @@ float RhiRenderer::autoExposure() const {
 }
 
 float RhiRenderer::signalScale() const {
-    return gluu->signalLightAdaptation / autoExposure();
+    if (!exposureActive())
+        return gluu->signalLightAdaptation;
+    // Brightened with the view by the offset, not by the adaptation (no
+    // glare in a tunnel by day), and AutoSignalBoost stronger.
+    return gluu->signalLightAdaptation * AutoSignalBoost * std::exp2(exposureControl.biasStops) / autoExposure();
 }
 
 void RhiRenderer::setExposureControl(const ExposureControl &control) {

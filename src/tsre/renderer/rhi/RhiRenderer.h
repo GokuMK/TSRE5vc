@@ -305,7 +305,8 @@ private:
     // The exposure (linear) the final pass applies besides the setting.
     float autoExposure() const;
     // The signals' glow scale: signals are to be seen, so with auto
-    // exposure they keep the look the lamps' scale gives them.
+    // exposure they keep the look the lamps' scale gives them, with the
+    // exposure offset and a boost (task 29).
     float signalScale() const;
     void measureLuminance(QRhiCommandBuffer *cb);
     void releaseLuminance();
