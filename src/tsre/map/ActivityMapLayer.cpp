@@ -59,6 +59,7 @@ QColor ActivityMapLayer::colour(const MapPalette &palette, int group) {
     case Path: return palette.pathNode;
     case PathStart: return palette.pathStart;
     case PathEnd: return palette.pathEnd;
+    case PathBroken: return palette.pathBroken;
     case Vehicles: return palette.wagon;
     case Engines: return palette.engine;
     case SpeedZone: return palette.speedZone;
@@ -196,6 +197,8 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     circles(path.points, Path);
     circles(path.starts, PathStart);
     circles(path.ends, PathEnd);
+    lines(path.brokenLines, PathBroken);
+    circles(path.brokenPoints, PathBroken);
     // Consists.
     const int vehicleCount = int(consists.vehicles.size()) / MapFeatures::VehicleFloats;
     for (int i = 0; i < vehicleCount; ++i) {

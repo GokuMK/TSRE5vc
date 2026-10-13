@@ -78,12 +78,18 @@ enum class Note : unsigned char {
     NotOnPath,
     NoRoute,
     NotFacingJunction,
+    NoReverse,
+    NoWait,
     // The edit was made.
     Rejoined,
     RestReplaced,
     StoppedAtLoop,
     StoppedAtLimit,
-    StoppedAtBrokenTrack
+    StoppedAtBrokenTrack,
+    // Repair: the path is routed again where its nodes could not be
+    // followed, or it ends where no route was found.
+    Rerouted,
+    RepairStopped
 };
 
 struct Result {
@@ -120,15 +126,23 @@ int legAt(const QVector<Leg> &legs, const TrackPoint &point, bool last);
 // junction's pin, or -1 when the node is not a facing junction of the path.
 int otherExitPin(TDB *tdb, const QVector<Node> &nodes, const QVector<Leg> &legs, int index);
 
-// Take Other Direction acts on a start or junction this close to the track
-// point nearest the pointer (metres along the track).
-constexpr float OtherDirectionReach = 50.0f;
+// Take Other Direction, Edit Wait Time and Remove Wait Point act on a node
+// this close to the track point nearest the pointer (metres along the
+// track).
+constexpr float PointReach = 50.0f;
 // The node Take Other Direction acts on for the track point nearest the
 // pointer: the path's start when it is on that track, or a junction at
 // either end of the track that the path passes facing (its last pass),
-// within OtherDirectionReach; of these, the nearest. -1 for none.
+// within PointReach; of these, the nearest. -1 for none.
 int otherDirectionNode(TDB *tdb, const QVector<Node> &nodes, const QVector<Leg> &legs,
                        const TrackPoint &point);
+// The wait point on the track of the point, within PointReach, nearest
+// it; -1 for none.
+int waitNode(const QVector<Node> &nodes, const TrackPoint &point);
+// The seconds Add Wait Point offers first.
+constexpr int DefaultWaitTime = 60;
+// The longest wait a path file holds (seconds).
+constexpr int MaxWaitTime = 0xffff;
 
 // The path tool's edits. Each returns the path's new nodes; ok is false
 // when the edit is not possible, and note says why.
@@ -137,6 +151,23 @@ Result turnStart(TDB *tdb, const QVector<Node> &nodes);
 Result endAt(TDB *tdb, const QVector<Node> &nodes, const TrackPoint &point);
 Result reverseAt(TDB *tdb, const QVector<Node> &nodes, const TrackPoint &point);
 Result otherExit(TDB *tdb, const QVector<Node> &nodes, int index);
+// The last reversal and everything after it go; the path is completed from
+// where the reversal was, on in the direction it came.
+Result removeLastReverse(TDB *tdb, const QVector<Node> &nodes);
+// A wait point inserted on the path's last pass over the point; the route
+// stays as it is.
+Result waitAt(TDB *tdb, const QVector<Node> &nodes, const TrackPoint &point, int seconds);
+Result setWaitTime(TDB *tdb, const QVector<Node> &nodes, int index, int seconds);
+Result removeWait(TDB *tdb, const QVector<Node> &nodes, int index);
+// A path built with the edits above that runs as the given nodes do: from
+// their start, taking their other exits, reversals, waits and end (the
+// path-roundtrip suite rebuilds the MSTS paths so). Without repair, ok is
+// false where the nodes cannot be followed. With repair (Repair Path),
+// nodes off the track database are left out, and where the nodes cannot be
+// followed the path is routed to their next reversal, wait or end
+// (Note::Rerouted); where no route is found it ends there
+// (Note::RepairStopped).
+Result rebuild(TDB *tdb, const QVector<Node> &nodes, bool repair);
 
 // The output each facing junction of the path is left by, as Ruch takes
 // it: 0 for the junction's first output pin, 1 for the next.

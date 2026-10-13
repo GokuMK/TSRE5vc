@@ -151,52 +151,6 @@ QVector<int> trackSequence(TDB *tdb, const QVector<Node> &nodes) {
     return tracks;
 }
 
-// The tracks from each node other than a halfway node to the next one.
-QVector<QVector<int>> tracksBetweenNodes(TDB *tdb, const QVector<Node> &nodes) {
-    const QVector<PathTrack::Leg> legs = PathTrack::legs(tdb, nodes);
-    QVector<QVector<int>> result;
-    for (int k = 0; k < nodes.size(); ++k) {
-        if (nodes[k].type != NodeType::Halfway)
-            result << QVector<int>();
-        if (k < legs.size() && (result.back().isEmpty() || result.back().back() != legs[k].track))
-            result.back() << legs[k].track;
-    }
-    return result;
-}
-
-// Where two paths part, leaving halfway nodes out: the first node that
-// differs, or that the paths reach over different tracks; -1 when the
-// same.
-int firstDifferenceOnTrack(TDB *tdb, const QVector<Node> &ours, const QVector<Node> &target);
-
-// The first node where two node lists differ, or -1.
-int firstDifference(const QVector<Node> &ours, const QVector<Node> &target) {
-    const int count = std::min(ours.size(), target.size());
-    for (int k = 0; k < count; ++k) {
-        const Node &a = ours[k];
-        const Node &b = target[k];
-        if (a.type != b.type || a.track != b.track)
-            return k;
-        if (a.isPoint() && a.type != NodeType::Halfway && std::fabs(a.distance - b.distance) > 1.0f)
-            return k;
-    }
-    return ours.size() == target.size() ? -1 : count;
-}
-
-int firstDifferenceOnTrack(TDB *tdb, const QVector<Node> &ours, const QVector<Node> &target) {
-    const QVector<Node> a = withoutHalfways(ours);
-    const QVector<Node> b = withoutHalfways(target);
-    const QVector<QVector<int>> tracksA = tracksBetweenNodes(tdb, ours);
-    const QVector<QVector<int>> tracksB = tracksBetweenNodes(tdb, target);
-    const int nodes = firstDifference(a, b);
-    const int count = nodes < 0 ? a.size() : nodes;
-    // A node reached over other tracks differs too.
-    for (int k = 1; k < count; ++k)
-        if (tracksA[k - 1] != tracksB[k - 1])
-            return k;
-    return nodes;
-}
-
 }
 
 int TsreTests::runPathEditSuite(bool verbose) {
@@ -323,6 +277,50 @@ int TsreTests::runPathEditSuite(bool verbose) {
               "reversal comes back to the other track end", reverse.nodes);
         check(!PathTrack::reverseAt(tdb, start.nodes, {12, 50.0f}).ok,
               "reversal off the path refused");
+        // Remove Last Reverse Point: the path runs on as if it had not
+        // reversed.
+        Result unreversed = PathTrack::removeLastReverse(tdb, reverse.nodes);
+        check(unreversed.ok && types(unreversed.nodes) == types(start.nodes)
+                  && unreversed.nodes.back().track == 13,
+              "removing the reversal runs on to the far track end", unreversed.nodes);
+        check(!PathTrack::removeLastReverse(tdb, start.nodes).ok
+                  && PathTrack::removeLastReverse(tdb, start.nodes).note == Note::NoReverse,
+              "no reversal to remove");
+
+        // Wait points: inserted on the path without changing the route; the
+        // wait tells the two tracks apart, so the halfway node goes, and
+        // comes back when the wait is removed.
+        Result wait = PathTrack::waitAt(tdb, start.nodes, {11, 150.0f}, 300);
+        check(wait.ok && types(wait.nodes) == QVector<NodeType>{NodeType::Start, NodeType::Junction,
+                                                               NodeType::Wait, NodeType::Junction,
+                                                               NodeType::End}
+                  && wait.nodes[2].waitTime == 300 && wait.nodes[4].track == 13,
+              "a wait point keeps the route", wait.nodes);
+        check(PathTrack::waitNode(wait.nodes, {11, 170.0f}) == 2
+                  && PathTrack::waitNode(wait.nodes, {11, 20.0f}) == -1,
+              "the wait point near the pointer's track point");
+        Result longer = PathTrack::setWaitTime(tdb, wait.nodes, 2, 900);
+        check(longer.ok && longer.nodes[2].waitTime == 900, "a wait time changed", longer.nodes);
+        Result unwaited = PathTrack::removeWait(tdb, wait.nodes, 2);
+        check(unwaited.ok && types(unwaited.nodes) == types(start.nodes)
+                  && unwaited.nodes[2].track == 11,
+              "removing the wait brings the halfway node back", unwaited.nodes);
+        check(!PathTrack::waitAt(tdb, start.nodes, {12, 50.0f}, 60).ok,
+              "a wait point off the path refused");
+
+        // Rebuilt from its own nodes, a path comes out the same; repaired,
+        // a path with a junction off the track database is routed again.
+        Result again = PathTrack::rebuild(tdb, reverse.nodes, false);
+        check(again.ok && again.note == Note::None && types(again.nodes) == types(reverse.nodes),
+              "a path rebuilt from its nodes", again.nodes);
+        QVector<Node> broken = reverse.nodes;
+        broken[1].broken = true;
+        check(!PathTrack::rebuild(tdb, broken, false).ok, "a broken path is not rebuilt as it is");
+        Result repaired = PathTrack::rebuild(tdb, broken, true);
+        check(repaired.ok && repaired.note == Note::Rerouted
+                  && types(repaired.nodes) == types(reverse.nodes) && !repaired.nodes[1].broken,
+              "a broken junction repaired", repaired.nodes);
+
         // End Here after the reversal routes from it.
         Result afterReverse = PathTrack::endAt(tdb, reverse.nodes, {10, 60.0f});
         check(afterReverse.ok && afterReverse.nodes.size() == 5
@@ -448,6 +446,7 @@ int TsreTests::runPathRoundTripSuite(const QString &outputDirectory, bool verbos
     QDir().mkpath(written);
     const QDir paths(sourceRoute.filePath("PATHS"));
     int files = 0, roundTripFailures = 0, brokenPaths = 0, replayed = 0, replayable = 0,
+        repairable = 0, repairedPaths = 0,
         replayFailures = 0;
     for (const QFileInfo &info : paths.entryInfoList({"*.pat"}, QDir::Files, QDir::Name)) {
         ++files;
@@ -540,76 +539,43 @@ int TsreTests::runPathRoundTripSuite(const QString &outputDirectory, bool verbos
             qWarning().noquote() << "FAIL round trip" << info.fileName() << problems.join("; ");
         }
 
-        // Rebuilt with the tool's edits, for paths on track without waits
-        // or passing paths.
-        bool simple = !broken && nodes.size() >= 2 && nodes.first().type == NodeType::Start
+        // Rebuilt with the tool's edits (PathTrack::rebuild), for paths on
+        // track without passing paths; checked here node by node and track
+        // by track, halfway nodes left out.
+        if (broken) {
+            // Repair Path on it: a whole path, routed again where it broke.
+            // A repair may be refused (a start off the track) but never
+            // leaves broken track.
+            const Result repaired = PathTrack::rebuild(&database, nodes, true);
+            bool onTrack = repaired.ok;
+            for (const PathTrack::Leg &leg : PathTrack::legs(&database, repaired.nodes))
+                onTrack = onTrack && !leg.broken;
+            ++repairable;
+            const bool whole = onTrack && repaired.note != Note::RepairStopped;
+            repairedPaths += whole ? 1 : 0;
+            qInfo().noquote() << "repair" << info.fileName()
+                              << (whole ? "whole" : onTrack ? "stopped" : repaired.ok ? "BROKEN" : "refused")
+                              << "note" << int(repaired.note) << nodes.size() << "->"
+                              << repaired.nodes.size() << "nodes";
+            if (repaired.ok && !onTrack) {
+                ++replayFailures;
+                qWarning().noquote() << "FAIL repair leaves broken track" << info.fileName();
+            }
+        }
+        const bool simple = !broken && nodes.size() >= 2 && nodes.first().type == NodeType::Start
                 && nodes.last().type == NodeType::End && original.trPathNode.size() == nodes.size();
-        for (const Node &node : nodes)
-            simple = simple && node.type != NodeType::Wait;
         if (!simple)
             continue;
         ++replayable;
-        Result built = PathTrack::startAt(&database, {nodes[0].track, nodes[0].distance});
-        if (built.ok && built.nodes[0].forward != nodes[0].forward)
-            built = PathTrack::turnStart(&database, built.nodes);
-        // At the first node that differs, the edit a user would make there:
-        // End Here or Add Reverse Point at the file's point, Take Other
-        // Direction at the junction before it, or both; the first that gets
-        // further. Halfway nodes are left out of the comparison.
         const QVector<Node> target = withoutHalfways(nodes);
+        const Result built = PathTrack::rebuild(&database, nodes, false);
         QString why;
-        for (int step = 0; built.ok && step < 2000; ++step) {
-            QVector<int> where;
-            const QVector<Node> ours = withoutHalfways(built.nodes, &where);
-            const int k = firstDifferenceOnTrack(&database, built.nodes, nodes);
-            if (k < 0)
-                break;
-            const Node *wanted = k < target.size() ? &target[k] : nullptr;
-            auto atPoint = [&](const QVector<Node> &from) {
-                if (wanted != nullptr && wanted->type == NodeType::End)
-                    return PathTrack::endAt(&database, from, {wanted->track, wanted->distance});
-                if (wanted != nullptr && wanted->type == NodeType::Reverse)
-                    return PathTrack::reverseAt(&database, from, {wanted->track, wanted->distance});
-                return Result();
-            };
-            QVector<Result> tries;
-            tries << atPoint(built.nodes);
-            if (k > 0) {
-                const Result other = PathTrack::otherExit(&database, built.nodes, where[k - 1]);
-                tries << other;
-                if (other.ok)
-                    tries << atPoint(other.nodes);
-            }
-            // End Here at the file's end, routing there (past a loop the
-            // completion stopped at).
-            tries << PathTrack::endAt(&database, built.nodes,
-                                      {target.back().track, target.back().distance});
-            bool progressed = false;
-            QStringList notes;
-            for (const Result &attempt : tries) {
-                notes << QString::number(int(attempt.note));
-                if (!attempt.ok)
-                    continue;
-                const int next = firstDifferenceOnTrack(&database, attempt.nodes, nodes);
-                if (next < 0 || next > k) {
-                    built = attempt;
-                    progressed = true;
-                    break;
-                }
-            }
-            if (!progressed) {
-                why = QString("node %1 (notes %2): ours %3; the file's %4").arg(k).arg(notes.join(","))
-                        .arg(describe(ours.mid(std::max(0, k - 2), 5)),
-                             describe(target.mid(std::max(0, k - 2), 5)));
-                if (k > 0 && tries.size() > 1 && tries[1].ok)
-                    why += "; other exit: "
-                            + describe(withoutHalfways(tries[1].nodes).mid(std::max(0, k - 2), 5));
-                built.ok = false;
-            }
-        }
-        if (built.ok && !sameNodes(withoutHalfways(built.nodes), target))
+        if (!built.ok)
+            why = QString("stopped (note %1): ours %2").arg(int(built.note))
+                    .arg(describe(withoutHalfways(built.nodes).mid(0, 6)));
+        else if (!sameNodes(withoutHalfways(built.nodes), target))
             why = "nodes differ";
-        else if (built.ok && trackSequence(&database, built.nodes) != trackSequence(&database, nodes))
+        else if (trackSequence(&database, built.nodes) != trackSequence(&database, nodes))
             why = "tracks differ";
         if (built.ok && why.isEmpty()) {
             ++replayed;
@@ -624,8 +590,8 @@ int TsreTests::runPathRoundTripSuite(const QString &outputDirectory, bool verbos
     Game::trackDB = originalTrackDB;
     Game::routeName = originalName;
     qInfo().noquote() << QString("path-roundtrip %1: %2 paths, %3 broken, round trip failures %4; "
-                                 "rebuilt %5 of %6, failures %7")
+                                 "rebuilt %5 of %6, repaired %8 of %9, failures %7")
                          .arg(Game::route).arg(files).arg(brokenPaths).arg(roundTripFailures)
-                         .arg(replayed).arg(replayable).arg(replayFailures);
+                         .arg(replayed).arg(replayable).arg(replayFailures).arg(repairedPaths).arg(repairable);
     return roundTripFailures == 0 && replayFailures == 0 ? 0 : 1;
 }

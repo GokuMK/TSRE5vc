@@ -109,6 +109,9 @@ signals:
 private:
     // Selects the path chosen in the list, which the path tool edits.
     void selectCurrentPath();
+    // The list shows the paths' names as they are now (path properties).
+    void refreshPathNames();
+    bool eventFilter(QObject *watched, QEvent *event) override;
     // Asks for a new path's file name (its id) and display name; false when
     // cancelled.
     bool askPathNames(QString &id, QString &name);

@@ -16,7 +16,9 @@
 #include <tsre/trains/Path.h>
 #include <tsre/trains/PathTrack.h>
 #include <QAction>
+#include <QInputDialog>
 #include <QMenu>
+#include <functional>
 
 namespace {
 
@@ -86,6 +88,18 @@ QString noteText(Note note) {
     case Note::StoppedAtBrokenTrack:
         //% "ends where the track database is broken"
         return qtTrId("route.editor.path.tool.note.broken");
+    case Note::NoReverse:
+        //% "the path has no reversal"
+        return qtTrId("route.editor.path.tool.note.no.reverse");
+    case Note::NoWait:
+        //% "no wait point here"
+        return qtTrId("route.editor.path.tool.note.no.wait");
+    case Note::Rerouted:
+        //% "routed again where the track changed"
+        return qtTrId("route.editor.path.tool.note.rerouted");
+    case Note::RepairStopped:
+        //% "ends where no route was found"
+        return qtTrId("route.editor.path.tool.note.repair.stopped");
     default:
         return QString();
     }
@@ -185,6 +199,65 @@ public:
             //% "Add Reverse Point"
             qtTrId("route.editor.path.tool.reverse"),
             onTrack ? PathTrack::reverseAt(tdb, nodes, point) : failed(Note::NoTrack));
+        add(
+            //% "Remove Last Reverse Point"
+            qtTrId("route.editor.path.tool.remove.reverse"),
+            PathTrack::removeLastReverse(tdb, nodes));
+
+        // Wait points: the time is asked when the entry is chosen.
+        QWidget *view = ctx.view();
+        auto askTime = [view](int seconds, bool &ok) {
+            return QInputDialog::getInt(view,
+                //% "Wait Point"
+                qtTrId("route.editor.path.tool.wait.title"),
+                //% "Wait (seconds):"
+                qtTrId("route.editor.path.tool.wait.seconds"),
+                seconds, 0, PathTrack::MaxWaitTime, 10, &ok);
+        };
+        const Result addWait = onTrack ? PathTrack::waitAt(tdb, nodes, point, PathTrack::DefaultWaitTime)
+                                       : failed(Note::NoTrack);
+        const int wait = onTrack ? PathTrack::waitNode(nodes, point) : -1;
+        auto addTimed = [&menu](const QString &text, const Result &result,
+                                std::function<void()> run) {
+            const QString note = noteText(result.note);
+            QAction *action = menu.addAction(note.isEmpty() ? text : text + " (" + note + ")");
+            action->setEnabled(result.ok);
+            if (result.ok)
+                QObject::connect(action, &QAction::triggered, run);
+        };
+        addTimed(
+            //% "Add Wait Point..."
+            qtTrId("route.editor.path.tool.wait.add"),
+            addWait, [=] {
+                bool ok = false;
+                const int seconds = askTime(PathTrack::DefaultWaitTime, ok);
+                const Result result = PathTrack::waitAt(tdb, nodes, point, seconds);
+                if (ok && result.ok)
+                    applyEdit(path, result.nodes);
+            });
+        const Result editWait = wait >= 0 ? PathTrack::setWaitTime(tdb, nodes, wait, nodes[wait].waitTime)
+                                          : failed(Note::NoWait);
+        addTimed(
+            //% "Edit Wait Time..."
+            qtTrId("route.editor.path.tool.wait.edit"),
+            editWait, [=] {
+                bool ok = false;
+                const int seconds = askTime(nodes[wait].waitTime, ok);
+                const Result result = PathTrack::setWaitTime(tdb, nodes, wait, seconds);
+                if (ok && result.ok)
+                    applyEdit(path, result.nodes);
+            });
+        add(
+            //% "Remove Wait Point"
+            qtTrId("route.editor.path.tool.wait.remove"),
+            wait >= 0 ? PathTrack::removeWait(tdb, nodes, wait) : failed(Note::NoWait));
+
+        // A path off the track database where its track changed.
+        if (path->isBroken())
+            add(
+                //% "Repair Path"
+                qtTrId("route.editor.path.tool.repair"),
+                PathTrack::rebuild(tdb, nodes, true));
     }
 };
 

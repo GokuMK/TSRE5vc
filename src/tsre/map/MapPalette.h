@@ -46,6 +46,8 @@ struct MapPalette {
     // A path's start and end (its reversal and wait points are pathNode).
     QColor pathStart = QColor(0, 110, 230);
     QColor pathEnd = QColor(220, 30, 30);
+    // A path's parts off the track database.
+    QColor pathBroken = QColor(230, 0, 160);
     QColor wagon = QColor(100, 140, 220);
     QColor engine = QColor(35, 55, 150);
     QColor speedZone = QColor(255, 0, 102);

@@ -28,6 +28,7 @@
 #include <tsre/gui/UnsavedDialog.h>
 #include <tsre/world/Trk.h>
 #include <QDialog>
+#include <QEvent>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
@@ -170,6 +171,7 @@ ActivityTools::ActivityTools(QString name)
     cPath.setStyleSheet("combobox-popup: 0;");
     cPath.setMaxVisibleItems(35);
     cPath.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    cPath.installEventFilter(this);
     vlist1 = new QGridLayout;
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(0,0,1,0);
@@ -953,6 +955,25 @@ void ActivityTools::actPathsDeleteSelected(){
     ActLib::RemovePath(path);
     route->path.removeAll(path);
     reloadPathsList();
+}
+
+bool ActivityTools::eventFilter(QObject *watched, QEvent *event){
+    // Opening the list: names changed in the path properties since it was
+    // filled show.
+    if(watched == &cPath && event->type() == QEvent::MouseButtonPress)
+        refreshPathNames();
+    return QWidget::eventFilter(watched, event);
+}
+
+void ActivityTools::refreshPathNames(){
+    if(route == NULL)
+        return;
+    for(int i = 0; i < cPath.count(); i++){
+        const int id = cPath.itemData(i).toInt();
+        if(id >= 0 && id < route->path.size() && route->path[id] != NULL
+                && cPath.itemText(i) != route->path[id]->displayName)
+            cPath.setItemText(i, route->path[id]->displayName);
+    }
 }
 
 void ActivityTools::selectCurrentPath(){

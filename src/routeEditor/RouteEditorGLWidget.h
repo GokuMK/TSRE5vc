@@ -102,8 +102,9 @@ public:
     // view's centre, as a click with that action would.
     bool runDiagnosticOverlayAction(const QString &action);
     // Captures: runs a path tool menu entry ("start", "end", "other",
-    // "reverse") on the selected path at the map view's centre moved by dx,
-    // dz metres, and logs the menu.
+    // "reverse", "removeReverse", "removeWait", "repair") on the selected
+    // path at the map view's centre moved by dx, dz metres, and logs the
+    // menu.
     bool runDiagnosticPathAction(const QString &action, float dx, float dz);
     // Captures: a Measure Distance line, or none (null ends).
     void setDiagnosticMapMeasurement(const MapGroundPoint *from, const MapGroundPoint *to);

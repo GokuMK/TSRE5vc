@@ -1,8 +1,42 @@
 # Task 06 - Path Editing (Track Path Tool)
 
 Status: phases 1 to 3 built on `feature/path-editing` (2026-10-11), from
-`main`. The suites pass (see "Verification"). Not yet tried by hand in
-the editor.
+`main`, and tried by hand in the editor (user, 2026-10-11). Phase 4's
+wait points, reversal removal, broken paths and path flags followed
+(2026-10-12, below). The suites pass (see "Verification").
+
+Phase 4, as built (2026-10-12, user's choices):
+- **Wait points** (`PathTrack::waitAt`, `setWaitTime`, `removeWait`):
+  Add Wait Point... at the track point nearest the pointer, on the path's
+  last pass, asking the seconds (0 to 65535; 60 offered); it does not
+  change the route. Edit Wait Time... and Remove Wait Point act on the
+  wait point on that track within 50 m (`waitNode`, `PointReach`). A
+  wait between two junctions joined twice tells them apart; removing it
+  brings the halfway node back.
+- **Remove Last Reverse Point** (`removeLastReverse`): the last reversal
+  and everything after it go, and the path is completed from where the
+  reversal was, on in the direction it came.
+- **Broken paths:** drawn on the map and in 3D in the palette's
+  `pathBroken` (magenta): straight lines where a leg is off the track
+  database, and markers on nodes not found. **Repair Path** (shown only
+  for a broken path) rebuilds the path from its nodes on the track
+  (`PathTrack::rebuild`, repair mode): it follows them with the tool's
+  edits, and where they cannot be followed it routes to their next
+  reversal, wait or end ("routed again where the track changed"), trying
+  the start's other direction when the first one stops early; it ends
+  where no route is found. A path whose start is off the track is
+  refused: Start Here instead.
+- `PathTrack::rebuild` is also what `path-roundtrip` checks: the test's
+  own replay moved into it.
+- **Refresh:** the path properties panel shows the path again when it
+  changed (`Path::changes()`, the view's `updateProperties` a few times
+  a second), keeping a field being typed in; the activity tools' path
+  list takes the paths' current names when it is opened.
+- **Path flags** in the properties panel: `TrPathFlags` in hexadecimal,
+  and "Not a player path (AI only)" for its 0x20 bit (as Open Rails
+  reads it).
+- Passing paths stay read and written, not edited: none of the 194 MSTS
+  paths has one.
 
 Built:
 - `src/tsre/trains/PathTrack`: nodes, legs, completion, the four edits,
@@ -304,7 +338,7 @@ are read once and then only kept for what the editor does not change.
     (`PathTrack::otherDirectionNode`): the path's start when on that
     track, or the junction at either end of the track that the path
     passes facing, within 50 m along the track
-    (`OtherDirectionReach`); the nearest of these;
+    (`PointReach`); the nearest of these;
   - whether the track position lies on the path, and on which leg.
 - A first version found the start or junction by its distance from the
   pointer within a radius of 12 pixels; at close zoom that missed the
@@ -495,17 +529,17 @@ build/TSRE5vc.exe --test --test-suite path-edit
 build/TSRE5vc.exe --test --test-suite path-roundtrip --game-root "C:/MagiPacks/Microsoft Train Simulator" --route EUROPE1 [--test-cases <output directory>]
 ```
 
-- `path-edit`: 28 checks pass.
+- `path-edit`: 43 checks pass (2026-10-12).
 - `path-roundtrip` on the seven MSTS routes (194 paths):
   - **Round trip:** every path is written and read again with the same
     nodes along its main links, node flags, passing links, PDP values
     (within 0.01 m) and flags, names and `TrPathFlags`. Files listing
     their nodes in another order than the path runs are written in path
     order.
-  - **Rebuilt with the tool's edits:** all 181 paths on the track
-    database without wait points are rebuilt node for node and track for
+  - **Rebuilt with the tool's edits** (`PathTrack::rebuild`): all 184
+    paths on the track database are rebuilt node for node and track for
     track: Start Here at the file's start, then at each difference End
-    Here, Add Reverse Point or Take Other Direction (or Take Other
+    Here, Add Reverse Point, Add Wait Point or Take Other Direction (or Take Other
     Direction then one of the others), as a user would. Halfway nodes
     are left out of the node comparison (files leave some out and keep
     some strays), but the tracks between nodes must match.
@@ -519,7 +553,10 @@ build/TSRE5vc.exe --test --test-suite path-roundtrip --game-root "C:/MagiPacks/M
     The survey counted 30: it measured points to straight lines between
     section starts, so points on curves seemed off the track (all of
     EUROPE1's five). Its junction figures stand.
-  - Rebuilt: 181 of 181.
+  - Rebuilt: 184 of 184, wait points included (2026-10-12). Repair Path
+    on the 10 broken paths: 8 whole and on track, 1 followed to where its
+    end is off the track, 1 refused (its start is off the track); none
+    leaves broken track.
 - `editor-tools` (35, with the path tool in both modes), `map-view`,
   `tdb-editing` and `tdb-ordering` pass.
 - A map capture (`map-activity.json` style, EUROPE1 "Settle - Carlisle")

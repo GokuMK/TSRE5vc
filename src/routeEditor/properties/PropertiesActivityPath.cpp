@@ -40,7 +40,15 @@ QVBoxLayout *vbox = new QVBoxLayout;
         //% "End Location"
         qtTrId("route.editor.properties.activity.path.label.end.location")));
     vbox->addWidget(&this->ePathEnd);
-    
+    vbox->addWidget(new QLabel(
+        //% "Path flags (hexadecimal)"
+        qtTrId("route.editor.properties.activity.path.label.flags")));
+    vbox->addWidget(&this->eFlags);
+    cNotPlayer.setText(
+        //% "Not a player path (AI only)"
+        qtTrId("route.editor.properties.activity.path.check.not.player"));
+    vbox->addWidget(&cNotPlayer);
+
     QLabel *label = new QLabel(
         //% "Main route nodes:"
         qtTrId("route.editor.properties.activity.path.label.label"));
@@ -58,6 +66,8 @@ QVBoxLayout *vbox = new QVBoxLayout;
     QObject::connect(&eName, &QLineEdit::editingFinished, this, &PropertiesActivityPath::nameEdited);
     QObject::connect(&ePathStart, &QLineEdit::editingFinished, this, &PropertiesActivityPath::startEdited);
     QObject::connect(&ePathEnd, &QLineEdit::editingFinished, this, &PropertiesActivityPath::endEdited);
+    QObject::connect(&eFlags, &QLineEdit::editingFinished, this, &PropertiesActivityPath::flagsEdited);
+    QObject::connect(&cNotPlayer, &QCheckBox::toggled, this, &PropertiesActivityPath::notPlayerToggled);
 
     vbox->addStretch(1);
     this->setLayout(vbox);
@@ -77,10 +87,31 @@ void PropertiesActivityPath::showObj(GameObj* obj){
     this->infoLabel->setText(
         //% "Object: Path"
         qtTrId("route.editor.properties.activity.path.text.object.path"));
-    this->ePathFName.setText(pathObj->trPathName);
-    this->eName.setText(pathObj->displayName);
-    this->ePathStart.setText(pathObj->trPathStart);
-    this->ePathEnd.setText(pathObj->trPathEnd);
+    refresh();
+}
+
+void PropertiesActivityPath::updateObj(GameObj* obj){
+    if(obj == NULL || obj != pathObj || pathObj->changes() == shownChanges)
+        return;
+    refresh();
+}
+
+void PropertiesActivityPath::refresh(){
+    if(pathObj == NULL)
+        return;
+    auto show = [](QLineEdit &edit, const QString &text) {
+        if(!edit.hasFocus() && edit.text() != text)
+            edit.setText(text);
+    };
+    show(ePathFName, pathObj->trPathName);
+    show(eName, pathObj->displayName);
+    show(ePathStart, pathObj->trPathStart);
+    show(ePathEnd, pathObj->trPathEnd);
+    show(eFlags, pathObj->hasFlags() ? QString("%1").arg(pathObj->trPathFlags, 8, 16, QChar('0'))
+                                     : QString());
+    cNotPlayer.blockSignals(true);
+    cNotPlayer.setChecked(pathObj->hasFlags() && (pathObj->trPathFlags & 0x20u) != 0);
+    cNotPlayer.blockSignals(false);
 
     // The start, end, reversal and wait points, and how many junctions.
     nodeList.clear();
@@ -118,6 +149,7 @@ void PropertiesActivityPath::showObj(GameObj* obj){
     nodeList.addItem(
         //% "%n junction(s)"
         qtTrId("route.editor.properties.activity.path.node.junctions", junctions));
+    shownChanges = pathObj->changes();
 }
 
 bool PropertiesActivityPath::support(GameObj* obj){
@@ -126,7 +158,9 @@ bool PropertiesActivityPath::support(GameObj* obj){
     if(obj->typeObj == GameObj::activitypath)
         return true;
     return false;
-}void PropertiesActivityPath::nameEdited(){
+}
+
+void PropertiesActivityPath::nameEdited(){
     if(pathObj != NULL)
         pathObj->setDisplayName(eName.text());
 }
@@ -139,4 +173,21 @@ void PropertiesActivityPath::startEdited(){
 void PropertiesActivityPath::endEdited(){
     if(pathObj != NULL)
         pathObj->setEndName(ePathEnd.text());
+}
+void PropertiesActivityPath::flagsEdited(){
+    if(pathObj == NULL)
+        return;
+    bool ok = false;
+    const unsigned int value = eFlags.text().trimmed().toUInt(&ok, 16);
+    if(ok)
+        pathObj->setPathFlags(value);
+    refresh();
+}
+
+void PropertiesActivityPath::notPlayerToggled(bool value){
+    if(pathObj == NULL)
+        return;
+    const unsigned int flags = pathObj->hasFlags() ? pathObj->trPathFlags : 0u;
+    pathObj->setPathFlags(value ? (flags | 0x20u) : (flags & ~0x20u));
+    refresh();
 }

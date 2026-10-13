@@ -576,7 +576,7 @@ int otherDirectionNode(TDB *tdb, const QVector<Node> &nodes, const QVector<Leg> 
     if (!isVector(vector) || nodes.isEmpty())
         return -1;
     const float length = trackLength(tdb, point.track);
-    float best = OtherDirectionReach;
+    float best = PointReach;
     int found = -1;
     const Node &start = nodes[0];
     if (start.type == NodeType::Start && !start.broken && start.track == point.track
@@ -739,6 +739,271 @@ QMap<int, int> junctionChoices(TDB *tdb, const QVector<Node> &nodes, const QVect
             choices[nodes[k].track] = exit - junction->inputPinCount;
     }
     return choices;
+}
+
+int waitNode(const QVector<Node> &nodes, const TrackPoint &point) {
+    float best = PointReach;
+    int found = -1;
+    for (int k = 0; k < nodes.size(); ++k) {
+        const Node &node = nodes[k];
+        if (node.type != NodeType::Wait || node.broken || node.track != point.track)
+            continue;
+        const float d = std::fabs(node.distance - point.distance);
+        if (d <= best) {
+            best = d;
+            found = k;
+        }
+    }
+    return found;
+}
+
+Result removeLastReverse(TDB *tdb, const QVector<Node> &nodes) {
+    Track t{tdb, {}};
+    int last = -1;
+    for (int k = nodes.size() - 1; k > 0 && last < 0; --k)
+        if (nodes[k].type == NodeType::Reverse)
+            last = k;
+    if (last < 0)
+        return fail(Note::NoReverse);
+    const Node &reverse = nodes[last];
+    if (reverse.broken || !isVector(trackNode(tdb, reverse.track)))
+        return fail(Note::NoTrack);
+    // A reversal leaves in its forward direction; the path came the other way.
+    const bool came = !reverse.forward;
+    QVector<Node> result = nodes.mid(0, last);
+    const Note note = complete(t, result, reverse.track, came, reverse.distance);
+    return done(result, note);
+}
+
+Result waitAt(TDB *tdb, const QVector<Node> &nodes, const TrackPoint &point, int seconds) {
+    Track t{tdb, {}};
+    if (nodes.isEmpty())
+        return fail(Note::NoPath);
+    if (!validPoint(t, point))
+        return fail(Note::NoTrack);
+    const QVector<Leg> path = legsOf(t, nodes);
+    const int k = legAt(path, point, true);
+    if (k < 0)
+        return fail(Note::NotOnPath);
+    Node wait = t.point(NodeType::Wait, point.track, point.distance, path[k].forward());
+    wait.waitTime = std::clamp(seconds, 0, MaxWaitTime);
+    QVector<Node> result = nodes;
+    result.insert(k + 1, wait);
+    return done(result, Note::None);
+}
+
+Result setWaitTime(TDB *, const QVector<Node> &nodes, int index, int seconds) {
+    if (index < 0 || index >= nodes.size() || nodes[index].type != NodeType::Wait)
+        return fail(Note::NoWait);
+    QVector<Node> result = nodes;
+    result[index].waitTime = std::clamp(seconds, 0, MaxWaitTime);
+    result[index].fileFlags = -1;
+    return done(result, Note::None);
+}
+
+Result removeWait(TDB *tdb, const QVector<Node> &nodes, int index) {
+    Track t{tdb, {}};
+    if (index < 0 || index >= nodes.size() || nodes[index].type != NodeType::Wait)
+        return fail(Note::NoWait);
+    const Node wait = nodes[index];
+    QVector<Node> result = nodes;
+    result.removeAt(index);
+    // The wait told two tracks between two junctions apart: a halfway node
+    // does instead.
+    if (index > 0 && index < result.size() && result[index - 1].type == NodeType::Junction
+            && result[index].type == NodeType::Junction && !result[index - 1].broken
+            && !result[index].broken && !wait.broken
+            && tracksBetween(tdb, result[index - 1].track, result[index].track) > 1)
+        result.insert(index, t.point(NodeType::Halfway, wait.track, 0.5f * t.length(wait.track),
+                                     wait.forward));
+    return done(result, Note::None);
+}
+
+namespace {
+
+// The nodes other than halfway nodes, and where each is in the full list.
+// Files leave out some halfway nodes between two junctions joined twice and
+// keep some strays; the edits add and drop them by their rule.
+QVector<Node> withoutHalfways(const QVector<Node> &nodes, QVector<int> *where = nullptr) {
+    QVector<Node> kept;
+    for (int k = 0; k < nodes.size(); ++k)
+        if (nodes[k].type != NodeType::Halfway) {
+            kept << nodes[k];
+            if (where != nullptr)
+                *where << k;
+        }
+    return kept;
+}
+
+// The tracks from each node other than a halfway node to the next one.
+QVector<QVector<int>> tracksBetweenNodes(TDB *tdb, const QVector<Node> &nodes) {
+    const QVector<Leg> path = legs(tdb, nodes);
+    QVector<QVector<int>> result;
+    for (int k = 0; k < nodes.size(); ++k) {
+        if (nodes[k].type != NodeType::Halfway)
+            result << QVector<int>();
+        if (k < path.size() && (result.back().isEmpty() || result.back().back() != path[k].track))
+            result.back() << path[k].track;
+    }
+    return result;
+}
+
+bool sameNode(const Node &a, const Node &b) {
+    if (a.type != b.type || a.track != b.track)
+        return false;
+    if (a.type == NodeType::Wait && a.waitTime != b.waitTime)
+        return false;
+    return !a.isPoint() || std::fabs(a.distance - b.distance) <= 1.0f;
+}
+
+// Where two paths part, halfway nodes left out: the first node that
+// differs, or that the paths reach over other tracks; -1 when the same.
+int firstDifference(TDB *tdb, const QVector<Node> &ours, const QVector<Node> &target) {
+    const QVector<Node> a = withoutHalfways(ours);
+    const QVector<Node> b = withoutHalfways(target);
+    const QVector<QVector<int>> tracksA = tracksBetweenNodes(tdb, ours);
+    const QVector<QVector<int>> tracksB = tracksBetweenNodes(tdb, target);
+    const int count = std::min(a.size(), b.size());
+    for (int k = 0; k < count; ++k) {
+        if (!sameNode(a[k], b[k]))
+            return k;
+        if (k > 0 && tracksA[k - 1] != tracksB[k - 1])
+            return k;
+    }
+    return a.size() == b.size() ? -1 : count;
+}
+
+bool isAnchor(const Node &node) {
+    return node.type == NodeType::Reverse || node.type == NodeType::Wait
+            || node.type == NodeType::End;
+}
+
+// The edit that places a reversal, wait or end at a node's place.
+Result atAnchor(TDB *tdb, const QVector<Node> &nodes, const Node &anchor) {
+    const TrackPoint point{anchor.track, anchor.distance};
+    switch (anchor.type) {
+    case NodeType::End: return endAt(tdb, nodes, point);
+    case NodeType::Reverse: return reverseAt(tdb, nodes, point);
+    case NodeType::Wait: return waitAt(tdb, nodes, point, anchor.waitTime);
+    default: return Result();
+    }
+}
+
+}
+
+// One rebuild, the start turned from the nodes' direction when asked.
+static Result rebuildFrom(TDB *tdb, QVector<Node> target, bool repair, bool turned) {
+    Track t{tdb, {}};
+    Result built = startAt(tdb, {target[0].track, target[0].distance});
+    if (built.ok && (built.nodes[0].forward != target[0].forward) != turned)
+        built = turnStart(tdb, built.nodes);
+    if (!built.ok)
+        return built;
+    bool rerouted = false;
+    bool stopped = false;
+    for (int step = 0; step < 4000; ++step) {
+        const int k = firstDifference(tdb, built.nodes, target);
+        if (k < 0)
+            break;
+        // The edit a user would make there: the point's own edit, Take
+        // Other Direction at the junction before it, or both; End Here at
+        // the end (past a loop completion stopped at). The first that gets
+        // further.
+        QVector<int> where, whereTarget;
+        withoutHalfways(built.nodes, &where);
+        const QVector<Node> wanted = withoutHalfways(target, &whereTarget);
+        QVector<Result> tries;
+        if (k < wanted.size() && isAnchor(wanted[k]))
+            tries << atAnchor(tdb, built.nodes, wanted[k]);
+        if (k > 0 && k - 1 < where.size()) {
+            const Result other = otherExit(tdb, built.nodes, where[k - 1]);
+            tries << other;
+            if (other.ok && k < wanted.size() && isAnchor(wanted[k]))
+                tries << atAnchor(tdb, other.nodes, wanted[k]);
+        }
+        if (wanted.back().type == NodeType::End)
+            tries << endAt(tdb, built.nodes, {wanted.back().track, wanted.back().distance});
+        bool progressed = false;
+        for (const Result &attempt : tries) {
+            if (!attempt.ok)
+                continue;
+            const int next = firstDifference(tdb, attempt.nodes, target);
+            if (next < 0 || next > k) {
+                built = attempt;
+                progressed = true;
+                break;
+            }
+        }
+        if (progressed)
+            continue;
+        if (!repair) {
+            built.ok = false;
+            built.note = Note::NoRoute;
+            return built;
+        }
+        // Repair: route to the next reversal, wait or end, and follow the
+        // nodes on from there.
+        int anchor = -1;
+        for (int a = k; a < wanted.size() && anchor < 0; ++a)
+            if (isAnchor(wanted[a]))
+                anchor = a;
+        if (anchor < 0) {
+            stopped = true;
+            break;
+        }
+        const Node &to = wanted[anchor];
+        Result routed = endAt(tdb, built.nodes, {to.track, to.distance});
+        if (routed.ok && to.type != NodeType::End) {
+            // The end the route made becomes the reversal or wait.
+            Node &end = routed.nodes.back();
+            end.type = to.type;
+            end.waitTime = to.waitTime;
+            end.fileFlags = -1;
+            if (to.type == NodeType::Reverse)
+                end.forward = !end.forward;
+            complete(t, routed.nodes, end.track, end.forward, end.distance);
+            dropStrayHalfways(routed.nodes);
+        }
+        if (!routed.ok) {
+            built.note = Note::RepairStopped;
+            return built;
+        }
+        built = routed;
+        rerouted = true;
+        // From here on, the nodes after the anchor.
+        int reached = -1;
+        for (int b = built.nodes.size() - 1; b >= 0 && reached < 0; --b)
+            if (sameNode(built.nodes[b], to))
+                reached = b;
+        if (reached < 0)
+            break;
+        target = built.nodes.mid(0, reached + 1) + target.mid(whereTarget[anchor] + 1);
+    }
+    built.ok = true;
+    built.note = stopped ? Note::RepairStopped : rerouted ? Note::Rerouted : Note::None;
+    return built;
+}
+
+Result rebuild(TDB *tdb, const QVector<Node> &nodes, bool repair) {
+    QVector<Node> target;
+    for (const Node &node : nodes) {
+        if (!node.broken)
+            target << node;
+        else if (!repair)
+            return fail(Note::NoTrack);
+    }
+    if (target.isEmpty() || target[0].type != NodeType::Start)
+        return fail(Note::NoPath);
+    Result built = rebuildFrom(tdb, target, repair, false);
+    // A start whose track to the next node broke may face the wrong way:
+    // the other way, when it gets further.
+    if (repair && built.ok && built.note == Note::RepairStopped) {
+        Result turned = rebuildFrom(tdb, target, repair, true);
+        if (turned.ok && (turned.note != Note::RepairStopped
+                          || turned.nodes.size() > built.nodes.size()))
+            built = turned;
+    }
+    return built;
 }
 
 void dropStrayHalfways(QVector<Node> &nodes) {

@@ -2570,7 +2570,9 @@ bool RouteEditorGLWidget::runDiagnosticPathAction(const QString &action, float d
     aktPointerPos[2] += dz;
     QMenu menu;
     tool->contextMenu(*this, menu);
-    static const QStringList order = {"start", "end", "other", "reverse"};
+    // The menu in order; the wait entries ask for a time and do not suit captures.
+    static const QStringList order = {"start", "end", "other", "reverse", "removeReverse",
+                                      "addWait", "editWait", "removeWait", "repair"};
     QList<QAction *> entries;
     for (QAction *entry : menu.actions())
         if (!entry->isSeparator())

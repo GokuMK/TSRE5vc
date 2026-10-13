@@ -92,8 +92,9 @@ struct ViewSpec {
     QStringList overlayActions;
     double overlayOpacity = 1.0;
     // Path tool menu entries run on the selected path (task editor 06):
-    // [entry, dx, dz], the entry "start", "end", "other" or "reverse" at the
-    // view's centre moved by dx, dz metres.
+    // [entry, dx, dz], the entry ("start", "end", "other", "reverse",
+    // "removeReverse", "removeWait", "repair") at the view's centre moved
+    // by dx, dz metres.
     QJsonArray pathActions;
     // Measure Distance: from and to, metres from the view's centre (x east, z south).
     bool hasMeasure = false;

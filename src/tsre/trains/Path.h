@@ -103,6 +103,11 @@ public:
     void restore(const PathSnapshot &snapshot);
     // Clone: another path's nodes, names and flags.
     void copyFrom(Path &source);
+    // Grows with every change of the path, for panels that show it.
+    unsigned int changes() const { return changeCount; }
+    bool hasFlags() const { return hasPathFlags; }
+    // TrPathFlags; 0x20 marks a path no player train runs (Open Rails).
+    void setPathFlags(unsigned int value);
     void setDisplayName(const QString &value);
     void setStartName(const QString &value);
     void setEndName(const QString &value);
@@ -116,6 +121,7 @@ private:
     bool isinit1 = false;
     bool isinit2 = false;
     bool hasPathFlags = false;
+    unsigned int changeCount = 0;
     int serial = -1;
     TrackItemObj* pointer3d[4] = {NULL, NULL, NULL, NULL};
     QVector<OglObj*> lines;

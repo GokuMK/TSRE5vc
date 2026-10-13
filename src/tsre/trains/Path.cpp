@@ -208,9 +208,21 @@ bool sameNode(const Node &a, const Node &b) {
             && std::fabs(a.distance - b.distance) < 0.01f && a.waitTime == b.waitTime;
 }
 
-// What the 3D view and the map draw a point node as: 0 start, 1 end,
-// 2 reversal or wait; -1 not drawn.
+// A straight line between two nodes, relative to a tile: where the path's
+// track is not on the track database.
+void brokenLine(std::vector<float> &segments, const Node &a, const Node &b, int tileX, int tileZ) {
+    for (const Node *node : {&a, &b}) {
+        segments.push_back((node->tileX - tileX) * 2048 + node->position[0]);
+        segments.push_back(node->position[1]);
+        segments.push_back((node->tileZ - tileZ) * 2048 + node->position[2]);
+    }
+}
+
+// What the 3D view and the map draw a node as: 0 start, 1 end, 2 reversal
+// or wait, 3 a node off the track database; -1 not drawn.
 int markerKind(const Node &node) {
+    if (node.broken)
+        return 3;
     switch (node.type) {
     case NodeType::Start: return 0;
     case NodeType::End: return 1;
@@ -460,6 +472,7 @@ void Path::clearDerived() {
 }
 
 void Path::rebuildDerived() {
+    ++changeCount;
     clearDerived();
     TDB *tdb = resolvedOn;
     if (tdb == NULL)
@@ -586,6 +599,7 @@ void Path::setDisplayName(const QString &value) {
         return;
     displayName = value;
     modified = true;
+    ++changeCount;
 }
 
 void Path::setStartName(const QString &value) {
@@ -593,6 +607,7 @@ void Path::setStartName(const QString &value) {
         return;
     trPathStart = value;
     modified = true;
+    ++changeCount;
 }
 
 void Path::setEndName(const QString &value) {
@@ -600,6 +615,16 @@ void Path::setEndName(const QString &value) {
         return;
     trPathEnd = value;
     modified = true;
+    ++changeCount;
+}
+
+void Path::setPathFlags(unsigned int value) {
+    if (hasPathFlags && trPathFlags == value)
+        return;
+    trPathFlags = value;
+    hasPathFlags = true;
+    modified = true;
+    ++changeCount;
 }
 
 QString Path::toText() {
@@ -739,17 +764,21 @@ void Path::init3dShapes(bool initShapes){
     TDB *tdb = resolvedOn;
     for (int k = 0; k < mainLegs.size(); ++k) {
         const PathTrack::Leg &leg = mainLegs[k];
-        if (leg.broken)
-            continue;
         std::vector<float> segments;
         const int tileX = mainNodes[k].tileX;
         const int tileZ = mainNodes[k].tileZ;
-        tdb->getTrackSegments(segments, leg.track, leg.from, leg.to, tileX, tileZ);
+        if (leg.broken)
+            brokenLine(segments, mainNodes[k], mainNodes[k + 1], tileX, tileZ);
+        else
+            tdb->getTrackSegments(segments, leg.track, leg.from, leg.to, tileX, tileZ);
         if (segments.empty())
             continue;
         OglObj *line = new OglObj();
         line->init(segments.data(), int(segments.size()), RenderItem::V, GL_LINES);
-        line->setMaterial(0.0, 1.0, 0.0);
+        if (leg.broken)
+            line->setMaterial(0.9, 0.0, 0.63);
+        else
+            line->setMaterial(0.0, 1.0, 0.0);
         line->setLineWidth(2);
         lines.push_back(line);
         linesX.push_back(tileX);
@@ -759,8 +788,9 @@ void Path::init3dShapes(bool initShapes){
 }
 
 void Path::pushRenderItems(RenderQueue &queue, float *playerT, quint32 selectionId) {
-    static const float colours[3][3] = {{0.0f, 0.8f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.5f, 0.0f}};
-    for (int kind = 0; kind < 3; ++kind)
+    static const float colours[4][3] = {{0.0f, 0.8f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.5f, 0.0f},
+                                        {0.9f, 0.0f, 0.63f}};
+    for (int kind = 0; kind < 4; ++kind)
         if (pointer3d[kind] == NULL) {
             pointer3d[kind] = new TrackItemObj(1);
             pointer3d[kind]->setMaterial(colours[kind][0], colours[kind][1], colours[kind][2]);
@@ -795,15 +825,19 @@ void Path::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
     resolve();
     if (resolvedOn == NULL)
         return;
-    for (const PathTrack::Leg &leg : mainLegs)
-        if (!leg.broken)
+    for (int k = 0; k < mainLegs.size(); ++k) {
+        const PathTrack::Leg &leg = mainLegs[k];
+        if (leg.broken)
+            brokenLine(features.brokenLines, mainNodes[k], mainNodes[k + 1], tileX, tileZ);
+        else
             resolvedOn->getTrackSegments(features.lines, leg.track, leg.from, leg.to, tileX, tileZ);
+    }
     for (const Node &node : mainNodes) {
         const int kind = markerKind(node);
         if (kind < 0)
             continue;
         std::vector<float> &into = kind == 0 ? features.starts : kind == 1 ? features.ends
-                                                                          : features.points;
+                                 : kind == 3 ? features.brokenPoints : features.points;
         into.push_back((node.tileX - tileX) * 2048 + node.position[0]);
         into.push_back(node.position[1]);
         into.push_back((node.tileZ - tileZ) * 2048 + node.position[2]);
