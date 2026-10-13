@@ -66,7 +66,7 @@ void Traffic::load(){
             continue;
         }
         if (sh == ("traffic_definition")) {
-            nameId = ParserX::GetString(data);
+            nameId = ParserX::GetStringInside(data);
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 if (sh == ("serial")) {
                     serial = ParserX::GetNumber(data);
@@ -80,8 +80,7 @@ void Traffic::load(){
                     ParserX::SkipToken(data);
                     continue;
                 }
-                qDebug() << "#traffic_definition - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                kept.push_back(ParserX::KeepBlock(data, sh));
             }
             ParserX::SkipToken(data);
             continue;
@@ -148,6 +147,7 @@ void Traffic::save(){
         if(!service[i]->empty)
             service[i]->save(&out, off);
     }
+    ParserX::WriteKept(&out, kept, off);
     out << ")\n";
     
     file.close();

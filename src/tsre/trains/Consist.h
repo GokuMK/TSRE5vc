@@ -12,6 +12,7 @@
 #define	CONSIST_H
 
 #include <QString>
+#include <QStringList>
 #include <unordered_map>
 #include <QVector>
 #include <tsre/GameObj.h>
@@ -52,6 +53,9 @@ public:
         TextObj * txt = NULL;
         QString epath;
         QString ename;
+        // Blocks TSRE does not read (Open Rails' LoadData and others), as
+        // they were in the file; written at the end of the car.
+        QStringList kept;
     };
     Consist();
     Consist(Consist * con, bool fullCopy = true);
@@ -79,6 +83,10 @@ public:
     int selectedIdx = -1;
     float textColor[3];
     QVector<EngItem> engItems;
+    // Blocks TSRE does not read, as they were in the file: in the train
+    // (Train or Train_Config) and in its TrainCfg; written at the end.
+    QStringList kept;
+    QStringList keptCfg;
     Consist(QString p, QString n);
     Consist(QString src, QString p, QString n);
     void load();

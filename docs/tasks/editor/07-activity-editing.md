@@ -1,7 +1,7 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phase 1 done (2026-10-13, branch `feature/activity-editing`);
-phase 2 next. Design decisions taken (below).
+Status: phases 1 and 2 done (2026-10-13, branch `feature/activity-editing`);
+phase 3 next. Design decisions taken (below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -51,6 +51,38 @@ Suite `activity-ui` (see Verification). Left for phase 3, as they are
 about saving: creating a speed zone or failed signal, adding or cloning a
 traffic instance do not mark the file changed; the service and traffic
 windows list the library's objects of every loaded route.
+
+**Phase 2, keeping what is not understood (done 2026-10-13).**
+- `ParserX::KeepBlock` takes the block a reader does not model, from its
+  token to its closing bracket, as it is in the file (quoted brackets
+  included); `ParserX::WriteKept` writes such blocks at the end of their
+  block. The existing ParserX readers use it wherever they skipped a
+  token: activity (`Tr_Activity`, header, `Tr_Activity_File`, the traffic
+  definition, the event, object, zone, signal and passenger lists), player
+  and AI service instances, timetables, events, outcome lists, wagon
+  lists, activity objects, consists (train, `TrainCfg`, each car; `.con`
+  files too), services (definition, timetable, stops), traffic.
+- So Open Rails' additions not modelled yet (header `FuelWood`,
+  `FuelSand`, `ORTSLoadStationsPopulation`; `ORTSAICrossingHornPattern`;
+  `Reversible_Event`, `ORTSTriggeringTrain`; the outcomes
+  `ORTSActivitySound`, `ORTSRestartWaitingTrain` and the block form of
+  `ORTSWeatherChange`; consists' `ORTSEOT`, `LoadData`), `Comment` blocks
+  and anything newer survive a save. Phase 6 models them.
+- Per-stop arrays are written stop by stop with the fields each has, so a
+  file with a field missing for a stop reads back as it was. Stops as
+  records are left to phase 5, where stops are edited.
+- `PlatformData` read in file order (platform, passengers).
+- Fixed on the way: `ORTSActSoundFile` on an event was read and then
+  skipped as unknown; `ParserX::SplitToMultiline` added a line break to
+  texts ending with one (every save of 30 local activities grew their
+  briefings and messages); service names, consist and path and the
+  traffic name read with `GetStringInside`, which stops at an empty
+  value's bracket; a consist whose cars are missing no longer gets NaN
+  for `MaxVelocity`.
+
+Suite `activity-roundtrip`: the written fixtures keep every block and
+save the same twice; all 441 local ACT, SRV and TRF files (`~/ORTS`) are
+read, written and read back with no difference.
 
 ## Objective
 
@@ -347,7 +379,8 @@ speed limit outcomes). TSRE keeps them: MSAE needs them.
 - **Records instead of parallel arrays:** a stop is one record (platform,
   distance, skip count, efficiency, arrival, departure, its kept blocks);
   a file with a field missing reads into records with that field unset
-  and is reported, not written short.
+  and is reported, not written short. (Phase 2 writes the arrays stop by
+  stop without loss; records come with phase 5's stop editing.)
 - Known fields that were dropped get modelled (section 6).
 - `PlatformData` read into locals in file order; written in the same
   order.
@@ -497,12 +530,12 @@ that jumps to each item:
    instead of vector pointers, signals blocked when showing, the traffic
    time fix, Delete for services and traffic, unique zone and signal ids.
    Suite `activity-ui`.
-2. **Preservation and the round-trip suite:** kept blocks, records for
-   stops, `PlatformData`. Suite `activity-roundtrip`.
+2. **Preservation and the round-trip suite:** kept blocks, lossless
+   per-stop writers, `PlatformData`. Suite `activity-roundtrip`.
 3. **Saving and undo:** revisions, the dirty-state fixes, instance keys,
    `PathID` by file, activity/service/traffic undo, path save-then-undo.
 4. **Check Activity.**
-5. **Paths to services and timetables:** stops by platform and visit,
+5. **Paths to services and timetables:** stops as records, by platform and visit,
    recomputing after path changes, moving times, passing branches kept.
 6. **Open Rails additions** in the windows and the path tool; merging an
    overlay into its activity.
@@ -531,12 +564,17 @@ stands alone.
   `TSRE_ACTIVITY_UI_SEED` tries others, `TSRE_ACTIVITY_UI_TRACE` logs each
   action. Play is left out (it places the train on terrain the test route
   does not have).
-- **`activity-roundtrip`** (`--game-root`, `--route`, or all routes under a
-  root): every ACT, SRV, TRF is read, written to a temporary folder and
-  read back with `SimisTextReader` into block trees; the trees must match
-  the original's apart from number formatting and the documented order
-  changes. Run on the 68 ACT, 302 SRV and 71 TRF files here, and on
-  community content with Open Rails additions when available.
+- **`activity-roundtrip`** (done in phase 2): written fixtures (an
+  activity with every Open Rails addition of the tables above, comments
+  and unknown blocks at each level, a quoted bracket, a stop missing
+  fields; a service, a traffic pattern and a consist likewise) are read,
+  written and read back with `SimisTextReader` into block trees: nothing
+  missing, changed or added, and a second save the same as the first.
+  With `--test-cases <folder>`, every ACT, SRV and TRF file under it
+  likewise, the differences counted by block (blocks of one name compare
+  in order; the order between names is free; numbers within formatting).
+  The 441 files here: no difference. Community content with Open Rails
+  additions when available.
 - **`activity-edit`** on written fixtures:
   - every Open Rails token above, a `Comment`, an unknown block at each
     level, kept through load, edit, save; attributes not set are not

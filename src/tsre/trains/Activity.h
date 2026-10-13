@@ -12,6 +12,7 @@
 #define	ACTIVITY_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityObject.h>
@@ -41,6 +42,9 @@ public:
     QVector<float> distanceDownPath;
     QVector<int> platformStartId;
     ActivityTimetable *trafficDefinition = NULL;
+    // Blocks TSRE does not read, as they were in the file; written at the
+    // end of the block.
+    QStringList kept;
     void load(FileBuffer* data);
     void save(QTextStream* out);
     void reloadTimetable();
@@ -65,6 +69,7 @@ public:
     struct TrafficDefinition {
         QString name;
         QVector<ActivityServiceDefinition> service;
+        QStringList kept;
     };
 
     struct ActivityHeader {
@@ -88,6 +93,7 @@ public:
         int fuelCoal = -1;
         int fuelDiesel = -1;
         int* voltage = NULL;
+        QStringList kept;
         void load(FileBuffer* data);
         void save(QTextStream* out);
         ActivityHeader();
@@ -118,6 +124,16 @@ public:
     // events are added; deleteEvent is the only place that frees one.
     QVector<ActivityEvent*> event;
     int serial = -1;
+    // Blocks TSRE does not read, as they were in the file, by the block
+    // they were in (Tr_Activity, Tr_Activity_File and its lists); written
+    // at the end of that block.
+    QStringList kept;
+    QStringList keptFile;
+    QStringList keptEvents;
+    QStringList keptObjects;
+    QStringList keptSpeedZones;
+    QStringList keptFailedSignals;
+    QStringList keptPassengers;
 
     void load();
     void save();

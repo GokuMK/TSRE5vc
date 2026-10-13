@@ -428,6 +428,17 @@ void ActivityEvent::load(FileBuffer* data) {
         }
         if (sh == ("outcomes")) {
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
+                // Open Rails' weather change holds blocks (ORTSOvercast and
+                // others), TSRE's the name of a preset: the first is kept.
+                if(sh == "ortsweatherchange"){
+                    const int start = data->off;
+                    const QString block = ParserX::KeepBlock(data, sh);
+                    if(block.count('(') > 1){
+                        keptOutcomes.push_back(block);
+                        continue;
+                    }
+                    data->off = start;
+                }
                 if(Outcome::OutcomeNameType[sh] != Outcome::TypeNone){
                     outcomes.push_back(new Outcome(Outcome::OutcomeNameType[sh]));
                     outcomes.back()->load(data);
@@ -435,8 +446,7 @@ void ActivityEvent::load(FileBuffer* data) {
                     continue;
                 }
 
-                qDebug() << "#event outcomes - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                keptOutcomes.push_back(ParserX::KeepBlock(data, sh));
                 continue;
             }
             ParserX::SkipToken(data);
@@ -506,8 +516,7 @@ void ActivityEvent::load(FileBuffer* data) {
                     ParserX::SkipToken(data);
                     continue;
                 }
-                qDebug() << "#event wagonlist - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                keptWagonList.push_back(ParserX::KeepBlock(data, sh));
                 continue;
             }
             ParserX::SkipToken(data);
@@ -538,6 +547,8 @@ void ActivityEvent::load(FileBuffer* data) {
         if (sh == "ortsactsoundfile"){
             ortsActSoundFileDeprecated.push_back(ParserX::GetStringInside(data));
             ortsActSoundFileDeprecated.push_back(ParserX::GetStringInside(data));
+            ParserX::SkipToken(data);
+            continue;
         }
         if (sh == "ortsweatherchange"){
             ortsWeatherChangeDeprecated = new OrtsWeatherChange();
@@ -546,8 +557,7 @@ void ActivityEvent::load(FileBuffer* data) {
             continue;
         }
         
-        qDebug() << "#event - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
 }
@@ -592,11 +602,12 @@ void ActivityEvent::save(QTextStream* out) {
     if(activationLevel != -99999)
         *out << "				Activation_Level ( "<<activationLevel<<" )\n";
 
-    if(outcomes.size() > 0){
+    if(outcomes.size() > 0 || keptOutcomes.size() > 0){
         *out << "				Outcomes (\n";
         for(int i = 0; i < outcomes.size(); i++){
             outcomes[i]->save(out);
         }
+        ParserX::WriteKept(out, keptOutcomes, "					");
         *out << "				)\n";
     } else {
         *out << "				Outcomes ( )\n";
@@ -646,6 +657,7 @@ void ActivityEvent::save(QTextStream* out) {
             if(wagonList[i].sidingItem > 1000000)
             *out << "					Description ( "<<ParserX::AddComIfReq(wagonList[i].description)<<" )\n";
         }
+        ParserX::WriteKept(out, keptWagonList, "					");
         *out << "				)\n";
     }
     if(sidingItem != -99999)
@@ -663,6 +675,7 @@ void ActivityEvent::save(QTextStream* out) {
         QString off = "				";
         ortsWeatherChangeDeprecated->save(out, off);
     }
+    ParserX::WriteKept(out, kept, "				");
     
     *out << "			)\n";
 }

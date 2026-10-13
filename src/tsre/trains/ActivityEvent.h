@@ -9,6 +9,7 @@
  */
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QVariant>
 
@@ -142,6 +143,11 @@ public:
     QString textToDisplayOnCompletionIfNotTriggered;
     QString textToDisplayDescriptionOfTask;
     QVector<Outcome*> outcomes;
+    // Blocks TSRE does not read, as they were in the file, by the block
+    // they were in; written at the end of that block.
+    QStringList kept;
+    QStringList keptOutcomes;
+    QStringList keptWagonList;
     // deprecated - use only for OpenRails 1.2;
     OrtsWeatherChange* ortsWeatherChangeDeprecated = NULL;
     QVector<QString> ortsActSoundFileDeprecated;

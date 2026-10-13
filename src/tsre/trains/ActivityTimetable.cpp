@@ -138,8 +138,7 @@ void ActivityTimetable::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#trafficDefinition-Timetable - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
 }
@@ -154,16 +153,23 @@ void ActivityTimetable::save(QTextStream* out, QString off) {
     else
         *out << off << "Service_Definition ( "<< ParserX::AddComIfReq(name) << " "<< time <<"\n";
 
-    // Only the complete stops of a file whose arrays differ in length.
-    const int stops = std::min({arrivalTime.size(), departTime.size(), skipCount.size(),
+    // Stop by stop; a field the file lacks for a stop stays missing, so the
+    // file reads back as it was read.
+    const int stops = std::max({arrivalTime.size(), departTime.size(), skipCount.size(),
                                 distanceDownPath.size(), platformStartID.size()});
     for(int i = 0; i<stops; i++){
-        *out << off << "	ArrivalTime ( "<<arrivalTime[i]<<" )\n";
-        *out << off << "	DepartTime ( "<<departTime[i]<<" )\n";
-        *out << off << "	SkipCount ( "<<skipCount[i]<<" )\n";
-        *out << off << "	DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
-        *out << off << "	PlatformStartID ( "<<platformStartID[i]<<" )\n";
+        if(i < arrivalTime.size())
+            *out << off << "	ArrivalTime ( "<<arrivalTime[i]<<" )\n";
+        if(i < departTime.size())
+            *out << off << "	DepartTime ( "<<departTime[i]<<" )\n";
+        if(i < skipCount.size())
+            *out << off << "	SkipCount ( "<<skipCount[i]<<" )\n";
+        if(i < distanceDownPath.size())
+            *out << off << "	DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
+        if(i < platformStartID.size())
+            *out << off << "	PlatformStartID ( "<<platformStartID[i]<<" )\n";
     }
+    ParserX::WriteKept(out, kept, off + "	");
     *out << off << ")\n";
     
     modified = false;

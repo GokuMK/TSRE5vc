@@ -86,17 +86,17 @@ void Service::load(){
                     continue;
                 }
                 if (sh == ("name")) {
-                    displayName = ParserX::GetString(data);
+                    displayName = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("train_config")) {
-                    trainConfig = ParserX::GetString(data);
+                    trainConfig = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("pathid")) {
-                    pathId = ParserX::GetString(data);
+                    pathId = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -150,20 +150,17 @@ void Service::load(){
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#stationstop - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                stationStop.back().kept.push_back(ParserX::KeepBlock(data, sh));
                             }
                             ParserX::SkipToken(data);
                             continue;
                         }
-                        qDebug() << "#timetable - undefined token: " << sh;
-                        ParserX::SkipToken(data);
+                        keptTimetable.push_back(ParserX::KeepBlock(data, sh));
                     }
                     ParserX::SkipToken(data);
                     continue;
                 }
-                qDebug() << "#service_definition - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                kept.push_back(ParserX::KeepBlock(data, sh));
             }
             ParserX::SkipToken(data);
             continue;
@@ -216,9 +213,12 @@ void Service::save(){
         out << "			PlatformStartID ( "<<stationStop[i].platformStartID<<" )\n";
         out << "			DistanceDownPath ( "<<stationStop[i].distanceDownPath<<" )\n";
         out << "			SkipCount ( "<<stationStop[i].skipCount<<" )\n";
+        ParserX::WriteKept(&out, stationStop[i].kept, "			");
         out << "		)\n";
     }
+    ParserX::WriteKept(&out, keptTimetable, "		");
     out << "	)\n";
+    ParserX::WriteKept(&out, kept, "	");
     out << ")\n";
     
     file.close();

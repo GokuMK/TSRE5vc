@@ -203,7 +203,7 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                ParserX::SkipToken(data);
+                                traffic->kept.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -242,8 +242,7 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#events - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptEvents.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -252,12 +251,15 @@ void Activity::load() {
                         if (sh == ("platformnumpassengerswaiting")) {
                             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                                 if (sh == ("platformdata")) {
-                                    platformNumPassengersWaiting.push_back(qMakePair(ParserX::GetNumber(data), ParserX::GetNumber(data)));
+                                    // The platform, then the passengers: two
+                                    // statements, read in this order.
+                                    const int platform = ParserX::GetNumber(data);
+                                    const int passengers = ParserX::GetNumber(data);
+                                    platformNumPassengersWaiting.push_back(qMakePair(platform, passengers));
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#platformnumpassengerswaiting - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptPassengers.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -273,8 +275,7 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#activityobjects - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptObjects.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -292,8 +293,7 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#activityrestrictedspeedzones - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptSpeedZones.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -309,22 +309,19 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#activityfailedsignals - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptFailedSignals.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
                             continue;
                         }
-                        qDebug() << "#tr_activity_file - undefined token: " << sh;
-                        ParserX::SkipToken(data);
+                        keptFile.push_back(ParserX::KeepBlock(data, sh));
                         continue;
                     }
                     ParserX::SkipToken(data);
                     continue;
                 }
-                qDebug() << "#tr_activity - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                kept.push_back(ParserX::KeepBlock(data, sh));
                 continue;
             }
             ParserX::SkipToken(data);
@@ -386,43 +383,50 @@ void Activity::save() {
         out << "		Traffic_Definition ( " << ParserX::AddComIfReq(traffic->name) <<"\n";
         for(int i = 0; i<traffic->service.size(); i++)
             traffic->service[i].save(&out);
+        ParserX::WriteKept(&out, traffic->kept, "			");
         out << "		)\n";
     }
 
-    if (event.size() > 0 ){
+    if (event.size() > 0 || keptEvents.size() > 0){
         out << "		Events (\n";
         for(int i = 0; i<event.size(); i++)
             event[i]->save(&out);
+        ParserX::WriteKept(&out, keptEvents, "			");
         out << "		)\n";
     }
 
-    if (activityObjects.size() > 0 ){
+    if (activityObjects.size() > 0 || keptObjects.size() > 0){
         out << "		ActivityObjects (\n";
         for(int i = 0; i<activityObjects.size(); i++)
             activityObjects[i]->save(&out);
+        ParserX::WriteKept(&out, keptObjects, "			");
         out << "		)\n";
     }
 
-    if (restrictedSpeedZone.size() > 0 ){
+    if (restrictedSpeedZone.size() > 0 || keptSpeedZones.size() > 0){
         out << "		ActivityRestrictedSpeedZones (\n";
         for(int i = 0; i<restrictedSpeedZone.size(); i++)
             restrictedSpeedZone[i]->save(&out);
+        ParserX::WriteKept(&out, keptSpeedZones, "			");
         out << "		)\n";
     }
-    if (activityFailedSignal.size() > 0 ){
+    if (activityFailedSignal.size() > 0 || keptFailedSignals.size() > 0){
         out << "		ActivityFailedSignals (\n";
         for(int i = 0; i<activityFailedSignal.size(); i++)
             activityFailedSignal[i]->save(&out);
+        ParserX::WriteKept(&out, keptFailedSignals, "			");
         out << "		)\n";
     }
-    if (platformNumPassengersWaiting.size() > 0 ){
+    if (platformNumPassengersWaiting.size() > 0 || keptPassengers.size() > 0){
         out << "		PlatformNumPassengersWaiting (\n";
         for(int i = 0; i<platformNumPassengersWaiting.size(); i++)
-            out << "			PlatformData ( " << platformNumPassengersWaiting[i].second << " " << platformNumPassengersWaiting[i].first << " )\n";
+            out << "			PlatformData ( " << platformNumPassengersWaiting[i].first << " " << platformNumPassengersWaiting[i].second << " )\n";
+        ParserX::WriteKept(&out, keptPassengers, "			");
         out << "		)\n";
     }
+    ParserX::WriteKept(&out, keptFile, "		");
     out << "	)\n";
-    
+    ParserX::WriteKept(&out, kept, "	");
 
     out << ")";
 
@@ -570,8 +574,7 @@ void ActivityServiceDefinition::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#serviceDefinition - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
 }
@@ -605,15 +608,21 @@ void ActivityServiceDefinition::save(QTextStream* out) {
     
     if(uid != -1)
         *out << woff << "			UiD ( "<<uid<<" )\n";
-    // Only the complete stops of a file whose arrays differ in length.
-    const int stops = std::min({efficiency.size(), skipCount.size(),
+    // Stop by stop; a field the file lacks for a stop stays missing, so the
+    // file reads back as it was read.
+    const int stops = std::max({efficiency.size(), skipCount.size(),
                                 distanceDownPath.size(), platformStartId.size()});
     for(int i = 0; i<stops; i++){
-        *out << woff << "			Efficiency ( "<<efficiency[i]<<" )\n";
-        *out << woff << "			SkipCount ( "<<skipCount[i]<<" )\n";
-        *out << woff << "			DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
-        *out << woff << "			PlatformStartID ( "<<platformStartId[i]<<" )\n";
+        if(i < efficiency.size())
+            *out << woff << "			Efficiency ( "<<efficiency[i]<<" )\n";
+        if(i < skipCount.size())
+            *out << woff << "			SkipCount ( "<<skipCount[i]<<" )\n";
+        if(i < distanceDownPath.size())
+            *out << woff << "			DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
+        if(i < platformStartId.size())
+            *out << woff << "			PlatformStartID ( "<<platformStartId[i]<<" )\n";
     }
+    ParserX::WriteKept(out, kept, woff + "			");
     *out << woff << "		)\n";
     
     modified = false;
@@ -744,8 +753,7 @@ void Activity::ActivityHeader::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#activityHeader - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
 }
@@ -799,6 +807,7 @@ void Activity::ActivityHeader::save(QTextStream* out) {
         *out << "		FuelCoal ( " << fuelCoal << " )\n";
     if (fuelDiesel != -1)
         *out << "		FuelDiesel ( " << fuelDiesel << " )\n";
+    ParserX::WriteKept(out, kept, "		");
     *out << "	)\n";
 }
 

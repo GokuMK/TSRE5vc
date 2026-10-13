@@ -12,6 +12,7 @@
 #define	TRAFFIC_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 class ActivityTimetable;
@@ -20,6 +21,9 @@ class Traffic {
 public:
     
     QVector<ActivityTimetable*> service;
+    // Blocks TSRE does not read, as they were in the file; written at the
+    // end of the traffic definition.
+    QStringList kept;
     QString displayName;
     QString name;
     QString nameId;

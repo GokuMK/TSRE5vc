@@ -66,6 +66,7 @@ Consist::Consist(Consist * con, bool fullCopy) {
         engItems.back().eng = con->engItems[i].eng;
         engItems.back().flip = con->engItems[i].flip;
         engItems.back().uid = con->engItems[i].uid;
+        engItems.back().kept = con->engItems[i].kept;
     }
     
     if(fullCopy){
@@ -96,6 +97,8 @@ Consist::Consist(Consist * con, bool fullCopy) {
         modified = con->modified;
         defaultValue = con->defaultValue;
         maxVelocityFixed = con->maxVelocityFixed;
+        kept = con->kept;
+        keptCfg = con->keptCfg;
     }
     
     initPos();
@@ -230,7 +233,7 @@ bool Consist::load(FileBuffer* data){
                             ParserX::SkipToken(data);
                             continue;
                         }
-                        ParserX::SkipToken(data);
+                        engItems.back().kept.push_back(ParserX::KeepBlock(data, sh));
                     }
                     ParserX::SkipToken(data);
                     continue;
@@ -256,18 +259,17 @@ bool Consist::load(FileBuffer* data){
                             ParserX::SkipToken(data);
                             continue;
                         }
-                        ParserX::SkipToken(data);
+                        engItems.back().kept.push_back(ParserX::KeepBlock(data, sh));
                     }
                     ParserX::SkipToken(data);
                     continue;
                 }
-                ParserX::SkipToken(data);
+                keptCfg.push_back(ParserX::KeepBlock(data, sh));
             }
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#train - undefined token " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
     }
     return ok;
 }
@@ -319,7 +321,8 @@ void Consist::initPos(){
     }
 
 
-    if(!maxVelocityFixed){
+    // Without the cars' data (missing files) the file's values stay.
+    if(!maxVelocityFixed && mass > 0){
         //qDebug() << "mv "<< this->maxVelocity[0] <<" "<< this->maxVelocity[1];
         this->maxVelocity[0] = tmaxspeed / 3.6;
         //this->maxVelocity[1] = emass / mass;
@@ -852,6 +855,7 @@ void Consist::save(){
     out << "\n";
     out << "Train (\n";
     save("", &out);
+    ParserX::WriteKept(&out, kept, "	");
     out << ")\n";
     
     file.close(); 
@@ -878,6 +882,7 @@ void Consist::save(QString woff, QTextStream* out){
             *out << woff <<"			Flip ( )\n";
             *out << woff <<"			UiD ( " << engItems[i].uid << " )\n";
             *out << woff <<"			EngineData ( " << ParserX::AddComIfReq(engItems[i].ename) << " " << ParserX::AddComIfReq(engItems[i].epath) << " )\n";
+            ParserX::WriteKept(out, engItems[i].kept, woff + "			");
             *out << woff <<"		)\n";
         } 
         if(this->engItems[i].type == 0){
@@ -886,9 +891,11 @@ void Consist::save(QString woff, QTextStream* out){
             if(this->engItems[i].flip)
             *out << woff <<"			Flip ( )\n";
             *out << woff <<"			UiD ( " << engItems[i].uid << " )\n";
+            ParserX::WriteKept(out, engItems[i].kept, woff + "			");
             *out << woff <<"		)\n";
         }
     }
+    ParserX::WriteKept(out, keptCfg, woff + "		");
     *out << woff <<"	)\n";
 }
 

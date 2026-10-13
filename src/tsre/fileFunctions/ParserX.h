@@ -13,6 +13,9 @@
 
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <QString>
+#include <QStringList>
+
+class QTextStream;
 
 class ParserX {
 public:
@@ -32,6 +35,13 @@ public:
     static unsigned int GetUInt(FileBuffer* bufor);
     static unsigned int GetHex(FileBuffer* bufor);
     static int SkipToken(FileBuffer* bufor);
+    // The block whose token NextTokenInside has just returned, as it is in
+    // the file: from the token to its closing bracket, with brackets inside
+    // quoted strings. The buffer is left after the block, as SkipToken
+    // leaves it. For blocks a reader does not model, to be written back.
+    static QString KeepBlock(FileBuffer* bufor, const QString &token);
+    // Kept blocks, each on its own line after the indent.
+    static void WriteKept(QTextStream* out, const QStringList &kept, const QString &indent);
     static QString AddComIfReq(QString n);
     static QString MakeFlagsString(unsigned int val);
     static QString SplitToMultiline(QString n, QString woff = "");

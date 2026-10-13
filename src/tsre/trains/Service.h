@@ -12,6 +12,7 @@
 #define	SERVICE_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 class RenderQueue;
@@ -25,9 +26,10 @@ struct MapFeatures;
 class Service {
 public:
     struct StationStop{
-        int platformStartID;
-        float distanceDownPath;
-        int skipCount;
+        int platformStartID = 0;
+        float distanceDownPath = 0;
+        int skipCount = 0;
+        QStringList kept;
     };
     
     QString displayName;
@@ -46,6 +48,10 @@ public:
     float startInWorld;
     float endInWorld;
     QVector<StationStop> stationStop;
+    // Blocks TSRE does not read, as they were in the file, by the block
+    // they were in (stops have their own); written at the end of it.
+    QStringList kept;
+    QStringList keptTimetable;
     int loaded = -1;
     int ref = 0;
     
