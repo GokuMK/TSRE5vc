@@ -2347,7 +2347,7 @@ void RhiRenderer::present() {
     if (gpuSeconds > 0.0)
         gpuMs = float(gpuSeconds * 1000.0);
     // Bloom from the view's glow, before the frame's pass begins.
-    QRhiTexture *bloomTexture = renderBloom(frame.commandBuffer);
+    QRhiTexture *bloomTexture = plainImage ? nullptr : renderBloom(frame.commandBuffer);
     // The view's brightness for auto exposure (task 29).
     if (exposureActive())
         measureLuminance(frame.commandBuffer);
@@ -2481,8 +2481,9 @@ void main() {
         overlayDrawn = s->overlayPainted() & overlay->rect();
     }
     // Tone curve, exposure and bloom strength (bloom levels add up, so
-    // their sum is averaged).
-    const float image[4] = {float(toneMapping()), std::exp2(Game::exposure) * autoExposure(),
+    // their sum is averaged); none for a plain image.
+    const float image[4] = {plainImage ? 0.0f : float(toneMapping()),
+                            plainImage ? 1.0f : std::exp2(Game::exposure) * autoExposure(),
                             bloomTexture != nullptr
                                     ? Game::bloomStrength / float(std::max<size_t>(1, bloom.levels.size()))
                                     : 0.0f,

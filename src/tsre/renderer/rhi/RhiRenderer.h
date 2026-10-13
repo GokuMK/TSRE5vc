@@ -79,6 +79,7 @@ public:
     void setSkyEnclosure(const SkyEnclosure &enclosure) override;
     void setExposureControl(const ExposureControl &control) override;
     bool autoExposureAvailable() const override;
+    void setPlainImage(bool plain) override { plainImage = plain; }
 
     // The environment map and water reflection storage (RhiReflections.cpp)
     // drive these.
@@ -297,6 +298,7 @@ private:
     // two later; the exposure follows it around the exposure of an ordinary
     // view (1 / sceneLight).
     ExposureControl exposureControl;
+    bool plainImage = false;
     bool exposureActive() const;
     // The scale of gamma-space light colours (sceneLight^(1/2.2)), 1 off.
     float sceneScaleDisplay() const;

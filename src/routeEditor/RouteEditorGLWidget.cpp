@@ -697,6 +697,7 @@ void RouteEditorGLWidget::paintScene(){
         return;
     }
     RenderStats::ScopedFrame statsFrame(!selectionPass);
+    renderer->setPlainImage(false);
     // The sun and the sky of the chosen time of day (or the fixed light).
     applyTimeOfDay();
     applySky();
@@ -2822,6 +2823,10 @@ void RouteEditorGLWidget::paintMap() {
         }
         return;
     }
+    // The map shows its palette as it is: no auto exposure (task 29), tone
+    // curve, exposure or bloom.
+    renderer->setExposureControl(Renderer::ExposureControl());
+    renderer->setPlainImage(true);
     const int width = qRound(float(this->width()) * Game::PixelRatio);
     const int height = qRound(float(this->height()) * Game::PixelRatio);
     cameraMap->setViewport(width, height);

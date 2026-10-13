@@ -161,6 +161,16 @@ sky 144 and 184); 20:30 16 and 31 (the dusk sky 30 and 59). The night stays
 black (the user: not an issue). Overlays, lenses and signals undo it with
 the rest of the exposure.
 
+The map view (user: it should not use auto exposure): the renderer kept the
+last 3D frame's exposure control, as only the 3D path handed one over. The
+map's layers draw unlit, so the exposure cancelled on them (the map was the
+same in Dimmed and Auto); what changed its colours was the tone curve, in
+every mode (with AgX the pointer's 255,120,0 showed as 212,136,65). The map
+now turns auto exposure off and draws a plain image
+(`Renderer::setPlainImage`): no tone curve, exposure or bloom; it matches the
+map without tone mapping within 2 levels. Back in 3D, the first frame with
+auto exposure takes its target at once.
+
 Tried and reverted on the way: the sky weighted a fifth in the measurement
 with the table recalibrated, and the offset carried by the adaptation curve.
 Recalibrating on the same view cancels any overall gain from the weighting;

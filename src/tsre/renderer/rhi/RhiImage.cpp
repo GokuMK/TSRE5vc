@@ -339,6 +339,7 @@ float RhiRenderer::signalScale() const {
 }
 
 void RhiRenderer::setExposureControl(const ExposureControl &control) {
+    const bool wasActive = exposureActive();
     exposureControl = control;
     Luminance &l = luminance;
     if (!exposureActive()) {
@@ -346,7 +347,8 @@ void RhiRenderer::setExposureControl(const ExposureControl &control) {
         l.snapFrames = 0;
         return;
     }
-    if (control.snap) {
+    // Back from frames without it (the map), the view is new as after a jump.
+    if (control.snap || !wasActive) {
         // The read-backs in flight show the view before the jump: the
         // target is taken at once until two measurements of the new view.
         l.snapFrames = 2;
