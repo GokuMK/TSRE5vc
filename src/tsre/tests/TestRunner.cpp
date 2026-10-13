@@ -79,6 +79,7 @@
 #include <tsre/tests/OsmDataTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
 #include <tsre/tests/TdbRoundTripTestSuite.h>
+#include <tsre/tests/PathTestSuite.h>
 #include <tsre/tests/ParserExponentTestSuite.h>
 #include <tsre/tests/TdbOrderingTestSuite.h>
 #include <tsre/tests/TdbEditingTestSuite.h>
@@ -4138,6 +4139,8 @@ QStringList TsreTests::listSuites() {
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
+        "path-edit",
+        "path-roundtrip",
         "parser-exponents",
         "tdb-ordering",
         "tdb-editing",
@@ -4244,6 +4247,10 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "tdb-load")
         return runTdbLoadSuite(opts.verbose);
+    if (suite == "path-edit")
+        return runPathEditSuite(opts.verbose);
+    if (suite == "path-roundtrip")
+        return runPathRoundTripSuite(opts.casesFile, opts.verbose);
     if (suite == "tdb-roundtrip")
         return runTdbRoundTripSuite(opts.casesFile);
     if (suite == "parser-exponents")

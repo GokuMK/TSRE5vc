@@ -26,6 +26,13 @@ struct MapFeatures {
     std::vector<float> lines;
     // Marker centres: x, y, z.
     std::vector<float> points;
+    // A path's start and end markers, drawn apart from the other points.
+    std::vector<float> starts;
+    std::vector<float> ends;
+    // Where a path is off the track database: straight lines between its
+    // nodes, and its nodes not found.
+    std::vector<float> brokenLines;
+    std::vector<float> brokenPoints;
     // Vehicle footprints, VehicleFloats each.
     std::vector<float> vehicles;
     // Circular areas: centre x, z and radius.
@@ -34,11 +41,16 @@ struct MapFeatures {
     void append(const MapFeatures &other) {
         lines.insert(lines.end(), other.lines.begin(), other.lines.end());
         points.insert(points.end(), other.points.begin(), other.points.end());
+        starts.insert(starts.end(), other.starts.begin(), other.starts.end());
+        ends.insert(ends.end(), other.ends.begin(), other.ends.end());
+        brokenLines.insert(brokenLines.end(), other.brokenLines.begin(), other.brokenLines.end());
+        brokenPoints.insert(brokenPoints.end(), other.brokenPoints.begin(), other.brokenPoints.end());
         vehicles.insert(vehicles.end(), other.vehicles.begin(), other.vehicles.end());
         areas.insert(areas.end(), other.areas.begin(), other.areas.end());
     }
     bool empty() const {
-        return lines.empty() && points.empty() && vehicles.empty() && areas.empty();
+        return lines.empty() && points.empty() && starts.empty() && ends.empty()
+                && brokenLines.empty() && brokenPoints.empty() && vehicles.empty() && areas.empty();
     }
 };
 

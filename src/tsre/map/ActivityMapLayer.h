@@ -35,7 +35,8 @@ struct MapPalette;
 // Each part answers for itself what the map draws (getMapFeatures).
 class ActivityMapLayer {
 public:
-    enum Group { Path, Vehicles, Engines, SpeedZone, FailedSignal, Event, GroupCount };
+    enum Group { Path, PathStart, PathEnd, PathBroken, Vehicles, Engines, SpeedZone, FailedSignal,
+                 Event, GroupCount };
     static constexpr float PathPixels = 8.0f;
     static constexpr float LinePixels = 3.0f;
     static constexpr float MarkerPixels = 9.0f;

@@ -23,6 +23,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/objects/GroupObj.h>
 #include <tsre/world/Terrain.h>
+#include <tsre/trains/Path.h>
 
 bool Undo::UndoEnabled = true;
 UndoState* Undo::currentState = NULL;
@@ -183,6 +184,9 @@ void Undo::UndoLast(){
             state->roadDB = NULL;
         }
     }
+    for(auto it = state->pathData.begin(); it != state->pathData.end(); ++it)
+        if(it.value())
+            it.key()->restore(*it.value());
     if(state->tsectionData.data != NULL
             && Game::currentRoute != NULL
             && Game::currentRoute->tsection == state->tsectionData.data){
@@ -451,6 +455,15 @@ void Undo::PushTrackDB(TDB* tdb, bool road){
             currentState->modified = true;
         }
     }
+}
+
+void Undo::PushPathData(Path *path){
+    if(currentState == NULL || path == NULL)
+        return;
+    if(currentState->pathData.contains(path))
+        return;
+    currentState->pathData.insert(path, path->snapshot());
+    currentState->modified = true;
 }
 
 void Undo::PushTSectionData(TSectionDAT* tsection){

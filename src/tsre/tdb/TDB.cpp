@@ -2129,6 +2129,7 @@ int TDB::getNextItrNode(){
 }
 
 void TDB::refresh() {
+    ++revision;
     isInitSectLines = false;
     isInitLines = false;
     isInitTrItemsDraw = false;

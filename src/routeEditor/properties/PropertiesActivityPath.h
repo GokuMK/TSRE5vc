@@ -12,6 +12,7 @@
 #define	PROPERTIESACTIVITYPATH_H
 
 #include <routeEditor/properties/PropertiesAbstract.h>
+#include <QCheckBox>
 
 class Path;
 
@@ -22,14 +23,29 @@ public:
     virtual ~PropertiesActivityPath();
     bool support(GameObj* obj);
     void showObj(GameObj* obj);
-    
+    // The view asks a few times a second: the panel shows the path again
+    // when it changed (an edit of the path tool, undo).
+    void updateObj(GameObj* obj);
+
+private slots:
+    void nameEdited();
+    void startEdited();
+    void endEdited();
+    void flagsEdited();
+    void notPlayerToggled(bool value);
+
 private:
+    // Shows the path; a field being typed in keeps its text.
+    void refresh();
     Path *pathObj = NULL;
+    unsigned int shownChanges = 0;
     QLineEdit ePathFName;
     QLineEdit eName;
     QLineEdit ePathStart;
     QLineEdit ePathEnd;
-    
+    QLineEdit eFlags;
+    QCheckBox cNotPlayer;
+
     QListWidget nodeList;
 };
 

@@ -1,20 +1,23 @@
 /*  This file is part of TSRE5.
  *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
  *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
  *
- *  Licensed under GNU General Public License 3.0 or later. 
+ *  Licensed under GNU General Public License 3.0 or later.
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/ActLib.h>
 #include <tsre/tdb/TRnode.h>
 #include <QString>
 #include <QDebug>
 #include <QFile>
 #include <QDir>
+#include <QSet>
+#include <QTextStream>
 #include <tsre/Game.h>
 #include <tsre/map/MapFeatures.h>
 #include <tsre/renderer/Renderer.h>
@@ -27,6 +30,209 @@
 #include <tsre/ogl/TrackItemObj.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/tdb/TRitem.h>
+#include <algorithm>
+#include <cmath>
+
+using PathTrack::Node;
+using PathTrack::NodeType;
+
+namespace {
+
+// "No next node" in a TrPathNode.
+constexpr unsigned int NoNext = 4294967295u;
+// A file node within this distance of a junction (metres, across the
+// ground) is that junction; a point within this distance of a track is on
+// it.
+constexpr float JunctionSnap = 1.0f;
+constexpr float PointSnap = 2.0f;
+
+qint64 tileKey(int x, int z) {
+    return (qint64(x) << 32) ^ qint64(quint32(z));
+}
+
+float acrossGround(int tileXA, int tileZA, const float *a, int tileXB, int tileZB, const float *b) {
+    const float dx = float(tileXA - tileXB) * 2048.0f + a[0] - b[0];
+    const float dz = float(tileZA - tileZB) * 2048.0f + a[2] - b[2];
+    return std::sqrt(dx * dx + dz * dz);
+}
+
+// The nearest place on vector node `track` to a node's position, across the
+// ground: its distance from the node and its distance along the track.
+bool nearestOn(TDB *tdb, int track, const Node &node, float &across, float &along) {
+    float *buffer = nullptr;
+    int length = 0;
+    tdb->getVectorSectionLine(buffer, length, node.tileX, node.tileZ, track, true);
+    if (buffer == nullptr)
+        return false;
+    across = 1e9f;
+    for (int i = 0; i + 12 <= length; i += 12) {
+        const float *a = buffer + i;
+        const float *b = buffer + i + 6;
+        const float sx = b[0] - a[0], sz = b[2] - a[2];
+        const float squared = sx * sx + sz * sz;
+        float t = squared > 0.0f
+                ? ((node.position[0] - a[0]) * sx + (node.position[2] - a[2]) * sz) / squared : 0.0f;
+        t = std::clamp(t, 0.0f, 1.0f);
+        const float dx = a[0] + sx * t - node.position[0];
+        const float dz = a[2] + sz * t - node.position[2];
+        const float d = std::sqrt(dx * dx + dz * dz);
+        if (d < across) {
+            across = d;
+            along = a[5] + (b[5] - a[5]) * t;
+        }
+    }
+    delete[] buffer;
+    return across < 1e9f;
+}
+
+// The track database's nodes by tile, for finding path nodes on it.
+struct TrackIndex {
+    QHash<qint64, QVector<int>> junctions;
+    QHash<qint64, QVector<int>> vectors;
+
+    explicit TrackIndex(TDB *tdb) {
+        for (const auto &entry : tdb->trackNodes) {
+            const TRnode *n = entry.second;
+            if (n == nullptr)
+                continue;
+            if (n->typ == 0 || n->typ == 2) {
+                junctions[tileKey(n->uid.tileX, -n->uid.tileZ)].push_back(entry.first);
+            } else if (n->typ == 1) {
+                QSet<qint64> tiles;
+                for (int i = 0; i < n->iTrv; ++i)
+                    tiles.insert(tileKey(n->trVectorSection[i].tileX, -n->trVectorSection[i].tileZ));
+                for (qint64 tile : tiles)
+                    vectors[tile].push_back(entry.first);
+            }
+        }
+    }
+
+    template<typename F>
+    static void around(const QHash<qint64, QVector<int>> &index, const Node &node, F visit) {
+        QSet<int> seen;
+        for (int x = node.tileX - 1; x <= node.tileX + 1; ++x)
+            for (int z = node.tileZ - 1; z <= node.tileZ + 1; ++z) {
+                auto it = index.find(tileKey(x, z));
+                if (it == index.end())
+                    continue;
+                for (int id : *it)
+                    if (!seen.contains(id)) {
+                        seen.insert(id);
+                        visit(id);
+                    }
+            }
+    }
+};
+
+void resolveJunction(TDB *tdb, const TrackIndex &index, Node &node) {
+    float best = JunctionSnap;
+    node.broken = true;
+    TrackIndex::around(index.junctions, node, [&](int id) {
+        const TRnode *n = tdb->trackNodes[id];
+        const float uid[3] = {n->uid.x, n->uid.y, -n->uid.z};
+        const float d = acrossGround(n->uid.tileX, -n->uid.tileZ, uid, node.tileX, node.tileZ,
+                                     node.position);
+        if (d <= best) {
+            best = d;
+            node.track = id;
+            node.broken = false;
+        }
+    });
+}
+
+// A point node on the track nearest it; the tracks joining the junction
+// nodes next to it first, as they tell apart tracks close together.
+void resolvePoint(TDB *tdb, const TrackIndex &index, Node &node, const Node *previous,
+                  const Node *next) {
+    float best = PointSnap;
+    node.broken = true;
+    auto consider = [&](int id) {
+        float across = 0.0f, along = 0.0f;
+        if (nearestOn(tdb, id, node, across, along) && across <= best) {
+            best = across;
+            node.track = id;
+            node.distance = along;
+            node.broken = false;
+        }
+    };
+    for (const Node *neighbour : {previous, next}) {
+        if (neighbour == nullptr || neighbour->isPoint() || neighbour->broken)
+            continue;
+        const TRnode *junction = tdb->trackNodes[neighbour->track];
+        for (int p = 0; p < junction->inputPinCount + junction->outputPinCount && p < 3; ++p) {
+            auto it = tdb->trackNodes.find(junction->pins[p].link);
+            if (it != tdb->trackNodes.end() && it->second != nullptr && it->second->typ == 1)
+                consider(junction->pins[p].link);
+        }
+    }
+    if (!node.broken)
+        return;
+    TrackIndex::around(index.vectors, node, consider);
+}
+
+void resolveNodes(TDB *tdb, const TrackIndex &index, QVector<Node> &nodes) {
+    for (Node &node : nodes)
+        if (!node.isPoint())
+            resolveJunction(tdb, index, node);
+    for (int k = 0; k < nodes.size(); ++k)
+        if (nodes[k].isPoint())
+            resolvePoint(tdb, index, nodes[k], k > 0 ? &nodes[k - 1] : nullptr,
+                         k + 1 < nodes.size() ? &nodes[k + 1] : nullptr);
+}
+
+QString number(float value) {
+    if (std::fabs(value) < 1e-4f)
+        value = 0.0f;
+    return QString::number(value, 'g', 6);
+}
+
+QString hex8(long long value) {
+    return QString("%1").arg(qulonglong(value) & 0xffffffffull, 8, 16, QChar('0'));
+}
+
+// The node flags MSTS gives a node of each type: BBBB 1 a reversal, 2 a
+// wait (AAAA its seconds), 4 a point between junctions.
+long long nodeFlags(const Node &node) {
+    if (node.fileFlags >= 0)
+        return node.fileFlags;
+    switch (node.type) {
+    case NodeType::Reverse: return 1;
+    case NodeType::Wait: return 2 | (qint64(std::clamp(node.waitTime, 0, 0xffff)) << 16);
+    case NodeType::Halfway: return 4;
+    default: return 0;
+    }
+}
+
+bool sameNode(const Node &a, const Node &b) {
+    return a.type == b.type && a.track == b.track && a.broken == b.broken
+            && std::fabs(a.distance - b.distance) < 0.01f && a.waitTime == b.waitTime;
+}
+
+// A straight line between two nodes, relative to a tile: where the path's
+// track is not on the track database.
+void brokenLine(std::vector<float> &segments, const Node &a, const Node &b, int tileX, int tileZ) {
+    for (const Node *node : {&a, &b}) {
+        segments.push_back((node->tileX - tileX) * 2048 + node->position[0]);
+        segments.push_back(node->position[1]);
+        segments.push_back((node->tileZ - tileZ) * 2048 + node->position[2]);
+    }
+}
+
+// What the 3D view and the map draw a node as: 0 start, 1 end, 2 reversal
+// or wait, 3 a node off the track database; -1 not drawn.
+int markerKind(const Node &node) {
+    if (node.broken)
+        return 3;
+    switch (node.type) {
+    case NodeType::Start: return 0;
+    case NodeType::End: return 1;
+    case NodeType::Reverse:
+    case NodeType::Wait: return 2;
+    default: return -1;
+    }
+}
+
+}
 
 Path::Path() {
     typeObj = activitypath;
@@ -49,6 +255,8 @@ Path::Path(QString p, QString n, bool nowe) {
     } else {
         loaded = 1;
         modified = true;
+        fileRead = true;
+        trPathName = nameId;
     }
 }
 
@@ -97,30 +305,32 @@ void Path::load(){
             ParserX::SkipToken(data);
             continue;
         }
+        // Names may be empty: "TrPathStart ( )" (GetStringInside).
         if (sh == ("trackpath")) {
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 if (sh == ("trpathname")) {
-                    trPathName = ParserX::GetString(data);
+                    trPathName = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("name")) {
-                    displayName = ParserX::GetString(data);
+                    displayName = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("trpathstart")) {
-                    trPathStart = ParserX::GetString(data);
+                    trPathStart = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("trpathend")) {
-                    trPathEnd = ParserX::GetString(data);
+                    trPathEnd = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("trpathflags")) {
                     trPathFlags = ParserX::GetHex(data);
+                    hasPathFlags = true;
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -150,302 +360,456 @@ void Path::load(){
         qDebug() << "#PAT - undefined token: " << sh;
         ParserX::SkipToken(data);
     }
-    
+
     loaded = 1;
 }
 
+void Path::initRoute(){
+    readNodes();
+}
+
+void Path::readNodes() {
+    if (fileRead)
+        return;
+    fileRead = true;
+    mainNodes.clear();
+    passing.clear();
+    const int count = trPathNode.size();
+    auto nodeOf = [&](int index, bool first, bool last) {
+        Node node;
+        const unsigned int *raw = trPathNode[index];
+        const unsigned int pdpIndex = raw[3];
+        node.fileFlags = raw[0];
+        if (pdpIndex >= unsigned(trackPdp.size())) {
+            node.broken = true;
+            node.type = NodeType::Halfway;
+            return node;
+        }
+        const float *pdp = trackPdp[int(pdpIndex)];
+        node.pdpFlags[0] = int(pdp[5]);
+        node.pdpFlags[1] = int(pdp[6]);
+        node.tileX = int(pdp[0]);
+        node.tileZ = -int(pdp[1]);
+        node.position[0] = pdp[2];
+        node.position[1] = pdp[3];
+        node.position[2] = -pdp[4];
+        const unsigned int kind = raw[0] & 0xffffu;
+        if (node.pdpFlags[0] == 2)
+            node.type = NodeType::Junction;
+        else if (first)
+            node.type = NodeType::Start;
+        else if (last)
+            node.type = NodeType::End;
+        else if (kind & 1u)
+            node.type = NodeType::Reverse;
+        else if (kind & 2u) {
+            node.type = NodeType::Wait;
+            node.waitTime = int(raw[0] >> 16);
+        } else
+            node.type = NodeType::Halfway;
+        return node;
+    };
+
+    // The main path: from the first node along the main links.
+    QVector<int> chain;
+    QHash<int, int> mainIndex;
+    for (int k = 0; k >= 0 && k < count && !mainIndex.contains(k);) {
+        mainIndex.insert(k, chain.size());
+        chain.push_back(k);
+        const unsigned int next = trPathNode[k][1];
+        k = next == NoNext || next >= unsigned(count) ? -1 : int(next);
+    }
+    for (int m = 0; m < chain.size(); ++m)
+        mainNodes.push_back(nodeOf(chain[m], m == 0, m == chain.size() - 1));
+    // Passing paths: from a main node along the passing links back to the
+    // main path.
+    for (int m = 0; m < chain.size(); ++m) {
+        unsigned int next = trPathNode[chain[m]][2];
+        if (next == NoNext)
+            continue;
+        PathSnapshot::Passing side;
+        side.from = m;
+        QSet<int> seen;
+        while (next != NoNext && next < unsigned(count) && !mainIndex.contains(int(next))
+               && !seen.contains(int(next))) {
+            seen.insert(int(next));
+            side.nodes.push_back(nodeOf(int(next), false, false));
+            const unsigned int *raw = trPathNode[int(next)];
+            next = raw[2] != NoNext ? raw[2] : raw[1];
+        }
+        if (next != NoNext && mainIndex.contains(int(next))) {
+            side.to = mainIndex.value(int(next));
+            passing.push_back(side);
+        }
+    }
+    resolvedOn = NULL;
+}
+
+void Path::resolve() {
+    readNodes();
+    TDB *tdb = Game::trackDB;
+    if (tdb == NULL || !tdb->loaded)
+        return;
+    if (resolvedOn == tdb && resolvedRevision == tdb->revision)
+        return;
+    const TrackIndex index(tdb);
+    resolveNodes(tdb, index, mainNodes);
+    for (PathSnapshot::Passing &side : passing)
+        resolveNodes(tdb, index, side.nodes);
+    resolvedOn = tdb;
+    resolvedRevision = tdb->revision;
+    rebuildDerived();
+}
+
+void Path::clearDerived() {
+    for (OglObj *line : lines)
+        delete line;
+    lines.clear();
+    linesX.clear();
+    linesZ.clear();
+    isinit1 = false;
+    isinit2 = false;
+}
+
+void Path::rebuildDerived() {
+    ++changeCount;
+    clearDerived();
+    TDB *tdb = resolvedOn;
+    if (tdb == NULL)
+        return;
+    mainLegs = PathTrack::legs(tdb, mainNodes);
+    PathTrack::setDirections(mainNodes, mainLegs);
+    junctionDirections = PathTrack::junctionChoices(tdb, mainNodes, mainLegs);
+    startDirection = !mainNodes.isEmpty() && mainNodes[0].isPoint() && !mainNodes[0].forward ? 1 : 0;
+
+    // The platforms along the path, each pair once, at its far end.
+    qDeleteAll(pathObjectsMap);
+    pathObjectsMap.clear();
+    QHash<int, float> pairAlong;
+    QHash<int, int> pairItem;
+    float down = 0.0f;
+    for (const PathTrack::Leg &leg : mainLegs) {
+        if (leg.broken)
+            continue;
+        auto it = tdb->trackNodes.find(leg.track);
+        const TRnode *vector = it != tdb->trackNodes.end() ? it->second : NULL;
+        for (int i = 0; vector != NULL && i < vector->iTri; ++i) {
+            const int id = vector->trItemRef[i];
+            auto item = tdb->trackItems.find(id);
+            if (item == tdb->trackItems.end() || item->second == NULL
+                    || item->second->type != "platformitem")
+                continue;
+            const float at = item->second->getTrackPosition();
+            if (at < std::min(leg.from, leg.to) - PathTrack::SamePlace
+                    || at > std::max(leg.from, leg.to) + PathTrack::SamePlace)
+                continue;
+            const int partner = item->second->platformTrItemData != NULL
+                    ? int(item->second->platformTrItemData[1]) : id;
+            const int pair = std::min(id, partner);
+            const float along = down + std::fabs(at - leg.from);
+            if (!pairAlong.contains(pair) || along > pairAlong.value(pair)) {
+                pairAlong.insert(pair, along);
+                pairItem.insert(pair, id);
+            }
+        }
+        down += std::fabs(leg.to - leg.from);
+    }
+    for (auto it = pairAlong.begin(); it != pairAlong.end(); ++it) {
+        PathObject *object = new PathObject();
+        object->trItemId = pairItem.value(it.key());
+        object->name = tdb->trackItems[object->trItemId]->stationName;
+        object->distanceDownPath = it.value();
+        pathObjectsMap.insert(it.value(), object);
+    }
+    pathObjects = pathObjectsMap.values();
+    isinit1 = true;
+}
+
+const QVector<Node> &Path::nodes() {
+    resolve();
+    return mainNodes;
+}
+
+const QVector<PathTrack::Leg> &Path::legs() {
+    resolve();
+    return mainLegs;
+}
+
+bool Path::isBroken() {
+    resolve();
+    for (const Node &node : mainNodes)
+        if (node.broken)
+            return true;
+    for (const PathTrack::Leg &leg : mainLegs)
+        if (leg.broken)
+            return true;
+    return false;
+}
+
+void Path::apply(const QVector<Node> &nodes) {
+    resolve();
+    int same = 0;
+    while (same < nodes.size() && same < mainNodes.size() && sameNode(nodes[same], mainNodes[same]))
+        ++same;
+    for (int i = passing.size() - 1; i >= 0; --i)
+        if (passing[i].to >= same || passing[i].from >= same)
+            passing.removeAt(i);
+    mainNodes = nodes;
+    modified = true;
+    rebuildDerived();
+    ActLib::PathChanged(this);
+}
+
+std::shared_ptr<PathSnapshot> Path::snapshot() {
+    resolve();
+    auto copy = std::make_shared<PathSnapshot>();
+    copy->nodes = mainNodes;
+    copy->passing = passing;
+    copy->modified = modified;
+    return copy;
+}
+
+void Path::restore(const PathSnapshot &snapshot) {
+    mainNodes = snapshot.nodes;
+    passing = snapshot.passing;
+    modified = snapshot.modified;
+    rebuildDerived();
+    ActLib::PathChanged(this);
+}
+
+void Path::copyFrom(Path &source) {
+    const QVector<Node> copied = source.nodes();
+    source.resolve();
+    passing = source.passing;
+    mainNodes = copied;
+    displayName = source.displayName;
+    trPathStart = source.trPathStart;
+    trPathEnd = source.trPathEnd;
+    trPathFlags = source.trPathFlags;
+    hasPathFlags = source.hasPathFlags;
+    fileRead = true;
+    modified = true;
+    resolvedOn = source.resolvedOn;
+    resolvedRevision = source.resolvedRevision;
+    rebuildDerived();
+}
+
+void Path::setDisplayName(const QString &value) {
+    if (displayName == value)
+        return;
+    displayName = value;
+    modified = true;
+    ++changeCount;
+}
+
+void Path::setStartName(const QString &value) {
+    if (trPathStart == value)
+        return;
+    trPathStart = value;
+    modified = true;
+    ++changeCount;
+}
+
+void Path::setEndName(const QString &value) {
+    if (trPathEnd == value)
+        return;
+    trPathEnd = value;
+    modified = true;
+    ++changeCount;
+}
+
+void Path::setPathFlags(unsigned int value) {
+    if (hasPathFlags && trPathFlags == value)
+        return;
+    trPathFlags = value;
+    hasPathFlags = true;
+    modified = true;
+    ++changeCount;
+}
+
+QString Path::toText() {
+    readNodes();
+    // Output order: each main node, then the nodes of a passing path
+    // leaving it (as MSTS and Open Rails TrackViewer write them).
+    QVector<int> outIndex(mainNodes.size());
+    QHash<int, int> passingFrom;
+    for (int i = 0; i < passing.size(); ++i)
+        passingFrom.insert(passing[i].from, i);
+    int next = 0;
+    for (int m = 0; m < mainNodes.size(); ++m) {
+        outIndex[m] = next++;
+        if (passingFrom.contains(m))
+            next += passing[passingFrom.value(m)].nodes.size();
+    }
+    struct Entry { const Node *node; unsigned int main; unsigned int side; };
+    QVector<Entry> entries;
+    for (int m = 0; m < mainNodes.size(); ++m) {
+        const unsigned int main = m + 1 < mainNodes.size() ? unsigned(outIndex[m + 1]) : NoNext;
+        if (!passingFrom.contains(m)) {
+            entries.push_back({&mainNodes[m], main, NoNext});
+            continue;
+        }
+        const PathSnapshot::Passing &side = passing[passingFrom.value(m)];
+        const unsigned int rejoin = unsigned(outIndex[side.to]);
+        entries.push_back({&mainNodes[m], main,
+                           side.nodes.isEmpty() ? rejoin : unsigned(outIndex[m] + 1)});
+        for (int s = 0; s < side.nodes.size(); ++s)
+            entries.push_back({&side.nodes[s], NoNext,
+                               s + 1 < side.nodes.size() ? unsigned(outIndex[m] + 2 + s) : rejoin});
+    }
+
+    // PDPs: one for each junction, shared, and one for each point.
+    QStringList pdps;
+    QVector<int> pdpOf;
+    QHash<int, int> junctionPdp;
+    for (const Entry &entry : entries) {
+        const Node &node = *entry.node;
+        if (!node.isPoint() && !node.broken && junctionPdp.contains(node.track)) {
+            pdpOf.push_back(junctionPdp.value(node.track));
+            continue;
+        }
+        const int flag1 = node.pdpFlags[0] >= 0 ? node.pdpFlags[0] : (node.isPoint() ? 1 : 2);
+        const int flag2 = node.pdpFlags[0] >= 0 ? node.pdpFlags[1] : (node.isPoint() ? 1 : 0);
+        pdps.push_back(QString("\tTrackPDP ( %1 %2 %3 %4 %5 %6 %7 )")
+                       .arg(node.tileX).arg(-node.tileZ)
+                       .arg(number(node.position[0]), number(node.position[1]),
+                            number(-node.position[2]))
+                       .arg(flag1).arg(flag2));
+        pdpOf.push_back(pdps.size() - 1);
+        if (!node.isPoint() && !node.broken)
+            junctionPdp.insert(node.track, pdps.size() - 1);
+    }
+
+    QString text;
+    QTextStream out(&text);
+    out << "SIMISA@@@@@@@@@@JINX0P0t______\n\n";
+    out << "Serial ( " << (serial > 0 ? serial : 1) << " )\n";
+    out << "TrackPDPs (\n";
+    for (const QString &line : pdps)
+        out << line << "\n";
+    out << ")\n";
+    out << "TrackPath (\n";
+    out << "\tTrPathName ( " << ParserX::AddComIfReq(trPathName) << " )\n";
+    if (hasPathFlags)
+        out << "\tTrPathFlags ( " << hex8(trPathFlags) << " )\n";
+    out << "\tName ( " << ParserX::AddComIfReq(displayName) << " )\n";
+    out << "\tTrPathStart ( " << ParserX::AddComIfReq(trPathStart) << " )\n";
+    out << "\tTrPathEnd ( " << ParserX::AddComIfReq(trPathEnd) << " )\n";
+    out << "\tTrPathNodes ( " << entries.size() << "\n";
+    for (int i = 0; i < entries.size(); ++i)
+        out << "\t\tTrPathNode ( " << hex8(nodeFlags(*entries[i].node)) << " " << entries[i].main
+            << " " << entries[i].side << " " << pdpOf[i] << " )\n";
+    out << "\t)\n";
+    out << ")\n";
+    out.flush();
+    return text;
+}
+
+bool Path::save() {
+    // A new path without a start yet: nothing a simulator could read.
+    readNodes();
+    if (mainNodes.isEmpty()) {
+        qWarning() << "Path without nodes not saved" << pathid;
+        return false;
+    }
+    const QString text = toText();
+    QFile file(pathid);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        qWarning() << "Cannot write path file" << pathid;
+        return false;
+    }
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf16);
+    out.setGenerateByteOrderMark(true);
+    out << text;
+    out.flush();
+    file.close();
+    if (out.status() != QTextStream::Ok)
+        return false;
+    modified = false;
+    loaded = 1;
+    return true;
+}
+
 QMap<int, int>* Path::getJunctionDirections(){
+    resolve();
     return &junctionDirections;
 }
 
 int Path::getStartDirection(){
-    init3dShapes(false);
-    
+    resolve();
     return startDirection;
 }
 
 float* Path::getStartPositionTXZ(float* out){
-    init3dShapes(false);
-    
+    resolve();
     if(out == NULL)
         out = new float[4];
-        
-    float posT[2];
-    float posW[3];
-    float tpos1[3];
-    TDB* tdb = Game::trackDB;
-    
-    posT[0] = node[0].tilex;
-    posT[1] = node[0].tilez;
-    Vec3::copy(posW, node[0].pos);
-    tdb->findNearestPositionOnTDB(posT, posW, NULL, tpos1);
-    out[0] = posT[0];
-    out[1] = -posT[1];
-    out[2] = posW[0];
-    out[3] = -posW[2];
-    //nodeId1 = tpos1[0];
-    //currentDistance = tpos1[1];
-    //currentNodeId = nodeId1;
+    out[0] = out[1] = out[2] = out[3] = 0.0f;
+    if (mainNodes.isEmpty())
+        return out;
+    // In the file's convention: tile x and z, x and z.
+    const Node &start = mainNodes[0];
+    out[0] = start.tileX;
+    out[1] = -start.tileZ;
+    out[2] = start.position[0];
+    out[3] = -start.position[2];
     return out;
 }
 
-void Path::initRoute(){
-    if(Game::trackDB == NULL)
-        return;
-    if(trPathNode.size() < 1)
-        return;
-    
-    unsigned int current = 0;
-    unsigned int trackPdpId = 0;
-    
-    while(current < 1000000) {
-        trackPdpId = trPathNode[current][3];
-        current = trPathNode[current][1];
-        node.push_back(PathNode());
-        node.back().next = current;
-        node.back().tilex = trackPdp[trackPdpId][0];
-        node.back().tilez = -trackPdp[trackPdpId][1];
-        node.back().pos[0] = trackPdp[trackPdpId][2];
-        node.back().pos[1] = trackPdp[trackPdpId][3];
-        node.back().pos[2] = -trackPdp[trackPdpId][4];
-        node.back().flag1 = trackPdp[trackPdpId][5];
-        node.back().flag2 = trackPdp[trackPdpId][6];
-        //qDebug() << trackPdp;
-    }
-    //init3dShapes();
-}
-
 void Path::init3dShapes(bool initShapes){
-    if(isinit1 && !initShapes)
+    resolve();
+    if (isinit2 || !initShapes || resolvedOn == NULL)
         return;
-    if(isinit2 && initShapes)
-        return;
-    lines.clear();
-    trackRanges.clear();
-    int fail = 0;
-    TDB* tdb = Game::trackDB;
-    float posT[2];
-    float posW[3];
-    float tpos1[3];
-    int nodeId1, currentDistance;
-    int currentNodeId;
-    int lastNodeId = -1;
-    float lastDistance = 0;
-    float distance1 = 0;
-    float distance2 = 0;
-    float tp1[3], tp2[3];
-    
-    float distanceDownPath = 0;
-    for(int i = 0; i < node.size(); i++){
-        if(node[i].flag1 == 1){
-            qDebug() << "point";
-            posT[0] = node[i].tilex;
-            posT[1] = node[i].tilez;
-            Vec3::copy(posW, node[i].pos);
-            tdb->findNearestPositionOnTDB(posT, posW, NULL, tpos1);
-            nodeId1 = tpos1[0];
-            currentDistance = tpos1[1];
-            currentNodeId = nodeId1;
-
-            if(lastNodeId < 0){
-                lastNodeId = nodeId1;
-                lastDistance = currentDistance;
-                continue;
-            }
-            
-            if(tdb->trackNodes[lastNodeId]->typ != 1){
-                if(tdb->trackNodes[currentNodeId]->pins[0].link == lastNodeId){
-                    distance1 = 0;
-                } else {
-                    distance1 = tdb->getVectorSectionLength(currentNodeId);
-                }
-                distance2 = currentDistance;
-            } else {
-                distance1 = lastDistance;
-                distance2 = currentDistance;
-            }
-            
-            if(tdb->trackNodes[lastNodeId]->typ == 2)
-                if(tdb->trackNodes[lastNodeId]->pins[1].link == currentNodeId)
-                    junctionDirections[lastNodeId] = 0;
-                else
-                    junctionDirections[lastNodeId] = 1;
-            
-            lastNodeId = nodeId1;
-            lastDistance = currentDistance;
-        } else if(node[i].flag1 == 2){
-            qDebug() << "junction";
-            //qDebug() << node[i].tilex, node[i].tilez, node[i].pos[0], node[i].pos[1], node[i].pos[2];
-            nodeId1 = tdb->findNearestNode(node[i].tilex, node[i].tilez, node[i].pos, NULL, 4, false);
-            //qDebug() << nodeId1;
-            if(lastNodeId < 0){
-                qDebug() << "fail";
-                fail++;
-            }
-            
-            if(tdb->trackNodes[lastNodeId]->typ != 1){
-                currentNodeId = tdb->findVectorNodeBetweenTwoNodes(lastNodeId, nodeId1);
-                if(tdb->trackNodes[currentNodeId]->pins[0].link == nodeId1){
-                    distance2 = 0;
-                    distance1 = tdb->getVectorSectionLength(currentNodeId);
-                } else {
-                    distance1 = 0;
-                    distance2 = tdb->getVectorSectionLength(currentNodeId);
-                }
-            } else {
-                currentNodeId = lastNodeId;
-                if(tdb->trackNodes[currentNodeId]->pins[0].link == nodeId1){
-                    /*&& tdb->trackNodes[currentNodeId]->pins[0].direction == 1*/
-                    distance2 = 0;
-                } else {
-                    distance2 = tdb->getVectorSectionLength(currentNodeId);
-                }
-                distance1 = lastDistance;
-            }
-            
-            if(i == 1)
-                if(tdb->trackNodes[currentNodeId]->pins[0].link == nodeId1)
-                    startDirection = 1;
-                else 
-                    startDirection = 0;
-            
-            if(tdb->trackNodes[lastNodeId]->typ == 2){
-                if(tdb->trackNodes[lastNodeId]->pins[1].link == currentNodeId)
-                    junctionDirections[lastNodeId] = 0;
-                else
-                    junctionDirections[lastNodeId] = 1;
-            }
-
-            lastNodeId = nodeId1;
-        } else {
-            qDebug() << "fail";
-            fail++;
-        }
-        
-        if(fail > 0)
-            return;
-        
-        qDebug() << "currentNodeId" << currentNodeId << distance1 << distance2 ;
-        
-        for(int ti = 0; ti < tdb->trackNodes[currentNodeId]->iTri; ti++){
-            int trid1 = tdb->trackNodes[currentNodeId]->trItemRef[ti];
-            if(tdb->trackItems[trid1] != NULL){
-                if(tdb->trackItems[trid1]->type != "platformitem")
-                    continue;
-                int trid2 = tdb->trackItems[trid1]->platformTrItemData[1];
-                if(tdb->trackItems[trid2] != NULL){
-                    float ddd1 = tdb->trackItems[trid1]->getTrackPosition();
-                    if(distance1 > distance2)
-                        ddd1 = 2*tdb->getVectorSectionLength(currentNodeId) - ddd1 - distance1;
-                    else 
-                        ddd1 = ddd1 - distance1;
-                    float ddd2 = tdb->trackItems[trid2]->getTrackPosition();
-                    if(distance1 > distance2)
-                        ddd2 = 2*tdb->getVectorSectionLength(currentNodeId) - ddd2 - distance1;
-                    else 
-                        ddd2 = ddd2 - distance1;
-                    
-                    float dist = 0;
-                    int trid = 0;
-                    if(ddd1 > ddd2){
-                        dist = ddd1;
-                        trid = trid1;
-                    }else{
-                        dist = ddd2;
-                        trid = trid2;
-                    }
-                    if(pathObjectsMap[distanceDownPath + dist] == NULL)
-                        pathObjectsMap[distanceDownPath + dist] = new PathObject();
-                    pathObjectsMap[distanceDownPath + dist]->name = tdb->trackItems[trid]->stationName;
-                    pathObjectsMap[distanceDownPath + dist]->trItemId = trid;
-                    pathObjectsMap[distanceDownPath + dist]->distanceDownPath = distanceDownPath + dist;
-                    qDebug() << "="<<tdb->trackItems[trid]->stationName << distanceDownPath + dist;
-                }
-            }
-        }
-        
-        if(distance1 > distance2){
-            float temp = distance2;
-            distance2 = distance1;
-            distance1 = temp;
-        }
-        distanceDownPath += distance2 - distance1;
-        trackRanges.push_back({currentNodeId, distance1, distance2});
-        
-        QMapIterator<float, Path::PathObject*> it(pathObjectsMap);
-        pathObjects.clear();
-        while (it.hasNext()) {
-            it.next();
-            pathObjects.push_back(it.value());
-        }
-        
-        if(!initShapes){
+    TDB *tdb = resolvedOn;
+    for (int k = 0; k < mainLegs.size(); ++k) {
+        const PathTrack::Leg &leg = mainLegs[k];
+        std::vector<float> segments;
+        const int tileX = mainNodes[k].tileX;
+        const int tileZ = mainNodes[k].tileZ;
+        if (leg.broken)
+            brokenLine(segments, mainNodes[k], mainNodes[k + 1], tileX, tileZ);
+        else
+            tdb->getTrackSegments(segments, leg.track, leg.from, leg.to, tileX, tileZ);
+        if (segments.empty())
             continue;
-        }
-        
         OglObj *line = new OglObj();
-        float *ptr, *punkty;
-        int length, len = 0;
-        //qDebug() << "currentNodeId" << currentNodeId << distance1 << distance2 ;
-        tdb->getVectorSectionLine(ptr, length, node[i].tilex, node[i].tilez, currentNodeId, true);
-        punkty = new float[length+6];
-        bool endd = false;
-        
-        for(int ii = 0; ii < length; ii+=12){
-            if(ptr[ii+5] < distance1) continue;
-            if(ptr[ii+5+12] > distance2)
-                endd = true;
-            //if(len == 0)
-            //    Vec3::set(tp1, posB[0], posB[1]+1, -posB[2]);
-            //else 
-                Vec3::set(tp1, ptr[ii+0], ptr[ii+1], ptr[ii+2]);
-            //if(endd)
-            //    Vec3::set(tp2, posE[0], posE[1]+1, -posE[2]); 
-            // else
-                Vec3::set(tp2, ptr[ii+6], ptr[ii+7], ptr[ii+8]);
-            
-            punkty[len++] = tp1[0];
-            punkty[len++] = tp1[1];
-            punkty[len++] = tp1[2];
-            punkty[len++] = tp2[0];
-            punkty[len++] = tp2[1];
-            punkty[len++] = tp2[2];
-
-            if(endd) break;
-        }
-
-        line->init(punkty, len, RenderItem::V, GL_LINES);
-        delete[] ptr;
-        delete[] punkty;
-        
-        line->setMaterial(0.0, 1.0, 0.0);
+        line->init(segments.data(), int(segments.size()), RenderItem::V, GL_LINES);
+        if (leg.broken)
+            line->setMaterial(0.9, 0.0, 0.63);
+        else
+            line->setMaterial(0.0, 1.0, 0.0);
         line->setLineWidth(2);
         lines.push_back(line);
-        linesX.push_back(node[i].tilex);
-        linesZ.push_back(node[i].tilez);
+        linesX.push_back(tileX);
+        linesZ.push_back(tileZ);
     }
-    isinit1 = true;
-    if(initShapes)
-        isinit2 = true;
+    isinit2 = true;
 }
 
 void Path::pushRenderItems(RenderQueue &queue, float *playerT, quint32 selectionId) {
-    if (pointer3d == NULL) {
-        pointer3d = new TrackItemObj(1);
-        pointer3d->setMaterial(0.0, 1.0, 0.0);
-    }
+    static const float colours[4][3] = {{0.0f, 0.8f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.5f, 0.0f},
+                                        {0.9f, 0.0f, 0.63f}};
+    for (int kind = 0; kind < 4; ++kind)
+        if (pointer3d[kind] == NULL) {
+            pointer3d[kind] = new TrackItemObj(1);
+            pointer3d[kind]->setMaterial(colours[kind][0], colours[kind][1], colours[kind][2]);
+        }
 
-    if (!isinit2) {
-        init3dShapes();
-    }
+    init3dShapes();
 
     if (!Game::viewInteractives)
         return;
 
-    for (int i = 0; i < node.size(); i++) {
+    for (const Node &node : mainNodes) {
+        const int kind = markerKind(node);
+        if (kind < 0)
+            continue;
         queue.pushTransform();
-        Mat4::translate(queue.transform(), queue.transform(), node[i].pos[0] + 2048 * (node[i].tilex - playerT[0]), node[i].pos[1] + 2.2, node[i].pos[2] + 2048 * (node[i].tilez - playerT[1]));
-        pointer3d->pushRenderItem(queue);
+        Mat4::translate(queue.transform(), queue.transform(),
+                        node.position[0] + 2048 * (node.tileX - playerT[0]), node.position[1] + 2.2,
+                        node.position[2] + 2048 * (node.tileZ - playerT[1]));
+        pointer3d[kind]->pushRenderItem(queue);
         queue.popTransform();
     }
 
@@ -458,15 +822,25 @@ void Path::pushRenderItems(RenderQueue &queue, float *playerT, quint32 selection
 }
 
 void Path::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
-    if (Game::trackDB == NULL)
+    resolve();
+    if (resolvedOn == NULL)
         return;
-    init3dShapes(false);
-    for (const TrackRange &range : trackRanges)
-        Game::trackDB->getTrackSegments(features.lines, range.node, range.from, range.to, tileX, tileZ);
-    for (const PathNode &n : node) {
-        features.points.push_back((n.tilex - tileX) * 2048 + n.pos[0]);
-        features.points.push_back(n.pos[1]);
-        features.points.push_back((n.tilez - tileZ) * 2048 + n.pos[2]);
+    for (int k = 0; k < mainLegs.size(); ++k) {
+        const PathTrack::Leg &leg = mainLegs[k];
+        if (leg.broken)
+            brokenLine(features.brokenLines, mainNodes[k], mainNodes[k + 1], tileX, tileZ);
+        else
+            resolvedOn->getTrackSegments(features.lines, leg.track, leg.from, leg.to, tileX, tileZ);
+    }
+    for (const Node &node : mainNodes) {
+        const int kind = markerKind(node);
+        if (kind < 0)
+            continue;
+        std::vector<float> &into = kind == 0 ? features.starts : kind == 1 ? features.ends
+                                 : kind == 3 ? features.brokenPoints : features.points;
+        into.push_back((node.tileX - tileX) * 2048 + node.position[0]);
+        into.push_back(node.position[1]);
+        into.push_back((node.tileZ - tileZ) * 2048 + node.position[2]);
     }
 }
 

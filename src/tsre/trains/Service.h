@@ -71,6 +71,9 @@ public:
     void getMapFeatures(MapFeatures &consist, int tileX, int tileZ);
     Path *getPathPointer();
     void initToPlay();
+    // The consist goes to the start of its path again after the path was
+    // edited.
+    void pathChanged(Path *path);
 private:
     bool modified = false;
     int serial = -1;
