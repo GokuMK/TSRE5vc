@@ -393,6 +393,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.timeOfDay.enabled", timeOfDayEnabled);
     floating("core.rendering.timeOfDay.time", timeOfDayHours);
     string("core.rendering.timeOfDay.date", timeOfDayDate, SettingType::String);
+    // Kept by RouteEditorGLWidget, which runs the time on (the clock).
+    claim("core.rendering.timeOfDay.running", SettingType::Bool);
+    claim("core.rendering.timeOfDay.speed", SettingType::Float);
     // Read by SkySatellites each frame (task editor 05).
     claim("core.rendering.sky.sun", SettingType::Bool);
     claim("core.rendering.sky.moon", SettingType::Bool);

@@ -1067,6 +1067,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Date for the sun's path, as yyyy-MM-dd."
                 QT_TRID_NOOP("settings.core.rendering.time.of.day.date.description")).inGroup("rendering").inSubgroup("environment"),
         "timeOfDayDate", "Game::timeOfDayDate", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.running", true)
+            .withNameId(
+                //% "Time runs"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.running.name")).withDescriptionId(
+                //% "The time of day and the weather run on while the editor runs, at the speed below; off keeps the time set (Environment panel: Stop / Resume)."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.running.description")).inGroup("rendering").inSubgroup("environment"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.timeOfDay.speed", 1.0)
+            .withNameId(
+                //% "Time speed"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.speed.name")).withDescriptionId(
+                //% "Seconds of the day and the weather a real second while the time runs: 1 is real time, more a timelapse."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.speed.description")).withRange(1, 240, 1).withUnit("s/s").inGroup("rendering").inSubgroup("environment"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.sky.sun", true)
             .withNameId(
                 //% "Sun on the sky"

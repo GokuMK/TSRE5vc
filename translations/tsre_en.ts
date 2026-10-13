@@ -3427,35 +3427,35 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <source>Date:</source>
         <translation>Date:</translation>
     </message>
-    <message id="route.editor.environment.window.timelapse.seconds">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="254"/>
-        <source>%1 s/s</source>
-        <translation>%1 s/s</translation>
-    </message>
-    <message id="route.editor.environment.window.timelapse.minutes">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="257"/>
-        <source>%1 min/s</source>
-        <translation>%1 min/s</translation>
-    </message>
-    <message id="route.editor.environment.window.timelapse.stop">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="265"/>
-        <source>Stop</source>
-        <translation>Stop</translation>
-    </message>
-    <message id="route.editor.environment.window.timelapse.start">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="267"/>
-        <source>Start</source>
-        <translation>Start</translation>
-    </message>
-    <message id="route.editor.environment.window.timelapse.tooltip">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="250"/>
+    <message id="route.editor.environment.window.clock.tooltip">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="253"/>
         <source>How far the time of day and the weather run on in a real second.</source>
         <translation>How far the time of day and the weather run on in a real second.</translation>
     </message>
-    <message id="route.editor.environment.window.timelapse">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="255"/>
-        <source>Timelapse:</source>
-        <translation>Timelapse:</translation>
+    <message id="route.editor.environment.window.clock.seconds">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="256"/>
+        <source>%1 s/s</source>
+        <translation>%1 s/s</translation>
+    </message>
+    <message id="route.editor.environment.window.clock.minutes">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="259"/>
+        <source>%1 min/s</source>
+        <translation>%1 min/s</translation>
+    </message>
+    <message id="route.editor.environment.window.clock">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="266"/>
+        <source>Clock:</source>
+        <translation>Clock:</translation>
+    </message>
+    <message id="route.editor.environment.window.clock.stop">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="400"/>
+        <source>Stop</source>
+        <translation>Stop</translation>
+    </message>
+    <message id="route.editor.environment.window.clock.resume">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="402"/>
+        <source>Resume</source>
+        <translation>Resume</translation>
     </message>
     <message id="route.editor.environment.window.fog.colour">
         <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247"/>
@@ -9817,6 +9817,26 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="1054"/>
         <source>Date for the sun&apos;s path, as yyyy-MM-dd.</source>
         <translation>Date for the sun&apos;s path, as yyyy-MM-dd.</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.running.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1066"/>
+        <source>Time runs</source>
+        <translation>Time runs</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.running.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1068"/>
+        <source>The time of day and the weather run on while the editor runs, at the speed below; off keeps the time set (Environment panel: Stop / Resume).</source>
+        <translation>The time of day and the weather run on while the editor runs, at the speed below; off keeps the time set (Environment panel: Stop / Resume).</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.speed.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1073"/>
+        <source>Time speed</source>
+        <translation>Time speed</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.speed.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1075"/>
+        <source>Seconds of the day and the weather a real second while the time runs: 1 is real time, more a timelapse.</source>
+        <translation>Seconds of the day and the weather a real second while the time runs: 1 is real time, more a timelapse.</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1059"/>

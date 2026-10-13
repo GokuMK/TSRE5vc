@@ -9,6 +9,7 @@
 #include <QToolButton>
 #include <cmath>
 #include <routeEditor/EnvironmentWindow.h>
+#include <routeEditor/RouteEditorGLWidget.h>
 #include <settings/SettingsManager.h>
 #include <tsre/Game.h>
 
@@ -86,28 +87,38 @@ int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose)
                    && std::abs(settings.runtimeFloat(fog) - newFog) < 1e-6,
                "after saving the values come from the profile");
 
-    // The timelapse: its speed from 5 s to 4 min a second, the date on past
-    // midnight.
-    const QString time = "core.rendering.timeOfDay.time";
-    auto *timelapse = window.findChild<QToolButton *>("timelapse");
-    auto *rate = window.findChild<QComboBox *>("timelapseRate");
-    test.check(rate && rate->count() == 7 && std::abs(rate->currentData().toDouble() - 5.0 / 60.0) < 1e-9
-                   && std::abs(rate->itemData(6).toDouble() - 4.0) < 1e-9
-                   && rate->styleSheet().contains("combobox-popup: 0"),
-               "the timelapse's speeds, 5 s a second first, in TSRE's combo box style");
-    if (!rate)
+    // The clock: its speed from real time to 4 min a second, Stop keeping the
+    // time; the editor's step runs the time on, the date past midnight.
+    const QString time = "core.rendering.timeOfDay.time", running = "core.rendering.timeOfDay.running",
+                  speed = "core.rendering.timeOfDay.speed";
+    auto *speeds = window.findChild<QComboBox *>(speed);
+    auto *clockButton = window.findChild<QToolButton *>(running);
+    test.check(speeds && clockButton && speeds->count() == 8 && std::abs(speeds->itemData(0).toDouble() - 1.0) < 1e-9
+                   && std::abs(speeds->itemData(7).toDouble() - 240.0) < 1e-9
+                   && speeds->styleSheet().contains("combobox-popup: 0"),
+               "the clock's speeds, real time first, in TSRE's combo box style");
+    if (!speeds || !clockButton)
         return test.finish();
-    rate->setCurrentIndex(6);
-    settings.setSessionValue(time, 23.96);
-    settings.setSessionValue(date, "2026-06-21");
-    window.advanceTimelapse(0.75);
-    test.check(timelapse && timelapse->isCheckable() && std::abs(settings.runtimeFloat(time) - 0.01) < 1e-6
-                   && settings.runtimeString(date) == "2026-06-22" && std::abs(Game::timeOfDayHours - 0.01) < 1e-4,
-               QString("the timelapse runs the time on, 4 minutes a second, into the next day (%1 h, %2, %3 h)")
-                   .arg(settings.runtimeFloat(time)).arg(settings.runtimeString(date)).arg(Game::timeOfDayHours));
-    window.advanceTimelapse(30.0);
-    test.check(std::abs(settings.runtimeFloat(time) - (0.01 + 4.0 / 60.0)) < 1e-6,
-               "after a stall the timelapse goes on from where it was");
+    emit speeds->activated(7);
+    test.check(std::abs(settings.runtimeFloat(speed) - 240.0) < 1e-6
+                   && settings.runtimeValueSource(speed) == SettingsManager::ForcedSession,
+               "a speed is a session value");
+    settings.setSessionValue(running, true);
+    Game::timeOfDayHours = 15.5f;
+    clockButton->click();
+    test.check(!settings.runtimeBool(running) && std::abs(settings.runtimeFloat(time) - 15.5) < 1e-6
+                   && clockButton->text() != QString(),
+               "Stop keeps the time where it is");
+    const QString stopped = clockButton->text();
+    clockButton->click();
+    test.check(settings.runtimeBool(running) && clockButton->text() != stopped, "Resume runs it on");
+    double hours = 23.96;
+    QString day = "2026-06-21";
+    const bool nextDay = RouteEditorGLWidget::advanceClock(0.75, 240.0, hours, day);
+    test.check(nextDay && std::abs(hours - 0.01) < 1e-9 && day == "2026-06-22",
+               QString("4 minutes a second run into the next day (%1 h, %2)").arg(hours).arg(day));
+    RouteEditorGLWidget::advanceClock(30.0, 240.0, hours, day);
+    test.check(std::abs(hours - (0.01 + 4.0 / 60.0)) < 1e-9, "after a stall the clock goes on from where it was");
 
     window.resetAll();
     bool sessionLeft = false;

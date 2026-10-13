@@ -125,6 +125,13 @@ struct MarchParameters {
     float night[4];        // the night sky's floor (display colour); the scene's scale (auto exposure, task 29)
     float light[4];        // towards the clouds' light: the sun, or the moon at night (task 31)
     float lightColour[4];  // its light relative to the sun's
+    // How far the layers' weather and cover maps have moved with their wind
+    // since they were drawn (km east, north): low, mid; high.
+    float shiftLowMid[4];
+    float shiftHigh[4];
+    // The low layer's move since this view's last frame (km east, north),
+    // the layer's middle height (km): the history follows the clouds.
+    float motion[4];
 };
 
 const char *CloudCommon = R"(
@@ -291,6 +298,9 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 night;
     vec4 light;
     vec4 lightColour;
+    vec4 shiftLowMid;
+    vec4 shiftHigh;
+    vec4 motion;
 };
 layout(binding = 1) uniform sampler2D weatherTexture;
 layout(binding = 2) uniform sampler2D nearCover;
@@ -366,9 +376,16 @@ float remap(float v, float a, float b, float c, float d) {
     return c + (v - a) / (b - a) * (d - c);
 }
 
+// How far a layer's weather and cover have moved since they were drawn
+// (km east, north): they are read that much back.
+vec2 layerShift(int layer) {
+    return layer == 0 ? shiftLowMid.xy : (layer == 1 ? shiftLowMid.zw : shiftHigh.xy);
+}
+
 // The weather's values (coverage, type, base, top km) of a layer, at a
 // point given by its offset from the camera (km east, north).
 vec4 weatherAt(vec2 offset, int layer) {
+    offset -= layerShift(layer);
     vec2 w = (weatherMap.xy + vec2(offset.x, -offset.y) * 1000.0) / weatherMap.z;
     float size = weatherMap.w;
     w = clamp(w, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
@@ -378,6 +395,7 @@ vec4 weatherAt(vec2 offset, int layer) {
 // The cover maps' value of a layer (0 low, 1 mid, 2 high): the near map
 // near the camera, then the far one.
 float coverAt(vec2 offset, int layer) {
+    offset -= layerShift(layer);
     vec2 m = vec2(offset.x, -offset.y) * 1000.0;
     vec2 nearUv = (nearMap.xy + m) / nearMap.z;
     float distance = length(offset);
@@ -719,6 +737,9 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 night;
     vec4 light;
     vec4 lightColour;
+    vec4 shiftLowMid;
+    vec4 shiftHigh;
+    vec4 motion;
 };
 layout(binding = 1) uniform sampler2D current;
 layout(binding = 2) uniform sampler2D history;
@@ -729,8 +750,8 @@ layout(std140, binding = 10) uniform Update {
 };
 
 // The cloud image: the pixels this pass marched (one of each block), the
-// others from the last frames in the same direction (rotation reprojected,
-// clamped to the marched neighbourhood); off the last frame's image, the
+// others from the last frames where the clouds were (the view's turn and
+// the wind's drift reprojected, clamped to the marched neighbourhood); off the last frame's image, the
 // march's own result. While filling (still, or no history), the image is
 // built by one pass per pixel of the block in the same frame.
 vec4 cloudImage() {
@@ -751,7 +772,15 @@ vec4 cloudImage() {
     vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
     vec4 far = inverse * vec4(ndc, 1.0, 1.0);
     vec3 d = normalize(far.xyz / far.w);
-    vec4 clip = previous * vec4(d, 0.0);
+    // Where the clouds seen here were at the last frame: they drift with the
+    // wind (the low layer's, at its middle height along the ray); far off
+    // only the view's turn counts.
+    vec3 before = d;
+    if (d.y > 0.01 && dot(motion.xy, motion.xy) > 0.0) {
+        float t = min(max(motion.z - camera.x, 0.05) / d.y, slab.z);
+        before = d * t - vec3(motion.x, 0.0, -motion.y);
+    }
+    vec4 clip = previous * vec4(before, 0.0);
     vec2 beforeUv = vec2(-1.0);
     if (clip.w > 0.0) {
         vec2 before = clip.xy / clip.w;
@@ -804,6 +833,9 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 night;
     vec4 light;
     vec4 lightColour;
+    vec4 shiftLowMid;
+    vec4 shiftHigh;
+    vec4 motion;
 };
 layout(binding = 1) uniform sampler2D clouds;
 layout(binding = 2) uniform sampler2D sceneDepth;
@@ -1178,6 +1210,9 @@ void RhiRenderer::cloudShadowOffset(double &east, double &north) const {
 void RhiRenderer::cloudShadowCentre(float &x, float &z) const {
     double east, north;
     cloudShadowOffset(east, north);
+    // The shadows have moved on with the low layer since the map was drawn.
+    east += clouds.drift[0][0] - cloudResources.shadowDrift[0];
+    north += clouds.drift[0][1] - cloudResources.shadowDrift[1];
     // North is -z in the view's space.
     x = viewPosition[0] + float(east);
     z = viewPosition[2] - float(north);
@@ -1215,6 +1250,17 @@ void RhiRenderer::cloudLight(float *direction, float *colour) const {
     constexpr float CloudMoonlight = 0.18f;
     for (int c = 0; c < 3; ++c)
         colour[c] = sky.moonLight[c] * fade * CloudMoonlight;
+}
+
+void RhiRenderer::cloudMotion(CloudView &v, float *motion) {
+    const bool known = v.historyValid && v.driftValid;
+    motion[0] = known ? (clouds.drift[0][0] - v.lastDrift[0]) / 1000.0f : 0.0f;
+    motion[1] = known ? (clouds.drift[0][1] - v.lastDrift[1]) / 1000.0f : 0.0f;
+    motion[2] = 0.5f * (clouds.bottom + clouds.top);
+    motion[3] = 0.0f;
+    v.lastDrift[0] = clouds.drift[0][0];
+    v.lastDrift[1] = clouds.drift[0][1];
+    v.driftValid = true;
 }
 
 void RhiRenderer::writeCloudShadowUniforms(RhiProgram *program) {
@@ -1292,9 +1338,11 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     }
     std::vector<double> key = {mapWest[0], mapNorth[0], mapWest[1], mapNorth[1], double(clouds.revision),
                                double(clouds.seed)};
+    // At the drift the weather was sampled with: the march reads them
+    // shifted as the clouds drift on.
     for (int l = 0; l < 3; ++l) {
-        key.push_back(clouds.drift[l][0]);
-        key.push_back(clouds.drift[l][1]);
+        key.push_back(clouds.built[l][0]);
+        key.push_back(clouds.built[l][1]);
     }
     const bool coverChanged = key != c.coverKey;
     if (coverChanged) {
@@ -1307,8 +1355,8 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
             parameters.map[2] = texels[m];
             parameters.map[3] = float(extent);
             for (int l = 0; l < 3; ++l) {
-                parameters.origin[l][0] = float(mapWest[m] - clouds.drift[l][0]);
-                parameters.origin[l][1] = float(mapNorth[m] - clouds.drift[l][1]);
+                parameters.origin[l][0] = float(mapWest[m] - clouds.built[l][0]);
+                parameters.origin[l][1] = float(mapNorth[m] - clouds.built[l][1]);
                 parameters.seeds[l] = clouds.seed * 3u + quint32(l) + 101u;
             }
             for (int q = 0; q < 257 && q < int(quantiles.size()); ++q)
@@ -1363,6 +1411,12 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     std::copy(sky.night, sky.night + 3, parameters.night);
     parameters.night[3] = sceneScaleDisplay();
     cloudLight(parameters.light, parameters.lightColour);
+    for (int l = 0; l < 3; ++l) {
+        float *out = l == 2 ? parameters.shiftHigh : parameters.shiftLowMid + 2 * l;
+        out[0] = (clouds.drift[l][0] - clouds.built[l][0]) / 1000.0f;
+        out[1] = (clouds.drift[l][1] - clouds.built[l][1]) / 1000.0f;
+    }
+    cloudMotion(c, parameters.motion);
     // A jump of the camera leaves the last frames' clouds behind.
     if (std::hypot(clouds.cameraEast - c.lastEast, clouds.cameraNorth - c.lastNorth) > 300.0)
         c.historyValid = false;
@@ -1406,15 +1460,21 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         fullScreen(c.coverTargets[1], c.coverPipeline, c.coverBindings[1], QSize(CoverSize, CoverSize), updates);
     }
     // The shadow map holds the ground's own place: redrawn only when its
-    // centre moves a texel, the light or the clouds change.
+    // centre moves a texel, the light or the clouds' maps change.
     std::vector<double> shadowKey = c.coverKey;
     shadowKey.push_back(std::floor(clouds.cameraEast + shadowEast + 0.5));
     shadowKey.push_back(std::floor(clouds.cameraNorth + shadowNorth + 0.5));
     shadowKey.push_back(plane);
     for (int i = 0; i < 3; ++i)
         shadowKey.push_back(std::round(parameters.light[i] * 10000.0f));
-    if (!c.shadowValid || shadowKey != c.shadowKey) {
+    // Between draws it is read shifted with the low layer's drift; drawn
+    // again after half a kilometre (the other layers drift their own way).
+    const bool shadowMoved = std::hypot(clouds.drift[0][0] - c.shadowDrift[0],
+                                        clouds.drift[0][1] - c.shadowDrift[1]) > 500.0f;
+    if (!c.shadowValid || shadowKey != c.shadowKey || shadowMoved) {
         c.shadowKey = shadowKey;
+        c.shadowDrift[0] = clouds.drift[0][0];
+        c.shadowDrift[1] = clouds.drift[0][1];
         cb->beginPass(c.shadowTarget, Qt::white, {1.0f, 0}, updates);
         updates = nullptr;
         cb->setGraphicsPipeline(c.shadowPipeline);
@@ -1555,6 +1615,8 @@ void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &a
     v.lastEast = clouds.cameraEast;
     v.lastNorth = clouds.cameraNorth;
     parameters.lighting[1] = (clouds.still || !v.historyValid) ? 1.0f : 0.0f;
+    // This view's own history: the clouds' move since its last frame.
+    cloudMotion(v, parameters.motion);
     parameters.lighting[2] = 1.0f / float(v.size.width());
     parameters.lighting[3] = 1.0f / float(v.size.height());
     QRhiResourceUpdateBatch *updates = rhi->nextResourceUpdateBatch();

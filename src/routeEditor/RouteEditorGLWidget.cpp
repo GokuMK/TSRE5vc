@@ -135,6 +135,8 @@ tools(std::make_unique<ToolRegistry>()) {
     connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+    timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
+    timeSpeed = Settings::floating("core.rendering.timeOfDay.speed");
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
@@ -145,6 +147,12 @@ tools(std::make_unique<ToolRegistry>()) {
                 environmentChanged = true;
             if (key == "core.rendering.lampsByDay")
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+            if (key == "core.rendering.timeOfDay.running")
+                timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
+            if (key == "core.rendering.timeOfDay.speed")
+                timeSpeed = Settings::floating("core.rendering.timeOfDay.speed");
+    timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
+    timeSpeed = Settings::floating("core.rendering.timeOfDay.speed");
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 timer.start(renderTimerStep(), this);
@@ -281,6 +289,20 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
 
     if (!simulationPaused)
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
+    // The clock: the time of day, and with it the weather and the clouds,
+    // run on. Set elsewhere (the panel), it goes on from there; the settings
+    // hear of it only past midnight.
+    if (!simulationPaused && timeRuns) {
+        if (float(clockHours) != Game::timeOfDayHours)
+            clockHours = Game::timeOfDayHours;
+        QString date = Game::timeOfDayDate;
+        if (advanceClock((timeNow - lastTime) / 1000.0, timeSpeed, clockHours, date)) {
+            SettingsManager &settings = SettingsManager::instance();
+            settings.setSessionValue("core.rendering.timeOfDay.date", date);
+            settings.setSessionValue("core.rendering.timeOfDay.time", clockHours);
+        }
+        Game::timeOfDayHours = float(clockHours);
+    }
 
     lastTime = timeNow;
 
@@ -1273,14 +1295,32 @@ void RouteEditorGLWidget::applyClouds() {
     c.seed = weather->seed;
     const double west = std::floor((east - Size * Texel * 0.5) / Step) * Step;
     const double top = std::ceil((north + Size * Texel * 0.5) / Step) * Step;
-    if (c.size != Size || west != c.west || top != c.north || hours != cloudHours
-            || weatherRevision != cloudWeatherRevision) {
+    // The fields move with their layers' wind, which the renderer follows
+    // (drift - built): sampled again only for another place or weather, a
+    // shift of 2 km (the near cover map reaches 2.7 km past where it is
+    // read; the high layer drifts four times as fast as the low one),
+    // keyframes blending on, or an hour later.
+    constexpr double RebuildShift = 2000.0;
+    double shifted = 0.0;
+    for (int l = 0; l < 3; ++l)
+        shifted = std::max(shifted, std::hypot(frame.drift[l][0] - c.built[l][0], frame.drift[l][1] - c.built[l][1]));
+    const bool blendMoved = frame.blend.a != cloudBlendA || frame.blend.b != cloudBlendB
+            || std::abs(frame.blend.weight - cloudBlendWeight) > 0.02;
+    if (c.size != Size || west != c.west || top != c.north || weatherRevision != cloudWeatherRevision
+            || !(std::abs(hours - cloudHours) < 1.0) || shifted > RebuildShift || blendMoved) {
         c.size = Size;
         c.west = west;
         c.north = top;
         c.texel = Texel;
         cloudHours = hours;
+        cloudBlendA = frame.blend.a;
+        cloudBlendB = frame.blend.b;
+        cloudBlendWeight = frame.blend.weight;
         cloudWeatherRevision = weatherRevision;
+        for (int l = 0; l < 3; ++l) {
+            c.built[l][0] = float(frame.drift[l][0]);
+            c.built[l][1] = float(frame.drift[l][1]);
+        }
         auto layers = std::make_shared<std::vector<float>>(size_t(3) * Size * Size * 4);
         float bottom = 1e9f, highest = -1e9f;
         for (int l = 0; l < 3; ++l)
@@ -3308,6 +3348,18 @@ void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
 
 void RouteEditorGLWidget::setSimulationPaused(bool paused) {
     simulationPaused = paused;
+}
+
+bool RouteEditorGLWidget::advanceClock(double seconds, double speed, double &hours, QString &date) {
+    hours += std::clamp(seconds, 0.0, 1.0) * speed / 3600.0;
+    if (hours < 24.0)
+        return false;
+    hours -= 24.0;
+    QDate day = QDate::fromString(date.trimmed(), "yyyy-MM-dd");
+    if (!day.isValid())
+        day = QDate(2026, 6, 21);
+    date = day.addDays(1).toString("yyyy-MM-dd");
+    return true;
 }
 
 QVector<quint32> RouteEditorGLWidget::probeSelectionIds(

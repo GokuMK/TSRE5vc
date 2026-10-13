@@ -124,9 +124,14 @@ public:
     // Renders a frame with the mouse at a device-pixel point and returns
     // the 3D pointer position read from the depth there.
     QVector3D probePointer(const QPoint &devicePoint);
-    // Stops simulation updates (traffic, animation) so separate processes
-    // render the same scene. Content loading continues.
+    // Stops simulation updates (traffic, animation, the clock) so separate
+    // processes render the same scene. Content loading continues.
     void setSimulationPaused(bool paused);
+    // The clock's step: seconds of the editor at speed seconds of the day a
+    // second run the time of day (hours) on; past midnight the date
+    // (yyyy-MM-dd) moves on, and it returns true. A stalled editor goes on
+    // from where it was (at most a second's step).
+    static bool advanceClock(double seconds, double speed, double &hours, QString &date);
     Route *currentRoute() const override { return route; }
     // The view mode (task editor 04): the 3D scene, or the map from straight
     // above. Switching moves to the pointer's place in the other mode; tools
@@ -300,6 +305,10 @@ protected:
     quint64 weatherRevision = 0;
     quint64 cloudWeatherRevision = ~0ull;
     double cloudHours = std::nan("");
+    // The keyframes' blend the clouds' weather was sampled at.
+    int cloudBlendA = -1;
+    int cloudBlendB = -1;
+    double cloudBlendWeight = 0.0;
     // The share of the sky the clouds cover around the camera (0-1), and
     // whether the overcast light changed the frame's colours.
     float cloudOvercast = 0.0f;
@@ -482,6 +491,11 @@ private:
     // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),
     // kept from the settings as they change: frames read no settings.
     int lampsByDay = 0;
+    // The clock: core.rendering.timeOfDay.running and .speed, kept as
+    // lampsByDay; the time it runs on, finer than Game::timeOfDayHours.
+    bool timeRuns = true;
+    double timeSpeed = 1.0;
+    double clockHours = 0.0;
     // Auto exposure (task 29): this frame's control, set by applyTimeOfDay
     // and handed over once camera jumps are known.
     Renderer::ExposureControl exposure;

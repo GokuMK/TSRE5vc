@@ -713,6 +713,37 @@ causes, both fixed:
 With both, the stress run passes with everything on; either alone still
 crashed. (The Settings Editor's own path was not run on screen.)
 
+## Clouds that move with the clock (2026-10-13)
+
+With the time of day running (task environment 01, "The clock"), the
+weather's hours change every frame. Before, that sampled the weather again
+(12 000 samples), redrew both cover maps and the cloud shadow map each
+frame: on the Steam Deck at 1280 x 800, broken clouds, 6.7 ms a frame more
+(median 31.4 to 38.1 ms, 2.6 ms of it CPU), measured by forcing it.
+
+- Between keyframes each layer's field moves only with its layer's wind
+  (`Weather::frame`: the keyframes' shifts and the variation follow the
+  drift). The weather texture and the cover maps are drawn at the drift
+  they were sampled with (`Renderer::Clouds::built`); the march and the
+  cover pass read them shifted by the drift since (`shiftLowMid`,
+  `shiftHigh`, per layer). They are sampled and drawn again for another
+  place or weather, a shift of 2 km (the near cover map reaches 2.7 km
+  past where it is read; the high layer drifts four times as fast as the
+  low one), keyframes blending on (2 %), or an hour later: in real time
+  about every 70 s. Shifted against sampled again (12:01 after 12:00, the
+  high layer 1.7 km on): mean difference 0.09 of 255, at most 9.
+- The cloud shadow map is drawn at the low layer's drift and read shifted
+  (`cloudShadowCentre`), drawn again after 500 m.
+- The history follows the clouds (option 1 of the user's question about
+  timelapse pixelation): the temporal pass reprojects each pixel's cloud,
+  at the clouds' middle height along its ray, back by the low layer's move
+  since the view's last frame (`motion`; each view, the reflection and the
+  cube faces too, its own). At 30 s/s, broken clouds, against a still
+  capture: pixels more than 8 off from 3.7 % to 1.8 %. What remains: the
+  mid and high layers drift two and four times as fast and their own way,
+  and the height is the clouds' middle, not the pixel's cloud; the march
+  could give its depth and layer for an exact reprojection (later).
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

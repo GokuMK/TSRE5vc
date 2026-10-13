@@ -163,6 +163,10 @@ public:
         quint64 revision = 0;
         // How far each layer has drifted with its wind (east, north).
         float drift[3][2] = {};
+        // The drift the layers above were sampled with: the fields move with
+        // their layer's wind, so the renderer reads them shifted by drift -
+        // built instead of drawing them again each frame.
+        float built[3][2] = {};
         quint32 seed = 0;
         // The low and mid layers' extent (km): bottom and top.
         float bottom = 0.0f;

@@ -15,6 +15,7 @@
 #include <QDateEdit>
 #include <QDoubleSpinBox>
 #include <QGridLayout>
+#include <tsre/Game.h>
 #include <tsre/gui/GuiFunct.h>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -45,6 +46,8 @@ const char *const Exposure = "core.rendering.exposure";
 const char *const Sun = "core.rendering.sky.sun";
 const char *const Moon = "core.rendering.sky.moon";
 const char *const SunSize = "core.rendering.sky.sunSize";
+const char *const Running = "core.rendering.timeOfDay.running";
+const char *const Speed = "core.rendering.timeOfDay.speed";
 
 SettingsManager &settings() {
     return SettingsManager::instance();
@@ -116,8 +119,8 @@ QTime timeOfHours(double hours) {
 
 QStringList EnvironmentWindow::keys() {
     QStringList list;
-    for (const char *key : {TimeEnabled, Time, Date, Sun, Moon, SunSize, FogColor, FogDensity, LocalLights,
-                            Bloom, Exposure})
+    for (const char *key : {TimeEnabled, Time, Date, Running, Speed, Sun, Moon, SunSize, FogColor, FogDensity,
+                            LocalLights, Bloom, Exposure})
         list << QString::fromLatin1(key);
     return list;
 }
@@ -240,54 +243,52 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     connect(dateEdit, &QDateEdit::dateChanged, this,
             [this](QDate date) { set(Date, date.toString("yyyy-MM-dd")); });
     connect(today, &QToolButton::clicked, this, [this] { dateEdit->setDate(QDate::currentDate()); });
-    // The timelapse: time and weather run on at the chosen speed (minutes of
-    // the day a real second) while it is on.
-    timelapseRate = new QComboBox(this);
-    timelapseRate->setObjectName("timelapseRate");
-    timelapseRate->setStyleSheet("combobox-popup: 0;");
-    timelapseRate->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    timelapseRate->setToolTip(
+    // The clock: the time of day and the weather run on at a speed (seconds
+    // of the day a real second), real time first; Stop keeps the time.
+    clockSpeed = new QComboBox(this);
+    clockSpeed->setObjectName(QString::fromLatin1(Speed));
+    clockSpeed->setStyleSheet("combobox-popup: 0;");
+    clockSpeed->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    clockSpeed->setToolTip(
         //% "How far the time of day and the weather run on in a real second."
-        qtTrId("route.editor.environment.window.timelapse.tooltip"));
-    for (int seconds : {5, 10, 30})
+        qtTrId("route.editor.environment.window.clock.tooltip"));
+    for (int seconds : {1, 5, 10, 30})
         //% "%1 s/s"
-        timelapseRate->addItem(qtTrId("route.editor.environment.window.timelapse.seconds").arg(seconds),
-                               seconds / 60.0);
+        clockSpeed->addItem(qtTrId("route.editor.environment.window.clock.seconds").arg(seconds), double(seconds));
     for (int minutes : {1, 2, 3, 4})
         //% "%1 min/s"
-        timelapseRate->addItem(qtTrId("route.editor.environment.window.timelapse.minutes").arg(minutes),
-                               double(minutes));
-    timelapse = new QToolButton(this);
-    timelapse->setObjectName("timelapse");
-    timelapse->setCheckable(true);
-    timelapse->setFixedWidth(ValueWidth);
-    auto showTimelapse = [this] {
-        timelapse->setText(timelapse->isChecked()
-            //% "Stop"
-            ? qtTrId("route.editor.environment.window.timelapse.stop")
-            //% "Start"
-            : qtTrId("route.editor.environment.window.timelapse.start"));
+        clockSpeed->addItem(qtTrId("route.editor.environment.window.clock.minutes").arg(minutes),
+                            double(minutes * 60));
+    clockButton = new QToolButton(this);
+    clockButton->setObjectName(QString::fromLatin1(Running));
+    clockButton->setFixedWidth(ValueWidth);
+    row(Speed,
+        //% "Clock:"
+        qtTrId("route.editor.environment.window.clock"), line({clockSpeed, clockButton}))->load = [this] {
+        // The listed speed nearest the setting's.
+        const double speed = settings().runtimeFloat(Speed);
+        int nearest = 0;
+        for (int i = 1; i < clockSpeed->count(); ++i)
+            if (std::abs(clockSpeed->itemData(i).toDouble() - speed)
+                    < std::abs(clockSpeed->itemData(nearest).toDouble() - speed))
+                nearest = i;
+        quietly(clockSpeed, &QComboBox::setCurrentIndex, nearest);
     };
-    showTimelapse();
-    {
-        const int r = grid->rowCount();
-        grid->addWidget(GuiFunct::newQLabel(
-            //% "Timelapse:"
-            qtTrId("route.editor.environment.window.timelapse"), LabelWidth), r, 0);
-        grid->addWidget(line({timelapseRate, timelapse}), r, 1);
-    }
-    timelapseTimer = new QTimer(this);
-    timelapseTimer->setInterval(33);
-    connect(timelapseTimer, &QTimer::timeout, this, [this] { advanceTimelapse(timelapseClock.restart() / 1000.0); });
-    connect(timelapse, &QToolButton::toggled, this, [this, showTimelapse](bool on) {
-        showTimelapse();
-        if (on) {
-            timelapseClock.start();
-            timelapseTimer->start();
+    connect(clockSpeed, QOverload<int>::of(&QComboBox::activated), this,
+            [this](int index) { set(Speed, clockSpeed->itemData(index).toDouble()); });
+    connect(clockButton, &QToolButton::clicked, this, [this] {
+        if (settings().runtimeBool(Running)) {
+            // The time where it stopped, also for the panel and the profile.
+            set(Time, double(Game::timeOfDayHours));
+            set(Running, false);
         } else {
-            timelapseTimer->stop();
+            set(Running, true);
         }
     });
+    // While the time runs, the panel shows it a few times a second.
+    clockDisplay = new QTimer(this);
+    clockDisplay->setInterval(250);
+    connect(clockDisplay, &QTimer::timeout, this, &EnvironmentWindow::showClock);
     sun = new QCheckBox(this);
     row(Sun,
         //% "Sun:"
@@ -388,19 +389,26 @@ QToolButton *EnvironmentWindow::resetButtonFor(const QString &key) {
     return button;
 }
 
-void EnvironmentWindow::advanceTimelapse(double seconds) {
-    // A stalled editor goes on from where it was, not with a jump.
-    seconds = std::clamp(seconds, 0.0, 1.0);
-    const double minutesPerSecond = timelapseRate->currentData().toDouble();
-    double hours = settings().runtimeFloat(Time) + seconds * minutesPerSecond / 60.0;
-    if (hours >= 24.0) {
-        hours -= 24.0;
-        QDate date = QDate::fromString(settings().runtimeString(Date).trimmed(), "yyyy-MM-dd");
-        if (!date.isValid())
-            date = QDate(2026, 6, 21);
-        set(Date, date.addDays(1).toString("yyyy-MM-dd"));
-    }
-    set(Time, hours);
+void EnvironmentWindow::showClock() {
+    const QTime time = timeOfHours(Game::timeOfDayHours);
+    quietly(timeSlider, &QSlider::setValue, time.hour() * 60 + time.minute());
+    quietly(timeEdit, &QTimeEdit::setTime, time);
+    const QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (date.isValid())
+        quietly(dateEdit, &QDateEdit::setDate, date);
+}
+
+void EnvironmentWindow::showRunning() {
+    const bool running = settings().runtimeBool(Running);
+    clockButton->setText(running
+        //% "Stop"
+        ? qtTrId("route.editor.environment.window.clock.stop")
+        //% "Resume"
+        : qtTrId("route.editor.environment.window.clock.resume"));
+    if (running)
+        clockDisplay->start();
+    else
+        clockDisplay->stop();
 }
 
 void EnvironmentWindow::set(const QString &key, const QVariant &value) {
@@ -415,6 +423,8 @@ void EnvironmentWindow::refresh(const QStringList &changedKeys) {
         if (control != controls.constEnd() && control->load)
             control->load();
     }
+    if (changedKeys.contains(QString::fromLatin1(Running)))
+        showRunning();
     refreshMarks();
 }
 
@@ -430,6 +440,8 @@ void EnvironmentWindow::refreshMarks() {
         it->label->setFont(font);
         it->reset->setEnabled(session);
     }
+    // Stop / Resume has no reset of its own: Reset all and Save take it.
+    any = any || settings().runtimeValueSource(QString::fromLatin1(Running)) == SettingsManager::ForcedSession;
     resetButton->setEnabled(any);
     saveButton->setEnabled(any);
 }

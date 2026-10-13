@@ -27,6 +27,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <cmath>
 
@@ -234,6 +235,14 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
 
     connect(view, &RouteEditorGLWidget::weatherChanged, this, &EnvironmentTools::refresh);
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this, &EnvironmentTools::refresh);
+    // The weather runs on with the clock: the details follow it while open.
+    auto *detailsClock = new QTimer(this);
+    detailsClock->setInterval(1000);
+    connect(detailsClock, &QTimer::timeout, this, [this] {
+        if (details->isVisible())
+            refresh();
+    });
+    detailsClock->start();
     connect(view, &RouteEditorGLWidget::routeLoaded, this, [this](Route *) { reloadFiles(); });
     reloadFiles();
 }

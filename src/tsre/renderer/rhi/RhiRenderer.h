@@ -521,6 +521,9 @@ private:
         bool previousValid = false;
         double lastEast = 0.0;
         double lastNorth = 0.0;
+        // The low layer's drift at the last frame (m east, north).
+        float lastDrift[2] = {};
+        bool driftValid = false;
         QRhiTexture *compositeColor = nullptr;
         QRhiTextureRenderTarget *compositeTarget = nullptr;
         QRhiRenderPassDescriptor *compositePass = nullptr;
@@ -561,6 +564,9 @@ private:
         QRhiRenderPassDescriptor *shadowPass = nullptr;
         QRhiGraphicsPipeline *shadowPipeline = nullptr;
         bool shadowValid = false;
+        // The low layer's drift when the shadow map was drawn (m east,
+        // north): read shifted by the drift since.
+        float shadowDrift[2] = {};
     } cloudResources;
     bool cloudsPrepared = false;
     // The clouds in the water reflection: their own image at a quarter of
@@ -622,6 +628,9 @@ private:
     // relative to the sun's. The sun, also under the horizon while it still
     // reaches the clouds; then the moon, fading in.
     void cloudLight(float *direction, float *colour) const;
+    // The low layer's move since the view's last frame (km east, north) and
+    // the clouds' middle height (km), for its history.
+    void cloudMotion(CloudView &v, float *motion);
     void writeCloudShadowUniforms(RhiProgram *program);
     void prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);
 public:

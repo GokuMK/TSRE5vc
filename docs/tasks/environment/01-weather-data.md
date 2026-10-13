@@ -632,6 +632,30 @@ speeds, to find where it starts.
 The panel's combo boxes (env file, weather preset, timelapse speed) take
 TSRE's combo box style (`combobox-popup: 0`: a list under the box).
 
+At the speeds (the user): 5 s/s invisible, 10 s/s visible but not breaking
+immersion, 30 s/s clear but not broken.
+
+## The clock (2026-10-13)
+
+The user: the clouds always move naturally, in the simulation's update; the
+timelapse becomes the clock's speed. The time of day runs on in real time by
+default:
+
+- Settings `core.rendering.timeOfDay.running` (default on) and
+  `core.rendering.timeOfDay.speed` (seconds of the day a real second, 1 to
+  240, default 1), kept by `RouteEditorGLWidget` as they change. The panel's
+  Clock row: the speed (1, 5, 10, 30 s, 1 to 4 min a second) and Stop /
+  Resume; Stop writes the stopped time into the session (and so the
+  profile on Save).
+- The editor's update (`timerEvent`, with the simulation) runs
+  `Game::timeOfDayHours` on (`advanceClock`, in a double so that real-time
+  steps do not round off); the settings hear of it only past midnight (the
+  date). The panel shows the running time four times a second; the
+  Weather Details follow once a second while open. Captures pause the
+  simulation and with it the clock.
+- Nothing is redrawn each frame for the clouds' drift: see task renderer 28,
+  "Clouds that move with the clock".
+
 ## Verification
 
 - Unit: the env block round trip, generated coverage matching the cell
