@@ -73,7 +73,7 @@ void Traffic::parse(FileBuffer *data){
             continue;
         }
         if (sh == ("traffic_definition")) {
-            nameId = ParserX::GetStringInside(data);
+            displayName = ParserX::GetStringInside(data);
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 if (sh == ("serial")) {
                     serial = ParserX::GetNumber(data);
@@ -110,6 +110,7 @@ void Traffic::restore(const TextSnapshot &snapshot){
     qDeleteAll(service);
     service.clear();
     kept.clear();
+    displayName.clear();
     serial = -1;
     FileBuffer *data = FileBuffer::fromText(snapshot.text);
     parse(data);
@@ -179,7 +180,7 @@ QString Traffic::toText(){
     QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0f0t______\n";
     out << "\n";
-    out << "Traffic_Definition ( " << ParserX::AddComIfReq(nameId) << "\n";
+    out << "Traffic_Definition ( " << ParserX::AddComIfReq(displayName.isEmpty() ? nameId : displayName) << "\n";
     if (serial >= 0) {
         out << "	Serial ( " << serial << " )\n";
     }

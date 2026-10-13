@@ -134,7 +134,7 @@ void ActivityTrafficProperties::showTraffic(Traffic* t){
     }
     setEnabled(true);
     eFileName.setText(t->name);
-    eDisplayName.setText(t->nameId);
+    eDisplayName.setText(t->displayName.isEmpty() ? t->nameId : t->displayName);
     
     QList<QTreeWidgetItem *> items;
     QStringList list;

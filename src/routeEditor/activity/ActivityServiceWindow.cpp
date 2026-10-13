@@ -121,6 +121,18 @@ void ActivityServiceWindow::showServices(Route* r){
     serviceList.insertTopLevelItems(0, items);
 }
 
+void ActivityServiceWindow::selectService(QString nameId){
+    for(int row = 0; row < serviceList.topLevelItemCount(); row++){
+        QTreeWidgetItem *item = serviceList.topLevelItem(row);
+        Service *service = ActLib::Services.value(item->type());
+        if(service == NULL || service->nameId.compare(nameId, Qt::CaseInsensitive) != 0)
+            continue;
+        serviceList.setCurrentItem(item);
+        serviceListSelected(item, 0);
+        return;
+    }
+}
+
 Service *ActivityServiceWindow::selectedService(){
     QTreeWidgetItem *item = serviceList.currentItem();
     if(item == NULL || item->type() < 0 || item->type() >= ActLib::jestservice)

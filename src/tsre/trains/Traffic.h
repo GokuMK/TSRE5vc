@@ -27,8 +27,11 @@ public:
     // Blocks TSRE does not read, as they were in the file; written at the
     // end of the traffic definition.
     QStringList kept;
+    // The name in the file (Traffic_Definition's), which may differ from
+    // the file's.
     QString displayName;
     QString name;
+    // The file's name: activities name the traffic by it.
     QString nameId;
     QString path;
     QString pathid;  

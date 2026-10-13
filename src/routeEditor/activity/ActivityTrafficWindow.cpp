@@ -154,6 +154,18 @@ void ActivityTrafficWindow::bNewTrafficSelected(){
     emit reloadTrafficsList();
 }
 
+void ActivityTrafficWindow::selectTraffic(QString nameId){
+    for(int row = 0; row < lTraffic.topLevelItemCount(); row++){
+        QTreeWidgetItem *item = lTraffic.topLevelItem(row);
+        Traffic *traffic = ActLib::Traffics.value(item->type());
+        if(traffic == NULL || traffic->nameId.compare(nameId, Qt::CaseInsensitive) != 0)
+            continue;
+        lTraffic.setCurrentItem(item);
+        lTrafficSelected(item, 0);
+        return;
+    }
+}
+
 // As a path is deleted: the activities naming the traffic are listed in
 // the question; they keep its name.
 void ActivityTrafficWindow::bDeleteTrafficSelected(){

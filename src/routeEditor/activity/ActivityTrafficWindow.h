@@ -31,6 +31,8 @@ public slots:
     void showTraffic(Route* r);
     void bNewTrafficSelected();
     void bDeleteTrafficSelected();
+    // The traffic (by its file's name) shown and chosen in the list.
+    void selectTraffic(QString nameId);
     // Undo replaces activity data (ActivityNotifier).
     void activityDataRestoring();
     void activityDataRestored();

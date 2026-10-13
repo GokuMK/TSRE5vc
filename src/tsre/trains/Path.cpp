@@ -440,6 +440,8 @@ void Path::readNodes() {
         if (next != NoNext && mainIndex.contains(int(next))) {
             side.to = mainIndex.value(int(next));
             passing.push_back(side);
+        } else {
+            ++unjoinedPassing;
         }
     }
     resolvedOn = NULL;

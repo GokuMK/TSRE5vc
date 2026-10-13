@@ -29,6 +29,8 @@ public slots:
     void eventNameChanged(int id);
     void bNewEventSelected();
     void bDeleteEventSelected();
+    // The event with this ID shown and chosen in its list.
+    void selectEvent(int id);
     // Undo replaces activity data (ActivityNotifier).
     void activityDataRestoring();
     void activityDataRestored();
@@ -42,6 +44,7 @@ private:
     QWidget locationWidget;
     QWidget timeWidget;
     
+    QTabWidget *tabs = NULL;
     QListWidget actionList;
     QListWidget locationList;
     QListWidget timeList;

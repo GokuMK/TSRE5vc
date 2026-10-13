@@ -1125,419 +1125,429 @@ Consist with this file name already exist. Overwrite?
         <translation>Close</translation>
     </message>
     <message id="route.editor.activity.tools.item.spring">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="47"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="56"/>
         <source>Spring</source>
         <translation>Spring</translation>
     </message>
     <message id="route.editor.activity.tools.item.summer">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="50"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="59"/>
         <source>Summer</source>
         <translation>Summer</translation>
     </message>
     <message id="route.editor.activity.tools.item.autumn">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="53"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="62"/>
         <source>Autumn</source>
         <translation>Autumn</translation>
     </message>
     <message id="route.editor.activity.tools.item.winter">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="56"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="65"/>
         <source>Winter</source>
         <translation>Winter</translation>
     </message>
     <message id="route.editor.activity.tools.item.clear">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="60"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="69"/>
         <source>Clear</source>
         <translation>Clear</translation>
     </message>
     <message id="route.editor.activity.tools.item.rain">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="63"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="72"/>
         <source>Rain</source>
         <translation>Rain</translation>
     </message>
     <message id="route.editor.activity.tools.item.snow">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="66"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="75"/>
         <source>Snow</source>
         <translation>Snow</translation>
     </message>
     <message id="route.editor.activity.tools.item.easy">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="70"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="79"/>
         <source>Easy</source>
         <translation>Easy</translation>
     </message>
     <message id="route.editor.activity.tools.item.medium">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="73"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="82"/>
         <source>Medium</source>
         <translation>Medium</translation>
     </message>
     <message id="route.editor.activity.tools.item.hard">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="76"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="85"/>
         <source>Hard</source>
         <translation>Hard</translation>
     </message>
     <message id="route.editor.activity.tools.button.place.consist">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="80"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="89"/>
         <source>Place Consist</source>
         <translation>Place Consist</translation>
     </message>
     <message id="route.editor.activity.tools.button.new">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="83"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="92"/>
         <source>New</source>
         <translation>New</translation>
     </message>
     <message id="route.editor.activity.tools.button.new.act.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="99"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="108"/>
         <source>New Activity</source>
         <translation>New Activity</translation>
     </message>
     <message id="route.editor.activity.tools.label.label">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="111"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="120"/>
         <source>Activity List:</source>
         <translation>Activity List:</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="123"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="132"/>
         <source>Player:</source>
         <translation>Player:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.service.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="133"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="142"/>
         <source>Open Service Editor</source>
         <translation>Open Service Editor</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.3">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="139"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="148"/>
         <source>Traffic:</source>
         <translation>Traffic:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.traffic.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="149"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="158"/>
         <source>Open Traffic Editor</source>
         <translation>Open Traffic Editor</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.4">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="155"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="164"/>
         <source>Timetable:</source>
         <translation>Timetable:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.timetable.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="161"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="170"/>
         <source>Open Timetable Editor</source>
         <translation>Open Timetable Editor</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.5">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="167"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="176"/>
         <source>Paths:</source>
         <translation>Paths:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.new">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="181"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="190"/>
         <source>New</source>
         <translation>New</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.edit">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="87"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="96"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.clone">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="187"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="196"/>
         <source>Clone</source>
         <translation>Clone</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="190"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="199"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.refresh.list">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="200"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="209"/>
         <source>Refresh List</source>
         <translation>Refresh List</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.6">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="207"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="216"/>
         <source>Activity Objects List:</source>
         <translation>Activity Objects List:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.consist.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="220"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="229"/>
         <source>Jump To</source>
         <translation>Jump To</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.consist.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="224"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="233"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.7">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="231"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="240"/>
         <source>Consist:</source>
         <translation>Consist:</translation>
     </message>
     <message id="route.editor.activity.tools.button.con.files.refresh">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="241"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="250"/>
         <source>Refresh List</source>
         <translation>Refresh List</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.8">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="248"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="257"/>
         <source>Restricted Speed Zones List:</source>
         <translation>Restricted Speed Zones List:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.zone.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="261"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="270"/>
         <source>Jump To</source>
         <translation>Jump To</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.zone.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="266"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="275"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.zone.delete.all">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="270"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="279"/>
         <source>Delete All</source>
         <translation>Delete All</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.9">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="280"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="289"/>
         <source>Failed Signals List:</source>
         <translation>Failed Signals List:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="293"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="302"/>
         <source>Jump To</source>
         <translation>Jump To</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.tool">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="297"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="306"/>
         <source>Disable</source>
         <translation>Disable</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="301"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="310"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.delete.all">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="305"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="314"/>
         <source>Delete All</source>
         <translation>Delete All</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.10">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="315"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="324"/>
         <source>Events:</source>
         <translation>Events:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.events.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="321"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="330"/>
         <source>Open Event Editor</source>
         <translation>Open Event Editor</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.11">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="327"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="336"/>
         <source>Activity Info:</source>
         <translation>Activity Info:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.settings.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="333"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="342"/>
         <source>Open Settings ...</source>
         <translation>Open Settings ...</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.12">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="339"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="348"/>
         <source>Experimental:</source>
         <translation>Experimental:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.play.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="345"/>
-        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="414"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="354"/>
+        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="416"/>
         <source>Play: Don&apos;t use!</source>
         <translation>Play: Don&apos;t use!</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.13">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="351"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="360"/>
         <source>General:</source>
         <translation>General:</translation>
     </message>
+    <message id="route.editor.activity.tools.button.act.check.button">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="366"/>
+        <source>Check Activity</source>
+        <translation>Check Activity</translation>
+    </message>
     <message id="route.editor.activity.tools.button.act.save.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="357"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="371"/>
         <source>Save Activities</source>
         <translation>Save Activities</translation>
     </message>
     <message id="route.editor.activity.tools.label.file.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="369"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="383"/>
         <source>File Name:</source>
         <translation>File Name:</translation>
     </message>
     <message id="route.editor.activity.tools.label.display.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="374"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="388"/>
         <source>Display Name:</source>
         <translation>Display Name:</translation>
     </message>
     <message id="route.editor.activity.tools.label.difficulty">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="379"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="393"/>
         <source>Difficulty:</source>
         <translation>Difficulty:</translation>
     </message>
     <message id="route.editor.activity.tools.label.duration">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="384"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="398"/>
         <source>Duration:</source>
         <translation>Duration:</translation>
     </message>
     <message id="route.editor.activity.tools.label.start.time">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="390"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="404"/>
         <source>Start Time:</source>
         <translation>Start Time:</translation>
     </message>
     <message id="route.editor.activity.tools.label.season">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="396"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="410"/>
         <source>Season:</source>
         <translation>Season:</translation>
     </message>
     <message id="route.editor.activity.tools.label.weather">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="401"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="415"/>
         <source>Weather:</source>
         <translation>Weather:</translation>
     </message>
     <message id="route.editor.activity.tools.label.horn.at.crossings">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="406"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="420"/>
         <source>Horn At Crossings: </source>
         <translation>Horn At Crossings: </translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.coal">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="419"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="433"/>
         <source>Fuel Coal:</source>
         <translation>Fuel Coal:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.diesel">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="428"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="442"/>
         <source>Fuel Diesel:</source>
         <translation>Fuel Diesel:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.water">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="437"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="451"/>
         <source>Fuel Water:</source>
         <translation>Fuel Water:</translation>
     </message>
     <message id="route.editor.activity.tools.label.hazard.animal">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="446"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="460"/>
         <source>Hazard Animal:</source>
         <translation>Hazard Animal:</translation>
     </message>
     <message id="route.editor.activity.tools.label.hazard.people">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="455"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="469"/>
         <source>Hazard People:</source>
         <translation>Hazard People:</translation>
     </message>
     <message id="route.editor.activity.tools.label.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="472"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="486"/>
         <source>Description:</source>
         <translation>Description:</translation>
     </message>
     <message id="route.editor.activity.tools.label.briefing">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="478"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="492"/>
         <source>Briefing:</source>
         <translation>Briefing:</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.settings">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="488"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="502"/>
         <source>Activity Settings.</source>
         <translation>Activity Settings.</translation>
     </message>
     <message id="route.editor.activity.tools.item.undefined">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="605"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="619"/>
         <source>UNDEFINED</source>
         <translation>UNDEFINED</translation>
     </message>
     <message id="route.editor.activity.tools.item.undefined.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="621"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="635"/>
         <source>UNDEFINED</source>
         <translation>UNDEFINED</translation>
     </message>
     <message id="route.editor.activity.tools.title.save.changes">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="674"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="746"/>
         <source>Save changes?</source>
         <translation>Save changes?</translation>
     </message>
     <message id="route.editor.activity.tools.message.save.changes.in.activities">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="677"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="749"/>
         <source>Save changes in activities?</source>
         <translation>Save changes in activities?</translation>
     </message>
+    <message id="route.editor.activity.tools.save.check.errors">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="763"/>
+        <source>%1: %2 errors (Check Activity lists them)</source>
+        <translation>%1: %2 errors (Check Activity lists them)</translation>
+    </message>
     <message id="activity.failed.signal.id">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="813"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="897"/>
         <source>Signal ID: %1</source>
         <translation>Signal ID: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="855"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="884"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="939"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="968"/>
         <source>Path</source>
         <translation>Path</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.file">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="861"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="945"/>
         <source>File name</source>
         <translation>File name</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="864"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="948"/>
         <source>Display name</source>
         <translation>Display name</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.taken">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="887"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="971"/>
         <source>A path named %1 exists already.</source>
         <translation>A path named %1 exists already.</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.invalid">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="889"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="973"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="943"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1027"/>
         <source>Delete Path</source>
         <translation>Delete Path</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.read.only">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="947"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1031"/>
         <source>The route is read-only.</source>
         <translation>The route is read-only.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.question">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="952"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1036"/>
         <source>Delete the path %1 and its file? This cannot be undone.</source>
         <translation>Delete the path %1 and its file? This cannot be undone.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.users">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="957"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1041"/>
         <source>These services and activities name it: %1</source>
         <translation>These services and activities name it: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.failed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="963"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1047"/>
         <source>The file %1 could not be deleted.</source>
         <translation>The file %1 could not be deleted.</translation>
     </message>
     <message id="route.editor.activity.tools.title.signal.not.disabled">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1170"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1259"/>
         <source>Signal not disabled!</source>
         <translation>Signal not disabled!</translation>
     </message>
     <message id="route.editor.activity.tools.text.select.signal.before.using.this.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1173"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1262"/>
         <source>Select signal before using this button.</source>
         <translation>Select signal before using this button.</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1477"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1590"/>
         <source>Activity Description</source>
         <translation>Activity Description</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1496"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1610"/>
         <source>Activity Description</source>
         <translation>Activity Description</translation>
     </message>
@@ -2491,132 +2501,132 @@ Consist with this file name already exist. Overwrite?
         <translation>Procedural terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4097"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4106"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2147"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2156"/>
         <source>OSM Data</source>
         <translation>OSM Data</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2152"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2161"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2158"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2167"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2175"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2184"/>
         <source>Imagery</source>
         <translation>Imagery</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2178"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2187"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>This route has no geographic reference, so imagery cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2180"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2189"/>
         <source>No imagery source can be shown: %1</source>
         <translation>No imagery source can be shown: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2232"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2241"/>
         <source>Measure Distance</source>
         <translation>Measure Distance</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4103"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4112"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4109"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4118"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4115"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4124"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Select Similar 1x1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4121"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4130"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Select Similar 3x3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4127"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4136"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4133"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4142"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Set Terrain to Object</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4139"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4148"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Set position to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4145"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4154"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Set rotation to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4151"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4160"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pick for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4157"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4166"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pick rotation for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4163"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4172"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pick elevation for placement</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4175"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4184"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4193"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4202"/>
         <source>No Tool</source>
         <translation>No Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.group.mode">
-        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="346"/>
+        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="349"/>
         <source>Mode</source>
         <translation>Mode</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select">
-        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="350"/>
+        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="353"/>
         <source>&amp;Select</source>
         <translation>&amp;Select</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.rotate">
-        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="353"/>
+        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="356"/>
         <source>&amp;Rotate</source>
         <translation>&amp;Rotate</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.translate">
-        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="356"/>
+        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="359"/>
         <source>&amp;Translate</source>
         <translation>&amp;Translate</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.custom">
-        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="359"/>
+        <location filename="../src/routeEditor/tools/ObjectTools.cpp" line="362"/>
         <source>&amp;Custom</source>
         <translation>&amp;Custom</translation>
     </message>
@@ -2769,7 +2779,7 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Nearest TDB/RDB Vector</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4211"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4220"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
@@ -3265,60 +3275,60 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Help</translation>
     </message>
     <message id="route.editor.route.editor.window.title.save.changes">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="881"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="887"/>
         <source>Save changes?</source>
         <translation>Save changes?</translation>
     </message>
     <message id="route.editor.route.editor.window.message.save.changes.in.route">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="884"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="890"/>
         <source>Save changes in route?</source>
         <translation>Save changes in route?</translation>
     </message>
     <message id="route.editor.route.editor.window.text.this.action.will.delete.all.your.existing">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="922"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="928"/>
         <source>This action will delete all your existing activity paths and create new simple paths! Continue?</source>
         <translation>This action will delete all your existing activity paths and create new simple paths! Continue?</translation>
     </message>
     <message id="route.editor.country.places.title">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="943"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="959"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="985"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1012"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1035"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1054"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1074"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1081"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="949"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="965"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="991"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1018"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1041"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1060"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1080"/>
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1087"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1093"/>
         <source>Generate country places</source>
         <translation>Generate country places</translation>
     </message>
     <message id="route.editor.country.places.writing.disabled">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="945"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="951"/>
         <source>Route writing is disabled.</source>
         <translation>Route writing is disabled.</translation>
     </message>
     <message id="route.editor.country.places.loading">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="957"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="963"/>
         <source>Loading country place presets...</source>
         <translation>Loading country place presets...</translation>
     </message>
     <message id="route.editor.country.places.no.countries">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1014"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1020"/>
         <source>No countries were found in the place presets.</source>
         <translation>No countries were found in the place presets.</translation>
     </message>
     <message id="route.editor.country.places.country">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1037"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1043"/>
         <source>Country:</source>
         <translation>Country:</translation>
     </message>
     <message id="route.editor.country.places.generating">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1051"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1057"/>
         <source>Generating country places...</source>
         <translation>Generating country places...</translation>
     </message>
     <message id="route.editor.country.places.generated">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1089"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1095"/>
         <source>Country places for %1 were generated successfully.</source>
         <translation>Country places for %1 were generated successfully.</translation>
     </message>
@@ -4166,622 +4176,622 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Route settings</translation>
     </message>
     <message id="route.editor.activity.event.properties.button.pick.new.location">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="53"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="54"/>
         <source>Pick new location</source>
         <translation>Pick new location</translation>
     </message>
     <message id="route.editor.activity.event.properties.item.everywhere">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="63"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="64"/>
         <source>Everywhere</source>
         <translation>Everywhere</translation>
     </message>
     <message id="route.editor.activity.event.properties.item.cab">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="66"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="67"/>
         <source>Cab</source>
         <translation>Cab</translation>
     </message>
     <message id="route.editor.activity.event.properties.item.pass">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="69"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="70"/>
         <source>Pass</source>
         <translation>Pass</translation>
     </message>
     <message id="route.editor.activity.event.properties.item.ground">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="72"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="73"/>
         <source>Ground</source>
         <translation>Ground</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="103"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="104"/>
         <source>Action:</source>
         <translation>Action:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.2">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="110"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="111"/>
         <source>Type:</source>
         <translation>Type:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.3">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="128"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="129"/>
         <source>Station:</source>
         <translation>Station:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.4">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="147"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="148"/>
         <source>Siding:</source>
         <translation>Siding:</translation>
     </message>
     <message id="route.editor.activity.event.properties.text.link.selected">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="154"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="155"/>
         <source>Link Selected</source>
         <translation>Link Selected</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.5">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="167"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="168"/>
         <source>Speed:</source>
         <translation>Speed:</translation>
     </message>
     <message id="route.editor.activity.event.properties.button.b.remove.car">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="183"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="184"/>
         <source>Remove Selected</source>
         <translation>Remove Selected</translation>
     </message>
     <message id="route.editor.activity.event.properties.button.b.jump.to.car">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="188"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="189"/>
         <source>Jump To Selected</source>
         <translation>Jump To Selected</translation>
     </message>
     <message id="route.editor.activity.event.properties.button.b.desc.car">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="193"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="194"/>
         <source>Edit description</source>
         <translation>Edit description</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.6">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="199"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="200"/>
         <source>Wagon List:</source>
         <translation>Wagon List:</translation>
     </message>
     <message id="route.editor.activity.event.properties.button.pick.new.event.wagon">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="205"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="206"/>
         <source>Pick Selected</source>
         <translation>Pick Selected</translation>
     </message>
     <message id="activity.event.wagon.header.id">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="214"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="215"/>
         <source>ID:</source>
         <translation>ID:</translation>
     </message>
     <message id="activity.event.wagon.header.description">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="216"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="217"/>
         <source>Description:</source>
         <translation>Description:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.7">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="230"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="231"/>
         <source>Location:</source>
         <translation>Location:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.8">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="237"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="238"/>
         <source>Position:</source>
         <translation>Position:</translation>
     </message>
     <message id="route.editor.activity.event.properties.button.button">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="243"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="244"/>
         <source>Jump to location</source>
         <translation>Jump to location</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.radius">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="252"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="253"/>
         <source>Radius:</source>
         <translation>Radius:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.9">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="259"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="260"/>
         <source>Train must stop:</source>
         <translation>Train must stop:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.10">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="276"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="277"/>
         <source>Time:</source>
         <translation>Time:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.11">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="283"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="284"/>
         <source>Activation Time:</source>
         <translation>Activation Time:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.12">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="308"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="309"/>
         <source>Event:</source>
         <translation>Event:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.13">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="315"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="316"/>
         <source>Name:</source>
         <translation>Name:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.activation.level">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="323"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="324"/>
         <source>Activation Level:</source>
         <translation>Activation Level:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.triggered.text">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="330"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="331"/>
         <source>Triggered Text:</source>
         <translation>Triggered Text:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.untriggered.text">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="336"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="337"/>
         <source>Untriggered Text:</source>
         <translation>Untriggered Text:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.notes">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="342"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="343"/>
         <source>Notes:</source>
         <translation>Notes:</translation>
     </message>
     <message id="route.editor.activity.event.properties.text.disable.pause">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="348"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="349"/>
         <source>Disable pause:</source>
         <translation>Disable pause:</translation>
     </message>
     <message id="route.editor.activity.event.properties.text.reversable">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="360"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="361"/>
         <source>Reversable.</source>
         <translation>Reversable.</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.14">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="368"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="369"/>
         <source>Outcomes:</source>
         <translation>Outcomes:</translation>
     </message>
     <message id="route.editor.activity.event.properties.button.b.add.outcome">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="375"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="376"/>
         <source>Add New</source>
         <translation>Add New</translation>
     </message>
     <message id="route.editor.activity.event.properties.button.b.remove.outcome">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="378"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="379"/>
         <source>Remove Selected</source>
         <translation>Remove Selected</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.15">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="389"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="390"/>
         <source>Selected Outcome:</source>
         <translation>Selected Outcome:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.action">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="396"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="397"/>
         <source>Action:</source>
         <translation>Action:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.16">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="410"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="411"/>
         <source>Event:</source>
         <translation>Event:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.message">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="429"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="430"/>
         <source>Message:</source>
         <translation>Message:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.17">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="445"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="446"/>
         <source>Sound File:</source>
         <translation>Sound File:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.sound.type">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="453"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="454"/>
         <source>Sound Type:</source>
         <translation>Sound Type:</translation>
     </message>
     <message id="route.editor.activity.event.properties.label.label.18">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="468"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="469"/>
         <source>Weather Change:</source>
         <translation>Weather Change:</translation>
     </message>
     <message id="route.editor.activity.event.properties.text.not.linked">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="573"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="574"/>
         <source>Not Linked.</source>
         <translation>Not Linked.</translation>
     </message>
     <message id="route.editor.activity.event.properties.title.siding.not.linked">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="661"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="664"/>
         <source>Siding not linked!</source>
         <translation>Siding not linked!</translation>
     </message>
     <message id="route.editor.activity.event.properties.text.select.siding.before.using.this.button">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="664"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="667"/>
         <source>Select siding before using this button.</source>
         <translation>Select siding before using this button.</translation>
     </message>
     <message id="route.editor.activity.event.properties.title.wagon.item.description">
-        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="1020"/>
+        <location filename="../src/routeEditor/activity/ActivityEventProperties.cpp" line="1051"/>
         <source>Wagon Item Description.</source>
         <translation>Wagon Item Description.</translation>
     </message>
     <message id="route.editor.activity.event.window.title.activity.events">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="20"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="22"/>
         <source>Activity Events</source>
         <translation>Activity Events</translation>
     </message>
     <message id="route.editor.activity.event.window.button.b.new.action.event">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="29"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="31"/>
         <source>New Action Event</source>
         <translation>New Action Event</translation>
     </message>
     <message id="route.editor.activity.event.window.button.b.delete.action.event">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="34"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="36"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="route.editor.activity.event.window.button.b.new.location.event">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="48"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="50"/>
         <source>New Location Event</source>
         <translation>New Location Event</translation>
     </message>
     <message id="route.editor.activity.event.window.button.b.delete.location.event">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="53"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="55"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="route.editor.activity.event.window.button.b.new.time.event">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="67"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="69"/>
         <source>New Time Event</source>
         <translation>New Time Event</translation>
     </message>
     <message id="route.editor.activity.event.window.button.b.delete.time.event">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="72"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="74"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="route.editor.activity.event.window.tab.action">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="89"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="92"/>
         <source>Action</source>
         <translation>Action</translation>
     </message>
     <message id="route.editor.activity.event.window.tab.location">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="92"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="95"/>
         <source>Location</source>
         <translation>Location</translation>
     </message>
     <message id="route.editor.activity.event.window.tab.time">
-        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="95"/>
+        <location filename="../src/routeEditor/activity/ActivityEventWindow.cpp" line="98"/>
         <source>Time</source>
         <translation>Time</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.label">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="30"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="31"/>
         <source>Service Info:</source>
         <translation>Service Info:</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.file.name">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="39"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="40"/>
         <source>File Name:</source>
         <translation>File Name:</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.display.name">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="42"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="43"/>
         <source>Display Name:</source>
         <translation>Display Name:</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.expected.player.performance">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="52"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="53"/>
         <source>Expected Player Performance:</source>
         <translation>Expected Player Performance:</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.start.speed">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="57"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="58"/>
         <source>Start Speed:</source>
         <translation>Start Speed:</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.end.speed">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="62"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="63"/>
         <source>End Speed:</source>
         <translation>End Speed:</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.label.2">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="69"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="70"/>
         <source>Consist:</source>
         <translation>Consist:</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.label.3">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="82"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="83"/>
         <source>Path:</source>
         <translation>Path:</translation>
     </message>
     <message id="activity.service.station.header.stop">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="95"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="96"/>
         <source>Stop:</source>
         <translation>Stop:</translation>
     </message>
     <message id="activity.service.station.header.name">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="97"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="98"/>
         <source>Station Name:</source>
         <translation>Station Name:</translation>
     </message>
     <message id="activity.service.station.header.distance">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="99"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="100"/>
         <source>Distance (km):</source>
         <translation>Distance (km):</translation>
     </message>
     <message id="route.editor.activity.service.properties.label.label.4">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="112"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="113"/>
         <source>Used by:</source>
         <translation>Used by:</translation>
     </message>
     <message id="activity.service.used.by.header.type">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="118"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="119"/>
         <source>Type:</source>
         <translation>Type:</translation>
     </message>
     <message id="activity.service.used.by.header.name">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="120"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="121"/>
         <source>Name:</source>
         <translation>Name:</translation>
     </message>
     <message id="route.editor.activity.service.properties.item.undefined">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="162"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="163"/>
         <source>UNDEFINED</source>
         <translation>UNDEFINED</translation>
     </message>
     <message id="route.editor.activity.service.properties.item.undefined.2">
-        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="175"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceProperties.cpp" line="176"/>
         <source>UNDEFINED</source>
         <translation>UNDEFINED</translation>
     </message>
     <message id="route.editor.activity.service.window.title.services">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="24"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="25"/>
         <source>Services</source>
         <translation>Services</translation>
     </message>
     <message id="route.editor.activity.service.window.button.b.new.action.event">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="33"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="34"/>
         <source>New Service</source>
         <translation>New Service</translation>
     </message>
     <message id="route.editor.activity.service.window.button.b.delete.action.event">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="38"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="44"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="activity.service.list.header.name">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="46"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="52"/>
         <source>Name:</source>
         <translation>Name:</translation>
     </message>
     <message id="activity.service.list.header.this">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="48"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="54"/>
         <source>This:</source>
         <translation>This:</translation>
     </message>
     <message id="activity.service.list.header.any">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="50"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="56"/>
         <source>Any:</source>
         <translation>Any:</translation>
     </message>
     <message id="route.editor.activity.service.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="148"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="166"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.service.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="154"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="172"/>
         <source>A service named %1 exists already.</source>
         <translation>A service named %1 exists already.</translation>
     </message>
     <message id="route.editor.activity.service.window.delete.title">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="169"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="187"/>
         <source>Delete Service</source>
         <translation>Delete Service</translation>
     </message>
     <message id="route.editor.activity.service.window.delete.read.only">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="173"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="191"/>
         <source>The route is read-only.</source>
         <translation>The route is read-only.</translation>
     </message>
     <message id="route.editor.activity.service.window.delete.question">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="178"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="196"/>
         <source>Delete the service %1 and its file? This cannot be undone.</source>
         <translation>Delete the service %1 and its file? This cannot be undone.</translation>
     </message>
     <message id="route.editor.activity.service.window.delete.users">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="183"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="201"/>
         <source>These activities and traffic name it: %1</source>
         <translation>These activities and traffic name it: %1</translation>
     </message>
     <message id="route.editor.activity.service.window.delete.failed">
-        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="189"/>
+        <location filename="../src/routeEditor/activity/ActivityServiceWindow.cpp" line="207"/>
         <source>The file %1 could not be deleted.</source>
         <translation>The file %1 could not be deleted.</translation>
     </message>
     <message id="activity.timetable.header.station">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="41"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="42"/>
         <source>Station:</source>
         <translation>Station:</translation>
     </message>
     <message id="activity.timetable.header.arrive">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="43"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="44"/>
         <source>Arrive:</source>
         <translation>Arrive:</translation>
     </message>
     <message id="activity.timetable.header.depart">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="45"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="46"/>
         <source>Depart:</source>
         <translation>Depart:</translation>
     </message>
     <message id="activity.timetable.header.performance">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="47"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="48"/>
         <source>Performance:</source>
         <translation>Performance:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.button.b.calculate">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="68"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="69"/>
         <source>Calculate</source>
         <translation>Calculate</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.label.start.time">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="73"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="74"/>
         <source>Start Time:</source>
         <translation>Start Time:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.label.consist.main.eng">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="79"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="80"/>
         <source>Consist main ENG:</source>
         <translation>Consist main ENG:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.label.max.eng.speed">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="84"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="85"/>
         <source>Max ENG Speed:</source>
         <translation>Max ENG Speed:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.label.timetable.avg.speed">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="89"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="90"/>
         <source>Timetable Avg Speed:</source>
         <translation>Timetable Avg Speed:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.text.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="176"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="178"/>
         <source>NONE</source>
         <translation>NONE</translation>
     </message>
     <message id="route.editor.activity.timetable.window.title.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="19"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="20"/>
         <source>Timetable</source>
         <translation>Timetable</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.label.label">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="37"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="38"/>
         <source>Name:</source>
         <translation>Name:</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.label.label.2">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="44"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="45"/>
         <source>Display Name:</source>
         <translation>Display Name:</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.label.label.3">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="52"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="53"/>
         <source>Services:</source>
         <translation>Services:</translation>
     </message>
     <message id="activity.traffic.services.header.name">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="58"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="59"/>
         <source>Name:</source>
         <translation>Name:</translation>
     </message>
     <message id="activity.traffic.services.header.start.time">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="60"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="61"/>
         <source>Start Time:</source>
         <translation>Start Time:</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.button.b.add.outcome">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="70"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="71"/>
         <source>Add New</source>
         <translation>Add New</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.button.b.remove.outcome">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="76"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="77"/>
         <source>Remove Selected</source>
         <translation>Remove Selected</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.button.b.clone.outcome">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="82"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="83"/>
         <source>Clone Selected</source>
         <translation>Clone Selected</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.label.label.4">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="89"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="90"/>
         <source>Selected Service:</source>
         <translation>Selected Service:</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.label.service">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="96"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="97"/>
         <source>Service:</source>
         <translation>Service:</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.label.start.time">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="105"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="106"/>
         <source>Start Time:</source>
         <translation>Start Time:</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.item.undefined">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="180"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="185"/>
         <source>UNDEFINED</source>
         <translation>UNDEFINED</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.label.number.services">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="210"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="215"/>
         <source>Number of services:</source>
         <translation>Number of services:</translation>
     </message>
     <message id="route.editor.activity.traffic.properties.label.duration">
-        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="213"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficProperties.cpp" line="218"/>
         <source>Duration:</source>
         <translation>Duration:</translation>
     </message>
     <message id="route.editor.activity.traffic.window.title.traffic">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="24"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="25"/>
         <source>Traffic</source>
         <translation>Traffic</translation>
     </message>
     <message id="route.editor.activity.traffic.window.button.b.new">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="33"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="34"/>
         <source>New Traffic</source>
         <translation>New Traffic</translation>
     </message>
     <message id="route.editor.activity.traffic.window.button.b.delete">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="38"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="44"/>
         <source>Delete</source>
         <translation>Delete</translation>
     </message>
     <message id="activity.traffic.list.header.name">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="43"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="49"/>
         <source>Name:</source>
         <translation>Name:</translation>
     </message>
     <message id="activity.traffic.list.header.this">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="45"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="51"/>
         <source>This:</source>
         <translation>This:</translation>
     </message>
     <message id="activity.traffic.list.header.any">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="47"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="53"/>
         <source>Any:</source>
         <translation>Any:</translation>
     </message>
     <message id="route.editor.activity.traffic.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="137"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="143"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.traffic.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="143"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="149"/>
         <source>A traffic pattern named %1 exists already.</source>
         <translation>A traffic pattern named %1 exists already.</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.title">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="161"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="179"/>
         <source>Delete Traffic</source>
         <translation>Delete Traffic</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.read.only">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="165"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="183"/>
         <source>The route is read-only.</source>
         <translation>The route is read-only.</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.question">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="170"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="188"/>
         <source>Delete the traffic pattern %1 and its file? This cannot be undone.</source>
         <translation>Delete the traffic pattern %1 and its file? This cannot be undone.</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.users">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="175"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="193"/>
         <source>These activities name it: %1</source>
         <translation>These activities name it: %1</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.failed">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="181"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="199"/>
         <source>The file %1 could not be deleted.</source>
         <translation>The file %1 could not be deleted.</translation>
     </message>
@@ -4792,7 +4802,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="route.editor.properties.edit.file.name.dialog.button.ok">
         <location filename="../src/routeEditor/properties/EditFileNameDialog.cpp" line="21"/>
-        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="320"/>
+        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="322"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
@@ -11244,7 +11254,7 @@ Now TSRE will download app data.</translation>
     </message>
     <message id="tsre.gui.text.edit.dialog.button.bok">
         <location filename="../src/tsre/gui/TextEditDialog.cpp" line="21"/>
-        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="321"/>
+        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="323"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
@@ -11270,7 +11280,7 @@ Now TSRE will download app data.</translation>
     </message>
     <message id="tsre.gui.unsaved.dialog.button.bok.2">
         <location filename="../src/tsre/gui/UnsavedDialog.cpp" line="36"/>
-        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="322"/>
+        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="324"/>
         <source>Save</source>
         <translation>Save</translation>
     </message>
@@ -12245,6 +12255,176 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/routeEditor/tools/PathTools.cpp" line="259"/>
         <source>Repair Path</source>
         <translation>Repair Path</translation>
+    </message>
+    <message id="activity.check.player.service.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="98"/>
+        <source>The player service %1 does not exist.</source>
+        <translation>The player service %1 does not exist.</translation>
+    </message>
+    <message id="activity.check.instance.service.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="101"/>
+        <source>The service %1 of an AI train does not exist.</source>
+        <translation>The service %1 of an AI train does not exist.</translation>
+    </message>
+    <message id="activity.check.service.no.consist">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="108"/>
+        <source>The service %1 has no consist.</source>
+        <translation>The service %1 has no consist.</translation>
+    </message>
+    <message id="activity.check.service.consist.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="113"/>
+        <source>The service %1 names the consist %2, which does not exist.</source>
+        <translation>The service %1 names the consist %2, which does not exist.</translation>
+    </message>
+    <message id="activity.check.skipcount.narrow">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="120"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="297"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="325"/>
+        <source>%1: a skip count above 65535, more than MSTS keeps.</source>
+        <translation>%1: a skip count above 65535, more than MSTS keeps.</translation>
+    </message>
+    <message id="activity.check.service.no.path">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="125"/>
+        <source>The service %1 has no path.</source>
+        <translation>The service %1 has no path.</translation>
+    </message>
+    <message id="activity.check.service.path.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="133"/>
+        <source>The service %1 names the path %2, which does not exist.</source>
+        <translation>The service %1 names the path %2, which does not exist.</translation>
+    </message>
+    <message id="activity.check.path.passing.unjoined">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="149"/>
+        <source>The path %1 has a passing path that does not come back to it; TSRE does not keep it.</source>
+        <translation>The path %1 has a passing path that does not come back to it; TSRE does not keep it.</translation>
+    </message>
+    <message id="activity.check.path.broken">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="154"/>
+        <source>The path %1 is broken: a node or the track between nodes is not on the track.</source>
+        <translation>The path %1 is broken: a node or the track between nodes is not on the track.</translation>
+    </message>
+    <message id="activity.check.stop.not.on.path">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="191"/>
+        <source>%1: the stop at %2 is not on the path %3.</source>
+        <translation>%1: the stop at %2 is not on the path %3.</translation>
+    </message>
+    <message id="activity.check.stop.distance">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="205"/>
+        <source>%1: the stop at %2 is %3 m from where the path passes it.</source>
+        <translation>%1: the stop at %2 is %3 m from where the path passes it.</translation>
+    </message>
+    <message id="activity.check.stops.order">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="217"/>
+        <source>%1: the stops are not in the order the path passes them.</source>
+        <translation>%1: the stops are not in the order the path passes them.</translation>
+    </message>
+    <message id="activity.check.traffic.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="230"/>
+        <source>The traffic pattern %1 does not exist.</source>
+        <translation>The traffic pattern %1 does not exist.</translation>
+    </message>
+    <message id="activity.check.instance.not.in.traffic">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="239"/>
+        <source>The AI train %1 at %2 is not in the traffic pattern %3: it runs without its timetable.</source>
+        <oldsource>The AI train %1 at %2 is not in the traffic pattern %3.</oldsource>
+        <translation>The AI train %1 at %2 is not in the traffic pattern %3: it runs without its timetable.</translation>
+    </message>
+    <message id="activity.check.instance.not.in.activity">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="252"/>
+        <source>The traffic pattern&apos;s train %1 at %2 is not in the activity.</source>
+        <translation>The traffic pattern&apos;s train %1 at %2 is not in the activity.</translation>
+    </message>
+    <message id="activity.check.player.start">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="269"/>
+        <source>The player&apos;s timetable starts at %1, the activity at %2.</source>
+        <translation>The player&apos;s timetable starts at %1, the activity at %2.</translation>
+    </message>
+    <message id="activity.check.stops.incomplete">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="293"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="321"/>
+        <source>%1: a stop lacks some of its fields.</source>
+        <translation>%1: a stop lacks some of its fields.</translation>
+    </message>
+    <message id="activity.check.timetable.stops.differ">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="308"/>
+        <source>%1: the activity&apos;s stops differ from the service&apos;s; its timetable needs computing again.</source>
+        <translation>%1: the activity&apos;s stops differ from the service&apos;s; its timetable needs computing again.</translation>
+    </message>
+    <message id="activity.check.time.depart.before.arrival">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="335"/>
+        <source>%1: at stop %2 it leaves before it arrives.</source>
+        <translation>%1: at stop %2 it leaves before it arrives.</translation>
+    </message>
+    <message id="activity.check.time.order">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="340"/>
+        <source>%1: it reaches stop %2 before it leaves the stop before.</source>
+        <translation>%1: it reaches stop %2 before it leaves the stop before.</translation>
+    </message>
+    <message id="activity.check.event.station.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="362"/>
+        <source>Event %1: the station stop it names is not one of the player&apos;s stops.</source>
+        <translation>Event %1: the station stop it names is not one of the player&apos;s stops.</translation>
+    </message>
+    <message id="activity.check.event.siding.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="370"/>
+        <source>Event %1: the siding it names does not exist.</source>
+        <translation>Event %1: the siding it names does not exist.</translation>
+    </message>
+    <message id="activity.check.event.wagon.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="376"/>
+        <source>Event %1: the car %2 is in no train of the activity.</source>
+        <translation>Event %1: the car %2 is in no train of the activity.</translation>
+    </message>
+    <message id="activity.check.event.link.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="383"/>
+        <source>Event %1: an outcome names event %2, which does not exist.</source>
+        <translation>Event %1: an outcome names event %2, which does not exist.</translation>
+    </message>
+    <message id="activity.check.consist.cars.missing">
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="425"/>
+        <source>The loose consist %1: some of its cars&apos; files are missing.</source>
+        <translation>The loose consist %1: some of its cars&apos; files are missing.</translation>
+    </message>
+    <message id="route.editor.activity.check.window.title">
+        <location filename="../src/routeEditor/activity/ActivityCheckWindow.cpp" line="14"/>
+        <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="781"/>
+        <source>Check Activity</source>
+        <translation>Check Activity</translation>
+    </message>
+    <message id="route.editor.activity.check.window.column.kind">
+        <location filename="../src/routeEditor/activity/ActivityCheckWindow.cpp" line="18"/>
+        <source>Kind</source>
+        <translation>Kind</translation>
+    </message>
+    <message id="route.editor.activity.check.window.column.problem">
+        <location filename="../src/routeEditor/activity/ActivityCheckWindow.cpp" line="20"/>
+        <source>Problem</source>
+        <translation>Problem</translation>
+    </message>
+    <message id="route.editor.activity.check.window.button.again">
+        <location filename="../src/routeEditor/activity/ActivityCheckWindow.cpp" line="27"/>
+        <source>Check Again</source>
+        <translation>Check Again</translation>
+    </message>
+    <message id="route.editor.activity.check.window.error">
+        <location filename="../src/routeEditor/activity/ActivityCheckWindow.cpp" line="57"/>
+        <source>Error</source>
+        <translation>Error</translation>
+    </message>
+    <message id="route.editor.activity.check.window.warning">
+        <location filename="../src/routeEditor/activity/ActivityCheckWindow.cpp" line="59"/>
+        <source>Warning</source>
+        <translation>Warning</translation>
+    </message>
+    <message id="route.editor.activity.check.window.none">
+        <location filename="../src/routeEditor/activity/ActivityCheckWindow.cpp" line="69"/>
+        <source>%1: no problems found.</source>
+        <translation>%1: no problems found.</translation>
+    </message>
+    <message id="route.editor.activity.check.window.summary">
+        <location filename="../src/routeEditor/activity/ActivityCheckWindow.cpp" line="73"/>
+        <source>%1: %2 errors, %3 warnings.</source>
+        <translation>%1: %2 errors, %3 warnings.</translation>
     </message>
 </context>
 </TS>

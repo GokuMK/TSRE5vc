@@ -29,6 +29,8 @@
 #include <tsre/world/Trk.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <routeEditor/activity/ActivityEdit.h>
+#include <routeEditor/activity/ActivityCheckWindow.h>
+#include <tsre/trains/ActivityCheck.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <QDialog>
 #include <QEvent>
@@ -359,6 +361,11 @@ ActivityTools::ActivityTools(QString name)
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
+    QPushButton *actCheckButton = new QPushButton(
+        //% "Check Activity"
+        qtTrId("route.editor.activity.tools.button.act.check.button"));
+    QObject::connect(actCheckButton, SIGNAL(released()), this, SLOT(actCheckEnabled()));
+    vbox->addWidget(actCheckButton);
     QPushButton *actSaveButton = new QPushButton(
         //% "Save Activities"
         qtTrId("route.editor.activity.tools.button.act.save.button"));
@@ -667,6 +674,64 @@ void ActivityTools::actPlayEnabled(){
 
 }
 
+void ActivityTools::actCheckEnabled(){
+    Activity *a = currentActivity();
+    if(a == NULL)
+        return;
+    if(checkWindow == NULL){
+        checkWindow = new ActivityCheckWindow(this);
+        QObject::connect(checkWindow, &ActivityCheckWindow::findingChosen, this, &ActivityTools::showFinding);
+    }
+    checkWindow->check(a);
+    checkWindow->show();
+    checkWindow->raise();
+}
+
+// What the finding names: the event, service or traffic in its window, the
+// path chosen, the view at the place.
+void ActivityTools::showFinding(const ActivityFinding &finding){
+    Activity *a = currentActivity();
+    if(a == NULL || checkWindow == NULL || checkWindow->checkedActivity() != a)
+        return;
+    switch(finding.target){
+    case ActivityFinding::Event:
+        emit showActivityEventEditor();
+        emit showEvents(a);
+        emit selectEvent(finding.eventId);
+        break;
+    case ActivityFinding::Service:
+        emit showActivityServiceEditor();
+        emit showServices(route);
+        emit selectService(finding.name);
+        break;
+    case ActivityFinding::Traffic:
+        emit showActivityTrafficEditor();
+        emit showTraffic(route);
+        emit selectTraffic(finding.name);
+        break;
+    case ActivityFinding::Path:
+        if(route == NULL)
+            break;
+        for(int i = 0; i < route->path.size(); i++)
+            if(route->path[i] != NULL && route->path[i]->isNamed(finding.name)){
+                cPath.setCurrentIndex(cPath.findData(i));
+                selectCurrentPath();
+                break;
+            }
+        break;
+    case ActivityFinding::Position:
+        if(coordinate == NULL)
+            coordinate = new PreciseTileCoordinate();
+        coordinate->TileX = finding.position[0];
+        coordinate->TileZ = finding.position[1];
+        coordinate->setWxyz(finding.position[2], 0, finding.position[3]);
+        emit jumpTo(coordinate);
+        break;
+    default:
+        break;
+    }
+}
+
 void ActivityTools::actSaveEnabled(){
     QVector<QString> unsavedItems;
     ActLib::GetUnsavedInfo(unsavedItems);
@@ -684,6 +749,18 @@ void ActivityTools::actSaveEnabled(){
         qtTrId("route.editor.activity.tools.message.save.changes.in.activities"));
     for(int i = 0; i < unsavedItems.size(); i++){
         unsavedDialog.items.addItem(unsavedItems[i]);
+    }
+    // Activities about to be saved with errors Check Activity finds.
+    for(Activity *a : ActLib::Act){
+        if(a == NULL || a->loaded != 1 || !a->isUnSaved())
+            continue;
+        int errors = 0;
+        for(const ActivityFinding &finding : CheckActivity(a))
+            errors += finding.severity == ActivityFinding::Error ? 1 : 0;
+        if(errors > 0)
+            unsavedDialog.items.addItem(
+                //% "%1: %2 errors (Check Activity lists them)"
+                qtTrId("route.editor.activity.tools.save.check.errors").arg(a->name).arg(errors));
     }
     unsavedDialog.exec();
     if(unsavedDialog.changed == 1){
@@ -760,7 +837,7 @@ void ActivityTools::activitySelected(QString n){
             if(ActLib::Traffics[id] == NULL)
                 continue;
             //qDebug() << cname << route->service[id]->name;
-            if(cname == ActLib::Traffics[id]->nameId){
+            if(cname.compare(ActLib::Traffics[id]->nameId, Qt::CaseInsensitive) == 0){
                 cTraffic.setCurrentIndex(i);
                 break;
             }

@@ -717,6 +717,9 @@ int TsreTests::runActivityUiSuite(bool verbose) {
     QObject::connect(&tools, &ActivityTools::showServices, &services, &ActivityServiceWindow::showServices);
     QObject::connect(&tools, &ActivityTools::showTraffic, &traffic, &ActivityTrafficWindow::showTraffic);
     QObject::connect(&tools, &ActivityTools::showTimetable, &timetable, &ActivityTimetableWindow::showTimetable);
+    QObject::connect(&tools, &ActivityTools::selectEvent, &events, &ActivityEventWindow::selectEvent);
+    QObject::connect(&tools, &ActivityTools::selectService, &services, &ActivityServiceWindow::selectService);
+    QObject::connect(&tools, &ActivityTools::selectTraffic, &traffic, &ActivityTrafficWindow::selectTraffic);
     QObject::connect(&services, &ActivityServiceWindow::reloadServicesList, &tools, &ActivityTools::reloadServicesList);
     QObject::connect(&traffic, &ActivityTrafficWindow::reloadTrafficsList, &tools, &ActivityTools::reloadTrafficsList);
     const QList<QWidget*> windows = {&tools, &events, &services, &traffic, &timetable};
@@ -767,6 +770,21 @@ for (QWidget *window : windows)
     check(unsaved().isEmpty(), "looking at every object changes nothing: " + unsaved().join(", "));
     check(trafficFile && !trafficFile->service.isEmpty() && trafficFile->service[0]->arrivalTime.size() == instanceStops,
           "selecting a traffic instance keeps its timetable");
+
+    // Check Activity lists the fixture's problems; choosing them shows what
+    // they name.
+    QPushButton *checkButton = buttonNamed(&tools, "route.editor.activity.tools.button.act.check.button");
+    if (checkButton)
+        checkButton->click();
+    QTreeWidget *findings = nullptr;
+    for (QWidget *window : QApplication::topLevelWidgets())
+        if (window->windowTitle() == qtTrId("route.editor.activity.check.window.title") && window->isVisible())
+            findings = window->findChild<QTreeWidget*>();
+    check(checkButton && findings && findings->topLevelItemCount() > 0, "Check Activity lists the problems");
+    if (findings)
+        for (int row = 0; row < findings->topLevelItemCount(); ++row)
+            emit findings->itemClicked(findings->topLevelItem(row), 0);
+    check(unsaved().isEmpty(), "showing what the findings name changes nothing: " + unsaved().join(", "));
 
     // Events: deleting the shown event clears the panel; a new one is shown.
     QPushButton *deleteEvent = buttonNamed(&events, "route.editor.activity.event.window.button.b.delete.action.event");

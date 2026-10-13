@@ -814,6 +814,12 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(activityTools, SIGNAL(showEvents(Activity*)),
                       activityEventWindow, SLOT(showEvents(Activity*)));
+    QObject::connect(activityTools, SIGNAL(selectEvent(int)),
+                      activityEventWindow, SLOT(selectEvent(int)));
+    QObject::connect(activityTools, SIGNAL(selectService(QString)),
+                      activityServiceWindow, SLOT(selectService(QString)));
+    QObject::connect(activityTools, SIGNAL(selectTraffic(QString)),
+                      activityTrafficWindow, SLOT(selectTraffic(QString)));
     
     QObject::connect(activityTools, SIGNAL(showServices(Route*)),
                       activityServiceWindow, SLOT(showServices(Route*)));

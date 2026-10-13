@@ -15,6 +15,8 @@
 #include <QString>
 
 class Route;
+class ActivityCheckWindow;
+struct ActivityFinding;
 class GameObj;
 class Activity;
 class ActivityServiceDefinition;
@@ -84,6 +86,8 @@ public slots:
     void actSettingsOpenEnabled();
     void actPlayEnabled();
     void actSaveEnabled();
+    // Check Activity: the activity chosen, its findings in their window.
+    void actCheckEnabled();
     
     void reloadActivityList();
     void reloadServicesList();
@@ -103,6 +107,10 @@ signals:
     void showActivityTrafficEditor();
     void showTraffic(Route *r);
     void showActivityTimetableEditor();
+    // Check Activity's findings: what they name, shown.
+    void selectEvent(int id);
+    void selectService(QString nameId);
+    void selectTraffic(QString nameId);
     void showTimetable(Activity *a);
     void jumpTo(PreciseTileCoordinate* c);
     
@@ -158,6 +166,8 @@ private:
     QPlainTextEdit eBriefing;
     
     PreciseTileCoordinate* coordinate = NULL;
+    ActivityCheckWindow *checkWindow = NULL;
+    void showFinding(const ActivityFinding &finding);
     
     void reloadActivityObjectLists();
     // The activity chosen in the list, or NULL: none chosen (the list

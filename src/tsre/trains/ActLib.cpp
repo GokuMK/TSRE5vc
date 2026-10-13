@@ -196,8 +196,10 @@ Service* ActLib::GetServiceByName(QString name, QString routePath){
     return NULL;
 }
 
+// Activities name traffic by its file; the name inside it is tried after.
 Traffic* ActLib::GetTrafficByName(QString name, QString routePath){
     const QString ownerKey = routeKey(routePath);
+    Traffic *byDisplayName = NULL;
     QHashIterator<int, Traffic*> i(Traffics);
     while (i.hasNext()) {
         i.next();
@@ -205,8 +207,10 @@ Traffic* ActLib::GetTrafficByName(QString name, QString routePath){
         if(i.value()->routeHashid != ownerKey) continue;
         if(i.value()->nameId.compare(name, Qt::CaseInsensitive) == 0)
             return i.value();
+        if(byDisplayName == NULL && i.value()->displayName.compare(name, Qt::CaseInsensitive) == 0)
+            byDisplayName = i.value();
     }
-    return NULL;
+    return byDisplayName;
 }
 
 // A PathID is the path's file name (as MSTS opens it); TrPathName is

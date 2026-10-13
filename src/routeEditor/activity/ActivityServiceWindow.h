@@ -33,6 +33,8 @@ public slots:
     void serviceNameChanged(int id);
     void bNewServiceSelected();
     void bDeleteServiceSelected();
+    // The service (by its file's name) shown and chosen in the list.
+    void selectService(QString nameId);
     // Undo replaces activity data (ActivityNotifier).
     void activityDataRestoring();
     void activityDataRestored();

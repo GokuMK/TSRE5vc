@@ -111,6 +111,9 @@ public:
     // Grows with every change of the path, for panels that show it.
     unsigned int changes() const { return changeCount; }
     bool hasFlags() const { return hasPathFlags; }
+    // Passing paths in the file that do not come back to the main path:
+    // not read, so not written either.
+    int droppedPassingPaths() const { return unjoinedPassing; }
     // TrPathFlags; 0x20 marks a path no player train runs (Open Rails).
     void setPathFlags(unsigned int value);
     void setDisplayName(const QString &value);
@@ -128,6 +131,7 @@ private:
     bool isinit1 = false;
     bool isinit2 = false;
     bool hasPathFlags = false;
+    int unjoinedPassing = 0;
     unsigned int changeCount = 0;
     int serial = -1;
     TrackItemObj* pointer3d[4] = {NULL, NULL, NULL, NULL};

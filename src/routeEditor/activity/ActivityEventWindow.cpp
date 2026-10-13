@@ -85,6 +85,7 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     timeWidget.setLayout(timeListLayout);
     
     QTabWidget *tabWidget = new QTabWidget;
+    tabs = tabWidget;
     tabWidget->setContentsMargins(1,1,1,1);
     tabWidget->addTab(&actionWidget,
         //% "Action"
@@ -173,6 +174,25 @@ void ActivityEventWindow::selectShownEvent(){
                 list->setCurrentRow(row);
             }
         }
+    }
+}
+
+void ActivityEventWindow::selectEvent(int id){
+    if(activity == NULL)
+        return;
+    for(ActivityEvent *e : activity->event){
+        if(e == NULL || e->id != id)
+            continue;
+        activity->currentEventSelected = e;
+        eventProperties->showEvent(e);
+        if(e->category == ActivityEvent::CategoryAction)
+            tabs->setCurrentIndex(0);
+        if(e->category == ActivityEvent::CategoryLocation)
+            tabs->setCurrentIndex(1);
+        if(e->category == ActivityEvent::CategoryTime)
+            tabs->setCurrentIndex(2);
+        selectShownEvent();
+        return;
     }
 }
 

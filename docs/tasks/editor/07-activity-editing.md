@@ -1,7 +1,8 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 to 3 done (2026-10-14, branch `feature/activity-editing`);
-phase 4 (Check Activity) next. Design decisions taken (below).
+Status: phases 1 to 4 done (2026-10-14, branch `feature/activity-editing`);
+phase 5 (paths to services and timetables) next. Design decisions taken
+(below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -128,6 +129,42 @@ state, notifications, no empty steps, instances found again), on written
 files; `path-edit` gained save-then-undo; the `activity-ui` monkey now
 also undoes (about 300 undos restoring activity data per run, 30 other
 seeds clean).
+
+**Phase 4, Check Activity (done 2026-10-14).**
+- `CheckActivity` (`tsre/trains/ActivityCheck`) lists findings, errors
+  and warnings, each naming what it points at: the player's and AI
+  trains' services, their consists and paths; instances in the activity
+  and its traffic pattern, both ways; stops complete, on the service's
+  path and within the platform as the path passes it (with a track
+  database), in path order; the activity's copy of the stops against the
+  service's; times in order (stops timed 0, as MSTS writes untimed ones,
+  left out); the player's timetable starting with the activity; event
+  station stops, sidings, wagons (of a loose consist or the player's
+  train) and event links; loose consists with missing cars; broken
+  paths, passing paths that do not come back (counted by the path reader,
+  which drops them); skip counts above 65535.
+- The activity panel's "Check Activity" opens the list; a row shows what
+  it names (the event or service or traffic in its window, the path
+  chosen, the view at a loose consist). Saving lists activities with
+  errors in the unsaved dialog.
+- Run on the six MSTS routes and the Open Rails starter route with their
+  track databases (`activity-check-route`), it found a real defect:
+  `Traffic::load` replaced the traffic's file name with the name inside
+  the file, so the AI traffic of 9 of the 60 activities of the MSTS
+  routes, which name traffic by file, was not found. Traffic is now found by file first
+  (`nameId`), then by the name inside (`displayName`, written back). The
+  rest calibrated the checks: an AI train missing from its traffic
+  pattern is a warning (Open Rails runs it without the pattern's
+  timetable, as the starter route's own activities do); stops are
+  measured along the whole platform; event links a warning. Left on the
+  local content: 2 warnings, no errors.
+- Left for phase 6, with the additions they concern: triggering and
+  restarted trains, restart delays against waiting points. Not done:
+  loose consists on the track (the consist is placed only when drawn).
+
+Suites `activity-check` (a sound activity without errors; one with each
+kind of problem, found and pointing at its object) and
+`activity-check-route` (`--game-root`, `--route`: the findings by kind).
 
 ## Objective
 
