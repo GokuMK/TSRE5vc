@@ -646,7 +646,8 @@ private:
     // reaches the clouds; then the moon, fading in.
     void cloudLight(float *direction, float *colour) const;
     // The layers' moves since the view's last frame (km east, north: low and
-    // mid; high) and the low layer's middle height (km), for its history.
+    // mid; high) and the low layer's middle height (km), for its history;
+    // the cloud shell's radius (km).
     void cloudMotion(CloudView &v, float *motion, float *motionHigh);
     void writeCloudShadowUniforms(RhiProgram *program);
     void prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);

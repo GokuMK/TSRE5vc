@@ -135,7 +135,8 @@ struct MarchParameters {
     float shiftHigh[4];
     // The layers' moves since this view's last frame (km east, north): low
     // and mid; high, and the low layer's middle height (km) for pixels
-    // without clouds. The history follows each pixel's clouds.
+    // without clouds. The history follows each pixel's clouds. The cloud
+    // shell's radius (km) last, for the composite.
     float motion[4];
     float shadowMid[4];    // the mid layer's cloud shadow map: its centre east and north of the camera (km)
     float motionHigh[4];
@@ -143,6 +144,12 @@ struct MarchParameters {
 
 const char *CloudCommon = R"(
 const float Pi = 3.14159265;
+const float BottomRadius = 6360.0;
+const float TopRadius = 6460.0;
+
+float fromUnitToSubUvs(float u, float resolution) {
+    return (u + 0.5 / resolution) * (resolution / (resolution + 1.0));
+}
 
 uint hashCell(int x, int y, uint seed) {
     uint h = uint(x) * 0x8da6b343u ^ uint(y) * 0xd8163841u ^ seed * 0xcb1ab31fu;
@@ -329,8 +336,6 @@ layout(std140, binding = 10) uniform Update {
     vec4 shell;
 };
 
-const float BottomRadius = 6360.0;
-const float TopRadius = 6460.0;
 // Light samples' offsets across the cone (unit-ish, fixed).
 const vec3 Cone[8] = vec3[8](vec3(0.38, 0.92, -0.12), vec3(-0.71, 0.17, 0.68), vec3(0.15, -0.62, 0.77),
                              vec3(-0.85, -0.43, -0.30), vec3(0.62, -0.21, -0.75), vec3(-0.12, 0.81, 0.57),
@@ -344,24 +349,6 @@ vec2 transmittanceUv(float radius, float mu) {
     float dMin = TopRadius - radius;
     float dMax = rho + h;
     return vec2((d - dMin) / (dMax - dMin), rho / h);
-}
-
-float fromUnitToSubUvs(float u, float resolution) {
-    return (u + 0.5 / resolution) * (resolution / (resolution + 1.0));
-}
-
-// Sky light along a direction from the sky-view table.
-vec3 skyLight(vec3 d) {
-    float radius = BottomRadius + max(camera.x, 0.001);
-    float horizonLength = sqrt(max(0.0, radius * radius - BottomRadius * BottomRadius));
-    float beta = acos(clamp(horizonLength / radius, -1.0, 1.0));
-    float zenithHorizon = Pi - beta;
-    float angle = min(acos(clamp(d.y, -1.0, 1.0)), zenithHorizon - 1e-4);
-    float c = 1.0 - sqrt(max(0.0, 1.0 - angle / zenithHorizon));
-    vec2 dh = d.xz, sh = sun.xz;
-    float lightViewCos = (dot(dh, dh) > 1e-10 && dot(sh, sh) > 1e-10) ? dot(normalize(dh), normalize(sh)) : 1.0;
-    float u = sqrt(clamp(-lightViewCos * 0.5 + 0.5, 0.0, 1.0));
-    return textureLod(skyView, vec2(fromUnitToSubUvs(u, 192.0), fromUnitToSubUvs(c * 0.5, 108.0)), 0.0).rgb;
 }
 
 // Intersections of a ray from inside or below with a sphere around the
@@ -496,6 +483,37 @@ float sceneDistance(float depth, vec2 ndc) {
         viewZ = 2.0 * projection.z * projection.w / ((projection.w + projection.z) - z * (projection.w - projection.z));
     }
     return viewZ * length(vec3(ndc.x / projection.x, ndc.y / projection.y, 1.0)) / 1000.0;
+}
+)";
+
+// After the Clouds block and a skyView sampler (the march's and the
+// composite's).
+const char *SkyAir = R"(
+// Sky light along a direction from the sky-view table.
+vec3 skyLight(vec3 d) {
+    float radius = BottomRadius + max(camera.x, 0.001);
+    float horizonLength = sqrt(max(0.0, radius * radius - BottomRadius * BottomRadius));
+    float beta = acos(clamp(horizonLength / radius, -1.0, 1.0));
+    float zenithHorizon = Pi - beta;
+    float angle = min(acos(clamp(d.y, -1.0, 1.0)), zenithHorizon - 1e-4);
+    float c = 1.0 - sqrt(max(0.0, 1.0 - angle / zenithHorizon));
+    vec2 dh = d.xz, sh = sun.xz;
+    float lightViewCos = (dot(dh, dh) > 1e-10 && dot(sh, sh) > 1e-10) ? dot(normalize(dh), normalize(sh)) : 1.0;
+    float u = sqrt(clamp(-lightViewCos * 0.5 + 0.5, 0.0, 1.0));
+    return textureLod(skyView, vec2(fromUnitToSubUvs(u, 192.0), fromUnitToSubUvs(c * 0.5, 108.0)), 0.0).rgb;
+}
+
+// What the air between the camera and clouds a distance (km) along d lets
+// through, on the cloud shell of the given radius (km): Rayleigh and Mie at
+// the path's mean height and the weather's low haze (high.y, per km), each
+// colour its own.
+vec3 airTo(vec3 d, float distance, float radius) {
+    vec3 p0 = vec3(0.0, radius + max(camera.x, 0.001), 0.0);
+    float cloudAltitude = length(p0 + d * distance) - radius;
+    float mean = max(0.5 * (camera.x + cloudAltitude), 0.0);
+    vec3 sigma = vec3(5.802e-3, 13.558e-3, 33.1e-3) * exp(-mean / 8.0) + vec3(4.44e-3 * exp(-mean / 1.2))
+            + vec3(high.y * exp(-mean / 1.5));
+    return exp(-sigma * distance);
 }
 )";
 
@@ -667,7 +685,6 @@ void main() {
                 break;
         }
     }
-    float distance = weights > 0.0 ? weightedDistance / weights : -1.0;
     float highShare = 0.0, highDistance = 0.0;
     // The flat high layer, behind the others.
     if (high.x > 0.0 && pr < R + high.x) {
@@ -692,28 +709,25 @@ void main() {
                 transmittance *= 1.0 - alpha;
                 if (front < 0.0 && transmittance < 0.98)
                     front = th;
-                if (distance < 0.0)
-                    distance = th;
             }
         }
     }
-    // The air between the camera and the clouds: Rayleigh and Mie at the
-    // path's mean height and the weather's low haze (high.y, per km), each
-    // colour its own; the clouds fade towards the sky behind them.
-    if (transmittance < 1.0 && distance > 0.0) {
-        float cloudAltitude = length(p0 + d * distance) - R;
-        float mean = max(0.5 * (camera.x + cloudAltitude), 0.0);
-        vec3 sigma = vec3(5.802e-3, 13.558e-3, 33.1e-3) * exp(-mean / 8.0) + vec3(4.44e-3 * exp(-mean / 1.2))
-                + vec3(high.y * exp(-mean / 1.5));
-        vec3 air = exp(-sigma * distance);
+    // The air between the camera and the clouds (at their mean distance, all
+    // layers): the clouds fade towards the sky's light along the ray, mixed
+    // in linear light, so bright clouds still show through haze. Over the
+    // scene the composite takes this air's light back out: the clouds fade
+    // into the scene there, which has its own fog.
+    float cover = weights + highShare;
+    float mean = cover > 0.0 ? (weightedDistance + highDistance * highShare) / cover : -1.0;
+    if (transmittance < 1.0 && mean > 0.0) {
+        vec3 air = airTo(d, mean, R);
         luminance = luminance * air + skyLight(d) * (vec3(1.0) - air) * (1.0 - transmittance);
     }
     result = vec4(luminance, transmittance);
     // Times the cover, so the history blends them as it blends the clouds
     // (a pixel without clouds adds nothing).
-    float cover = weights + highShare;
     if (front < 0.0)
-        front = cover > 0.0 ? (weightedDistance + highDistance * highShare) / cover : 0.0;
+        front = max(mean, 0.0);
     cloudDepth = vec4(front * cover, weightedDistance + highDistance * highShare, layers + 2.0 * highShare, cover);
 }
 )";
@@ -914,6 +928,7 @@ layout(std140, binding = 0) uniform Clouds {
 layout(binding = 1) uniform sampler2D clouds;
 layout(binding = 2) uniform sampler2D sceneDepth;
 layout(binding = 3) uniform sampler2D cloudDepth;
+layout(binding = 4) uniform sampler2D skyView;
 )";
 
 const char *CompositeMain = R"(
@@ -934,24 +949,39 @@ void main() {
     // object leaves no outline in the clouds' history. Above the clouds, in
     // them, or a mountain in their base: the scene behind them is clouded.
     float share = 1.0;
-    float scene = sceneDistance(depth, vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y));
+    vec3 light = c.rgb;
+    float covered = 1.0 - c.a;
+    vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.y);
+    float scene = sceneDistance(depth, ndc);
     if (scene >= 0.0) {
         vec4 where = textureLod(cloudDepth, uv, 0.0);
         if (where.w > 1e-3) {
             float front = where.x / where.w;
             float mean = max(where.y / where.w, front);
             share = clamp((scene - front) / max(mean - front, 0.05), 0.0, 1.0);
+            // The march faded the clouds towards the sky's light; over the
+            // scene they fade into it instead (it has its own fog), as far
+            // as the clearest colour lets them: the air's light in front of
+            // them taken back out. (Far clouds in front of hazy mountains
+            // showed as patches of sky; user, 2026-10-13, the env file's
+            // weather on POLAND.)
+            vec4 far = inverse * vec4(ndc, 1.0, 1.0);
+            vec3 d = normalize(far.xyz / far.w);
+            vec3 air = airTo(d, where.y / where.w, motionHigh.w);
+            float clearest = max(air.r, max(air.g, air.b));
+            // (Rayleigh's blue, fading faster, keeps its share of the sky.)
+            light = max(light - skyLight(d) * ((1.0 - clearest) * covered), vec3(0.0));
+            covered *= clearest;
         } else {
             // (no place known: nearer things in front, as before)
             share = depth < bands.z ? 0.0 : 1.0;
         }
     }
-    if (share <= 0.0) {
+    if (share <= 0.0 || covered <= 1e-4) {
         result = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
-    float covered = 1.0 - c.a;
-    vec3 colour = c.rgb / max(covered, 1e-3);
+    vec3 colour = light / max(covered, 1e-3);
     vec3 display = pow(1.0 - exp(-colour * camera.z), vec3(1.0 / 2.2));
     // At night a little darker than the night sky's floor, not black.
     display = max(display, night.rgb * 0.8) * night.w;
@@ -993,7 +1023,7 @@ static QByteArray glowVariant(QByteArray source) {
 }
 
 static QByteArray marchSource() {
-    return cloudSource(MarchFragment, true) + CloudField + SceneDistance + MarchMain;
+    return cloudSource(MarchFragment, true) + CloudField + SceneDistance + SkyAir + MarchMain;
 }
 
 static QByteArray shadowSource() {
@@ -1001,7 +1031,7 @@ static QByteArray shadowSource() {
 }
 
 static QByteArray compositeSource() {
-    return cloudSource(CompositeFragment, false) + SceneDistance + CompositeMain;
+    return cloudSource(CompositeFragment, true) + SceneDistance + SkyAir + CompositeMain;
 }
 
 QList<QByteArray> RhiRenderer::cloudShaders() {
@@ -1281,7 +1311,9 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
         v.compositeBindings[i] = cloudBindings(rhi, {QRhiShaderResourceBinding::uniformBuffer(0, fragment, v.uniforms),
                                                      QRhiShaderResourceBinding::sampledTexture(1, fragment, v.image, c.linear),
                                                      QRhiShaderResourceBinding::sampledTexture(2, fragment, depth, c.nearest),
-                                                     QRhiShaderResourceBinding::sampledTexture(3, fragment, v.imageDepth, c.linear)});
+                                                     QRhiShaderResourceBinding::sampledTexture(3, fragment, v.imageDepth, c.linear),
+                                                     QRhiShaderResourceBinding::sampledTexture(4, fragment, skyResources.view,
+                                                                                               skyResources.linear)});
     }
     if (share != nullptr && share->marchPipeline != nullptr) {
         // Targets of the same formats, resource sets of the same layout.
@@ -1398,7 +1430,8 @@ void RhiRenderer::cloudMotion(CloudView &v, float *motion, float *motionHigh) {
     // Without a cloud in the pixel: the low layer's middle (the lowest
     // clouds' base and the layers' top halve it, about twice too high).
     motionHigh[2] = 0.5f * (clouds.bottom + clouds.top);
-    motionHigh[3] = 0.0f;
+    // The composite's haze, as the march's (the update block's radius).
+    motionHigh[3] = cloudShellRadius();
     v.driftValid = true;
 }
 

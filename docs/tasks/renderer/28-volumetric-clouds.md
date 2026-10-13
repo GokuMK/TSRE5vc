@@ -855,6 +855,33 @@ Captures (CMK, broken clouds at noon, `TSRE_CLOUDS_STILL` for the views):
   measured 26.4 to 39.3). The capture harness has no GPU time:
   `lastCompletedGpuTime` stays 0 for its frames.
 
+Clouds over hazy terrain (user, 2026-10-13: with the env file's weather on
+POLAND, camera 15,-133,343.48,850.02,-275.01,-1.87,2.81, the clouds blend
+with the sky's colour, not the terrain behind them):
+
+- The march fades the clouds towards the sky's light along the ray (the
+  air in front of them, `airTo`). Over the sky that is right, and mixed in
+  linear light a bright cloud still shows through haze. Over terrain it
+  turned far clouds into patches of sky over the mountains, and they hid
+  the ranges' tops. The file's weather takes its visibility from
+  `world_fog_distance`: 2000 in POLAND's editor.env, a strong haze; the
+  presets have 40 km.
+- Over the scene the composite now takes the air's light back out and
+  fades the clouds into the scene instead, as far as the clearest colour
+  lets them (Rayleigh's blue keeps its share). It recomputes the same air
+  from the clouds' mean distance (all layers, as the march now uses), the
+  sky-view table (bound to the composite) and the shell radius
+  (`motionHigh.w`).
+- Fading the clouds into what is behind them in the march itself, sky
+  included, was tried first: it mixes in display space, and hazed clouds
+  over the sky washed out (15 to 25 levels nearer the sky's colour on
+  POLAND). Over the sky the march's result is kept.
+- CMK views: as before (mean difference 0.06 of 255 at most). POLAND, the
+  file's weather: the whole range shows with faded clouds over it.
+- The terrain's fog is the fog setting's, not the weather's visibility, so
+  hazy mountains can stand out more clearly than the clouds in front of
+  them.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,
