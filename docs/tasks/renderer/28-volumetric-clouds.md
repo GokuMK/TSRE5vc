@@ -943,6 +943,25 @@ whatever the clouds' depth.
 - A storm grows dark with the clouds' density (the rain and storms task):
   the map, the shadows and this follow it.
 
+## Cloud shadows through a window resize (2026-10-14)
+
+The user: resizing the window flashed a frame without cloud shadows. A new
+view target (another size or format) released every cloud resource with
+the view's textures (the crash fix of 2026-10-12, above), the shadow map
+and the sky's light included: the frame's lit draws took no cloud shadow
+and the clear sky's ambient. Now it releases only the main view's own (its
+march, image and composite, and the two pipelines made with its resource
+set); the shared maps and what they hold stay (`releaseMainCloudView`,
+`createSharedCloudMaps`). The reflection's and the cube's clouds keep
+theirs (their own targets release them). Auto exposure keeps its last
+measurement through it too.
+
+- The first frame after a resize, the ground from 550 m (broken, 1280 x 800
+  to 1200 x 760 and back): 96 of 255 instead of 78 before (no shadows),
+  78 now, as every frame.
+- 14 resizes in a row at the CMK river with the reflection and the cube on:
+  no fault, every frame alike.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

@@ -1241,13 +1241,38 @@ bool RhiRenderer::createCloudVolumes() {
 bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
     CloudResources &c = cloudResources;
     const int pixels = Presets[quality].pixels;
-    if (c.march != nullptr && c.size == cloudMarchSize(viewSize, pixels) && c.compositeColor == view.color)
+    if (c.march != nullptr && c.size == cloudMarchSize(viewSize, pixels) && c.compositeColor == view.color
+            && c.shadowPipeline != nullptr && c.skyLightPipeline != nullptr)
         return true;
-    releaseCloudBuffers();
+    if (c.shadow == nullptr && !createSharedCloudMaps())
+        return false;
+    // The main view's own (march, image, composite): again for another size
+    // or view, the shared maps kept (rebuilt with them, a resized window lost
+    // its cloud shadows for a frame; user, 2026-10-14).
+    if (!createCloudView(c, viewSize, pixels, view.color, view.color3, view.depth)) {
+        releaseCloudBuffers();
+        return false;
+    }
+    // The shadow map and the sky's light take the main view's march
+    // parameters (its resource set's layout).
+    dropLater(c.shadowPipeline);
+    dropLater(c.skyLightPipeline);
+    const CloudShaderSet &shaders = cloudShaderSet(rhi);
+    c.shadowPipeline = cloudPipeline(rhi, shaders.shadow, c.marchBindings, c.shadowPass, 1, false);
+    c.skyLightPipeline = cloudPipeline(rhi, shaders.skyLight, c.marchBindings, c.skyLightPass, 1, false);
+    if (c.shadowPipeline == nullptr || c.skyLightPipeline == nullptr) {
+        releaseCloudBuffers();
+        return false;
+    }
+    return true;
+}
+
+bool RhiRenderer::createSharedCloudMaps() {
+    CloudResources &c = cloudResources;
     if (!createCloudVolumes())
         return false;
-    // Shared by the views: the samplers, the weather, the cover maps and the
-    // shadow map.
+    // Shared by the views: the samplers, the weather, the cover maps, the
+    // shadow map and the sky's light.
     c.linear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     c.nearest = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
@@ -1281,8 +1306,7 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
             && cloudTarget(rhi, {c.coverFar}, false, c.coverTargets[1], c.coverPasses[1])
             && cloudTarget(rhi, {c.shadow}, false, c.shadowTarget, c.shadowPass)
             && cloudTarget(rhi, {c.skyLight}, false, c.skyLightTarget, c.skyLightPass)
-            && cloudTarget(rhi, {c.skyMean}, false, c.skyMeanTarget, c.skyMeanPass)
-            && createCloudView(c, viewSize, pixels, view.color, view.color3, view.depth);
+            && cloudTarget(rhi, {c.skyMean}, false, c.skyMeanTarget, c.skyMeanPass);
     if (!ok) {
         releaseCloudBuffers();
         return false;
@@ -1293,9 +1317,6 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
                                                  QRhiShaderResourceBinding::sampledTexture(1, fragment, c.weather, c.linear)});
     const CloudShaderSet &shaders = cloudShaderSet(rhi);
     c.coverPipeline = cloudPipeline(rhi, shaders.cover, c.coverBindings[0], c.coverPasses[0], 1, false);
-    // The shadow map takes the main view's march parameters.
-    c.shadowPipeline = cloudPipeline(rhi, shaders.shadow, c.marchBindings, c.shadowPass, 1, false);
-    c.skyLightPipeline = cloudPipeline(rhi, shaders.skyLight, c.marchBindings, c.skyLightPass, 1, false);
     c.skyMeanBindings = cloudBindings(rhi, {QRhiShaderResourceBinding::sampledTexture(0, fragment, c.skyLight, c.nearest)});
     c.skyMeanPipeline = cloudPipeline(rhi, shaders.skyMean, c.skyMeanBindings, c.skyMeanPass, 1, false);
     c.skyReadback.completed = [this] {
@@ -1311,8 +1332,7 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
             r.skyValid = true;
         }
     };
-    if (c.coverPipeline == nullptr || c.shadowPipeline == nullptr || c.skyLightPipeline == nullptr
-            || c.skyMeanPipeline == nullptr) {
+    if (c.coverPipeline == nullptr || c.skyMeanPipeline == nullptr) {
         releaseCloudBuffers();
         return false;
     }
@@ -1971,6 +1991,15 @@ void RhiRenderer::releaseCloudView(CloudView &v) {
     dropLater(v.uniforms);
     dropLater(v.updateUniforms);
     v = CloudView();
+}
+
+void RhiRenderer::releaseMainCloudView() {
+    CloudResources &c = cloudResources;
+    releaseCloudView(c);
+    // Made with the view's resource set as their layout.
+    dropLater(c.shadowPipeline);
+    dropLater(c.skyLightPipeline);
+    c.shadowPipeline = c.skyLightPipeline = nullptr;
 }
 
 void RhiRenderer::releaseCloudBuffers() {

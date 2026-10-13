@@ -919,8 +919,17 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     // keep targets and resource sets of deleted textures (changing tone
     // mapping, which keeps the size, crashed; user, 2026-10-12).
     releaseLightShafts();
-    releaseCloudBuffers();
+    // The clouds' maps (weather, cover, shadow, the sky's light) read none of
+    // them and stay: released with them, a resized window's frame lost its
+    // cloud shadows (user, 2026-10-14).
+    releaseMainCloudView();
+    // Auto exposure keeps its last measurement: a resized view is the same
+    // scene (dropped, it eased towards no correction until the next one).
+    const bool measured = luminance.measured;
+    const float measuredLog2 = luminance.measuredLog2;
     releaseLuminance();
+    luminance.measured = measured;
+    luminance.measuredLog2 = measuredLog2;
     waterDepth.boundDepth = nullptr;
     depthProbe.boundDepth = nullptr;
     return createAttachments(view, format, size, QRhiTexture::UsedAsTransferSource,

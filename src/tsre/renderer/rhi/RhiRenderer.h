@@ -740,6 +740,11 @@ private:
     bool createCloudResources(const QSize &viewSize, int quality);
     void applyClouds();
     void releaseCloudBuffers();
+    // The maps the views share (weather, cover, shadow, the sky's light).
+    bool createSharedCloudMaps();
+    // The main view's own cloud resources, for a new view target: the shared
+    // maps and what they hold stay.
+    void releaseMainCloudView();
     void releaseCloudResources();
     void writeLightUniforms(RhiProgram *program);
     LightGrid lightGrid;
