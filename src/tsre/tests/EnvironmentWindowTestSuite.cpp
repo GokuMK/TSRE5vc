@@ -89,9 +89,8 @@ int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose)
 
     // The clock: its speed from real time to 4 min a second, Stop keeping the
     // time; the editor's step runs the time on, the date past midnight.
-    const QString time = "core.rendering.timeOfDay.time", running = "core.rendering.timeOfDay.running",
-                  speed = "core.rendering.timeOfDay.speed";
-    auto *speeds = window.findChild<QComboBox *>(speed);
+    const QString time = "core.rendering.timeOfDay.time", running = "core.rendering.timeOfDay.running";
+    auto *speeds = window.findChild<QComboBox *>("clockSpeed");
     auto *clockButton = window.findChild<QToolButton *>(running);
     test.check(speeds && clockButton && speeds->count() == 8 && std::abs(speeds->itemData(0).toDouble() - 1.0) < 1e-9
                    && std::abs(speeds->itemData(7).toDouble() - 240.0) < 1e-9
@@ -99,10 +98,11 @@ int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose)
                "the clock's speeds, real time first, in TSRE's combo box style");
     if (!speeds || !clockButton)
         return test.finish();
+    double told = 0.0;
+    QObject::connect(&window, &EnvironmentWindow::clockSpeedChanged, [&told](double value) { told = value; });
     emit speeds->activated(7);
-    test.check(std::abs(settings.runtimeFloat(speed) - 240.0) < 1e-6
-                   && settings.runtimeValueSource(speed) == SettingsManager::ForcedSession,
-               "a speed is a session value");
+    test.check(std::abs(told - 240.0) < 1e-9 && settings.registry().definition("core.rendering.timeOfDay.speed") == nullptr,
+               "a speed goes to the editor for the session, not into the settings");
     settings.setSessionValue(running, true);
     Game::timeOfDayHours = 15.5f;
     clockButton->click();

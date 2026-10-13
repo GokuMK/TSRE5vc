@@ -641,12 +641,15 @@ The user: the clouds always move naturally, in the simulation's update; the
 timelapse becomes the clock's speed. The time of day runs on in real time by
 default:
 
-- Settings `core.rendering.timeOfDay.running` (default on) and
-  `core.rendering.timeOfDay.speed` (seconds of the day a real second, 1 to
-  240, default 1), kept by `RouteEditorGLWidget` as they change. The panel's
-  Clock row: the speed (1, 5, 10, 30 s, 1 to 4 min a second) and Stop /
+- Setting `core.rendering.timeOfDay.running` (default on), kept by
+  `RouteEditorGLWidget` as it changes. The speed is the editor's for the
+  session only, not a setting (the user): real time at every start. The
+  panel's Clock row: the speed (1, 5, 10, 30 s, 1 to 4 min a second;
+  `EnvironmentWindow::clockSpeedChanged` to `setClockSpeed`) and Stop /
   Resume; Stop writes the stopped time into the session (and so the
   profile on Save).
+- With the clouds following the wind (task renderer 28) the user found up
+  to 1 min/s fine; above, the clouds refresh faster (see there).
 - The editor's update (`timerEvent`, with the simulation) runs
   `Game::timeOfDayHours` on (`advanceClock`, in a double so that real-time
   steps do not round off); the settings hear of it only past midnight (the

@@ -47,7 +47,6 @@ const char *const Sun = "core.rendering.sky.sun";
 const char *const Moon = "core.rendering.sky.moon";
 const char *const SunSize = "core.rendering.sky.sunSize";
 const char *const Running = "core.rendering.timeOfDay.running";
-const char *const Speed = "core.rendering.timeOfDay.speed";
 
 SettingsManager &settings() {
     return SettingsManager::instance();
@@ -119,7 +118,7 @@ QTime timeOfHours(double hours) {
 
 QStringList EnvironmentWindow::keys() {
     QStringList list;
-    for (const char *key : {TimeEnabled, Time, Date, Running, Speed, Sun, Moon, SunSize, FogColor, FogDensity,
+    for (const char *key : {TimeEnabled, Time, Date, Running, Sun, Moon, SunSize, FogColor, FogDensity,
                             LocalLights, Bloom, Exposure})
         list << QString::fromLatin1(key);
     return list;
@@ -244,9 +243,10 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
             [this](QDate date) { set(Date, date.toString("yyyy-MM-dd")); });
     connect(today, &QToolButton::clicked, this, [this] { dateEdit->setDate(QDate::currentDate()); });
     // The clock: the time of day and the weather run on at a speed (seconds
-    // of the day a real second), real time first; Stop keeps the time.
+    // of the day a real second; this session only), real time first; Stop
+    // keeps the time.
     clockSpeed = new QComboBox(this);
-    clockSpeed->setObjectName(QString::fromLatin1(Speed));
+    clockSpeed->setObjectName("clockSpeed");
     clockSpeed->setStyleSheet("combobox-popup: 0;");
     clockSpeed->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     clockSpeed->setToolTip(
@@ -262,20 +262,15 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     clockButton = new QToolButton(this);
     clockButton->setObjectName(QString::fromLatin1(Running));
     clockButton->setFixedWidth(ValueWidth);
-    row(Speed,
-        //% "Clock:"
-        qtTrId("route.editor.environment.window.clock"), line({clockSpeed, clockButton}))->load = [this] {
-        // The listed speed nearest the setting's.
-        const double speed = settings().runtimeFloat(Speed);
-        int nearest = 0;
-        for (int i = 1; i < clockSpeed->count(); ++i)
-            if (std::abs(clockSpeed->itemData(i).toDouble() - speed)
-                    < std::abs(clockSpeed->itemData(nearest).toDouble() - speed))
-                nearest = i;
-        quietly(clockSpeed, &QComboBox::setCurrentIndex, nearest);
-    };
+    {
+        const int r = grid->rowCount();
+        grid->addWidget(GuiFunct::newQLabel(
+            //% "Clock:"
+            qtTrId("route.editor.environment.window.clock"), LabelWidth), r, 0);
+        grid->addWidget(line({clockSpeed, clockButton}), r, 1);
+    }
     connect(clockSpeed, QOverload<int>::of(&QComboBox::activated), this,
-            [this](int index) { set(Speed, clockSpeed->itemData(index).toDouble()); });
+            [this](int index) { emit clockSpeedChanged(clockSpeed->itemData(index).toDouble()); });
     connect(clockButton, &QToolButton::clicked, this, [this] {
         if (settings().runtimeBool(Running)) {
             // The time where it stopped, also for the panel and the profile.

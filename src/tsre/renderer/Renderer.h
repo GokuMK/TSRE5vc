@@ -174,6 +174,9 @@ public:
         // The camera.
         double cameraEast = 0.0;
         double cameraNorth = 0.0;
+        // The pixels of each block of the image marched a frame (of 16): more
+        // in a fast timelapse, where the clouds change much between frames.
+        int passes = 1;
     };
     virtual void setClouds(const Clouds &clouds) {}
 

@@ -132,6 +132,9 @@ public:
     // (yyyy-MM-dd) moves on, and it returns true. A stalled editor goes on
     // from where it was (at most a second's step).
     static bool advanceClock(double seconds, double speed, double &hours, QString &date);
+    // The clock's speed: seconds of the day a real second (1 real time; this
+    // session only).
+    void setClockSpeed(double secondsPerSecond);
     Route *currentRoute() const override { return route; }
     // The view mode (task editor 04): the 3D scene, or the map from straight
     // above. Switching moves to the pointer's place in the other mode; tools
@@ -491,8 +494,9 @@ private:
     // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),
     // kept from the settings as they change: frames read no settings.
     int lampsByDay = 0;
-    // The clock: core.rendering.timeOfDay.running and .speed, kept as
-    // lampsByDay; the time it runs on, finer than Game::timeOfDayHours.
+    // The clock: core.rendering.timeOfDay.running, kept as lampsByDay; its
+    // speed for this session only (the Environment panel); the time it runs
+    // on, finer than Game::timeOfDayHours.
     bool timeRuns = true;
     double timeSpeed = 1.0;
     double clockHours = 0.0;

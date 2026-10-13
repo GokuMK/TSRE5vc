@@ -9830,18 +9830,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="settings.core.rendering.time.of.day.running.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1068"/>
-        <source>The time of day and the weather run on while the editor runs, at the speed below; off keeps the time set (Environment panel: Stop / Resume).</source>
-        <translation>Pora dnia i pogoda biegną, gdy edytor działa, z prędkością poniżej; wyłączone zatrzymuje ustawiony czas (panel Środowisko: Stop / Wznów).</translation>
-    </message>
-    <message id="settings.core.rendering.time.of.day.speed.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1073"/>
-        <source>Time speed</source>
-        <translation>Prędkość czasu</translation>
-    </message>
-    <message id="settings.core.rendering.time.of.day.speed.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1075"/>
-        <source>Seconds of the day and the weather a real second while the time runs: 1 is real time, more a timelapse.</source>
-        <translation>Sekundy doby i pogody na sekundę rzeczywistą, gdy czas płynie: 1 to czas rzeczywisty, więcej przyspiesza.</translation>
+        <source>The time of day and the weather run on while the editor runs (at the speed set in the Environment panel); off keeps the time set (Environment panel: Stop / Resume).</source>
+        <translation>Pora dnia i pogoda biegną, gdy edytor działa (z prędkością ustawioną w panelu Środowisko); wyłączone zatrzymuje ustawiony czas (panel Środowisko: Stop / Wznów).</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1059"/>

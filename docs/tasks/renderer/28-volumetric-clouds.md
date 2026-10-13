@@ -743,6 +743,15 @@ frame: on the Steam Deck at 1280 x 800, broken clouds, 6.7 ms a frame more
   mid and high layers drift two and four times as fast and their own way,
   and the height is the clouds' middle, not the pixel's cloud; the march
   could give its depth and layer for an exact reprojection (later).
+- Up to 1 min/s the user found it fine. From 2 min/s the main view marches
+  two pixels of each block a frame, at 4 min/s four (`Renderer::Clouds::passes`,
+  set by the editor while its clock runs), and a new sample replaces the
+  pixel instead of blending half with its history. On the Deck, broken
+  clouds: 31.4 ms a frame, 33.4 with two passes, 34.8 with four. Against a
+  still image, pixels more than 8 off at 30 s a second: one pass 1.8 %,
+  two 1.0 %, two with whole samples 0.5 %; at 4 min a second 0.2 %, 0.01 %,
+  0.00 %. (In the capture test four passes measured no better than two:
+  it steps the time once a capture, not once a frame.)
 
 ## Verification
 

@@ -136,7 +136,6 @@ tools(std::make_unique<ToolRegistry>()) {
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
-    timeSpeed = Settings::floating("core.rendering.timeOfDay.speed");
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
@@ -149,10 +148,6 @@ tools(std::make_unique<ToolRegistry>()) {
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
             if (key == "core.rendering.timeOfDay.running")
                 timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
-            if (key == "core.rendering.timeOfDay.speed")
-                timeSpeed = Settings::floating("core.rendering.timeOfDay.speed");
-    timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
-    timeSpeed = Settings::floating("core.rendering.timeOfDay.speed");
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 timer.start(renderTimerStep(), this);
@@ -1293,6 +1288,11 @@ void RouteEditorGLWidget::applyClouds() {
         c.drift[l][1] = float(frame.drift[l][1]);
     }
     c.seed = weather->seed;
+    // A fast timelapse refreshes the clouds faster (the user: from 2 min a
+    // second twice, at 4 min four times; static scenes, a lower frame rate
+    // is fine): the history cannot follow clouds that change that much.
+    const bool fast = timeRuns && !simulationPaused;
+    c.passes = fast && timeSpeed >= 240.0 ? 4 : (fast && timeSpeed >= 120.0 ? 2 : 1);
     const double west = std::floor((east - Size * Texel * 0.5) / Step) * Step;
     const double top = std::ceil((north + Size * Texel * 0.5) / Step) * Step;
     // The fields move with their layers' wind, which the renderer follows
@@ -3348,6 +3348,10 @@ void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
 
 void RouteEditorGLWidget::setSimulationPaused(bool paused) {
     simulationPaused = paused;
+}
+
+void RouteEditorGLWidget::setClockSpeed(double secondsPerSecond) {
+    timeSpeed = std::max(secondsPerSecond, 0.0);
 }
 
 bool RouteEditorGLWidget::advanceClock(double seconds, double speed, double &hours, QString &date) {

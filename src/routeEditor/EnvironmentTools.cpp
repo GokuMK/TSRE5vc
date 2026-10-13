@@ -235,6 +235,7 @@ EnvironmentTools::EnvironmentTools(RouteEditorGLWidget *view, EnvironmentWindow 
 
     connect(view, &RouteEditorGLWidget::weatherChanged, this, &EnvironmentTools::refresh);
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this, &EnvironmentTools::refresh);
+    connect(session, &EnvironmentWindow::clockSpeedChanged, view, &RouteEditorGLWidget::setClockSpeed);
     // The weather runs on with the clock: the details follow it while open.
     auto *detailsClock = new QTimer(this);
     detailsClock->setInterval(1000);

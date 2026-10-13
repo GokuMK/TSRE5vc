@@ -1497,8 +1497,11 @@ void RhiRenderer::writeCloudUpdates(CloudView &v, QRhiResourceUpdateBatch *updat
         u.update[1] = float(UpdateOrder[i][0]);
         u.update[2] = float(UpdateOrder[i][1]);
         // A new sample half of the pixel: the jittered march's noise
-        // settles over a few updates.
-        u.update[3] = 0.5f;
+        // settles over a few updates. In a fast timelapse (more passes a
+        // frame) the clouds change more than the noise: a new sample whole
+        // (30 s a second, two passes: pixels more than 8 off a still image
+        // from 1.0 % to 0.5 %).
+        u.update[3] = &v == &cloudResources && clouds.passes > 1 ? 1.0f : 0.5f;
         u.sizes[0] = float(v.imageSize.width());
         u.sizes[1] = float(v.imageSize.height());
         u.sizes[2] = float(v.size.width());
@@ -1647,7 +1650,7 @@ void RhiRenderer::applyClouds() {
     CloudResources &c = cloudResources;
     if (!cloudsPrepared || !skyResources.viewRendered || c.march == nullptr || c.compositeColor != view.color)
         return;
-    runCloudView(c, surfaceNow->frame().commandBuffer, view.size, nullptr, 1);
+    runCloudView(c, surfaceNow->frame().commandBuffer, view.size, nullptr, std::clamp(clouds.passes, 1, UpdatePasses));
     std::copy(skyForward[TARGET_VIEW], skyForward[TARGET_VIEW] + 16, c.previous);
     c.previousValid = true;
 }
