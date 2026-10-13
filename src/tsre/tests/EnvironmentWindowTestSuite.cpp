@@ -86,18 +86,18 @@ int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose)
                    && std::abs(settings.runtimeFloat(fog) - newFog) < 1e-6,
                "after saving the values come from the profile");
 
-    // The timelapse: its speed from 30 s to 4 min a second, the date on past
+    // The timelapse: its speed from 5 s to 4 min a second, the date on past
     // midnight.
     const QString time = "core.rendering.timeOfDay.time";
     auto *timelapse = window.findChild<QToolButton *>("timelapse");
     auto *rate = window.findChild<QComboBox *>("timelapseRate");
-    test.check(rate && rate->count() == 5 && std::abs(rate->currentData().toDouble() - 0.5) < 1e-9
-                   && std::abs(rate->itemData(4).toDouble() - 4.0) < 1e-9
+    test.check(rate && rate->count() == 7 && std::abs(rate->currentData().toDouble() - 5.0 / 60.0) < 1e-9
+                   && std::abs(rate->itemData(6).toDouble() - 4.0) < 1e-9
                    && rate->styleSheet().contains("combobox-popup: 0"),
-               "the timelapse's speeds, 30 s a second first, in TSRE's combo box style");
+               "the timelapse's speeds, 5 s a second first, in TSRE's combo box style");
     if (!rate)
         return test.finish();
-    rate->setCurrentIndex(4);
+    rate->setCurrentIndex(6);
     settings.setSessionValue(time, 23.96);
     settings.setSessionValue(date, "2026-06-21");
     window.advanceTimelapse(0.75);

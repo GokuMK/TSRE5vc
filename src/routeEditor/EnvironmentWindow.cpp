@@ -249,8 +249,10 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     timelapseRate->setToolTip(
         //% "How far the time of day and the weather run on in a real second."
         qtTrId("route.editor.environment.window.timelapse.tooltip"));
-    //% "%1 s/s"
-    timelapseRate->addItem(qtTrId("route.editor.environment.window.timelapse.seconds").arg(30), 0.5);
+    for (int seconds : {5, 10, 30})
+        //% "%1 s/s"
+        timelapseRate->addItem(qtTrId("route.editor.environment.window.timelapse.seconds").arg(seconds),
+                               seconds / 60.0);
     for (int minutes : {1, 2, 3, 4})
         //% "%1 min/s"
         timelapseRate->addItem(qtTrId("route.editor.environment.window.timelapse.minutes").arg(minutes),

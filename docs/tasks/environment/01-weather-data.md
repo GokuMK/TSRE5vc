@@ -619,8 +619,8 @@ Proposal (to decide when resuming):
 ## Timelapse (2026-10-13)
 
 The Environment panel's time section has a Timelapse row (user: to watch
-the weather and the light change, with auto exposure): a speed (30 s, 1, 2,
-3 or 4 min of the day a real second) and Start / Stop. While on, a timer
+the weather and the light change, with auto exposure): a speed (5, 10 or
+30 s, 1, 2, 3 or 4 min of the day a real second) and Start / Stop. While on, a timer
 runs the session's time of day on (`EnvironmentWindow::advanceTimelapse`);
 the weather follows, as its hours come from the date and the time, and past
 midnight the date moves on. A stalled editor goes on from where it was (at
