@@ -11,6 +11,7 @@
 #define ENVIRONMENTWINDOW_H
 
 #include <QWidget>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QStringList>
 #include <functional>
@@ -22,6 +23,7 @@ class QLabel;
 class QPushButton;
 class QSlider;
 class QTimeEdit;
+class QTimer;
 class QToolButton;
 
 // The environment of the running editor (task editor 05): time of day with
@@ -41,6 +43,10 @@ public slots:
     void resetAll();
     // Writes the current values into the profile and saves it.
     bool saveToProfile(QString *error = nullptr);
+    // The timelapse's step for this many real seconds: the time of day and
+    // with it the weather, TimelapseMinutesPerSecond a second, the date on
+    // past midnight.
+    void advanceTimelapse(double seconds);
 
 signals:
     void windowClosed();
@@ -68,6 +74,9 @@ private:
     QCheckBox *sun = nullptr;
     QCheckBox *moon = nullptr;
     QDoubleSpinBox *sunSize = nullptr;
+    QToolButton *timelapse = nullptr;
+    QTimer *timelapseTimer = nullptr;
+    QElapsedTimer timelapseClock;
     QLabel *readout = nullptr;
     QPushButton *saveButton = nullptr;
     QPushButton *resetButton = nullptr;

@@ -85,6 +85,20 @@ int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose)
                    && std::abs(settings.runtimeFloat(fog) - newFog) < 1e-6,
                "after saving the values come from the profile");
 
+    // The timelapse: 4 minutes a second, the date on past midnight.
+    const QString time = "core.rendering.timeOfDay.time";
+    auto *timelapse = window.findChild<QToolButton *>("timelapse");
+    settings.setSessionValue(time, 23.96);
+    settings.setSessionValue(date, "2026-06-21");
+    window.advanceTimelapse(0.75);
+    test.check(timelapse && timelapse->isCheckable() && std::abs(settings.runtimeFloat(time) - 0.01) < 1e-6
+                   && settings.runtimeString(date) == "2026-06-22" && std::abs(Game::timeOfDayHours - 0.01) < 1e-4,
+               QString("the timelapse runs the time on, 4 minutes a second, into the next day (%1 h, %2, %3 h)")
+                   .arg(settings.runtimeFloat(time)).arg(settings.runtimeString(date)).arg(Game::timeOfDayHours));
+    window.advanceTimelapse(30.0);
+    test.check(std::abs(settings.runtimeFloat(time) - (0.01 + 4.0 / 60.0)) < 1e-6,
+               "after a stall the timelapse goes on from where it was");
+
     window.resetAll();
     bool sessionLeft = false;
     for (const QString &key : EnvironmentWindow::keys())

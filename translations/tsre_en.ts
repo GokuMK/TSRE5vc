@@ -3427,6 +3427,21 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <source>Date:</source>
         <translation>Date:</translation>
     </message>
+    <message id="route.editor.environment.window.timelapse.rate">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247"/>
+        <source>4 min/s</source>
+        <translation>4 min/s</translation>
+    </message>
+    <message id="route.editor.environment.window.timelapse.tooltip">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="250"/>
+        <source>Runs the time of day and the weather on, 4 minutes a second.</source>
+        <translation>Runs the time of day and the weather on, 4 minutes a second.</translation>
+    </message>
+    <message id="route.editor.environment.window.timelapse">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="255"/>
+        <source>Timelapse:</source>
+        <translation>Timelapse:</translation>
+    </message>
     <message id="route.editor.environment.window.fog.colour">
         <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247"/>
         <source>Fog colour:</source>

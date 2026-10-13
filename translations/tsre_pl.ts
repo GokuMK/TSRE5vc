@@ -3429,6 +3429,21 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <source>Date:</source>
         <translation>Data:</translation>
     </message>
+    <message id="route.editor.environment.window.timelapse.rate">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247"/>
+        <source>4 min/s</source>
+        <translation>4 min/s</translation>
+    </message>
+    <message id="route.editor.environment.window.timelapse.tooltip">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="250"/>
+        <source>Runs the time of day and the weather on, 4 minutes a second.</source>
+        <translation>Przesuwa porę dnia i pogodę o 4 minuty na sekundę.</translation>
+    </message>
+    <message id="route.editor.environment.window.timelapse">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="255"/>
+        <source>Timelapse:</source>
+        <translation>Upływ czasu:</translation>
+    </message>
     <message id="route.editor.environment.window.fog.colour">
         <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247"/>
         <source>Fog colour:</source>

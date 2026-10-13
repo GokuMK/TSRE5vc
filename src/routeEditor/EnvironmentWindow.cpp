@@ -21,6 +21,7 @@
 #include <QPushButton>
 #include <QSlider>
 #include <QTimeEdit>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QDebug>
@@ -43,6 +44,8 @@ const char *const Exposure = "core.rendering.exposure";
 const char *const Sun = "core.rendering.sky.sun";
 const char *const Moon = "core.rendering.sky.moon";
 const char *const SunSize = "core.rendering.sky.sunSize";
+// The timelapse: minutes of the day (and of the weather) a real second.
+constexpr double TimelapseMinutesPerSecond = 4.0;
 
 SettingsManager &settings() {
     return SettingsManager::instance();
@@ -238,6 +241,35 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     connect(dateEdit, &QDateEdit::dateChanged, this,
             [this](QDate date) { set(Date, date.toString("yyyy-MM-dd")); });
     connect(today, &QToolButton::clicked, this, [this] { dateEdit->setDate(QDate::currentDate()); });
+    // The timelapse: time and weather run on while it is pressed.
+    timelapse = new QToolButton(this);
+    timelapse->setObjectName("timelapse");
+    timelapse->setCheckable(true);
+    timelapse->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    timelapse->setText(
+        //% "4 min/s"
+        qtTrId("route.editor.environment.window.timelapse.rate"));
+    timelapse->setToolTip(
+        //% "Runs the time of day and the weather on, 4 minutes a second."
+        qtTrId("route.editor.environment.window.timelapse.tooltip"));
+    {
+        const int r = grid->rowCount();
+        grid->addWidget(GuiFunct::newQLabel(
+            //% "Timelapse:"
+            qtTrId("route.editor.environment.window.timelapse"), LabelWidth), r, 0);
+        grid->addWidget(timelapse, r, 1);
+    }
+    timelapseTimer = new QTimer(this);
+    timelapseTimer->setInterval(33);
+    connect(timelapseTimer, &QTimer::timeout, this, [this] { advanceTimelapse(timelapseClock.restart() / 1000.0); });
+    connect(timelapse, &QToolButton::toggled, this, [this](bool on) {
+        if (on) {
+            timelapseClock.start();
+            timelapseTimer->start();
+        } else {
+            timelapseTimer->stop();
+        }
+    });
     sun = new QCheckBox(this);
     row(Sun,
         //% "Sun:"
@@ -336,6 +368,20 @@ QToolButton *EnvironmentWindow::resetButtonFor(const QString &key) {
         qtTrId("route.editor.environment.window.reset.one"));
     connect(button, &QToolButton::clicked, this, [key] { settings().clearSessionValue(key); });
     return button;
+}
+
+void EnvironmentWindow::advanceTimelapse(double seconds) {
+    // A stalled editor goes on from where it was, not with a jump.
+    seconds = std::clamp(seconds, 0.0, 1.0);
+    double hours = settings().runtimeFloat(Time) + seconds * TimelapseMinutesPerSecond / 60.0;
+    if (hours >= 24.0) {
+        hours -= 24.0;
+        QDate date = QDate::fromString(settings().runtimeString(Date).trimmed(), "yyyy-MM-dd");
+        if (!date.isValid())
+            date = QDate(2026, 6, 21);
+        set(Date, date.addDays(1).toString("yyyy-MM-dd"));
+    }
+    set(Time, hours);
 }
 
 void EnvironmentWindow::set(const QString &key, const QVariant &value) {

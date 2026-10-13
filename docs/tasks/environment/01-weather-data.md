@@ -616,6 +616,17 @@ Proposal (to decide when resuming):
 - Remove: ERA5 and ECMWF IFS (too coarse; the early imports' noise), the
   2 km point sampling. Keep the request pacing (small).
 
+## Timelapse (2026-10-13)
+
+The Environment panel's time section has a Timelapse button (user: to watch
+the weather and the light change, with auto exposure). While pressed, a
+timer runs the session's time of day on at 4 minutes a real second
+(`EnvironmentWindow::advanceTimelapse`); the weather follows, as its hours
+come from the date and the time, and past midnight the date moves on. A
+stalled editor goes on from where it was (at most one second's step). The
+clouds' weather is sampled again whenever its hours change, so with the
+timelapse every frame.
+
 ## Verification
 
 - Unit: the env block round trip, generated coverage matching the cell
