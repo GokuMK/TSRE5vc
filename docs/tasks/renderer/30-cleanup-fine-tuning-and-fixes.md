@@ -38,6 +38,8 @@ Noted in their tasks:
 - Auto exposure: the 1-stop dead zone and the darkening above the brightest
   ordinary view; the enclosed ambient that sets a deep tunnel's brightness by
   day (task 29, "Later").
+- Moonlight: the full moon's strength (0.15) and the moonlit clouds (0.18 of
+  it); the user is not fully satisfied with either yet (task 31).
 
 ## Bug fixes
 
