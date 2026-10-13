@@ -31,6 +31,8 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `26-signal-lights.md` (signal lights in the default aspect from sigcfg.dat; glow on QRhi, plain discs on OpenGL; flashing and animation later)
 - [ ] `27-sky-enclosure-and-tunnel-lighting.md` (a top-down enclosure map: lamps at full strength and ambient with a floor where the sky is hidden; done with task 28 on `feature/clouds`, off by default, awaiting review and a hardware check; found a QRhi Vulkan glow loss after depth-only passes)
 - [ ] `28-volumetric-clouds.md` (physical sky, raymarched low and mid clouds, flat high layer, cloud shadows, overcast light and light shafts on QRhi; weather from `docs/tasks/environment/01-weather-data.md`; includes task 27. Steps 1-3 and 5-8 on `feature/clouds`, all off by default; awaiting review and Steam Deck timing; step 9 (OpenGL fallback) not started)
+- [ ] `29-auto-exposure.md` (lamps at one strength all day, the view's exposure adapting to its measured brightness, night views as Dimmed; setting "Lamps by day", Dimmed the default; on `feature/clouds`)
+- [ ] `30-cleanup-fine-tuning-and-fixes.md` (open list of small renderer items: cleanup such as settings read every frame, fine-tuning, bug fixes noted in other tasks)
 
 Renderer work continues on Windows hardware; software rendering (llvmpipe,
 lavapipe) no longer shows the remaining problems. Measurement and

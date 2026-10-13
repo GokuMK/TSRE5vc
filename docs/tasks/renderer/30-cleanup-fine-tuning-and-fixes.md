@@ -1,0 +1,54 @@
+# Task 30 - Cleanup, Fine-Tuning and Bug Fixes
+
+Status: open list (2026-10-13). Small renderer items that belong to no
+feature task: code to tidy, values to tune, bugs to fix. Each item says where
+it came from; done items move to "Done" with the commit.
+
+## Cleanup
+
+### Settings read every frame
+
+`docs/settings-system.md`: hot paths never read settings; they cache them in
+simple types in their component, refreshed from
+`SettingsManager::runtimeSettingsChanged`, claimed with their registered type
+(Game.cpp's claim list). These still read through `Settings::` each frame:
+
+- `core.rendering.water.depth`: `RhiRenderer::copyFrameForWater` and
+  `OpenGL3Renderer::copyFrameForWater`, each frame with water (task 18).
+- `core.rendering.water.windSpeed`, `core.rendering.water.windDirection`:
+  `WaterWaves::settingsWind`, once a frame (task 18).
+- `core.rendering.sky.sun`, `core.rendering.sky.moon`,
+  `core.rendering.sky.sunSize`: `SkySatellites::push`, each frame (task 22).
+
+The pattern: `RouteEditorGLWidget::lampsByDay` (`981695d`). There it was a
+bug, not only a cost: `Settings::integer` on an enum claimed it as an int
+each frame and the settings editor showed it unused. The settings suite did
+not see it, as it renders no frame; a check of every setting's support state
+after a rendered frame (the capture harness) would.
+
+The `Game::` statics that are hot caches are the legacy form of the same
+cache: move them to their components when a full rebuild happens anyway
+(touching `Game.h` rebuilds about 230 files).
+
+## Fine-tuning
+
+Noted in their tasks:
+
+- Lamp cut-off: stronger by day, weaker at night (task 27, "Lamp cut-off").
+- Auto exposure: the 1-stop dead zone and the darkening above the brightest
+  ordinary view; the enclosed ambient that sets a deep tunnel's brightness by
+  day (task 29, "Later").
+
+## Bug fixes
+
+Noted in their tasks:
+
+- QRhi Vulkan: glow lost after depth-only passes, seen on lavapipe; to check
+  on the Steam Deck at dusk (task 27).
+- The lamps' glow splats read the near enclosure map only (task 27).
+- The cloud shadow map's 47 m texels show as a grid edge on the terrain;
+  slight steps at bright cloud edges by the sun, in motion (task 28, "Still
+  open").
+- The cost of glTF draws in the environment map's faces (task 17).
+
+## Done
