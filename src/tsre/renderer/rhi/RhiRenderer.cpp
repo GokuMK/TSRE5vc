@@ -356,6 +356,20 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     const float scene = sceneScaleDisplay();
     program->setVec("skyColor", gluu->fogColor[0] * scene, gluu->fogColor[1] * scene, gluu->fogColor[2] * scene,
                     gluu->fogColor[3]);
+    // The air's haze with a physical sky (Haze.glsl), in place of the fog.
+    float hazeValues[4];
+    hazeParameters(hazeValues);
+    program->setVec("hazeParams", hazeValues[0], hazeValues[1], hazeValues[2], hazeValues[3]);
+    if (hazeValues[2] > 0.0f) {
+        program->setVec("hazeSun", haze.sun[0], haze.sun[1]);
+        float ring[8][4];
+        for (int i = 0; i < 8; ++i) {
+            for (int k = 0; k < 3; ++k)
+                ring[i][k] = haze.ring[i][k] * scene;
+            ring[i][3] = 1.0f;
+        }
+        program->set("hazeRing", ring, int(sizeof(ring)));
+    }
     program->setVec("diffuseColor", gluu->diffuseColor[0] * scene, gluu->diffuseColor[1] * scene,
                     gluu->diffuseColor[2] * scene, gluu->diffuseColor[3]);
     program->setVec("ambientColor", gluu->ambientColor[0] * scene, gluu->ambientColor[1] * scene,

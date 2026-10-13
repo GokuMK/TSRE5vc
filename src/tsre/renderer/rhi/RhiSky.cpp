@@ -219,6 +219,60 @@ bool RhiRenderer::drawsPhysicalSky() const {
     return sky.physical;
 }
 
+void RhiRenderer::setSky(const Sky &next) {
+    sky = next;
+    if (!sky.physical)
+        return;
+    Haze &h = haze;
+    float across[2] = {sky.sun[0], sky.sun[2]};
+    const float length = std::hypot(across[0], across[1]);
+    if (length > 1e-4f) {
+        h.sun[0] = across[0] / length;
+        h.sun[1] = across[1] / length;
+    }
+    // The sky along the horizon, as the fog colour's (Atmosphere::
+    // horizonColour), but by direction: towards the sun bright, away from it
+    // the deep blue the haze of far mountains takes. Again when the sun has
+    // moved about a hundredth of a degree or the camera 20 m up or down.
+    const float moved = std::abs(sky.sun[0] - h.drawnSun[0]) + std::abs(sky.sun[1] - h.drawnSun[1])
+            + std::abs(sky.sun[2] - h.drawnSun[2]);
+    if (!h.valid || moved > 2e-4f || std::abs(sky.cameraHeight - h.drawnHeight) > 20.0f) {
+        h.valid = true;
+        std::copy(sky.sun, sky.sun + 3, h.drawnSun);
+        h.drawnHeight = sky.cameraHeight;
+        const double height = std::max(0.001, sky.cameraHeight / 1000.0);
+        const double elevation = 2.0 * M_PI / 180.0;
+        for (int i = 0; i < 8; ++i) {
+            const double a = M_PI * i / 7.0;
+            const double x = std::cos(a) * h.sun[0] - std::sin(a) * h.sun[1];
+            const double z = std::cos(a) * h.sun[1] + std::sin(a) * h.sun[0];
+            const float d[3] = {float(std::cos(elevation) * x), float(std::sin(elevation)),
+                                float(std::cos(elevation) * z)};
+            const Atmosphere::Rgb c = Atmosphere::toDisplay(Atmosphere::model().skyRadiance(height, d, sky.sun));
+            for (int k = 0; k < 3; ++k)
+                h.clear[i][k] = std::max(c[k], sky.night[k]);
+        }
+    }
+    // Under a covered sky the haze turns grey, as the fog colour does
+    // (RouteEditorGLWidget::applyClouds).
+    const float o = std::clamp((sky.overcast - 0.3f) / 0.6f, 0.0f, 1.0f);
+    for (int i = 0; i < 8; ++i) {
+        const float *c = h.clear[i];
+        const float grey = (c[0] * 0.3f + c[1] * 0.55f + c[2] * 0.15f) * 0.85f;
+        for (int k = 0; k < 3; ++k)
+            h.ring[i][k] = c[k] + (grey - c[k]) * 0.8f * o;
+    }
+}
+
+void RhiRenderer::hazeParameters(float *out) const {
+    out[0] = std::max(sky.cameraHeight, 0.0f) / 1000.0f;
+    // The weather's haze (visibility, scaled by the fog density setting),
+    // as the clouds' (high.y).
+    out[1] = std::clamp(sky.haze, 0.0f, 0.02f) * 1000.0f;
+    out[2] = sky.physical && haze.valid && !plainImage ? 1.0f : 0.0f;
+    out[3] = 0.0f;
+}
+
 bool RhiRenderer::skyFor(int which) const {
     return sky.physical && skyInverseValid[which]
             && (which == TARGET_VIEW || which == TargetEnvironment || which == TargetReflection);

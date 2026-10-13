@@ -1029,7 +1029,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Fog density"
                 QT_TRID_NOOP("settings.core.rendering.fog.density.name")).withDescriptionId(
-                //% "Fog density copied into each OpenGL scene helper when it is constructed."
+                //% "With the physical sky: how hazy the air is, scaling the weather's visibility (0.7 as the weather has it, 0 clear air, 1 about twice as hazy). Otherwise the most the classic fog covers."
                 QT_TRID_NOOP("settings.core.rendering.fog.density.description")).withRange(0, 1, 0.01).inGroup("rendering").inSubgroup("environment"),
         "fogDensity", "Game::fogDensity", "GLUU", true, "hot-cache");
     ADD(SettingsDefinition::string("core.rendering.fogColor", "#E6F8FF", SettingType::Color)

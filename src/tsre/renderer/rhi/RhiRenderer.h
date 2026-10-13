@@ -71,6 +71,7 @@ public:
     void renderFrame() override;
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
+    void setSky(const Sky &sky) override;
     void setClouds(const Clouds &clouds) override;
     bool beginSkyEnclosure(int size, int map = 0) override;
     void finishSkyEnclosure(bool far, float radius, float metresPerDepth) override;
@@ -299,6 +300,21 @@ private:
     // view (1 / sceneLight).
     ExposureControl exposureControl;
     bool plainImage = false;
+    // The air between the camera and surfaces with a physical sky
+    // (Haze.glsl): the horizon's colour by the angle from the sun's
+    // direction across the ground (display, greyed under an overcast as the
+    // fog colour is), drawn again when the sun or the camera's height moves.
+    struct Haze {
+        float clear[8][3] = {};
+        float ring[8][3] = {};
+        float sun[2] = {1.0f, 0.0f};
+        float drawnSun[3] = {};
+        float drawnHeight = -1e9f;
+        bool valid = false;
+    } haze;
+    // The lit shaders' hazeParams: camera altitude (km), the weather's haze
+    // (1/km), on.
+    void hazeParameters(float *out) const;
     bool exposureActive() const;
     // The scale of gamma-space light colours (sceneLight^(1/2.2)), 1 off.
     float sceneScaleDisplay() const;
@@ -368,6 +384,8 @@ private:
         float focal = 1.0f;
         float lod = 1.0f;
         float fogDensity = 1.0f;
+        // The air's haze, as the lit shaders' (hazeParams).
+        float haze[4] = {};
         QRhiViewport viewport;
         QRhiBuffer *instances = nullptr;
         quint32 capacity = 0;

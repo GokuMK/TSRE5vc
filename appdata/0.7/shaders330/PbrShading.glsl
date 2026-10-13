@@ -137,6 +137,10 @@ vec4 pbrShade() {
         unlitLight *= emissiveScale;
 #endif
         vec3 unlit = toDisplay(unlitLight);
+#ifdef TSRE_RHI
+        if (hazeOn())
+            return vec4(applyHaze(unlit, vLightPosition, 1.0, 1.0), alpha);
+#endif
         return vec4(mix(unlit, skyColor.rgb, fogFactor), alpha);
     }
 
@@ -305,12 +309,15 @@ vec4 pbrShade() {
                 / max(distance(cameraPosition, vWorldPosition), 0.001);
         glowShare = smoothstep(16.0, 32.0, pixels);
     }
-    pbrGlowOut = vec4(emissive * (1.0 - fogFactor) * glowShare * mix(pbrGlowScale, pbrGlowEnclosed, enclosed),
+    vec3 notFog = hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor);
+    pbrGlowOut = vec4(emissive * notFog * glowShare * mix(pbrGlowScale, pbrGlowEnclosed, enclosed),
                       alpha);
     // The display-space share of the environment light, after fog.
     pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
-                         * (1.0 - fogFactor), alpha);
+                         * notFog, alpha);
     // Under cover the haze is lit as the ambient is.
+    if (hazeOn())
+        return vec4(applyHaze(toDisplay(color), vLightPosition, 1.0, skyAmbient(shade)), alpha);
     return vec4(mix(toDisplay(color), skyColor.rgb * skyAmbient(shade), fogFactor), alpha);
 #else
     return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor), alpha);

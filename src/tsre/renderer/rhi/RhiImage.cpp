@@ -43,7 +43,7 @@ constexpr int MaxBloomLevels = 6;
 // faded by fog. It hands over to the surface's own glow while the emitter's
 // radius grows from 16 to 32 pixels (PbrShading.glsl).
 constexpr int GlowSplatStride = 8 * sizeof(float);
-constexpr int GlowSplatUniformBytes = 240;
+constexpr int GlowSplatUniformBytes = 256;
 
 const char *GlowSplatVertex = R"(#version 440
 layout(location = 0) in vec4 emitter; // position, radius
@@ -58,6 +58,7 @@ layout(std140, binding = 0) uniform Splats {
     vec4 viewport; // width, height, fog lod, fog density
     mat4 enclosure;        // the sky enclosure map (task 27)
     vec4 enclosureParams;  // on, metres per depth unit
+    vec4 haze;             // the air's haze (Haze.glsl hazeParams): camera altitude (km), haze (1/km), on
 };
 layout(binding = 1) uniform sampler2D enclosureMap;
 
@@ -86,7 +87,17 @@ void main() {
             day = mix(day, 1.0, smoothstep(1.5, 4.0, (m.z - top) * enclosureParams.y) * inside);
         }
     }
-    glow = power.rgb * day * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * (1.0 - fog);
+    // Through the air as the lit surfaces (Haze.glsl), or the classic fog.
+    vec3 through = vec3(1.0 - fog);
+    if (haze.z > 0.5) {
+        float h0 = haze.x, h1 = haze.x + toEmitter.y / 1000.0;
+        float dh = h1 - h0;
+        vec3 scale = vec3(8.0, 1.2, 1.5);
+        vec3 mean = abs(dh) < 1e-3 ? exp(-0.5 * (h0 + h1) / scale) : (exp(-h0 / scale) - exp(-h1 / scale)) * scale / dh;
+        vec3 sigma = vec3(5.802e-3, 13.558e-3, 33.1e-3) * mean.x + vec3(4.44e-3 * mean.y + haze.y * mean.z);
+        through = exp(-sigma * distance / 1000.0);
+    }
+    glow = power.rgb * day * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * through;
     offset = corner;
     // Depth at the emitter's front, so its own housing does not hide it.
     vec3 front = emitter.xyz - toEmitter / distance * min(emitter.w, distance * 0.5);
@@ -685,6 +696,7 @@ void RhiRenderer::prepareGlowSplats() {
     g.focal = sceneProjection[1] * h * 0.5f;
     g.lod = fogLodOverride ? fogLod : Game::objectLod;
     g.fogDensity = gluu->fogDensity;
+    hazeParameters(g.haze);
     g.pending = true;
 }
 
@@ -736,6 +748,7 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
     block[56] = g.enclosed ? 1.0f : 0.0f;
     block[57] = enclosure.metresPerDepth;
     block[58] = block[59] = 0.0f;
+    std::copy(g.haze, g.haze + 4, block + 60);
     batch->updateDynamicBuffer(g.uniforms, 0, GlowSplatUniformBytes, block);
     QRhiTexture *enclosureTexture = g.enclosed ? enclosureMap.depth : dummyBlack;
     if (g.bindings != nullptr && g.enclosureTexture != enclosureTexture) {

@@ -94,6 +94,7 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 #include "ShadowSampling.glsl"
 #ifdef TSRE_RHI
 #include "LocalLights.glsl"
+#include "Haze.glsl"
 #endif
 #ifdef TSRE_PBR
 #include "PbrShading.glsl"
@@ -182,7 +183,7 @@ void main() {
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
             ambientOut = vec4(fragColor.rgb * ambientColor.rgb * skyAmbient(shade) * colorBrightness
-                              * (1.0 - fogFactor),
+                              * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor)),
                               fragColor.a);
 #endif
             fragColor.xyz *= color*colorBrightness;
@@ -192,7 +193,10 @@ void main() {
 #ifdef TSRE_RHI
             // Under cover the haze is lit as the ambient is: no bright fog
             // deep in a tunnel.
-            fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * skyAmbient(shade), fogFactor);
+            if (hazeOn())
+                fragColor.rgb = applyHaze(fragColor.rgb, vLightPosition, 1.0, skyAmbient(shade));
+            else
+                fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * skyAmbient(shade), fogFactor);
 #else
             fragColor.rgb = mix(fragColor.rgb, skyColor.rgb, fogFactor);
 #endif

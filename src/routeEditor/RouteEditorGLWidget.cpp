@@ -1231,6 +1231,11 @@ void RouteEditorGLWidget::applySky() {
         if (visibility > 0.0f)
             sky.haze = 3.912f / std::max(visibility, 200.0f);
     }
+    // With a physical sky the fog density scales that haze (the air's
+    // haze of terrain, clouds and light shafts): 0.7, the default, as the
+    // weather has it; 0 clear air, its Rayleigh blue only; 1 twice.
+    const float hazeScale = gluu->fogDensity / 0.7f;
+    sky.haze *= hazeScale * hazeScale;
     // Last frame's (applyClouds measures it after this).
     sky.overcast = Game::cloudQuality > 0 ? cloudOvercast : 0.0f;
     renderer->setSky(sky);
