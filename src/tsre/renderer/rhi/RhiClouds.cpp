@@ -775,6 +775,44 @@ void main() {
 }
 )";
 
+// The sky's light through the clouds around the camera: what they let
+// through straight down (two-stream, the layers' depths added), over the
+// shadow map's extent centred on the camera.
+const char *SkyLightMain = R"(
+void main() {
+    vec2 ground = vec2(uv.x - 0.5, 0.5 - uv.y) * shadow.x;
+    const int Steps = 16;
+    float dt = (slab.y - slab.x) / float(Steps);
+    float opticalDepth = 0.0;
+    for (int s = 0; s < Steps; ++s) {
+        float altitude = slab.x + (float(s) + 0.5) * dt;
+        opticalDepth += (layerDensity(ground, altitude, false, 0) + layerDensity(ground, altitude, false, 1)) * dt;
+    }
+    result = vec4(1.0 / (1.0 + 0.11 * opticalDepth), 0.0, 0.0, 1.0);
+}
+)";
+
+// Their cover (the share of the ground under clouds) and the mean of what the
+// clouds let through.
+const char *SkyMeanFragment = R"(#version 440
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 result;
+layout(binding = 0) uniform sampler2D through;
+
+void main() {
+    float cloudy = 0.0, cloudyThrough = 0.0;
+    for (int y = 0; y < 64; ++y)
+        for (int x = 0; x < 64; ++x) {
+            float t = texelFetch(through, ivec2(x, y), 0).r;
+            if (t < 0.95) {
+                cloudy += 1.0;
+                cloudyThrough += t;
+            }
+        }
+    result = vec4(cloudy / 4096.0, cloudy > 0.0 ? cloudyThrough / cloudy : 1.0, 0.0, 1.0);
+}
+)";
+
 // The march blended with the last frames' result in the same direction,
 // clamped to this frame's neighbourhood.
 const char *TemporalFragment = R"(
@@ -1035,19 +1073,23 @@ static QByteArray shadowSource() {
     return cloudSource(ShadowFragment, true) + CloudField + ShadowMain;
 }
 
+static QByteArray skyLightSource() {
+    return cloudSource(ShadowFragment, true) + CloudField + SkyLightMain;
+}
+
 static QByteArray compositeSource() {
     return cloudSource(CompositeFragment, true) + SceneDistance + SkyAir + CompositeMain;
 }
 
 QList<QByteArray> RhiRenderer::cloudShaders() {
     return {cloudSource(CoverFragment, true), marchSource(), shadowSource(), cloudSource(TemporalFragment, false),
-            compositeSource(), glowVariant(compositeSource())};
+            compositeSource(), glowVariant(compositeSource()), skyLightSource(), SkyMeanFragment};
 }
 
 namespace {
 
 struct CloudShaderSet {
-    QShader vertex, cover, march, shadow, temporal, composite, glowComposite;
+    QShader vertex, cover, march, shadow, skyLight, skyMean, temporal, composite, glowComposite;
 };
 
 const CloudShaderSet &cloudShaderSet(QRhi *rhi) {
@@ -1057,6 +1099,8 @@ const CloudShaderSet &cloudShaderSet(QRhi *rhi) {
         s.cover = bakeInline(cloudSource(CoverFragment, true).constData(), QShader::FragmentStage, rhi);
         s.march = bakeInline(marchSource().constData(), QShader::FragmentStage, rhi);
         s.shadow = bakeInline(shadowSource().constData(), QShader::FragmentStage, rhi);
+        s.skyLight = bakeInline(skyLightSource().constData(), QShader::FragmentStage, rhi);
+        s.skyMean = bakeInline(SkyMeanFragment, QShader::FragmentStage, rhi);
         s.temporal = bakeInline(cloudSource(TemporalFragment, false).constData(), QShader::FragmentStage, rhi);
         s.composite = bakeInline(compositeSource().constData(), QShader::FragmentStage, rhi);
         s.glowComposite = bakeInline(glowVariant(compositeSource()).constData(), QShader::FragmentStage, rhi);
@@ -1224,10 +1268,20 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
     c.coverNear = cloudTexture(rhi, QSize(CoverSize, CoverSize));
     c.coverFar = cloudTexture(rhi, QSize(CoverSize, CoverSize));
     c.shadow = cloudTexture(rhi, QSize(CloudShadowSize, CloudShadowSize));
+    c.skyLight = cloudTexture(rhi, QSize(64, 64));
+    c.skyMean = rhi->newTexture(QRhiTexture::RGBA16F, QSize(1, 1), 1,
+                                QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource);
+    if (!c.skyMean->create()) {
+        delete c.skyMean;
+        c.skyMean = nullptr;
+    }
     const bool ok = c.coverNear != nullptr && c.coverFar != nullptr && c.shadow != nullptr
+            && c.skyLight != nullptr && c.skyMean != nullptr
             && cloudTarget(rhi, {c.coverNear}, false, c.coverTargets[0], c.coverPasses[0])
             && cloudTarget(rhi, {c.coverFar}, false, c.coverTargets[1], c.coverPasses[1])
             && cloudTarget(rhi, {c.shadow}, false, c.shadowTarget, c.shadowPass)
+            && cloudTarget(rhi, {c.skyLight}, false, c.skyLightTarget, c.skyLightPass)
+            && cloudTarget(rhi, {c.skyMean}, false, c.skyMeanTarget, c.skyMeanPass)
             && createCloudView(c, viewSize, pixels, view.color, view.color3, view.depth);
     if (!ok) {
         releaseCloudBuffers();
@@ -1241,7 +1295,24 @@ bool RhiRenderer::createCloudResources(const QSize &viewSize, int quality) {
     c.coverPipeline = cloudPipeline(rhi, shaders.cover, c.coverBindings[0], c.coverPasses[0], 1, false);
     // The shadow map takes the main view's march parameters.
     c.shadowPipeline = cloudPipeline(rhi, shaders.shadow, c.marchBindings, c.shadowPass, 1, false);
-    if (c.coverPipeline == nullptr || c.shadowPipeline == nullptr) {
+    c.skyLightPipeline = cloudPipeline(rhi, shaders.skyLight, c.marchBindings, c.skyLightPass, 1, false);
+    c.skyMeanBindings = cloudBindings(rhi, {QRhiShaderResourceBinding::sampledTexture(0, fragment, c.skyLight, c.nearest)});
+    c.skyMeanPipeline = cloudPipeline(rhi, shaders.skyMean, c.skyMeanBindings, c.skyMeanPass, 1, false);
+    c.skyReadback.completed = [this] {
+        CloudResources &r = cloudResources;
+        r.skyPending = false;
+        if (r.skyReadback.data.size() < int(2 * sizeof(qfloat16)))
+            return;
+        qfloat16 values[2];
+        std::memcpy(values, r.skyReadback.data.constData(), sizeof(values));
+        if (std::isfinite(float(values[0])) && std::isfinite(float(values[1]))) {
+            r.skyCover = std::clamp(float(values[0]), 0.0f, 1.0f);
+            r.skyThrough = std::clamp(float(values[1]), 0.0f, 1.0f);
+            r.skyValid = true;
+        }
+    };
+    if (c.coverPipeline == nullptr || c.shadowPipeline == nullptr || c.skyLightPipeline == nullptr
+            || c.skyMeanPipeline == nullptr) {
         releaseCloudBuffers();
         return false;
     }
@@ -1672,6 +1743,30 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         cb->setShaderResources(c.marchBindings, 1, &offset);
         cb->draw(3);
         cb->endPass();
+        c.skyWanted = true;
+    }
+    // The sky's light through the same clouds, measured again with the map
+    // (one read-back at a time; it lands a frame or two later).
+    if (c.skyWanted && !c.skyPending) {
+        c.skyWanted = false;
+        cb->beginPass(c.skyLightTarget, Qt::white, {1.0f, 0}, updates);
+        updates = nullptr;
+        cb->setGraphicsPipeline(c.skyLightPipeline);
+        cb->setViewport(QRhiViewport(0, 0, 64.0f, 64.0f));
+        const QRhiCommandBuffer::DynamicOffset offset(10, 0);
+        cb->setShaderResources(c.marchBindings, 1, &offset);
+        cb->draw(3);
+        cb->endPass();
+        cb->beginPass(c.skyMeanTarget, Qt::black, {1.0f, 0});
+        cb->setGraphicsPipeline(c.skyMeanPipeline);
+        cb->setViewport(QRhiViewport(0, 0, 1.0f, 1.0f));
+        cb->setShaderResources(c.skyMeanBindings);
+        cb->draw(3);
+        cb->endPass();
+        QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+        batch->readBackTexture(QRhiReadbackDescription(c.skyMean), &c.skyReadback);
+        cb->resourceUpdate(batch);
+        c.skyPending = true;
     }
     c.shadowValid = true;
 }
@@ -1886,6 +1981,22 @@ void RhiRenderer::releaseCloudBuffers() {
     releaseCloudView(c);
     dropLater(c.coverPipeline);
     dropLater(c.shadowPipeline);
+    dropLater(c.skyLightPipeline);
+    dropLater(c.skyMeanPipeline);
+    dropLater(c.skyMeanBindings);
+    dropLater(c.skyLightTarget);
+    dropLater(c.skyLightPass);
+    dropLater(c.skyMeanTarget);
+    dropLater(c.skyMeanPass);
+    dropLater(c.skyLight);
+    dropLater(c.skyMean);
+    c.skyLightPipeline = c.skyMeanPipeline = nullptr;
+    c.skyMeanBindings = nullptr;
+    c.skyLightTarget = c.skyMeanTarget = nullptr;
+    c.skyLightPass = c.skyMeanPass = nullptr;
+    c.skyLight = c.skyMean = nullptr;
+    // (A read-back in flight still lands: the last clouds' value.)
+    c.skyPending = c.skyValid = c.skyWanted = false;
     for (int i = 0; i < 2; ++i) {
         dropLater(c.coverBindings[i]);
         dropLater(c.coverTargets[i]);

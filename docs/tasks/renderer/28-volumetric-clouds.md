@@ -914,6 +914,35 @@ storms, clouds should shade by their density, storms dark.
   under the thunderstorm preset 46 to 64). With rain and storms the
   density goes into the weather texture and the extinction.
 
+## The sky's light through the clouds (2026-10-14)
+
+Under a storm or a heavy overcast it is dark mostly because the sky's light
+is blocked, not the sun's alone; the ambient stayed the clear sky's, and
+under an overcast the editor raised it by half to make up for the sun,
+whatever the clouds' depth.
+
+- After the shadow map, a pass marches straight down through both layers
+  over its extent (64 x 64 around the camera; two-stream, as the shadow
+  map's), a second takes their cover (the share letting through under
+  0.95) and the mean of what they let through; read back a frame or two
+  later (`cloudSkyLight`), drawn again with the map.
+- The ambient (`ambientColor`, so standard, PBR and water alike) is scaled
+  by the open sky, plus under the cover the light through it, plus the sun's
+  light the clouds' sunlit sides scatter down into a broken field: the light
+  through them again, by the sun on the ground against the sky (cover (1 -
+  cover), none under a closed deck, where the sun's light through it is the
+  sun's share already). The editor's raise is gone; its grey stays.
+- Measured at noon over CMK (cover, through, the ambient's factor, linear):
+  fair 0.46, 0.55, 1.58 (the cumulus' sides); scattered 0.74, 0.38, 0.96;
+  broken 0.84, 0.43, 0.87; overcast 1.0, 0.35, 0.35; thunderstorm 0.68,
+  0.23, 0.76.
+- Ground with auto exposure (`build/cloud-light/sky-light.png`): at the
+  track overcast 60 to 45 (of 255), broken 52 to 44, fair 74 to 80; from
+  550 m overcast 86 to 65. The sky's clouds stay bright over the darker
+  ground.
+- A storm grows dark with the clouds' density (the rain and storms task):
+  the map, the shadows and this follow it.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

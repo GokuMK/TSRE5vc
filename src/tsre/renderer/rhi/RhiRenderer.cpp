@@ -328,6 +328,29 @@ RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass) {
 }
 
 // The values GLUU::setMatrixUniforms gives a program, from the GLUU fields.
+float RhiRenderer::cloudSkyLight() const {
+    const CloudResources &c = cloudResources;
+    if (!c.skyValid || !cloudsWanted())
+        return 1.0f;
+    // Under the clouds' cover the sky's light through them (the sun's light
+    // through them is the sun's share, through their shadow). Into a broken
+    // field their sunlit sides scatter the sun's light down besides: the
+    // light through them again, the sun's on the ground against the sky's,
+    // more where they are many among gaps, none under a closed deck (the sun
+    // would count twice there).
+    auto linear = [](const float *colour) {
+        return 0.2126f * std::pow(std::max(colour[0], 0.0f), 2.2f) + 0.7152f * std::pow(std::max(colour[1], 0.0f), 2.2f)
+                + 0.0722f * std::pow(std::max(colour[2], 0.0f), 2.2f);
+    };
+    const float *l = Game::sunLightDirection;
+    const float length = std::sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
+    const float rise = length > 0.0f ? std::max(l[1] / length, 0.0f) : 0.0f;
+    const float skyLight = linear(gluu->ambientColor);
+    const float sunOverSky = skyLight > 1e-5f ? linear(gluu->diffuseColor) * rise / skyLight : 0.0f;
+    const float cover = c.skyCover, through = c.skyThrough;
+    return (1.0f - cover) + cover * through + cover * (1.0f - cover) * through * sunOverSky;
+}
+
 void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     if (program == nullptr)
         return;
@@ -372,8 +395,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     }
     program->setVec("diffuseColor", gluu->diffuseColor[0] * scene, gluu->diffuseColor[1] * scene,
                     gluu->diffuseColor[2] * scene, gluu->diffuseColor[3]);
-    program->setVec("ambientColor", gluu->ambientColor[0] * scene, gluu->ambientColor[1] * scene,
-                    gluu->ambientColor[2] * scene, gluu->ambientColor[3]);
+    // The sky's light through the clouds overhead (display colour).
+    const float sky = scene * std::pow(cloudSkyLight(), 1.0f / 2.2f);
+    program->setVec("ambientColor", gluu->ambientColor[0] * sky, gluu->ambientColor[1] * sky,
+                    gluu->ambientColor[2] * sky, gluu->ambientColor[3]);
     const float exposure = autoExposure();
     program->setFloat("unlitScale", std::pow(1.0f / exposure, 1.0f / 2.2f));
     program->setFloat("emissiveScale", 1.0f / exposure);

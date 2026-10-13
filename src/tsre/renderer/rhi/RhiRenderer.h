@@ -598,7 +598,31 @@ private:
         // The centres moved back to the camera: the map is drawn there
         // before the view reads it.
         bool shadowPlaced = false;
+        // The sky's light through the clouds around the camera: what they
+        // let through straight down over the shadow map's extent (64 x 64),
+        // then their cover and the mean of what they let through, read back
+        // after the shadow map is drawn (cloudSkyLight).
+        QRhiTexture *skyLight = nullptr;
+        QRhiTextureRenderTarget *skyLightTarget = nullptr;
+        QRhiRenderPassDescriptor *skyLightPass = nullptr;
+        QRhiGraphicsPipeline *skyLightPipeline = nullptr;
+        QRhiTexture *skyMean = nullptr;
+        QRhiTextureRenderTarget *skyMeanTarget = nullptr;
+        QRhiRenderPassDescriptor *skyMeanPass = nullptr;
+        QRhiShaderResourceBindings *skyMeanBindings = nullptr;
+        QRhiGraphicsPipeline *skyMeanPipeline = nullptr;
+        QRhiReadbackResult skyReadback;
+        bool skyWanted = false;
+        bool skyPending = false;
+        bool skyValid = false;
+        float skyCover = 0.0f;
+        float skyThrough = 1.0f;
     } cloudResources;
+    // The share of the clear sky's light (linear) the ground gets with the
+    // clouds overhead: the open sky, the light through the clouds, and the
+    // sun's light their sides scatter down into a broken field; 1 without
+    // clouds. The ambient takes it.
+    float cloudSkyLight() const;
     bool cloudsPrepared = false;
     // The clouds in the water reflection: their own image at a quarter of
     // the main view's pixels (the reflection has a quarter of the view's).

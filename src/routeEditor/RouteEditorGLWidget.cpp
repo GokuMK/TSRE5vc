@@ -1366,15 +1366,18 @@ void RouteEditorGLWidget::applyClouds() {
         cloudOvercast = float(sum / std::max(1, count));
     }
     renderer->setClouds(c);
-    // Under a covered sky the light comes grey from all around: more
-    // ambient, less colour, and a grey horizon (the sun's share is the
-    // renderer's, through the clouds' shadow).
+    // Under a covered sky the light comes grey from all around: less
+    // colour, and a grey horizon. How much of it the clouds let through is
+    // the renderer's: the sun's through their shadow, the sky's ambient
+    // through them (RhiRenderer::cloudSkyLight; before, the ambient was
+    // raised by half under an overcast to make up for the sun, whatever the
+    // clouds' depth).
     const float o = std::clamp((cloudOvercast - 0.3f) / 0.6f, 0.0f, 1.0f);
     const float *ambient = Game::timeOfDayEnabled ? gluu->ambientColor : timeOfDay.ambient;
     float base[3] = {ambient[0], ambient[1], ambient[2]};
     const float grey = (base[0] + base[1] + base[2]) / 3.0f;
     for (int k = 0; k < 3; ++k)
-        gluu->ambientColor[k] = (base[k] + (grey - base[k]) * 0.6f * o) * (1.0f + 0.5f * o);
+        gluu->ambientColor[k] = base[k] + (grey - base[k]) * 0.6f * o;
     const float fogGrey = (gluu->fogColor[0] * 0.3f + gluu->fogColor[1] * 0.55f + gluu->fogColor[2] * 0.15f) * 0.85f;
     for (int k = 0; k < 3; ++k) {
         gluu->fogColor[k] += (fogGrey - gluu->fogColor[k]) * 0.8f * o;
