@@ -123,6 +123,8 @@ struct MarchParameters {
     float high[4];         // high layer altitude (km)
     float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), its centre east and north of the camera (km)
     float night[4];        // the night sky's floor (display colour); the scene's scale (auto exposure, task 29)
+    float light[4];        // towards the clouds' light: the sun, or the moon at night (task 31)
+    float lightColour[4];  // its light relative to the sun's
 };
 
 const char *CloudCommon = R"(
@@ -287,6 +289,8 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 high;
     vec4 shadow;
     vec4 night;
+    vec4 light;
+    vec4 lightColour;
 };
 layout(binding = 1) uniform sampler2D weatherTexture;
 layout(binding = 2) uniform sampler2D nearCover;
@@ -516,8 +520,10 @@ void main() {
     }
     end = min(end, limit);
 
-    vec3 sunDir = normalize(sun.xyz);
-    float cosAngle = dot(d, sunDir);
+    // The clouds' light: the sun, or the moon at night (task 31); the sky's
+    // light keeps the sun.
+    vec3 lightDir = normalize(light.xyz);
+    float cosAngle = dot(d, lightDir);
     // Each pixel starts the march at its own place (interleaved gradient
     // noise), moved on each frame unless still.
     // (by the image's pixel: the pixels of a block are marched by different
@@ -557,12 +563,12 @@ void main() {
             float along = 0.0;
             for (int k = 0; k < int(lighting.x); ++k) {
                 along += stepLength;
-                vec3 q = p + sunDir * along + Cone[k] * (stepLength * 0.6);
+                vec3 q = p + lightDir * along + Cone[k] * (stepLength * 0.6);
                 opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * stepLength;
                 stepLength *= 1.8;
             }
             {
-                vec3 q = p + sunDir * (along + 2.0);
+                vec3 q = p + lightDir * (along + 2.0);
                 opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * 0.8;
             }
             // The sun's light as on the Earth at this height and place: the
@@ -571,9 +577,10 @@ void main() {
             vec3 earthPoint = vec3(p.x, BottomRadius + altitude, p.z);
             float earthRadius = length(earthPoint);
             vec3 up = earthPoint / earthRadius;
-            float sunCos = dot(up, sunDir);
-            vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(earthRadius, sunCos), 0.0).rgb;
-            vec2 ground = sphereHits(earthPoint, sunDir, BottomRadius);
+            float sunCos = dot(up, lightDir);
+            vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(earthRadius, sunCos), 0.0).rgb
+                    * lightColour.rgb;
+            vec2 ground = sphereHits(earthPoint, lightDir, BottomRadius);
             if (ground.x > 0.0)
                 sunLight = vec3(0.0);
             // Multiple scattering in octaves (Wrenninge 2013).
@@ -628,7 +635,8 @@ void main() {
                 float alpha = c * clamp(0.25 + 0.6 * s.g, 0.0, 1.0) * 0.6;
                 vec3 earthPoint = vec3(p.x, BottomRadius + high.x, p.z);
                 vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(length(earthPoint),
-                                                                               dot(normalize(earthPoint), sunDir)), 0.0).rgb;
+                                                                               dot(normalize(earthPoint), lightDir)), 0.0).rgb
+                        * lightColour.rgb;
                 vec3 lit = sunLight * (henyeyGreenstein(cosAngle, 0.7) * 0.6 + 0.4 / (4.0 * Pi)) * 4.0 * Pi * 0.3
                         + skyAbove * 0.8;
                 luminance += transmittance * lit * alpha;
@@ -658,11 +666,12 @@ layout(location = 0) out vec4 result;
 )";
 
 const char *ShadowMain = R"(
-// Transmittance along the sun from points of a plane under the clouds,
-// around the camera: the lit shaders take the sun's light through it.
+// Transmittance along the clouds' light (the sun, or the moon at night) from
+// points of a plane under the clouds, around the camera: the lit shaders
+// take that light through it.
 void main() {
-    vec3 sunDir = normalize(sun.xyz);
-    if (sunDir.y < 0.03) {
+    vec3 lightDir = normalize(light.xyz);
+    if (lightDir.y < 0.03) {
         result = vec4(1.0);
         return;
     }
@@ -670,15 +679,15 @@ void main() {
     // centre stays on whole texels of the ground (shadow.zw from the
     // camera), so moving the camera does not resample its edges.
     vec2 ground = vec2(uv.x - 0.5, 0.5 - uv.y) * shadow.x + shadow.zw;
-    float bottom = (slab.x - shadow.y) / sunDir.y;
-    float top = (slab.y - shadow.y) / sunDir.y;
+    float bottom = (slab.x - shadow.y) / lightDir.y;
+    float top = (slab.y - shadow.y) / lightDir.y;
     const int Steps = 20;
     float dt = (top - bottom) / float(Steps);
     float opticalDepth = 0.0;
     for (int s = 0; s < Steps; ++s) {
         float t = bottom + (float(s) + 0.5) * dt;
-        vec2 offset = ground + vec2(sunDir.x, -sunDir.z) * t;
-        float altitude = shadow.y + sunDir.y * t;
+        vec2 offset = ground + vec2(lightDir.x, -lightDir.z) * t;
+        float altitude = shadow.y + lightDir.y * t;
         opticalDepth += density(vec3(0.0), offset, altitude, false) * dt;
     }
     result = vec4(vec3(exp(-opticalDepth)), 1.0);
@@ -708,6 +717,8 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 high;
     vec4 shadow;
     vec4 night;
+    vec4 light;
+    vec4 lightColour;
 };
 layout(binding = 1) uniform sampler2D current;
 layout(binding = 2) uniform sampler2D history;
@@ -791,6 +802,8 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 high;
     vec4 shadow;
     vec4 night;
+    vec4 light;
+    vec4 lightColour;
 };
 layout(binding = 1) uniform sampler2D clouds;
 layout(binding = 2) uniform sampler2D sceneDepth;
@@ -1179,21 +1192,46 @@ float RhiRenderer::cloudShellRadius() const {
     return std::clamp(HorizonDistance * HorizonDistance / (2.0f * above), SmallestShellRadius, EarthRadius);
 }
 
+void RhiRenderer::cloudLight(float *direction, float *colour) const {
+    auto normalized = [](const float *v, float *out) {
+        const float length = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        for (int i = 0; i < 3; ++i)
+            out[i] = length > 0.0f ? v[i] / length : (i == 1 ? 1.0f : 0.0f);
+    };
+    // High clouds see the sun until about 3 degrees under the horizon (the
+    // afterglow); the moon lights them from 5 degrees under it, full at 9.
+    normalized(sky.sun, direction);
+    const float sunElevation = std::asin(std::clamp(direction[1], -1.0f, 1.0f)) * 180.0f / float(M_PI);
+    if (sunElevation > -5.0f) {
+        std::fill(colour, colour + 3, 1.0f);
+        return;
+    }
+    normalized(sky.moon, direction);
+    const float t = std::clamp((-5.0f - sunElevation) / 4.0f, 0.0f, 1.0f);
+    const float fade = t * t * (3.0f - 2.0f * t);
+    // A quarter of the scene's moonlight: in full, the moonlit clouds made
+    // the night sky a grey overcast dusk (task 31).
+    constexpr float CloudMoonlight = 0.25f;
+    for (int c = 0; c < 3; ++c)
+        colour[c] = sky.moonLight[c] * fade * CloudMoonlight;
+}
+
 void RhiRenderer::writeCloudShadowUniforms(RhiProgram *program) {
     float plane = 0.0f;
     const bool enabled = cloudShadowPlane(plane);
-    const float length = std::sqrt(sky.sun[0] * sky.sun[0] + sky.sun[1] * sky.sun[1] + sky.sun[2] * sky.sun[2]);
-    const float sunY = length > 0.0f ? sky.sun[1] / length : 1.0f;
-    if (!enabled || sunY < 0.03f) {
+    // Along the clouds' light: the sun's or, at night, the moon's.
+    float light[3], colour[3];
+    cloudLight(light, colour);
+    if (!enabled || light[1] < 0.03f) {
         program->setVec("cloudShadowArea", 0.0f, 0.0f, 1.0f, 0.0f);
         return;
     }
     float centreX, centreZ;
     cloudShadowCentre(centreX, centreZ);
     program->setVec("cloudShadowArea", centreX, centreZ, 1.0f / (CloudShadowExtent * 1000.0f), 1.0f);
-    // Along the sun to the map's plane (y in the view's space).
+    // Along the light to the map's plane (y in the view's space).
     // Past the map: about the share of the sky the clouds leave open.
-    program->setVec("cloudShadowSun", sky.sun[0] / sky.sun[1], sky.sun[2] / sky.sun[1],
+    program->setVec("cloudShadowSun", light[0] / light[1], light[2] / light[1],
                     viewPosition[1] + plane * 1000.0f - sky.cameraHeight,
                     1.0f - 0.85f * std::clamp(sky.overcast, 0.0f, 1.0f));
 }
@@ -1323,6 +1361,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     }
     std::copy(sky.night, sky.night + 3, parameters.night);
     parameters.night[3] = sceneScaleDisplay();
+    cloudLight(parameters.light, parameters.lightColour);
     // A jump of the camera leaves the last frames' clouds behind.
     if (std::hypot(clouds.cameraEast - c.lastEast, clouds.cameraNorth - c.lastNorth) > 300.0)
         c.historyValid = false;
@@ -1366,13 +1405,13 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         fullScreen(c.coverTargets[1], c.coverPipeline, c.coverBindings[1], QSize(CoverSize, CoverSize), updates);
     }
     // The shadow map holds the ground's own place: redrawn only when its
-    // centre moves a texel, the sun or the clouds change.
+    // centre moves a texel, the light or the clouds change.
     std::vector<double> shadowKey = c.coverKey;
     shadowKey.push_back(std::floor(clouds.cameraEast + shadowEast + 0.5));
     shadowKey.push_back(std::floor(clouds.cameraNorth + shadowNorth + 0.5));
     shadowKey.push_back(plane);
     for (int i = 0; i < 3; ++i)
-        shadowKey.push_back(std::round(parameters.sun[i] * 10000.0f));
+        shadowKey.push_back(std::round(parameters.light[i] * 10000.0f));
     if (!c.shadowValid || shadowKey != c.shadowKey) {
         c.shadowKey = shadowKey;
         cb->beginPass(c.shadowTarget, Qt::white, {1.0f, 0}, updates);

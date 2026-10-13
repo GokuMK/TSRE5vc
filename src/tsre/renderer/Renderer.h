@@ -134,6 +134,11 @@ public:
         // The share of the sun the clouds around the camera block on
         // average (0-1).
         float overcast = 0.0f;
+        // Towards the moon, and its light relative to the sun's (linear,
+        // per colour; 0 without moonlight): it lights the clouds at night
+        // (task 31).
+        float moon[3] = {0.0f, 1.0f, 0.0f};
+        float moonLight[3] = {0.0f, 0.0f, 0.0f};
     };
     virtual void setSky(const Sky &sky) { this->sky = sky; }
     // Whether the sky set is drawn here as the atmosphere.

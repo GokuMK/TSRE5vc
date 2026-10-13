@@ -324,6 +324,9 @@ protected:
     // The sun and the moon on the sky (task editor 05).
     SkySatellites skySatellites;
     SkySatellites::State skyState;
+    // The moon's light of this frame (display units; 0 without moonlight),
+    // for the sky (task 31).
+    float moonLight[3] = {0.0f, 0.0f, 0.0f};
     // Sky or fog settings changed; applyTimeOfDay takes them.
     bool environmentChanged = false;
     float reportedEnvironment[4] = {-1000.0f, -1000.0f, -1000.0f, -1000.0f};

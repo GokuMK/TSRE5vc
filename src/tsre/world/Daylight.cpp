@@ -44,8 +44,8 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     const float strength = smoothstep(-1.0f, 20.0f, h);
     const float white = smoothstep(2.0f, 25.0f, h);
     for (int c = 0; c < 3; ++c)
-        light.diffuse[c] = 0.7f * strength * mix(SunsetSun[c], 1.0f, white);
-    light.diffuse[3] = 0.7f * strength;
+        light.diffuse[c] = SunLight * strength * mix(SunsetSun[c], 1.0f, white);
+    light.diffuse[3] = SunLight * strength;
     // Ambient: the day's light down to civil twilight, then night.
     const float day = smoothstep(-12.0f, 8.0f, h);
     for (int c = 0; c < 3; ++c)

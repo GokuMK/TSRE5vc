@@ -1,6 +1,7 @@
 # Task 31 - Moonlight
 
-Status: implemented (2026-10-13, `feature/clouds`); strength to confirm by the user.
+Status: implemented (2026-10-13, `feature/clouds`). Strength 0.2 kept for now
+(user: a little bright, but cloud shadows give the night its variety).
 
 ## Objective
 
@@ -64,10 +65,40 @@ under the horizon) the ground gained one level of 255. Suites: time-of-day
 (two new cases), rhi-shaders, local-lights, sky, water-gl,
 environment-map-gl, editor-tools, map-view pass.
 
+## Moonlit clouds and cloud shadows (2026-10-13)
+
+- The clouds have their own light (`RhiRenderer::cloudLight`): the sun,
+  also under the horizon while it still reaches them (high clouds see it to
+  about 3 degrees under; the afterglow), until 5 degrees under; then the
+  moon, fading in to 9 degrees under. The moon's light on them is the
+  scene's moonlight relative to the sun (linear, `Renderer::Sky::moon`,
+  `moonLight`), times a quarter (`CloudMoonlight`). The march, the flat high
+  layer and the cloud shadow map take that light's direction and colour
+  (through the atmosphere's transmittance: a low moon reddens); the sky's
+  light on the clouds keeps the sun (its table is built around the sun).
+- Cloud shadows follow the same light: the moon's at night, so the moonlit
+  ground is patched by the clouds.
+- CMK, the user's camera, full moon 3 January 22:00 (Auto exposure; mean
+  of the upper 30 % and the lower 40 % of the picture):
+
+  | | Sky | Ground |
+  |---|---|---|
+  | Clouds unlit, no cloud shadows (before) | 4.4 | 21.1 |
+  | Moonlit clouds, full moonlight | 95.1 | 7.4 |
+  | Half | 68.5 | 7.4 |
+  | Quarter (kept) | 46.3 | 7.4 |
+
+  Broken clouds; scattered alike (85 / 60 / 39, ground 18.7 to 5.7). In full
+  the cloudy sky read as a grey overcast dusk. The ground drops under the
+  cloud shadows (auto exposure keeps the night's exposure). The dark navy
+  patches in the clouds are gaps in the deck, the night sky behind.
+- Unchanged: a new-moon night (the clouds unlit), the afterglow at 20:30
+  (pixel-identical), the day.
+
 ## Later
 
-- Moonlit clouds; cloud shadows of the moon; a brighter physical sky at
-  full moon.
+- A brighter physical sky at full moon; moonlit scenes bluer and less
+  saturated (the eye's night vision).
 
 ## Verification
 

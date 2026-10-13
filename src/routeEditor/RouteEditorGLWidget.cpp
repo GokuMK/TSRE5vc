@@ -1075,6 +1075,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         std::copy(sun, sun + 3, skyState.sunDirection);
         skyState.sunElevation = float(std::asin(std::clamp(sun[1], -1.0f, 1.0f)) * 180.0 / M_PI);
         skyState.moon = false;
+        std::fill(moonLight, moonLight + 3, 0.0f);
         std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
         reportEnvironment(skyState.sunElevation, std::nanf(""), std::nanf(""), std::nanf(""));
         if (state.applied) {
@@ -1162,6 +1163,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     }
     for (int c = 0; c < 3; ++c)
         gluu->ambientColor[c] += moonLight.ambient[c];
+    std::copy(moonLight.diffuse, moonLight.diffuse + 3, this->moonLight);
     // Lamps by day (task 29): dimmed as the sun rises, or full strength.
     gluu->localLightAdaptation = lampsByDay == 1 ? 1.0f : light.localLights;
     gluu->signalLightAdaptation = lampsByDay == 1 ? 1.0f : light.signalLights;
@@ -1193,8 +1195,13 @@ void RouteEditorGLWidget::applyTimeOfDay() {
 void RouteEditorGLWidget::applySky() {
     Renderer::Sky sky;
     sky.physical = Game::skyModel == 1;
-    // The sun of the sky, also when the moon lights the scene (task 31).
+    // The sun of the sky, also when the moon lights the scene; the moon
+    // lights the clouds at night (task 31).
     std::copy(skyState.sunDirection, skyState.sunDirection + 3, sky.sun);
+    if (skyState.moon)
+        std::copy(skyState.moonDirection, skyState.moonDirection + 3, sky.moon);
+    for (int c = 0; c < 3; ++c)
+        sky.moonLight[c] = std::pow(moonLight[c] / Daylight::SunLight, 2.2f);
     sky.cameraHeight = camera->getPos()[1];
     // The night sky's floor, as the classic sky's (Daylight).
     const float night[3] = {0.015f, 0.022f, 0.05f};

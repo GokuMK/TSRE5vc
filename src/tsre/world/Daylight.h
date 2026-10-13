@@ -78,7 +78,9 @@ struct Moonlight {
     // Of a full moon high up at night, 0 to 1.
     float strength = 0.0f;
 };
-// A full moon high up at night, as the sun's 0.7 by day.
+// The sun's light high up (display units).
+constexpr float SunLight = 0.7f;
+// A full moon high up at night, as SunLight by day.
 constexpr float FullMoonLight = 0.2f;
 // With the phase (a half moon about a fifth of a full one), the moon's
 // height (as the sun's) and the night: from the sun 1 degree under the
