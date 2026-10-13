@@ -566,7 +566,8 @@ About 4-5 ms more than High at the Deck's size: for faster machines.
 - The cloud shadow map's edge: 47 m texels show on the terrain as a grid
   edge (user: "note it, leave alone in this step"). A finer map near the
   camera (a second cascade, or 512 x 512 over the same 12 km) and a
-  softer filter.
+  softer filter. (2026-10-13: 512 x 512 over 14 km, 27 m texels; see
+  "Cloud shadows that drift with their layers".)
 - Slight steps at the bright edges of clouds right by the sun, in motion.
 - The other items of the first round's list above.
 
@@ -733,7 +734,8 @@ frame: on the Steam Deck at 1280 x 800, broken clouds, 6.7 ms a frame more
   about every 70 s. Shifted against sampled again (12:01 after 12:00, the
   high layer 1.7 km on): mean difference 0.09 of 255, at most 9.
 - The cloud shadow map is drawn at the low layer's drift and read shifted
-  (`cloudShadowCentre`), drawn again after 500 m.
+  (`cloudShadowCentre`), drawn again after 500 m. (Replaced by a map per
+  layer: "Cloud shadows that drift with their layers" below.)
 - The history follows the clouds (option 1 of the user's question about
   timelapse pixelation): the temporal pass reprojects each pixel's cloud,
   at the clouds' middle height along its ray, back by the low layer's move
@@ -752,6 +754,69 @@ frame: on the Steam Deck at 1280 x 800, broken clouds, 6.7 ms a frame more
   two 1.0 %, two with whole samples 0.5 %; at 4 min a second 0.2 %, 0.01 %,
   0.00 %. (In the capture test four passes measured no better than two:
   it steps the time once a capture, not once a frame.)
+
+## Cloud shadows that drift with their layers (2026-10-13)
+
+The user, with the clouds moving in real time and the camera still: a
+slight flash at the edges of the cloud shadows every second or so. Three
+causes:
+
+- The map was drawn again whenever the light's direction moved by 1e-4,
+  about every 1.4 s with the sun's motion, on a grid fixed to the ground:
+  each draw sampled the moving clouds at other points, and the edges of
+  its 47 m texels stepped.
+- Between draws the whole map moved with the low layer; the mid layer,
+  drifting twice as fast, jumped back at each draw.
+- The lit draws take the map's place as they are queued, and the map is
+  drawn later in the frame (`prepareClouds`, before the view's geometry).
+  On a redraw frame the new map was read where the old one lay, off by
+  the drift since the last draw, for one frame.
+
+Now:
+
+- A map per layer in one 512 x 512 texture over 14 km (27 m texels): the
+  low layer's transmittance in red, the mid layer's in green
+  (`layerDensity`, the march's density split by layer). The lit shaders
+  and the volumetric shafts multiply the two (`cloudShadowMid`,
+  `cloudsMid`).
+- Each map's centre stays on whole texels of its layer's own ground, its
+  drift taken off (`shadowCentre`): between draws the map moves with its
+  layer, and when it is drawn again its texels fall on the same points of
+  the clouds.
+- The centres move back near the camera when either map has drifted 1 km
+  from it (`placeCloudShadow`, in `setClouds`, before the frame's draws
+  take the place). The map is drawn again then, or when the weather, the
+  cover maps, the plane or the light's slant change: the light in steps
+  that move the shadows of the clouds' top 5 m (`CloudShadowLightStep`;
+  the lit shaders project with the light as it is).
+- Cost of a draw on the Steam Deck (1280 x 800, broken, forced every
+  frame): 1.7 ms (median 29.3 to 31.0 ms). In real time it is drawn every
+  few seconds at most. In a fast timelapse it is drawn nearly every frame,
+  as the light and the drift move on.
+
+Captures (CMK from 550 m looking down over fields, broken clouds at noon,
+`TSRE_CLOUDS_STILL`, a frame every 0.5 s of the clock; mean change of the
+ground between frames, of 255):
+
+- Before: every third frame (1.5 s) a step, 0.47 to 0.58 against 0.15 to
+  0.18 between, with 1.3 to 1.8 % of the pixels changing by more than 6.
+- After: an even 0.23 to 0.30 each frame with no steps. Between steps it
+  is a little more than before: the shadows are sharper, and the mid
+  layer moves at its own speed.
+- Steps of 4 s (4 min/s): the change rises and falls with the cloud edges
+  in view, with no steps.
+- A camera jump of 6 km and back (the maps moved there and back): the
+  same image to the bit.
+- The captures grab each view's second frame, so they cannot show the
+  one-frame placement error. That error cannot happen now, since the place
+  is set before the draws.
+
+Next: the clouds' depth (the user's review point 2). The march gives each
+pixel its cloud's distance, the history keeps it, and the composite
+compares it with the scene's depth. It also gives the reprojection the
+pixel's own cloud height and layer, in place of the clouds' middle. The
+middle sits about twice as high as the low layer, so a timelapse from
+2 min/s showed little gain from the reprojection.
 
 ## Verification
 

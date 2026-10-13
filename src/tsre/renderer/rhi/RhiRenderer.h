@@ -564,9 +564,13 @@ private:
         QRhiRenderPassDescriptor *shadowPass = nullptr;
         QRhiGraphicsPipeline *shadowPipeline = nullptr;
         bool shadowValid = false;
-        // The low layer's drift when the shadow map was drawn (m east,
-        // north): read shifted by the drift since.
-        float shadowDrift[2] = {};
+        // The shadow map's centre per layer (low, mid) on that layer's own
+        // ground, its drift taken off (m east, north): the map drifts with
+        // the layer between draws.
+        double shadowCentre[2][2] = {};
+        // The centres moved back to the camera: the map is drawn there
+        // before the view reads it.
+        bool shadowPlaced = false;
     } cloudResources;
     bool cloudsPrepared = false;
     // The clouds in the water reflection: their own image at a quarter of
@@ -617,10 +621,16 @@ private:
     void releaseEnclosureOpenness();
     void recordCasters(int statsSlot);
     bool cloudShadowPlane(float &altitude) const;
-    // The cloud shadow map's centre on whole texels: its offset from the
-    // camera (m east, north) and its place in the view's space (x, z).
-    void cloudShadowOffset(double &east, double &north) const;
-    void cloudShadowCentre(float &x, float &z) const;
+    // The cloud shadow map's extent (km) and texels per side.
+    static constexpr float CloudShadowExtent = 14.0f;
+    static constexpr int CloudShadowSize = 512;
+    // A layer's (0 low, 1 mid) cloud shadow map centre now: its offset from
+    // the camera (m east, north) and its place in the view's space (x, z).
+    void cloudShadowOffset(int layer, double &east, double &north) const;
+    void cloudShadowCentre(int layer, float &x, float &z) const;
+    // Moves a layer's map back near the camera when it has drifted too far,
+    // before the frame's draws take its place.
+    void placeCloudShadow();
     // The planet radius of the cloud shell (km): smaller than the Earth's,
     // so the clouds reach the horizon within the weather around the camera.
     float cloudShellRadius() const;

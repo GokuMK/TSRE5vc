@@ -33,24 +33,32 @@ float receiverPlaneBias(vec2 gradient, vec2 offset, float limit) {
 }
 
 #ifdef TSRE_RHI
-// Clouds between the sun and a point (task 28): a map of their
-// transmittance along the sun from a plane under them, around the camera.
+// Clouds between the sun and a point (task 28): maps of their
+// transmittance along the sun from a plane under them, around the camera,
+// the low layer's in red, the mid layer's in green; each drifts with its
+// layer.
 uniform sampler2D cloudShadowMap;
-// The map's centre (x, z), 1 / its extent, on (1) or off (0).
+// The low layer's map's centre (x, z), 1 / the maps' extent, on (1) or off
+// (0).
 uniform vec4 cloudShadowArea;
-// The sun's x / y and z / y (along it to the map's plane), the plane's y,
-// the clouds' average shade (past the map).
+// The mid layer's map's centre (x, z).
+uniform vec4 cloudShadowMid;
+// The sun's x / y and z / y (along it to the maps' plane), the plane's y,
+// the clouds' average shade (past the maps).
 uniform vec4 cloudShadowSun;
 
 float cloudShadow(vec3 position) {
     if (cloudShadowArea.w <= 0.0)
         return 1.0;
     vec2 p = position.xz + cloudShadowSun.xy * (cloudShadowSun.z - position.y);
-    vec2 uv = (p - cloudShadowArea.xy) * cloudShadowArea.z + 0.5;
-    // Past the map the clouds' average shade (its clamped edge would
+    vec2 low = (p - cloudShadowArea.xy) * cloudShadowArea.z + 0.5;
+    vec2 mid = (p - cloudShadowMid.xy) * cloudShadowArea.z + 0.5;
+    // Past the maps the clouds' average shade (their clamped edges would
     // stretch into stripes), with no hard border.
-    float inside = smoothstep(0.5, 0.45, max(abs(uv.x - 0.5), abs(uv.y - 0.5)));
-    float shade = mix(cloudShadowSun.w, textureLod(cloudShadowMap, uv, 0.0).r, inside);
+    float inside = smoothstep(0.5, 0.45, max(max(abs(low.x - 0.5), abs(low.y - 0.5)),
+                                             max(abs(mid.x - 0.5), abs(mid.y - 0.5))));
+    float through = textureLod(cloudShadowMap, low, 0.0).r * textureLod(cloudShadowMap, mid, 0.0).g;
+    float shade = mix(cloudShadowSun.w, through, inside);
     return mix(1.0, shade, cloudShadowArea.w);
 }
 #endif

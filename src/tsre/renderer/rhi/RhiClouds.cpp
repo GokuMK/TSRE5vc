@@ -43,9 +43,11 @@
 namespace {
 
 constexpr int CoverSize = 512;
-// The cloud shadow map: texels and extent (km) around the camera.
-constexpr int CloudShadowSize = 256;
-constexpr float CloudShadowExtent = 12.0f;
+// The cloud shadow map is drawn again when a layer's map has drifted this
+// far from the camera (m), or the light has moved its shadows this far at
+// the clouds' top (m).
+constexpr double CloudShadowRecentre = 1000.0;
+constexpr float CloudShadowLightStep = 5.0f;
 // The maps keep the weather's large scales only (its octaves finer than a
 // few texels drop out): the 3D noise makes the smaller shapes, which the 2D
 // noise, the same at every height, would carve into vertical flutes.
@@ -121,7 +123,7 @@ struct MarchParameters {
     float noiseMid[4];
     float lighting[4];     // light steps, still, buffer texel w, h
     float high[4];         // high layer altitude (km)
-    float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), its centre east and north of the camera (km)
+    float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), the low layer's centre east and north of the camera (km)
     float night[4];        // the night sky's floor (display colour); the scene's scale (auto exposure, task 29)
     float light[4];        // towards the clouds' light: the sun, or the moon at night (task 31)
     float lightColour[4];  // its light relative to the sun's
@@ -132,6 +134,7 @@ struct MarchParameters {
     // The low layer's move since this view's last frame (km east, north),
     // the layer's middle height (km): the history follows the clouds.
     float motion[4];
+    float shadowMid[4];    // the mid layer's cloud shadow map: its centre east and north of the camera (km)
 };
 
 const char *CloudCommon = R"(
@@ -301,6 +304,7 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 shiftLowMid;
     vec4 shiftHigh;
     vec4 motion;
+    vec4 shadowMid;
 };
 layout(binding = 1) uniform sampler2D weatherTexture;
 layout(binding = 2) uniform sampler2D nearCover;
@@ -408,62 +412,66 @@ float coverAt(vec2 offset, int layer) {
     return value;
 }
 
+// Extinction (1/km) of a layer (0 low, 1 mid) at a point.
+float layerDensity(vec2 offset, float altitude, bool detail, int layer) {
+    vec4 w = weatherAt(offset, layer);
+    if (w.x <= 0.0 || altitude < w.z || altitude > w.w)
+        return 0.0;
+    float h = (altitude - w.z) / max(w.w - w.z, 0.05);
+    float convective = clamp((w.y - 0.3) / 0.4, 0.0, 1.0);
+    // The local coverage from the weather's 2D noise (even, 0-1): a half
+    // where it crosses the coverage's threshold (the map's cloud edge),
+    // all of it well inside a patch, none well outside.
+    // The billows (Schneider 2015): Perlin-Worley eroded by Worley
+    // octaves; finer for heaps than for sheets.
+    vec4 offsets = layer == 0 ? noiseLow : noiseMid;
+    vec3 metres = vec3(offset.x * 1000.0, altitude * 1000.0, -offset.y * 1000.0);
+    vec3 q = (metres + vec3(offsets.x, 0.0, -offsets.y)) / ShapePeriod;
+    vec4 s = textureLod(shapeNoise, q * mix(1.2, 3.2, convective), 0.0);
+    // The map read a little aside, by height: sides bulge and lean
+    // instead of standing straight.
+    vec2 warp = (s.gb - 0.5) * 0.5 * mix(0.5, 1.0, convective);
+    float even = coverAt(offset + warp, layer);
+    float threshold = 1.0 - w.x;
+    float coverage = clamp(0.5 + (even - threshold) * mix(2.5, 1.8, convective), 0.0, 1.0);
+    if (coverage <= 0.0)
+        return 0.0;
+    float fbm = dot(s.gba, vec3(0.625, 0.25, 0.125));
+    float base = clamp(remap(s.r, fbm - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
+    // The height profile by type, before the coverage: only a patch's
+    // cores reach the top, so heaps rise as domes from flat bases;
+    // sheets fill their layer with ragged edges.
+    // Sheets vary in thickness with the 2D noise and the billows, so
+    // their bases show lighter and darker patches (rolls, thin parts).
+    float thickness = mix(0.45, 1.0, clamp(even * 1.2 + (s.r - 0.5) * 0.6, 0.0, 1.0));
+    float hs = h / thickness;
+    float stratusProfile = smoothstep(0.0, 0.25, hs + (s.g - 0.5) * 0.3) * (1.0 - smoothstep(0.55, 1.0, hs));
+    float cumulusProfile = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.15, 1.0, h));
+    base *= mix(stratusProfile, cumulusProfile, convective);
+    float v = clamp(remap(base, 1.0 - coverage, 1.0, 0.0, 1.0), 0.0, 1.0) * coverage;
+    if (v <= 0.0)
+        return 0.0;
+    if (detail) {
+        // Wisps at the bottom, billows at the top, eroding the edges.
+        // Distorted by curl noise into swirls, as turbulence would
+        // (Schneider 2015), more at the base.
+        vec2 swirl = (textureLod(curlNoise, (metres.xz + vec2(offsets.x, -offsets.y)) / (ShapePeriod * 0.5), 0.0).rg
+                      - 0.5) * 2.0;
+        vec3 swirled = metres + vec3(swirl.x, 0.0, swirl.y) * 150.0 * (1.0 - 0.6 * h);
+        vec3 dn = textureLod(detailNoise, (swirled + vec3(offsets.z, 0.0, -offsets.w))
+                             / (DetailPeriod * mix(0.9, 0.55, convective)), 0.0).rgb;
+        float dfbm = dot(dn, vec3(0.625, 0.25, 0.125));
+        float erosion = mix(dfbm, 1.0 - dfbm, clamp(h * 5.0, 0.0, 1.0));
+        v = clamp(remap(v, erosion * mix(0.3, 0.55, convective), 1.0, 0.0, 1.0), 0.0, 1.0);
+    }
+    return v * mix(35.0, 70.0, convective);
+}
+
 // Extinction (1/km) of the low and mid layers at a point.
 float density(vec3 p, vec2 offset, float altitude, bool detail) {
     float sum = 0.0;
-    for (int layer = 0; layer < 2; ++layer) {
-        vec4 w = weatherAt(offset, layer);
-        if (w.x <= 0.0 || altitude < w.z || altitude > w.w)
-            continue;
-        float h = (altitude - w.z) / max(w.w - w.z, 0.05);
-        float convective = clamp((w.y - 0.3) / 0.4, 0.0, 1.0);
-        // The local coverage from the weather's 2D noise (even, 0-1): a half
-        // where it crosses the coverage's threshold (the map's cloud edge),
-        // all of it well inside a patch, none well outside.
-        // The billows (Schneider 2015): Perlin-Worley eroded by Worley
-        // octaves; finer for heaps than for sheets.
-        vec4 offsets = layer == 0 ? noiseLow : noiseMid;
-        vec3 metres = vec3(offset.x * 1000.0, altitude * 1000.0, -offset.y * 1000.0);
-        vec3 q = (metres + vec3(offsets.x, 0.0, -offsets.y)) / ShapePeriod;
-        vec4 s = textureLod(shapeNoise, q * mix(1.2, 3.2, convective), 0.0);
-        // The map read a little aside, by height: sides bulge and lean
-        // instead of standing straight.
-        vec2 warp = (s.gb - 0.5) * 0.5 * mix(0.5, 1.0, convective);
-        float even = coverAt(offset + warp, layer);
-        float threshold = 1.0 - w.x;
-        float coverage = clamp(0.5 + (even - threshold) * mix(2.5, 1.8, convective), 0.0, 1.0);
-        if (coverage <= 0.0)
-            continue;
-        float fbm = dot(s.gba, vec3(0.625, 0.25, 0.125));
-        float base = clamp(remap(s.r, fbm - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
-        // The height profile by type, before the coverage: only a patch's
-        // cores reach the top, so heaps rise as domes from flat bases;
-        // sheets fill their layer with ragged edges.
-        // Sheets vary in thickness with the 2D noise and the billows, so
-        // their bases show lighter and darker patches (rolls, thin parts).
-        float thickness = mix(0.45, 1.0, clamp(even * 1.2 + (s.r - 0.5) * 0.6, 0.0, 1.0));
-        float hs = h / thickness;
-        float stratusProfile = smoothstep(0.0, 0.25, hs + (s.g - 0.5) * 0.3) * (1.0 - smoothstep(0.55, 1.0, hs));
-        float cumulusProfile = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.15, 1.0, h));
-        base *= mix(stratusProfile, cumulusProfile, convective);
-        float v = clamp(remap(base, 1.0 - coverage, 1.0, 0.0, 1.0), 0.0, 1.0) * coverage;
-        if (v <= 0.0)
-            continue;
-        if (detail) {
-            // Wisps at the bottom, billows at the top, eroding the edges.
-            // Distorted by curl noise into swirls, as turbulence would
-            // (Schneider 2015), more at the base.
-            vec2 swirl = (textureLod(curlNoise, (metres.xz + vec2(offsets.x, -offsets.y)) / (ShapePeriod * 0.5), 0.0).rg
-                          - 0.5) * 2.0;
-            vec3 swirled = metres + vec3(swirl.x, 0.0, swirl.y) * 150.0 * (1.0 - 0.6 * h);
-            vec3 dn = textureLod(detailNoise, (swirled + vec3(offsets.z, 0.0, -offsets.w))
-                                 / (DetailPeriod * mix(0.9, 0.55, convective)), 0.0).rgb;
-            float dfbm = dot(dn, vec3(0.625, 0.25, 0.125));
-            float erosion = mix(dfbm, 1.0 - dfbm, clamp(h * 5.0, 0.0, 1.0));
-            v = clamp(remap(v, erosion * mix(0.3, 0.55, convective), 1.0, 0.0, 1.0), 0.0, 1.0);
-        }
-        sum += v * mix(35.0, 70.0, convective);
-    }
+    for (int layer = 0; layer < 2; ++layer)
+        sum += layerDensity(offset, altitude, detail, layer);
     return sum;
 }
 
@@ -686,29 +694,34 @@ layout(location = 0) out vec4 result;
 const char *ShadowMain = R"(
 // Transmittance along the clouds' light (the sun, or the moon at night) from
 // points of a plane under the clouds, around the camera: the lit shaders
-// take that light through it.
+// take that light through it. A map per layer, the low one in red, the mid
+// one in green, each on a grid that drifts with its layer.
 void main() {
     vec3 lightDir = normalize(light.xyz);
     if (lightDir.y < 0.03) {
         result = vec4(1.0);
         return;
     }
-    // Rows from north to south; km east and north of the camera. The map's
-    // centre stays on whole texels of the ground (shadow.zw from the
-    // camera), so moving the camera does not resample its edges.
-    vec2 ground = vec2(uv.x - 0.5, 0.5 - uv.y) * shadow.x + shadow.zw;
+    // Rows from north to south; km east and north of the camera. Each
+    // map's centre stays on whole texels of its layer's own ground (its
+    // drift taken off; shadow.zw and shadowMid.xy from the camera): drawn
+    // again, the texels fall on the same points of the clouds.
+    vec2 cell = vec2(uv.x - 0.5, 0.5 - uv.y) * shadow.x;
+    vec2 low = cell + shadow.zw;
+    vec2 mid = cell + shadowMid.xy;
     float bottom = (slab.x - shadow.y) / lightDir.y;
     float top = (slab.y - shadow.y) / lightDir.y;
     const int Steps = 20;
     float dt = (top - bottom) / float(Steps);
-    float opticalDepth = 0.0;
+    vec2 opticalDepth = vec2(0.0);
     for (int s = 0; s < Steps; ++s) {
         float t = bottom + (float(s) + 0.5) * dt;
-        vec2 offset = ground + vec2(lightDir.x, -lightDir.z) * t;
+        vec2 along = vec2(lightDir.x, -lightDir.z) * t;
         float altitude = shadow.y + lightDir.y * t;
-        opticalDepth += density(vec3(0.0), offset, altitude, false) * dt;
+        opticalDepth.x += layerDensity(low + along, altitude, false, 0) * dt;
+        opticalDepth.y += layerDensity(mid + along, altitude, false, 1) * dt;
     }
-    result = vec4(vec3(exp(-opticalDepth)), 1.0);
+    result = vec4(exp(-opticalDepth), 1.0, 1.0);
 }
 )";
 
@@ -740,6 +753,7 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 shiftLowMid;
     vec4 shiftHigh;
     vec4 motion;
+    vec4 shadowMid;
 };
 layout(binding = 1) uniform sampler2D current;
 layout(binding = 2) uniform sampler2D history;
@@ -836,6 +850,7 @@ layout(std140, binding = 0) uniform Clouds {
     vec4 shiftLowMid;
     vec4 shiftHigh;
     vec4 motion;
+    vec4 shadowMid;
 };
 layout(binding = 1) uniform sampler2D clouds;
 layout(binding = 2) uniform sampler2D sceneDepth;
@@ -1007,6 +1022,7 @@ QRhiGraphicsPipeline *cloudPipeline(QRhi *rhi, const QShader &shader, QRhiShader
 
 void RhiRenderer::setClouds(const Clouds &next) {
     clouds = next;
+    placeCloudShadow();
 }
 
 bool RhiRenderer::cloudsWanted() const {
@@ -1200,19 +1216,40 @@ bool RhiRenderer::cloudShadowPlane(float &altitude) const {
     return cloudResources.shadowValid && cloudsWanted();
 }
 
-void RhiRenderer::cloudShadowOffset(double &east, double &north) const {
-    // The map's centre on whole texels of the ground, near the camera.
-    const double texel = CloudShadowExtent * 1000.0 / CloudShadowSize;
-    east = std::floor(clouds.cameraEast / texel + 0.5) * texel - clouds.cameraEast;
-    north = std::floor(clouds.cameraNorth / texel + 0.5) * texel - clouds.cameraNorth;
+void RhiRenderer::cloudShadowOffset(int layer, double &east, double &north) const {
+    // The map has moved on with its layer since it was drawn.
+    east = cloudResources.shadowCentre[layer][0] + clouds.drift[layer][0] - clouds.cameraEast;
+    north = cloudResources.shadowCentre[layer][1] + clouds.drift[layer][1] - clouds.cameraNorth;
 }
 
-void RhiRenderer::cloudShadowCentre(float &x, float &z) const {
+void RhiRenderer::placeCloudShadow() {
+    // Here, before the frame is drawn: the lit draws take the maps' place
+    // as they are queued, the map is drawn later (prepareClouds, before the
+    // view's geometry). Moved there, a redrawn map was read where the last
+    // one lay for a frame: the shadows jumped by the drift since (user,
+    // 2026-10-13: a flash at the shadows' edges every second or so).
+    CloudResources &c = cloudResources;
+    bool away = !c.shadowValid;
+    for (int l = 0; l < 2; ++l) {
+        double east, north;
+        cloudShadowOffset(l, east, north);
+        away = away || std::hypot(east, north) > CloudShadowRecentre;
+    }
+    if (!away)
+        return;
+    // On whole texels of the layer's own ground: drawn again, the texels
+    // fall on the same points of the clouds as before.
+    const double texel = CloudShadowExtent * 1000.0 / CloudShadowSize;
+    for (int l = 0; l < 2; ++l) {
+        c.shadowCentre[l][0] = std::floor((clouds.cameraEast - clouds.drift[l][0]) / texel + 0.5) * texel;
+        c.shadowCentre[l][1] = std::floor((clouds.cameraNorth - clouds.drift[l][1]) / texel + 0.5) * texel;
+    }
+    c.shadowPlaced = true;
+}
+
+void RhiRenderer::cloudShadowCentre(int layer, float &x, float &z) const {
     double east, north;
-    cloudShadowOffset(east, north);
-    // The shadows have moved on with the low layer since the map was drawn.
-    east += clouds.drift[0][0] - cloudResources.shadowDrift[0];
-    north += clouds.drift[0][1] - cloudResources.shadowDrift[1];
+    cloudShadowOffset(layer, east, north);
     // North is -z in the view's space.
     x = viewPosition[0] + float(east);
     z = viewPosition[2] - float(north);
@@ -1273,9 +1310,11 @@ void RhiRenderer::writeCloudShadowUniforms(RhiProgram *program) {
         program->setVec("cloudShadowArea", 0.0f, 0.0f, 1.0f, 0.0f);
         return;
     }
-    float centreX, centreZ;
-    cloudShadowCentre(centreX, centreZ);
-    program->setVec("cloudShadowArea", centreX, centreZ, 1.0f / (CloudShadowExtent * 1000.0f), 1.0f);
+    float low[2], mid[2];
+    cloudShadowCentre(0, low[0], low[1]);
+    cloudShadowCentre(1, mid[0], mid[1]);
+    program->setVec("cloudShadowArea", low[0], low[1], 1.0f / (CloudShadowExtent * 1000.0f), 1.0f);
+    program->setVec("cloudShadowMid", mid[0], mid[1], 0.0f, 0.0f);
     // Along the light to the map's plane (y in the view's space).
     // Past the map: about the share of the sky the clouds leave open.
     program->setVec("cloudShadowSun", light[0] / light[1], light[2] / light[1],
@@ -1435,12 +1474,35 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     parameters.high[1] = std::clamp(sky.haze, 0.0f, 0.02f) * 1000.0f;
     float plane = 0.0f;
     cloudShadowPlane(plane);
+    // The shadow map is drawn for the clouds' maps, its plane and the light's
+    // slant, in steps that move the shadows of the clouds' top a few metres
+    // (the lit shaders take the light's slant as it is now; the old key, the
+    // direction in steps of 1e-4, redrew it every second or so).
+    std::vector<double> shadowKey = c.coverKey;
+    shadowKey.push_back(plane);
+    {
+        const float rise = std::max(parameters.light[1], 0.03f);
+        const float step = CloudShadowLightStep / std::max((parameters.slab[1] - plane) * 1000.0f, 1.0f);
+        shadowKey.push_back(std::round(parameters.light[0] / rise / step));
+        shadowKey.push_back(std::round(parameters.light[2] / rise / step));
+        shadowKey.push_back(parameters.light[1] < 0.03f ? 1.0 : 0.0);
+    }
+    // Between draws each layer's map drifts with it (a grid fixed to the
+    // ground resampled the moving clouds at each draw, and the mid layer
+    // was read moving with the low one); drawn again where it is, or where
+    // placeCloudShadow moved it.
+    const bool shadowRedraw = !c.shadowValid || c.shadowPlaced || shadowKey != c.shadowKey;
+    c.shadowKey = shadowKey;
+    c.shadowPlaced = false;
     double shadowEast, shadowNorth;
-    cloudShadowOffset(shadowEast, shadowNorth);
+    cloudShadowOffset(0, shadowEast, shadowNorth);
     parameters.shadow[0] = CloudShadowExtent;
     parameters.shadow[1] = plane;
     parameters.shadow[2] = float(shadowEast / 1000.0);
     parameters.shadow[3] = float(shadowNorth / 1000.0);
+    cloudShadowOffset(1, shadowEast, shadowNorth);
+    parameters.shadowMid[0] = float(shadowEast / 1000.0);
+    parameters.shadowMid[1] = float(shadowNorth / 1000.0);
     updates->updateDynamicBuffer(c.uniforms, 0, sizeof(parameters), &parameters);
     const float *values = reinterpret_cast<const float *>(&parameters);
     c.parameters.assign(values, values + sizeof(parameters) / sizeof(float));
@@ -1459,22 +1521,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         fullScreen(c.coverTargets[0], c.coverPipeline, c.coverBindings[0], QSize(CoverSize, CoverSize), updates);
         fullScreen(c.coverTargets[1], c.coverPipeline, c.coverBindings[1], QSize(CoverSize, CoverSize), updates);
     }
-    // The shadow map holds the ground's own place: redrawn only when its
-    // centre moves a texel, the light or the clouds' maps change.
-    std::vector<double> shadowKey = c.coverKey;
-    shadowKey.push_back(std::floor(clouds.cameraEast + shadowEast + 0.5));
-    shadowKey.push_back(std::floor(clouds.cameraNorth + shadowNorth + 0.5));
-    shadowKey.push_back(plane);
-    for (int i = 0; i < 3; ++i)
-        shadowKey.push_back(std::round(parameters.light[i] * 10000.0f));
-    // Between draws it is read shifted with the low layer's drift; drawn
-    // again after half a kilometre (the other layers drift their own way).
-    const bool shadowMoved = std::hypot(clouds.drift[0][0] - c.shadowDrift[0],
-                                        clouds.drift[0][1] - c.shadowDrift[1]) > 500.0f;
-    if (!c.shadowValid || shadowKey != c.shadowKey || shadowMoved) {
-        c.shadowKey = shadowKey;
-        c.shadowDrift[0] = clouds.drift[0][0];
-        c.shadowDrift[1] = clouds.drift[0][1];
+    if (shadowRedraw) {
         cb->beginPass(c.shadowTarget, Qt::white, {1.0f, 0}, updates);
         updates = nullptr;
         cb->setGraphicsPipeline(c.shadowPipeline);

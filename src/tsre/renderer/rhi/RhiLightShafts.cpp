@@ -115,6 +115,7 @@ struct VolumeParameters {
     float cloudSun[4];    // sun x / y, z / y, the map's plane y, shadow map on
     float march[4];       // distance (m), steps, jitter, 0
     float colour[4];      // the sun's colour (display)
+    float cloudsMid[4];   // the mid layer's cloud shadow map: centre x, z
 };
 
 const char *VolumeFragment = R"(#version 440
@@ -131,6 +132,7 @@ layout(std140, binding = 0) uniform Volume {
     vec4 cloudSun;
     vec4 march;
     vec4 colour;
+    vec4 cloudsMid;
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 layout(binding = 2) uniform sampler2D cloudShadowMap;
@@ -184,7 +186,8 @@ void main() {
         // (The map holds the light under the clouds only.)
         if (clouds.w > 0.0 && p.y < cloudSun.z) {
             vec2 c = p.xz + cloudSun.xy * (cloudSun.z - p.y);
-            visible *= textureLod(cloudShadowMap, (c - clouds.xy) * clouds.z + 0.5, 0.0).r;
+            visible *= textureLod(cloudShadowMap, (c - clouds.xy) * clouds.z + 0.5, 0.0).r
+                       * textureLod(cloudShadowMap, (c - cloudsMid.xy) * clouds.z + 0.5, 0.0).g;
         }
         if (cloudSun.w > 0.0) {
             vec4 q = shadowMatrix * vec4(p, 1.0);
@@ -522,8 +525,9 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     v.bands[3] = 0.99f;
     float plane = 0.0f;
     if (cloudShadowPlane(plane) && l.volumeCloudMap != nullptr) {
-        cloudShadowCentre(v.clouds[0], v.clouds[1]);
-        v.clouds[2] = 1.0f / (12.0f * 1000.0f);
+        cloudShadowCentre(0, v.clouds[0], v.clouds[1]);
+        cloudShadowCentre(1, v.cloudsMid[0], v.cloudsMid[1]);
+        v.clouds[2] = 1.0f / (CloudShadowExtent * 1000.0f);
         v.clouds[3] = 1.0f;
         v.cloudSun[0] = sunDirection.x() / sunDirection.y();
         v.cloudSun[1] = sunDirection.z() / sunDirection.y();
