@@ -1,8 +1,8 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 to 4 done (2026-10-14, branch `feature/activity-editing`).
-Phase 5 (paths to services and timetables) waits on the meaning of
-`SkipCount` (Reference, MSTS). Design decisions taken (below).
+Status: phases 1 to 4 done (2026-10-14, branch `feature/activity-editing`);
+`SkipCount` worked out from the data (Reference, MSTS), phase 5 next.
+Design decisions taken (below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -351,16 +351,31 @@ Smaller:
   saves the file (Open Rails manual).
 - Unknown meanings remain: `SkipCount` on repeated visits, start/end in
   world, MSAE's timetable computation.
-- **`SkipCount` (checked 2026-10-14):** in 65 of the 302 local services
-  the stops' counts jump (3, 8, 10, 14): a stop's place among the
-  platforms along the path, those passed without stopping counted, not
-  its number among the stops. Compared with TSRE's platform list for the
-  path (each platform pair once, at its far end; `Path::rebuildDerived`)
-  on the routes' track databases: equal for every stop on EUROPE1,
-  EUROPE2 and USA1; different for 1413 stops on JAPAN1, 89 on JAPAN2 and
-  37 on USA2, MSTS's count sometimes higher, sometimes lower. MSTS counts
-  platforms in a way TSRE's list does not reproduce there (both items of a
-  platform, platforms beside the track, repeated visits: not known).
+- **`SkipCount` (checked 2026-10-14):** a stop's place among the
+  platform passes along its path. Found from the data (a probe over every
+  service of the six MSTS routes and the starter route, on their track
+  databases):
+  - each pass over a platform counts: a switchback station (Okoba,
+    Masaki on JAPAN2) counts twice, once in, once out, and a stop may be on
+    either pass;
+  - a pass counts only when the train goes over both of the platform's
+    items between two reversals; one that reverses inside the platform
+    does not count;
+  - the platform the path starts in counts;
+  - platforms the train is on at once (Minami Shinjuku: two overlapping
+    pairs) count once;
+  - a stop names the platform item it meets at its `DistanceDownPath` on
+    that pass (usually the far item, on a back pass the near one).
+  TSRE's list (each platform pair once, at its far end) matches where no
+  path reverses at a platform; the rule matches every stop on EUROPE1,
+  EUROPE2, JAPAN2, USA1 and BNSF_SCENIC, 384 of 955 on JAPAN1, 11 of 46 on
+  USA2. The rest: 30 services (JAPAN1's Shin-Hakone traffic, USA2's Long
+  Haul traffic) number their stops 0, 1, 2... instead; 3 JAPAN1 services
+  are one short after the outbound Odakyu platforms that another service
+  on the same platforms (PubHol) counts, so their data are stale; 1 USA2
+  service has a single stop at 2 where the rule gives 24. MSTS ships both
+  conventions, so how strictly the simulator reads `SkipCount` is not
+  known from the files; Open Rails reads it and does not use it.
 
 ### Open Rails additions (manual and code, checked 2026-10-13)
 
@@ -552,10 +567,12 @@ that jumps to each item:
   on it is removed; new platforms on the path are offered, not ticked. A
   report lists what changed, per service, activity and traffic; undo takes
   it all back.
-- **Open (2026-10-14):** what MSTS counts in `SkipCount` (Reference,
-  MSTS). Until it is known, phase 5 must not rewrite the `SkipCount` of
-  stops it keeps, and new stops can only take TSRE's count, which MSTS may
-  read differently on routes like JAPAN1.
+- **`SkipCount` (Reference, MSTS):** the platform list of a path becomes
+  its platform passes by the rule found there (each full pass between
+  reversals, the start platform, overlapping platforms once), which is
+  also the "visit" a stop is identified by. Stops kept by an edit keep
+  their pass and take its new place; a file that numbers its stops
+  0, 1, 2... is not renumbered unless its stops change.
 - **Times move, they do not reset:** a new start time for an instance
   moves every arrival and departure by the difference; **the activity's
   start time moves the player timetable (decided)**.
