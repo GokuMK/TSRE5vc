@@ -86,6 +86,13 @@ float viewLuminanceLog2(double elevationDegrees) {
     return Table[count - 1][1];
 }
 
+float exposureBias(double elevationDegrees) {
+    const float h = float(elevationDegrees);
+    if (h >= 0.0f)
+        return mix(EveningExposureBias, DayExposureBias, smoothstep(0.0f, 20.0f, h));
+    return mix(NightExposureBias, EveningExposureBias, smoothstep(-12.0f, 0.0f, h));
+}
+
 int adaptationCurve(float *luminanceLog2, float *exposureLog2, int capacity) {
     // Sun elevations: the table's, denser where the scene light changes.
     static const float Elevations[] = {-14.0f, -10.0f, -7.5f, -4.5f, -1.5f, 0.0f, 2.0f, 4.0f, 6.0f,

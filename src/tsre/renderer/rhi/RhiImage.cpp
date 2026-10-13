@@ -330,7 +330,8 @@ float RhiRenderer::sceneScaleDisplay() const {
 float RhiRenderer::autoExposure() const {
     if (!exposureActive())
         return 1.0f;
-    return std::exp2(-std::log2(std::max(exposureControl.sceneLight, 1e-6f)) + luminance.correction);
+    return std::exp2(-std::log2(std::max(exposureControl.sceneLight, 1e-6f)) + luminance.correction
+                     + exposureControl.biasStops);
 }
 
 float RhiRenderer::signalScale() const {

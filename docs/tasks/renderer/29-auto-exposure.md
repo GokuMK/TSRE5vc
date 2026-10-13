@@ -146,6 +146,35 @@ against Auto exposure (`build/renderer-autoexposure`).
   settings, sky, water-gl, environment-map-gl, editor-tools, map-view,
   token-world pass.
 
+## Exposure offset (2026-10-13)
+
+The user tested auto exposure with AgX: the picture was too dark, the
+evening sky above all. Auto exposure now adds an offset to Dimmed's
+exposure, by the sun's elevation (`Daylight::exposureBias`): +0.25 stops
+with the sun 20 degrees up, rising with the lamps' fade to +1.5 at sunset,
+then through twilight to +1.75 with the sun 12 degrees down. Tuned by the
+user on CMK in clear weather (camera
+-5350,14859,-778.45,278.47,-208.37,82.16,-5.60), in three rounds: +0.25 /
++1, then +1.25 / +1.5, then +1.5 / +1.75. Mean brightness of that view,
+without the offset and with it: noon 103 and 109; 19:30 71 and 95 (the
+sky 144 and 184); 20:30 16 and 31 (the dusk sky 30 and 59). The night stays
+black (the user: not an issue). Overlays, lenses and signals undo it with
+the rest of the exposure.
+
+Tried and reverted on the way: the sky weighted a fifth in the measurement
+with the table recalibrated, and the offset carried by the adaptation curve.
+Recalibrating on the same view cancels any overall gain from the weighting;
+it only changes how views compare with the lake (0.18 stops between the
+lake and a sunlit town view).
+
+Next: cloudy days. They measure as bright as the lake view or brighter
+(overcast lake -4.78 against -5.38, overcast town -5.16), as the lake view
+looks towards the sun over a shaded forest and dark water: the reference
+is a dim view. To try first: a reference from a well-lit view (sun behind
+the camera, 1.3 stops brighter) with a smaller dead zone, watching for the
+exposure jumping as the camera turns; if it does, sky weighting against a
+well-lit reference.
+
 ## Later
 
 - The enclosed ambient sets how bright a deep tunnel is by day: with auto

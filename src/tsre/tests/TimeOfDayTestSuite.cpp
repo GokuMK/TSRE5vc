@@ -126,6 +126,14 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
               && Daylight::viewLuminanceLog2(2.0) > Daylight::viewLuminanceLog2(-14.0)
               && near(Daylight::viewLuminanceLog2(-30.0), Daylight::viewLuminanceLog2(-14.0), 1e-6),
           "ordinary views get darker as the sun sets, then stay at the night's");
+    check(near(Daylight::exposureBias(60.0), Daylight::DayExposureBias, 1e-6)
+              && near(Daylight::exposureBias(0.0), Daylight::EveningExposureBias, 1e-6)
+              && near(Daylight::exposureBias(-20.0), Daylight::NightExposureBias, 1e-6)
+              && Daylight::exposureBias(10.0) > Daylight::DayExposureBias
+              && Daylight::exposureBias(10.0) < Daylight::EveningExposureBias
+              && Daylight::exposureBias(-6.0) > Daylight::EveningExposureBias
+              && Daylight::exposureBias(-6.0) < Daylight::NightExposureBias,
+          "auto exposure adds a little by day, more at sunset and most at night");
 
     // The moon against published events of 2026 (UTC).
     const MoonPosition::Result lunarEclipse = MoonPosition::compute(0.0, 0.0, QDate(2026, 3, 3), 11.55);

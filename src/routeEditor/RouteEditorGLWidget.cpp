@@ -1158,6 +1158,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         exposure.referenceLog2 = std::log2(light.sceneLight) + Daylight::viewLuminanceLog2(sun.elevation);
         exposure.curvePoints = Daylight::adaptationCurve(exposure.curveLuminance, exposure.curveExposure,
                                                          Renderer::ExposureControl::CurveSize);
+        exposure.biasStops = Daylight::exposureBias(sun.elevation);
     }
     sunCastsShadows = light.sunUp;
     // The sun and the moon on the sky.

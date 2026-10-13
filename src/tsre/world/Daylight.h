@@ -54,6 +54,14 @@ float viewLuminanceLog2(double elevationDegrees);
 // bright as it is; no view gets more than the night's. Returns the points
 // written, up to capacity.
 int adaptationCurve(float *luminanceLog2, float *exposureLog2, int capacity);
+// Auto exposure over the lamps' scale's picture, in stops (user,
+// 2026-10-13: with AgX, days and nights were too dark): DayExposureBias with
+// the sun 20 degrees up, EveningExposureBias at sunset (with the lamps'
+// fade), NightExposureBias with the sun 12 degrees down (through twilight).
+constexpr float DayExposureBias = 0.25f;
+constexpr float EveningExposureBias = 1.5f;
+constexpr float NightExposureBias = 1.75f;
+float exposureBias(double elevationDegrees);
 
 // daySky and dayFog: the colours of a high sun (the sky and fog settings).
 Light forElevation(double elevationDegrees, const float *daySky, const float *dayFog);

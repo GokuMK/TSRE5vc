@@ -204,6 +204,8 @@ public:
         float curveLuminance[CurveSize] = {};
         float curveExposure[CurveSize] = {};
         int curvePoints = 0;
+        // Stops added to the exposure (Daylight::exposureBias).
+        float biasStops = 0.0f;
         // Take the exposure at once (camera jump, a jump of the time of day).
         bool snap = false;
         // Since the last frame.
