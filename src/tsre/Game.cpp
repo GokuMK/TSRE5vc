@@ -1111,47 +1111,6 @@ void Game::CreateNewSettingsFile(){
     file.close();
 }
 
-void Game::CheckForOpenAl(){
-    
-    QString openalfilename;
-    QString Url;
-    
-    QFile file("./"+openalfilename);
-    if(file.exists())
-        return;
-    
-#ifdef Q_PROCESSOR_X86_64
-    openalfilename = "OpenAL32.dll";
-    Url = "http://koniec.org/tsre5/data/openal/Win64/soft_oal.dll";
-#endif
-
-#ifdef Q_PROCESSOR_X86_32
-    openalfilename = "openal32.dll";
-    Url = "http://koniec.org/tsre5/data/openal/Win32/soft_oal.dll";
-#endif
-    
-    QNetworkAccessManager* mgr = new QNetworkAccessManager();
-    //connect(mgr, SIGNAL(finished(QNetworkReply*)), this, SLOT(isData(QNetworkReply*)));
-    qDebug() << "Wait ..";
-
-    QNetworkRequest req;
-    req.setUrl(QUrl(Url));
-    qDebug() << req.url();
-    QNetworkReply* r = mgr->get(req);
-    QEventLoop loop;
-    QObject::connect(r, SIGNAL(finished()), &loop, SLOT(quit()));
-    loop.exec();
-    qDebug() << "Network Reply Loop End";
-    QByteArray data = r->readAll();
-
-    if(file.open(QIODevice::WriteOnly)){
-        file.write(data);
-        file.close();
-    } else {
-        qDebug() << "Failed to create OpenAL file";
-    }
-}
-
 void Game::DownloadAppData(QString path){
     if (!downloadResourceDirectory("./appdata",Game::AppDataVersion) || !QDir(path).exists())
         qWarning() << "Appdata archive did not provide" << path;

@@ -46,8 +46,7 @@ Rules that apply to every step:
    cmake --build build --parallel
    ```
 
-   Add the OpenAL options from the release workflow if your environment needs
-   them. Use a Release build for every measurement.
+   Use a Release build for every measurement.
 3. Run the automated suites that need a GL context and record pass/fail:
 
    ```powershell

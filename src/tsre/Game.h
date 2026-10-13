@@ -245,7 +245,6 @@ private:
     static void CreateNewSettingsFile();
     static void loadLegacySettings();
     static void DownloadAppData(QString path);
-    static void CheckForOpenAl();
 };
 
 #endif	/* GAMESETTINGS_H */

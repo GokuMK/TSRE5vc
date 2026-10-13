@@ -38,42 +38,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Vulkan headers could not be fetched" }
           "VULKAN_HEADERS=$headers" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Install OpenAL Soft
-        shell: pwsh
-        run: |
-          $archive = Join-Path $PWD "build-openal/openal-soft.zip"
-          $extractDir = Join-Path $PWD "build-openal/package"
-          New-Item -ItemType Directory -Force -Path (Split-Path $archive) | Out-Null
-          Invoke-WebRequest `
-            -Uri "https://github.com/kcat/openal-soft/releases/download/1.25.2/openal-soft-1.25.2-bin.zip" `
-            -OutFile $archive
-
-          $expectedHash = "67A0C4B800BD860C93C04F38CAF8CBE4875F9C84700AC430EFC451F70E265434"
-          $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash
-          if ($actualHash -ne $expectedHash) { throw "OpenAL archive checksum mismatch" }
-
-          Expand-Archive -LiteralPath $archive -DestinationPath $extractDir
-          $openalRoot = Get-ChildItem $extractDir -Directory | Select-Object -First 1
-          if (-not $openalRoot) { throw "OpenAL archive has an unexpected layout" }
-          $openalRoot = $openalRoot.FullName
-          "OPENAL_ROOT=$openalRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
       - name: Configure and build
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME.Substring(1)
           $gxx = (Get-Command g++.exe -ErrorAction Stop).Source
-          $openalLibrary = Join-Path $env:OPENAL_ROOT "libs/Win64/libOpenAL32.dll.a"
-          if (-not (Test-Path $openalLibrary)) { throw "OpenAL import library was not installed" }
 
+          # Sound plays through miniaudio, compiled into TSRE5vc: no audio
+          # library to install or ship.
           cmake -S . -B build-release -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             "-DCMAKE_CXX_COMPILER=$gxx" `
             "-DTSRE5_VERSION=$version" `
             "-DVulkan_INCLUDE_DIR=$env:VULKAN_HEADERS/include" `
-            -DTSRE5_REQUIRE_VULKAN=ON `
-            "-DOPENAL_INCLUDE_DIR=$env:OPENAL_ROOT/include" `
-            "-DOPENAL_LIBRARY=$openalLibrary"
+            -DTSRE5_REQUIRE_VULKAN=ON
           if ($LASTEXITCODE -ne 0) { throw "TSRE5vc configuration failed" }
 
           cmake --build build-release --parallel
@@ -86,8 +64,6 @@ jobs:
           $packageDir = Join-Path $PWD "dist/package"
           $archive = Join-Path $PWD "dist/TSRE5vc-$version-windows-x64.zip"
           $windeployqt = (Get-Command windeployqt.exe -ErrorAction Stop).Source
-          $openal = Join-Path $env:OPENAL_ROOT "bin/Win64/soft_oal.dll"
-          if (-not (Test-Path $openal)) { throw "OpenAL DLL was not installed" }
 
           New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
           Copy-Item "build-release/TSRE5vc.exe" $packageDir
@@ -107,8 +83,6 @@ jobs:
             --dir $packageDir `
             (Join-Path $packageDir "TSRE5vc.exe")
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
-
-          Copy-Item $openal (Join-Path $packageDir "OpenAL32.dll")
 
           # Verify the package without allowing Qt or MinGW DLLs from the build PATH.
           $buildPath = $env:PATH
