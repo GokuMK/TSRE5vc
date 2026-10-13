@@ -297,7 +297,7 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
 
     // A weather derived from a plain env file.
     const Weather derived = clean.weatherOrDerived();
-    c.check(derived.preset == "rain" && near(derived.keyframes[0].visibility, 450, 1e-3), "derived-rain-and-fog");
+    c.check(derived.preset == "rain" && near(derived.keyframes[0].visibility, 4500, 1e-3), "derived-rain-and-fog");
     // Wind towards +x (east) comes from the west: 270 degrees.
     c.check(near(derived.keyframes[0].wind[WeatherLayer::Low].direction, 270, 1e-3)
             && near(derived.keyframes[0].wind[WeatherLayer::Low].speed, 3, 1e-6), "derived-wind");

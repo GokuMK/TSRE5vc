@@ -646,9 +646,14 @@ Weather File::weatherOrDerived(SlotWeather slot) const {
     }
     Weather w = WeatherPresets::weather(preset);
     w.source = QStringLiteral("derived");
+    // MSTS set its fog distances for a view of about 2 km: ten times that is
+    // the visibility (2000 a fair 20 km, rain's 450 4.5 km, near the presets'
+    // 40 and 6 km; read as it is, the env files' weather hid the far terrain
+    // in haze; user, 2026-10-14, from a comparison on POLAND).
+    constexpr float FogDistanceToVisibility = 10.0f;
     if (world && world->fogDistance && *world->fogDistance > 0.0f)
         for (WeatherKeyframe &k : w.keyframes)
-            k.visibility = *world->fogDistance;
+            k.visibility = *world->fogDistance * FogDistanceToVisibility;
     // MSTS wind layers give a direction vector (x east, z north) and a speed.
     if (world && world->wind && !world->wind->layers.isEmpty()) {
         const WindLayer &l = world->wind->layers.front();

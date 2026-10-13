@@ -91,12 +91,14 @@ textures), `build/haze/POLAND/grid-*.png`:
 ## The env file's visibility (2026-10-14)
 
 MSTS `world_fog_distance` values were set for MSTS's view of about 2 km;
-read as visibility they make the env files' weather very hazy. POLAND's
+read as visibility they made the env files' weather very hazy. POLAND's
 editor.env (2000) at the density 0.3, 7:30, 12:00 and 18:00
 (`build/haze/POLAND/envvis-comparison.png`): as read (2 km), the range
 faint blue-grey and the near town hazy; scaled ten times (20 km) and the
-fair cumulus preset's own (40 km) nearly the same, the range dark blue. Left
-as read for the user to choose.
+fair cumulus preset's own (40 km) nearly the same, the range dark blue. The
+user chose ten times (`EnvFile.cpp`): it keeps the files' differences (rain's
+450 gives 4.5 km, snow's 300 3 km, near the rain and snow presets' 6 and
+3 km).
 
 ## Later
 

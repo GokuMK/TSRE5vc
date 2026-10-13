@@ -131,7 +131,11 @@ written.
 Without a block, TSRE derives a weather from the env file: the TRK slot it
 fills (clear, rain or snow), its fog distance and its precipitation pick a
 preset (fair cumulus for clear, overcast with rain or snow otherwise). Every
-route gets clouds without editing.
+route gets clouds without editing. The visibility is ten times the fog
+distance: MSTS set it for a view of about 2 km (2000 gives a fair 20 km,
+rain's 450 4.5 km, near the presets' 40 and 6 km; read as it was, the haze
+of the physical sky, renderer task 32, hid the far terrain; user,
+2026-10-14).
 
 ### The block
 
