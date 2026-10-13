@@ -193,8 +193,9 @@ the camera, 1.3 stops brighter) with a smaller dead zone, watching for the
 exposure jumping as the camera turns; if it does, sky weighting against a
 well-lit reference.
 
-Tried (2026-10-13), paused by the user; on the local branch
-`wip/auto-exposure-cloudy-days`:
+Tried (2026-10-13) and kept for testing with the weather timelapse, the
+tuning paused (`feature/clouds`, commit "WIP: auto exposure for cloudy
+days"):
 
 - The daytime table from the user's CMK camera turned away from the sun
   (clear sky): +0.4 stops over the lake at 6:00 and 18:00, +1.0 to +1.4 from
