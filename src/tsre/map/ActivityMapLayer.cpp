@@ -156,8 +156,8 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
         collect(current->activityObjects, consists);
         collect(current->restrictedSpeedZone, zones);
         collect(current->activityFailedSignal, failedSignals);
-        for (ActivityEvent &event : current->event)
-            event.getMapFeatures(events, tileX, tileZ);
+        for (ActivityEvent *event : current->event)
+            event->getMapFeatures(events, tileX, tileZ);
         if (player != nullptr) {
             MapFeatures own;
             player->getMapFeatures(own, tileX, tileZ);

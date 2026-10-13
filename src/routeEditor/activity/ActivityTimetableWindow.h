@@ -25,7 +25,7 @@ class ActivityTimetableWindow : public QWidget {
 public:
     ActivityTimetableWindow(QWidget* parent);
     virtual ~ActivityTimetableWindow();
-    ActivityTimetableProperties *timetableProperties;
+    ActivityTimetableProperties *timetableProperties = NULL;
     
 public slots:
     void showTimetable(Activity *a);

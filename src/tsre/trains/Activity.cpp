@@ -27,6 +27,7 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
+#include <algorithm>
 
 Activity::Activity() {
 }
@@ -212,32 +213,32 @@ void Activity::load() {
                             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
 
                                 if (sh == ("eventcategoryaction")) {
-                                    event.push_back(ActivityEvent());
-                                    event.back().category = ActivityEvent::CategoryAction;
-                                    event.back().load(data);
-                                    if(event.back().id > nextEventUID)
-                                        nextEventUID = event.back().id;
-                                    event.back().setParentActivity(this);
+                                    event.push_back(new ActivityEvent());
+                                    event.back()->category = ActivityEvent::CategoryAction;
+                                    event.back()->load(data);
+                                    if(event.back()->id > nextEventUID)
+                                        nextEventUID = event.back()->id;
+                                    event.back()->setParentActivity(this);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
                                 if (sh == ("eventcategorylocation")) {
-                                    event.push_back(ActivityEvent());
-                                    event.back().category = ActivityEvent::CategoryLocation;
-                                    event.back().load(data);
-                                    if(event.back().id > nextEventUID)
-                                        nextEventUID = event.back().id;
-                                    event.back().setParentActivity(this);
+                                    event.push_back(new ActivityEvent());
+                                    event.back()->category = ActivityEvent::CategoryLocation;
+                                    event.back()->load(data);
+                                    if(event.back()->id > nextEventUID)
+                                        nextEventUID = event.back()->id;
+                                    event.back()->setParentActivity(this);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
                                 if (sh == ("eventcategorytime")) {
-                                    event.push_back(ActivityEvent());
-                                    event.back().category = ActivityEvent::CategoryTime;
-                                    event.back().load(data);
-                                    if(event.back().id > nextEventUID)
-                                        nextEventUID = event.back().id;
-                                    event.back().setParentActivity(this);
+                                    event.push_back(new ActivityEvent());
+                                    event.back()->category = ActivityEvent::CategoryTime;
+                                    event.back()->load(data);
+                                    if(event.back()->id > nextEventUID)
+                                        nextEventUID = event.back()->id;
+                                    event.back()->setParentActivity(this);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
@@ -391,7 +392,7 @@ void Activity::save() {
     if (event.size() > 0 ){
         out << "		Events (\n";
         for(int i = 0; i<event.size(); i++)
-            event[i].save(&out);
+            event[i]->save(&out);
         out << "		)\n";
     }
 
@@ -433,7 +434,7 @@ void Activity::save() {
         activityObjects[i]->setModified(false);
     }
     for(int i = 0; i < event.size(); i++){
-        event[i].setModified(false);
+        event[i]->setModified(false);
     }
     
     tpath = pathid;
@@ -604,7 +605,10 @@ void ActivityServiceDefinition::save(QTextStream* out) {
     
     if(uid != -1)
         *out << woff << "			UiD ( "<<uid<<" )\n";
-    for(int i = 0; i<efficiency.size(); i++){
+    // Only the complete stops of a file whose arrays differ in length.
+    const int stops = std::min({efficiency.size(), skipCount.size(),
+                                distanceDownPath.size(), platformStartId.size()});
+    for(int i = 0; i<stops; i++){
         *out << woff << "			Efficiency ( "<<efficiency[i]<<" )\n";
         *out << woff << "			SkipCount ( "<<skipCount[i]<<" )\n";
         *out << woff << "			DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
@@ -803,6 +807,8 @@ bool Activity::isNew(){
 }
 
 void Activity::initToPlay(){
+    if(playerServiceDefinition == NULL)
+        return;
     playerServiceDefinition->servicePointer = ActLib::GetServiceByName(playerServiceDefinition->name, ContentPath::parentDirectory(path));
     if(playerServiceDefinition->servicePointer != NULL)
         playerServiceDefinition->servicePointer->initToPlay();
@@ -814,7 +820,7 @@ bool Activity::isUnSaved(){
             return true;
     }
     for(int i = 0; i < event.size(); i++){
-        if(event[i].isModified())
+        if(event[i]->isModified())
             return true;
     }
     if(playerServiceDefinition != NULL)
@@ -913,7 +919,7 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
     }
 
     for (int i = 0; i < event.size(); i++) {
-        event[i].pushRenderItem(queue, playerT, playerRot, renderMode);
+        event[i]->pushRenderItem(queue, playerT, playerRot, renderMode);
     }
 
     if (playerServiceDefinition != NULL) {
@@ -1068,7 +1074,20 @@ void Activity::createNewPlayerService(QString sName, int sTime ){
     modified = true;
 }
 
+void Activity::clearPlayerService(){
+    playerServiceDefinition = NULL;
+    modified = true;
+}
+
+void Activity::clearTraffic(){
+    traffic = NULL;
+    modified = true;
+}
+
 void Activity::createNewTrafficService(Traffic *t){
+    if(t == NULL)
+        return;
+    modified = true;
     traffic = new TrafficDefinition();
     traffic->name = t->nameId;
     for(int i = 0; i < t->service.size(); i++){
@@ -1148,7 +1167,7 @@ QMap<int, QString> Activity::getEventIdNameList(){
     QMap<int, QString> data;
             
     for(int i = 0; i < event.size(); i++){
-        data[event[i].id] = event[i].name;
+        data[event[i]->id] = event[i]->name;
     }
     
     return data;
@@ -1180,25 +1199,38 @@ QMap<int, QString> ActivityServiceDefinition::getStationStopNameList(){
 
 void Activity::deleteObject(int id){
     for(int i = 0; i < activityObjects.size(); i++){
-        if(activityObjects[i]->id == id)
+        if(activityObjects[i]->id == id){
             activityObjects.remove(i);
+            modified = true;
+            return;
+        }
     }
-    modified = true;
 }
 
+// Failed signals and speed zones are numbered by their place in the list
+// (their selection ids are 3500 + and 3000 + it): numbered again after one
+// goes, so the ids stay unique.
 void Activity::deleteObjectFailedSignal(int id){
     for(int i = 0; i < activityFailedSignal.size(); i++){
-        if(activityFailedSignal[i]->id == id)
+        if(activityFailedSignal[i]->id == id){
             activityFailedSignal.remove(i);
+            break;
+        }
     }
+    for(int i = 0; i < activityFailedSignal.size(); i++)
+        activityFailedSignal[i]->id = i;
     modified = true;
 }
 
 void Activity::deleteObjectSpeedZone(int id){
     for(int i = 0; i < restrictedSpeedZone.size(); i++){
-        if(restrictedSpeedZone[i]->id == id)
+        if(restrictedSpeedZone[i]->id == id){
             restrictedSpeedZone.remove(i);
+            break;
+        }
     }
+    for(int i = 0; i < restrictedSpeedZone.size(); i++)
+        restrictedSpeedZone[i]->id = i;
     modified = true;
 }
 
@@ -1213,20 +1245,31 @@ void Activity::removeAllSpeedZones(){
 }
 
 void Activity::deleteCurrentEvent(){
-    for(int i = 0; i < event.size(); i++){
-        if(event[i].id == currentEventSelected->id){
-            event.remove(i);
-            modified = true;
-            return;
-        }
-    }
+    deleteEvent(currentEventSelected);
 }
-    
-void Activity::newEvent(ActivityEvent::EventCategory category){
-    event.push_back(ActivityEvent(++nextEventUID, category));
-    event.back().name = "New Event";
-    event.back().setParentActivity(this);
+
+void Activity::deleteEvent(ActivityEvent *e){
+    if(e == NULL)
+        return;
+    const int i = event.indexOf(e);
+    if(i < 0)
+        return;
+    if(currentEventSelected == e)
+        currentEventSelected = NULL;
+    event.remove(i);
+    delete e;
     modified = true;
+}
+
+// Event IDs are never reused while the activity is open: Open Rails'
+// overlay files name events by ID.
+ActivityEvent *Activity::newEvent(ActivityEvent::EventCategory category){
+    ActivityEvent *e = new ActivityEvent(++nextEventUID, category);
+    e->name = "New Event";
+    e->setParentActivity(this);
+    event.push_back(e);
+    modified = true;
+    return e;
 }
 
 QVector<ActivityServiceDefinition*> Activity::getServiceList(){

@@ -37,6 +37,9 @@ public:
     void save();
     bool isModified();
     ActivityTimetable* getTimetableByServiceName(QString nameTime);
+    // Takes the instance out of the traffic; the object stays, as
+    // activities may point at it.
+    void removeInstance(int index);
 private:
     bool modified = false;
     int serial = -1;

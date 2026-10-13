@@ -114,7 +114,9 @@ public:
     QVector<QPair<int, int>> platformNumPassengersWaiting;
     QVector<ActivityObject*> restrictedSpeedZone;
     QVector<ActivityObject*> activityFailedSignal;
-    QVector<ActivityEvent> event;
+    // Each event is its own object, so windows can hold on to one while
+    // events are added; deleteEvent is the only place that frees one.
+    QVector<ActivityEvent*> event;
     int serial = -1;
 
     void load();
@@ -147,6 +149,9 @@ public:
     bool newFailedSignalFromSelected();
     void createNewPlayerService(QString sName, int sTime);
     void createNewTrafficService(Traffic *t);
+    // No player service, no traffic: changes like the others.
+    void clearPlayerService();
+    void clearTraffic();
     void setFuelCoal(int val);
     void setFuelWater(int val);
     void setFuelDiesel(int val);
@@ -160,7 +165,9 @@ public:
     void removeAllFailedSignals();
     void removeAllSpeedZones();
     void deleteCurrentEvent();
-    void newEvent(ActivityEvent::EventCategory category);
+    // Removes and frees the event (which must not be shown any more).
+    void deleteEvent(ActivityEvent *e);
+    ActivityEvent *newEvent(ActivityEvent::EventCategory category);
     bool isServiceInUse(QString n);
     bool isTrafficInUse(QString n);
     bool isPlayerServiceInUse(QString n);

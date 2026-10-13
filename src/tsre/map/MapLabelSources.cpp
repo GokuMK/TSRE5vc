@@ -140,7 +140,8 @@ void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database) {
 void appendActivity(std::vector<MapLabel> &out, Activity *activity) {
     if (activity == nullptr)
         return;
-    for (const ActivityEvent &event : activity->event) {
+    for (const ActivityEvent *e : activity->event) {
+        const ActivityEvent &event = *e;
         if (event.category != ActivityEvent::CategoryLocation || event.location == nullptr || event.name.isEmpty())
             continue;
         // tile x, tile z, x, z (database convention), radius.

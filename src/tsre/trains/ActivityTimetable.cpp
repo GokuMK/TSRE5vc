@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <QDebug>
 #include <QTextStream>
+#include <algorithm>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
@@ -153,7 +154,10 @@ void ActivityTimetable::save(QTextStream* out, QString off) {
     else
         *out << off << "Service_Definition ( "<< ParserX::AddComIfReq(name) << " "<< time <<"\n";
 
-    for(int i = 0; i<arrivalTime.size(); i++){
+    // Only the complete stops of a file whose arrays differ in length.
+    const int stops = std::min({arrivalTime.size(), departTime.size(), skipCount.size(),
+                                distanceDownPath.size(), platformStartID.size()});
+    for(int i = 0; i<stops; i++){
         *out << off << "	ArrivalTime ( "<<arrivalTime[i]<<" )\n";
         *out << off << "	DepartTime ( "<<departTime[i]<<" )\n";
         *out << off << "	SkipCount ( "<<skipCount[i]<<" )\n";

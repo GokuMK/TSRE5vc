@@ -127,7 +127,8 @@ ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(
     
     vlist->setContentsMargins(1,1,1,1);
     this->setLayout(vbox);
-    
+    // No service shown yet.
+    setEnabled(false);
 }
 
 ActivityServiceProperties::~ActivityServiceProperties() {
@@ -140,6 +141,20 @@ void ActivityServiceProperties::setPaths(QVector<Path*>& path){
 
 void ActivityServiceProperties::showService(Service *s){
     service = s;
+    if(s == NULL){
+        cConFiles.clear();
+        cPath.clear();
+        stationList.clear();
+        lUsedBy.clear();
+        eFileName.clear();
+        eDisplayName.clear();
+        ePlayerPerformance.clear();
+        eStartSpeed.clear();
+        eEndSpeed.clear();
+        setEnabled(false);
+        return;
+    }
+    setEnabled(true);
     cConFiles.clear();
     ConLib::loadSimpleList(Game::root);
     cConFiles.addItem(
@@ -178,7 +193,9 @@ void ActivityServiceProperties::showService(Service *s){
 }
 
 void ActivityServiceProperties::cPathEnabled(int val){
-    if(cPath.currentIndex() <= 0){
+    if(service == NULL)
+        return;
+    if(cPath.currentIndex() <= 0 || cPath.currentIndex() > paths.size()){
         service->setNewPath("");
         setStationList();
         return;
@@ -221,7 +238,7 @@ void ActivityServiceProperties::cConFilesEnabled(int val){
     if(service == NULL)
         return;
     if(cConFiles.currentIndex() <= 0){
-        service->trainConfig = "";
+        service->setTrainConfig("");
         return;
     }
     service->setTrainConfig(cConFiles.currentData().toString().section(".", 0, -2));
@@ -243,7 +260,7 @@ void ActivityServiceProperties::setStationList(){
     stationList.clear();
     QStringList list;
     QList<QTreeWidgetItem *> items;
-    if(cPath.currentIndex() <= 0){
+    if(service == NULL || cPath.currentIndex() <= 0 || cPath.currentIndex() > paths.size()){
         return;
     }
     Path *p = paths[cPath.currentIndex()-1];
@@ -284,6 +301,8 @@ void ActivityServiceProperties::setStationList(){
 
 void ActivityServiceProperties::setUsedByList(){
     lUsedBy.clear();
+    if(service == NULL)
+        return;
     QStringList list;
     QList<QTreeWidgetItem *> items;
     
@@ -299,7 +318,7 @@ void ActivityServiceProperties::setUsedByList(){
 }
 
 void ActivityServiceProperties::stationListSelected(QTreeWidgetItem* item, int column){
-    if(service == NULL)
+    if(service == NULL || item == NULL)
         return;
     if(item->checkState(0) == Qt::Checked){
         qDebug() << "item->checkState(0) == Qt::Checked";

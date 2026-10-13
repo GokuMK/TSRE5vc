@@ -54,6 +54,18 @@ public:
     static void RemovePath(Path *path);
     // The services and activities of the path's route that name it.
     static QStringList PathUsers(Path *path);
+    // Take a deleted service or traffic out of the library; the objects
+    // stay, as activities may still point at them.
+    static void RemoveService(Service *service);
+    static void RemoveTraffic(Traffic *traffic);
+    // The activities and traffic of its route that name the service; the
+    // activities that name the traffic.
+    static QStringList ServiceUsers(Service *service);
+    static QStringList TrafficUsers(Traffic *traffic);
+    // A service or traffic file of the route by this name (without the
+    // extension, in any case) is loaded or on disk.
+    static bool ServiceExists(QString nameId, QString routePath = {});
+    static bool TrafficExists(QString nameId, QString routePath = {});
     static int LoadAllAct(QString gameRoot, bool gui = false);
     static void GetUnsavedInfo(QVector<QString> &items);
     static void UpdateServiceChanges(QString serviceNameId, QString routePath = {});

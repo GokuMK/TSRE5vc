@@ -43,14 +43,17 @@ ActivityTimetableWindow::~ActivityTimetableWindow() {
 void ActivityTimetableWindow::showTimetable(Activity *a){
     if(this->isHidden())
         return;
+    if(a != activity)
+        timetableProperties->showTimetable(NULL);
+    activity = a;
+    list.clear();
+    services.clear();
     if(a == NULL)
         return;
-    activity = a;
     services = a->getServiceList();
     //serviceProperties->setPaths(route->path);
     //activity = r->s
     
-    list.clear();
     //QList<QTreeWidgetItem *> items;
     //QStringList list;
     for(int i = 0; i < services.size(); i++ ){
@@ -64,8 +67,13 @@ void ActivityTimetableWindow::showTimetable(Activity *a){
     }
 }
 
+// The activity's instances are looked up again: they may have changed
+// since the list was made.
 void ActivityTimetableWindow::listSelected(QListWidgetItem *item){
-    //if(route == NULL)
-    //    return;
+    if(activity == NULL || item == NULL)
+        return;
+    services = activity->getServiceList();
+    if(item->type() < 0 || item->type() >= services.size())
+        return;
     timetableProperties->showTimetable(services[item->type()]);
 }

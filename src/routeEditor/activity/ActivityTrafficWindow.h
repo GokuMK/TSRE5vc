@@ -30,6 +30,7 @@ public slots:
     void lTrafficSelected(QTreeWidgetItem * item, int column);
     void showTraffic(Route* r);
     void bNewTrafficSelected();
+    void bDeleteTrafficSelected();
     
 signals:
     void reloadTrafficsList();

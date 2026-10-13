@@ -12,6 +12,7 @@
 #include <tsre/tests/TerrainFileTestSuite.h>
 #include <tsre/tests/QuadTreeRecoveryTestSuite.h>
 #include <tsre/tests/ElevationUiTestSuite.h>
+#include <tsre/tests/ActivityUiTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
@@ -4139,6 +4140,7 @@ QStringList TsreTests::listSuites() {
         "settings",
         "osm-data",
         "elevation-ui",
+        "activity-ui",
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
@@ -4289,6 +4291,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "elevation-ui")
         return runElevationUiSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "activity-ui")
+        return runActivityUiSuite(opts.verbose);
 
     if (suite == "new-route")
         return runNewRouteSuite(opts.verbose);

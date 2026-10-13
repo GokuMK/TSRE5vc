@@ -219,10 +219,10 @@ int TsreTests::runMapViewSuite(bool verbose) {
 
         // Sources: a location event and a marker into the view's tile convention.
         Activity activity;
-        ActivityEvent event(1, ActivityEvent::CategoryLocation);
-        event.name = "Pick up";
+        ActivityEvent *event = new ActivityEvent(1, ActivityEvent::CategoryLocation);
+        event->name = "Pick up";
         const float location[5] = {-6120, 15094, 100, 200, 25};
-        std::copy(location, location + 5, event.location);
+        std::copy(location, location + 5, event->location);
         activity.event.push_back(event);
         Coords markers;
         Coords::Marker marker;

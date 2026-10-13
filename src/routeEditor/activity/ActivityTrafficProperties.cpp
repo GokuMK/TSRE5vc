@@ -9,6 +9,7 @@
  */
 
 #include "ActivityTrafficProperties.h"
+#include <QDialogButtonBox>
 #include <QTime>
 #include <tsre/Game.h>
 #include <tsre/trains/Service.h>
@@ -113,7 +114,8 @@ ActivityTrafficProperties::ActivityTrafficProperties(QWidget* parent) : QWidget(
     
     QObject::connect(&lServcies, SIGNAL(itemClicked(QTreeWidgetItem*, int)),
                       this, SLOT(lServciesSelected(QTreeWidgetItem*, int)));
-
+    // No traffic shown yet.
+    setEnabled(false);
 }
 
 ActivityTrafficProperties::~ActivityTrafficProperties() {
@@ -121,10 +123,18 @@ ActivityTrafficProperties::~ActivityTrafficProperties() {
 
 void ActivityTrafficProperties::showTraffic(Traffic* t){
     traffic = t;
+    lServcies.clear();
+    if(t == NULL){
+        eFileName.clear();
+        eDisplayName.clear();
+        cServiceList.clear();
+        setEnabled(false);
+        return;
+    }
+    setEnabled(true);
     eFileName.setText(t->name);
     eDisplayName.setText(t->nameId);
     
-    lServcies.clear();
     QList<QTreeWidgetItem *> items;
     QStringList list;
     for(int i = 0; i < traffic->service.size(); i++ ){
@@ -141,12 +151,28 @@ void ActivityTrafficProperties::showTraffic(Traffic* t){
     lServcies.insertTopLevelItems(0, items);
 }
 
-void ActivityTrafficProperties::lServciesSelected(QTreeWidgetItem* item, int column){
+ActivityTimetable *ActivityTrafficProperties::selectedInstance(){
     if(traffic == NULL)
+        return NULL;
+    QTreeWidgetItem *item = lServcies.currentItem();
+    if(item == NULL || item->type() < 0 || item->type() >= traffic->service.size())
+        return NULL;
+    return traffic->service[item->type()];
+}
+
+// Shows the instance: the fields are filled with their signals blocked, as
+// setting the start time would otherwise set the instance's time again,
+// which reloads its timetable from the service.
+void ActivityTrafficProperties::lServciesSelected(QTreeWidgetItem* item, int column){
+    if(traffic == NULL || item == NULL)
+        return;
+    if(item->type() < 0 || item->type() >= traffic->service.size())
         return;
     ActivityTimetable* s = traffic->service[item->type()];
     if(s == NULL)
         return;
+    QSignalBlocker blockService(cServiceList);
+    QSignalBlocker blockTime(eTime);
     
     cServiceList.clear();
     cServiceList.addItem(
@@ -168,10 +194,7 @@ void ActivityTrafficProperties::lServciesSelected(QTreeWidgetItem* item, int col
 }
 
 void ActivityTrafficProperties::bCloneOutcomeSelected(){
-    if(traffic == NULL)
-        return;
-    
-    ActivityTimetable* s = traffic->service[lServcies.currentItem()->type()];
+    ActivityTimetable* s = selectedInstance();
     if(s == NULL)
         return;
     
@@ -188,12 +211,18 @@ void ActivityTrafficProperties::bCloneOutcomeSelected(){
     vlist->addRow(
         //% "Duration:"
         qtTrId("route.editor.activity.traffic.properties.label.duration"),&mins);
+    // Closing the dialog clones nothing.
+    QDialogButtonBox buttons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    QObject::connect(&buttons, SIGNAL(accepted()), &dialog, SLOT(accept()));
+    QObject::connect(&buttons, SIGNAL(rejected()), &dialog, SLOT(reject()));
+    vlist->addRow(&buttons);
     dialog.setLayout(vlist);
-    dialog.exec();
+    if(dialog.exec() != QDialog::Accepted)
+        return;
     
     bool ok = false;
     int count = number.text().toInt(&ok);
-    if(!ok)
+    if(!ok || count < 0 || count > 1000)
         return;
     int secs = mins.text().toInt(&ok)*60;
     if(!ok)
@@ -219,9 +248,9 @@ void ActivityTrafficProperties::bAddServiceSelected(){
 }
 
 void ActivityTrafficProperties::bRemoveServiceSelected(){
-    
-    traffic->service.remove(lServcies.currentItem()->type());
-    
+    if(selectedInstance() == NULL)
+        return;
+    traffic->removeInstance(lServcies.currentItem()->type());
     showTraffic(traffic);
 }
 
@@ -230,10 +259,10 @@ void ActivityTrafficProperties::serviceActoionListSelected(QString val){
     if(cServiceList.currentIndex() > 0)
         index = cServiceList.currentData().toString();
     
-    ActivityTimetable* s = traffic->service[lServcies.currentItem()->type()];
+    ActivityTimetable* s = selectedInstance();
     if(s == NULL)
         return;
-    
+
     if(index == "")
         s->clear();
     else
@@ -243,9 +272,7 @@ void ActivityTrafficProperties::serviceActoionListSelected(QString val){
 }
 
 void ActivityTrafficProperties::eTimeSelected(QTime val){
-    if(traffic == NULL)
-        return;
-    ActivityTimetable* s = traffic->service[lServcies.currentItem()->type()];
+    ActivityTimetable* s = selectedInstance();
     if(s == NULL)
         return;
     s->setTime(val.msecsSinceStartOfDay()/1000);

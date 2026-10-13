@@ -43,11 +43,9 @@ private:
     
     
     
-    Activity *activity;
-    
-    QComboBox *cActionTypes;
-    QComboBox *cOutcomeTypes;
-    QComboBox *cEventNames;
+    Activity *activity = NULL;
+    // Lists the activity's events again and selects the one shown.
+    void selectShownEvent();
 };
 
 #endif	/* ACTIVITYEVENTWINDOW_H */

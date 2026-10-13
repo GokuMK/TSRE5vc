@@ -23,6 +23,7 @@ public:
     ActivityServiceProperties(QWidget* parent);
     virtual ~ActivityServiceProperties();
     
+    // The service, or nothing: then the panel is empty and disabled.
     void showService(Service *s);
     void setPaths(QVector<Path*> &path);
 public slots:
@@ -46,7 +47,7 @@ private:
     QTreeWidget stationList;
     QTreeWidget lUsedBy;
     
-    Service *service;
+    Service *service = NULL;
     QVector<Path*> paths;
     
     void setStationList();

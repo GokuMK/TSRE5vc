@@ -21,6 +21,8 @@ class ActivityTimetableProperties : public QWidget {
 public:
     ActivityTimetableProperties(QWidget* parent);
     virtual ~ActivityTimetableProperties();
+    // The instance's timetable, or nothing: then the panel is empty and
+    // disabled.
     void showTimetable(ActivityServiceDefinition* s);
     
 public slots:

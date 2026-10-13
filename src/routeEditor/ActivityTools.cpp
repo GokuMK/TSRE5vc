@@ -27,6 +27,7 @@
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/gui/UnsavedDialog.h>
 #include <tsre/world/Trk.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <QDialog>
 #include <QEvent>
 #include <QDialogButtonBox>
@@ -514,7 +515,7 @@ void ActivityTools::actEventsOpenEnabled(){
     if(actShow.currentIndex() < 0)
         return;
     emit showActivityEventEditor();
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     emit showEvents(a);
@@ -529,7 +530,7 @@ void ActivityTools::actTimetableOpenEnabled(){
     if(actShow.currentIndex() < 0)
         return;
     emit showActivityTimetableEditor();
-    emit showTimetable(ActLib::Act[actShow.currentData().toInt()]);
+    emit showTimetable(currentActivity());
 }
 
 void ActivityTools::actTrafficOpenEnabled(){
@@ -571,10 +572,29 @@ void ActivityTools::actPathsRefreshListSelected(){
 
 void ActivityTools::reloadActivityList(){
     actShow.clear();
+    settingsWidget.setEnabled(false);
+    if(route == NULL)
+        return;
     foreach(int id, route->activityId){
-        actShow.addItem(ActLib::Act[id]->header->name, QVariant(id));
+        const Activity *a = ActLib::Act.value(id);
+        if(a == NULL || a->header == NULL)
+            continue;
+        actShow.addItem(a->header->name, QVariant(id));
     }
     actShow.setCurrentIndex(-1);
+}
+
+Activity *ActivityTools::currentActivity(){
+    if(actShow.currentIndex() < 0)
+        return NULL;
+    bool ok = false;
+    const int id = actShow.currentData().toInt(&ok);
+    if(!ok)
+        return NULL;
+    Activity *a = ActLib::Act.value(id);
+    if(a == NULL || a->loaded != 1 || a->header == NULL)
+        return NULL;
+    return a;
 }
 
 void ActivityTools::reloadServicesList(){
@@ -623,23 +643,19 @@ void ActivityTools::conFilesShowEnabled(QString val){
     if(actShow.currentIndex() < 0)
         return;
     QString file = conFilesShow.currentData().toString();
-    qDebug() << file;
-    int id = actShow.currentData().toInt();
-    if(ActLib::Act[id] == NULL)
+    Activity *a = currentActivity();
+    if(a == NULL)
         return;
-    ActLib::Act[id]->editorConListSelected = file;
+    a->editorConListSelected = file;
 }
 
 void ActivityTools::actPlayEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int id = actShow.currentData().toInt();
-    qDebug() << "id" << id;
-    Activity *a = ActLib::Act[id];
-    
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
-    
+
     a->initToPlay();
 
 }
@@ -670,14 +686,10 @@ void ActivityTools::actSaveEnabled(){
 }
 
 void ActivityTools::activitySelected(QString n){
-    if(actShow.currentIndex() < 0)
-        return;
-    int id = actShow.currentData().toInt();
-    qDebug() << "id" << id;
-    Consist *e;
-    Activity *a = ActLib::Act[id];
-    
-    if(ActLib::Act[id] == NULL)
+    Activity *a = currentActivity();
+    // The settings edit the activity chosen: nothing without one.
+    settingsWidget.setEnabled(a != NULL);
+    if(a == NULL)
         return;
 
     eFileName.setText(a->nameid);
@@ -753,7 +765,7 @@ void ActivityTools::activitySelected(QString n){
     if(route != NULL){
         //if(!ActLib::act[id]->isInitActivityObjects)
         //    ActLib::act[id]->initActivityObjects();
-        route->activitySelected(ActLib::Act[id]);
+        route->activitySelected(a);
     }
     
     eBriefing.blockSignals(true);
@@ -769,31 +781,33 @@ void ActivityTools::activitySelected(QString n){
 }
 
 void ActivityTools::reloadActivityObjectLists(){
-    if(actShow.currentIndex() < 0)
+    Activity *a = currentActivity();
+    if(a == NULL){
+        consists.clear();
+        speedZones.clear();
+        failedSignals.clear();
         return;
-    int id = actShow.currentData().toInt();
-    if(ActLib::Act[id] == NULL)
-        return;
+    }
     
     Consist *e;
     consists.clear();
-    for (int i = 0; i < ActLib::Act[id]->activityObjects.size(); i++){
-        e = ActLib::Act[id]->activityObjects[i]->con;
+    for (int i = 0; i < a->activityObjects.size(); i++){
+        e = a->activityObjects[i]->con;
         if(e == NULL) continue;
         consists.addItem(e->showName, QVariant(i));
     }
         
     speedZones.clear();
     ActivityObject *rz;
-    for (int i = 0; i < ActLib::Act[id]->restrictedSpeedZone.size(); i++){
-        rz = ActLib::Act[id]->restrictedSpeedZone[i];
+    for (int i = 0; i < a->restrictedSpeedZone.size(); i++){
+        rz = a->restrictedSpeedZone[i];
         if(rz == NULL) continue;
         speedZones.addItem(rz->getSpeedZoneName(), QVariant(i));
     }
 
     failedSignals.clear();
-    for (int i = 0; i < ActLib::Act[id]->activityFailedSignal.size(); i++){
-        rz = ActLib::Act[id]->activityFailedSignal[i];
+    for (int i = 0; i < a->activityFailedSignal.size(); i++){
+        rz = a->activityFailedSignal[i];
         if(rz == NULL) continue;
         //% "Signal ID: %1"
         failedSignals.addItem(qtTrId("activity.failed.signal.id")
@@ -1025,14 +1039,13 @@ void ActivityTools::cServiceEnabled(QString val){
     if(actShow.currentIndex() < 0)
         return;
     int id = cService.currentData().toInt();
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
-    
+
     if(id == -1){
-        a->playerServiceDefinition = NULL;
-    } else {
+        a->clearPlayerService();
+    } else if(ActLib::Services.value(id) != NULL) {
         int startTime = a->header->startTime[0]*60*60 + a->header->startTime[1]*60;
         a->createNewPlayerService(ActLib::Services[id]->nameId, startTime);
     }
@@ -1042,22 +1055,26 @@ void ActivityTools::cTrafficEnabled(QString val){
     if(actShow.currentIndex() < 0)
         return;
     int id = cTraffic.currentData().toInt();
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
-    
+    Activity *a = currentActivity();
+    if(a == NULL)
+        return;
+
     if(id == -1){
-        a->traffic = NULL;
-    } else {
+        a->clearTraffic();
+    } else if(ActLib::Traffics.value(id) != NULL) {
         a->createNewTrafficService(ActLib::Traffics[id]);
     }
 }
 
 void ActivityTools::newActButtonEnabled(){
+    if(route == NULL || route->getTrk() == NULL)
+        return;
     QString pathid = Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES/";
     //ActLib::Act[ActLib::jestact] = new Activity(pathid, "file.act", true);
     for(int i = 0; i < 1000; i++){
         QString name = QString("file")+QString::number(i)+QString(".act");
-        if(ActLib::GetAct(pathid, name) > 0)
+        // A name in use, loaded (id 0 included) or only on disk.
+        if(ActLib::GetAct(pathid, name) >= 0 || QFile::exists(ContentPath::join(pathid, name)))
             continue;
         int id = ActLib::AddAct(pathid, name, true);
         ActLib::Act[id]->init(route->getTrk()->idName, "New Activity"+QString::number(i));
@@ -1074,8 +1091,7 @@ void ActivityTools::newActButtonEnabled(){
 void ActivityTools::actConsistDeleteEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     int i = consists.currentIndex();
@@ -1092,12 +1108,11 @@ void ActivityTools::actConsistDeleteEnabled(){
 void ActivityTools::actConsistJumpEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     int i = consists.currentIndex();
-    if(i >= a->activityObjects.size())
+    if(i < 0 || i >= a->activityObjects.size())
         return;
     Consist *e = a->activityObjects[i]->con;
     if(e == NULL) 
@@ -1121,12 +1136,11 @@ void ActivityTools::actConsistJumpEnabled(){
 void ActivityTools::actFailedSignalsJumpEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     int i = failedSignals.currentIndex();
-    if(i >= a->activityFailedSignal.size())
+    if(i < 0 || i >= a->activityFailedSignal.size())
         return;
     float posTW[5];
     bool ok = a->activityFailedSignal[i]->getElementPosition(0, posTW);
@@ -1145,8 +1159,7 @@ void ActivityTools::actFailedSignalsJumpEnabled(){
 void ActivityTools::actFailedSignalNewToolEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     bool ok = a->newFailedSignalFromSelected();
@@ -1167,8 +1180,7 @@ void ActivityTools::actFailedSignalNewToolEnabled(){
 void ActivityTools::actFailedSignalDeleteEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
 
@@ -1186,8 +1198,7 @@ void ActivityTools::actFailedSignalDeleteEnabled(){
 void ActivityTools::actFailedSignalDeleteAllEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     
@@ -1199,12 +1210,11 @@ void ActivityTools::actFailedSignalDeleteAllEnabled(){
 void ActivityTools::actReducedSpeedZonesEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     int i = speedZones.currentIndex();
-    if(i >= a->restrictedSpeedZone.size())
+    if(i < 0 || i >= a->restrictedSpeedZone.size())
         return;
     float posTW[5];
     bool ok = a->restrictedSpeedZone[i]->getElementPosition(0, posTW);
@@ -1231,8 +1241,7 @@ void ActivityTools::actZoneNewToolEnabled(bool val){
 void ActivityTools::actZoneDeleteEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     
@@ -1250,8 +1259,7 @@ void ActivityTools::actZoneDeleteEnabled(){
 void ActivityTools::actZoneDeleteAllEnabled(){
     if(actShow.currentIndex() < 0)
         return;
-    int aid = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[aid];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     
@@ -1274,60 +1282,62 @@ void ActivityTools::actZoneDeleteAllEnabled(){
 }*/
 
 void ActivityTools::eFileNameEnabled(QString val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     a->setFileName(val);
 }
 
 void ActivityTools::eDisplayNameEnabled(QString val){
-    int id = actShow.currentData().toInt();
-    Activity *a = ActLib::Act[id];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
+    const int id = actShow.currentData().toInt();
     a->setDisplayName(val);
     
+    // The list shows the new name; the same activity stays chosen.
     reloadActivityList();
     actShow.setCurrentIndex(actShow.findData(id));
+    settingsWidget.setEnabled(currentActivity() != NULL);
 }
 
 void ActivityTools::cDifficultyEnabled(int val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     a->setDifficulty(val);
 }
 
 void ActivityTools::eDurationEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     a->setDuration(eDuration.time().hour(),  eDuration.time().minute());
 }
 
 void ActivityTools::eStartTimeEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     a->setStartTime(eStartTime.time().hour(), eStartTime.time().minute(), eStartTime.time().second());
 }
 
 void ActivityTools::cSeasonEnabled(int val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     a->setSeason(val);
 }
 
 void ActivityTools::cWeatherEnabled(int val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     a->setWeather(val);
 }
 
 void ActivityTools::cHornAtCrossingsEnabled(int val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     if(val == Qt::Checked)
@@ -1337,7 +1347,7 @@ void ActivityTools::cHornAtCrossingsEnabled(int val){
 }
 
 void ActivityTools::eFuelCoalEnabled(QString val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     bool ok = false;
@@ -1349,7 +1359,7 @@ void ActivityTools::eFuelCoalEnabled(QString val){
 }
 
 void ActivityTools::sFuelCoalEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     eFuelCoal->setText(QString::number(sFuelCoal.value()));
@@ -1357,7 +1367,7 @@ void ActivityTools::sFuelCoalEnabled(){
 }
 
 void ActivityTools::eFuelDieselEnabled(QString val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     bool ok = false;
@@ -1369,7 +1379,7 @@ void ActivityTools::eFuelDieselEnabled(QString val){
 }
 
 void ActivityTools::sFuelDieselEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     eFuelDiesel->setText(QString::number(sFuelDiesel.value()));
@@ -1377,7 +1387,7 @@ void ActivityTools::sFuelDieselEnabled(){
 }
 
 void ActivityTools::eFuelWaterEnabled(QString val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     bool ok = false;
@@ -1389,7 +1399,7 @@ void ActivityTools::eFuelWaterEnabled(QString val){
 }
 
 void ActivityTools::sFuelWaterEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     eFuelWater->setText(QString::number(sFuelWater.value()));
@@ -1397,7 +1407,7 @@ void ActivityTools::sFuelWaterEnabled(){
 }
 
 void ActivityTools::eHazardAnimalEnabled(QString val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     bool ok = false;
@@ -1409,7 +1419,7 @@ void ActivityTools::eHazardAnimalEnabled(QString val){
 }
 
 void ActivityTools::sHazardAnimalEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     eHazardAnimal->setText(QString::number(sHazardAnimal.value()));
@@ -1417,7 +1427,7 @@ void ActivityTools::sHazardAnimalEnabled(){
 }
 
 void ActivityTools::eHazardPeopleEnabled(QString val){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     bool ok = false;
@@ -1429,7 +1439,7 @@ void ActivityTools::eHazardPeopleEnabled(QString val){
 }
 
 void ActivityTools::sHazardPeopleEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     eHazardPeople->setText(QString::number(sHazardPeople.value()));
@@ -1437,7 +1447,7 @@ void ActivityTools::sHazardPeopleEnabled(){
 }
 
 void ActivityTools::eDescriptionEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     QString txt = eDescription.toPlainText();
@@ -1446,7 +1456,7 @@ void ActivityTools::eDescriptionEnabled(){
 }
 
 void ActivityTools::eBriefingEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     QString txt = eBriefing.toPlainText();
@@ -1455,7 +1465,7 @@ void ActivityTools::eBriefingEnabled(){
 }
 
 void ActivityTools::descriptionOpenEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     TextEditDialog dialog;
@@ -1474,7 +1484,7 @@ void ActivityTools::descriptionOpenEnabled(){
 }
 
 void ActivityTools::briefingOpenEnabled(){
-    Activity *a = ActLib::Act[actShow.currentData().toInt()];
+    Activity *a = currentActivity();
     if(a == NULL)
         return;
     TextEditDialog dialog;

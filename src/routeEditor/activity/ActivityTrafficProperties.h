@@ -16,11 +16,14 @@
 
 class Traffic;
 
+class ActivityTimetable;
+
 class ActivityTrafficProperties : public QWidget {
     Q_OBJECT
 public:
     ActivityTrafficProperties(QWidget* parent);
     virtual ~ActivityTrafficProperties();
+    // The traffic, or nothing: then the panel is empty and disabled.
     void showTraffic(Traffic* t);
     
 public slots:
@@ -35,6 +38,8 @@ signals:
     
 private:
     Traffic *traffic = NULL;
+    // The instance of the selected row, or NULL.
+    ActivityTimetable *selectedInstance();
     
     QLineEdit eFileName;
     QLineEdit eDisplayName;

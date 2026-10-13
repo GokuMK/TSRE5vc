@@ -239,6 +239,80 @@ void ActLib::RemovePath(Path *path) {
             it.value() = NULL;
 }
 
+void ActLib::RemoveService(Service *service) {
+    for (auto it = Services.begin(); it != Services.end(); ++it)
+        if (it.value() == service)
+            it.value() = NULL;
+}
+
+void ActLib::RemoveTraffic(Traffic *traffic) {
+    for (auto it = Traffics.begin(); it != Traffics.end(); ++it)
+        if (it.value() == traffic)
+            it.value() = NULL;
+}
+
+QStringList ActLib::ServiceUsers(Service *service) {
+    QStringList users;
+    if (service == NULL)
+        return users;
+    for (Activity *activity : Act)
+        if (activity != NULL && activity->loaded == 1 && activity->routeHashid == service->routeHashid
+                && activity->isServiceInUse(service->nameId))
+            users << activity->name;
+    for (Traffic *traffic : Traffics) {
+        if (traffic == NULL || traffic->loaded != 1 || traffic->routeHashid != service->routeHashid)
+            continue;
+        for (ActivityTimetable *instance : traffic->service)
+            if (instance != NULL && instance->name.compare(service->nameId, Qt::CaseInsensitive) == 0) {
+                users << traffic->name;
+                break;
+            }
+    }
+    return users;
+}
+
+QStringList ActLib::TrafficUsers(Traffic *traffic) {
+    QStringList users;
+    if (traffic == NULL)
+        return users;
+    for (Activity *activity : Act)
+        if (activity != NULL && activity->loaded == 1 && activity->routeHashid == traffic->routeHashid
+                && activity->traffic != NULL && activity->traffic->name.compare(traffic->nameId, Qt::CaseInsensitive) == 0)
+            users << activity->name;
+    return users;
+}
+
+namespace {
+// A file of the folder by this name, in any case.
+bool fileInFolder(const QString &folder, const QString &name) {
+    QDir dir(folder);
+    for (const QString &entry : dir.entryList(QDir::Files))
+        if (entry.compare(name, Qt::CaseInsensitive) == 0)
+            return true;
+    return false;
+}
+}
+
+bool ActLib::ServiceExists(QString nameId, QString routePath) {
+    if (routePath.isEmpty())
+        routePath = Game::root + "/ROUTES/" + Game::route;
+    for (Service *service : Services)
+        if (service != NULL && service->routeHashid == routeKey(routePath)
+                && service->nameId.compare(nameId, Qt::CaseInsensitive) == 0)
+            return true;
+    return fileInFolder(routePath + "/SERVICES", nameId + ".srv");
+}
+
+bool ActLib::TrafficExists(QString nameId, QString routePath) {
+    if (routePath.isEmpty())
+        routePath = Game::root + "/ROUTES/" + Game::route;
+    for (Traffic *traffic : Traffics)
+        if (traffic != NULL && traffic->routeHashid == routeKey(routePath)
+                && traffic->nameId.compare(nameId, Qt::CaseInsensitive) == 0)
+            return true;
+    return fileInFolder(routePath + "/TRAFFIC", nameId + ".trf");
+}
+
 QStringList ActLib::PathUsers(Path *path) {
     QStringList users;
     if (path == NULL)

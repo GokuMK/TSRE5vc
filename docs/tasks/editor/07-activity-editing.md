@@ -1,6 +1,7 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: design (2026-10-13), all decisions taken (below); not started.
+Status: phase 1 done (2026-10-13, branch `feature/activity-editing`);
+phase 2 next. Design decisions taken (below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -15,6 +16,41 @@ Sources:
   reference only: TSRE reads the files with its own parsers (ParserX,
   `SimisTextReader`) and takes no Open Rails code.
 - The activity windows' code, read for crashes (2026-10-13, below).
+
+## Progress
+
+**Phase 1, windows that cannot crash (done 2026-10-13).** Every case of
+the crash table below is fixed:
+- Events are stable objects (`QVector<ActivityEvent*>`); `deleteEvent` is
+  the one place that frees one, after the properties panel lets go of it.
+  New selects and shows the event; Delete without a selection does nothing.
+- Every panel shows nothing and is disabled when it has no object
+  (`showEvent`, `showService`, `showTraffic`, `showTimetable` take NULL);
+  the activity settings are disabled until an activity is chosen. Every
+  handler checks its object, list item and indexes.
+- `ActivityTools::currentActivity()` replaces the 34 lookups of
+  `ActLib::Act[...]` that read entry 0 (or created an empty one) with no
+  activity chosen.
+- Selecting a traffic instance blocks the service and time fields'
+  signals: its timetable is no longer reset.
+- Service and traffic Delete work as the path's does (confirmation, users
+  listed, file removed, the library forgets the object); New refuses names
+  with `\ / : * ? " < > |` and names in use, in any case.
+- Speed zones and failed signals renumber after a delete; a delete removes
+  one item.
+- The timetable rows, its average speed and the savers of per-stop arrays
+  use only complete stops (a stop missing a field crashed the window and
+  the save).
+- Found by the suite: Jump To a loose consist not yet placed on the track
+  (`Consist::getWagonWorldPosition`); the traffic Clone dialog had no
+  buttons and cloned on close (now OK/Cancel); `ActivityTools` freed its
+  settings fields twice when destroyed (member order); wagon and siding
+  descriptions created empty track items for unknown ids.
+
+Suite `activity-ui` (see Verification). Left for phase 3, as they are
+about saving: creating a speed zone or failed signal, adding or cloning a
+traffic instance do not mark the file changed; the service and traffic
+windows list the library's objects of every loaded route.
 
 ## Objective
 
@@ -478,12 +514,23 @@ stands alone.
 
 ## Verification
 
-- **`activity-ui`** (offscreen, like `editor-tools`): each activity window
-  is opened with nothing selected, with an empty activity, and with a
-  loaded EUROPE1 activity; every button is pressed, every field edited,
-  every list item selected, in turn and after deleting what is shown. No
-  crash; showing an item changes nothing (the files written after only
-  looking are identical); the cases in the crash table each covered.
+- **`activity-ui`** (offscreen, done in phase 1): a route written for the
+  test (an activity with events of each kind, outcomes of each kind, a
+  wagon list, a loose consist, speed zones and failed signals; a player
+  timetable with a stop missing fields; services, a traffic pattern with
+  an instance of a missing service; consists of missing wagons) opened in
+  the Activity Tools panel and the four windows, connected as the editor
+  connects them. Checked: panels without an object disabled; buttons with
+  nothing chosen change nothing; selecting every row of every list changes
+  nothing (`ActLib::GetUnsavedInfo` empty) and keeps the traffic
+  timetables; event delete and new; service and traffic New refusing bad
+  and taken names, Delete removing the files. Then 12,000 random actions
+  (buttons, fields, combos, lists, tables, sliders) in four rounds,
+  dialogs cancelled and confirmed, without and with a track database,
+  with and without an activity chosen: no crash. The sequence is fixed;
+  `TSRE_ACTIVITY_UI_SEED` tries others, `TSRE_ACTIVITY_UI_TRACE` logs each
+  action. Play is left out (it places the train on terrain the test route
+  does not have).
 - **`activity-roundtrip`** (`--game-root`, `--route`, or all routes under a
   root): every ACT, SRV, TRF is read, written to a temporary folder and
   read back with `SimisTextReader` into block trees; the trees must match

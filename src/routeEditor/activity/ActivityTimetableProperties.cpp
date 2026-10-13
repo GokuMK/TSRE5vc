@@ -19,6 +19,7 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
+#include <algorithm>
 
 ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWidget(parent) {
     setMinimumWidth(450);
@@ -95,6 +96,8 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
     
     QObject::connect(&lTimetable, SIGNAL(cellChanged(int, int)),
                       this, SLOT(lTimetableSelected(int, int)));
+    // No timetable shown yet.
+    setEnabled(false);
 }
 
 ActivityTimetableProperties::~ActivityTimetableProperties() {
@@ -102,22 +105,39 @@ ActivityTimetableProperties::~ActivityTimetableProperties() {
 
 void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
     service = s;
-    ActivityTimetable *t = service->trafficDefinition;
-    if(t == NULL)
+    ActivityTimetable *t = service != NULL ? service->trafficDefinition : NULL;
+    if(t == NULL){
+        service = NULL;
+        QSignalBlocker blocker(lTimetable);
+        lTimetable.clearContents();
+        lTimetable.setRowCount(0);
+        eMainEng.clear();
+        eMaxSpeed.clear();
+        eAvgSpeed.clear();
+        setEnabled(false);
         return;
+    }
+    setEnabled(true);
 
     QTableWidgetItem *newItem;
     QTime time;
+    // Without the track database the stops show their item ids.
     TDB *tdb = Game::trackDB;
-    if(tdb == NULL)
-        return;
     
     lTimetable.blockSignals(true);
     lTimetable.clearContents();
     lTimetable.setRowCount(0);
     QString name = "";
-    for(int i = 0; i < t->platformStartID.size(); i++){
-        TRitem *trit = tdb->trackItems[t->platformStartID[i]];
+    // The stops' arrays may differ in length (a file missing a field, an
+    // instance changed to another service): rows only for complete stops.
+    const int stops = std::min({t->platformStartID.size(), t->arrivalTime.size(), t->departTime.size()});
+    for(int i = 0; i < stops; i++){
+        TRitem *trit = NULL;
+        if(tdb != NULL){
+            const auto found = tdb->trackItems.find(t->platformStartID[i]);
+            if(found != tdb->trackItems.end())
+                trit = found->second;
+        }
         if(trit != NULL){
             name = trit->stationName;
         } else {
@@ -132,7 +152,7 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
         time = QTime::fromMSecsSinceStartOfDay(t->departTime[i]*1000);
         newItem = new QTableWidgetItem(time.toString("HH:mm:ss"));
         lTimetable.setItem(i, 2, newItem);
-        newItem = new QTableWidgetItem(QString::number(s->efficiency[i]));
+        newItem = new QTableWidgetItem(i < s->efficiency.size() ? QString::number(s->efficiency[i]) : QString());
         lTimetable.setItem(i, 3, newItem);
     }
     lTimetable.blockSignals(false);
@@ -140,14 +160,16 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
     Service *srv = ActLib::GetServiceByName(service->name, service->routePath);
     if(srv == NULL)
         return;
+    if(srv->trainConfig.isEmpty())
+        return;
     Consist *con = ConLib::con[ConLib::addCon(Game::root+"/TRAINS/CONSISTS/", srv->trainConfig+".con")];
-    if(con == NULL)
+    if(con == NULL || con->engItems.isEmpty())
         return;
     eMainEng.setText(con->engItems[0].ename);
     eMaxSpeed.setText(QString::number((int)(con->maxVelocity[0]*3.6)) + " km/h");
     eTime.setTime(QTime::fromMSecsSinceStartOfDay((t->time*1000)));
-    if(t->platformStartID.size() > 1)
-        eAvgSpeed.setText(QString::number(3.6*(t->distanceDownPath[t->distanceDownPath.size()-1]/(t->arrivalTime[t->arrivalTime.size()-1]-t->time))) + " km/h");
+    if(stops > 1 && !t->distanceDownPath.isEmpty() && t->arrivalTime.last() > t->time)
+        eAvgSpeed.setText(QString::number(3.6*(t->distanceDownPath.last()/(t->arrivalTime.last()-t->time))) + " km/h");
     else
         eAvgSpeed.setText(
             //% "NONE"

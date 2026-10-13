@@ -794,7 +794,8 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
 bool Consist::getWagonWorldPosition(int id, float *posTW){
     if (loaded != 1) return false;
     
-    if(id >= engItems.size())
+    // A consist not yet placed on the track has no wagons there.
+    if(id < 0 || id >= engItems.size() || engItems[id].engPointer == NULL)
         return false;
     
     float *drawPosition = engItems[id].engPointer->getCurrentPositionOnTrack();

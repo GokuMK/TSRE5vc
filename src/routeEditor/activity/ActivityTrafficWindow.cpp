@@ -36,8 +36,8 @@ ActivityTrafficWindow::ActivityTrafficWindow(QWidget* parent) : QWidget(parent) 
     QPushButton *bDelete = new QPushButton(
         //% "Delete"
         qtTrId("route.editor.activity.traffic.window.button.b.delete"));
-    //QObject::connect(bDelete, SIGNAL(released()),
-    //                  this, SLOT(bDeleteTrafficSelected()));
+    QObject::connect(bDelete, SIGNAL(released()),
+                      this, SLOT(bDeleteTrafficSelected()));
     QStringList list;
     //% "Name:"
     list.append(qtTrId("activity.traffic.list.header.name"));
@@ -74,6 +74,11 @@ void ActivityTrafficWindow::showTraffic(Route* r){
     if(this->isHidden())
         return;
     route = r;
+    lTraffic.clear();
+    if(route == NULL){
+        trafficProperties->showTraffic(NULL);
+        return;
+    }
     Activity *activity = route->getCurrentActivity();
     //serviceProperties->setPaths(route->path);
     //activity = r->s
@@ -111,17 +116,73 @@ void ActivityTrafficWindow::showTraffic(Route* r){
 }
 
 void ActivityTrafficWindow::lTrafficSelected(QTreeWidgetItem *item, int column){
-    if(route == NULL)
+    if(route == NULL || item == NULL)
+        return;
+    if(item->type() < 0 || item->type() >= ActLib::jesttraffic)
         return;
     trafficProperties->showTraffic(ActLib::Traffics[item->type()]);
 }
 
 void ActivityTrafficWindow::bNewTrafficSelected(){
+    if(route == NULL)
+        return;
     EditFileNameDialog eWindow;
     eWindow.exec();
-    if(eWindow.isOk && eWindow.name.text().length() > 0){
-        ActLib::AddTraffic(Game::root + "/ROUTES/" + Game::route + "/TRAFFIC/", eWindow.name.text()+".trf", true);
+    const QString name = eWindow.name.text().trimmed();
+    if(!eWindow.isOk || name.isEmpty())
+        return;
+    if(name.contains(QRegularExpression("[\\\\/:*?\"<>|]"))){
+        QMessageBox::warning(this, windowTitle(),
+            //% "A file name cannot be empty or contain \\ / : * ? \" < > |."
+            qtTrId("route.editor.activity.traffic.window.name.invalid"));
+        return;
     }
+    if(ActLib::TrafficExists(name)){
+        QMessageBox::warning(this, windowTitle(),
+            //% "A traffic pattern named %1 exists already."
+            qtTrId("route.editor.activity.traffic.window.name.exists").arg(name));
+        return;
+    }
+    ActLib::AddTraffic(Game::root + "/ROUTES/" + Game::route + "/TRAFFIC/", name+".trf", true);
     showTraffic(route);
-    reloadTrafficsList();
+    emit reloadTrafficsList();
+}
+
+// As a path is deleted: the activities naming the traffic are listed in
+// the question; they keep its name.
+void ActivityTrafficWindow::bDeleteTrafficSelected(){
+    QTreeWidgetItem *item = lTraffic.currentItem();
+    if(route == NULL || item == NULL || item->type() < 0 || item->type() >= ActLib::jesttraffic)
+        return;
+    Traffic *traffic = ActLib::Traffics[item->type()];
+    if(traffic == NULL)
+        return;
+    //% "Delete Traffic"
+    const QString title = qtTrId("route.editor.activity.traffic.window.delete.title");
+    if(!Game::writeEnabled){
+        QMessageBox::warning(this, title,
+            //% "The route is read-only."
+            qtTrId("route.editor.activity.traffic.window.delete.read.only"));
+        return;
+    }
+    QString question =
+        //% "Delete the traffic pattern %1 and its file? This cannot be undone."
+        qtTrId("route.editor.activity.traffic.window.delete.question").arg(traffic->nameId);
+    const QStringList users = ActLib::TrafficUsers(traffic);
+    if(!users.isEmpty())
+        question += "\n\n" +
+            //% "These activities name it: %1"
+            qtTrId("route.editor.activity.traffic.window.delete.users").arg(users.join(", "));
+    if(QMessageBox::question(this, title, question) != QMessageBox::Yes)
+        return;
+    if(QFile::exists(traffic->pathid) && !QFile::remove(traffic->pathid)){
+        QMessageBox::warning(this, title,
+            //% "The file %1 could not be deleted."
+            qtTrId("route.editor.activity.traffic.window.delete.failed").arg(traffic->pathid));
+        return;
+    }
+    trafficProperties->showTraffic(NULL);
+    ActLib::RemoveTraffic(traffic);
+    showTraffic(route);
+    emit reloadTrafficsList();
 }

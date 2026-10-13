@@ -497,20 +497,40 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
             continue;
         w->hide();
     }
+    // No event shown yet.
+    setEnabled(false);
 }
 
 ActivityEventProperties::~ActivityEventProperties() {
 }
 
+// Shows the event, or nothing: then the panel is empty and disabled. The
+// fields are filled with their signals blocked where a signal would edit.
 void ActivityEventProperties::showEvent(ActivityEvent *e){
+    if(event != NULL && event != e)
+        event->unselect();
+    outcome = NULL;
     if(e == NULL){
         event = NULL;
+        actionWidget.hide();
+        locationWidget.hide();
+        timeWidget.hide();
+        cReversable.hide();
+        foreach(QWidget *w, outcomeProperties){
+            if(w != NULL)
+                w->hide();
+        }
+        outcomeList.clear();
+        wagonList.clear();
+        eName.clear();
+        eTriggeredText.clear();
+        eUntriggeredText.clear();
+        eNotes.clear();
+        setEnabled(false);
         return;
     }
-    
-    if(event != NULL)
-        event->unselect();
-    
+    setEnabled(true);
+
     event = e;
     event->select();
     
@@ -526,7 +546,10 @@ void ActivityEventProperties::showEvent(ActivityEvent *e){
     if(event->category == ActivityEvent::CategoryAction){
         actionWidget.show();
         cActionType.setCurrentIndex(cActionType.findData((int)event->eventType));
-        cReversable.setChecked(event->reversableEvent);
+        {
+            QSignalBlocker blocker(cReversable);
+            cReversable.setChecked(event->reversableEvent);
+        }
         cReversable.show();
         
         if(event->eventType == ActivityEvent::EventTypeReachSpeed){
@@ -661,6 +684,7 @@ void ActivityEventProperties::bRemoveOutcomeSelected(){
     int id = outcomeList.currentRow();
     if(id < 0)
         return;
+    outcome = NULL;
     event->removeOutcome(id);
     this->showEvent(event);
     id--;
@@ -670,7 +694,10 @@ void ActivityEventProperties::bRemoveOutcomeSelected(){
 }
 
 void ActivityEventProperties::outcomeListSelected(QListWidgetItem* item){
-    if(event == NULL)
+    outcome = NULL;
+    if(event == NULL || item == NULL)
+        return;
+    if(item->type() < 0 || item->type() >= event->outcomes.size())
         return;
     outcome = event->outcomes[item->type()];
     if(outcome == NULL)
@@ -702,8 +729,9 @@ void ActivityEventProperties::outcomeListSelected(QListWidgetItem* item){
     }
     
     if(outcome->category == ActivityEvent::Outcome::CategorySoundFile){
-        eSoundFileName.setText(outcome->value.toStringList()[0]);
-        cSoundType.setCurrentIndex(cSoundType.findData(outcome->value.toStringList()[1]));
+        const QStringList sound = outcome->value.toStringList();
+        eSoundFileName.setText(sound.value(0));
+        cSoundType.setCurrentIndex(cSoundType.findData(sound.value(1)));
     }
     
     if(outcome->category == ActivityEvent::Outcome::CategoryWeatherChange){
@@ -897,7 +925,7 @@ void ActivityEventProperties::eTimeSelected(QTime val){
 }
 
 void ActivityEventProperties::bJumpToEventLocationSelected(){
-    if(event == NULL)
+    if(event == NULL || event->location == NULL)
         return;
     if(coordinate == NULL)
         coordinate = new PreciseTileCoordinate();
@@ -955,7 +983,7 @@ void ActivityEventProperties::msg(QString text, QString val){
 }
 
 void ActivityEventProperties::bJumpToCarSelected(){
-    if(event == NULL)
+    if(event == NULL || wagonList.currentItem() == NULL)
         return;
     float position[5];
     bool ok = event->getWagonListItemPosition(wagonList.currentItem()->type(), position);
@@ -973,7 +1001,7 @@ void ActivityEventProperties::bJumpToCarSelected(){
 }
 
 void ActivityEventProperties::bRemoveCarSelected(){
-    if(event == NULL)
+    if(event == NULL || wagonList.currentItem() == NULL)
         return;
     event->removeWagonListItem(wagonList.currentItem()->type());
     
@@ -983,17 +1011,17 @@ void ActivityEventProperties::bRemoveCarSelected(){
 }
 
 void ActivityEventProperties::bDescCarSelected(){
-    if(event == NULL)
+    if(event == NULL || wagonList.currentItem() == NULL)
         return;
+    const int wagon = wagonList.currentItem()->type();
     EditFileNameDialog dialog;
     dialog.setWindowTitle(
         //% "Wagon Item Description."
         qtTrId("route.editor.activity.event.properties.title.wagon.item.description"));
-    qDebug() << wagonList.currentItem()->type();
-    dialog.name.setText(event->getWagonListItemDescription(wagonList.currentItem()->type()));
+    dialog.name.setText(event->getWagonListItemDescription(wagon));
     dialog.exec();
-    if(dialog.isOk)
-        event->setWagonListItemDescription(wagonList.currentItem()->type(), dialog.name.text());
+    if(dialog.isOk && event != NULL)
+        event->setWagonListItemDescription(wagon, dialog.name.text());
     
     int id = outcomeList.currentRow();
     showEvent(event);

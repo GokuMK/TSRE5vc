@@ -326,17 +326,22 @@ int ActivityEvent::getWagonListSize(){
 
 QString ActivityEvent::getWagonListDescription(int i){
     QString desc;
+    if(i < 0 || i >= wagonList.size())
+        return desc;
     if(wagonList[i].sidingItem > 1000000){
         desc += wagonList[i].description;
     } else if(Game::trackDB != NULL){
-        if(Game::trackDB->trackItems[wagonList[i].sidingItem] != NULL)
-            desc += "Siding: " + Game::trackDB->trackItems[wagonList[i].sidingItem]->platformName;
+        const auto found = Game::trackDB->trackItems.find(wagonList[i].sidingItem);
+        if(found != Game::trackDB->trackItems.end() && found->second != NULL)
+            desc += "Siding: " + found->second->platformName;
     }
         
     return desc;
 }
 
 QString ActivityEvent::getWagonListIdDescription(int i){
+    if(i < 0 || i >= wagonList.size())
+        return "";
     int consistId = wagonList[i].uid / 65536;
     int wagonId = wagonList[i].uid - consistId*65536;
     QString desc = QString::number(consistId) + "-" + QString::number(wagonId);
@@ -862,9 +867,10 @@ QString ActivityEvent::getSidingDescription(){
         return "";
     if(Game::trackDB == NULL)
         return "";
-    if(Game::trackDB->trackItems[sidingItem] == NULL)
+    const auto found = Game::trackDB->trackItems.find(sidingItem);
+    if(found == Game::trackDB->trackItems.end() || found->second == NULL)
         return "";
-    return Game::trackDB->trackItems[sidingItem]->platformName;
+    return found->second->platformName;
 }
 
 bool ActivityEvent::setSidingFromSelected(){

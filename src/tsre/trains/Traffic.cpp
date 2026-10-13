@@ -101,6 +101,13 @@ ActivityTimetable* Traffic::getTimetableByServiceName(QString nameTime){
     return NULL;
 }
 
+void Traffic::removeInstance(int index){
+    if(index < 0 || index >= service.size())
+        return;
+    service.remove(index);
+    modified = true;
+}
+
 bool Traffic::isModified(){
     for(int i = 0; i < service.size(); i++){
         if(service[i]->isModified())

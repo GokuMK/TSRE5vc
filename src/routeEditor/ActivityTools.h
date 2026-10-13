@@ -125,6 +125,9 @@ private:
     QComboBox conFilesShow;
     QMap<QString, QPushButton*> buttonTools;
     
+    // Before the fields it holds: members are destroyed in reverse order,
+    // and it would free the fields declared before it.
+    QWidget settingsWidget;
     QLineEdit eDisplayName;
     QLineEdit eFileName;
 
@@ -151,13 +154,15 @@ private:
     QComboBox cTraffic;
     QComboBox cPath;
     
-    QWidget settingsWidget;
     QPlainTextEdit eDescription;
     QPlainTextEdit eBriefing;
     
     PreciseTileCoordinate* coordinate = NULL;
     
     void reloadActivityObjectLists();
+    // The activity chosen in the list, or NULL: none chosen (the list
+    // starts so), or one that did not load.
+    Activity *currentActivity();
 };
 
 #endif	/* ACTIVITYTOOLS_H */
