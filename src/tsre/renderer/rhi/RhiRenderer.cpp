@@ -2174,7 +2174,6 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (pass > PASS_ALPHA_TEST) {
             applyAmbientOcclusion();
             applyClouds();
-            applyLightShafts();
         }
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();
@@ -2396,9 +2395,14 @@ void RhiRenderer::present() {
         gpuMs = float(gpuSeconds * 1000.0);
     // Bloom from the view's glow, before the frame's pass begins.
     QRhiTexture *bloomTexture = plainImage ? nullptr : renderBloom(frame.commandBuffer);
-    // The view's brightness for auto exposure (task 29).
+    // The view's brightness for auto exposure (task 29), then the light
+    // shafts over it: like bloom, light the eye sees, not the scene the
+    // exposure meters (measured with them, the exposure took back what
+    // they added and gave back what they darkened; user, 2026-10-14).
     if (exposureActive())
         measureLuminance(frame.commandBuffer);
+    if (!plainImage)
+        applyLightShafts();
     QRhiTexture *bloomSource = bloomTexture != nullptr ? bloomTexture : dummyBlack;
     if (presentUniforms == nullptr) {
         presentUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
@@ -2577,7 +2581,6 @@ void RhiRenderer::renderFrame() {
     drawPasses(PASS_SKY, PASS_UI, true);
     applyAmbientOcclusion();
     applyClouds();
-    applyLightShafts();
     flushTarget();
     // The view goes to the frame when the surface ends it, after the
     // client painted its overlay.

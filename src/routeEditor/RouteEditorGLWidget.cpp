@@ -1236,6 +1236,7 @@ void RouteEditorGLWidget::applySky() {
     // 0.3 (the default; the user: above it the far mountains' blue goes)
     // about a fifth, 0 clear air, its Rayleigh blue only; 1 twice.
     const float hazeScale = gluu->fogDensity / 0.7f;
+    sky.shaftHaze = sky.haze;
     sky.haze *= hazeScale * hazeScale;
     // Last frame's (applyClouds measures it after this).
     sky.overcast = Game::cloudQuality > 0 ? cloudOvercast : 0.0f;

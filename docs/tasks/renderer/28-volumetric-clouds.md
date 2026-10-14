@@ -962,6 +962,31 @@ measurement through it too.
 - 14 resizes in a row at the CMK river with the reflection and the cube on:
   no fault, every frame alike.
 
+## Light shafts after auto exposure and the aerial haze (2026-10-14)
+
+The user: volumetric shafts almost without effect, still costly; screen
+space ones weaker with auto exposure. Measured on the user's CMK camera
+facing the sun (17:00 and 19:00, fair cumulus and broken; mean difference
+shafts on against off, of 255):
+
+- Volumetric: 0.55 at the fog density 0.3, 2.6 at 0.7. Their haze was the
+  aerial haze's, scaled to a fifth since the density's default went to 0.3
+  (task 32). They take the weather's own haze again (`Sky::shaftHaze`):
+  2.6 at 0.3.
+- Screen space: 7.4 with auto exposure, 11.5 in Dimmed. The exposure
+  measured the view with the shafts in it and took back what they added
+  (and gave back what the volumetric ones darkened). The shafts now go over
+  the view after the measurement, as bloom does (`present`): 11.9 with auto
+  exposure. They now also cover water and blended surfaces (drawn after
+  them before), as the air in front of them would.
+- Cost on the Steam Deck (median frame, 60 frames): screen space about
+  1.3 ms, volumetric 1.6 ms at 40 steps; 24 steps look the same (0.03 of
+  255 at most) and take 1.0 ms; 16 save nothing more (the rest is the full
+  resolution composite).
+- What the volumetric shafts show here: the air under the clouds in their
+  shadow, darkening the low sky towards the sun; rays from near trees fall
+  within the march's first steps (62 m) and stay faint.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

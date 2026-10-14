@@ -204,10 +204,11 @@ void main() {
 }
 )";
 
-// The volumetric shafts over the view: the fog already holds the haze's
-// light as if the sun reached all of it; where it does not (the shadows of
-// clouds, trees, buildings) the view darkens by the blocked share, and the
-// lit haze towards the sun adds a little. Premultiplied: colour + view * a.
+// The volumetric shafts over the view: the aerial haze (task 32) already
+// holds the haze's light as if the sun reached all of it; where it does not
+// (the shadows of clouds, trees, buildings) the view darkens by the blocked
+// share, and the lit haze towards the sun adds a little. Premultiplied:
+// colour + view * a.
 const char *VolumeAddFragment = R"(
 layout(binding = 1) uniform sampler2D shafts;
 
@@ -446,7 +447,7 @@ void RhiRenderer::applyLightShafts() {
     const float onScreen = std::clamp((1.6f - outside) / 0.6f, 0.0f, 1.0f);
     if (onScreen <= 0.0f)
         return;
-    // Everything before: the opaque passes, the sky, the clouds.
+    // The whole view (after the exposure measured it).
     flushTarget();
     // The finished cloud image: one texture (the history alternates, which
     // would rebuild everything each frame; the march holds a different
@@ -504,7 +505,7 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     RhiRenderSurface *surfaceNow = surface();
     if (elevation < 1.0f)
         return;
-    // Everything before: the opaque passes, the sky, the clouds.
+    // The whole view (after the exposure measured it).
     flushTarget();
     if (!createLightShafts(cloudsApplied ? cloudResources.image : nullptr))
         return;
@@ -515,7 +516,7 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     v.sun[0] = sunDirection.x();
     v.sun[1] = sunDirection.y();
     v.sun[2] = sunDirection.z();
-    v.sun[3] = std::clamp(sky.haze, 1e-5f, 0.02f);
+    v.sun[3] = std::clamp(sky.shaftHaze, 1e-5f, 0.02f);
     std::copy(viewPosition, viewPosition + 3, v.camera);
     v.camera[3] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
     std::copy(sceneProjection, sceneProjection + 4, v.projection);
@@ -535,7 +536,8 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     }
     v.cloudSun[3] = l.volumeSunMap != nullptr ? 1.0f : 0.0f;
     v.march[0] = 1500.0f;
-    v.march[1] = 40.0f;
+    // 24 steps: as 40 to within 0.03 of 255, 0.6 ms less on the Steam Deck.
+    v.march[1] = 24.0f;
     v.march[2] = cloudsApplied && clouds.still ? 0.5f : float(std::fmod(0.5 + cloudResources.frame * 0.618034, 1.0));
     ShaftParameters parameters = {};
     // The haze's light; the sun's colour as the screen-space shafts.
