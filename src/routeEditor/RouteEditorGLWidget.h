@@ -17,6 +17,9 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/world/SkySatellites.h>
 #include <vector>
+#include <array>
+#include <chrono>
+#include <future>
 #include <QOpenGLFunctions>
 //#include <QOpenGLFunctions_3_2_Core>
 #include <QOpenGLVertexArrayObject>
@@ -70,6 +73,7 @@ class ImageryMapLayer;
 class WeatherMapLayer;
 class FogMapLayer;
 #include <tsre/environment/FogFloor.h>
+#include <tsre/environment/TerrainShade.h>
 #include <tsre/environment/WeatherFog.h>
 #include <tsre/world/FogFloorSampler.h>
 #include <tsre/environment/WeatherImport.h>
@@ -560,7 +564,8 @@ private:
     // Where fog lies (task renderer 33): the fog at the camera, kept while
     // the weather's time moves under a minute and the camera under a km; the
     // floor map around the camera, sampled a few tiles a frame while there
-    // is fog; drawn over the weather in map mode.
+    // is fog or the terrain's shade is wanted; drawn over the weather in map
+    // mode.
     WeatherFog::State fogNow;
     double fogNowHours = std::nan(""), fogNowEast = 0.0, fogNowNorth = 0.0;
     quint64 fogNowRevision = 0;
@@ -569,6 +574,8 @@ private:
     QElapsedTimer fogFloorAge;
     quint64 fogFloorTerrain = 0;  // the terrain's availability revision sampled
     quint64 fogFloorBuilds = 0;   // floor maps completed
+    qint64 fogFloorSamplingNs = 0, fogFloorSamplingPeakNs = 0;  // the map being sampled: time, the longest step
+    int fogFloorSamplingSteps = 0;
     std::unique_ptr<FogMapLayer> fogMap;
     void updateFog();
     // The fog for the renderer: core.rendering.mist (kept as lampsByDay), the
@@ -579,6 +586,17 @@ private:
     quint64 fogMapBuilt = ~0ull;
     quint64 fogMapRevision = 0;
     void applyFog();
+    // The terrain's shade of a low sun or moon past the shadow maps, from the
+    // floor map: with shadows, the volumetric light shafts or mist on. Made
+    // again when the floor map is new or the light has moved.
+    TerrainShade terrainShade;
+    std::future<TerrainShade> terrainShadeBuilding;
+    float terrainShadeLight[3] = {0.0f, 0.0f, 0.0f};  // the light the last one was made for
+    quint64 terrainShadeFloor = ~0ull;                 // the floor map it was made from
+    quint64 terrainShadeLogged = ~0ull;
+    quint64 terrainShadeRevision = 0;
+    bool terrainShadeWanted() const;
+    void applyTerrainShade();
     QString currentEnvironmentFile = QStringLiteral("editor.env");
     QString currentEnvironmentSlot;
     bool weatherModified = false;

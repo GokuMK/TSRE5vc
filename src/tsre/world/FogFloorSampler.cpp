@@ -14,6 +14,7 @@
 #include <tsre/world/TerrainLib.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -32,6 +33,9 @@ int tileOf(double metres) {
 } // namespace
 
 void FogFloorSampler::start(double atEast, double atNorth) {
+    // A map still being built is let go (its thread finishes first).
+    if (building.valid())
+        building = std::future<FogFloor>();
     east = atEast;
     north = atNorth;
     const double half = N * Cell * 0.5;
@@ -39,6 +43,7 @@ void FogFloorSampler::start(double atEast, double atNorth) {
     northEdge = std::ceil((atNorth + half) / Cell) * Cell;
     ground.assign(size_t(N) * N, std::numeric_limits<float>::quiet_NaN());
     water.assign(size_t(N) * N, 0.0f);
+    lowest.assign(size_t(N) * N, std::numeric_limits<float>::quiet_NaN());
     pending.clear();
     const int x0 = tileOf(west), x1 = tileOf(west + N * Cell - 1.0);
     const int z0 = tileOf(-northEdge), z1 = tileOf(-(northEdge - N * Cell) - 1.0);
@@ -53,6 +58,13 @@ void FogFloorSampler::start(double atEast, double atNorth) {
 bool FogFloorSampler::step(TerrainLib &terrain, int tiles, FogFloor &out) {
     if (!running)
         return false;
+    if (building.valid()) {
+        if (building.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+            return false;
+        out = building.get();
+        running = false;
+        return true;
+    }
     for (int done = 0; done < tiles && next < pending.size(); ++done, ++next) {
         const int x = pending[next].first, z = pending[next].second;
         Terrain *tile = terrain.groundTile(x, z);
@@ -75,6 +87,7 @@ bool FogFloorSampler::step(TerrainLib &terrain, int tiles, FogFloor &out) {
                 const float height = tile->getHeight(x, z, posx, posz, false);
                 const size_t i = size_t(r) * N + c;
                 ground[i] = height;
+                lowest[i] = std::min(height, tile->lowestHeight(x, z, posx, posz, float(Cell * 0.5)));
                 float level = 0.0f;
                 water[i] = tile->waterAt(x, z, posx, posz, level) && level > height ? 1.0f : 0.0f;
             }
@@ -82,7 +95,11 @@ bool FogFloorSampler::step(TerrainLib &terrain, int tiles, FogFloor &out) {
     }
     if (next < pending.size())
         return false;
-    running = false;
-    out.build(west, northEdge, ground, water);
-    return true;
+    building = std::async(std::launch::async, [west = west, north = northEdge, ground = std::move(ground),
+                                               water = std::move(water), lowest = std::move(lowest)] {
+        FogFloor floor;
+        floor.build(west, north, ground, water, lowest);
+        return floor;
+    });
+    return false;
 }

@@ -233,6 +233,9 @@ public:
     // Whether the patch at a place draws water, and its level there (the
     // tile's corner levels, as the water is drawn).
     bool waterAt(int x, int z, float posx, float posz, float &level);
+    // The lowest ground in a square of half-width `half` (m) about a place:
+    // the height samples within it and its corners.
+    float lowestHeight(int x, int z, float posx, float posz, float half);
     
 public slots:
     void menuToggleWater();

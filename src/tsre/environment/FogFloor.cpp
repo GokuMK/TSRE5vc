@@ -84,14 +84,16 @@ void meanArea(const std::vector<float> &in, std::vector<float> &out, int r) {
 
 } // namespace
 
-void FogFloor::build(double west, double north, const std::vector<float> &ground, const std::vector<float> &water) {
+void FogFloor::build(double west, double north, const std::vector<float> &ground, const std::vector<float> &water,
+                     const std::vector<float> &cellLowest) {
     isValid = false;
     const size_t cells = size_t(N) * N;
-    if (ground.size() != cells || water.size() != cells)
+    if (ground.size() != cells || water.size() != cells || (!cellLowest.empty() && cellLowest.size() != cells))
         return;
     westEdge = west;
     northEdge = north;
     groundCells = ground;
+    lowestCells = cellLowest.empty() ? ground : cellLowest;
     unknown = 0;
     std::vector<float> known(cells);
     for (size_t i = 0; i < cells; ++i) {

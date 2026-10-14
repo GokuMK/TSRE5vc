@@ -1056,6 +1056,14 @@ the terrain on its own (wind, cloud over the night, humidity, the time; how
 far a place lies below the ground around it), with optional controls per
 weather keyframe and painted areas only for special places.
 
+### Through a hill at sunset (user, 2026-10-15)
+
+EUROPE1 at 20:00: with the sun set behind a hill 1 km off, the march lit
+the haze in front of it in a glow with rays from under the ridge. Past the
+far shadow map (700 m about the camera) every point counted lit. The march
+now also takes the terrain's shade over 16 km (`TerrainShade`, task 33),
+as do the lit shaders and the fog.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

@@ -2017,6 +2017,26 @@ float Terrain::getHeight(int x, int z, float posx, float posz, bool addR){
             + fabs(roznica));
 }
 
+float Terrain::lowestHeight(int x, int z, float posx, float posz, float half){
+    float lowest = std::numeric_limits<float>::max();
+    for (int k = 0; k < 4; ++k)
+        lowest = std::min(lowest, getHeight(x, z, posx + (k & 1 ? half : -half),
+                                            posz + (k & 2 ? half : -half), false));
+    const int samples = gridLayout.sampleCount;
+    const float spacing = static_cast<float>(gridLayout.sampleSpacing);
+    if (terrainData == NULL || samples <= 0 || spacing <= 0.0f)
+        return lowest;
+    getLocalCoords(x, z, posx, posz);
+    const int x0 = std::max(0, static_cast<int>(std::ceil((posx - half) / spacing)));
+    const int x1 = std::min(samples, static_cast<int>(std::floor((posx + half) / spacing)));
+    const int z0 = std::max(0, static_cast<int>(std::ceil((posz - half) / spacing)));
+    const int z1 = std::min(samples, static_cast<int>(std::floor((posz + half) / spacing)));
+    for (int sz = z0; sz <= z1; ++sz)
+        for (int sx = x0; sx <= x1; ++sx)
+            lowest = std::min(lowest, terrainData[sz][sx]);
+    return lowest;
+}
+
 bool Terrain::waterAt(int x, int z, float posx, float posz, float &level){
     if (!loaded || tfile == NULL)
         return false;

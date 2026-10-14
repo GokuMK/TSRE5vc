@@ -743,6 +743,7 @@ void RouteEditorGLWidget::paintScene(){
     applyClouds();
     updateFog();
     applyFog();
+    applyTerrainShade();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
@@ -2770,14 +2771,83 @@ void RouteEditorGLWidget::applyFog() {
     renderer->setFog(f);
 }
 
+bool RouteEditorGLWidget::terrainShadeWanted() const {
+    // Diagnostics: TSRE_NO_TERRAIN_SHADE=1 leaves it out.
+    static const bool off = qEnvironmentVariableIntValue("TSRE_NO_TERRAIN_SHADE") != 0;
+    return !off && (Game::shadowsEnabled > 0 || Game::lightShafts == 2 || mistQuality > 0);
+}
+
+// The terrain's shade of the sun or moon (TerrainShade): made again on a
+// worker thread (1.2 ms on the Steam Deck) when the floor map is new or the
+// light has moved by 0.03 degrees (a ridge 1 km off shifts its shade half a
+// metre up or down); the last one is used until it is ready.
+void RouteEditorGLWidget::applyTerrainShade() {
+    if (renderer == NULL)
+        return;
+    if (terrainShadeBuilding.valid()
+            && terrainShadeBuilding.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        terrainShade = terrainShadeBuilding.get();
+        ++terrainShadeRevision;
+        // Diagnostics: TSRE_FOG_LOG=1 logs each shade made for a new floor
+        // map, and the light at the camera.
+        static const bool log = qEnvironmentVariableIsSet("TSRE_FOG_LOG");
+        if (log && terrainShade.valid() && terrainShadeLogged != terrainShadeFloor) {
+            terrainShadeLogged = terrainShadeFloor;
+            double east, north;
+            cameraWorldPosition(east, north);
+            const float *position = camera->getPos();
+            qInfo().noquote() << QString("[fog] terrain shade: light %1 deg up; at the camera (%2 m) %3")
+                                 .arg(std::asin(std::clamp(terrainShadeLight[1], -1.0f, 1.0f)) * 180.0 / M_PI, 0, 'f', 2)
+                                 .arg(position[1], 0, 'f', 1)
+                                 .arg(terrainShade.light(east, north, position[1]), 0, 'f', 2);
+        }
+    }
+    Renderer::TerrainShade s;
+    const float *l = Game::sunLightDirection;
+    const float length = std::sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
+    if (terrainShadeWanted() && fogFloor.valid() && length > 0.0f) {
+        const std::array<float, 3> towards = {l[0] / length, l[1] / length, l[2] / length};
+        const float moved = std::sqrt(std::pow(towards[0] - terrainShadeLight[0], 2.0f)
+                                      + std::pow(towards[1] - terrainShadeLight[1], 2.0f)
+                                      + std::pow(towards[2] - terrainShadeLight[2], 2.0f));
+        if (!terrainShadeBuilding.valid()
+                && (terrainShadeFloor != fogFloorBuilds || moved > 0.03f * float(M_PI) / 180.0f)) {
+            std::copy(towards.begin(), towards.end(), terrainShadeLight);
+            terrainShadeFloor = fogFloorBuilds;
+            terrainShadeBuilding = std::async(std::launch::async, [west = fogFloor.west(), north = fogFloor.north(),
+                                                                   lowest = fogFloor.lowestGround(), towards] {
+                TerrainShade shade;
+                shade.build(west, north, lowest, towards.data());
+                return shade;
+            });
+        }
+        if (terrainShade.valid()) {
+            s.map = &terrainShade.tops();
+            s.size = TerrainShade::Size;
+            s.west = terrainShade.west();
+            s.north = terrainShade.north();
+            s.cell = float(TerrainShade::CellSize);
+            s.reference = terrainShade.reference();
+            s.revision = terrainShadeRevision;
+            cameraWorldPosition(s.cameraEast, s.cameraNorth);
+        }
+    }
+    // The next frame takes in the shade being made.
+    if (terrainShadeBuilding.valid())
+        update();
+    renderer->setTerrainShade(s);
+}
+
 void RouteEditorGLWidget::updateFog() {
-    if (currentWeather() == nullptr || camera == nullptr || Game::terrainLib == nullptr)
+    if (camera == nullptr || Game::terrainLib == nullptr)
         return;
     double east, north;
     cameraWorldPosition(east, north);
     const double hours = weatherHours();
-    if (std::isnan(fogNowHours) || fogNowRevision != weatherRevision || std::abs(hours - fogNowHours) > 1.0 / 60.0
-            || std::hypot(east - fogNowEast, north - fogNowNorth) > 1000.0) {
+    const bool weather = currentWeather() != nullptr;
+    if (weather && (std::isnan(fogNowHours) || fogNowRevision != weatherRevision
+                    || std::abs(hours - fogNowHours) > 1.0 / 60.0
+                    || std::hypot(east - fogNowEast, north - fogNowNorth) > 1000.0)) {
         const WeatherFog::State before = fogNow;
         fogNow = weatherFog();
         fogNowHours = hours;
@@ -2787,7 +2857,8 @@ void RouteEditorGLWidget::updateFog() {
         if (fogMap && (fogNow.amount != before.amount || fogNow.depth != before.depth || fogNow.base != before.base))
             fogMap->invalidate();
     }
-    if (fogNow.amount <= 0.0f)
+    // The floor map: for the fog, and for the terrain's shade.
+    if (!(weather && fogNow.amount > 0.0f) && !terrainShadeWanted())
         return;
     // A new floor map once the camera is 1 km from the last one's centre, or
     // when terrain tiles have loaded or gone since (at most once a second
@@ -2803,7 +2874,18 @@ void RouteEditorGLWidget::updateFog() {
         }
     }
     if (fogFloorSampler.active()) {
-        if (fogFloorSampler.step(*Game::terrainLib, 8, fogFloor)) {
+        // World tiles for about 1.5 ms a frame, then the map built on a
+        // worker thread (in a frame with all, 6 ms on the Steam Deck).
+        QElapsedTimer sampling;
+        sampling.start();
+        bool built = false;
+        do
+            built = fogFloorSampler.step(*Game::terrainLib, 1, fogFloor);
+        while (!built && fogFloorSampler.sampling() && sampling.nsecsElapsed() < 1500000);
+        fogFloorSamplingNs += sampling.nsecsElapsed();
+        fogFloorSamplingPeakNs = std::max(fogFloorSamplingPeakNs, sampling.nsecsElapsed());
+        ++fogFloorSamplingSteps;
+        if (built) {
             fogFloorAge.restart();
             ++fogFloorBuilds;
             if (fogMap)
@@ -2833,7 +2915,12 @@ void RouteEditorGLWidget::updateFog() {
                                      .arg(floorLow, 0, 'f', 0).arg(floorHigh, 0, 'f', 0).arg(fogged)
                                      .arg(fogNow.depth, 0, 'f', 0).arg(wet).arg(fogFloorSampler.detailedTiles)
                                      .arg(fogFloorSampler.distantTiles).arg(fogFloorSampler.missingTiles);
+                qInfo().noquote() << QString("[fog] floor map sampled in %1 ms over %2 frames, at most %3 ms in one")
+                                     .arg(fogFloorSamplingNs / 1e6, 0, 'f', 1).arg(fogFloorSamplingSteps)
+                                     .arg(fogFloorSamplingPeakNs / 1e6, 0, 'f', 2);
             }
+            fogFloorSamplingNs = fogFloorSamplingPeakNs = 0;
+            fogFloorSamplingSteps = 0;
         }
         // The next tiles in the next frame.
         update();

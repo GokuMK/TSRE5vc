@@ -73,8 +73,28 @@ float fogSunThrough(vec3 position) {
     return exp(-fogShape.x * (1.0 + 0.5 * cell.w) * min(above * fogShape.w, 3000.0));
 }
 
+// The terrain's shade of a low sun or moon past the shadow maps' 700 m
+// (TerrainShade): over 16 km, the height under which the ground towards the
+// light hides it (a hill the sun has set behind).
+uniform sampler2D terrainShadeMap;
+// The map's north-west corner (x, z), its size (m), the view's y less heights.
+uniform vec4 terrainShadePlace;
+// On (1) or off (0), the map's reference height (m), 1 / the light's fading
+// band (m).
+uniform vec4 terrainShadeParams;
+
+float terrainShade(vec3 position) {
+    if (terrainShadeParams.x <= 0.0)
+        return 1.0;
+    vec2 m = (position.xz - terrainShadePlace.xy) / terrainShadePlace.z;
+    if (any(lessThan(m, vec2(0.0))) || any(greaterThan(m, vec2(1.0))))
+        return 1.0;
+    float top = textureLod(terrainShadeMap, m, 0.0).r + terrainShadeParams.y;
+    return clamp((position.y - terrainShadePlace.w - top) * terrainShadeParams.z + 1.0, 0.0, 1.0);
+}
+
 float cloudShadow(vec3 position) {
-    float fog = fogSunThrough(position);
+    float fog = fogSunThrough(position) * terrainShade(position);
     if (cloudShadowArea.w <= 0.0)
         return fog;
     vec2 p = position.xz + cloudShadowSun.xy * (cloudShadowSun.z - position.y);

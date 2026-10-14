@@ -39,14 +39,18 @@ public:
     };
 
     // From the cells' ground (m; NaN where no terrain is loaded) and water
-    // (1 under water, else 0), Size x Size each, row by row.
-    void build(double west, double north, const std::vector<float> &ground, const std::vector<float> &water);
+    // (1 under water, else 0), Size x Size each, row by row; the lowest
+    // ground in each cell (NaN unknown; none: the ground).
+    void build(double west, double north, const std::vector<float> &ground, const std::vector<float> &water,
+               const std::vector<float> &cellLowest = {});
 
     bool valid() const { return isValid; }
     double west() const { return westEdge; }
     double north() const { return northEdge; }
     // The cells without terrain.
     int unknownCells() const { return unknown; }
+    // The lowest ground in each cell (m; NaN unknown), row by row.
+    const std::vector<float> &lowestGround() const { return lowestCells; }
 
     // A cell's values; unknown outside the map.
     Sample cell(int column, int row) const;
@@ -65,7 +69,7 @@ private:
     bool isValid = false;
     double westEdge = 0.0, northEdge = 0.0;
     int unknown = 0;
-    std::vector<float> groundCells, floorCells, regionCells, moistureCells;
+    std::vector<float> groundCells, lowestCells, floorCells, regionCells, moistureCells;
 };
 
 #endif

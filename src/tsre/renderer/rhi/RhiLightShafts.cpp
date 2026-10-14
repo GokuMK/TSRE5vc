@@ -103,7 +103,9 @@ void main() {
 // Volumetric (step 8): a march through the low haze in front of the camera
 // up to the scene's depth or 1.5 km, the sun's light at each step through
 // the clouds (their shadow map) and past terrain and objects (the far
-// shadow map); single scattering, forward-peaked.
+// shadow map, 700 m about the camera; farther, the terrain's shade, so a hill
+// the sun has set behind darkens the haze in front of it); single
+// scattering, forward-peaked.
 struct VolumeParameters {
     float inverse[16];
     float shadow[16];     // the far shadow map's matrix (OpenGL clip)
@@ -117,6 +119,8 @@ struct VolumeParameters {
     float colour[4];      // the sun's colour (display)
     float cloudsMid[4];   // the mid layer's cloud shadow map: centre x, z; the open share past the maps
     float ground[4];      // the camera above the ground (m), the near layer's extinction at it (1/m), reach (m), scale height (m)
+    float shadePlace[4];  // the terrain's shade: its map's north-west corner (x, z), size (m), the view's y less heights
+    float shadeParams[4]; // on, the map's reference height (m), 1 / the light's fading band (m), 0
 };
 
 const char *VolumeFragment = R"(#version 440
@@ -135,10 +139,13 @@ layout(std140, binding = 0) uniform Volume {
     vec4 colour;
     vec4 cloudsMid;
     vec4 ground;
+    vec4 shadePlace;
+    vec4 shadeParams;
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 layout(binding = 2) uniform sampler2D cloudShadowMap;
 layout(binding = 3) uniform sampler2DShadow shadowMap;
+layout(binding = 4) uniform sampler2D terrainShadeMap;
 
 float sceneDistance(float depth, vec2 ndc) {
     float viewZ;
@@ -179,7 +186,8 @@ float cloudVisible(vec3 p) {
     return visible;
 }
 
-// ... and past terrain and objects.
+// ... and past terrain and objects: near, the far shadow map; the terrain
+// farther off (ShadowSampling.glsl's terrainShade).
 float shadowVisible(vec3 p) {
     float visible = 1.0;
     if (cloudSun.w > 0.0) {
@@ -187,6 +195,13 @@ float shadowVisible(vec3 p) {
         vec3 m = q.xyz / q.w * 0.5 + 0.5;
         if (all(greaterThan(m.xy, vec2(0.0))) && all(lessThan(m.xy, vec2(1.0))) && m.z < 1.0)
             visible *= texture(shadowMap, vec3(m.xy, m.z - 0.002));
+    }
+    if (shadeParams.x > 0.0) {
+        vec2 m = (p.xz - shadePlace.xy) / shadePlace.z;
+        if (all(greaterThan(m, vec2(0.0))) && all(lessThan(m, vec2(1.0)))) {
+            float top = textureLod(terrainShadeMap, m, 0.0).r + shadeParams.y;
+            visible *= clamp((p.y - shadePlace.w - top) * shadeParams.z + 1.0, 0.0, 1.0);
+        }
     }
     return visible;
 }
@@ -324,8 +339,9 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     const QRhiTexture *cloudMap = cloudResources.shadow != nullptr && cloudResources.shadowValid
             ? cloudResources.shadow : nullptr;
     const QRhiTexture *sunMap = shadowMaps[2].valid() && Game::shadowsEnabled > 0 ? shadowMaps[2].depth : nullptr;
+    const QRhiTexture *shadeMap = terrainShadeReady() ? shadeResources.texture : nullptr;
     if (l.addPipeline != nullptr && l.size == size && l.viewColor == view.color && l.cloudTexture == cloudTexture
-            && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap)
+            && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap && l.volumeShadeMap == shadeMap)
         return true;
     // The white texture and its upload, if not done yet, stay.
     QRhiTexture *white = l.white;
@@ -423,13 +439,17 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     l.volumeUniforms->create();
     l.volumeCloudMap = cloudMap;
     l.volumeSunMap = sunMap;
+    l.volumeShadeMap = shadeMap;
     l.volumeBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.volumeUniforms),
                                  QRhiShaderResourceBinding::sampledTexture(1, fragment, view.depth, sampler(false, true, true)),
                                  QRhiShaderResourceBinding::sampledTexture(2, fragment, cloudMap != nullptr
                                                                            ? cloudResources.shadow : l.white, l.linear),
                                  QRhiShaderResourceBinding::sampledTexture(3, fragment, sunMap != nullptr
                                                                            ? shadowMaps[2].depth : dummyDepth,
-                                                                           shadowSampler)});
+                                                                           shadowSampler),
+                                 QRhiShaderResourceBinding::sampledTexture(4, fragment, shadeMap != nullptr
+                                                                           ? shadeResources.texture : l.white,
+                                                                           l.linear)});
     l.volumeAddBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.uniforms),
                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, l.blurred, l.linear)});
     static QShader volume, volumeAdd;
@@ -596,6 +616,9 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     v.ground[1] = fogged ? 0.0f : std::clamp(sky.shaftHaze, 0.0f, 0.02f) * 10.0f;
     v.ground[2] = 500.0f;
     v.ground[3] = 120.0f;
+    terrainShadePlace(v.shadePlace, v.shadeParams);
+    if (l.volumeShadeMap == nullptr)
+        v.shadeParams[0] = 0.0f;
     v.march[0] = 1500.0f;
     // 24 steps: as 40 to within 0.03 of 255, 0.6 ms less on the Steam Deck.
     v.march[1] = 24.0f;

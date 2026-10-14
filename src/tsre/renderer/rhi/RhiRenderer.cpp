@@ -261,6 +261,7 @@ void RhiRenderer::releaseResources() {
     releaseGlowClear();
     releaseLightShafts();
     releaseFog();
+    releaseTerrainShade();
     releaseCloudResources();
     releaseSkyResources();
     releaseEnclosureOpenness();
@@ -418,6 +419,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
                     Game::sunLightDirection[2]);
     writeCloudShadowUniforms(program);
     writeFogUniforms(program);
+    float shadePlace[4], shadeParams[4];
+    terrainShadePlace(shadePlace, shadeParams);
+    program->setVec("terrainShadePlace", shadePlace[0], shadePlace[1], shadePlace[2], shadePlace[3]);
+    program->setVec("terrainShadeParams", shadeParams[0], shadeParams[1], shadeParams[2], shadeParams[3]);
     // The sky enclosure (task 27): off leaves lamps and ambient as before.
     const bool enclosed = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
     program->setMat4("skyEnclosureMatrix", enclosure.viewProjection);
@@ -2004,6 +2009,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                 }
                 break;
             }
+            if (slot.binding == RhiShaderSource::TerrainShadeBinding) {
+                if (terrainShadeReady()) {
+                    texture = shadeResources.texture;
+                    slotSampler = sampler(false, true);
+                }
+                break;
+            }
             if (slot.binding == RhiShaderSource::FogFloorBinding) {
                 if (fogResources.filled && fogResources.floor != nullptr && fogWanted()) {
                     texture = fogResources.floor;
@@ -2273,6 +2285,8 @@ void RhiRenderer::flushTarget() {
         cb->resourceUpdate(textures);
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
+    // The terrain's shade, before any pass reads it.
+    prepareTerrainShade(frameBatch);
     QRhiBuffer *uniforms = uploadArena(uniformArena, QRhiBuffer::UniformBuffer, frameBatch);
     QRhiBuffer *instances = uploadArena(instanceArena, QRhiBuffer::VertexBuffer, frameBatch);
     // Resolve pipelines and resource sets now that the buffers are known;

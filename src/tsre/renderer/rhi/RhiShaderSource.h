@@ -41,6 +41,8 @@ constexpr int SkyEnclosureFarOpenBinding = 29;
 constexpr int FogVolumeBinding = 30;
 // The fog's floor map, for the sun under the fog (task 33).
 constexpr int FogFloorBinding = 31;
+// The terrain's shade of a low sun past the shadow maps (TerrainShade).
+constexpr int TerrainShadeBinding = 32;
 
 // Vertex attribute locations (as GLUU binds them), and the per-instance
 // matrix columns the QRhi renderer adds.

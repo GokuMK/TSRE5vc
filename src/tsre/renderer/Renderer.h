@@ -211,6 +211,26 @@ public:
     };
     virtual void setFog(const Fog &fog) {}
 
+    // The terrain's shade of a low sun or moon past the shadow maps
+    // (TerrainShade): size x size cells, the height (m above sea level)
+    // under which the ground towards the light hides it, row 0 at the north
+    // edge; its north-west corner (world metres east, north), cell size, a
+    // height near its ground (the tops are stored as half floats from it); a
+    // new revision when it changed. No map: no shade.
+    struct TerrainShade {
+        const std::vector<float> *map = nullptr;
+        int size = 0;
+        double west = 0.0;
+        double north = 0.0;
+        float cell = 64.0f;
+        float reference = 0.0f;
+        quint64 revision = 0;
+        // The camera (world metres east, north).
+        double cameraEast = 0.0;
+        double cameraNorth = 0.0;
+    };
+    virtual void setTerrainShade(const TerrainShade &shade) {}
+
     // The sky enclosure (task 27): a depth map from straight above around
     // the camera, of terrain and opaque surfaces. A surface with something
     // over it (terrain over a tunnel, a bridge deck, a roof) is enclosed:

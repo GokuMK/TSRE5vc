@@ -4,6 +4,7 @@
 #include <tsre/environment/WeatherDetail.h>
 #include <tsre/environment/WeatherFog.h>
 #include <tsre/environment/FogFloor.h>
+#include <tsre/environment/TerrainShade.h>
 #include <tsre/environment/WeatherPresets.h>
 #include <tsre/environment/WeatherImport.h>
 #include <tsre/environment/WeatherGenerator.h>
@@ -714,6 +715,62 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
         c.check(halfFloor.valid() && halfFloor.unknownCells() == FogFloor::Size * FogFloor::Size / 2
                 && !halfFloor.at(3000.0, 0.0).known && thickness(halfFloor, -3000.0, 0.0, 40.0f) > 35.0f,
                 "fog-floor-without-terrain");
+
+        // The terrain's shade of a low sun (TerrainShade): towards the sun
+        // at an elevation and a bearing (x east, y up, z south).
+        auto towards = [](double elevation, double bearing, float *out) {
+            const double e = elevation * M_PI / 180.0, a = bearing * M_PI / 180.0;
+            out[0] = float(std::sin(a) * std::cos(e));
+            out[1] = float(std::sin(e));
+            out[2] = float(-std::cos(a) * std::cos(e));
+        };
+        // A ridge 60 m above a plain at 100 m, its west side 1920 m east of
+        // the middle, running north; the sun 3 degrees up in the east: its
+        // shade on the plain reaches 60 / tan 3 = 1145 m west of the ridge.
+        const FogFloor ridgeFloor = floorOf([](double x, double) {
+            return std::abs(x - 2000.0) < 64.0 ? 160.0f : 100.0f;
+        });
+        float eastLow[3], eastHigh[3];
+        towards(3.0, 90.0, eastLow);
+        towards(60.0, 90.0, eastHigh);
+        TerrainShade ridgeShade;
+        ridgeShade.build(ridgeFloor, eastLow);
+        const float slope = float(std::tan(3.0 * M_PI / 180.0));
+        const float behind = ridgeShade.light(1400.0, 0.0, 100.0f);
+        const float past = ridgeShade.light(400.0, 0.0, 100.0f);
+        const float over = ridgeShade.light(1400.0, 0.0, 160.0f - 520.0f * slope + 8.0f);
+        const float sunward = ridgeShade.light(2600.0, 0.0, 100.0f);
+        c.check(ridgeShade.valid() && behind < 0.01f && past > 0.99f && over > 0.99f && sunward > 0.99f,
+                QString("terrain-shade-of-a-ridge (%1 %2 %3 %4)").arg(behind).arg(past).arg(over).arg(sunward));
+        TerrainShade noonShade;
+        noonShade.build(ridgeFloor, eastHigh);
+        c.check(noonShade.valid() && noonShade.light(1400.0, 0.0, 100.0f) > 0.99f
+                && noonShade.light(1900.0, 0.0, 100.0f) > 0.99f, "terrain-shade-none-at-noon");
+        // A valley one cell wide, 50 m deep, running east towards the low
+        // sun: lit along its floor, also off its middle, where the cells'
+        // tops blend with its sides'.
+        {
+            constexpr int N = FogFloor::Size;
+            const double half = N * FogFloor::CellSize * 0.5;
+            std::vector<float> heights(size_t(N) * N, 150.0f), wet(size_t(N) * N, 0.0f);
+            for (int column = 0; column < N; ++column)
+                heights[size_t(N / 2 - 1) * N + column] = 100.0f;
+            FogFloor valley;
+            valley.build(-half, half, heights, wet);
+            TerrainShade valleyShade;
+            valleyShade.build(valley, eastLow);
+            // The valley's row has its middle 32 m north of the map's.
+            const float middle = valleyShade.light(0.0, 32.0, 100.0f);
+            const float aside = valleyShade.light(0.0, 12.0, 100.0f);
+            const float side = valleyShade.light(0.0, -200.0, 150.0f);
+            c.check(valleyShade.valid() && middle > 0.99f && aside > 0.99f && side > 0.99f,
+                    QString("terrain-shade-keeps-a-valley-lit (%1 %2 %3)").arg(middle).arg(aside).arg(side));
+        }
+        // Terrain missing from the east half hides nothing.
+        TerrainShade halfShade;
+        halfShade.build(halfFloor, eastLow);
+        c.check(halfShade.valid() && halfShade.light(-3000.0, 0.0, 50.0f) > 0.99f
+                && halfShade.light(-50.0, 0.0, 50.0f) > 0.99f, "terrain-shade-without-terrain");
 
         Env::File fromPreset;
         fromPreset.parse("tsre_weather ( tsre_weather_preset ( valley_fog ) tsre_weather_keyframe ( tsre_weather_time ( 0 ) ) )",

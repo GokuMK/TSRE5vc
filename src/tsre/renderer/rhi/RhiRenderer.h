@@ -729,6 +729,7 @@ private:
         QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
         const QRhiTexture *volumeCloudMap = nullptr;
         const QRhiTexture *volumeSunMap = nullptr;
+        const QRhiTexture *volumeShadeMap = nullptr;
     } lightShafts;
     bool shaftsApplied = false;
 public:
@@ -768,9 +769,9 @@ private:
         QRhiShaderResourceBindings *integrateBindings[2] = {};
         QRhiComputePipeline *inject = nullptr;
         QRhiComputePipeline *integrate = nullptr;
-        // The maps the injection's bindings hold (shadow maps and the cloud
-        // shadow map come and go).
-        const QRhiTexture *boundMaps[4] = {};
+        // The maps the injection's bindings hold (shadow maps, the cloud
+        // shadow map and the terrain's shade come and go).
+        const QRhiTexture *boundMaps[5] = {};
         int current = 0;
         bool historyValid = false;
         float previousForward[16] = {};
@@ -807,6 +808,29 @@ private:
     // The volume's slices: nearest and farthest distance (m).
     static constexpr float FogNear = 1.0f;
     static constexpr float FogFar = 10000.0f;
+public:
+    void setTerrainShade(const TerrainShade &shade) override;
+private:
+    // The terrain's shade of a low sun or moon past the shadow maps: its map
+    // as a texture of the tops (half floats from the map's reference
+    // height), read by the lit shaders (ShadowSampling.glsl), the volumetric
+    // light shafts and the fog's light.
+    TerrainShade terrainShade;
+    struct ShadeResources {
+        QRhiTexture *texture = nullptr;
+        quint64 revision = ~0ull;
+        float reference = 0.0f;
+        bool filled = false;
+    } shadeResources;
+    // A changed map, uploaded in the frame's first pass, before anything
+    // reads it.
+    void prepareTerrainShade(QRhiResourceUpdateBatch *updates);
+    void releaseTerrainShade();
+    bool terrainShadeReady() const;
+    // The map's place in the view: its north-west corner (x, z), size (m),
+    // the view's y less heights above sea level; on, the tops' reference
+    // height, 1 / the light's fading band (m), 0.
+    void terrainShadePlace(float place[4], float params[4]) const;
     bool createLightShafts(QRhiTexture *cloudTexture);
     void applyLightShafts();
     void applyVolumetricShafts(const QVector3D &sunDirection, float elevation);

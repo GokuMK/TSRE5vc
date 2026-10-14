@@ -437,6 +437,54 @@ the terrain cannot explain.
   (the same images). High about 1.5 to 2 ms in thick fog on the Steam Deck,
   Low about 0.5 ms.
 
+### The terrain's shade of a low sun (user, 2026-10-15)
+
+- EUROPE1 at 20:00, clear, the sun 3.3 degrees up behind a hill about
+  1 km off: the volumetric light shafts lit the haze in front of the hill
+  in a bright glow with rays from under the ridge, as if through it; also
+  in main (mist off the same). The fields there were lit too.
+- The cause: the sun's shadows are the shadow maps', which hold what
+  stands within 700 m of the camera (the far map: ±700 m, casters to
+  1 km). The shafts march 1.5 km (6 km over the sky); past the map every
+  point counted lit, and a hill farther off cast no shadow at all.
+- **`TerrainShade`** (environment): over the floor map's grid (16 km, cells
+  of 64 m), the height under which the ground towards the light hides it.
+  - From each cell's lowest ground (`Terrain::lowestHeight`: its height
+    samples and corners), so a valley narrower than a cell stays open.
+  - Lines of cells from the light's side (along the axis nearer the
+    light's): a cell's top is the higher of the ground and the top one step
+    towards the light (the lower ground of the two cells it lands between,
+    their tops blended), less the light's fall over the step.
+  - A cell lit down to its lowest ground keeps as its top the lowest ground
+    within a cell of it: a lit valley's sides (their tops just under their
+    own ground) walled it in as the tops blended between cells (a test:
+    a one cell valley running towards the sun).
+  - The light fades over 4 m under the top (the sun's disc past a ridge
+    1 km off).
+- **Read by** the lit shaders (`ShadowSampling.glsl`, with the cloud
+  shadow), the volumetric shafts' march and the fog's light (both past the
+  shadow maps), as a 256 x 256 half float texture from a reference height
+  near the camera's ground. The sun's light, or the moon's at night.
+- **Made** with shadows, the volumetric shafts or mist on: the floor map is
+  now sampled for it too, without fog. Made again when the floor map is new
+  or the light has moved 0.03 degrees (a ridge 1 km off moves its shade
+  half a metre).
+- **Cost on the Steam Deck:** the floor map built in 5.8 ms in one frame
+  (since step 2, with fog only) and the shade in 1.2 ms; both now on a
+  worker thread, the last ones used meanwhile. The tiles are sampled for
+  up to 1.5 ms a frame (8 a frame took 7 ms where all had terrain); the
+  lowest ground adds about 0.25 ms a detailed tile.
+- **EUROPE1 at 20:00:** the glow and the rays through the hill are gone;
+  the haze over the ridge still glows. Facing east the slopes and the
+  viaduct facing the sun darken a little (at 3 degrees the sun lights
+  them faintly). At 19:30, the sun on the ridge, the rays from under it
+  are gone. At noon nothing changes; CMK at sunrise next to nothing (flat
+  around the line). `TSRE_NO_TERRAIN_SHADE=1` leaves it out (comparisons);
+  `TSRE_FOG_LOG=1` logs the sampling's time and the light at the camera.
+- Left for later: the aerial haze's own glow towards the sun (task 32)
+  assumes a lit path; with the volumetric shafts they take it back where
+  the march finds shade, without them it stays.
+
 ## Verification
 
 - **Captures** on hilly routes with valleys and rivers (POLAND, BNSF_SCENIC,

@@ -49,6 +49,9 @@ struct FogParameters {
     float cloudsMid[4];        // the mid layer's map: centre x, z; the open share past the maps
     float ringSun[4];          // the sun's direction across the ground (x, z), 0, 0
     float ring[8][4];          // the horizon's colour (display), from towards the sun to away
+    float shadePlace[4];       // the terrain's shade: its map's north-west corner (x, z), size (m), the view's y
+                               // less heights
+    float shadeParams[4];      // on, the map's reference height (m), 1 / the light's fading band (m), 0
 };
 
 const char *FogBlock = R"(#version 440
@@ -73,6 +76,8 @@ layout(std140, binding = 0) uniform Fog {
     vec4 cloudsMid;
     vec4 ringSun;
     vec4 ring[8];
+    vec4 shadePlace;
+    vec4 shadeParams;
 };
 
 // The distance (m) a slice coordinate stands for.
@@ -92,6 +97,7 @@ layout(binding = 4) uniform sampler2DShadow shadowMap1;
 layout(binding = 5) uniform sampler2DShadow shadowMap2;
 layout(binding = 6) uniform sampler3D history;
 layout(binding = 7, rgba16f) uniform writeonly image3D cells;
+layout(binding = 8) uniform sampler2D terrainShadeMap;
 
 // Extinction (1/m): the weather's fog from the floor up to its top, where the
 // floor map pools it (FogFloor), softly edged; none past the map. above: the
@@ -154,15 +160,28 @@ bool mapPoint(mat4 matrix, vec3 p, out vec3 m) {
     return all(greaterThan(m.xy, vec2(0.0))) && all(lessThan(m.xy, vec2(1.0))) && m.z < 1.0;
 }
 
+// The terrain farther off (ShadowSampling.glsl's terrainShade): a hill the
+// sun has set behind.
+float terrainVisible(vec3 p) {
+    if (shadeParams.x <= 0.0)
+        return 1.0;
+    vec2 m = (p.xz - shadePlace.xy) / shadePlace.z;
+    if (any(lessThan(m, vec2(0.0))) || any(greaterThan(m, vec2(1.0))))
+        return 1.0;
+    float top = textureLod(terrainShadeMap, m, 0.0).r + shadeParams.y;
+    return clamp((p.y - shadePlace.w - top) * shadeParams.z + 1.0, 0.0, 1.0);
+}
+
 float shadowVisible(vec3 p) {
+    float terrain = terrainVisible(p);
     vec3 m;
     if (mapPoint(shadow0, p, m))
-        return textureLod(shadowMap0, vec3(m.xy, m.z - 0.001), 0.0);
+        return terrain * textureLod(shadowMap0, vec3(m.xy, m.z - 0.001), 0.0);
     if (mapPoint(shadow1, p, m))
-        return textureLod(shadowMap1, vec3(m.xy, m.z - 0.002), 0.0);
+        return terrain * textureLod(shadowMap1, vec3(m.xy, m.z - 0.002), 0.0);
     if (mapPoint(shadow2, p, m))
-        return textureLod(shadowMap2, vec3(m.xy, m.z - 0.002), 0.0);
-    return 1.0;
+        return terrain * textureLod(shadowMap2, vec3(m.xy, m.z - 0.002), 0.0);
+    return terrain;
 }
 
 void main() {
@@ -412,7 +431,8 @@ bool RhiRenderer::createFog(int quality, const QSize &viewSize) {
                                       QRhiShaderResourceBinding::sampledTexture(4, compute, dummyDepth, shadowSampler),
                                       QRhiShaderResourceBinding::sampledTexture(5, compute, dummyDepth, shadowSampler),
                                       QRhiShaderResourceBinding::sampledTexture(6, compute, f.scatter[1], f.linear),
-                                      QRhiShaderResourceBinding::imageStore(7, compute, f.scatter[0], 0)});
+                                      QRhiShaderResourceBinding::imageStore(7, compute, f.scatter[0], 0),
+                                      QRhiShaderResourceBinding::sampledTexture(8, compute, dummy2D, f.linear)});
     f.injectBindings[0]->create();
     f.inject = rhi->newComputePipeline();
     f.inject->setShaderStage({QRhiShaderStage::Compute, inject});
@@ -458,14 +478,16 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
         updates->uploadTexture(f.floor, QRhiTextureUploadEntry(0, 0, QRhiTextureSubresourceUploadDescription(bytes)));
         f.floorRevision = fog.revision;
     }
-    // The maps the injection reads: the cloud shadow map and the sun's.
+    // The maps the injection reads: the cloud shadow map, the sun's, the
+    // terrain's shade.
     const bool shadows = Game::shadowsEnabled > 0;
-    const QRhiTexture *maps[4] = {
+    const QRhiTexture *maps[5] = {
         cloudResources.shadow != nullptr && cloudResources.shadowValid ? cloudResources.shadow : dummy2D,
         shadows && shadowMaps[0].valid() ? shadowMaps[0].depth : dummyDepth,
         shadows && shadowMaps[1].valid() ? shadowMaps[1].depth : dummyDepth,
-        shadows && shadowMaps[2].valid() ? shadowMaps[2].depth : dummyDepth};
-    if (!std::equal(maps, maps + 4, f.boundMaps))
+        shadows && shadowMaps[2].valid() ? shadowMaps[2].depth : dummyDepth,
+        terrainShadeReady() ? shadeResources.texture : dummy2D};
+    if (!std::equal(maps, maps + 5, f.boundMaps))
         for (QRhiShaderResourceBindings *&b : f.injectBindings) {
             delete b;
             b = nullptr;
@@ -483,10 +505,11 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
                  QRhiShaderResourceBinding::sampledTexture(4, compute, const_cast<QRhiTexture *>(maps[2]), shadowSampler),
                  QRhiShaderResourceBinding::sampledTexture(5, compute, const_cast<QRhiTexture *>(maps[3]), shadowSampler),
                  QRhiShaderResourceBinding::sampledTexture(6, compute, f.scatter[1 - i], f.linear),
-                 QRhiShaderResourceBinding::imageStore(7, compute, f.scatter[i], 0)});
+                 QRhiShaderResourceBinding::imageStore(7, compute, f.scatter[i], 0),
+                 QRhiShaderResourceBinding::sampledTexture(8, compute, const_cast<QRhiTexture *>(maps[4]), f.linear)});
         f.injectBindings[i]->create();
     }
-    std::copy(maps, maps + 4, f.boundMaps);
+    std::copy(maps, maps + 5, f.boundMaps);
 
     FogParameters p = {};
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, p.inverse);
@@ -568,6 +591,9 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     for (int i = 0; i < 8; ++i)
         for (int k = 0; k < 3; ++k)
             p.ring[i][k] = haze.ring[i][k] * scene;
+    terrainShadePlace(p.shadePlace, p.shadeParams);
+    if (f.boundMaps[4] == dummy2D)
+        p.shadeParams[0] = 0.0f;
     updates->updateDynamicBuffer(f.uniforms, 0, sizeof(p), &p);
 
     const int current = f.current;
