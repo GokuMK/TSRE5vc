@@ -164,11 +164,21 @@ public:
     //void initActivityObjects();
     void updateSim(float *playerT, float deltaTime);
     void pushRenderItems(RenderQueue &queue, float * playerT, float playerRot, int renderMode);
+    // The AI trains shown (shownAITrain, showAllAITrains): their paths and
+    // their consists at their starts; a service several run, once.
+    QVector<int> shownAITrains();
 
     QString editorConListSelected;
     ActivityEvent *currentEventSelected = NULL;
     // The outcome shown of that event (a sound's place is picked on the map).
     ActivityEvent::Outcome *currentOutcomeSelected = NULL;
+    // What map and 3D show of the AI trains (not saved): the train chosen in
+    // the Timetable window (its place in traffic->service, -1 none), and
+    // all of them.
+    int shownAITrain = -1;
+    bool showAllAITrains = false;
+    // An AI train's service (by its place in traffic->service), or NULL.
+    Service *aiTrainService(int index);
     void init(QString route, QString name);
     //void setRouteContent(QVector<Path*>* p, QVector<Service*>* s, QVector<Traffic*>* t);
     //Traffic *getTrafficByName(QString name);
@@ -195,6 +205,14 @@ public:
     // No player service, no traffic: changes like the others.
     void clearPlayerService();
     void clearTraffic();
+    // The activity's AI trains: a run of its traffic pattern joins them
+    // (its stops, the service's efficiency), or one leaves (by its place in
+    // traffic->service); the pattern keeps its runs.
+    bool addAITrain(ActivityTimetable *run);
+    bool removeAITrain(int index);
+    // The activity names another traffic pattern with the same runs (its
+    // own copy): its AI trains find their times there.
+    void setTrafficName(const QString &nameId);
     void setFuelCoal(int val);
     void setFuelWater(int val);
     void setFuelDiesel(int val);
@@ -224,6 +242,8 @@ public:
     QMap<int, QString> getEventIdNameList();
     QMap<int, QString> getServiceStationStopNameList();
     ActivityObject* getObjectById(int id);
+    // The consist of the player's train (0) or of an AI train (its place in
+    // traffic->service + 1), as map and 3D select them.
     Consist* getServiceConsistById(int id);
 
 private:

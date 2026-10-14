@@ -31,7 +31,8 @@ public slots:
     void bCalculateSelected();
     
 signals:
-    
+    // Times or efficiencies changed (a cell, Calculate).
+    void edited();
     
 private:
     ActivityServiceDefinition *service = NULL;

@@ -268,10 +268,10 @@ QString Service::toText(){
     return text;
 }
 
-void Service::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId) {
+void Service::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, int pathStyle) {
     initToPlay();
     if (pathPointer != NULL)
-        pathPointer->pushRenderItems(queue, playerT, selectionId);
+        pathPointer->pushRenderItems(queue, playerT, selectionId, pathStyle);
     if (conPointer != NULL)
         conPointer->pushRenderItemsOnTrack(queue, playerT, selectionId);
 }

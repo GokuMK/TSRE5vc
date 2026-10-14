@@ -1527,6 +1527,7 @@ void RouteEditorGLWidget::applySelection(quint32 selectionId,
             //qDebug() << "eid"<<EID;
             selectedObj->select(EID);
             setSelectedObj(selectedObj);
+            emit activityTrainSelected(CID);
         }
     } else {
         if (selectedObj != NULL) {
@@ -2761,6 +2762,20 @@ void RouteEditorGLWidget::setDiagnosticActivity(const QString &activity, const Q
         }
         if (!found)
             qWarning() << "diagnostic path not found" << path;
+    }
+}
+
+void RouteEditorGLWidget::setDiagnosticAITrains(const QString &trains) {
+    Activity *activity = route != NULL ? route->getCurrentActivity() : NULL;
+    if (activity == NULL || trains.isEmpty())
+        return;
+    for (const QString &part : trains.split(',', Qt::SkipEmptyParts)) {
+        bool number = false;
+        const int index = part.trimmed().toInt(&number);
+        if (number)
+            activity->shownAITrain = index;
+        else if (part.trimmed() == "all")
+            activity->showAllAITrains = true;
     }
 }
 

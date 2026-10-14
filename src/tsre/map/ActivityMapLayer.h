@@ -27,6 +27,8 @@ struct MapPalette;
 // The activity and the paths selected in the activity tools, in map mode
 // (the Map menu's Activity and Paths):
 // - paths as a wide band under the track, with their nodes as circles;
+// - the AI trains shown from the Timetable window (Activity::shownAITrains)
+//   likewise, their bands in the AI colours under the player's;
 // - consists (loose ones and the player's) as the footprints of their
 //   vehicles, engines darker than wagons;
 // - speed zones as a line along the track with circles at the ends;
@@ -45,6 +47,8 @@ public:
     static constexpr float MinVehiclePixels = 3.0f;
     // Under the track lines (TrackMapLayer: road 100, track 200).
     static constexpr float PathHeight = 150.0f;
+    static constexpr float AIPathHeight = 140.0f;
+    static constexpr float ChosenPathHeight = 145.0f;
     // Above the track objects (600, 610) and under the pointer (900).
     // Selected objects get a halo of this many pixels around the border.
     static constexpr float HaloPixels = 3.0f;
@@ -81,6 +85,8 @@ private:
     QString builtPalette;
     std::vector<const void *> builtSources;
     std::unique_ptr<OglObj> pathBand;
+    std::unique_ptr<OglObj> aiBand;
+    std::unique_ptr<OglObj> chosenBand;
     std::unique_ptr<OglObj> halos;
     std::unique_ptr<OglObj> borders;
     std::unique_ptr<OglObj> areas;

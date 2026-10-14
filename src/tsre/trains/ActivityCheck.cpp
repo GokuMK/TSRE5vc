@@ -219,14 +219,23 @@ private:
                    ActivityFinding::Traffic, activity->traffic->name);
             return;
         }
-        for (const ActivityServiceDefinition &instance : activity->traffic->service)
-            if (traffic->getInstance(instance.name, instance.time) == NULL)
+        for (const ActivityServiceDefinition &instance : activity->traffic->service) {
+            const ActivityTimetable *run = traffic->getInstance(instance.name, instance.time);
+            if (run == NULL)
                 // Open Rails runs it without the pattern's timetable.
                 target(add(ActivityFinding::Warning, "instance.not.in.traffic",
                            //% "The AI train %1 at %2 is not in the traffic pattern %3: it runs without its timetable."
                            qtTrId("activity.check.instance.not.in.traffic")
                            .arg(instance.name, clock(instance.time), traffic->nameId)),
                        ActivityFinding::Traffic, traffic->nameId);
+            else if (run->name != instance.name)
+                // Open Rails compares the names exactly.
+                target(add(ActivityFinding::Warning, "instance.name.case",
+                           //% "The AI train %1 at %2 is named %3 in the traffic pattern %4: Open Rails matches names exactly, so it runs without its timetable."
+                           qtTrId("activity.check.instance.name.case")
+                           .arg(instance.name, clock(instance.time), run->name, traffic->nameId)),
+                       ActivityFinding::Traffic, traffic->nameId);
+        }
         for (const ActivityTimetable *instance : traffic->service) {
             if (instance == NULL || instance->empty)
                 continue;

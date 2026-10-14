@@ -527,6 +527,25 @@ int TsreTests::runPathEditSuite(bool verbose) {
         check(branch.droppedByLastEdit() == 1 && branch.snapshot()->passing.isEmpty(),
               "an edit through a passing path drops it and counts it");
 
+        // Waiting points of each kind saved in the path file and read back
+        // as their values.
+        {
+            bool same = true;
+            for (int value : {90, 30830, 40305, 50210, 60015, 60021}) {
+                Path written(folder.path(), "waits.pat", true);
+                written.apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 290}); },
+                                              [&](const QVector<Node> &n) { return PathTrack::waitAt(&l.db, n, {10, 150}, value); }}));
+                same = same && written.save();
+                Path read(folder.path(), "waits.pat");
+                int found = -1;
+                for (const Node &node : read.nodes())
+                    if (node.type == PathTrack::NodeType::Wait)
+                        found = node.waitTime;
+                same = same && found == value;
+            }
+            check(same, "waiting points of each kind are saved and read back as their values");
+        }
+
         // Services follow their path; activities and traffic keep their
         // times; undo takes it all back.
         const QString route = folder.path() + "/ROUTES/R";

@@ -1,7 +1,8 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 to 6 done (2026-10-14, branch `feature/activity-editing`);
-phase 7 (seeing the activity) next. Design decisions taken (below).
+Status: phases 1 to 7 done (2026-10-14, branch `feature/activity-editing`);
+phase 7's design revised the same day (section 7). Design decisions taken
+(below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -248,6 +249,47 @@ a real waiting point without one), `path-edit` (waiting point values
 both ways), `activity-ui` (the overlay line, Merge... cancelled and
 confirmed, its undo; the waiting point dialog for each kind; the random
 run over a fixture with the new outcomes and an overlay).
+
+**Phase 7, seeing the activity (done 2026-10-14).** As section 7 says,
+with these details:
+- The Timetable window lists the trains (`ActivityTrains`: the player's,
+  the AI trains, the pattern's runs the activity lacks) by start time,
+  with a splitter above the line saying where the chosen train's times
+  are saved and the timetable panel. The rows are made again after an
+  edit in the timetable, an undo, or when the window is used again (other
+  windows change what they show).
+- Add to Activity and Remove from Activity edit the activity's AI trains
+  (`Activity::addAITrain`, `removeAITrain`; a new one takes
+  `NextServiceUID`). Make Own Copy... writes the pattern's text into a new
+  traffic pattern (`ActivityTrains::CopyPattern`) and points the activity
+  at it (`Activity::setTrafficName`); its dialog has its own title.
+- Map and 3D: `Activity::shownAITrains` (the chosen train first, a service
+  once; not in play mode). 3D draws the path's lines in the AI styles
+  (`Path::LineAITrain`, `LineChosenTrain`, made when first drawn) and the
+  consist at the start, selectable as `activityService(place + 1)`;
+  `getServiceConsistById` finds its consist. The map draws the bands in
+  the palette's `aiPath` and `aiPathChosen` (under the player's path) and
+  the consists, with the same selection ids. A click on an AI consist
+  chooses its row (`RouteEditorGLWidget::activityTrainSelected`).
+- The traffic window's Any column uses `ActLib::TrafficUsers`
+  (`IsTrafficInUse` only says a pattern of the name exists). Check
+  Activity warns of a name in another case (`instance.name.case`); the
+  local content has none.
+
+Tests: `activity-edit` (the rows, by start time, a run the activity
+lacks, a name in another case; remove and add with undo; the trains
+shown, a service once; Make Own Copy and its undo, a taken name; a save
+without a merge leaving the overlay), `path-edit` (waiting points of each
+kind saved in a path file and read back), `activity-ui` (the window's
+rows, bold player, problem signs; where the times are saved, shared with
+another activity; Make Own Copy... through its dialog and undo; remove,
+add, undo; Show All Trains; a train chosen on the map; the traffic
+window's Any; the random run over the new window). Capture
+`tests/renderer/map-ai-trains.json` (EUROPE1 lclsrvce, twelve AI trains
+of three services on two paths): the bands and consists on the map, the
+cyan line in 3D, the centre pick of an AI wagon being that train
+(`--test-suite renderer-capture --test-cases <file> --game-root
+~/ORTS/MSTS --route EUROPE1`).
 
 **Minor issues, for a later check (2026-10-14):**
 - `SkipCount` exceptions in MSTS's own content (Reference, MSTS): 30
@@ -726,12 +768,78 @@ that jumps to each item:
 
 ### 7. Seeing the activity
 
-- Map and 3D: every AI instance's path (its own colour, its name and start
-  time at its start), its consist at its start position; the player's as
-  now. Selecting an instance in the traffic panel selects it on the map and
-  the reverse.
-- An overview in the traffic panel: instances sorted by start time, each
-  with service, path, consist, first and last stop and times.
+**The Timetable window becomes the activity's overview (decided
+2026-10-14):** it is already per activity (the traffic window is per
+traffic file), so it is upgraded, not duplicated by another window.
+
+How the files share the times (checked in Open Rails' code, `AI.cs:785`,
+`ActivityFile.cs:744`): the player's timetable is in the activity; an AI
+train's is in the traffic pattern the activity names (one file), found by
+service name and start time, the name compared exactly. The activity adds
+an efficiency per stop. A pattern may serve several activities, so an AI
+train's times are shared; its efficiency is the activity's own.
+
+**Layout,** top to bottom, a splitter between:
+
+1. The trains, one row each, by start time (the player's first at equal
+   times):
+
+   | Start | Train | Path | Consist | First stop | Last stop |
+   |---|---|---|---|---|---|
+
+   - the player's train in bold, "(player)" after its name;
+   - the activity's AI trains;
+   - the pattern's runs the activity does not have, greyed, "(not in the
+     activity)": the activity takes a pattern's runs when the pattern is
+     chosen, so runs added later are only in the pattern;
+   - a warning sign on a train whose service, path or consist is missing,
+     which has no times in the pattern, or which the pattern names in
+     another case (Open Rails then finds no times); its tooltip says what;
+   - first stop with its departure, last stop with its arrival.
+
+   Under it: **Show All Trains** (map and 3D), **Add to Activity**,
+   **Remove from Activity**, **Jump To**.
+2. A line saying where the chosen train's times are saved, always there
+   (no pop-ups, as for overlays):
+   - the player's: in the activity;
+   - an AI train's: in the traffic pattern, with the other activities
+     using it, and **Make Own Copy...** when there are any;
+   - a run not in the activity: Add to Activity puts it in.
+3. The chosen train's timetable, as now: stops with Arrive, Depart and
+   Performance, Calculate, start time, engine and speeds.
+
+**Actions,** each one undo step:
+- Add to Activity: the run joins the activity's AI trains (its stops, the
+  service's efficiency); Remove from Activity takes an AI train out (the
+  pattern keeps the run; events naming it are Check Activity's).
+- Make Own Copy...: a name asked, a new traffic pattern with the same runs
+  written, the activity pointed at it. Undo points the activity back; the
+  new pattern stays, as New in the traffic window leaves one.
+- Jump To: the camera to the train's start.
+
+**Map and 3D:**
+- The player's train as now.
+- The chosen AI train: its path (3D lines in cyan, on the map a band in
+  the palette's `aiPath` colour) and its consist at its start.
+- Show All Trains: every AI train of the activity likewise, the others in
+  blue; a service run by several trains is drawn once.
+- Clicking an AI train's consist (3D or map) chooses its row.
+- No name labels (the earlier plan): the table names the trains, and
+  choosing a row shows which is which.
+
+**Also in this phase:** the traffic window's "Any" column (it showed
+every file as used); Check Activity warning of an AI train named in
+another case than its pattern's run.
+
+**Times computed with traffic (later, not this task).** Calculate takes
+each train alone. A calculation with signals and single track is a
+dispatching simulation, a task of its own. Direction agreed: the traffic
+pattern keeps the booked times and is never rewritten with delays (Open
+Rails runs the same way: an AI train waits for its booked departure and
+leaves late when held, `Train.CalculateDepartTime`); the player's train,
+whose timetable is the activity's own, is fitted between the AI trains;
+an author who wants AI times for one activity makes its own copy of the
+pattern first (Make Own Copy...).
 
 ## Phases
 
@@ -748,8 +856,9 @@ that jumps to each item:
    recomputing after path changes, moving times, passing branches kept.
 6. **Open Rails additions** in the windows and the path tool; merging an
    overlay into its activity.
-7. **Seeing the activity:** AI paths and consists on the map, the
-   traffic overview.
+7. **Seeing the activity:** the Timetable window as the activity's
+   trains (where times are saved, adding and removing AI trains, an own
+   copy of the pattern), AI trains on the map and in 3D.
 
 Phases 1 to 3 make TSRE safe to edit and save with; each later phase
 stands alone.

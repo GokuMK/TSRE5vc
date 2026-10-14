@@ -80,7 +80,9 @@ public:
     void restore(const TextSnapshot &snapshot);
     Consist *getConsistPointer();
     void updateSim(float *playerT, float deltaTime);
-    void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId);
+    // Its path (in the path's line style) and its consist at the path's
+    // start.
+    void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, int pathStyle = 0);
     // The service's consist for the map mode, and its path.
     void getMapFeatures(MapFeatures &consist, int tileX, int tileZ);
     Path *getPathPointer();

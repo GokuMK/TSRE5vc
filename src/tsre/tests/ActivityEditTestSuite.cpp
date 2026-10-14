@@ -14,6 +14,7 @@
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ActivityOverlay.h>
+#include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/Path.h>
@@ -271,6 +272,75 @@ Tr_Activity (
 )
 )";
 
+// A traffic pattern two activities share: Stops at 10:00 (in A), at 8:20
+// (in B only), and at 11:06:40, named STOPS (A names it stops).
+const char *sharedTraffic = R"(SIMISA@@@@@@@@@@JINX0f0t______
+
+Traffic_Definition ( Shared
+	Serial ( 1 )
+	Service_Definition ( Stops 36000
+		ArrivalTime ( 36100 )
+		DepartTime ( 36160 )
+		SkipCount ( 1 )
+		DistanceDownPath ( 100 )
+		PlatformStartID ( 12 )
+		ArrivalTime ( 36900 )
+		DepartTime ( 36900 )
+		SkipCount ( 2 )
+		DistanceDownPath ( 900 )
+		PlatformStartID ( 14 )
+	)
+	Service_Definition ( Stops 30000
+		ArrivalTime ( 30100 )
+		DepartTime ( 30160 )
+		SkipCount ( 1 )
+		DistanceDownPath ( 100 )
+		PlatformStartID ( 12 )
+	)
+	Service_Definition ( STOPS 40000
+		ArrivalTime ( 40100 )
+		DepartTime ( 40160 )
+		SkipCount ( 1 )
+		DistanceDownPath ( 100 )
+		PlatformStartID ( 12 )
+	)
+)
+)";
+
+QString trainsActivity(const QString &name, const QString &trains) {
+    return QString(R"(SIMISA@@@@@@@@@@JINX0a0t______
+
+Tr_Activity (
+	Tr_Activity_Header (
+		RouteID ( TEST )
+		Name ( "%1" )
+		StartTime ( 8 0 0 )
+		Duration ( 1 0 )
+	)
+	Tr_Activity_File (
+		Player_Service_Definition ( Stops
+			Player_Traffic_Definition ( 28800
+				ArrivalTime ( 28900 )
+				DepartTime ( 28960 )
+				SkipCount ( 1 )
+				DistanceDownPath ( 100 )
+				PlatformStartID ( 12 )
+			)
+			UiD ( 0 )
+			Efficiency ( 0.9 )
+			SkipCount ( 1 )
+			DistanceDownPath ( 100 )
+			PlatformStartID ( 12 )
+		)
+		NextServiceUID ( 3 )
+		NextActivityObjectUID ( 32768 )
+		Traffic_Definition ( Shared
+%2		)
+	)
+)
+)").arg(name, trains);
+}
+
 }
 
 int TsreTests::runActivityEditSuite(bool verbose) {
@@ -293,7 +363,13 @@ int TsreTests::runActivityEditSuite(bool verbose) {
           && writeSimis(route + "/ACTIVITIES/Legacy.act", legacyActivity)
           && writeSimis(route + "/ACTIVITIES/Overlaid.act", overlaidActivity)
           && QDir().mkpath(route + "/ACTIVITIES/OpenRails")
-          && writeSimis(route + "/ACTIVITIES/OpenRails/overlaid.ACT", overlayText),
+          && writeSimis(route + "/ACTIVITIES/OpenRails/overlaid.ACT", overlayText)
+          && writeSimis(route + "/TRAFFIC/Shared.trf", sharedTraffic)
+          && writeSimis(route + "/ACTIVITIES/TrainsA.act", trainsActivity("Trains A",
+                 "\t\t\tService_Definition ( Stops 36000\n\t\t\t\tUiD ( 1 )\n\t\t\t)\n"
+                 "\t\t\tService_Definition ( stops 40000\n\t\t\t\tUiD ( 2 )\n\t\t\t)\n"))
+          && writeSimis(route + "/ACTIVITIES/TrainsB.act", trainsActivity("Trains B",
+                 "\t\t\tService_Definition ( Stops 30000\n\t\t\t\tUiD ( 1 )\n\t\t\t)\n")),
           "write the test route");
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "TEST");
@@ -485,6 +561,9 @@ int TsreTests::runActivityEditSuite(bool verbose) {
         };
         if (overlaid) {
             const QString original = overlaid->toText();
+            overlaid->save();
+            check(QFile::exists(overlay) && !QFile::exists(overlay + ".merged"),
+                  "a save without a merge leaves the overlay alone");
             const QStringList found = codes(overlaid);
             check(found.contains("overlay.present") && found.count("overlay.skipped") == 3,
                   "Check Activity notes the overlay and what a merge leaves out: " + found.join(", "));
@@ -528,6 +607,97 @@ int TsreTests::runActivityEditSuite(bool verbose) {
             Undo::UndoLast();
             check(overlaid->mergedOverlay.isEmpty() && overlaid->isUnSaved(),
                   "undo after the save leaves the renamed overlay alone");
+        }
+    }
+
+    // The activity's trains (the Timetable window's rows): by start time,
+    // the pattern's runs it lacks among them; adding, removing, an own copy
+    // of the shared pattern.
+    {
+        ActLib::AddService(route + "/SERVICES", "Stops.srv");
+        Traffic *shared = ActLib::Traffics.value(ActLib::AddTraffic(route + "/TRAFFIC", "Shared.trf"));
+        Activity *a = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "TrainsA.act"));
+        Activity *other = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "TrainsB.act"));
+        check(shared && shared->service.size() == 3 && a && a->loaded == 1 && other && other->loaded == 1,
+              "a shared pattern and its two activities load");
+        if (shared && a && other) {
+            using ActivityTrains::Train;
+            const auto kinds = [](const QVector<Train> &trains) {
+                QString text;
+                for (const Train &train : trains)
+                    text += QString("%1:%2:%3 ").arg(int(train.kind)).arg(train.service).arg(train.time);
+                return text.trimmed();
+            };
+            QVector<Train> trains = ActivityTrains::List(a);
+            check(kinds(trains) == "0:Stops:28800 2:Stops:30000 1:Stops:36000 1:stops:40000",
+                  "the player's, the pattern's run it lacks, its AI trains, by start time: " + kinds(trains));
+            const Train *ai = trains.size() == 4 ? &trains[2] : nullptr;
+            check(ai && ai->timetable == shared->getInstance("Stops", 36000) && ai->path == "Other"
+                  && ai->firstStop.endsWith("10:02") && ai->lastStop.endsWith("10:15")
+                  && !ai->problems.contains(qtTrId("activity.trains.name.case").arg("Stops")),
+                  "an AI train's times are the pattern's run; its first departure and last arrival");
+            check(trains.size() == 4 && trains[3].problems.contains(qtTrId("activity.trains.name.case").arg("STOPS"))
+                  && trains[1].timetable == shared->service.value(1),
+                  "a name differing in case from the pattern's is a problem: " + (trains.size() == 4 ? trains[3].problems.join("; ") : QString()));
+            check(ActivityTrains::OtherUsers(a).size() == 1 && ActivityTrains::OtherUsers(a).first().startsWith("TrainsB"),
+                  "the pattern's other user");
+            QStringList codes;
+            for (const ActivityFinding &finding : CheckActivity(a))
+                codes << finding.code;
+            check(codes.contains("instance.name.case"), "Check Activity warns of the name's case");
+
+            // Remove and add, each one undo step.
+            const QString original = a->toText();
+            {
+                ActivityEdit edit(a);
+                a->removeAITrain(0);
+            }
+            trains = ActivityTrains::List(a);
+            check(a->isUnSaved() && kinds(trains) == "0:Stops:28800 2:Stops:30000 2:Stops:36000 1:stops:40000",
+                  "a removed AI train is the pattern's run again: " + kinds(trains));
+            Undo::UndoLast();
+            check(a->toText() == original && !a->isUnSaved(), "undo puts it back");
+            {
+                ActivityEdit edit(a);
+                a->addAITrain(shared->service[1]);
+            }
+            trains = ActivityTrains::List(a);
+            const QString added = a->toText();
+            check(kinds(trains) == "0:Stops:28800 1:Stops:30000 1:Stops:36000 1:stops:40000"
+                  && added.contains("Service_Definition ( Stops 30000") && added.contains("UiD ( 3 )")
+                  && added.contains("NextServiceUID ( 4 )"),
+                  "an added run is an AI train with the next UiD: " + kinds(trains));
+            Undo::UndoLast();
+            check(a->toText() == original, "undo takes it out");
+
+            // Map and 3D: the chosen train first, a service once.
+            a->shownAITrain = 1;
+            const QVector<int> chosenOnly = a->shownAITrains();
+            a->showAllAITrains = true;
+            const QVector<int> all = a->shownAITrains();
+            a->showAllAITrains = false;
+            a->shownAITrain = -1;
+            check(chosenOnly == QVector<int>({1}) && all == QVector<int>({1}) && a->shownAITrains().isEmpty()
+                  && a->aiTrainService(1) != nullptr && a->aiTrainService(1) == a->aiTrainService(0),
+                  "the chosen AI train is shown; all of them shows each service once");
+
+            // An own copy: the same runs, the activity naming it; the shared
+            // pattern untouched.
+            Traffic *copy = nullptr;
+            {
+                ActivityEdit edit(a);
+                copy = ActivityTrains::CopyPattern(a, "Own");
+            }
+            trains = ActivityTrains::List(a);
+            check(copy && copy->service.size() == 3 && a->traffic->name == "Own" && ActivityTrains::Pattern(a) == copy
+                  && trains.size() == 4 && copy->service.contains(trains[2].timetable)
+                  && ActivityTrains::OtherUsers(a).isEmpty() && !shared->isModified() && copy->isModified()
+                  && copy->toText().contains("Traffic_Definition ( Own") && copy->toText().contains("Service_Definition ( Stops 36000"),
+                  "Make Own Copy: a new pattern with the runs, named by the activity");
+            check(ActivityTrains::CopyPattern(a, "Shared") == nullptr, "a taken name makes no copy");
+            Undo::UndoLast();
+            check(a->traffic->name == "Shared" && ActivityTrains::Pattern(a) == shared && a->toText() == original,
+                  "undo names the shared pattern again");
         }
     }
 

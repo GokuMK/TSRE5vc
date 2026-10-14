@@ -109,12 +109,12 @@ void ActivityTrafficWindow::showTraffic(Route* r){
             if(activity->isTrafficInUse(ActLib::Traffics[i]->nameId))
                 item->setCheckState(1, Qt::Checked);
         }
-        if(ActLib::IsTrafficInUse(ActLib::Traffics[i]->nameId))
+        // Any: an activity of the route names it.
+        if(!ActLib::TrafficUsers(ActLib::Traffics[i]).isEmpty())
             item->setCheckState(2, Qt::Checked);
         else
             item->setCheckState(2, Qt::Unchecked);
         //}
-        item->setCheckState(2, Qt::Checked);
         item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
         items.append(item);
     }

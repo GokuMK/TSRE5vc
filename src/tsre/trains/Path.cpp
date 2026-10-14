@@ -469,6 +469,12 @@ void Path::clearDerived() {
     lines.clear();
     linesX.clear();
     linesZ.clear();
+    for (int style = 0; style < 2; ++style) {
+        qDeleteAll(styleLines[style]);
+        styleLines[style].clear();
+        styleX[style].clear();
+        styleZ[style].clear();
+    }
     isinit1 = false;
     isinit2 = false;
 }
@@ -879,6 +885,15 @@ void Path::init3dShapes(bool initShapes){
     resolve();
     if (isinit2 || !initShapes || resolvedOn == NULL)
         return;
+    static const float green[3] = {0.0f, 1.0f, 0.0f};
+    appendLines(lines, linesX, linesZ, green, 2);
+    isinit2 = true;
+}
+
+// The track of each leg as lines in the colour (a broken leg's straight
+// line magenta), one object per leg in its first node's tile.
+void Path::appendLines(QVector<OglObj*> &out, QVector<float> &outX, QVector<float> &outZ,
+                       const float *colour, float width){
     TDB *tdb = resolvedOn;
     for (int k = 0; k < mainLegs.size(); ++k) {
         const PathTrack::Leg &leg = mainLegs[k];
@@ -896,16 +911,15 @@ void Path::init3dShapes(bool initShapes){
         if (leg.broken)
             line->setMaterial(0.9, 0.0, 0.63);
         else
-            line->setMaterial(0.0, 1.0, 0.0);
-        line->setLineWidth(2);
-        lines.push_back(line);
-        linesX.push_back(tileX);
-        linesZ.push_back(tileZ);
+            line->setMaterial(colour[0], colour[1], colour[2]);
+        line->setLineWidth(width);
+        out.push_back(line);
+        outX.push_back(tileX);
+        outZ.push_back(tileZ);
     }
-    isinit2 = true;
 }
 
-void Path::pushRenderItems(RenderQueue &queue, float *playerT, quint32 selectionId) {
+void Path::pushRenderItems(RenderQueue &queue, float *playerT, quint32 selectionId, int style) {
     static const float colours[4][3] = {{0.0f, 0.8f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.5f, 0.0f},
                                         {0.9f, 0.0f, 0.63f}};
     for (int kind = 0; kind < 4; ++kind)
@@ -931,10 +945,21 @@ void Path::pushRenderItems(RenderQueue &queue, float *playerT, quint32 selection
         queue.popTransform();
     }
 
-    for (int i = 0; i < lines.size(); i++) {
+    QVector<OglObj*> *shown = &lines;
+    QVector<float> *shownX = &linesX, *shownZ = &linesZ;
+    if ((style == LineAITrain || style == LineChosenTrain) && resolvedOn != NULL) {
+        static const float colours[2][3] = {{0.2f, 0.45f, 1.0f}, {0.0f, 0.9f, 1.0f}};
+        const int k = style - 1;
+        if (styleLines[k].isEmpty())
+            appendLines(styleLines[k], styleX[k], styleZ[k], colours[k], style == LineChosenTrain ? 4 : 2);
+        shown = &styleLines[k];
+        shownX = &styleX[k];
+        shownZ = &styleZ[k];
+    }
+    for (int i = 0; i < shown->size(); i++) {
         queue.pushTransform();
-        Mat4::translate(queue.transform(), queue.transform(), 2048 * (linesX[i] - playerT[0]), 2.2, 2048 * (linesZ[i] - playerT[1]));
-        lines[i]->pushRenderItem(queue);
+        Mat4::translate(queue.transform(), queue.transform(), 2048 * ((*shownX)[i] - playerT[0]), 2.2, 2048 * ((*shownZ)[i] - playerT[1]));
+        (*shown)[i]->pushRenderItem(queue);
         queue.popTransform();
     }
 }

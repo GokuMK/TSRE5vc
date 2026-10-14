@@ -13,13 +13,16 @@
 
 #include <QWidget>
 #include <QtWidgets>
+#include <tsre/trains/ActivityTrains.h>
 
 class Activity;
-class ActivityTimetable;
-class Service;
-class ActivityServiceDefinition;
 class ActivityTimetableProperties;
+class PreciseTileCoordinate;
 
+// The activity's trains (task editor 07, phase 7): the player's, its AI
+// trains and its traffic pattern's runs it does not have, by start time;
+// where the chosen train's times are saved; its timetable. The chosen AI
+// train, or all, are shown on the map and in 3D.
 class ActivityTimetableWindow : public QWidget {
     Q_OBJECT
 public:
@@ -29,17 +32,47 @@ public:
     
 public slots:
     void showTimetable(Activity *a);
-    void listSelected(QListWidgetItem *item);
+    // A train chosen on the map or in 3D, by its selection number: 0 the
+    // player's, an AI train's place in the activity's traffic + 1.
+    void selectTrain(int shownId);
     // Undo replaces activity data (ActivityNotifier).
     void activityDataRestoring();
     void activityDataRestored();
     
 signals:
+    void jumpTo(PreciseTileCoordinate *c);
+    // Make Own Copy... added a traffic pattern and the activity names it.
+    void trafficPatternAdded();
+
+protected:
+    bool event(QEvent *e) override;
+
+private slots:
+    void trainChosen();
+    void addToActivity();
+    void removeFromActivity();
+    void makeOwnCopy();
+    void jumpToTrain();
+    void showAllToggled(bool on);
+    void timetableEdited();
     
 private:
-    QListWidget list;
+    QTreeWidget trains;
+    QCheckBox showAll;
+    QPushButton *bAdd = NULL;
+    QPushButton *bRemove = NULL;
+    QPushButton *bJump = NULL;
+    QLabel savedIn;
+    QPushButton *bCopy = NULL;
     Activity *activity = NULL;
-    QVector<ActivityServiceDefinition*> services;
+    QVector<ActivityTrains::Train> list;
+    PreciseTileCoordinate *coordinate = NULL;
+    // The chosen train, or none.
+    const ActivityTrains::Train *chosen() const;
+    // The rows again, the train chosen kept (by kind, service and time).
+    void fillTrains();
+    void choose(ActivityTrains::Kind kind, const QString &service, int time);
+    void showChosen();
 };
 
 #endif	/* ACTIVITYTIMETABLEWINDOW_H */

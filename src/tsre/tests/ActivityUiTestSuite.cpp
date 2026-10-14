@@ -48,6 +48,7 @@
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/ActivityOverlay.h>
+#include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Traffic.h>
@@ -706,6 +707,7 @@ int TsreTests::runActivityUiSuite(bool verbose) {
           && writeSimis(routePath + "/SERVICES/Player.srv", QString(serviceText).arg("Player", "Train"))
           && writeSimis(routePath + "/SERVICES/AI.srv", QString(serviceText).arg("AI", "Wagons"))
           && writeSimis(routePath + "/TRAFFIC/Traffic.trf", trafficText)
+          && writeSimis(routePath + "/TRAFFIC/Unused.trf", QString(trafficText).replace("Traffic_Definition ( Traffic", "Traffic_Definition ( Unused"))
           && writeSimis(routePath + "/PATHS/Main.pat", pathText)
           && writeSimis(temp.path() + "/TRAINS/CONSISTS/Train.con", QString(consistText).arg("Train", engine))
           && writeSimis(temp.path() + "/TRAINS/CONSISTS/Wagons.con", QString(consistText).arg("Wagons", wagon)),
@@ -842,6 +844,108 @@ for (QWidget *window : windows)
         QApplication::processEvents();
         check(activity->toText() == original && activity->mergedOverlay.isEmpty() && merge->isEnabled() && unsaved().isEmpty(),
               "undo takes it out, and Merge... can be used again");
+    }
+
+    // The Timetable window: the activity's trains by start time; where the
+    // chosen one's times are saved; adding, removing, an own copy of a
+    // shared pattern; the trains shown on the map.
+    tools.actTimetableOpenEnabled();
+    {
+        QTreeWidget *rows = timetable.findChild<QTreeWidget*>("timetableTrains");
+        QLabel *saved = timetable.findChild<QLabel*>("timetableSavedIn");
+        QPushButton *copy = timetable.findChild<QPushButton*>("timetableCopy");
+        QPushButton *add = timetable.findChild<QPushButton*>("timetableAdd");
+        QPushButton *remove = timetable.findChild<QPushButton*>("timetableRemove");
+        QCheckBox *showAll = timetable.findChild<QCheckBox*>("timetableShowAll");
+        // A row by its train's name as the window writes it.
+        const QString playerText = qtTrId("route.editor.activity.timetable.window.player");
+        const QString notInText = qtTrId("route.editor.activity.timetable.window.not.in.activity");
+        const auto row = [&](const QString &name) -> QTreeWidgetItem* {
+            for (int i = 0; rows && i < rows->topLevelItemCount(); ++i)
+                if (rows->topLevelItem(i)->text(1) == name)
+                    return rows->topLevelItem(i);
+            return nullptr;
+        };
+        const auto choose = [&](QTreeWidgetItem *item) {
+            rows->clearSelection();
+            rows->setCurrentItem(item);
+            item->setSelected(true);
+        };
+        check(rows && saved && copy && add && remove && showAll, "the Timetable window has its trains and buttons");
+        if (rows && saved && copy && add && remove && showAll) {
+            check(rows->topLevelItemCount() == 3 && rows->topLevelItem(0)->text(0) == "08:00:00"
+                  && rows->topLevelItem(0)->font(1).bold() && rows->topLevelItem(0)->text(1) == playerText.arg("Player")
+                  && row("AI") && row("AI")->text(0) == "08:20:00" && row("AI")->icon(1).isNull()
+                  && row("Missing") && !row("Missing")->icon(1).isNull(),
+                  "the player's train first, then the AI trains by start time; problems marked");
+            const QString original = activity->toText();
+            choose(row("AI"));
+            check(activity->shownAITrain == 0 && copy->isHidden()
+                  && saved->text() == qtTrId("route.editor.activity.timetable.window.saved.own").arg("Traffic"),
+                  "an AI train's times are in its pattern, used by this activity only");
+            choose(row(playerText.arg("Player")));
+            check(activity->shownAITrain == -1
+                  && saved->text() == qtTrId("route.editor.activity.timetable.window.saved.player"),
+                  "the player's times are in the activity");
+            showAll->click();
+            const bool allShown = activity->showAllAITrains;
+            showAll->click();
+            check(allShown && !activity->showAllAITrains, "Show All Trains shows the AI trains on the map");
+
+            // Another activity on the pattern: the times are shared; Make
+            // Own Copy... gives this one its own pattern, undone in one step.
+            check(writeSimis(routePath + "/ACTIVITIES/Other.act",
+                             QString(activityText).replace("Name ( \"Test\" )", "Name ( \"Other\" )"))
+                  && ActLib::Act.value(ActLib::AddAct(routePath + "/ACTIVITIES", "Other.act")) != nullptr,
+                  "another activity names the pattern");
+            timetable.selectTrain(1);
+            const QStringList others = ActivityTrains::OtherUsers(activity);
+            check(rows->currentItem() == row("AI") && !copy->isHidden() && others.size() == 1
+                  && saved->text() == qtTrId("route.editor.activity.timetable.window.saved.shared").arg("Traffic", others.join(", ")),
+                  "a shared pattern is said so, with Make Own Copy...");
+            closer.accept = true;
+            copy->click();
+            closer.accept = false;
+            Traffic *own = ActLib::GetTrafficByName("Test", routePath);
+            check(activity->traffic->name == "Test" && own != nullptr && own->service.size() == 2
+                  && copy->isHidden() && saved->text() == qtTrId("route.editor.activity.timetable.window.saved.own").arg("Test"),
+                  "Make Own Copy... gives the activity its own pattern");
+            Undo::UndoLast();
+            QApplication::processEvents();
+            check(activity->traffic->name == "Traffic" && activity->toText() == original,
+                  "undo names the shared pattern again");
+            if (own != nullptr)
+                ActLib::RemoveTraffic(own);
+
+            // Remove from the activity: the pattern keeps the run; Add puts
+            // it back.
+            choose(row("AI"));
+            remove->click();
+            const bool removed = activity->traffic->service.size() == 1 && row("AI") == nullptr
+                    && rows->currentItem() != nullptr && rows->currentItem()->text(1) == notInText.arg("AI") && add->isEnabled();
+            add->click();
+            check(removed && activity->traffic->service.size() == 2 && row("AI") != nullptr && remove->isEnabled(),
+                  "Remove from Activity leaves the pattern's run; Add to Activity puts it back");
+            Undo::UndoLast();
+            Undo::UndoLast();
+            QApplication::processEvents();
+            check(activity->toText() == original && unsaved().isEmpty(), "both undone: " + unsaved().join(", "));
+            timetable.selectTrain(0);
+            check(activity->shownAITrain == -1, "choosing the player's train on the map");
+        }
+    }
+    // The traffic window's Any: the patterns an activity names.
+    {
+        QTreeWidget *files = treeWith(&traffic, "Unused");
+        QTreeWidgetItem *used = nullptr, *unused = nullptr;
+        for (int i = 0; files && i < files->topLevelItemCount(); ++i) {
+            if (files->topLevelItem(i)->text(0) == "Traffic")
+                used = files->topLevelItem(i);
+            if (files->topLevelItem(i)->text(0) == "Unused")
+                unused = files->topLevelItem(i);
+        }
+        check(used && unused && used->checkState(2) == Qt::Checked && unused->checkState(2) == Qt::Unchecked,
+              "the traffic window ticks Any for the patterns activities name");
     }
 
     // A path's waiting point: the dialog gives back the value it shows.

@@ -835,6 +835,16 @@ RouteEditorWindow::RouteEditorWindow() {
 
     QObject::connect(activityTools, SIGNAL(showTimetable(Activity*)),
                       activityTimetableWindow, SLOT(showTimetable(Activity*)));
+    QObject::connect(activityTimetableWindow, SIGNAL(jumpTo(PreciseTileCoordinate*)),
+                      glWidget, SLOT(jumpTo(PreciseTileCoordinate*)));
+    QObject::connect(glWidget, &RouteEditorGLWidget::activityTrainSelected,
+                     activityTimetableWindow, &ActivityTimetableWindow::selectTrain);
+    // Make Own Copy...: the new traffic pattern listed, the activity's shown.
+    QObject::connect(activityTimetableWindow, &ActivityTimetableWindow::trafficPatternAdded, this, [this] {
+        activityTools->reloadTrafficsList();
+        activityTools->activitySelected(QString());
+        activityTrafficWindow->showTraffic(glWidget->currentRoute());
+    });
     
     QObject::connect(activityEventWindow->eventProperties, SIGNAL(jumpTo(PreciseTileCoordinate*)),
                       glWidget, SLOT(jumpTo(PreciseTileCoordinate*)));

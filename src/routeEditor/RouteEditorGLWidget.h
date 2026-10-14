@@ -116,6 +116,9 @@ public:
     // Selects an activity and a path by file name, as the activity tools
     // do; empty names leave them as they are.
     void setDiagnosticActivity(const QString &activity, const QString &path);
+    // The current activity's AI trains shown: "all", an AI train's place in
+    // its traffic (the one chosen), or both ("all,3").
+    void setDiagnosticAITrains(const QString &trains);
     // The editor's tools, for the tool panels to know which work in a view
     // mode.
     const ToolRegistry *toolRegistry() const { return tools.get(); }
@@ -224,6 +227,9 @@ signals:
     void sendMsg(QString name, int val);
     void sendMsg(QString name, float val);
     void sendMsg(QString name, QString val);
+    // An activity's train chosen by clicking its consist: 0 the player's,
+    // an AI train's place in the activity's traffic + 1.
+    void activityTrainSelected(int shownId);
 
 protected:
     bool eventFilter(QObject *object, QEvent *event);

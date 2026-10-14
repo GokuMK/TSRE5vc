@@ -1050,6 +1050,39 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
     if (playerServiceDefinition != NULL) {
         playerServiceDefinition->pushRenderItems(queue, playerT, renderMode);
     }
+
+    for (int i : shownAITrains()) {
+        Service *service = aiTrainService(i);
+        const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
+                ? SelectionIdCodec::activityService(i + 1) : 0;
+        service->pushRenderItems(queue, playerT, selectionId,
+                                 i == shownAITrain ? Path::LineChosenTrain : Path::LineAITrain);
+    }
+}
+
+QVector<int> Activity::shownAITrains(){
+    QVector<int> shown;
+    if(Game::playerMode || traffic == NULL || (!showAllAITrains && shownAITrain < 0))
+        return shown;
+    // AI trains of one service share its path and consist: drawn once, the
+    // chosen train first so its style wins. One of the player's service is
+    // drawn too, in its own style.
+    QVector<Service*> drawn;
+    QVector<int> order;
+    if(shownAITrain >= 0 && shownAITrain < traffic->service.size())
+        order.push_back(shownAITrain);
+    if(showAllAITrains)
+        for(int i = 0; i < traffic->service.size(); i++)
+            if(i != shownAITrain)
+                order.push_back(i);
+    for(int i : order){
+        Service *service = aiTrainService(i);
+        if(service == NULL || drawn.contains(service))
+            continue;
+        drawn.push_back(service);
+        shown.push_back(i);
+    }
+    return shown;
 }
 /*
 void Activity::initActivityObjects(){
@@ -1240,6 +1273,54 @@ void Activity::createNewTrafficService(Traffic *t){
     }
 }
 
+bool Activity::addAITrain(ActivityTimetable *run){
+    if(run == NULL || traffic == NULL)
+        return false;
+    if(nextServiceUID < 0){
+        nextServiceUID = playerServiceDefinition != NULL ? playerServiceDefinition->uid + 1 : 1;
+        for(const ActivityServiceDefinition &train : traffic->service)
+            nextServiceUID = std::max(nextServiceUID, train.uid + 1);
+    }
+    ActivityServiceDefinition train;
+    train.routePath = ContentPath::parentDirectory(path);
+    train.empty = false;
+    train.name = run->name;
+    train.time = run->time;
+    train.uid = nextServiceUID++;
+    train.trafficDefinition = run;
+    train.reloadDefinition();
+    traffic->service.push_back(train);
+    modified = true;
+    return true;
+}
+
+bool Activity::removeAITrain(int index){
+    if(traffic == NULL || index < 0 || index >= traffic->service.size())
+        return false;
+    traffic->service.remove(index);
+    if(shownAITrain == index)
+        shownAITrain = -1;
+    else if(shownAITrain > index)
+        shownAITrain--;
+    modified = true;
+    return true;
+}
+
+void Activity::setTrafficName(const QString &nameId){
+    if(traffic == NULL || traffic->name == nameId)
+        return;
+    traffic->name = nameId;
+    for(ActivityServiceDefinition &train : traffic->service)
+        train.trafficDefinition = NULL;
+    modified = true;
+}
+
+Service *Activity::aiTrainService(int index){
+    if(traffic == NULL || index < 0 || index >= traffic->service.size())
+        return NULL;
+    return ActLib::GetServiceByName(traffic->service[index].name, ContentPath::parentDirectory(path));
+}
+
 void Activity::setFuelCoal(int val){
     header->fuelCoal = val;
     modified = true;
@@ -1314,6 +1395,10 @@ ActivityObject* Activity::getObjectById(int id){
 }
 
 Consist* Activity::getServiceConsistById(int id){
+    if(id > 0){
+        Service *service = aiTrainService(id - 1);
+        return service != NULL ? service->getConsistPointer() : NULL;
+    }
     if(playerServiceDefinition != NULL ){
         if(playerServiceDefinition->servicePointer != NULL)
             return playerServiceDefinition->servicePointer->getConsistPointer();

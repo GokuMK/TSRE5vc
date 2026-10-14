@@ -187,11 +187,10 @@ void ActivityTimetableProperties::bCalculateSelected(){
     service->calculateTimetable();
 
     showTimetable(service, activity);
+    emit edited();
 }
 
 void ActivityTimetableProperties::lTimetableSelected(int row, int column){
-     qDebug() << "column" << column;
-    
     if(service == NULL)
         return;
     ActivityTimetable *t = service->trafficDefinition;
@@ -212,4 +211,5 @@ void ActivityTimetableProperties::lTimetableSelected(int row, int column){
     if(column == 3){
         service->setTimetableEfficiency(row, lTimetable.item(row, column)->text().toFloat());
     }
+    emit edited();
 }

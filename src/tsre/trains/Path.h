@@ -111,7 +111,11 @@ public:
     void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
     void init3dShapes(bool initShapes = true);
     bool isModified();
-    void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId);
+    // How the path's line is drawn: green (a selected path, the player's),
+    // or as an activity's AI train's, blue, or cyan and wider when it is
+    // the train chosen.
+    enum LineStyle { LinePlain = 0, LineAITrain = 1, LineChosenTrain = 2 };
+    void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId, int style = LinePlain);
 
     // The nodes on the current track database, and the track between them.
     const QVector<PathTrack::Node> &nodes();
@@ -156,6 +160,12 @@ private:
     QVector<OglObj*> lines;
     QVector<float> linesX;
     QVector<float> linesZ;
+    // The lines in the AI train styles, made when first drawn so.
+    QVector<OglObj*> styleLines[2];
+    QVector<float> styleX[2];
+    QVector<float> styleZ[2];
+    void appendLines(QVector<OglObj*> &out, QVector<float> &outX, QVector<float> &outZ,
+                     const float *colour, float width);
     QVector<PathObject> previousObjects;
     int lastDroppedPassing = 0;
     // The passes over platforms (PathObject), from the resolved legs.
