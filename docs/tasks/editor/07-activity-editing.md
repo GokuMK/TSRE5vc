@@ -1,8 +1,27 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 to 7 done (2026-10-14, branch `feature/activity-editing`);
-phase 7's design revised the same day (section 7). Design decisions taken
-(below).
+Status: phases 1 to 7 done (2026-10-14, branch `feature/activity-editing`,
+merged into main); phase 7's design revised the same day (section 7).
+Design decisions taken (below).
+
+**Left (2026-10-14):**
+- MSAE: activities saved by TSRE opened in MSAE (by the user). Open Rails
+  loads them (Verification, External).
+- Content with Open Rails overlays and additions: none locally; Merge...
+  and the additions are tested on written files and the variants TSRE
+  writes for Open Rails.
+- The Play train: it takes one branch per junction (the last pass; a
+  path through a junction twice, 1 of the 191 local paths, can go wrong
+  the second time) and drives on through reversal points. Proposed: the
+  junction passes in path order, each traveller taking the next pass of
+  a junction it meets from the points; worth doing with reversals in
+  Play.
+- The minor issues below: `SkipCount` exceptions (waiting for the MSTS
+  analysis), the item a back pass names.
+- Open Rails: a wait until 08:30 on an AI path crashes its AI prerun
+  (Verification, External); to report there.
+- Times computed with traffic (signals, single track): a task of its
+  own; the direction agreed is in section 7.
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
