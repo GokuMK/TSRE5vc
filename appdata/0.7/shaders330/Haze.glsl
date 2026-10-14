@@ -50,6 +50,9 @@ uniform sampler3D fogVolume;
 uniform mat4 fogForward;
 // On, the nearest slice's distance (m), log(far / near), slices.
 uniform vec4 fogParams;
+// The volume's light to the scene's (it is kept scaled into the half
+// floats' even range).
+uniform float fogLightScale;
 
 vec4 fogAt(vec3 position) {
     if (fogParams.x < 0.5)
@@ -62,7 +65,7 @@ vec4 fogAt(vec3 position) {
     // Slice i holds the sums up to its far end (continuous slice i + 1).
     float slice = log(max(length(ray), fogParams.y) / fogParams.y) / fogParams.z * fogParams.w;
     vec4 f = textureLod(fogVolume, vec3(uv, (slice - 0.5) / fogParams.w), 0.0);
-    return vec4(max(f.rgb, vec3(0.0)), clamp(f.a, 0.0, 1.0));
+    return vec4(max(f.rgb * fogLightScale, vec3(0.0)), clamp(f.a, 0.0, 1.0));
 }
 
 // What the air and the fog let through of a surface's light (its glow too).

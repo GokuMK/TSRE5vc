@@ -485,6 +485,33 @@ the terrain cannot explain.
   assumes a lit path; with the volumetric shafts they take it back where
   the march finds shade, without them it stays.
 
+### Night: a turn brought brighter fog into view; banding (user, 2026-10-15)
+
+- CMK at 3:00, valley fog, the clock running: after a while a turn showed
+  the newly seen part of the fog much brighter than the rest; colour
+  banding in the fog and on the sky.
+- The cause: the cells hold their light in half floats, in the scene's
+  linear scale. At night the scene's light is 0.03 of the day's (auto
+  exposure), and a cell's light per metre was a few of the half floats'
+  smallest steps; a frame's share of the new light (1 - 0.95) rounded to
+  nothing, so the cells kept what they had while the dawn brightened.
+  Newly seen cells, without history, showed the light as it was. The few
+  steps were the banding too. Reproduced with the time moved from 3:00 to
+  3:15 and 200 frames still: the fog 32.4 against a fresh render's 36.2
+  (mean of 255).
+- Now the cells keep their light scaled by 16 / (the scene's light x the
+  fog's extinction at the floor), the sums by 16 / the scene's light (a day
+  in thick fog by the sun stays under 3000, a dark night above the half
+  floats' smallest normal); the history is scaled from last frame's to
+  this one's, the lit shaders and the sky's pass scale the sums back. The
+  same test: 39.1 against 39.1, the turned view's new and old parts as a
+  fresh render's. Night fog is also brighter than before (the steps had
+  rounded it down): at 3:00 a mean of 20.4 against 16.3.
+- The rest of the banding (the night sky, at six times the contrast) was
+  the 8 bit frame: the final pass adds a triangular dither of one step,
+  fixed on the screen.
+- The capture views can now settle on their own (one frame after a turn).
+
 ## Verification
 
 - **Captures** on hilly routes with valleys and rivers (POLAND, BNSF_SCENIC,

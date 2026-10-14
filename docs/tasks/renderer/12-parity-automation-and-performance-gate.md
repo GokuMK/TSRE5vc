@@ -111,7 +111,8 @@ Cases file keys: `width`, `height`, `output`, `pickGrid`, `timingFrames`,
 (`minFrames`, `stableFrames`, `maxFrames`, `maxSeconds`), `thresholds`, and
 `views`. A view uses the route start position unless it gives `tile` and `pos`;
 `offset` moves the start position and `rot` is `[yaw, pitch]` in radians, with
-positive pitch looking up.
+positive pitch looking up. A view's own `settle` (`minFrames`, `stableFrames`,
+`maxFrames`) overrides the file's for it, e.g. one frame right after a turn.
 
 Software GL (Mesa llvmpipe) is sufficient for image, picking and counter
 comparisons. Frame times from it are not representative; the performance gate

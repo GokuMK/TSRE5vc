@@ -776,6 +776,8 @@ private:
         bool historyValid = false;
         float previousForward[16] = {};
         float previousCamera[3] = {};
+        // The scale of the light in the cells last frame (0: none yet).
+        float cellScale = 0.0f;
         unsigned frame = 0;
         // The sky and the clouds behind the fog.
         QRhiBuffer *skyUniforms = nullptr;
@@ -803,6 +805,8 @@ private:
     void applySkyFog();
     // The lit shaders' fog uniforms (Haze.glsl).
     void writeFogUniforms(RhiProgram *program);
+    // The volume's sums of light to the scene's.
+    float fogLightScale() const;
     // The view's directions to the volume's x and y (0-1, its y sign in).
     void fogForward(float *out) const;
     // The volume's slices: nearest and farthest distance (m).

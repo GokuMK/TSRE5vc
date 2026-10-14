@@ -52,6 +52,7 @@ struct FogParameters {
     float shadePlace[4];       // the terrain's shade: its map's north-west corner (x, z), size (m), the view's y
                                // less heights
     float shadeParams[4];      // on, the map's reference height (m), 1 / the light's fading band (m), 0
+    float scale[4];            // the cells' light scale, this frame's over the last's, the sums' over the cells'
 };
 
 const char *FogBlock = R"(#version 440
@@ -78,6 +79,7 @@ layout(std140, binding = 0) uniform Fog {
     vec4 ring[8];
     vec4 shadePlace;
     vec4 shadeParams;
+    vec4 scale;
 };
 
 // The distance (m) a slice coordinate stands for.
@@ -230,7 +232,8 @@ void main() {
         vec3 sunLight = lightColour.rgb * (cloudVisible(p) * shadowVisible(p) * sunThrough * phase * 0.8);
         scattered = (skyLight + sunLight) * sigma;
     }
-    vec4 current = vec4(scattered, sigma);
+    // Scaled into the half floats' even range (RhiRenderer::prepareFog).
+    vec4 current = vec4(scattered * scale.x, sigma);
     // Last frame's cell at this cell's middle, where it was in view.
     if (previousCamera.w > 0.0) {
         vec3 r = camera.xyz + d * sliceDistance(float(id.z) + 0.5) - previousCamera.xyz;
@@ -239,8 +242,10 @@ void main() {
             vec2 before = clip.xy / clip.w * 0.5 + 0.5;
             float slice = log(max(length(r), range.x) / range.x) / grid.w;
             vec3 coord = vec3(before, slice);
-            if (all(greaterThanEqual(coord, vec3(0.0))) && all(lessThanEqual(coord, vec3(1.0))))
-                current = mix(current, textureLod(history, coord, 0.0), previousCamera.w);
+            if (all(greaterThanEqual(coord, vec3(0.0))) && all(lessThanEqual(coord, vec3(1.0)))) {
+                vec4 before = textureLod(history, coord, 0.0);
+                current = mix(current, vec4(before.rgb * scale.y, before.a), previousCamera.w);
+            }
         }
     }
     imageStore(cells, id, current);
@@ -266,6 +271,7 @@ void main() {
         float end = sliceDistance(float(i + 1));
         float dt = end - start;
         vec4 cell = texelFetch(cells, ivec3(id, i), 0);
+        cell.rgb *= scale.z;
         float sigma = max(cell.a, 0.0);
         float slice = exp(-sigma * dt);
         // The light scattered over the slice, as it dims along it.
@@ -284,7 +290,7 @@ const char *SkyFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
 layout(std140, binding = 0) uniform Sky {
-    vec4 params;   // the sky's depth, 0, 0, 0
+    vec4 params;   // the sky's depth, the sums' light to the scene's, 0, 0
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 layout(binding = 2) uniform sampler3D sums;
@@ -295,6 +301,7 @@ void main() {
         return;
     }
     vec4 f = textureLod(sums, vec3(uv, 1.0), 0.0);
+    f.rgb *= params.y;
     float through = clamp(f.a, 0.0, 1.0);
     // The fog's own colour, mixed by its share (display colours).
     vec3 own = through < 0.999 ? pow(max(f.rgb / (1.0 - through), vec3(0.0)), vec3(1.0 / 2.2)) : vec3(0.0);
@@ -591,6 +598,19 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     for (int i = 0; i < 8; ++i)
         for (int k = 0; k < 3; ++k)
             p.ring[i][k] = haze.ring[i][k] * scene;
+    // The light in the cells and their sums, scaled into the half floats'
+    // even range: at night (the scene's light 0.03 of the day's) a cell's
+    // light per metre is a few of their smallest steps, a frame's share of
+    // it (1 - 0.95) none, and the cells kept what they had (the user,
+    // 2026-10-15: at 3:00 with the dawn coming the fog's old part darker
+    // than what a turn brought into view, by 10 %, and banded). The sums in
+    // the day's scale (x 16), the cells also per the fog's extinction.
+    const float extinction = std::max(p.fog[0], 1e-4f);
+    const float cellScale = 1.0f / (fogLightScale() * extinction);
+    p.scale[0] = cellScale;
+    p.scale[1] = f.cellScale > 0.0f ? cellScale / f.cellScale : 1.0f;
+    p.scale[2] = extinction;
+    f.cellScale = cellScale;
     terrainShadePlace(p.shadePlace, p.shadeParams);
     if (f.boundMaps[4] == dummy2D)
         p.shadeParams[0] = 0.0f;
@@ -619,6 +639,10 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     ++f.frame;
 }
 
+float RhiRenderer::fogLightScale() const {
+    return (exposureActive() ? std::max(exposureControl.sceneLight, 1e-6f) : 1.0f) / 16.0f;
+}
+
 void RhiRenderer::writeFogUniforms(RhiProgram *program) {
     const bool on = fogResources.filled && fogWanted() && !secondaryView && currentTarget == TARGET_VIEW;
     float forward[16];
@@ -626,6 +650,7 @@ void RhiRenderer::writeFogUniforms(RhiProgram *program) {
     program->setMat4("fogForward", forward);
     program->setVec("fogParams", on ? 1.0f : 0.0f, FogNear, std::log(FogFar / FogNear),
                     float(std::max(fogResources.slices, 1)));
+    program->setFloat("fogLightScale", fogLightScale());
     // The sun under the fog (ShadowSampling.glsl), in every view.
     const bool shading = fogResources.filled && fogWanted();
     const float *l = Game::sunLightDirection;
@@ -695,7 +720,7 @@ void RhiRenderer::applySkyFog() {
     }
     if (f.skyPipeline == nullptr)
         return;
-    const float params[4] = {0.99f, 0.0f, 0.0f, 0.0f};
+    const float params[4] = {0.99f, fogLightScale(), 0.0f, 0.0f};
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
     batch->updateDynamicBuffer(f.skyUniforms, 0, sizeof(params), params);
     QRhiCommandBuffer *cb = surfaceNow->frame().commandBuffer;

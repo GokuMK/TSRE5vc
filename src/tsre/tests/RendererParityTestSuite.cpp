@@ -105,6 +105,8 @@ struct ViewSpec {
     // Settings (key: JSON value) for this view and the following ones, applied
     // to the running editor as the Settings Editor's Apply to Running TSRE.
     QJsonObject settings;
+    // Settling options of this view over the file's (minFrames, stableFrames, maxFrames).
+    QJsonObject settle;
     // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
     // overlay opacity (0 to 1).
     QStringList overlayActions;
@@ -345,6 +347,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         if (object.contains("time"))
             view.time = object.value("time").toDouble();
         view.settings = object.value("settings").toObject();
+        // Its own settling, over the file's (a frame right after a turn).
+        view.settle = object.value("settle").toObject();
         for (const QJsonValue &action : object.value("overlay").toArray())
             view.overlayActions << action.toString();
         view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
@@ -695,6 +699,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (!std::isnan(spec.time))
             Game::timeOfDayHours = float(spec.time);
 
+        SettleOptions settle = options.settle;
+        settle.minFrames = spec.settle.value("minFrames").toInt(settle.minFrames);
+        settle.stableFrames = spec.settle.value("stableFrames").toInt(settle.stableFrames);
+        settle.maxFrames = spec.settle.value("maxFrames").toInt(settle.maxFrames);
         QElapsedTimer settleTimer;
         settleTimer.start();
         QByteArray lastHash;
@@ -702,9 +710,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         unsigned lastShapeProgress = ShapeLoader::progress();
         int frames = 0;
         bool settled = false;
-        while (frames < options.settle.maxFrames
-               && settleTimer.elapsed() < qint64(options.settle.maxSeconds) * 1000) {
-            pumpEvents(options.settle.frameIntervalMs);
+        while (frames < settle.maxFrames
+               && settleTimer.elapsed() < qint64(settle.maxSeconds) * 1000) {
+            pumpEvents(settle.frameIntervalMs);
             const QByteArray hash = imageHash(widget.grabFramebuffer());
             frames++;
             stableCount = hash == lastHash ? stableCount + 1 : 0;
@@ -717,7 +725,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             // Map layers built on a worker (OSM data) draw the same until they are ready.
             if (widget.mapLayersBusy())
                 stableCount = 0;
-            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
+            if (frames >= settle.minFrames && stableCount >= settle.stableFrames
                     && !ShapeLoader::busy()) {
                 settled = true;
                 break;
