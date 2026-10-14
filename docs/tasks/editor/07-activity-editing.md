@@ -263,6 +263,9 @@ with these details:
   `NextServiceUID`). Make Own Copy... writes the pattern's text into a new
   traffic pattern (`ActivityTrains::CopyPattern`) and points the activity
   at it (`Activity::setTrafficName`); its dialog has its own title.
+- The player's train is drawn without Play (`Activity::playerService`
+  looks the service up until Play links it), in 3D and on the map, and
+  is selectable as `activityService(0)`.
 - Map and 3D: `Activity::shownAITrains` (the chosen train first, a service
   once; not in play mode). 3D draws the path's lines in the AI styles
   (`Path::LineAITrain`, `LineChosenTrain`, made when first drawn) and the
@@ -286,8 +289,10 @@ another activity; Make Own Copy... through its dialog and undo; remove,
 add, undo; Show All Trains; a train chosen on the map; the traffic
 window's Any; the random run over the new window). Capture
 `tests/renderer/map-ai-trains.json` (EUROPE1 lclsrvce, twelve AI trains
-of three services on two paths): the bands and consists on the map, the
-cyan line in 3D, the centre pick of an AI wagon being that train
+of three services on two paths): the player's train at its start
+without Play (its centre pick the player's), the bands and consists on
+the map, the cyan line in 3D, the centre pick of an AI wagon being that
+train
 (`--test-suite renderer-capture --test-cases <file> --game-root
 ~/ORTS/MSTS --route EUROPE1`).
 
@@ -779,7 +784,10 @@ service name and start time, the name compared exactly. The activity adds
 an efficiency per stop. A pattern may serve several activities, so an AI
 train's times are shared; its efficiency is the activity's own.
 
-**Layout,** top to bottom, a splitter between:
+**Layout:** the trains across the window; under them, side by side
+(each about half the width), where the chosen train's times are saved
+and its timetable; splitters between them (revised with the user the
+same day: the trains need the width, the other two do not).
 
 1. The trains, one row each, by start time (the player's first at equal
    times):
@@ -795,18 +803,19 @@ train's times are shared; its efficiency is the activity's own.
    - a warning sign on a train whose service, path or consist is missing,
      which has no times in the pattern, or which the pattern names in
      another case (Open Rails then finds no times); its tooltip says what;
-   - first stop with its departure, last stop with its arrival.
+   - first stop with its departure, last stop with its arrival (none for
+     a train with one stop); times to the second.
 
    Under it: **Show All Trains** (map and 3D), **Add to Activity**,
    **Remove from Activity**, **Jump To**.
-2. A line saying where the chosen train's times are saved, always there
-   (no pop-ups, as for overlays):
+2. Left: a line saying where the chosen train's times are saved, always
+   there (no pop-ups, as for overlays):
    - the player's: in the activity;
    - an AI train's: in the traffic pattern, with the other activities
      using it, and **Make Own Copy...** when there are any;
    - a run not in the activity: Add to Activity puts it in.
-3. The chosen train's timetable, as now: stops with Arrive, Depart and
-   Performance, Calculate, start time, engine and speeds.
+3. Right: the chosen train's timetable, as now: stops with Arrive,
+   Depart and Performance, Calculate, start time, engine and speeds.
 
 **Actions,** each one undo step:
 - Add to Activity: the run joins the activity's AI trains (its stops, the
@@ -818,7 +827,8 @@ train's times are shared; its efficiency is the activity's own.
 - Jump To: the camera to the train's start.
 
 **Map and 3D:**
-- The player's train as now.
+- The player's train and path whenever the activity is chosen (they were
+  drawn only after Play, which links the activity to its service).
 - The chosen AI train: its path (3D lines in cyan, on the map a band in
   the palette's `aiPath` colour) and its consist at its start.
 - Show All Trains: every AI train of the activity likewise, the others in

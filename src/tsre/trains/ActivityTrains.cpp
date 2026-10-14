@@ -20,7 +20,7 @@ namespace {
 using ActivityTrains::Train;
 
 QString clock(int seconds) {
-    return QTime::fromMSecsSinceStartOfDay((seconds % 86400 + 86400) % 86400 * 1000).toString("HH:mm");
+    return QTime::fromMSecsSinceStartOfDay((seconds % 86400 + 86400) % 86400 * 1000).toString("HH:mm:ss");
 }
 
 QString station(int platformId) {
@@ -64,8 +64,11 @@ void describe(Train &train, const QString &routePath) {
     const int stops = std::min({t->platformStartID.size(), t->arrivalTime.size(), t->departTime.size()});
     if (stops == 0)
         return;
+    // The first stop's departure; the last stop's arrival when there are
+    // two or more.
     train.firstStop = QString("%1 %2").arg(station(t->platformStartID[0]), clock(t->departTime[0]));
-    train.lastStop = QString("%1 %2").arg(station(t->platformStartID[stops - 1]), clock(t->arrivalTime[stops - 1]));
+    if (stops > 1)
+        train.lastStop = QString("%1 %2").arg(station(t->platformStartID[stops - 1]), clock(t->arrivalTime[stops - 1]));
 }
 
 }

@@ -903,6 +903,9 @@ for (QWidget *window : windows)
             check(rows->currentItem() == row("AI") && !copy->isHidden() && others.size() == 1
                   && saved->text() == qtTrId("route.editor.activity.timetable.window.saved.shared").arg("Traffic", others.join(", ")),
                   "a shared pattern is said so, with Make Own Copy...");
+            // TSRE_ACTIVITY_UI_SHOTS: the window as it is now, for a look.
+            if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
+                timetable.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-shared.png");
             closer.accept = true;
             copy->click();
             closer.accept = false;

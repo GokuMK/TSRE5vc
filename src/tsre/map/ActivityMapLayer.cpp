@@ -113,8 +113,7 @@ std::vector<const void *> ActivityMapLayer::sources(Route *route, bool activity,
             list.push_back(object->con);
             count(object->con->isOnTrack ? 1 : 0);
         }
-    if (current->playerServiceDefinition != nullptr)
-        list.push_back(current->playerServiceDefinition->servicePointer);
+    list.push_back(current->playerService());
     count(current->shownAITrain);
     for (int i : current->shownAITrains())
         list.push_back(current->aiTrainService(i));
@@ -135,8 +134,7 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
             if (selected != nullptr && selected->isSelected())
                 shownPaths.push_back(selected);
     Activity *current = activity && route != nullptr ? route->getCurrentActivity() : nullptr;
-    Service *player = current != nullptr && current->playerServiceDefinition != nullptr
-            ? current->playerServiceDefinition->servicePointer : nullptr;
+    Service *player = current != nullptr ? current->playerService() : nullptr;
     if (player != nullptr) {
         ::Path *playerPath = player->getPathPointer();
         if (playerPath != nullptr
@@ -387,8 +385,7 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
         object->getMapFeatures(own, tileX, tileZ);
         points(own, id, false);
     }
-    Service *player = current->playerServiceDefinition != nullptr
-            ? current->playerServiceDefinition->servicePointer : nullptr;
+    Service *player = current->playerService();
     if (player != nullptr && SelectionIdCodec::tryActivityService(0, 0, id)) {
         MapFeatures own;
         player->getMapFeatures(own, tileX, tileZ);

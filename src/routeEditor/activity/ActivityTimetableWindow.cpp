@@ -106,16 +106,22 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     topLayout->addWidget(&trains);
     topLayout->addLayout(buttons);
 
-    QHBoxLayout *saved = new QHBoxLayout;
-    saved->setContentsMargins(0, 0, 0, 0);
-    saved->addWidget(&savedIn, 1);
-    saved->addWidget(bCopy);
-    QWidget *bottom = new QWidget;
-    QVBoxLayout *bottomLayout = new QVBoxLayout(bottom);
-    bottomLayout->setContentsMargins(0, 0, 0, 0);
-    bottomLayout->setSpacing(2);
-    bottomLayout->addLayout(saved);
-    bottomLayout->addWidget(timetableProperties);
+    // Under the trains, side by side: where the chosen train's times are
+    // saved (with Make Own Copy...), and its timetable.
+    QWidget *saved = new QWidget;
+    QVBoxLayout *savedLayout = new QVBoxLayout(saved);
+    savedLayout->setContentsMargins(0, 0, 0, 0);
+    savedLayout->setSpacing(4);
+    savedIn.setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    savedLayout->addWidget(&savedIn);
+    savedLayout->addWidget(bCopy, 0, Qt::AlignLeft);
+    savedLayout->addStretch(1);
+    QSplitter *bottom = new QSplitter(Qt::Horizontal);
+    bottom->addWidget(saved);
+    bottom->addWidget(timetableProperties);
+    bottom->setChildrenCollapsible(false);
+    bottom->setStretchFactor(0, 1);
+    bottom->setStretchFactor(1, 1);
 
     QSplitter *splitter = new QSplitter(Qt::Vertical);
     splitter->addWidget(top);
@@ -126,7 +132,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     v->setContentsMargins(1,1,1,1);
     v->addWidget(splitter);
     this->setLayout(v);
-    resize(800, 640);
+    resize(960, 600);
+    bottom->setSizes({480, 480});
     
     // Undo replaces activity data: let go of it before, show it after.
     QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,

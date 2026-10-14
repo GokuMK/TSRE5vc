@@ -1047,8 +1047,10 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
         event[i]->pushRenderItem(queue, playerT, playerRot, renderMode);
     }
 
-    if (playerServiceDefinition != NULL) {
-        playerServiceDefinition->pushRenderItems(queue, playerT, renderMode);
+    if (Service *player = playerService()) {
+        const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
+                ? SelectionIdCodec::activityService(0) : 0;
+        player->pushRenderItems(queue, playerT, selectionId);
     }
 
     for (int i : shownAITrains()) {
@@ -1315,6 +1317,14 @@ void Activity::setTrafficName(const QString &nameId){
     modified = true;
 }
 
+Service *Activity::playerService(){
+    if(playerServiceDefinition == NULL || playerServiceDefinition->empty)
+        return NULL;
+    if(playerServiceDefinition->servicePointer != NULL)
+        return playerServiceDefinition->servicePointer;
+    return ActLib::GetServiceByName(playerServiceDefinition->name, ContentPath::parentDirectory(path));
+}
+
 Service *Activity::aiTrainService(int index){
     if(traffic == NULL || index < 0 || index >= traffic->service.size())
         return NULL;
@@ -1399,11 +1409,8 @@ Consist* Activity::getServiceConsistById(int id){
         Service *service = aiTrainService(id - 1);
         return service != NULL ? service->getConsistPointer() : NULL;
     }
-    if(playerServiceDefinition != NULL ){
-        if(playerServiceDefinition->servicePointer != NULL)
-            return playerServiceDefinition->servicePointer->getConsistPointer();
-    }
-    return NULL;
+    Service *player = playerService();
+    return player != NULL ? player->getConsistPointer() : NULL;
 }
 
 QMap<int, QString> Activity::getEventIdNameList(){

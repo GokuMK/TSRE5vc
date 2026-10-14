@@ -633,7 +633,8 @@ int TsreTests::runActivityEditSuite(bool verbose) {
                   "the player's, the pattern's run it lacks, its AI trains, by start time: " + kinds(trains));
             const Train *ai = trains.size() == 4 ? &trains[2] : nullptr;
             check(ai && ai->timetable == shared->getInstance("Stops", 36000) && ai->path == "Other"
-                  && ai->firstStop.endsWith("10:02") && ai->lastStop.endsWith("10:15")
+                  && ai->firstStop.endsWith("10:02:40") && ai->lastStop.endsWith("10:15:00")
+                  && trains[1].lastStop.isEmpty()
                   && !ai->problems.contains(qtTrId("activity.trains.name.case").arg("Stops")),
                   "an AI train's times are the pattern's run; its first departure and last arrival");
             check(trains.size() == 4 && trains[3].problems.contains(qtTrId("activity.trains.name.case").arg("STOPS"))

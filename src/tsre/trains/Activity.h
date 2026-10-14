@@ -179,6 +179,9 @@ public:
     bool showAllAITrains = false;
     // An AI train's service (by its place in traffic->service), or NULL.
     Service *aiTrainService(int index);
+    // The player's service: the one Play prepared, else looked up, so the
+    // editor shows the player's train without Play.
+    Service *playerService();
     void init(QString route, QString name);
     //void setRouteContent(QVector<Path*>* p, QVector<Service*>* s, QVector<Traffic*>* t);
     //Traffic *getTrafficByName(QString name);
