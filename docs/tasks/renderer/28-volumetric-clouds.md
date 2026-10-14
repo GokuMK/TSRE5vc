@@ -1030,6 +1030,32 @@ shafts on against off, of 255):
   instead of per step saved nothing measurable and changed the glow (mean
   0.9): left per step.
 
+#### Left as they are for now (the user, 2026-10-14)
+
+Two next steps for the near layer, to come back to:
+
+1. Beams through the trees from the near layer. Blur its light along the
+   lines to the sun's place on the screen, as the screen-space shafts blur
+   the image: the scattered hits on lit air between the trunks then run
+   into streaks. The near light needs its own half-resolution target
+   (today it leaves the march in the same pixel as the far light, `s.a`),
+   two or three blur passes towards the sun, then the add. It works only
+   with the sun on the screen or near it; elsewhere the glow stays as now.
+   Cheaper than more steps, since the march stays at 12.
+2. The near layer optional. It costs up to 1 ms on the Steam Deck for a
+   glow around a low sun, nothing away from it. Either its own setting (on
+   by default with the volumetric shafts), a fourth choice of Light shafts
+   (volumetric without the ground haze), or off below a cloud quality.
+
+Both may be overtaken by volumetric fog for mist and ground fog (next
+task): the same haze lying on the ground, denser in valleys and on calm
+clear mornings, marched in a grid of cells over the view and averaged over
+frames. That gives beams through trees by itself, and the near layer would
+become its lowest, thinnest case. Mist there is to come from the weather and
+the terrain on its own (wind, cloud over the night, humidity, the time; how
+far a place lies below the ground around it), with optional controls per
+weather keyframe and painted areas only for special places.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

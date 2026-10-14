@@ -1,5 +1,6 @@
 #include <settings/ui/SettingsDialog.h>
 
+#include <settings/GraphicsPresets.h>
 #include <settings/SettingsManager.h>
 #include <settings/SettingsProfile.h>
 #include <tsre/Game.h>
@@ -195,6 +196,10 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
         //% "Reset All to &Defaults"
         qtTrId("settings.dialog.action.reset.all"));
     resetAllAction->setObjectName("reset-all-defaults");
+    QAction *removeUnsupportedAction = editMenu->addAction(
+        //% "Remove &Unsupported Settings..."
+        qtTrId("settings.dialog.action.remove.unsupported"));
+    removeUnsupportedAction->setObjectName("remove-unsupported-settings");
     editMenu->addSeparator();
     QAction *rawAction = editMenu->addAction(
         //% "Edit Raw Profile &JSON..."
@@ -213,6 +218,23 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
         qtTrId("settings.dialog.action.m.show.advanced"));
     m_showAdvanced->setCheckable(true);
     m_showAdvanced->setChecked(true);
+
+    auto *presetMenu = menuBar->addMenu(
+        //% "&Graphics Presets"
+        qtTrId("settings.dialog.menu.graphics.presets"));
+    presetMenu->setObjectName("graphics-presets");
+    presetMenu->setToolTipsVisible(true);
+    const QVector<GraphicsPreset> &presets = GraphicsPresets::all();
+    for (int i = 0; i < presets.size(); ++i) {
+        QAction *action = presetMenu->addAction(qtTrId(presets[i].nameId));
+        action->setObjectName(QStringLiteral("graphics-preset:") + presets[i].id);
+        action->setToolTip(qtTrId(presets[i].descriptionId));
+        // Checked when the rendering settings are the preset's.
+        action->setCheckable(true);
+        m_presetActions.append(action);
+        connect(action, &QAction::triggered, this, [this, i] { applyGraphicsPreset(i); });
+    }
+    connect(presetMenu, &QMenu::aboutToShow, this, &SettingsDialog::markGraphicsPreset);
     layout->setMenuBar(menuBar);
 
     auto *profileRow = new QHBoxLayout;
@@ -306,6 +328,8 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
             this, &SettingsDialog::duplicateProfile);
     connect(m_resetGroupAction, &QAction::triggered, this, &SettingsDialog::resetGroupToDefaults);
     connect(resetAllAction, &QAction::triggered, this, &SettingsDialog::resetAllToDefaults);
+    connect(removeUnsupportedAction, &QAction::triggered,
+            this, &SettingsDialog::removeUnsupportedSettings);
     connect(m_tabs, &QTabWidget::currentChanged, this,
             [this] { m_resetGroupAction->setEnabled(!currentGroupId().isEmpty()); });
     connect(folderAction, &QAction::triggered, this, &SettingsDialog::openProfileFolder);
@@ -1360,10 +1384,7 @@ void SettingsDialog::resetToDefaults(const QStringList &keys, const QString &que
                 question.arg(differing)) != QMessageBox::Yes)
         return;
     const QStringList changed = m_manager->resetToDefaults(keys, &error);
-    const int tab = m_tabs->currentIndex();
-    rebuild();
-    if (tab >= 0 && tab < m_tabs->count())
-        m_tabs->setCurrentIndex(tab);
+    rebuildKeepingTab();
     if (!error.isEmpty())
         showError(
             //% "Cannot reset settings"
@@ -1372,6 +1393,120 @@ void SettingsDialog::resetToDefaults(const QStringList &keys, const QString &que
         //% "%1 setting(s) back to their defaults | unsaved changes"
         qtTrId("settings.dialog.text.status.reset").arg(changed.size()));
     m_statusLabel->setToolTip(changed.join("\n"));
+}
+
+void SettingsDialog::rebuildKeepingTab() {
+    const int tab = m_tabs->currentIndex();
+    rebuild();
+    if (tab >= 0 && tab < m_tabs->count())
+        m_tabs->setCurrentIndex(tab);
+}
+
+bool SettingsDialog::showsValue(const QString &key, const QVariant &value) const {
+    const SettingsDefinition *definition = m_manager->registry().definition(key);
+    if (!definition || !m_manager->contains(key))
+        return false;
+    QVariant shown = m_manager->value(key);
+    for (const Editor &editor : m_editors) {
+        if (editor.key == key && editor.value && !editor.secret) {
+            shown = editor.value();
+            break;
+        }
+    }
+    return settingJsonFromVariant(shown, definition->type)
+            == settingJsonFromVariant(value, definition->type);
+}
+
+void SettingsDialog::markGraphicsPreset() {
+    const QVector<GraphicsPreset> &presets = GraphicsPresets::all();
+    for (int i = 0; i < presets.size() && i < m_presetActions.size(); ++i) {
+        bool holds = true;
+        for (const auto &entry : presets[i].values)
+            holds = holds && showsValue(entry.first, entry.second);
+        m_presetActions[i]->setChecked(holds);
+    }
+}
+
+void SettingsDialog::applyGraphicsPreset(int index) {
+    const QVector<GraphicsPreset> &presets = GraphicsPresets::all();
+    if (index < 0 || index >= presets.size())
+        return;
+    const GraphicsPreset &preset = presets[index];
+    const QString name = qtTrId(preset.nameId);
+    QString error;
+    // Values typed into the editors count as the profile's.
+    if (!applyEditors(&error)) {
+        showError(
+            //% "Cannot apply the preset"
+            qtTrId("settings.dialog.message.cannot.apply.preset"), error);
+        return;
+    }
+    QVector<QPair<QString, QVariant>> differing;
+    for (const auto &entry : preset.values) {
+        if (m_manager->registry().contains(entry.first) && !showsValue(entry.first, entry.second))
+            differing.append(entry);
+    }
+    if (differing.isEmpty()) {
+        m_statusLabel->setText(
+            //% "The rendering settings are already those of %1"
+            qtTrId("settings.dialog.text.status.preset.already").arg(name));
+        return;
+    }
+    if (QMessageBox::question(this,
+            //% "Graphics preset"
+            qtTrId("settings.dialog.message.graphics.preset"),
+            //% "Set %1 rendering setting(s) to the %2 preset? Sizes, distances, fog and the time keep their values. The profile changes when you save it."
+            qtTrId("settings.dialog.text.graphics.preset.question")
+                .arg(differing.size()).arg(name)) != QMessageBox::Yes)
+        return;
+    QStringList changed;
+    for (const auto &entry : differing) {
+        if (!m_manager->setValue(entry.first, entry.second, &error))
+            break;
+        changed.append(entry.first);
+    }
+    rebuildKeepingTab();
+    if (changed.size() < differing.size())
+        showError(
+            //% "Cannot apply the preset"
+            qtTrId("settings.dialog.message.cannot.apply.preset.2"), error);
+    m_statusLabel->setText(
+        //% "%1 setting(s) set by the %2 preset | unsaved changes"
+        qtTrId("settings.dialog.text.status.preset").arg(changed.size()).arg(name));
+    m_statusLabel->setToolTip(changed.join("\n"));
+}
+
+void SettingsDialog::removeUnsupportedSettings() {
+    QString error;
+    // Values typed into the editors count as the profile's.
+    if (!applyEditors(&error)) {
+        showError(
+            //% "Cannot remove settings"
+            qtTrId("settings.dialog.message.cannot.remove.unsupported"), error);
+        return;
+    }
+    const QStringList keys = m_manager->unregisteredKeys();
+    if (keys.isEmpty()) {
+        m_statusLabel->setText(
+            //% "No unsupported settings in this profile"
+            qtTrId("settings.dialog.text.status.no.unsupported"));
+        return;
+    }
+    QMessageBox question(QMessageBox::Question,
+        //% "Remove unsupported settings"
+        qtTrId("settings.dialog.message.remove.unsupported"),
+        //% "Remove %1 setting(s) this build does not register (custom settings, other forks' and older builds' settings) from the profile? The profile changes when you save it."
+        qtTrId("settings.dialog.text.remove.unsupported.question").arg(keys.size()),
+        QMessageBox::Yes | QMessageBox::No, this);
+    question.setDetailedText(keys.join("\n"));
+    if (question.exec() != QMessageBox::Yes)
+        return;
+    const QStringList removed = m_manager->removeUnregisteredSettings();
+    rebuildKeepingTab();
+    m_statusLabel->setText(
+        //% "%1 unsupported setting(s) removed | unsaved changes"
+        qtTrId("settings.dialog.text.status.unsupported.removed").arg(removed.size()));
+    m_statusLabel->setToolTip(removed.join("\n"));
 }
 
 void SettingsDialog::duplicateProfile() {

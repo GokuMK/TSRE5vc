@@ -395,11 +395,11 @@ void EnvironmentWindow::showClock() {
 
 void EnvironmentWindow::showRunning() {
     const bool running = settings().runtimeBool(Running);
-    clockButton->setText(running
+    clockButton->setText(running ?
         //% "Stop"
-        ? qtTrId("route.editor.environment.window.clock.stop")
+        qtTrId("route.editor.environment.window.clock.stop") :
         //% "Resume"
-        : qtTrId("route.editor.environment.window.clock.resume"));
+        qtTrId("route.editor.environment.window.clock.resume"));
     if (running)
         clockDisplay->start();
     else

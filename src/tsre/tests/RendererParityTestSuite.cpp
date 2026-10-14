@@ -48,6 +48,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <settings/SettingsManager.h>
 #include <tsre/math3d/GLMatrix.h>
 
 namespace {
@@ -101,6 +102,9 @@ struct ViewSpec {
     double weatherTime = std::nan("");
     // Time of day (hours) for this view; NaN keeps the profile's.
     double time = std::nan("");
+    // Settings (key: JSON value) for this view and the following ones, applied
+    // to the running editor as the Settings Editor's Apply to Running TSRE.
+    QJsonObject settings;
     // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
     // overlay opacity (0 to 1).
     QStringList overlayActions;
@@ -335,6 +339,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
             view.weatherTime = object.value("weatherTime").toDouble();
         if (object.contains("time"))
             view.time = object.value("time").toDouble();
+        view.settings = object.value("settings").toObject();
         for (const QJsonValue &action : object.value("overlay").toArray())
             view.overlayActions << action.toString();
         view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
@@ -657,6 +662,23 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         } else if (!spec.weatherPreset.isEmpty() || !spec.weatherScenario.isEmpty()) {
             // The weather of a 3D view (the clouds).
             applyViewWeather(widget, spec);
+        }
+        if (!spec.settings.isEmpty()) {
+            SettingsManager &settings = SettingsManager::instance();
+            QJsonObject document = settings.document();
+            QJsonArray entries = document.value("settings").toArray();
+            for (int i = 0; i < entries.size(); ++i) {
+                QJsonObject entry = entries[i].toObject();
+                const QString key = entry.value("key").toString();
+                if (spec.settings.contains(key)) {
+                    entry["value"] = spec.settings.value(key);
+                    entries[i] = entry;
+                }
+            }
+            document["settings"] = entries;
+            QString error;
+            if (!settings.applyProfileToRuntime(document, nullptr, &error))
+                qWarning() << CaptureLog << "settings not applied:" << error;
         }
         if (!std::isnan(spec.time))
             Game::timeOfDayHours = float(spec.time);

@@ -94,6 +94,12 @@ public:
                               QString *error = nullptr);
     bool addSettingObject(const QJsonObject &object, QString *error = nullptr);
     bool removeSetting(const QString &key, QString *error = nullptr);
+    // Stored settings this build does not register: custom settings, other
+    // forks' and those older builds had.
+    QStringList unregisteredKeys() const;
+    // Removes them, and the groups this build does not register once they
+    // hold no settings; unsaved like other edits. Returns the removed keys.
+    QStringList removeUnregisteredSettings();
     bool replaceDocument(const QJsonObject &document, QString *error = nullptr);
 
     QString secretValue(const QString &reference) const;

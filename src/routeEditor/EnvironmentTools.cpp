@@ -311,17 +311,17 @@ void EnvironmentTools::refresh() {
     }
 
     QStringList lines;
-    QString source = weather->source == "derived"
+    QString source = weather->source == "derived" ?
             //% "Derived from the env file (%1)"
-            ? qtTrId("route.editor.environment.tools.source.derived").arg(presetTitle(weather->preset))
-            : view->environmentModified() && weather->preset.isEmpty()
+            qtTrId("route.editor.environment.tools.source.derived").arg(presetTitle(weather->preset)) :
+            view->environmentModified() && weather->preset.isEmpty() ?
             //% "%1, not saved"
-            ? qtTrId("route.editor.environment.tools.source.imported").arg(weather->source)
-            : view->environmentModified()
+            qtTrId("route.editor.environment.tools.source.imported").arg(weather->source) :
+            view->environmentModified() ?
             //% "Preset, not saved"
-            ? qtTrId("route.editor.environment.tools.source.unsaved")
+            qtTrId("route.editor.environment.tools.source.unsaved") :
             //% "The env file's weather (%1)"
-            : qtTrId("route.editor.environment.tools.source.file").arg(weather->source);
+            qtTrId("route.editor.environment.tools.source.file").arg(weather->source);
     lines << source;
     const double hours = view->weatherHours();
     //% "%1 keyframes over %2 h; now %3 h"
@@ -364,11 +364,11 @@ void EnvironmentTools::refresh() {
         else
             //% "Precipitation: %1, %2 mm/h"
             lines << qtTrId("route.editor.environment.tools.precipitation").arg(
-                         near.precipitation == WeatherPrecipitation::Snow
+                         near.precipitation == WeatherPrecipitation::Snow ?
                          //% "snow"
-                         ? qtTrId("route.editor.environment.tools.snow")
+                         qtTrId("route.editor.environment.tools.snow") :
                          //% "rain"
-                         : qtTrId("route.editor.environment.tools.rain")).arg(rate, 0, 'f', 1);
+                         qtTrId("route.editor.environment.tools.rain")).arg(rate, 0, 'f', 1);
         //% "Visibility: %1 km"
         lines << qtTrId("route.editor.environment.tools.visibility")
                      .arg(mix(ka.visibility, kb.visibility) / 1000.0, 0, 'f', 1);

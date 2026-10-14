@@ -102,7 +102,7 @@
     </message>
     <message id="ace.converter.ace.converter.window.button.open">
         <location filename="../src/aceConverter/AceConverterWindow.cpp" line="52"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="152"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="156"/>
         <source>Open image…</source>
         <translation>Open image…</translation>
     </message>
@@ -1510,12 +1510,12 @@ Consist with this file name already exist. Overwrite?
         <translation>Last Action:</translation>
     </message>
     <message id="route.editor.environment.tools.generate">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="188"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="191"/>
         <source>Generate Weather...</source>
         <translation>Generate Weather...</translation>
     </message>
     <message id="route.editor.environment.tools.generate.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="192"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="195"/>
         <source>A day of weather over the route from a scenario: a front sweeping across it, so part of the route can be clear while another part is under cloud or rain.</source>
         <translation>A day of weather over the route from a scenario: a front sweeping across it, so part of the route can be clear while another part is under cloud or rain.</translation>
     </message>
@@ -1561,8 +1561,8 @@ Consist with this file name already exist. Overwrite?
     </message>
     <message id="route.editor.trk.window.tooltip.enclosed.ambient">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="179"/>
-        <source>The share of the sky's ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer).</source>
-        <translation>The share of the sky's ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer).</translation>
+        <source>The share of the sky&apos;s ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer).</source>
+        <translation>The share of the sky&apos;s ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer).</translation>
     </message>
     <message id="route.editor.weather.generate.arrival">
         <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="84"/>
@@ -1571,8 +1571,8 @@ Consist with this file name already exist. Overwrite?
     </message>
     <message id="route.editor.weather.generate.arrival.tooltip">
         <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="81"/>
-        <source>The hour the front's line crosses the middle of the route's area. The day repeats.</source>
-        <translation>The hour the front's line crosses the middle of the route's area. The day repeats.</translation>
+        <source>The hour the front&apos;s line crosses the middle of the route&apos;s area. The day repeats.</source>
+        <translation>The hour the front&apos;s line crosses the middle of the route&apos;s area. The day repeats.</translation>
     </message>
     <message id="route.editor.weather.generate.button">
         <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="111"/>
@@ -1591,8 +1591,8 @@ Consist with this file name already exist. Overwrite?
     </message>
     <message id="route.editor.weather.generate.heading.tooltip">
         <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="62"/>
-        <source>The direction the front moves towards, on the route's grid (0 north, 90 east). In Europe fronts mostly come from the west.</source>
-        <translation>The direction the front moves towards, on the route's grid (0 north, 90 east). In Europe fronts mostly come from the west.</translation>
+        <source>The direction the front moves towards, on the route&apos;s grid (0 north, 90 east). In Europe fronts mostly come from the west.</source>
+        <translation>The direction the front moves towards, on the route&apos;s grid (0 north, 90 east). In Europe fronts mostly come from the west.</translation>
     </message>
     <message id="route.editor.weather.generate.scenario">
         <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="53"/>
@@ -2524,107 +2524,107 @@ Consist with this file name already exist. Overwrite?
         <translation>Procedural terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4035"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4680"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2129"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2534"/>
         <source>OSM Data</source>
         <translation>OSM Data</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2134"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2539"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2140"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2545"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2157"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2778"/>
         <source>Imagery</source>
         <translation>Imagery</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2160"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2781"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>This route has no geographic reference, so imagery cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2162"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2783"/>
         <source>No imagery source can be shown: %1</source>
         <translation>No imagery source can be shown: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2214"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2835"/>
         <source>Measure Distance</source>
         <translation>Measure Distance</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4041"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4686"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4047"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4692"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4053"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4698"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Select Similar 1x1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4059"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4704"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Select Similar 3x3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4065"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4710"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4071"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4716"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Set Terrain to Object</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4077"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4722"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Set position to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4083"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4728"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Set rotation to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4089"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4734"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pick for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4095"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4740"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pick rotation for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4101"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4746"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pick elevation for placement</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4113"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4758"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4131"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4776"/>
         <source>No Tool</source>
         <translation>No Tool</translation>
     </message>
@@ -2802,347 +2802,347 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Nearest TDB/RDB Vector</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4149"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4794"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
     <message id="route.editor.route.editor.window.title.tools.window">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="165"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="213"/>
         <source>Tools Window</source>
         <translation>Tools Window</translation>
     </message>
     <message id="route.editor.properties.window.title">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="168"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="216"/>
         <source>Properties Window</source>
         <translation>Properties Window</translation>
     </message>
     <message id="route.editor.title">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="241"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="291"/>
         <source>%1 %2 Route Editor</source>
         <translation>%1 %2 Route Editor</translation>
     </message>
     <message id="route.editor.route.editor.window.action.save.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="248"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="298"/>
         <source>&amp;Save</source>
         <translation>&amp;Save</translation>
     </message>
     <message id="route.editor.route.editor.window.action.create.paths.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="253"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="303"/>
         <source>&amp;Create Debug Paths</source>
         <translation>&amp;Create Debug Paths</translation>
     </message>
     <message id="route.editor.route.editor.window.action.generate.country.places">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="257"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="307"/>
         <source>&amp;Generate country places...</source>
         <translation>&amp;Generate country places...</translation>
     </message>
     <message id="route.editor.route.editor.window.action.reload.ref.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="263"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="313"/>
         <source>&amp;Reload Ref File</source>
         <translation>&amp;Reload Ref File</translation>
     </message>
     <message id="route.editor.route.editor.window.action.reload.track.profiles">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="267"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="317"/>
         <source>Reload &amp;Track Profiles</source>
         <translation>Reload &amp;Track Profiles</translation>
     </message>
     <message id="route.editor.route.editor.window.action.exit.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="273"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="323"/>
         <source>&amp;Exit</source>
         <translation>&amp;Exit</translation>
     </message>
     <message id="route.editor.route.editor.window.action.trk.editr">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="278"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="328"/>
         <source>&amp;Edit route settings</source>
         <translation>&amp;Edit route settings</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.route.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="283"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="333"/>
         <source>&amp;Route</source>
         <translation>&amp;Route</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.route.menu.2">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="292"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="342"/>
         <source>&amp;Server</source>
         <translation>&amp;Server</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.edit.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="298"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="348"/>
         <source>&amp;Edit</source>
         <translation>&amp;Edit</translation>
     </message>
     <message id="route.editor.route.editor.window.action.undo.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="302"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="352"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.window.action.copy.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="309"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="359"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.window.action.paste.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="315"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="365"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.window.action.select.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="322"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="372"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.view.3d">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="329"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="379"/>
         <source>&amp;3D View</source>
         <translation>&amp;3D View</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.map">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="422"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="472"/>
         <source>&amp;Map</source>
         <translation>&amp;Map</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.track.lines">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="425"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="475"/>
         <source>&amp;Track Lines</source>
         <translation>&amp;Track Lines</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.road.lines">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="427"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="477"/>
         <source>&amp;Road Lines</source>
         <translation>&amp;Road Lines</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.junctions">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="429"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="479"/>
         <source>&amp;Junctions</source>
         <translation>&amp;Junctions</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.ends">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="431"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="481"/>
         <source>Track &amp;Ends</source>
         <translation>Track &amp;Ends</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.track.objects">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="433"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="483"/>
         <source>Track &amp;Objects</source>
         <translation>Track &amp;Objects</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.paths">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="436"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="486"/>
         <source>Pat&amp;hs</source>
         <translation>Pat&amp;hs</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.activity">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="438"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="488"/>
         <source>&amp;Activity</source>
         <translation>&amp;Activity</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.terrain">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="440"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="492"/>
         <source>Terra&amp;in</source>
         <translation>Terra&amp;in</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.imagery">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="442"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="494"/>
         <source>Ima&amp;gery</source>
         <translation>Ima&amp;gery</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.osm.data">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="444"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="496"/>
         <source>&amp;OSM Data</source>
         <translation>&amp;OSM Data</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.osm.transparent">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="446"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="498"/>
         <source>Transparent OSM &amp;Areas</source>
         <translation>Transparent OSM &amp;Areas</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.faded.overlay">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="449"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="501"/>
         <source>&amp;Faded Overlay</source>
         <translation>&amp;Faded Overlay</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.markers">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="452"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="504"/>
         <source>&amp;Markers</source>
         <translation>&amp;Markers</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.pointer">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="454"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="506"/>
         <source>&amp;Pointer</source>
         <translation>&amp;Pointer</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.mode">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="342"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="392"/>
         <source>&amp;Map Mode</source>
         <translation>&amp;Map Mode</translation>
     </message>
     <message id="route.editor.route.editor.window.action.view.unselect.all">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="335"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="385"/>
         <source>&amp;Unselect All</source>
         <translation>&amp;Unselect All</translation>
     </message>
     <message id="route.editor.route.editor.window.action.tools.copy.camera">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="545"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="602"/>
         <source>&amp;Copy Camera Position</source>
         <translation>&amp;Copy Camera Position</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.world.grid">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="355"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="405"/>
         <source>&amp;World Grid</source>
         <translation>&amp;World Grid</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.tile.grid">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="360"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="410"/>
         <source>&amp;Tile Grid</source>
         <translation>&amp;Tile Grid</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.terrain.grid">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="365"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="415"/>
         <source>&amp;Terrain Grid</source>
         <translation>&amp;Terrain Grid</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.terrain.shape">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="370"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="420"/>
         <source>&amp;Hide Terrain Shape</source>
         <translation>&amp;Hide Terrain Shape</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.show.world.obj.pivot.points">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="375"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="425"/>
         <source>&amp;WorldObj Markers</source>
         <translation>&amp;WorldObj Markers</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.interactives">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="380"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="430"/>
         <source>&amp;Interactives</source>
         <translation>&amp;Interactives</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.track.db.lines">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="385"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="435"/>
         <source>&amp;TrackDB Lines</source>
         <translation>&amp;TrackDB Lines</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.tsection.lines">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="390"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="440"/>
         <source>&amp;Tsection Lines</source>
         <translation>&amp;Tsection Lines</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.track.items">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="395"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="445"/>
         <source>&amp;TrackDB Items</source>
         <translation>&amp;TrackDB Items</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.pointer3d">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="401"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="451"/>
         <source>&amp;3D Pointer</source>
         <translation>&amp;3D Pointer</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.markers">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="406"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
         <source>&amp;Markers</source>
         <translation>&amp;Markers</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.snapable">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="411"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="461"/>
         <source>&amp;Snapable Points</source>
         <translation>&amp;Snapable Points</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.compass">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="416"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="466"/>
         <source>&amp;Compass</source>
         <translation>&amp;Compass</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.scale.bar">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="508"/>
         <source>Scale &amp;Bar</source>
         <translation>Scale &amp;Bar</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.window.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="474"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="530"/>
         <source>&amp;Window</source>
         <translation>&amp;Window</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.tools.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="538"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="595"/>
         <source>&amp;Tools</source>
         <translation>&amp;Tools</translation>
     </message>
     <message id="route.editor.route.editor.window.action.properties.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="479"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="535"/>
         <source>&amp;Properties</source>
         <translation>&amp;Properties</translation>
     </message>
     <message id="route.editor.route.editor.window.action.navi.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="484"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="540"/>
         <source>&amp;Navi Window</source>
         <translation>&amp;Navi Window</translation>
     </message>
     <message id="route.editor.environment.tools.preset.clear">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="36"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="39"/>
         <source>Clear</source>
         <translation>Clear</translation>
     </message>
     <message id="route.editor.environment.tools.preset.fair.cumulus">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="39"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="42"/>
         <source>Fair cumulus</source>
         <translation>Fair cumulus</translation>
     </message>
     <message id="route.editor.environment.tools.preset.scattered">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="42"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="45"/>
         <source>Scattered clouds</source>
         <translation>Scattered clouds</translation>
     </message>
     <message id="route.editor.environment.tools.preset.broken">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="45"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="48"/>
         <source>Broken clouds</source>
         <translation>Broken clouds</translation>
     </message>
     <message id="route.editor.environment.tools.preset.overcast">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="48"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="51"/>
         <source>Overcast</source>
         <translation>Overcast</translation>
     </message>
     <message id="route.editor.environment.tools.preset.rain">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="51"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="54"/>
         <source>Rain</source>
         <translation>Rain</translation>
     </message>
     <message id="route.editor.environment.tools.preset.snow">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="54"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="57"/>
         <source>Snow</source>
         <translation>Snow</translation>
     </message>
     <message id="route.editor.environment.tools.preset.thunderstorm">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="57"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="60"/>
         <source>Thunderstorm</source>
         <translation>Thunderstorm</translation>
     </message>
     <message id="route.editor.environment.tools.preset.front">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="60"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="63"/>
         <source>Passing front</source>
         <translation>Passing front</translation>
     </message>
     <message id="route.editor.environment.tools.details">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="169"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="174"/>
         <source>Weather Details...</source>
         <translation>Weather Details...</translation>
     </message>
     <message id="route.editor.environment.tools.details.title">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="175"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="204"/>
         <source>Weather Details</source>
         <translation>Weather Details</translation>
     </message>
     <message id="route.editor.environment.tools.import">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="175"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="179"/>
         <source>Import Weather...</source>
         <translation>Import Weather...</translation>
     </message>
     <message id="route.editor.environment.tools.import.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="179"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="183"/>
         <source>The weather of a day over the route, past or forecast, from Open-Meteo.</source>
         <translation>The weather of a day over the route, past or forecast, from Open-Meteo.</translation>
     </message>
     <message id="route.editor.environment.tools.source.imported">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="294"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="319"/>
         <source>%1, not saved</source>
         <translation>%1, not saved</translation>
     </message>
@@ -3167,42 +3167,44 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>Length:</translation>
     </message>
     <message id="route.editor.weather.import.model">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="68"/>
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="70"/>
         <source>Model:</source>
         <translation>Model:</translation>
     </message>
     <message id="route.editor.weather.import.margin.tooltip">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="75"/>
-        <source>Around the route's track: clouds an hour's wind away still drift over it.</source>
-        <translation>Around the route's track: clouds an hour's wind away still drift over it.</translation>
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="88"/>
+        <source>Around the route&apos;s track: clouds an hour&apos;s wind away still drift over it.</source>
+        <translation>Around the route&apos;s track: clouds an hour&apos;s wind away still drift over it.</translation>
     </message>
     <message id="route.editor.weather.import.margin">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="78"/>
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="97"/>
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="91"/>
         <source>Margin:</source>
         <translation>Margin:</translation>
     </message>
     <message id="route.editor.weather.import.cells">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="85"/>
+        <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="104"/>
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="98"/>
         <source>Cells:</source>
         <translation>Cells:</translation>
     </message>
     <message id="route.editor.weather.import.button">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="97"/>
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="110"/>
         <source>Import</source>
         <translation>Import</translation>
     </message>
     <message id="route.editor.weather.import.summary">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="151"/>
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="163"/>
         <source>Area %1 x %2 km, %3 sample points, %4 keyframes.</source>
         <translation>Area %1 x %2 km, %3 sample points, %4 keyframes.</translation>
     </message>
     <message id="route.editor.weather.import.progress">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="165"/>
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="177"/>
         <source>Downloading the weather...</source>
         <translation>Downloading the weather...</translation>
     </message>
     <message id="route.editor.weather.import.cancel">
-        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="167"/>
+        <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="179"/>
         <source>Cancel</source>
         <translation>Cancel</translation>
     </message>
@@ -3213,13 +3215,13 @@ Choose No to fill the whole tile with the selected material instead.</translatio
     </message>
     <message id="route.editor.weather.import.spacing.model">
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="73"/>
-        <source>Model's grid, 4 km at least</source>
-        <translation>Model's grid, 4 km at least</translation>
+        <source>Model&apos;s grid, 4 km at least</source>
+        <translation>Model&apos;s grid, 4 km at least</translation>
     </message>
     <message id="route.editor.weather.import.spacing.tooltip">
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="78"/>
-        <source>Points sampled from the model; each counts towards Open-Meteo's free 10000 a day.</source>
-        <translation>Points sampled from the model; each counts towards Open-Meteo's free 10000 a day.</translation>
+        <source>Points sampled from the model; each counts towards Open-Meteo&apos;s free 10000 a day.</source>
+        <translation>Points sampled from the model; each counts towards Open-Meteo&apos;s free 10000 a day.</translation>
     </message>
     <message id="route.editor.weather.import.spacing">
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="81"/>
@@ -3228,222 +3230,223 @@ Choose No to fill the whole tile with the selected material instead.</translatio
     </message>
     <message id="route.editor.weather.import.attribution.models">
         <location filename="../src/routeEditor/WeatherImportDialog.cpp" line="104"/>
-        <source>Data: Open-Meteo.com (CC BY 4.0) and the model's maker (Meteo-France, UK Met Office, DMI, DWD, KNMI, ECMWF, Copernicus). The weather keeps the attribution.</source>
-        <translation>Data: Open-Meteo.com (CC BY 4.0) and the model's maker (Meteo-France, UK Met Office, DMI, DWD, KNMI, ECMWF, Copernicus). The weather keeps the attribution.</translation>
+        <source>Data: Open-Meteo.com (CC BY 4.0) and the model&apos;s maker (Meteo-France, UK Met Office, DMI, DWD, KNMI, ECMWF, Copernicus). The weather keeps the attribution.</source>
+        <translation>Data: Open-Meteo.com (CC BY 4.0) and the model&apos;s maker (Meteo-France, UK Met Office, DMI, DWD, KNMI, ECMWF, Copernicus). The weather keeps the attribution.</translation>
     </message>
     <message id="route.editor.environment.tools.group.file">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="107"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="103"/>
         <source>Environment File:</source>
         <translation>Environment File:</translation>
     </message>
     <message id="route.editor.environment.tools.file.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="113"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="110"/>
         <source>The env file the editor shows: a season and weather of the route (TRK), or any file in ENVFILES.</source>
         <translation>The env file the editor shows: a season and weather of the route (TRK), or any file in ENVFILES.</translation>
     </message>
     <message id="route.editor.environment.tools.reload">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="117"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="114"/>
         <source>Reload</source>
         <translation>Reload</translation>
     </message>
     <message id="route.editor.environment.tools.save">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="120"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="117"/>
         <source>Save</source>
         <translation>Save</translation>
     </message>
     <message id="route.editor.environment.tools.save.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="123"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="120"/>
         <source>Write the weather into the env file.</source>
         <translation>Write the weather into the env file.</translation>
     </message>
     <message id="route.editor.environment.tools.save.title">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="134"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="131"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="138"/>
         <source>Save Weather</source>
         <translation>Save Weather</translation>
     </message>
     <message id="route.editor.environment.tools.save.question">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="136"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="133"/>
         <source>Write the weather into %1? Other programs reading the file keep its MSTS contents.</source>
         <translation>Write the weather into %1? Other programs reading the file keep its MSTS contents.</translation>
     </message>
     <message id="route.editor.environment.tools.group.weather">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="147"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="144"/>
         <source>Weather:</source>
         <translation>Weather:</translation>
     </message>
     <message id="route.editor.environment.tools.preset.file">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="152"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="150"/>
         <source>From the file</source>
         <translation>From the file</translation>
     </message>
     <message id="route.editor.environment.tools.preset">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="157"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="155"/>
         <source>Preset:</source>
         <translation>Preset:</translation>
     </message>
     <message id="route.editor.environment.tools.seed.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="164"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="162"/>
         <source>Another number places the clouds differently.</source>
         <translation>Another number places the clouds differently.</translation>
     </message>
     <message id="route.editor.environment.tools.seed">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="167"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="165"/>
         <source>Seed:</source>
         <translation>Seed:</translation>
     </message>
     <message id="route.editor.environment.tools.on.map">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="171"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="169"/>
         <source>Show on the map</source>
         <translation>Show on the map</translation>
     </message>
     <message id="route.editor.environment.tools.group.session">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="189"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="227"/>
         <source>Editor Session:</source>
         <translation>Editor Session:</translation>
     </message>
     <message id="route.editor.environment.tools.title">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="241"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="287"/>
         <source>Environment</source>
         <translation>Environment</translation>
     </message>
     <message id="route.editor.environment.tools.source.derived">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="270"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="316"/>
         <source>Derived from the env file (%1)</source>
         <translation>Derived from the env file (%1)</translation>
     </message>
     <message id="route.editor.environment.tools.source.unsaved">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="273"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="322"/>
         <source>Preset, not saved</source>
         <translation>Preset, not saved</translation>
     </message>
     <message id="route.editor.environment.tools.source.file">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="275"/>
-        <source>The env file's weather (%1)</source>
-        <translation>The env file's weather (%1)</translation>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="324"/>
+        <source>The env file&apos;s weather (%1)</source>
+        <translation>The env file&apos;s weather (%1)</translation>
     </message>
     <message id="route.editor.environment.tools.keyframes">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="279"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="328"/>
         <source>%1 keyframes over %2 h; now %3 h</source>
         <translation>%1 keyframes over %2 h; now %3 h</translation>
     </message>
     <message id="route.editor.environment.tools.layer.low">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="288"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="337"/>
         <source>Low</source>
         <translation>Low</translation>
     </message>
     <message id="route.editor.environment.tools.layer.mid">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="290"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="339"/>
         <source>Mid</source>
         <translation>Mid</translation>
     </message>
     <message id="route.editor.environment.tools.layer.high">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="292"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="341"/>
         <source>High</source>
         <translation>High</translation>
     </message>
     <message id="route.editor.environment.tools.layer.none">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="298"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="347"/>
         <source>%1: none</source>
         <translation>%1: none</translation>
     </message>
     <message id="route.editor.environment.tools.layer.values">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="302"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="351"/>
         <source>%1: %2 %3%, %4-%5 m</source>
         <translation>%1: %2 %3%, %4-%5 m</translation>
     </message>
     <message id="route.editor.environment.tools.wind">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="308"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="357"/>
         <source>Wind (low): from %1°, %2 m/s</source>
         <translation>Wind (low): from %1°, %2 m/s</translation>
     </message>
     <message id="route.editor.environment.tools.precipitation.none">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="314"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="363"/>
         <source>Precipitation: none</source>
         <translation>Precipitation: none</translation>
     </message>
     <message id="route.editor.environment.tools.precipitation">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="317"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="366"/>
         <source>Precipitation: %1, %2 mm/h</source>
         <translation>Precipitation: %1, %2 mm/h</translation>
     </message>
     <message id="route.editor.environment.tools.snow">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="320"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="369"/>
         <source>snow</source>
         <translation>snow</translation>
     </message>
     <message id="route.editor.environment.tools.rain">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="322"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="371"/>
         <source>rain</source>
         <translation>rain</translation>
     </message>
     <message id="route.editor.environment.tools.visibility">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="324"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="373"/>
         <source>Visibility: %1 km</source>
         <translation>Visibility: %1 km</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.weather">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="444"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="490"/>
         <source>&amp;Weather</source>
         <translation>&amp;Weather</translation>
     </message>
     <message id="route.editor.route.editor.window.action.environment.panel">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="542"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="588"/>
         <source>&amp;Environment</source>
         <translation>&amp;Environment</translation>
     </message>
     <message id="route.editor.environment.window.group.fog">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="243"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="312"/>
         <source>Fog:</source>
         <translation>Fog:</translation>
     </message>
     <message id="route.editor.environment.window.title">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="104"/>
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="291"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="131"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="360"/>
         <source>Environment</source>
         <translation>Environment</translation>
     </message>
     <message id="route.editor.environment.window.group.time">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="174"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="201"/>
         <source>Time:</source>
         <translation>Time:</translation>
     </message>
     <message id="route.editor.environment.window.time.of.day">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="178"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="205"/>
         <source>Time of day:</source>
         <translation>Time of day:</translation>
     </message>
     <message id="route.editor.environment.window.time">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="192"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="219"/>
         <source>Solar time:</source>
         <translation>Solar time:</translation>
     </message>
     <message id="route.editor.environment.window.today">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="208"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="235"/>
         <source>Today</source>
         <translation>Today</translation>
     </message>
     <message id="route.editor.environment.window.date">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="211"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="238"/>
         <source>Date:</source>
         <translation>Date:</translation>
     </message>
     <message id="route.editor.environment.window.clock.tooltip">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="253"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="254"/>
         <source>How far the time of day and the weather run on in a real second.</source>
         <translation>How far the time of day and the weather run on in a real second.</translation>
     </message>
     <message id="route.editor.environment.window.clock.seconds">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="256"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="257"/>
         <source>%1 s/s</source>
         <translation>%1 s/s</translation>
     </message>
     <message id="route.editor.environment.window.clock.minutes">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="259"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="260"/>
         <source>%1 min/s</source>
         <translation>%1 min/s</translation>
     </message>
     <message id="route.editor.environment.window.clock">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="266"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="269"/>
         <source>Clock:</source>
         <translation>Clock:</translation>
     </message>
@@ -3458,240 +3461,240 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>Resume</translation>
     </message>
     <message id="route.editor.environment.window.fog.colour">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="316"/>
         <source>Fog colour:</source>
         <translation>Fog colour:</translation>
     </message>
     <message id="route.editor.environment.window.fog.density">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="253"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="322"/>
         <source>Fog density:</source>
         <translation>Fog density:</translation>
     </message>
     <message id="route.editor.environment.window.local.lights">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="262"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="331"/>
         <source>Local lights:</source>
         <translation>Local lights:</translation>
     </message>
     <message id="route.editor.environment.window.bloom">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="268"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="337"/>
         <source>Bloom:</source>
         <translation>Bloom:</translation>
     </message>
     <message id="route.editor.environment.window.exposure">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="271"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="340"/>
         <source>Exposure:</source>
         <translation>Exposure:</translation>
     </message>
     <message id="route.editor.environment.window.sun">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="221"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="290"/>
         <source>Sun:</source>
         <translation>Sun:</translation>
     </message>
     <message id="route.editor.environment.window.moon">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="228"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="297"/>
         <source>Moon:</source>
         <translation>Moon:</translation>
     </message>
     <message id="route.editor.environment.window.sun.size">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="234"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="303"/>
         <source>Size:</source>
         <translation>Size:</translation>
     </message>
     <message id="route.editor.environment.window.group.rendering">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="258"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="327"/>
         <source>Rendering:</source>
         <translation>Rendering:</translation>
     </message>
     <message id="route.editor.environment.window.reset.all">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="275"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="344"/>
         <source>Reset all</source>
         <translation>Reset all</translation>
     </message>
     <message id="route.editor.environment.window.reset.all.tooltip">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="278"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="347"/>
         <source>Go back to the profile&apos;s values.</source>
         <translation>Go back to the profile&apos;s values.</translation>
     </message>
     <message id="route.editor.environment.window.save">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="282"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="351"/>
         <source>Save to profile</source>
         <translation>Save to profile</translation>
     </message>
     <message id="route.editor.environment.window.save.tooltip">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="285"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="354"/>
         <source>Keep the current values in the profile&apos;s settings.</source>
         <translation>Keep the current values in the profile&apos;s settings.</translation>
     </message>
     <message id="route.editor.environment.window.reset.one">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="313"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="382"/>
         <source>Back to the profile&apos;s value</source>
         <translation>Back to the profile&apos;s value</translation>
     </message>
     <message id="route.editor.environment.window.readout.fixed.sun">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="398"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="493"/>
         <source>Sun %1° above the horizon (fixed light)</source>
         <translation>Sun %1° above the horizon (fixed light)</translation>
     </message>
     <message id="route.editor.environment.window.readout.sun">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="402"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="497"/>
         <source>Sun %1° above the horizon, bearing %2°</source>
         <translation>Sun %1° above the horizon, bearing %2°</translation>
     </message>
     <message id="route.editor.environment.window.readout.moon">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="408"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="503"/>
         <source>Moon %1° above the horizon, %2% lit</source>
         <translation>Moon %1° above the horizon, %2% lit</translation>
     </message>
     <message id="route.editor.route.editor.window.action.shape.view.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="494"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="545"/>
         <source>&amp;Shape View Window</source>
         <translation>&amp;Shape View Window</translation>
     </message>
     <message id="route.editor.route.editor.window.action.error.view.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="499"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="550"/>
         <source>&amp;Errors and Messages</source>
         <translation>&amp;Errors and Messages</translation>
     </message>
     <message id="route.editor.route.editor.window.action.objects.and.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="505"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="556"/>
         <source>&amp;Objects and Terrain</source>
         <translation>&amp;Objects and Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.action.objects.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="510"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="561"/>
         <source>&amp;Objects</source>
         <translation>&amp;Objects</translation>
     </message>
     <message id="route.editor.route.editor.window.action.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="516"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="567"/>
         <source>&amp;Terrain</source>
         <translation>&amp;Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.action.geo.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="523"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="574"/>
         <source>&amp;Geo</source>
         <translation>&amp;Geo</translation>
     </message>
     <message id="route.editor.route.editor.window.action.activity.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="530"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="581"/>
         <source>&amp;Activity</source>
         <translation>&amp;Activity</translation>
     </message>
     <message id="route.editor.route.editor.window.action.terrain.camera.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="571"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="628"/>
         <source>&amp;Stick Camera To Terrain</source>
         <translation>&amp;Stick Camera To Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.action.msts.shadows.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="577"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="634"/>
         <source>&amp;MSTS Shadows</source>
         <translation>&amp;MSTS Shadows</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.terrain.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="582"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="639"/>
         <source>&amp;Terrain Editing:</source>
         <translation>&amp;Terrain Editing:</translation>
     </message>
     <message id="route.editor.route.editor.window.action.detail.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="585"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="642"/>
         <source>&amp;Detailed Terrain</source>
         <translation>&amp;Detailed Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.action.distant.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="589"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="646"/>
         <source>&amp;Distant Terrain</source>
         <translation>&amp;Distant Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.settings.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="595"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="652"/>
         <source>&amp;Settings</source>
         <translation>&amp;Settings</translation>
     </message>
     <message id="route.editor.route.editor.window.action.settings.editor.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="598"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="655"/>
         <source>Settings &amp;Editor...</source>
         <translation>Settings &amp;Editor...</translation>
     </message>
     <message id="route.editor.route.editor.window.action.bake.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="555"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="612"/>
         <source>Bake procedural terrain textures…</source>
         <translation>Bake procedural terrain textures…</translation>
     </message>
     <message id="route.editor.route.editor.window.message.bake.terrain">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="562"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="619"/>
         <source>Bake terrain</source>
         <translation>Bake terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.message.save.discard.route.changes.before.batch.baking">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="564"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="621"/>
         <source>Save or discard route changes before batch baking.</source>
         <translation>Save or discard route changes before batch baking.</translation>
     </message>
     <message id="route.editor.route.editor.window.action.about.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="609"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="666"/>
         <source>&amp;About</source>
         <translation>&amp;About</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.help.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="613"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="670"/>
         <source>&amp;Help</source>
         <translation>&amp;Help</translation>
     </message>
     <message id="route.editor.route.editor.window.title.save.changes">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="881"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="942"/>
         <source>Save changes?</source>
         <translation>Save changes?</translation>
     </message>
     <message id="route.editor.route.editor.window.message.save.changes.in.route">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="884"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="945"/>
         <source>Save changes in route?</source>
         <translation>Save changes in route?</translation>
     </message>
     <message id="route.editor.route.editor.window.text.this.action.will.delete.all.your.existing">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="922"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="983"/>
         <source>This action will delete all your existing activity paths and create new simple paths! Continue?</source>
         <translation>This action will delete all your existing activity paths and create new simple paths! Continue?</translation>
     </message>
     <message id="route.editor.country.places.title">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="943"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="959"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="985"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1012"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1035"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1054"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1074"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1081"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1087"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1004"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1020"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1046"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1073"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1096"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1115"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1135"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1142"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1148"/>
         <source>Generate country places</source>
         <translation>Generate country places</translation>
     </message>
     <message id="route.editor.country.places.writing.disabled">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="945"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1006"/>
         <source>Route writing is disabled.</source>
         <translation>Route writing is disabled.</translation>
     </message>
     <message id="route.editor.country.places.loading">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="957"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1018"/>
         <source>Loading country place presets...</source>
         <translation>Loading country place presets...</translation>
     </message>
     <message id="route.editor.country.places.no.countries">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1014"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1075"/>
         <source>No countries were found in the place presets.</source>
         <translation>No countries were found in the place presets.</translation>
     </message>
     <message id="route.editor.country.places.country">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1037"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1098"/>
         <source>Country:</source>
         <translation>Country:</translation>
     </message>
     <message id="route.editor.country.places.generating">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1051"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1112"/>
         <source>Generating country places...</source>
         <translation>Generating country places...</translation>
     </message>
     <message id="route.editor.country.places.generated">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1089"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1150"/>
         <source>Country places for %1 were generated successfully.</source>
         <translation>Country places for %1 were generated successfully.</translation>
     </message>
@@ -3768,102 +3771,102 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Use a route-specific terrain mesh LOD profile</translation>
     </message>
     <message id="settings.core.rendering.clouds.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1094"/>
-        <source>Volumetric clouds from the environment's weather, with the physical sky (QRhi renderer). Higher quality marches the clouds in finer steps and costs more time per frame.</source>
-        <translation>Volumetric clouds from the environment's weather, with the physical sky (QRhi renderer). Higher quality marches the clouds in finer steps and costs more time per frame.</translation>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1115"/>
+        <source>Volumetric clouds from the environment&apos;s weather, with the physical sky (QRhi renderer). Higher quality marches the clouds in finer steps and costs more time per frame.</source>
+        <translation>Volumetric clouds from the environment&apos;s weather, with the physical sky (QRhi renderer). Higher quality marches the clouds in finer steps and costs more time per frame.</translation>
     </message>
     <message id="settings.core.rendering.clouds.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1092"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1113"/>
         <source>Clouds</source>
         <translation>Clouds</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.high">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1103"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1124"/>
         <source>High</source>
         <translation>High</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.low">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1099"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1120"/>
         <source>Low</source>
         <translation>Low</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.medium">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1101"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1122"/>
         <source>Medium</source>
         <translation>Medium</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1097"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1118"/>
         <source>Off</source>
         <translation>Off</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.ultra">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1105"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1126"/>
         <source>Ultra</source>
         <translation>Ultra</translation>
     </message>
     <message id="settings.core.rendering.enclosed.ambient.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1124"/>
-        <source>The share of the sky's ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</source>
-        <translation>The share of the sky's ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</translation>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1154"/>
+        <source>The share of the sky&apos;s ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</source>
+        <translation>The share of the sky&apos;s ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</translation>
     </message>
     <message id="settings.core.rendering.enclosed.ambient.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1122"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1152"/>
         <source>Enclosed ambient</source>
         <translation>Enclosed ambient</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.description.modes">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1110"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1133"/>
         <source>Rays of sunlight through gaps in clouds, trees and buildings. Screen space draws them when the sun is on the screen or near it; volumetric marches the haze in front of the camera, so shafts under clouds and through trees show from any view, at more cost. QRhi renderer.</source>
         <translation>Rays of sunlight through gaps in clouds, trees and buildings. Screen space draws them when the sun is on the screen or near it; volumetric marches the haze in front of the camera, so shafts under clouds and through trees show from any view, at more cost. QRhi renderer.</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1108"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1131"/>
         <source>Light shafts</source>
         <translation>Light shafts</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1113"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1136"/>
         <source>Off</source>
         <translation>Off</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.option.screen">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1115"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1138"/>
         <source>Screen space</source>
         <translation>Screen space</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.option.volumetric">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1140"/>
         <source>Volumetric</source>
         <translation>Volumetric</translation>
     </message>
     <message id="settings.core.rendering.sky.enclosure.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>
-        <source>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky's ambient light drops to the enclosed ambient. QRhi renderer.</source>
-        <translation>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky's ambient light drops to the enclosed ambient. QRhi renderer.</translation>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1147"/>
+        <source>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky&apos;s ambient light drops to the enclosed ambient. QRhi renderer.</source>
+        <translation>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky&apos;s ambient light drops to the enclosed ambient. QRhi renderer.</translation>
     </message>
     <message id="settings.core.rendering.sky.enclosure.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1115"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1145"/>
         <source>Sky enclosure</source>
         <translation>Sky enclosure</translation>
     </message>
     <message id="settings.core.rendering.sky.model.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1082"/>
-        <source>Classic draws the route's sky dome in the time of day's colours. Physical computes the sky from the atmosphere for the sun's place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky.</source>
-        <translation>Classic draws the route's sky dome in the time of day's colours. Physical computes the sky from the atmosphere for the sun's place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky.</translation>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1103"/>
+        <source>Classic draws the route&apos;s sky dome in the time of day&apos;s colours. Physical computes the sky from the atmosphere for the sun&apos;s place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky.</source>
+        <translation>Classic draws the route&apos;s sky dome in the time of day&apos;s colours. Physical computes the sky from the atmosphere for the sun&apos;s place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky.</translation>
     </message>
     <message id="settings.core.rendering.sky.model.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1080"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1101"/>
         <source>Sky</source>
         <translation>Sky</translation>
     </message>
     <message id="settings.core.rendering.sky.model.option.classic">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1085"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1106"/>
         <source>Classic</source>
         <translation>Classic</translation>
     </message>
     <message id="settings.core.rendering.sky.model.option.physical">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1087"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1108"/>
         <source>Physical</source>
         <translation>Physical</translation>
     </message>
@@ -4564,77 +4567,77 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Terrain mesh LOD: </translation>
     </message>
     <message id="route.editor.trk.window.label.environment">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="105"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="108"/>
         <source>Environment</source>
         <translation>Environment</translation>
     </message>
     <message id="route.editor.trk.window.label.description">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="111"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="114"/>
         <source>Description</source>
         <translation>Description</translation>
     </message>
     <message id="route.editor.trk.window.item.no">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="124"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="127"/>
         <source>No</source>
         <translation>No</translation>
     </message>
     <message id="route.editor.trk.window.item.yes">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="127"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="130"/>
         <source>Yes</source>
         <translation>Yes</translation>
     </message>
     <message id="route.editor.trk.window.item.no.2">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="150"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="153"/>
         <source>No</source>
         <translation>No</translation>
     </message>
     <message id="route.editor.trk.window.item.yes.2">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="153"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="156"/>
         <source>Yes</source>
         <translation>Yes</translation>
     </message>
     <message id="route.editor.trk.window.text.edit.terrain.lod.profile">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="163"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="166"/>
         <source>Edit terrain LOD profile...</source>
         <translation>Edit terrain LOD profile...</translation>
     </message>
     <message id="route.editor.trk.window.item.load.image">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="178"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="191"/>
         <source>Load Image</source>
         <translation>Load Image</translation>
     </message>
     <message id="route.editor.trk.window.item.details.image">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="181"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="194"/>
         <source>Details Image</source>
         <translation>Details Image</translation>
     </message>
     <message id="route.editor.trk.window.text.copy">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="186"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="199"/>
         <source> Copy </source>
         <translation> Copy </translation>
     </message>
     <message id="route.editor.trk.window.text.paste">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="189"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="202"/>
         <source> Paste </source>
         <translation> Paste </translation>
     </message>
     <message id="route.editor.trk.window.button.apply">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="203"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="216"/>
         <source>Apply</source>
         <translation>Apply</translation>
     </message>
     <message id="route.editor.trk.window.button.discard">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="209"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="222"/>
         <source>Discard</source>
         <translation>Discard</translation>
     </message>
     <message id="route.editor.trk.window.button.skip">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="207"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="220"/>
         <source>Skip</source>
         <translation>Skip</translation>
     </message>
     <message id="route.editor.trk.window.title.route.settings">
-        <location filename="../src/routeEditor/TrkWindow.cpp" line="227"/>
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="240"/>
         <source>Route settings</source>
         <translation>Route settings</translation>
     </message>
@@ -5948,7 +5951,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="route.properties.group.children.count" numerus="yes">
         <location filename="../src/routeEditor/properties/PropertiesGroup.cpp" line="524"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="165"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="169"/>
         <source>%n object(s)</source>
         <translation>
             <numerusform>%n object</numerusform>
@@ -7064,57 +7067,57 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         </translation>
     </message>
     <message id="route.editor.properties.static.label.info.label">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="24"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="25"/>
         <source>Static:</source>
         <translation>Static:</translation>
     </message>
     <message id="route.editor.properties.static.label.ui.d">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="36"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="37"/>
         <source>UiD:</source>
         <translation>UiD:</translation>
     </message>
     <message id="route.editor.properties.static.label.tile.x">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="39"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="40"/>
         <source>Tile X:</source>
         <translation>Tile X:</translation>
     </message>
     <message id="route.editor.properties.static.label.tile.z">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="42"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="43"/>
         <source>Tile Z:</source>
         <translation>Tile Z:</translation>
     </message>
     <message id="route.editor.properties.static.label.label">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="47"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="48"/>
         <source>FileName:</source>
         <translation>FileName:</translation>
     </message>
     <message id="route.editor.properties.static.button.copy.f">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="59"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="60"/>
         <source>Copy</source>
         <translation>Copy</translation>
     </message>
     <message id="route.editor.properties.static.button.edit.f">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="64"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="65"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
     <message id="route.editor.properties.static.label.label.2">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="73"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="74"/>
         <source>Position &amp; Rotation:</source>
         <translation>Position &amp; Rotation:</translation>
     </message>
     <message id="route.editor.properties.static.label.x">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="82"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="83"/>
         <source>X:</source>
         <translation>X:</translation>
     </message>
     <message id="route.editor.properties.static.label.y">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="89"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="90"/>
         <source>Y:</source>
         <translation>Y:</translation>
     </message>
     <message id="route.editor.properties.static.label.z">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="94"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="95"/>
         <source>Z:</source>
         <translation>Z:</translation>
     </message>
@@ -7134,162 +7137,162 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>How far the lights of this object reach. Empty for the default, which suits most lamps; set more only where this object should light a larger area (up to %1 m). Each metre more costs drawing time wherever its light reaches.</translation>
     </message>
     <message id="route.editor.properties.static.label.rot">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="101"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="102"/>
         <source>Rot:</source>
         <translation>Rot:</translation>
     </message>
     <message id="route.editor.properties.static.button.copy.pos">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="109"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="110"/>
         <source>Copy Pos</source>
         <translation>Copy Pos</translation>
     </message>
     <message id="route.editor.properties.static.button.paste.pos">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="114"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="115"/>
         <source>Paste</source>
         <translation>Paste</translation>
     </message>
     <message id="route.editor.properties.static.button.copy.qrot">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="119"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="120"/>
         <source>Copy Rot</source>
         <translation>Copy Rot</translation>
     </message>
     <message id="route.editor.properties.static.button.paste.qrot">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="124"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="125"/>
         <source>Paste</source>
         <translation>Paste</translation>
     </message>
     <message id="route.editor.properties.static.button.copy.pos.rot">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="129"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="130"/>
         <source>Copy Pos+Rot</source>
         <translation>Copy Pos+Rot</translation>
     </message>
     <message id="route.editor.properties.static.button.paste.pos.rot">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="134"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="135"/>
         <source>Paste</source>
         <translation>Paste</translation>
     </message>
     <message id="route.editor.properties.static.button.reset.qrot">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="139"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="140"/>
         <source>Reset Rot</source>
         <translation>Reset Rot</translation>
     </message>
     <message id="route.editor.properties.static.button.q.rot90">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="144"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="145"/>
         <source>Rot Y 90°</source>
         <translation>Rot Y 90°</translation>
     </message>
     <message id="route.editor.properties.static.button.transform">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="149"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="150"/>
         <source>Transform ...</source>
         <translation>Transform ...</translation>
     </message>
     <message id="route.editor.properties.static.label.label.3">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="166"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="167"/>
         <source>Detail Level:</source>
         <translation>Detail Level:</translation>
     </message>
     <message id="route.editor.properties.static.text.custom">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="174"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="175"/>
         <source>Custom</source>
         <translation>Custom</translation>
     </message>
     <message id="route.editor.properties.static.option.default.detail.level.label">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="177"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="178"/>
         <source>Default</source>
         <translation>Default</translation>
     </message>
     <message id="route.editor.properties.static.label.label.4">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="197"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="216"/>
         <source>Flags:</source>
         <translation>Flags:</translation>
     </message>
     <message id="route.editor.properties.static.button.copy.flags">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="209"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="228"/>
         <source>Copy Flags</source>
         <translation>Copy Flags</translation>
     </message>
     <message id="route.editor.properties.static.button.paste.flags">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="214"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="233"/>
         <source>Paste</source>
         <translation>Paste</translation>
     </message>
     <message id="route.editor.properties.static.text.animate.object">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="222"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="241"/>
         <source>Animate Object</source>
         <translation>Animate Object</translation>
     </message>
     <message id="route.editor.properties.static.text.terrain.object">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="225"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="244"/>
         <source>Terrain Object</source>
         <translation>Terrain Object</translation>
     </message>
     <message id="route.editor.properties.static.item.no.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="234"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="253"/>
         <source>No Shadow</source>
         <translation>No Shadow</translation>
     </message>
     <message id="route.editor.properties.static.item.round.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="237"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="256"/>
         <source>Round Shadow</source>
         <translation>Round Shadow</translation>
     </message>
     <message id="route.editor.properties.static.item.rect.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="240"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="259"/>
         <source>Rect. Shadow</source>
         <translation>Rect. Shadow</translation>
     </message>
     <message id="route.editor.properties.static.item.treeline.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="243"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
         <source>Treeline Shadow</source>
         <translation>Treeline Shadow</translation>
     </message>
     <message id="route.editor.properties.static.item.dynamic.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="246"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="265"/>
         <source>Dynamic Shadow</source>
         <translation>Dynamic Shadow</translation>
     </message>
     <message id="route.editor.properties.static.label.label.5">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="254"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="273"/>
         <source>MSTS Collision:</source>
         <translation>MSTS Collision:</translation>
     </message>
     <message id="route.editor.properties.static.item.disabled">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="263"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="282"/>
         <source>Disabled</source>
         <translation>Disabled</translation>
     </message>
     <message id="route.editor.properties.static.item.immovable">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="266"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="285"/>
         <source>Immovable</source>
         <translation>Immovable</translation>
     </message>
     <message id="route.editor.properties.static.item.buffer">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="269"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="288"/>
         <source>Buffer</source>
         <translation>Buffer</translation>
     </message>
     <message id="route.editor.properties.static.button.reset.flags">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="276"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="295"/>
         <source>Remove Collisions</source>
         <translation>Remove Collisions</translation>
     </message>
     <message id="route.editor.properties.static.label.label.6">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="282"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="301"/>
         <source>Position &amp; Rotation:</source>
         <translation>Position &amp; Rotation:</translation>
     </message>
     <message id="route.editor.properties.static.button.reload">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="288"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="307"/>
         <source>Reload</source>
         <translation>Reload</translation>
     </message>
     <message id="route.editor.properties.static.text.null">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="304"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="323"/>
         <source>NULL</source>
         <translation>NULL</translation>
     </message>
     <message id="route.properties.static.object.type">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="310"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="329"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
@@ -8460,7 +8463,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.group.rendering.subgroup.reflections.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="183"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="126"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="130"/>
         <source>Reflections</source>
         <translation>Reflections</translation>
     </message>
@@ -8525,52 +8528,52 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>glTF lamps and emissive surfaces light the scene around them. QRhi renderer only.</translation>
     </message>
     <message id="settings.core.rendering.local.lights.exposure.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="996"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1010"/>
         <source>Lamp brightness</source>
         <translation>Lamp brightness</translation>
     </message>
     <message id="settings.core.rendering.local.lights.exposure.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="998"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1012"/>
         <source>Scale of glTF lamp intensities. At 1 a lamp of 1 candela lights a white surface 1 m away to 1/pi of the sun&apos;s light, as in the Khronos sample viewer.</source>
         <translation>Scale of glTF lamp intensities. At 1 a lamp of 1 candela lights a white surface 1 m away to 1/pi of the sun&apos;s light, as in the Khronos sample viewer.</translation>
     </message>
     <message id="settings.core.rendering.local.lights.emissive.gain.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1003"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1017"/>
         <source>Glow brightness</source>
         <translation>Glow brightness</translation>
     </message>
     <message id="settings.core.rendering.local.lights.emissive.gain.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1005"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1019"/>
         <source>Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would.</source>
         <translation>Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would.</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="950"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="964"/>
         <source>Ambient occlusion</source>
         <translation>Ambient occlusion</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="952"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="966"/>
         <source>Darkens ambient light in corners, under objects and where surfaces meet, computed from the view&apos;s depth (QRhi renderer). Higher quality costs more time per frame.</source>
         <translation>Darkens ambient light in corners, under objects and where surfaces meet, computed from the view&apos;s depth (QRhi renderer). Higher quality costs more time per frame.</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="955"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="969"/>
         <source>Off</source>
         <translation>Off</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.option.low">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="957"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="971"/>
         <source>Low</source>
         <translation>Low</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.option.medium">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="959"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="973"/>
         <source>Medium</source>
         <translation>Medium</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.option.high">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="961"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="975"/>
         <source>High</source>
         <translation>High</translation>
     </message>
@@ -8585,52 +8588,52 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Exposure, tone mapping and glow of the final image (QRhi renderer).</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="966"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="980"/>
         <source>Tone mapping</source>
         <translation>Tone mapping</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="968"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="982"/>
         <source>How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer.</source>
         <translation>How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer.</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="971"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="985"/>
         <source>Off</source>
         <translation>Off</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.option.soft">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="973"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="987"/>
         <source>Soft shoulder</source>
         <translation>Soft shoulder</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.option.aces">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="975"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="989"/>
         <source>ACES</source>
         <translation>ACES</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.option.agx">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="977"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="991"/>
         <source>AgX</source>
         <translation>AgX</translation>
     </message>
     <message id="settings.core.rendering.exposure.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="982"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="996"/>
         <source>Exposure</source>
         <translation>Exposure</translation>
     </message>
     <message id="settings.core.rendering.exposure.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="984"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="998"/>
         <source>Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer.</source>
         <translation>Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer.</translation>
     </message>
     <message id="settings.core.rendering.bloom.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="989"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1003"/>
         <source>Glow (bloom)</source>
         <translation>Glow (bloom)</translation>
     </message>
     <message id="settings.core.rendering.bloom.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="991"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1005"/>
         <source>Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer.</source>
         <translation>Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer.</translation>
     </message>
@@ -8886,8 +8889,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.interface.language.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="344"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="123"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="145"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="127"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="149"/>
         <source>Interface language</source>
         <translation>Interface language</translation>
     </message>
@@ -9618,8 +9621,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.rendering.environment.map.enabled.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="859"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="125"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="142"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="129"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="146"/>
         <source>Render environment map</source>
         <translation>Render environment map</translation>
     </message>
@@ -9749,1298 +9752,1363 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>The way the wind blows, in degrees from north towards east: 0 to the north, 90 to the east. Waves run mostly with the wind.</translation>
     </message>
     <message id="settings.core.rendering.default.line.width.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1010"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1024"/>
         <source>Default line width</source>
         <translation>Default line width</translation>
     </message>
     <message id="settings.core.rendering.default.line.width.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1012"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1026"/>
         <source>OpenGL width used for editor line primitives when an item does not request a custom width.</source>
         <translation>OpenGL width used for editor line primitives when an item does not request a custom width.</translation>
     </message>
     <message id="settings.core.rendering.fog.density.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1017"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1031"/>
         <source>Fog density</source>
         <translation>Fog density</translation>
     </message>
     <message id="settings.core.rendering.fog.density.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1019"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1033"/>
         <source>With the physical sky: how hazy the air is, scaling the weather&apos;s haze (0.3 about a fifth of it, 0.7 all of it, 0 clear air). Otherwise the most the classic fog covers.</source>
         <translation>With the physical sky: how hazy the air is, scaling the weather&apos;s haze (0.3 about a fifth of it, 0.7 all of it, 0 clear air). Otherwise the most the classic fog covers.</translation>
     </message>
     <message id="settings.core.rendering.fog.color.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1024"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1038"/>
         <source>Fog colour</source>
         <translation>Fog colour</translation>
     </message>
     <message id="settings.core.rendering.fog.color.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1026"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1040"/>
         <source>Colour used for distance fog and copied into the scene renderer.</source>
         <translation>Colour used for distance fog and copied into the scene renderer.</translation>
     </message>
     <message id="settings.core.rendering.sky.color.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1031"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1045"/>
         <source>Sky colour</source>
         <translation>Sky colour</translation>
     </message>
     <message id="settings.core.rendering.sky.color.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1033"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1047"/>
         <source>Base clear colour copied into the scene renderer.</source>
         <translation>Base clear colour copied into the scene renderer.</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1038"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1052"/>
         <source>Time of day</source>
         <translation>Time of day</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1040"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1054"/>
         <source>Light the Route Editor as the sun would at the camera&apos;s latitude and longitude at the time and date below: sun direction, shadows, light and sky colours. When off, the editor uses its fixed light.</source>
         <translation>Light the Route Editor as the sun would at the camera&apos;s latitude and longitude at the time and date below: sun direction, shadows, light and sky colours. When off, the editor uses its fixed light.</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.time.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1045"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1059"/>
         <source>Time</source>
         <translation>Time</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.time.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1047"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1061"/>
         <source>Local mean solar time in hours: 12 is when the sun is highest on average, whatever the route&apos;s time zone.</source>
         <translation>Local mean solar time in hours: 12 is when the sun is highest on average, whatever the route&apos;s time zone.</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.date.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1052"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1066"/>
         <source>Date</source>
         <translation>Date</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.date.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1054"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1068"/>
         <source>Date for the sun&apos;s path, as yyyy-MM-dd.</source>
         <translation>Date for the sun&apos;s path, as yyyy-MM-dd.</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.running.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1066"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1073"/>
         <source>Time runs</source>
         <translation>Time runs</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.running.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1068"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1075"/>
         <source>The time of day and the weather run on while the editor runs (at the speed set in the Environment panel); off keeps the time set (Environment panel: Stop / Resume).</source>
         <translation>The time of day and the weather run on while the editor runs (at the speed set in the Environment panel); off keeps the time set (Environment panel: Stop / Resume).</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1059"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1080"/>
         <source>Sun on the sky</source>
         <translation>Sun on the sky</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1061"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1082"/>
         <source>Draw the sun as a disc on the sky, where time of day puts it (or where the editor&apos;s fixed light comes from when time of day is off).</source>
         <translation>Draw the sun as a disc on the sky, where time of day puts it (or where the editor&apos;s fixed light comes from when time of day is off).</translation>
     </message>
     <message id="settings.core.rendering.sky.moon.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1066"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1087"/>
         <source>Moon on the sky</source>
         <translation>Moon on the sky</translation>
     </message>
     <message id="settings.core.rendering.sky.moon.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1068"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1089"/>
         <source>Draw the moon on the sky, at its place and phase for the time and date of time of day. Only with time of day on.</source>
         <translation>Draw the moon on the sky, at its place and phase for the time and date of time of day. Only with time of day on.</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1073"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1094"/>
         <source>Sun and moon size</source>
         <translation>Sun and moon size</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1075"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1096"/>
         <source>Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger.</source>
         <translation>Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger.</translation>
     </message>
     <message id="settings.core.rendering.render.track.items.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1080"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1159"/>
         <source>Render TrackDB items</source>
         <translation>Render TrackDB items</translation>
     </message>
     <message id="settings.core.rendering.render.track.items.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1082"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1161"/>
         <source>Display TrackDB and RoadDB interactive-item markers in the Route Editor scene.</source>
         <translation>Display TrackDB and RoadDB interactive-item markers in the Route Editor scene.</translation>
     </message>
     <message id="settings.core.interface.hide.tools.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1089"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1168"/>
         <source>Hide Route Editor tools</source>
         <translation>Hide Route Editor tools</translation>
     </message>
     <message id="settings.core.interface.hide.tools.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1091"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1170"/>
         <source>Hide the Route Editor&apos;s auxiliary tool windows after its saved layout is created.</source>
         <translation>Hide the Route Editor&apos;s auxiliary tool windows after its saved layout is created.</translation>
     </message>
     <message id="settings.core.interface.accent.color.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1096"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1175"/>
         <source>System-theme accent colour</source>
         <translation>System-theme accent colour</translation>
     </message>
     <message id="settings.core.interface.accent.color.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1098"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1177"/>
         <source>Used only when Use system theme is enabled. Controls interface headings and selections, with contrast adjusted against light or dark system palettes. TSRE&apos;s built-in dark theme retains its own coordinated accent colours.</source>
         <translation>Used only when Use system theme is enabled. Controls interface headings and selections, with contrast adjusted against light or dark system palettes. TSRE&apos;s built-in dark theme retains its own coordinated accent colours.</translation>
     </message>
     <message id="settings.core.interface.main.window.layout.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1103"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1182"/>
         <source>Route Editor window layout</source>
         <translation>Route Editor window layout</translation>
     </message>
     <message id="settings.core.interface.main.window.layout.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1105"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1184"/>
         <source>Compact startup code: P enables Properties, T enables Tools, and W denotes the main world view.</source>
         <translation>Compact startup code: P enables Properties, T enables Tools, and W denotes the main world view.</translation>
     </message>
     <message id="settings.core.interface.consist.window.layout.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1110"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1189"/>
         <source>Consist Editor window layout</source>
         <translation>Consist Editor window layout</translation>
     </message>
     <message id="settings.core.interface.consist.window.layout.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1112"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1191"/>
         <source>Compact startup code controlling the C, 1, 2, and U Consist Editor panels.</source>
         <translation>Compact startup code controlling the C, 1, 2, and U Consist Editor panels.</translation>
     </message>
     <message id="settings.core.interface.consist.background.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1117"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1196"/>
         <source>Consist preview background</source>
         <translation>Consist preview background</translation>
     </message>
     <message id="settings.core.interface.consist.background.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1119"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1198"/>
         <source>Background colour applied to the Consist Editor&apos;s consist preview when its window is created.</source>
         <translation>Background colour applied to the Consist Editor&apos;s consist preview when its window is created.</translation>
     </message>
     <message id="settings.core.interface.shape.background.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1124"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1203"/>
         <source>Shape preview background</source>
         <translation>Shape preview background</translation>
     </message>
     <message id="settings.core.interface.shape.background.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1126"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1205"/>
         <source>Background colour applied to shape preview widgets in the Consist Editor and Shape Viewer.</source>
         <translation>Background colour applied to shape preview widgets in the Consist Editor and Shape Viewer.</translation>
     </message>
     <message id="settings.core.interface.hud.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1131"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1210"/>
         <source>Enable Route Editor HUD</source>
         <translation>Enable Route Editor HUD</translation>
     </message>
     <message id="settings.core.interface.hud.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1133"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1212"/>
         <source>Display the Route Editor heads-up overlay.</source>
         <translation>Display the Route Editor heads-up overlay.</translation>
     </message>
     <message id="settings.core.interface.hud.scale.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1138"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1217"/>
         <source>HUD scale</source>
         <translation>HUD scale</translation>
     </message>
     <message id="settings.core.interface.hud.scale.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1140"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1219"/>
         <source>Scale multiplier used to build the Route Editor HUD projection.</source>
         <translation>Scale multiplier used to build the Route Editor HUD projection.</translation>
     </message>
     <message id="settings.core.interface.hud.show.editor.fps.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1145"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1224"/>
         <source>Show editor FPS</source>
         <translation>Show editor FPS</translation>
     </message>
     <message id="settings.core.interface.hud.show.editor.fps.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1147"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1226"/>
         <source>Display Route Editor frame-rate diagnostics in the HUD.</source>
         <translation>Display Route Editor frame-rate diagnostics in the HUD.</translation>
     </message>
     <message id="settings.core.interface.marker.lines.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1152"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1231"/>
         <source>Show route marker lines</source>
         <translation>Show route marker lines</translation>
     </message>
     <message id="settings.core.interface.marker.lines.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1154"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1233"/>
         <source>Create line geometry connecting imported route-marker points.</source>
         <translation>Create line geometry connecting imported route-marker points.</translation>
     </message>
     <message id="settings.core.track.default.grade.format.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1161"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1240"/>
         <source>Default track grade format</source>
         <translation>Default track grade format</translation>
     </message>
     <message id="settings.core.track.default.grade.format.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1163"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1242"/>
         <source>Initial grade input format in track, dynamic-track, and ruler properties.</source>
         <translation>Initial grade input format in track, dynamic-track, and ruler properties.</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.permille">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1166"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1245"/>
         <source>Permille</source>
         <translation>Permille</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.percent">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1168"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1247"/>
         <source>Percent</source>
         <translation>Percent</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.one.in.x">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1170"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1249"/>
         <source>1 in X</source>
         <translation>1 in X</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.angle">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1172"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1251"/>
         <source>Angle</source>
         <translation>Angle</translation>
     </message>
     <message id="settings.core.editing.default.move.step.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1177"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1256"/>
         <source>Default movement step</source>
         <translation>Default movement step</translation>
     </message>
     <message id="settings.core.editing.default.move.step.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1179"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1258"/>
         <source>Initial translation increment and live-track quantization grid used by Route Editor controls.</source>
         <translation>Initial translation increment and live-track quantization grid used by Route Editor controls.</translation>
     </message>
     <message id="settings.core.track.maximum.elevation.permille.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1184"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1263"/>
         <source>Maximum absolute track grade</source>
         <translation>Maximum absolute track grade</translation>
     </message>
     <message id="settings.core.track.maximum.elevation.permille.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1186"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1265"/>
         <source>Clamp track and dynamic-track property input to this absolute grade, expressed in per mille.</source>
         <translation>Clamp track and dynamic-track property input to this absolute grade, expressed in per mille.</translation>
     </message>
     <message id="settings.core.track.snap.rotation.only.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1191"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1270"/>
         <source>Default to rotation-only snapping</source>
         <translation>Default to rotation-only snapping</translation>
     </message>
     <message id="settings.core.track.snap.rotation.only.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1193"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1272"/>
         <source>Initial state of the Auto Placement &apos;Only Rot&apos; option for each newly loaded route. Panel changes affect only the current route session and do not update this profile default.</source>
         <translation>Initial state of the Auto Placement &apos;Only Rot&apos; option for each newly loaded route. Panel changes affect only the current route session and do not update this profile default.</translation>
     </message>
     <message id="settings.core.track.snap.radius.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1198"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1277"/>
         <source>Default placement snap radius</source>
         <translation>Default placement snap radius</translation>
     </message>
     <message id="settings.core.track.snap.radius.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1200"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1279"/>
         <source>Initial maximum snapping distance used by Auto Placement for each newly loaded route. Panel changes affect only the current route session and do not update this profile default.</source>
         <translation>Initial maximum snapping distance used by Auto Placement for each newly loaded route. Panel changes affect only the current route session and do not update this profile default.</translation>
     </message>
     <message id="settings.core.track.procedural.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1205"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1284"/>
         <source>Procedural track mode</source>
         <translation>Procedural track mode</translation>
     </message>
     <message id="settings.core.track.procedural.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1207"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1286"/>
         <source>Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Forced also falls back to DefaultTrack.</source>
         <translation>Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Forced also falls back to DefaultTrack.</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.disabled">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1210"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1289"/>
         <source>Disabled</source>
         <translation>Disabled</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.enabled">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1212"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1291"/>
         <source>Enabled</source>
         <translation>Enabled</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.forced">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1214"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1293"/>
         <source>Forced</source>
         <translation>Forced</translation>
     </message>
     <message id="settings.core.terrain.seasonal.editing.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1219"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1298"/>
         <source>Edit seasonal terrain files</source>
         <translation>Edit seasonal terrain files</translation>
     </message>
     <message id="settings.core.terrain.seasonal.editing.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1221"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1300"/>
         <source>When a content season is selected, load and save terrain texture and raw files in that season&apos;s directories.</source>
         <translation>When a content season is selected, load and save terrain texture and raw files in that season&apos;s directories.</translation>
     </message>
     <message id="settings.core.terrain.procedural.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1226"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1305"/>
         <source>Enable procedural materials</source>
         <translation>Enable procedural materials</translation>
     </message>
     <message id="settings.core.terrain.procedural.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1228"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1307"/>
         <source>Generate and display procedural terrain materials. When disabled, use saved static textures without loading or rewriting procedural maps or bakes. Procedural texture tools are unavailable; saved material data is preserved. Requires an application restart.</source>
         <translation>Generate and display procedural terrain materials. When disabled, use saved static textures without loading or rewriting procedural maps or bakes. Procedural texture tools are unavailable; saved material data is preserved. Requires an application restart.</translation>
     </message>
     <message id="settings.core.terrain.procedural.detail.distance.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1233"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1312"/>
         <source>Detailed texture distance</source>
         <translation>Detailed texture distance</translation>
     </message>
     <message id="settings.core.terrain.procedural.detail.distance.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1235"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1314"/>
         <source>Horizontal camera-to-patch-centre distance for detailed procedural textures. Beyond this distance use the saved tile bake when available. Independent of terrain geometry and object draw distances; applies immediately.</source>
         <translation>Horizontal camera-to-patch-centre distance for detailed procedural textures. Beyond this distance use the saved tile bake when available. Independent of terrain geometry and object draw distances; applies immediately.</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1240"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1319"/>
         <source>Patch texture size</source>
         <translation>Patch texture size</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1242"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1321"/>
         <source>Width and height of each generated detailed patch texture. Higher values increase generation time and memory use. Does not resize the painted material-ID map. Requires an application restart.</source>
         <translation>Width and height of each generated detailed patch texture. Higher values increase generation time and memory use. Does not resize the painted material-ID map. Requires an application restart.</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.128">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1244"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1323"/>
         <source>128 x 128</source>
         <translation>128 x 128</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1246"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1325"/>
         <source>256 x 256</source>
         <translation>256 x 256</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1248"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1327"/>
         <source>512 x 512</source>
         <translation>512 x 512</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1250"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1329"/>
         <source>1024 x 1024</source>
         <translation>1024 x 1024</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1252"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1331"/>
         <source>2048 x 2048</source>
         <translation>2048 x 2048</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1257"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1336"/>
         <source>Baked tile texture size</source>
         <translation>Baked tile texture size</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1259"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1338"/>
         <source>Width and height of the whole-tile DXT1 fallback texture. Existing bakes remain visible; a changed size is generated on the next tile save after restarting. Does not resize the material-ID map.</source>
         <translation>Width and height of the whole-tile DXT1 fallback texture. Existing bakes remain visible; a changed size is generated on the next tile save after restarting. Does not resize the material-ID map.</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1261"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1340"/>
         <source>256 x 256</source>
         <translation>256 x 256</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1263"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1342"/>
         <source>512 x 512</source>
         <translation>512 x 512</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1265"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1344"/>
         <source>1024 x 1024</source>
         <translation>1024 x 1024</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1267"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1346"/>
         <source>2048 x 2048</source>
         <translation>2048 x 2048</translation>
     </message>
     <message id="settings.core.terrain.procedural.validate.bake.inputs.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1272"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1351"/>
         <source>Validate baked texture inputs</source>
         <translation>Validate baked texture inputs</translation>
     </message>
     <message id="settings.core.terrain.procedural.validate.bake.inputs.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1274"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1353"/>
         <source>Diagnostic/repair mode: hash the entire material-ID map and generation/source metadata on load and save. A mismatch requests a full rebake on save, but keeps displaying the existing fallback. Can cause pauses; leave off for normal editing. Requires an application restart.</source>
         <translation>Diagnostic/repair mode: hash the entire material-ID map and generation/source metadata on load and save. A mismatch requests a full rebake on save, but keeps displaying the existing fallback. Can cause pauses; leave off for normal editing. Requires an application restart.</translation>
     </message>
     <message id="settings.core.route.loading.preload.all.world.files.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1279"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1358"/>
         <source>Preload all world files</source>
         <translation>Preload all world files</translation>
     </message>
     <message id="settings.core.route.loading.preload.all.world.files.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1281"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1360"/>
         <source>Load every route world tile during route initialization instead of only the normal working set; server mode forces this on.</source>
         <translation>Load every route world tile during route initialization instead of only the normal working set; server mode forces this on.</translation>
     </message>
     <message id="settings.core.geometry.positive.quaternions.only.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1286"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1365"/>
         <source>Canonicalize quaternion signs</source>
         <translation>Canonicalize quaternion signs</translation>
     </message>
     <message id="settings.core.geometry.positive.quaternions.only.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1288"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1367"/>
         <source>Convert object rotations to the equivalent representation with a non-negative W component. Existing affected objects are marked as modified when loaded. Intended for route compatibility or migration.</source>
         <translation>Convert object rotations to the equivalent representation with a non-negative W component. Existing affected objects are marked as modified when loaded. Intended for route compatibility or migration.</translation>
     </message>
     <message id="settings.core.maps.image.resolution.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1295"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1374"/>
         <source>Generated map resolution</source>
         <translation>Generated map resolution</translation>
     </message>
     <message id="settings.core.maps.image.resolution.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1297"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1376"/>
         <source>Width and height of the composite terrain-map image created after downloaded map tiles are assembled.</source>
         <translation>Width and height of the composite terrain-map image created after downloaded map tiles are assembled.</translation>
     </message>
     <message id="settings.core.content.loading.prefer.open.rails.eng.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1304"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1383"/>
         <source>Load OpenRails ENG overrides</source>
         <translation>Load OpenRails ENG overrides</translation>
     </message>
     <message id="settings.core.content.loading.prefer.open.rails.eng.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1306"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1385"/>
         <source>For each locomotive, first try its ENG file and include paths under the trainset OpenRails subdirectory.</source>
         <translation>For each locomotive, first try its ENG file and include paths under the trainset OpenRails subdirectory.</translation>
     </message>
     <message id="settings.core.network.client.login.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1313"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1392"/>
         <source>Route Editor client login</source>
         <translation>Route Editor client login</translation>
     </message>
     <message id="settings.core.network.client.login.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1315"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1394"/>
         <source>Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
         <translation>Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1320"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1399"/>
         <source>Server authentication mode</source>
         <translation>Server authentication mode</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1322"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1401"/>
         <source>Select no authentication or validate users against users.txt in the server working directory.</source>
         <translation>Select no authentication or validate users against users.txt in the server working directory.</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.option.default">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1325"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1404"/>
         <source>None</source>
         <translation>None</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.option.file">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1327"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1406"/>
         <source>users.txt file</source>
         <translation>users.txt file</translation>
     </message>
     <message id="settings.core.network.player.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1332"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1411"/>
         <source>Player mode</source>
         <translation>Player mode</translation>
     </message>
     <message id="settings.core.network.player.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1334"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1413"/>
         <source>Experimental mode that hides Route Editor editing UI, suppresses the 3D placement pointer, and skips the interactive out-of-sync TrackSection repair prompt.</source>
         <translation>Experimental mode that hides Route Editor editing UI, suppresses the 3D placement pointer, and skips the interactive out-of-sync TrackSection repair prompt.</translation>
     </message>
     <message id="settings.core.network.use.network.engine.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1339"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1418"/>
         <source>Use external locomotive data</source>
         <translation>Use external locomotive data</translation>
     </message>
     <message id="settings.core.network.use.network.engine.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1341"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1420"/>
         <source>Experimental integration that reads locomotive speed from TrainNetworkEng and publishes elevation, path distance, and geographic position during simulation updates.</source>
         <translation>Experimental integration that reads locomotive speed from TrainNetworkEng and publishes elevation, path distance, and geographic position during simulation updates.</translation>
     </message>
     <message id="settings.core.advanced.use.quad.tree.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1348"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1427"/>
         <source>Use saved terrain QuadTree</source>
         <oldsource>Use quadtree terrain library</oldsource>
         <translation>Use saved terrain QuadTree</translation>
     </message>
     <message id="settings.core.advanced.use.quad.tree.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1350"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1429"/>
         <source>Use the route&apos;s saved terrain index. When disabled, reconstruct a temporary index from terrain descriptors; use Errors and Messages &gt; Fix to adopt it for ordinary saving. Remote clients always use the server&apos;s index.</source>
         <oldsource>Construct TerrainLibQt instead of the legacy TerrainLibSimple implementation when loading a route; remote-client mode forces this on.</oldsource>
         <translation>Use the route&apos;s saved terrain index. When disabled, reconstruct a temporary index from terrain descriptors; use Errors and Messages &gt; Fix to adopt it for ordinary saving. Remote clients always use the server&apos;s index.</translation>
     </message>
     <message id="settings.core.advanced.use.empty.track.items.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1355"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1434"/>
         <source>Reuse empty TrackDB item slots</source>
         <translation>Reuse empty TrackDB item slots</translation>
     </message>
     <message id="settings.core.advanced.use.empty.track.items.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1357"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1436"/>
         <source>Allocate new TrackDB items into existing emptyitem slots before extending the TrackDB item array.</source>
         <translation>Allocate new TrackDB items into existing emptyitem slots before extending the TrackDB item array.</translation>
     </message>
     <message id="settings.core.advanced.ignore.missing.global.shapes.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1362"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1441"/>
         <source>Hide missing GLOBAL track shapes</source>
         <translation>Hide missing GLOBAL track shapes</translation>
     </message>
     <message id="settings.core.advanced.ignore.missing.global.shapes.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1364"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1443"/>
         <source>Filter TrackSection shapes whose files are absent from GLOBAL/SHAPES out of Route Editor placement lists.</source>
         <translation>Filter TrackSection shapes whose files are absent from GLOBAL/SHAPES out of Route Editor placement lists.</translation>
     </message>
     <message id="settings.dialog.error.json.object.required">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="69"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="70"/>
         <source>JSON must contain one object.</source>
         <translation>JSON must contain one object.</translation>
     </message>
     <message id="settings.dialog.error.key.value.syntax">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="92"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="93"/>
         <source>Expected: setting.key : JSON value</source>
         <translation>Expected: setting.key : JSON value</translation>
     </message>
     <message id="settings.dialog.error.key.value.empty">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="100"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="101"/>
         <source>Setting key and value must not be empty.</source>
         <translation>Setting key and value must not be empty.</translation>
     </message>
     <message id="settings.dialog.error.json.value.required">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="112"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="113"/>
         <source>Value must be one JSON value.</source>
         <translation>Value must be one JSON value.</translation>
     </message>
     <message id="settings.dialog.title.settings.editor">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="135"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="136"/>
         <source>Settings Editor</source>
         <translation>Settings Editor</translation>
     </message>
     <message id="settings.dialog.menu.profile.menu">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="147"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="148"/>
         <source>&amp;Profile</source>
         <translation>&amp;Profile</translation>
     </message>
     <message id="settings.dialog.action.save.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="150"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="151"/>
         <source>&amp;Save</source>
         <translation>&amp;Save</translation>
     </message>
     <message id="settings.dialog.action.reload.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="154"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="155"/>
         <source>&amp;Reload</source>
         <translation>&amp;Reload</translation>
     </message>
     <message id="settings.dialog.action.load.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="159"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="160"/>
         <source>&amp;Load...</source>
         <translation>&amp;Load...</translation>
     </message>
     <message id="settings.dialog.action.save.as.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="162"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="163"/>
         <source>Save &amp;As...</source>
         <translation>Save &amp;As...</translation>
     </message>
     <message id="settings.dialog.action.new.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="165"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="166"/>
         <source>&amp;New...</source>
         <translation>&amp;New...</translation>
     </message>
     <message id="settings.dialog.action.m.duplicate.profile.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="169"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="170"/>
         <source>&amp;Duplicate...</source>
         <translation>&amp;Duplicate...</translation>
     </message>
     <message id="settings.dialog.action.folder.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="172"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="173"/>
         <source>Open Profile &amp;Folder</source>
         <translation>Open Profile &amp;Folder</translation>
     </message>
     <message id="settings.dialog.action.close.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="176"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="177"/>
         <source>&amp;Close</source>
         <translation>&amp;Close</translation>
     </message>
     <message id="settings.dialog.menu.edit.menu">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="181"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="182"/>
         <source>&amp;Edit</source>
         <translation>&amp;Edit</translation>
     </message>
     <message id="settings.dialog.action.add.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="184"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="185"/>
         <source>Add &amp;Custom Setting...</source>
         <translation>Add &amp;Custom Setting...</translation>
     </message>
     <message id="settings.dialog.action.paste.key.value.action">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="187"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="188"/>
         <source>Paste Key and &amp;Value</source>
         <translation>Paste Key and &amp;Value</translation>
     </message>
     <message id="settings.dialog.action.reset.group">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="192"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="193"/>
         <source>Reset &amp;Group to Defaults</source>
         <translation>Reset &amp;Group to Defaults</translation>
     </message>
     <message id="settings.dialog.action.reset.all">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="196"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="197"/>
         <source>Reset All to &amp;Defaults</source>
         <translation>Reset All to &amp;Defaults</translation>
     </message>
-    <message id="settings.dialog.action.raw.action">
+    <message id="settings.dialog.action.remove.unsupported">
         <location filename="../src/settings/ui/SettingsDialog.cpp" line="201"/>
+        <source>Remove &amp;Unsupported Settings...</source>
+        <translation>Remove &amp;Unsupported Settings...</translation>
+    </message>
+    <message id="settings.dialog.action.raw.action">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="206"/>
         <source>Edit Raw Profile &amp;JSON...</source>
         <translation>Edit Raw Profile &amp;JSON...</translation>
     </message>
     <message id="settings.dialog.menu.view.menu">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="205"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="210"/>
         <source>&amp;View</source>
         <translation>&amp;View</translation>
     </message>
     <message id="settings.dialog.action.m.show.unsupported">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="208"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="213"/>
         <source>Show &amp;Unsupported Settings</source>
         <translation>Show &amp;Unsupported Settings</translation>
     </message>
     <message id="settings.dialog.action.m.show.advanced">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="213"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="218"/>
         <source>Show &amp;Advanced Settings</source>
         <translation>Show &amp;Advanced Settings</translation>
     </message>
+    <message id="settings.dialog.menu.graphics.presets">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="224"/>
+        <source>&amp;Graphics Presets</source>
+        <translation>&amp;Graphics Presets</translation>
+    </message>
     <message id="settings.dialog.label.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="221"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="243"/>
         <source>Profile:</source>
         <translation>Profile:</translation>
     </message>
     <message id="settings.dialog.label.file">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="228"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="250"/>
         <source>File:</source>
         <translation>File:</translation>
     </message>
     <message id="settings.dialog.label.search">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="234"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="256"/>
         <source>Search:</source>
         <translation>Search:</translation>
     </message>
     <message id="settings.dialog.placeholder.m.search">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="238"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="260"/>
         <source>Search name, key, or description...</source>
         <translation>Search name, key, or description...</translation>
     </message>
     <message id="settings.dialog.text.update.catalog">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="262"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="284"/>
         <source>Update</source>
         <translation>Update</translation>
     </message>
     <message id="settings.dialog.text.hide.catalog">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="266"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="288"/>
         <source>Hide</source>
         <translation>Hide</translation>
     </message>
     <message id="settings.dialog.text.save">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="284"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="306"/>
         <source>Save Profile</source>
         <translation>Save Profile</translation>
     </message>
     <message id="settings.dialog.text.m.apply.runtime">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="287"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="309"/>
         <source>Apply to Running TSRE</source>
         <translation>Apply to Running TSRE</translation>
     </message>
     <message id="settings.dialog.text.close">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="290"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="312"/>
         <source>Close</source>
         <translation>Close</translation>
     </message>
     <message id="settings.dialog.label.label">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="333"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="357"/>
         <source>Unknown type - use JSON editor</source>
         <translation>Unknown type - use JSON editor</translation>
     </message>
     <message id="settings.dialog.text.widget">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="386"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="410"/>
         <location filename="../src/tsre/geo/HeightWindow.cpp" line="285"/>
         <source>Unsupported value: %1</source>
         <translation>Unsupported value: %1</translation>
     </message>
     <message id="settings.dialog.tooltip.widget">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="407"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="431"/>
         <source>Secret key only. Edit the value for &apos;%1&apos; in the profile-local secrets.json file; the settings profile stores only this reference.</source>
         <translation>Secret key only. Edit the value for &apos;%1&apos; in the profile-local secrets.json file; the settings profile stores only this reference.</translation>
     </message>
     <message id="settings.dialog.text.choose.directory">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="435"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="459"/>
         <source>Choose directory</source>
         <translation>Choose directory</translation>
     </message>
     <message id="settings.dialog.text.choose.file">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="437"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="461"/>
         <source>Choose file</source>
         <translation>Choose file</translation>
     </message>
     <message id="settings.dialog.text.choose.directory.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="445"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="469"/>
         <source>Choose directory</source>
         <translation>Choose directory</translation>
     </message>
     <message id="settings.dialog.text.choose.file.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="453"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="477"/>
         <source>Choose file</source>
         <translation>Choose file</translation>
     </message>
     <message id="settings.dialog.placeholder.widget">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="467"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="491"/>
         <source>Default</source>
         <translation>Default</translation>
     </message>
     <message id="settings.dialog.tooltip.swatch">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="476"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="500"/>
         <source>Choose colour</source>
         <translation>Choose colour</translation>
     </message>
     <message id="settings.dialog.tooltip.swatch.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="484"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="508"/>
         <source>Use the application&apos;s default colour</source>
         <translation>Use the application&apos;s default colour</translation>
     </message>
     <message id="settings.dialog.tooltip.swatch.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="493"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="517"/>
         <source>Invalid colour value</source>
         <translation>Invalid colour value</translation>
     </message>
     <message id="settings.dialog.tooltip.swatch.4">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="503"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="527"/>
         <source>Choose colour: %1</source>
         <translation>Choose colour: %1</translation>
     </message>
     <message id="settings.dialog.text.choose.colour">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="515"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="539"/>
         <source>Choose colour</source>
         <translation>Choose colour</translation>
     </message>
     <message id="settings.dialog.text.clear.override">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="526"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="550"/>
         <source>Clear</source>
         <translation>Clear</translation>
     </message>
     <message id="settings.dialog.tooltip.clear.override">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="530"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="554"/>
         <source>Clear the override and use the default colour</source>
         <translation>Clear the override and use the default colour</translation>
     </message>
     <message id="settings.dialog.text.markers">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="577"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="601"/>
         <source>used</source>
         <translation>used</translation>
     </message>
     <message id="settings.dialog.text.markers.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="582"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="606"/>
         <source>viewing</source>
         <translation>viewing</translation>
     </message>
     <message id="settings.dialog.text.markers.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="586"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="610"/>
         <source>custom</source>
         <translation>custom</translation>
     </message>
     <message id="settings.dialog.text.value.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="590"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="614"/>
         <source>%1 (%2)</source>
         <translation>%1 (%2)</translation>
     </message>
     <message id="settings.dialog.tooltip.m.profile.name">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="607"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="631"/>
         <source>Selected profile is open only for viewing and editing.
 Profile used at application startup: %1</source>
         <translation>Selected profile is open only for viewing and editing.
 Profile used at application startup: %1</translation>
     </message>
     <message id="settings.dialog.text.apply.editor.values.this.running.tsre.session">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="617"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="641"/>
         <source>Apply the editor values to this running TSRE session without saving them.</source>
         <translation>Apply the editor values to this running TSRE session without saving them.</translation>
     </message>
     <message id="settings.dialog.text.only.profile.used.start.this.tsre.session">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="620"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="644"/>
         <source>Only the profile used to start this TSRE session can be applied.</source>
         <translation>Only the profile used to start this TSRE session can be applied.</translation>
     </message>
     <message id="settings.dialog.text.used">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="635"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="659"/>
         <source>Used</source>
         <translation>Used</translation>
     </message>
     <message id="settings.dialog.text.setting">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="637"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="661"/>
         <source>Setting</source>
         <translation>Setting</translation>
     </message>
     <message id="settings.dialog.text.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="639"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="663"/>
         <source>Value</source>
         <translation>Value</translation>
     </message>
     <message id="settings.dialog.text.description">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="641"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="665"/>
         <source>Description</source>
         <translation>Description</translation>
     </message>
     <message id="settings.dialog.text.json">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="643"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="667"/>
         <source>JSON</source>
         <translation>JSON</translation>
     </message>
     <message id="settings.dialog.tooltip.label">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="654"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="678"/>
         <source>Used by the running TSRE build</source>
         <translation>Used by the running TSRE build</translation>
     </message>
     <message id="settings.dialog.text.m.tabs">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="719"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="743"/>
         <source>Other</source>
         <translation>Other</translation>
     </message>
     <message id="settings.dialog.text.title">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="736"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="760"/>
         <source>General</source>
         <translation>General</translation>
     </message>
     <message id="settings.dialog.text.m.tabs.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="801"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="825"/>
         <source>Results</source>
         <translation>Results</translation>
     </message>
     <message id="settings.dialog.tooltip.state">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="826"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="850"/>
         <source>Supported by this build</source>
         <translation>Supported by this build</translation>
     </message>
     <message id="settings.dialog.text.state">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="829"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="853"/>
         <source>Known key, incompatible type</source>
         <translation>Known key, incompatible type</translation>
     </message>
     <message id="settings.dialog.text.not.registered.by.this.build">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="832"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="856"/>
         <source>Not registered by this build</source>
         <translation>Not registered by this build</translation>
     </message>
     <message id="settings.dialog.tooltip.name">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="840"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="162"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="864"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="166"/>
         <source>Key: %1</source>
         <translation>Key: %1</translation>
     </message>
     <message id="settings.dialog.tooltip.metadata">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="859"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="883"/>
         <source>Setting actions</source>
         <translation>Setting actions</translation>
     </message>
     <message id="settings.dialog.action.view.json">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="863"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="887"/>
         <source>View JSON...</source>
         <translation>View JSON...</translation>
     </message>
     <message id="settings.dialog.action.copy.key.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="867"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="891"/>
         <source>Copy Key and Value</source>
         <translation>Copy Key and Value</translation>
     </message>
     <message id="settings.dialog.action.reset.setting">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="874"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="898"/>
         <source>Reset to Default</source>
         <translation>Reset to Default</translation>
     </message>
     <message id="settings.dialog.text.m.status.label">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="929"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="953"/>
         <source>%1 settings | %2 validation error(s)%3</source>
         <translation>%1 settings | %2 validation error(s)%3</translation>
     </message>
     <message id="settings.dialog.text.unsaved.changes">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="933"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="957"/>
         <source> | unsaved changes</source>
         <translation> | unsaved changes</translation>
     </message>
     <message id="settings.dialog.text.results.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="957"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="981"/>
         <source>Results (%1)</source>
         <translation>Results (%1)</translation>
     </message>
     <message id="settings.dialog.text.results">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="959"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="983"/>
         <source>Results</source>
         <translation>Results</translation>
     </message>
     <message id="settings.dialog.text.message">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1073"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1097"/>
         <source>Stored setting definitions differ from this TSRE build.</source>
         <translation>Stored setting definitions differ from this TSRE build.</translation>
     </message>
     <message id="settings.dialog.text.profile.was.created.by.value.value.but">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1085"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1109"/>
         <source> The profile was created by %1 %2, but its last definition source is unknown.</source>
         <translation> The profile was created by %1 %2, but its last definition source is unknown.</translation>
     </message>
     <message id="settings.dialog.text.source.build.is.unknown">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1090"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1114"/>
         <source> The source build is unknown.</source>
         <translation> The source build is unknown.</translation>
     </message>
     <message id="settings.dialog.text.they.were.last.updated.by.value.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1094"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1118"/>
         <source> They were last updated by %1 %2, which may be another fork.</source>
         <translation> They were last updated by %1 %2, which may be another fork.</translation>
     </message>
     <message id="settings.dialog.text.they.were.last.updated.by.older.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1107"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1131"/>
         <source> They were last updated by the older %1 %2 build.</source>
         <translation> They were last updated by the older %1 %2 build.</translation>
     </message>
     <message id="settings.dialog.text.they.were.last.updated.by.newer.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1112"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1136"/>
         <source> They were last updated by the newer %1 %2 build.</source>
         <translation> They were last updated by the newer %1 %2 build.</translation>
     </message>
     <message id="settings.dialog.text.they.were.last.updated.by.value.value.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1117"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1141"/>
         <source> They were last updated by %1 %2.</source>
         <translation> They were last updated by %1 %2.</translation>
     </message>
     <message id="settings.dialog.text.value.registered.definition.s.can.be.updated">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1123"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1147"/>
         <source> %1 registered definition(s) can be updated without changing their values.</source>
         <translation> %1 registered definition(s) can be updated without changing their values.</translation>
     </message>
     <message id="settings.dialog.message.cannot.update.setting.definitions">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1134"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1158"/>
         <source>Cannot update setting definitions</source>
         <translation>Cannot update setting definitions</translation>
     </message>
     <message id="settings.dialog.message.cannot.update.setting.definitions.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1142"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1166"/>
         <source>Cannot update setting definitions</source>
         <translation>Cannot update setting definitions</translation>
     </message>
     <message id="settings.dialog.text.m.status.label.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1149"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1173"/>
         <source>Updated %1 stored definition(s) | unsaved changes</source>
         <translation>Updated %1 stored definition(s) | unsaved changes</translation>
     </message>
     <message id="settings.dialog.text.status.adopted.defaults">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1154"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1178"/>
         <source>Updated %1 stored definition(s); %2 setting(s) left at their default take the new one | unsaved changes</source>
         <translation>Updated %1 stored definition(s); %2 setting(s) left at their default take the new one | unsaved changes</translation>
     </message>
     <message id="settings.dialog.message.cannot.apply.settings">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1171"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1195"/>
         <source>Cannot apply settings</source>
         <translation>Cannot apply settings</translation>
     </message>
     <message id="settings.dialog.message.answer">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1176"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1200"/>
         <source>Profile changed externally</source>
         <translation>Profile changed externally</translation>
     </message>
     <message id="settings.dialog.text.settings.file.changed.on.disk.overwrite.it">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1178"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1202"/>
         <source>The settings file changed on disk. Overwrite it with the editor values?</source>
         <translation>The settings file changed on disk. Overwrite it with the editor values?</translation>
     </message>
     <message id="settings.dialog.message.cannot.save.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1183"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1207"/>
         <source>Cannot save profile</source>
         <translation>Cannot save profile</translation>
     </message>
     <message id="settings.dialog.message.cannot.apply.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1193"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1217"/>
         <source>Cannot apply profile</source>
         <translation>Cannot apply profile</translation>
     </message>
     <message id="settings.dialog.text.only.profile.used.start.this.tsre.session.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1195"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1219"/>
         <source>Only the profile used to start this TSRE session can be applied.</source>
         <translation>Only the profile used to start this TSRE session can be applied.</translation>
     </message>
     <message id="settings.dialog.message.cannot.apply.settings.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1202"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1226"/>
         <source>Cannot apply settings</source>
         <translation>Cannot apply settings</translation>
     </message>
     <message id="settings.dialog.message.cannot.apply.settings.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1210"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1234"/>
         <source>Cannot apply settings</source>
         <translation>Cannot apply settings</translation>
     </message>
     <message id="settings.dialog.text.result">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1226"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1250"/>
         <source>%1 runtime setting(s) applied</source>
         <translation>%1 runtime setting(s) applied</translation>
     </message>
     <message id="settings.dialog.text.result.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1229"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1253"/>
         <source>route reload required</source>
         <translation>route reload required</translation>
     </message>
     <message id="settings.dialog.text.result.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1232"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1256"/>
         <source>renderer restart required</source>
         <translation>renderer restart required</translation>
     </message>
     <message id="settings.dialog.text.result.4">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1235"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1259"/>
         <source>application restart required</source>
         <translation>application restart required</translation>
     </message>
     <message id="settings.dialog.text.result.5">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1238"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1262"/>
         <source> | </source>
         <translation> | </translation>
     </message>
     <message id="settings.dialog.message.cannot.reload.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1246"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1270"/>
         <source>Cannot reload profile</source>
         <translation>Cannot reload profile</translation>
     </message>
     <message id="settings.dialog.text.file">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1254"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1278"/>
         <source>Load settings profile</source>
         <translation>Load settings profile</translation>
     </message>
     <message id="settings.dialog.text.json.settings.json.all.files">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1257"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1281"/>
         <source>JSON settings (*.json);;All files (*)</source>
         <translation>JSON settings (*.json);;All files (*)</translation>
     </message>
     <message id="settings.dialog.message.cannot.load.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1262"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1286"/>
         <source>Cannot load profile</source>
         <translation>Cannot load profile</translation>
     </message>
     <message id="settings.dialog.text.file.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1270"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1294"/>
         <source>Save settings profile as</source>
         <translation>Save settings profile as</translation>
     </message>
     <message id="settings.dialog.text.json.settings.json">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1273"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1297"/>
         <source>JSON settings (*.json)</source>
         <translation>JSON settings (*.json)</translation>
     </message>
     <message id="settings.dialog.message.cannot.save.profile.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1279"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1303"/>
         <source>Cannot save profile</source>
         <translation>Cannot save profile</translation>
     </message>
     <message id="settings.dialog.text.new.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1290"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1314"/>
         <source>New profile</source>
         <translation>New profile</translation>
     </message>
     <message id="settings.dialog.text.new.profile.name.defaults">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1292"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1316"/>
         <source>Name of the new profile (every setting at its default):</source>
         <translation>Name of the new profile (every setting at its default):</translation>
     </message>
     <message id="settings.dialog.message.cannot.create.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1301"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1325"/>
         <source>Cannot create profile</source>
         <translation>Cannot create profile</translation>
     </message>
     <message id="settings.dialog.message.profile.created.cannot.open">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1308"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1332"/>
         <source>Profile was created but cannot be opened</source>
         <translation>Profile was created but cannot be opened</translation>
     </message>
     <message id="settings.dialog.text.status.profile.created">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1315"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1339"/>
         <source>Created profile %1 with every setting at its default</source>
         <translation>Created profile %1 with every setting at its default</translation>
     </message>
     <message id="settings.dialog.text.reset.group.question">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1329"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1353"/>
         <source>Set %1 setting(s) of this tab back to their defaults? The profile changes when you save it.</source>
         <translation>Set %1 setting(s) of this tab back to their defaults? The profile changes when you save it.</translation>
     </message>
     <message id="settings.dialog.text.reset.all.question">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1335"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1359"/>
         <source>Set %1 setting(s) of this profile back to their defaults? Secrets and custom settings stay. The profile changes when you save it.</source>
         <translation>Set %1 setting(s) of this profile back to their defaults? Secrets and custom settings stay. The profile changes when you save it.</translation>
     </message>
     <message id="settings.dialog.message.cannot.reset">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1344"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1368"/>
         <source>Cannot reset settings</source>
         <translation>Cannot reset settings</translation>
     </message>
     <message id="settings.dialog.text.status.already.defaults">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1353"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1377"/>
         <source>Already at the defaults</source>
         <translation>Already at the defaults</translation>
     </message>
     <message id="settings.dialog.message.reset.defaults">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1359"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1383"/>
         <source>Reset to defaults</source>
         <translation>Reset to defaults</translation>
     </message>
     <message id="settings.dialog.message.cannot.reset.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1370"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1391"/>
         <source>Cannot reset settings</source>
         <translation>Cannot reset settings</translation>
     </message>
     <message id="settings.dialog.text.status.reset">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1373"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1394"/>
         <source>%1 setting(s) back to their defaults | unsaved changes</source>
         <translation>%1 setting(s) back to their defaults | unsaved changes</translation>
     </message>
+    <message id="settings.dialog.message.cannot.apply.preset">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1441"/>
+        <source>Cannot apply the preset</source>
+        <translation>Cannot apply the preset</translation>
+    </message>
+    <message id="settings.dialog.text.status.preset.already">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1452"/>
+        <source>The rendering settings are already those of %1</source>
+        <translation>The rendering settings are already those of %1</translation>
+    </message>
+    <message id="settings.dialog.message.graphics.preset">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1457"/>
+        <source>Graphics preset</source>
+        <translation>Graphics preset</translation>
+    </message>
+    <message id="settings.dialog.text.graphics.preset.question">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1459"/>
+        <source>Set %1 rendering setting(s) to the %2 preset? Sizes, distances, fog and the time keep their values. The profile changes when you save it.</source>
+        <translation>Set %1 rendering setting(s) to the %2 preset? Sizes, distances, fog and the time keep their values. The profile changes when you save it.</translation>
+    </message>
+    <message id="settings.dialog.message.cannot.apply.preset.2">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1472"/>
+        <source>Cannot apply the preset</source>
+        <translation>Cannot apply the preset</translation>
+    </message>
+    <message id="settings.dialog.text.status.preset">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1475"/>
+        <source>%1 setting(s) set by the %2 preset | unsaved changes</source>
+        <translation>%1 setting(s) set by the %2 preset | unsaved changes</translation>
+    </message>
+    <message id="settings.dialog.message.cannot.remove.unsupported">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1485"/>
+        <source>Cannot remove settings</source>
+        <translation>Cannot remove settings</translation>
+    </message>
+    <message id="settings.dialog.text.status.no.unsupported">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1492"/>
+        <source>No unsupported settings in this profile</source>
+        <translation>No unsupported settings in this profile</translation>
+    </message>
+    <message id="settings.dialog.message.remove.unsupported">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1497"/>
+        <source>Remove unsupported settings</source>
+        <translation>Remove unsupported settings</translation>
+    </message>
+    <message id="settings.dialog.text.remove.unsupported.question">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1499"/>
+        <source>Remove %1 setting(s) this build does not register (custom settings, other forks&apos; and older builds&apos; settings) from the profile? The profile changes when you save it.</source>
+        <translation>Remove %1 setting(s) this build does not register (custom settings, other forks&apos; and older builds&apos; settings) from the profile? The profile changes when you save it.</translation>
+    </message>
+    <message id="settings.dialog.text.status.unsupported.removed">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1508"/>
+        <source>%1 unsupported setting(s) removed | unsaved changes</source>
+        <translation>%1 unsupported setting(s) removed | unsaved changes</translation>
+    </message>
     <message id="settings.dialog.message.cannot.duplicate.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1382"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1517"/>
         <source>Cannot duplicate profile</source>
         <translation>Cannot duplicate profile</translation>
     </message>
     <message id="settings.dialog.text.only.managed.profile.under.portable.profiles.directory">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1384"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1519"/>
         <source>Only a managed profile under the portable profiles directory can be duplicated.</source>
         <translation>Only a managed profile under the portable profiles directory can be duplicated.</translation>
     </message>
     <message id="settings.dialog.message.save.before.duplicating">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1390"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1525"/>
         <source>Save before duplicating?</source>
         <translation>Save before duplicating?</translation>
     </message>
     <message id="settings.dialog.text.current.profile.has.unsaved.changes.save.them">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1392"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1527"/>
         <source>The current profile has unsaved changes. Save them before creating the duplicate?</source>
         <translation>The current profile has unsaved changes. Save them before creating the duplicate?</translation>
     </message>
     <message id="settings.dialog.message.cannot.save.profile.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1399"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1534"/>
         <source>Cannot save profile</source>
         <translation>Cannot save profile</translation>
     </message>
     <message id="settings.dialog.text.duplicate.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1408"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1543"/>
         <source>Duplicate profile</source>
         <translation>Duplicate profile</translation>
     </message>
     <message id="settings.dialog.text.new.profile.name">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1410"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1545"/>
         <source>New profile name:</source>
         <translation>New profile name:</translation>
     </message>
     <message id="settings.dialog.message.cannot.duplicate.profile.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1420"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1555"/>
         <source>Cannot duplicate profile</source>
         <translation>Cannot duplicate profile</translation>
     </message>
     <message id="settings.dialog.message.profile.was.duplicated.but.cannot.be.opened">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1426"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1561"/>
         <source>Profile was duplicated but cannot be opened</source>
         <translation>Profile was duplicated but cannot be opened</translation>
     </message>
     <message id="settings.dialog.message.cannot.switch.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1450"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1585"/>
         <source>Cannot switch profile</source>
         <translation>Cannot switch profile</translation>
     </message>
     <message id="settings.dialog.text.copy">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1476"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1611"/>
         <source>Copy JSON</source>
         <translation>Copy JSON</translation>
     </message>
     <message id="settings.dialog.text.paste">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1479"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1614"/>
         <source>Paste JSON</source>
         <translation>Paste JSON</translation>
     </message>
     <message id="settings.dialog.text.apply.changes">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1482"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1617"/>
         <source>Replace Editor JSON</source>
         <translation>Replace Editor JSON</translation>
     </message>
     <message id="settings.dialog.message.invalid.json">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1499"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1634"/>
         <source>Invalid JSON</source>
         <translation>Invalid JSON</translation>
     </message>
     <message id="settings.dialog.text.setting.object.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1509"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1644"/>
         <source>Setting object: %1</source>
         <translation>Setting object: %1</translation>
     </message>
     <message id="settings.dialog.message.cannot.copy.setting">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1521"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1656"/>
         <source>Cannot copy setting</source>
         <translation>Cannot copy setting</translation>
     </message>
     <message id="settings.dialog.message.unknown.setting.key.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1523"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1658"/>
         <source>Unknown setting key: %1</source>
         <translation>Unknown setting key: %1</translation>
     </message>
     <message id="settings.dialog.text.m.status.label.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1539"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1674"/>
         <source>Copied key and value: %1</source>
         <translation>Copied key and value: %1</translation>
     </message>
     <message id="settings.dialog.message.cannot.paste.key.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1549"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1684"/>
         <source>Cannot paste key and value</source>
         <translation>Cannot paste key and value</translation>
     </message>
     <message id="settings.dialog.message.cannot.paste.key.value.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1558"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1693"/>
         <source>Cannot paste key and value</source>
         <translation>Cannot paste key and value</translation>
     </message>
     <message id="settings.dialog.text.this.profile.does.not.contain.setting.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1560"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1695"/>
         <source>This profile does not contain setting: %1</source>
         <translation>This profile does not contain setting: %1</translation>
     </message>
     <message id="settings.dialog.message.cannot.paste.key.value.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1568"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1703"/>
         <source>Cannot paste key and value</source>
         <translation>Cannot paste key and value</translation>
     </message>
     <message id="settings.dialog.text.clipboard.value.is.incompatible.with.setting.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1570"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1705"/>
         <source>Clipboard value is incompatible with setting: %1</source>
         <translation>Clipboard value is incompatible with setting: %1</translation>
     </message>
     <message id="settings.dialog.message.cannot.paste.key.value.4">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1579"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1714"/>
         <source>Cannot paste key and value</source>
         <translation>Cannot paste key and value</translation>
     </message>
     <message id="settings.dialog.text.m.status.label.4">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1585"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1720"/>
         <source>Pasted value for: %1</source>
         <translation>Pasted value for: %1</translation>
     </message>
     <message id="settings.dialog.text.add.custom.setting">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1595"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1730"/>
         <source>Add custom setting</source>
         <translation>Add custom setting</translation>
     </message>
     <message id="settings.dialog.text.raw.settings.json">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1605"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1740"/>
         <source>Raw settings JSON</source>
         <translation>Raw settings JSON</translation>
     </message>
     <message id="settings.dialog.message.discard.changes">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1616"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1751"/>
         <source>Discard changes?</source>
         <translation>Discard changes?</translation>
     </message>
     <message id="settings.dialog.text.this.profile.has.unsaved.changes.discard.them">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1618"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1753"/>
         <source>This profile has unsaved changes. Discard them?</source>
         <translation>This profile has unsaved changes. Discard them?</translation>
     </message>
     <message id="settings.dialog.message.cannot.discard.changes">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1639"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1774"/>
         <source>Cannot discard changes</source>
         <translation>Cannot discard changes</translation>
     </message>
     <message id="settings.dialog.message.unknown.error">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1650"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1785"/>
         <source>Unknown error</source>
         <translation>Unknown error</translation>
     </message>
@@ -11532,12 +11600,12 @@ Profile used at application startup: %1</translation>
         <translation>Saved %1</translation>
     </message>
     <message id="tsre.game.title.tsre">
-        <location filename="../src/tsre/Game.cpp" line="530"/>
+        <location filename="../src/tsre/Game.cpp" line="550"/>
         <source>TSRE</source>
         <translation>TSRE</translation>
     </message>
     <message id="tsre.game.text.welcome.in.tsre.this.is.experimental.version">
-        <location filename="../src/tsre/Game.cpp" line="533"/>
+        <location filename="../src/tsre/Game.cpp" line="553"/>
         <source>Welcome in TSRE!
 
 This is experimental version.
@@ -11707,27 +11775,27 @@ Now TSRE will download app data.</translation>
         <translation>TDB Error</translation>
     </message>
     <message id="tsre.world.terrain.title.water.level">
-        <location filename="../src/tsre/world/Terrain.cpp" line="1944"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="1946"/>
         <source>Water Level</source>
         <translation>Water Level</translation>
     </message>
     <message id="tsre.world.terrain.action.toggle.water">
-        <location filename="../src/tsre/world/Terrain.cpp" line="3762"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="3766"/>
         <source>&amp;Toggle Water</source>
         <translation>&amp;Toggle Water</translation>
     </message>
     <message id="tsre.world.terrain.action.put.texture">
-        <location filename="../src/tsre/world/Terrain.cpp" line="3768"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="3772"/>
         <source>&amp;Put Texture</source>
         <translation>&amp;Put Texture</translation>
     </message>
     <message id="tsre.world.terrain.action.toggle.draw">
-        <location filename="../src/tsre/world/Terrain.cpp" line="3774"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="3778"/>
         <source>&amp;Toggle Draw</source>
         <translation>&amp;Toggle Draw</translation>
     </message>
     <message id="tsre.world.terrain.action.select.objects">
-        <location filename="../src/tsre/world/Terrain.cpp" line="3780"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="3784"/>
         <source>&amp;Select Objects</source>
         <translation>&amp;Select Objects</translation>
     </message>
@@ -12244,8 +12312,8 @@ Missing local elevation files (downloaded automatically when supported):
     </message>
     <message id="geo.imagery.title">
         <location filename="../src/tsre/geo/ImageryWindow.cpp" line="100"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="128"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="155"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="132"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="159"/>
         <source>Terrain imagery</source>
         <translation>Terrain imagery</translation>
     </message>
@@ -12431,7 +12499,7 @@ Missing local elevation files (downloaded automatically when supported):
     </message>
     <message id="route.editor.properties.telepole.label.length">
         <location filename="../src/routeEditor/properties/PropertiesTelepole.cpp" line="67"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="130"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="134"/>
         <source>Length:</source>
         <translation>Length:</translation>
     </message>
@@ -12447,7 +12515,7 @@ Missing local elevation files (downloaded automatically when supported):
     </message>
     <message id="route.editor.properties.telepole.label.configuration">
         <location filename="../src/routeEditor/properties/PropertiesTelepole.cpp" line="41"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="157"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="161"/>
         <source>Configuration:</source>
         <translation>Configuration:</translation>
     </message>
@@ -12458,8 +12526,8 @@ Missing local elevation files (downloaded automatically when supported):
     </message>
     <message id="route.properties.telepole.object.type">
         <location filename="../src/routeEditor/properties/PropertiesTelepole.cpp" line="117"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="131"/>
-        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="159"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="135"/>
+        <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="163"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
@@ -12512,6 +12580,36 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/tsre/map/MapScaleBar.cpp" line="63"/>
         <source>%1 m</source>
         <translation>%1 m</translation>
+    </message>
+    <message id="settings.graphics.preset.openrails.basic.name">
+        <location filename="../src/settings/GraphicsPresets.cpp" line="47"/>
+        <source>OpenRails Basic</source>
+        <translation>OpenRails Basic</translation>
+    </message>
+    <message id="settings.graphics.preset.openrails.basic.description">
+        <location filename="../src/settings/GraphicsPresets.cpp" line="49"/>
+        <source>The look of Open Rails: the route&apos;s sky and fog, no shadows, reflections or lamps. The sun still moves with the time of day.</source>
+        <translation>The look of Open Rails: the route&apos;s sky and fog, no shadows, reflections or lamps. The sun still moves with the time of day.</translation>
+    </message>
+    <message id="settings.graphics.preset.openrails.extended.name">
+        <location filename="../src/settings/GraphicsPresets.cpp" line="53"/>
+        <source>OpenRails Extended</source>
+        <translation>OpenRails Extended</translation>
+    </message>
+    <message id="settings.graphics.preset.openrails.extended.description">
+        <location filename="../src/settings/GraphicsPresets.cpp" line="55"/>
+        <source>Open Rails with shadows, reflections, shaded water and lamps lighting the scene, dimmed by day; still the route&apos;s sky, without tone mapping. A new profile starts with it.</source>
+        <translation>Open Rails with shadows, reflections, shaded water and lamps lighting the scene, dimmed by day; still the route&apos;s sky, without tone mapping. A new profile starts with it.</translation>
+    </message>
+    <message id="settings.graphics.preset.advanced.environment.name">
+        <location filename="../src/settings/GraphicsPresets.cpp" line="59"/>
+        <source>Advanced Environment</source>
+        <translation>Advanced Environment</translation>
+    </message>
+    <message id="settings.graphics.preset.advanced.environment.description">
+        <location filename="../src/settings/GraphicsPresets.cpp" line="61"/>
+        <source>The sky computed from the atmosphere, volumetric clouds and light shafts from the weather, ambient occlusion, AgX tone mapping and auto exposure, lamps that keep their strength in tunnels. QRhi renderer; costs the most time per frame.</source>
+        <translation>The sky computed from the atmosphere, volumetric clouds and light shafts from the weather, ambient occlusion, AgX tone mapping and auto exposure, lamps that keep their strength in tunnels. QRhi renderer; costs the most time per frame.</translation>
     </message>
 </context>
 </TS>

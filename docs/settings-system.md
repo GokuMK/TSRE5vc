@@ -207,9 +207,33 @@ used to start the application is disabled.
 
 ## Editor and persistence
 
-The Route Editor opens the Settings Editor from **Settings > Settings Editor...** or `F12`. It provides group tabs, search, unsupported/advanced filters, type-specific controls, clipboard-based full-object and full-document JSON exchange, custom setting creation, and profile operations. The profile selector lists detected portable profile directories and marks the profile used at application startup. Selecting another entry opens it in an editor-local manager and does not replace the runtime manager's selected profile. Managed portable profiles can be duplicated as complete directories; arbitrary settings files and the single AppData profile cannot. **Profile > New...** creates a portable profile with every setting at the build's default (the name follows the duplicate rules) and opens it. Settings go back to the defaults with **Reset to Default** in a setting's action menu, **Edit > Reset Group to Defaults** (the tab shown) or **Edit > Reset All to Defaults**; the last two ask first. Only settings the build registers are reset, never secrets or custom/fork settings, and the result stays unsaved until **Save Profile**.
+The Route Editor opens the Settings Editor from **Settings > Settings Editor...** or `F12`. It provides group tabs, search, unsupported/advanced filters, type-specific controls, clipboard-based full-object and full-document JSON exchange, custom setting creation, and profile operations. The profile selector lists detected portable profile directories and marks the profile used at application startup. Selecting another entry opens it in an editor-local manager and does not replace the runtime manager's selected profile. Managed portable profiles can be duplicated as complete directories; arbitrary settings files and the single AppData profile cannot. **Profile > New...** creates a portable profile with every setting at the build's default (the name follows the duplicate rules) and opens it. Settings go back to the defaults with **Reset to Default** in a setting's action menu, **Edit > Reset Group to Defaults** (the tab shown) or **Edit > Reset All to Defaults**; the last two ask first. Only settings the build registers are reset, never secrets or custom/fork settings, and the result stays unsaved until **Save Profile**. **Edit > Remove Unsupported Settings...** removes, after listing them, the settings this build does not register (custom settings, other forks' and older builds' ones, such as `core.rendering.timeOfDay.speed`), and fork groups left empty; unsaved too.
 
 Writes use `QSaveFile`, retain five timestamped backups, and detect external file changes before overwriting. Recoverable per-setting errors remain loadable for repair, but validation errors prevent saving. Secret values are stored in the profile-local `secrets.json`; dedicated secret settings and inline `{secret:ID}` placeholders store only references.
+
+### Graphics presets
+
+The **Graphics Presets** menu sets the rendering settings that make a look in one step, after asking (unsaved until **Save Profile**; **Apply to Running TSRE** shows it at once). The menu marks the preset the shown values match. A preset leaves sizes, distances, fog, the time and the sun and moon as they are. The values are in `src/settings/GraphicsPresets.cpp`:
+
+| Setting | OpenRails Basic | OpenRails Extended | Advanced Environment |
+| --- | --- | --- | --- |
+| Shadows | off | on | on |
+| Environment map (reflections) | off | on | on |
+| Shaded water, its reflection and depth | off | on | on |
+| Local lights | off | on | on |
+| Lamps by day | Dimmed | Dimmed | Auto exposure |
+| Sky enclosure | off | off | on |
+| Ambient occlusion | Off | Off | Low |
+| Tone mapping | Off | Off | AgX |
+| Exposure | 0 | 0 | 0 |
+| Glow (bloom) | 0 | 3 | 2 |
+| Time of day | on | on | on |
+| Sky | Classic | Classic | Physical |
+| Clouds | Off | Off | High |
+| Light shafts | Off | Off | Volumetric |
+
+OpenRails Extended is what a new profile starts with. Basic keeps time of day:
+the classic sky takes its colours and the sun its place from it.
 
 ### Local elevation directories
 
