@@ -38,6 +38,9 @@ public:
     
     void load(FileBuffer* data);
     void save(QTextStream* out, QString off);
+    // Overcast, fog distance, precipitation intensity and liquidity, each
+    // with its transition seconds; -1 where the change has none.
+    void values(float value[4], int time[4]) const;
 private:
     bool isOvercast = false;
     bool isFog = false;

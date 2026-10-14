@@ -982,17 +982,19 @@ float Eng::getTotalDistanceDownPath(){
     return ruch1->getDistanceDownPath();
 }
 
-void Eng::initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections){
+void Eng::initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections, float offset){
     TDB* tdb = Game::trackDB;
     
     if(ruch1 == NULL)
         ruch1 = new Ruch();
     ruch1->set(tpos[0], tpos[1], direction, junctionDirections);
     ruch1->trackPassingItems(true);
+    if(offset != 0)
+        ruch1->next(offset);
     if(ruch2 == NULL)
         ruch2 = new Ruch();
     ruch2->set(tpos[0], tpos[1], direction, junctionDirections);
-    ruch2->next(-getFullWidth());
+    ruch2->next(offset - getFullWidth());
     //ruch1->getCurrentPosition();
     
     //qDebug() << drawPosition[0] << drawPosition[1] << drawPosition[2];

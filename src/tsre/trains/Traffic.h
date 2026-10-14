@@ -12,16 +12,26 @@
 #define	TRAFFIC_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
+#include <memory>
+#include <tsre/trains/TextSnapshot.h>
 
 class ActivityTimetable;
+class FileBuffer;
 
 class Traffic {
 public:
     
     QVector<ActivityTimetable*> service;
+    // Blocks TSRE does not read, as they were in the file; written at the
+    // end of the traffic definition.
+    QStringList kept;
+    // The name in the file (Traffic_Definition's), which may differ from
+    // the file's.
     QString displayName;
     QString name;
+    // The file's name: activities name the traffic by it.
     QString nameId;
     QString path;
     QString pathid;  
@@ -35,11 +45,30 @@ public:
     virtual ~Traffic();
     void load();
     void save();
+    // The file's text, as save writes it.
+    QString toText();
+    // Undo: the traffic as text, and back. Restoring replaces its
+    // instances: activities pointing at the old ones look them up again.
+    std::shared_ptr<TextSnapshot> snapshot();
+    void restore(const TextSnapshot &snapshot);
     bool isModified();
-    ActivityTimetable* getTimetableByServiceName(QString nameTime);
+    // The instance of the service starting at the time, as Open Rails
+    // matches them (the pair, not a joined text: "a1" at 23 is not "a" at
+    // 123).
+    ActivityTimetable* getInstance(const QString &serviceName, int time);
+    void addInstance(ActivityTimetable *instance);
+    // A new start time for the instance: its stops move with it, and the
+    // activities' AI trains paired with it (service and time) follow.
+    void setInstanceTime(ActivityTimetable *instance, int time);
+    // Takes the instance out of the traffic; the object stays, as
+    // activities may point at it.
+    void removeInstance(int index);
 private:
     bool modified = false;
     int serial = -1;
+    // Times saved: a state restored from before a save is not on disk.
+    int saves = 0;
+    void parse(FileBuffer *data);
 };
 
 #endif	/* TRAFFIC_H */

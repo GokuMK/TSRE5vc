@@ -106,7 +106,9 @@ QMap<ActivityEvent::Outcome::OutcomeType, QString> ActivityEvent::Outcome::Outco
     //% "Play sound from file."
     { ActivityEvent::Outcome::TypeORTSActSoundFile, QT_TRID_NOOP("activity.outcome.type.play.sound") },
     //% "Change the Weather."
-    { ActivityEvent::Outcome::TypeORTSWeatherChange, QT_TRID_NOOP("activity.outcome.type.change.weather") }
+    { ActivityEvent::Outcome::TypeORTSWeatherChange, QT_TRID_NOOP("activity.outcome.type.change.weather") },
+    //% "Restart a waiting AI train."
+    { ActivityEvent::Outcome::TypeORTSRestartWaitingTrain, QT_TRID_NOOP("activity.outcome.type.restart.waiting.train") }
 };
 
 QMap<ActivityEvent::Outcome::OutcomeType, QString> ActivityEvent::Outcome::OutcomeTypeName = {
@@ -120,8 +122,9 @@ QMap<ActivityEvent::Outcome::OutcomeType, QString> ActivityEvent::Outcome::Outco
     { ActivityEvent::Outcome::TypeActivateEvent ,"ActivateEvent" },
     { ActivityEvent::Outcome::TypeStartIgnoringSpeedLimits ,"StartIgnoringSpeedLimits" },
     { ActivityEvent::Outcome::TypeStopIgnoringSpeedLimits ,"StopIgnoringSpeedLimits" },
-    { ActivityEvent::Outcome::TypeORTSActSoundFile , "ORTSActSoundFile" },
-    { ActivityEvent::Outcome::TypeORTSWeatherChange , "ORTSWeatherChange" }
+    { ActivityEvent::Outcome::TypeORTSActSoundFile , "ORTSActivitySound" },
+    { ActivityEvent::Outcome::TypeORTSWeatherChange , "ORTSWeatherChange" },
+    { ActivityEvent::Outcome::TypeORTSRestartWaitingTrain , "ORTSRestartWaitingTrain" }
 };
 
 QMap<ActivityEvent::Outcome::OutcomeType, ActivityEvent::Outcome::OutcomeCategory> ActivityEvent::Outcome::OutcomeTypeCategory = {
@@ -136,7 +139,8 @@ QMap<ActivityEvent::Outcome::OutcomeType, ActivityEvent::Outcome::OutcomeCategor
     { ActivityEvent::Outcome::TypeStartIgnoringSpeedLimits, ActivityEvent::Outcome::CategoryNone },
     { ActivityEvent::Outcome::TypeStopIgnoringSpeedLimits, ActivityEvent::Outcome::CategoryNone },
     { ActivityEvent::Outcome::TypeORTSActSoundFile , ActivityEvent::Outcome::CategorySoundFile },
-    { ActivityEvent::Outcome::TypeORTSWeatherChange , ActivityEvent::Outcome::CategoryWeatherChange }
+    { ActivityEvent::Outcome::TypeORTSWeatherChange , ActivityEvent::Outcome::CategoryWeatherChange },
+    { ActivityEvent::Outcome::TypeORTSRestartWaitingTrain , ActivityEvent::Outcome::CategoryRestartTrain }
 };
 
 QMap<QString, ActivityEvent::Outcome::OutcomeType> ActivityEvent::Outcome::OutcomeNameType = {
@@ -150,8 +154,11 @@ QMap<QString, ActivityEvent::Outcome::OutcomeType> ActivityEvent::Outcome::Outco
     { "activateevent", ActivityEvent::Outcome::TypeActivateEvent },
     { "startignoringspeedlimits", ActivityEvent::Outcome::TypeStartIgnoringSpeedLimits },
     { "stopignoringspeedlimits", ActivityEvent::Outcome::TypeStopIgnoringSpeedLimits },
+    { "ortsactivitysound", ActivityEvent::Outcome::TypeORTSActSoundFile },
+    // TSRE's older form, read and written as ORTSActivitySound.
     { "ortsactsoundfile", ActivityEvent::Outcome::TypeORTSActSoundFile },
-    { "ortsweatherchange", ActivityEvent::Outcome::TypeORTSWeatherChange }
+    { "ortsweatherchange", ActivityEvent::Outcome::TypeORTSWeatherChange },
+    { "ortsrestartwaitingtrain", ActivityEvent::Outcome::TypeORTSRestartWaitingTrain }
 };
 
 ActivityEvent::ActivityEvent() {
@@ -198,13 +205,6 @@ void ActivityEvent::removeOutcome(int id){
     if(outcomes.size() <= id)
         return;
     modified = true;
-    
-    // Support for OR features.
-    if(outcomes[id]->category == Outcome::CategorySoundFile)
-        ortsActSoundFileDeprecated.clear();
-    if(outcomes[id]->category == Outcome::CategoryWeatherChange)
-        ortsWeatherChangeDeprecated = NULL;
-    
     outcomes.remove(id);
 }
 
@@ -326,17 +326,22 @@ int ActivityEvent::getWagonListSize(){
 
 QString ActivityEvent::getWagonListDescription(int i){
     QString desc;
+    if(i < 0 || i >= wagonList.size())
+        return desc;
     if(wagonList[i].sidingItem > 1000000){
         desc += wagonList[i].description;
     } else if(Game::trackDB != NULL){
-        if(Game::trackDB->trackItems[wagonList[i].sidingItem] != NULL)
-            desc += "Siding: " + Game::trackDB->trackItems[wagonList[i].sidingItem]->platformName;
+        const auto found = Game::trackDB->trackItems.find(wagonList[i].sidingItem);
+        if(found != Game::trackDB->trackItems.end() && found->second != NULL)
+            desc += "Siding: " + found->second->platformName;
     }
         
     return desc;
 }
 
 QString ActivityEvent::getWagonListIdDescription(int i){
+    if(i < 0 || i >= wagonList.size())
+        return "";
     int consistId = wagonList[i].uid / 65536;
     int wagonId = wagonList[i].uid - consistId*65536;
     QString desc = QString::number(consistId) + "-" + QString::number(wagonId);
@@ -406,8 +411,16 @@ void ActivityEvent::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
-        if (sh == ("reversable_event")) {
+        if (sh == ("reversable_event") || sh == ("reversible_event")) {
             reversableEvent = true;
+            reversibleSpelling = sh == ("reversible_event");
+            ParserX::SkipToken(data);
+            continue;
+        }
+        if (sh == ("ortstriggeringtrain")) {
+            triggeringService = ParserX::GetStringInside(data);
+            const QString time = ParserX::GetStringInside(data);
+            triggeringTime = time.isEmpty() ? -1 : time.toInt();
             ParserX::SkipToken(data);
             continue;
         }
@@ -425,13 +438,12 @@ void ActivityEvent::load(FileBuffer* data) {
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 if(Outcome::OutcomeNameType[sh] != Outcome::TypeNone){
                     outcomes.push_back(new Outcome(Outcome::OutcomeNameType[sh]));
-                    outcomes.back()->load(data);
+                    outcomes.back()->load(data, sh);
                     ParserX::SkipToken(data);
                     continue;
                 }
 
-                qDebug() << "#event outcomes - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                keptOutcomes.push_back(ParserX::KeepBlock(data, sh));
                 continue;
             }
             ParserX::SkipToken(data);
@@ -501,8 +513,7 @@ void ActivityEvent::load(FileBuffer* data) {
                     ParserX::SkipToken(data);
                     continue;
                 }
-                qDebug() << "#event wagonlist - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                keptWagonList.push_back(ParserX::KeepBlock(data, sh));
                 continue;
             }
             ParserX::SkipToken(data);
@@ -533,6 +544,8 @@ void ActivityEvent::load(FileBuffer* data) {
         if (sh == "ortsactsoundfile"){
             ortsActSoundFileDeprecated.push_back(ParserX::GetStringInside(data));
             ortsActSoundFileDeprecated.push_back(ParserX::GetStringInside(data));
+            ParserX::SkipToken(data);
+            continue;
         }
         if (sh == "ortsweatherchange"){
             ortsWeatherChangeDeprecated = new OrtsWeatherChange();
@@ -541,35 +554,39 @@ void ActivityEvent::load(FileBuffer* data) {
             continue;
         }
         
-        qDebug() << "#event - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
+    // TSRE wrote the event-level forms (Open Rails 1.2) beside its own
+    // outcomes: those copies go, a weather outcome taking its values from
+    // its copy when its preset is not known here.
+    for(Outcome *outcome : outcomes){
+        if(outcome->category == Outcome::CategorySoundFile && ortsActSoundFileDeprecated.size() >= 2
+                && outcome->value.toStringList().value(0) == ortsActSoundFileDeprecated[0]
+                && outcome->value.toStringList().value(1) == ortsActSoundFileDeprecated[1])
+            ortsActSoundFileDeprecated.clear();
+        if(outcome->category == Outcome::CategoryWeatherChange && ortsWeatherChangeDeprecated != NULL
+                && !outcome->value.toString().isEmpty()
+                && outcome->value.toString() == ortsWeatherChangeDeprecated->name){
+            if(!outcome->applyWeatherPreset(outcome->value.toString())){
+                ortsWeatherChangeDeprecated->values(outcome->weather, outcome->weatherTime);
+                outcome->value.setValue(QString());
+            }
+            delete ortsWeatherChangeDeprecated;
+            ortsWeatherChangeDeprecated = NULL;
+        }
+    }
+}
+
+void ActivityEvent::setTriggeringTrain(const QString &service, int time){
+    triggeringService = service;
+    triggeringTime = service.isEmpty() ? -1 : time;
+    modified = true;
 }
 
 void ActivityEvent::save(QTextStream* out) {
     if(EventTypeName[eventType] == "")
         return;
-    
-    // Support for Orts features.
-    if(outcomes.size() > 0){
-        // Sound File.
-        for(int i = 0; i < outcomes.size(); i++){
-            if(outcomes[i]->category == Outcome::CategorySoundFile){
-                ortsActSoundFileDeprecated.clear();
-                ortsActSoundFileDeprecated.push_back(outcomes[i]->value.toStringList()[0]);
-                ortsActSoundFileDeprecated.push_back(outcomes[i]->value.toStringList()[1]);
-                break;
-            }
-        }
-        // Weather.
-        for(int i = 0; i < outcomes.size(); i++){
-            if(outcomes[i]->category == Outcome::CategoryWeatherChange){
-                ortsWeatherChangeDeprecated = OrtsWeatherChange::OrtsWeatherChanges[outcomes[i]->value.toString()];
-                break;
-            }
-        }
-    }
     
     if(category == CategoryAction)
         *out << "			EventCategoryAction (\n";
@@ -587,11 +604,12 @@ void ActivityEvent::save(QTextStream* out) {
     if(activationLevel != -99999)
         *out << "				Activation_Level ( "<<activationLevel<<" )\n";
 
-    if(outcomes.size() > 0){
+    if(outcomes.size() > 0 || keptOutcomes.size() > 0){
         *out << "				Outcomes (\n";
         for(int i = 0; i < outcomes.size(); i++){
             outcomes[i]->save(out);
         }
+        ParserX::WriteKept(out, keptOutcomes, "					");
         *out << "				)\n";
     } else {
         *out << "				Outcomes ( )\n";
@@ -599,7 +617,7 @@ void ActivityEvent::save(QTextStream* out) {
         
 
     if(reversableEvent)
-        *out << "				Reversable_Event ( )\n";
+        *out << "				" << (reversibleSpelling ? "Reversible_Event" : "Reversable_Event") << " ( )\n";
     
     if (textToDisplayOnCompletionIfTriggered.length() > 0){
         *out << "				TextToDisplayOnCompletionIfTriggered ( ";
@@ -628,6 +646,12 @@ void ActivityEvent::save(QTextStream* out) {
         *out << "				TriggerOnStop ( "<<triggerOnStop<<" )\n";
     if(ortsContinue  != -99999)
         *out << "				ORTSContinue ( "<<ortsContinue<<" )\n";
+    if(!triggeringService.isEmpty()){
+        *out << "				ORTSTriggeringTrain ( "<<ParserX::AddComIfReq(triggeringService);
+        if(triggeringTime >= 0)
+            *out << " " << triggeringTime;
+        *out << " )\n";
+    }
     if(speed != -99999)
         *out << "				Speed ( "<<speed<<" )\n";
     if(stationStop != -99999)
@@ -641,6 +665,7 @@ void ActivityEvent::save(QTextStream* out) {
             if(wagonList[i].sidingItem > 1000000)
             *out << "					Description ( "<<ParserX::AddComIfReq(wagonList[i].description)<<" )\n";
         }
+        ParserX::WriteKept(out, keptWagonList, "					");
         *out << "				)\n";
     }
     if(sidingItem != -99999)
@@ -658,26 +683,142 @@ void ActivityEvent::save(QTextStream* out) {
         QString off = "				";
         ortsWeatherChangeDeprecated->save(out, off);
     }
+    ParserX::WriteKept(out, kept, "				");
     
     *out << "			)\n";
 }
 
-void ActivityEvent::Outcome::load(FileBuffer* data){
+void ActivityEvent::Outcome::load(FileBuffer* data, const QString &token){
     if(category == CategoryInfo){
         value.setValue(ParserX::GetStringInside(data));
     }
     if(category == CategoryEvent){
         value.setValue(ParserX::GetNumber(data));
     }
+    QString sh;
     if(category == CategorySoundFile){
-        QStringList values;
-        values.push_back(ParserX::GetStringInside(data));
-        values.push_back(ParserX::GetStringInside(data));
+        QStringList values = {QString(), QString("Everywhere")};
+        if(token == "ortsactsoundfile"){
+            // TSRE's older form: the file and type in the outcome.
+            values[0] = ParserX::GetStringInside(data);
+            values[1] = ParserX::GetStringInside(data);
+        } else {
+            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
+                if(sh == "ortsactsoundfile"){
+                    values[0] = ParserX::GetStringInside(data);
+                    values[1] = ParserX::GetStringInside(data);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if(sh == "ortssoundlocation"){
+                    soundAt = true;
+                    soundTile[0] = ParserX::GetNumber(data);
+                    soundTile[1] = ParserX::GetNumber(data);
+                    for(int i = 0; i < 3; i++)
+                        soundPosition[i] = ParserX::GetNumber(data);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                kept.push_back(ParserX::KeepBlock(data, sh));
+            }
+        }
         value.setValue(values);
     }
     if(category == CategoryWeatherChange){
-        value.setValue(ParserX::GetStringInside(data));
+        // Open Rails' form holds the values; TSRE's older one names a
+        // preset.
+        const int start = data->off;
+        const QString block = ParserX::KeepBlock(data, token);
+        data->off = start;
+        if(block.count('(') > 1){
+            static const char *names[4] = {"ortsovercast", "ortsfog", "ortsprecipitationintensity",
+                                           "ortsprecipitationliquidity"};
+            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
+                int which = -1;
+                for(int i = 0; i < 4; i++)
+                    if(sh == names[i])
+                        which = i;
+                if(which < 0){
+                    kept.push_back(ParserX::KeepBlock(data, sh));
+                    continue;
+                }
+                weather[which] = ParserX::GetNumber(data);
+                weatherTime[which] = ParserX::GetNumber(data);
+                ParserX::SkipToken(data);
+            }
+        } else {
+            const QString preset = ParserX::GetStringInside(data);
+            if(!applyWeatherPreset(preset))
+                value.setValue(preset);
+        }
     }
+    if(category == CategoryRestartTrain){
+        while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
+            if(sh == "ortswaitingtraintorestart"){
+                restartService = ParserX::GetStringInside(data);
+                const QString time = ParserX::GetStringInside(data);
+                restartTime = time.isEmpty() ? -1 : time.toInt();
+                ParserX::SkipToken(data);
+                continue;
+            }
+            if(sh == "ortsdelaytorestart"){
+                restartDelay = ParserX::GetNumber(data);
+                ParserX::SkipToken(data);
+                continue;
+            }
+            if(sh == "ortsmatchingwpdelay"){
+                restartWaitingPoint = ParserX::GetNumber(data);
+                ParserX::SkipToken(data);
+                continue;
+            }
+            kept.push_back(ParserX::KeepBlock(data, sh));
+        }
+    }
+}
+
+bool ActivityEvent::Outcome::applyWeatherPreset(const QString &name){
+    OrtsWeatherChange *preset = OrtsWeatherChange::OrtsWeatherChanges.value(name);
+    if(preset == NULL)
+        return false;
+    preset->values(weather, weatherTime);
+    value.setValue(QString());
+    modified = true;
+    return true;
+}
+
+void ActivityEvent::Outcome::setSoundLocation(bool at, int tileX, int tileZ, float x, float y, float z){
+    soundAt = at;
+    soundTile[0] = tileX;
+    soundTile[1] = tileZ;
+    soundPosition[0] = x;
+    soundPosition[1] = y;
+    soundPosition[2] = z;
+    modified = true;
+}
+
+void ActivityEvent::Outcome::setWeather(int which, float val, int seconds){
+    if(which < 0 || which > 3)
+        return;
+    weather[which] = val;
+    weatherTime[which] = val < 0 ? -1 : seconds;
+    value.setValue(QString());
+    modified = true;
+}
+
+void ActivityEvent::Outcome::setRestartTrain(const QString &service, int time){
+    restartService = service;
+    restartTime = time;
+    modified = true;
+}
+
+void ActivityEvent::Outcome::setRestartDelay(int seconds){
+    restartDelay = seconds;
+    modified = true;
+}
+
+void ActivityEvent::Outcome::setRestartWaitingPoint(int val){
+    restartWaitingPoint = val;
+    modified = true;
 }
 
 void ActivityEvent::Outcome::save(QTextStream* out) {
@@ -699,11 +840,45 @@ void ActivityEvent::Outcome::save(QTextStream* out) {
     if(category == CategoryEvent){
         *out << "					"<< Outcome::OutcomeTypeName[type] <<" ( "<<value.toInt()<<" )\n";
     }
+    const QString in = "						";
     if(category == CategorySoundFile){
-        *out << "					"<< Outcome::OutcomeTypeName[type] <<" ( "<<ParserX::AddComIfReq((value.toStringList())[0])<< " "<<(value.toStringList())[1]<< " )\n";
+        const QStringList sound = value.toStringList();
+        *out << "					ORTSActivitySound (\n";
+        *out << in << "ORTSActSoundFile ( " << ParserX::AddComIfReq(sound.value(0)) << " "
+             << (sound.value(1).isEmpty() ? QString("Everywhere") : sound.value(1)) << " )\n";
+        if(soundAt)
+            *out << in << "ORTSSoundLocation ( " << soundTile[0] << " " << soundTile[1] << " "
+                 << soundPosition[0] << " " << soundPosition[1] << " " << soundPosition[2] << " )\n";
+        ParserX::WriteKept(out, kept, in);
+        *out << "					)\n";
     }
     if(category == CategoryWeatherChange){
-        *out << "					"<< Outcome::OutcomeTypeName[type] <<" ( "<<ParserX::AddComIfReq(value.toString())<<" )\n";
+        // A preset that could not be filled in: as it was read.
+        if(!value.toString().isEmpty()){
+            *out << "					ORTSWeatherChange ( "<<ParserX::AddComIfReq(value.toString())<<" )\n";
+        } else {
+            static const char *names[4] = {"ORTSOvercast", "ORTSFog", "ORTSPrecipitationIntensity",
+                                           "ORTSPrecipitationLiquidity"};
+            *out << "					ORTSWeatherChange (\n";
+            for(int i = 0; i < 4; i++)
+                if(weather[i] >= 0)
+                    *out << in << names[i] << " ( " << weather[i] << " " << weatherTime[i] << " )\n";
+            ParserX::WriteKept(out, kept, in);
+            *out << "					)\n";
+        }
+    }
+    if(category == CategoryRestartTrain){
+        *out << "					ORTSRestartWaitingTrain (\n";
+        if(!restartService.isEmpty()){
+            *out << in << "ORTSWaitingTrainToRestart ( " << ParserX::AddComIfReq(restartService);
+            if(restartTime >= 0)
+                *out << " " << restartTime;
+            *out << " )\n";
+        }
+        *out << in << "ORTSDelayToRestart ( " << restartDelay << " )\n";
+        *out << in << "ORTSMatchingWPDelay ( " << restartWaitingPoint << " )\n";
+        ParserX::WriteKept(out, kept, in);
+        *out << "					)\n";
     }
 }
 
@@ -737,10 +912,12 @@ void ActivityEvent::Outcome::setSoundType(QString val){
     modified = true;
 }
 
+// A preset's values, written in Open Rails' form; a name not found stays.
 void ActivityEvent::Outcome::setWeatherName(QString val){
     if(category != CategoryWeatherChange)
         return;
-    value.setValue(val);
+    if(!applyWeatherPreset(val))
+        value.setValue(val);
     modified = true;
 }
        
@@ -794,7 +971,20 @@ void ActivityEvent::Outcome::setToNewType(OutcomeType newType){
     if(category == CategoryWeatherChange){
         value.clear();
         value.setValue(QString(""));
+        for(int i = 0; i < 4; i++){
+            weather[i] = -1;
+            weatherTime[i] = -1;
+        }
     }
+    if(category == CategoryRestartTrain){
+        value.clear();
+        restartService.clear();
+        restartTime = -1;
+        restartDelay = 0;
+        restartWaitingPoint = 0;
+    }
+    soundAt = false;
+    kept.clear();
     modified = true;
 }
 
@@ -862,9 +1052,10 @@ QString ActivityEvent::getSidingDescription(){
         return "";
     if(Game::trackDB == NULL)
         return "";
-    if(Game::trackDB->trackItems[sidingItem] == NULL)
+    const auto found = Game::trackDB->trackItems.find(sidingItem);
+    if(found == Game::trackDB->trackItems.end() || found->second == NULL)
         return "";
-    return Game::trackDB->trackItems[sidingItem]->platformName;
+    return found->second->platformName;
 }
 
 bool ActivityEvent::setSidingFromSelected(){

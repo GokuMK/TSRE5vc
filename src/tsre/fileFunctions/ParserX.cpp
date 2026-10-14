@@ -10,6 +10,8 @@
 
 #include "ParserX.h"
 #include <QDebug>
+#include <QTextStream>
+#include <QtEndian>
 #include <math.h>
 
 QString ParserX::AddComIfReq(QString n){
@@ -44,9 +46,12 @@ QString ParserX::SplitToMultiline(QString n, QString woff){
     QStringList list = n.split("\\n");
     n = "";
     int lastIndex = 0;
+    // An empty part joins the one before it, with the line break it ended
+    // with; the empty part after a last line break ends nothing.
     for(int i = 0; i < list.length(); i++){
         if(i > 0 && list[i].length() == 0){
-            list[lastIndex] += "\\n";
+            if(i < list.length()-1)
+                list[lastIndex] += "\\n";
             list.removeAt(i);
             i--;
             continue;
@@ -668,4 +673,57 @@ int ParserX::SkipToken(FileBuffer* bufor){
         if (poziom < 0) return 0;
     }
     return 0;
+}
+
+QString ParserX::KeepBlock(FileBuffer* bufor, const QString &token){
+    const auto charAt = [bufor](int at) -> unsigned short int {
+        if(at < 0 || at + 2 > bufor->length)
+            return 0;
+        return qFromLittleEndian<quint16>(bufor->data + at);
+    };
+    const auto text = [&](int from, int to){
+        QString value;
+        for(int at = from; at + 2 <= to; at += 2)
+            value += QChar(charAt(at));
+        return value.replace("\r\n", "\n");
+    };
+    // NextTokenInside stops after the block's bracket. A word without one
+    // is kept as it is.
+    const int open = bufor->off - 2;
+    if(charAt(open) != 40)
+        return token;
+    // The token ends before the spaces in front of the bracket.
+    int end = open;
+    while(end - 2 >= 0 && charAt(end - 2) <= 32)
+        end -= 2;
+    const int start = end - 2*token.length();
+    // To the matching bracket; a quoted string ends at an unescaped quote.
+    int depth = 1;
+    bool quoted = false;
+    int at = bufor->off;
+    while(depth > 0 && at + 2 <= bufor->length){
+        const unsigned short int b = charAt(at);
+        at += 2;
+        if(quoted){
+            if(b == '\\')
+                at += 2;
+            else if(b == 34)
+                quoted = false;
+        } else if(b == 34){
+            quoted = true;
+        } else if(b == 40){
+            depth++;
+        } else if(b == 41){
+            depth--;
+        }
+    }
+    bufor->off = at;
+    if(start >= 0 && text(start, end).compare(token, Qt::CaseInsensitive) == 0)
+        return text(start, at);
+    return token + " " + text(open, at);
+}
+
+void ParserX::WriteKept(QTextStream* out, const QStringList &kept, const QString &indent){
+    for(const QString &block : kept)
+        *out << indent << block << "\n";
 }

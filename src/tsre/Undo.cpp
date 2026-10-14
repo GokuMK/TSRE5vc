@@ -24,6 +24,10 @@
 #include <tsre/world/objects/GroupObj.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/Service.h>
+#include <tsre/trains/Traffic.h>
 
 bool Undo::UndoEnabled = true;
 UndoState* Undo::currentState = NULL;
@@ -187,6 +191,17 @@ void Undo::UndoLast(){
     for(auto it = state->pathData.begin(); it != state->pathData.end(); ++it)
         if(it.value())
             it.key()->restore(*it.value());
+    // Activity data: the windows let go of what is replaced, then show it.
+    if(!state->activityData.isEmpty() || !state->serviceData.isEmpty() || !state->trafficData.isEmpty()){
+        emit ActivityNotifier::instance()->restoring();
+        for(auto it = state->serviceData.begin(); it != state->serviceData.end(); ++it)
+            it.key()->restore(*it.value());
+        for(auto it = state->trafficData.begin(); it != state->trafficData.end(); ++it)
+            it.key()->restore(*it.value());
+        for(auto it = state->activityData.begin(); it != state->activityData.end(); ++it)
+            it.key()->restore(*it.value());
+        emit ActivityNotifier::instance()->restored();
+    }
     if(state->tsectionData.data != NULL
             && Game::currentRoute != NULL
             && Game::currentRoute->tsection == state->tsectionData.data){
@@ -236,8 +251,31 @@ void Undo::StateEndIfLongTime(){
     
 }
 
+// A state holding only activity data that is unchanged: an edit that
+// changed nothing (a field left as it was), so no undo step.
+static bool unchangedActivityData(UndoState *state){
+    if(state->activityData.isEmpty() && state->serviceData.isEmpty() && state->trafficData.isEmpty())
+        return false;
+    if(!state->terrainData.isEmpty() || !state->texData.isEmpty() || !state->terrainMaterials.isEmpty()
+            || !state->objData.isEmpty() || !state->pathData.isEmpty() || state->trackDB != NULL
+            || state->roadDB != NULL || state->tsectionData.data != NULL)
+        return false;
+    for(auto it = state->activityData.begin(); it != state->activityData.end(); ++it)
+        if(it.key()->toText() != it.value()->text)
+            return false;
+    for(auto it = state->serviceData.begin(); it != state->serviceData.end(); ++it)
+        if(it.key()->toText() != it.value()->text)
+            return false;
+    for(auto it = state->trafficData.begin(); it != state->trafficData.end(); ++it)
+        if(it.key()->toText() != it.value()->text)
+            return false;
+    return true;
+}
+
 void Undo::StateEnd(){
     if(currentState != NULL){
+        if(currentState->modified && unchangedActivityData(currentState))
+            currentState->modified = false;
         if(currentState->tsectionData.data != NULL){
             currentState->tsectionData.routeMaxIdxAfter =
                     currentState->tsectionData.data->routeMaxIdx;
@@ -363,6 +401,11 @@ void Undo::PushGameObjData(GameObj* obj){
         return;
     if(obj == NULL)
         return;
+    // An activity's loose consist, speed zone or failed signal: the activity.
+    if(obj->typeObj == GameObj::activityobj){
+        PushActivityData(static_cast<ActivityObject*>(obj)->getParentActivity());
+        return;
+    }
     if(obj->typeObj != WorldObj::worldobj)
         return;
     WorldObj* wobj = (WorldObj*)obj;
@@ -463,6 +506,33 @@ void Undo::PushPathData(Path *path){
     if(currentState->pathData.contains(path))
         return;
     currentState->pathData.insert(path, path->snapshot());
+    currentState->modified = true;
+}
+
+void Undo::PushActivityData(Activity *activity){
+    if(currentState == NULL || activity == NULL || activity->loaded != 1)
+        return;
+    if(currentState->activityData.contains(activity))
+        return;
+    currentState->activityData.insert(activity, activity->snapshot());
+    currentState->modified = true;
+}
+
+void Undo::PushServiceData(Service *service){
+    if(currentState == NULL || service == NULL || service->loaded != 1)
+        return;
+    if(currentState->serviceData.contains(service))
+        return;
+    currentState->serviceData.insert(service, service->snapshot());
+    currentState->modified = true;
+}
+
+void Undo::PushTrafficData(Traffic *traffic){
+    if(currentState == NULL || traffic == NULL || traffic->loaded != 1)
+        return;
+    if(currentState->trafficData.contains(traffic))
+        return;
+    currentState->trafficData.insert(traffic, traffic->snapshot());
     currentState->modified = true;
 }
 

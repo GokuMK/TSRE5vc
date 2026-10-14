@@ -20,8 +20,12 @@ class WorldObj;
 class GameObj;
 class Terrain;
 class Path;
+class Activity;
+class Service;
+class Traffic;
 struct UndoSnapshot;
 struct PathSnapshot;
+struct TextSnapshot;
 
 struct UndoState {
     ~UndoState();
@@ -53,6 +57,9 @@ struct UndoState {
     QMap<Terrain*, std::shared_ptr<UndoSnapshot>> terrainMaterials;
     QMap<long long int, WorldObjInfo*> objData;
     QMap<Path*, std::shared_ptr<PathSnapshot>> pathData;
+    QMap<Activity*, std::shared_ptr<TextSnapshot>> activityData;
+    QMap<Service*, std::shared_ptr<TextSnapshot>> serviceData;
+    QMap<Traffic*, std::shared_ptr<TextSnapshot>> trafficData;
     TDB* trackDB = NULL;
     TDB* roadDB = NULL;
     TSectionData tsectionData;
@@ -83,6 +90,11 @@ public:
     static void PushTSectionData(TSectionDAT *tsection);
     // An activity path's nodes before the path tool changes them.
     static void PushPathData(Path *path);
+    // Activity data before the activity windows or tools change it (the
+    // file's text; the first push of a state counts).
+    static void PushActivityData(Activity *activity);
+    static void PushServiceData(Service *service);
+    static void PushTrafficData(Traffic *traffic);
     static bool IsStateOpen();
     static bool NeedsTerrainMaterialSnapshot(Terrain *terrain);
     static bool PushTerrainMaterial(Terrain *terrain);

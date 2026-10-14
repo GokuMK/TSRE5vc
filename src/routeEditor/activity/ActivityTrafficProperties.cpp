@@ -9,6 +9,8 @@
  */
 
 #include "ActivityTrafficProperties.h"
+#include <QDialogButtonBox>
+#include <routeEditor/activity/ActivityEdit.h>
 #include <QTime>
 #include <tsre/Game.h>
 #include <tsre/trains/Service.h>
@@ -113,7 +115,8 @@ ActivityTrafficProperties::ActivityTrafficProperties(QWidget* parent) : QWidget(
     
     QObject::connect(&lServcies, SIGNAL(itemClicked(QTreeWidgetItem*, int)),
                       this, SLOT(lServciesSelected(QTreeWidgetItem*, int)));
-
+    // No traffic shown yet.
+    setEnabled(false);
 }
 
 ActivityTrafficProperties::~ActivityTrafficProperties() {
@@ -121,10 +124,18 @@ ActivityTrafficProperties::~ActivityTrafficProperties() {
 
 void ActivityTrafficProperties::showTraffic(Traffic* t){
     traffic = t;
-    eFileName.setText(t->name);
-    eDisplayName.setText(t->nameId);
-    
     lServcies.clear();
+    if(t == NULL){
+        eFileName.clear();
+        eDisplayName.clear();
+        cServiceList.clear();
+        setEnabled(false);
+        return;
+    }
+    setEnabled(true);
+    eFileName.setText(t->name);
+    eDisplayName.setText(t->displayName.isEmpty() ? t->nameId : t->displayName);
+    
     QList<QTreeWidgetItem *> items;
     QStringList list;
     for(int i = 0; i < traffic->service.size(); i++ ){
@@ -141,12 +152,32 @@ void ActivityTrafficProperties::showTraffic(Traffic* t){
     lServcies.insertTopLevelItems(0, items);
 }
 
-void ActivityTrafficProperties::lServciesSelected(QTreeWidgetItem* item, int column){
+Traffic *ActivityTrafficProperties::shownTraffic() const {
+    return traffic;
+}
+
+ActivityTimetable *ActivityTrafficProperties::selectedInstance(){
     if(traffic == NULL)
+        return NULL;
+    QTreeWidgetItem *item = lServcies.currentItem();
+    if(item == NULL || item->type() < 0 || item->type() >= traffic->service.size())
+        return NULL;
+    return traffic->service[item->type()];
+}
+
+// Shows the instance: the fields are filled with their signals blocked, as
+// setting the start time would otherwise set the instance's time again,
+// which reloads its timetable from the service.
+void ActivityTrafficProperties::lServciesSelected(QTreeWidgetItem* item, int column){
+    if(traffic == NULL || item == NULL)
+        return;
+    if(item->type() < 0 || item->type() >= traffic->service.size())
         return;
     ActivityTimetable* s = traffic->service[item->type()];
     if(s == NULL)
         return;
+    QSignalBlocker blockService(cServiceList);
+    QSignalBlocker blockTime(eTime);
     
     cServiceList.clear();
     cServiceList.addItem(
@@ -168,10 +199,7 @@ void ActivityTrafficProperties::lServciesSelected(QTreeWidgetItem* item, int col
 }
 
 void ActivityTrafficProperties::bCloneOutcomeSelected(){
-    if(traffic == NULL)
-        return;
-    
-    ActivityTimetable* s = traffic->service[lServcies.currentItem()->type()];
+    ActivityTimetable* s = selectedInstance();
     if(s == NULL)
         return;
     
@@ -188,21 +216,30 @@ void ActivityTrafficProperties::bCloneOutcomeSelected(){
     vlist->addRow(
         //% "Duration:"
         qtTrId("route.editor.activity.traffic.properties.label.duration"),&mins);
+    // Closing the dialog clones nothing.
+    QDialogButtonBox buttons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    QObject::connect(&buttons, SIGNAL(accepted()), &dialog, SLOT(accept()));
+    QObject::connect(&buttons, SIGNAL(rejected()), &dialog, SLOT(reject()));
+    vlist->addRow(&buttons);
     dialog.setLayout(vlist);
-    dialog.exec();
+    if(dialog.exec() != QDialog::Accepted)
+        return;
     
     bool ok = false;
     int count = number.text().toInt(&ok);
-    if(!ok)
+    if(!ok || count < 0 || count > 1000)
         return;
     int secs = mins.text().toInt(&ok)*60;
     if(!ok)
         return;
     
+    ActivityEdit edit(traffic);
     for(int i = 0; i < count; i++){
-        traffic->service.push_back(new ActivityTimetable());
-        traffic->service.back()->setService(s->name);
-        traffic->service.back()->setTime(s->time + secs*(i+1));
+        ActivityTimetable *copy = new ActivityTimetable();
+        copy->routePath = s->routePath;
+        traffic->addInstance(copy);
+        copy->setService(s->name);
+        copy->setTime(s->time + secs*(i+1));
     }
     
     showTraffic(traffic);
@@ -211,7 +248,8 @@ void ActivityTrafficProperties::bCloneOutcomeSelected(){
 void ActivityTrafficProperties::bAddServiceSelected(){
     if(traffic == NULL)
         return;
-    traffic->service.push_back(new ActivityTimetable());
+    ActivityEdit edit(traffic);
+    traffic->addInstance(new ActivityTimetable());
     //QModelIndex row = lServcies.currentIndex();
     showTraffic(traffic);
     //lServcies.setCurrentIndex(row);
@@ -219,9 +257,10 @@ void ActivityTrafficProperties::bAddServiceSelected(){
 }
 
 void ActivityTrafficProperties::bRemoveServiceSelected(){
-    
-    traffic->service.remove(lServcies.currentItem()->type());
-    
+    if(selectedInstance() == NULL)
+        return;
+    ActivityEdit edit(traffic);
+    traffic->removeInstance(lServcies.currentItem()->type());
     showTraffic(traffic);
 }
 
@@ -230,10 +269,11 @@ void ActivityTrafficProperties::serviceActoionListSelected(QString val){
     if(cServiceList.currentIndex() > 0)
         index = cServiceList.currentData().toString();
     
-    ActivityTimetable* s = traffic->service[lServcies.currentItem()->type()];
+    ActivityTimetable* s = selectedInstance();
     if(s == NULL)
         return;
-    
+
+    ActivityEdit edit(traffic);
     if(index == "")
         s->clear();
     else
@@ -243,11 +283,10 @@ void ActivityTrafficProperties::serviceActoionListSelected(QString val){
 }
 
 void ActivityTrafficProperties::eTimeSelected(QTime val){
-    if(traffic == NULL)
-        return;
-    ActivityTimetable* s = traffic->service[lServcies.currentItem()->type()];
+    ActivityTimetable* s = selectedInstance();
     if(s == NULL)
         return;
-    s->setTime(val.msecsSinceStartOfDay()/1000);
+    ActivityEdit edit(traffic, true);
+    traffic->setInstanceTime(s, val.msecsSinceStartOfDay()/1000);
     lServcies.currentItem()->setText(1, val.toString("HH:mm:ss"));
 }

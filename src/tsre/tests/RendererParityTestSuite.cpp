@@ -202,6 +202,10 @@ struct Options {
     // A marker set to select by its Navi window name (for example "plan.kml").
     QString markerSet;
     QString path;
+    // The activity's AI trains shown, as the Timetable window shows them:
+    // "all", an AI train's place in the activity's traffic (the one
+    // chosen), or both ("all,3").
+    QString aiTrains;
     QVector<ViewSpec> views;
 };
 
@@ -291,6 +295,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.countryPlaces = root.value("countryPlaces").toString();
     options.markerSet = root.value("markerSet").toString();
     options.path = root.value("path").toString();
+    options.aiTrains = root.value("aiTrains").toVariant().toString();
 
     const QJsonArray objects = root.value("objects").toArray();
     for (const QJsonValue &value : objects) {
@@ -591,6 +596,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     }
 
     widget.setDiagnosticActivity(options.activity, options.path);
+    widget.setDiagnosticAITrains(options.aiTrains);
     if (!options.countryPlaces.isEmpty() && widget.currentRoute() != nullptr) {
         GeoPlacePresetIndex places;
         QString placesError;

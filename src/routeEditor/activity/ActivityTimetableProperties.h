@@ -15,23 +15,32 @@
 #include <QString>
 
 class ActivityServiceDefinition;
+class Activity;
 
 class ActivityTimetableProperties : public QWidget {
     Q_OBJECT
 public:
     ActivityTimetableProperties(QWidget* parent);
     virtual ~ActivityTimetableProperties();
-    void showTimetable(ActivityServiceDefinition* s);
+    // The instance's timetable, or nothing: then the panel is empty and
+    // disabled.
+    void showTimetable(ActivityServiceDefinition* s, Activity *owner = NULL);
+    // The train's start time, engine and speeds, apart from the stops: the
+    // window puts it beside them.
+    QWidget *info = NULL;
     
 public slots:
     void lTimetableSelected(int row, int column);
     void bCalculateSelected();
     
 signals:
-    
+    // Times or efficiencies changed (a cell, Calculate).
+    void edited();
     
 private:
     ActivityServiceDefinition *service = NULL;
+    // The activity the instance is in.
+    Activity *activity = NULL;
     QTableWidget lTimetable;
     QTimeEdit eTime;
     QLineEdit eMainEng;

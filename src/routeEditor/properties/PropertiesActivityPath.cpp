@@ -10,6 +10,7 @@
 
 #include "PropertiesActivityPath.h"
 #include <tsre/trains/Path.h>
+#include <tsre/trains/WaitingPoint.h>
 #include <tsre/Game.h>
 
 PropertiesActivityPath::PropertiesActivityPath() {
@@ -132,8 +133,8 @@ void PropertiesActivityPath::refresh(){
             text = qtTrId("route.editor.properties.activity.path.node.reverse");
             break;
         case PathTrack::NodeType::Wait:
-            //% "Wait %1 s"
-            text = qtTrId("route.editor.properties.activity.path.node.wait").arg(node.waitTime);
+            //% "Wait: %1"
+            text = qtTrId("route.editor.properties.activity.path.node.wait").arg(WaitingPoint::describe(node.waitTime));
             break;
         case PathTrack::NodeType::Junction:
             ++junctions;

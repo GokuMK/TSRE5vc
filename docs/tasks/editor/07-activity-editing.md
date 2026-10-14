@@ -1,6 +1,27 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: design (2026-10-13), all decisions taken (below); not started.
+Status: phases 1 to 7 done (2026-10-14, branch `feature/activity-editing`,
+merged into main); phase 7's design revised the same day (section 7).
+Design decisions taken (below).
+
+**Left (2026-10-14):**
+- MSAE: activities saved by TSRE opened in MSAE (by the user). Open Rails
+  loads them (Verification, External).
+- Content with Open Rails overlays and additions: none locally; Merge...
+  and the additions are tested on written files and the variants TSRE
+  writes for Open Rails.
+- The Play train: it takes one branch per junction (the last pass; a
+  path through a junction twice, 1 of the 191 local paths, can go wrong
+  the second time) and drives on through reversal points. Proposed: the
+  junction passes in path order, each traveller taking the next pass of
+  a junction it meets from the points; worth doing with reversals in
+  Play.
+- The minor issues below: `SkipCount` exceptions (waiting for the MSTS
+  analysis), the item a back pass names.
+- Open Rails: a wait until 08:30 on an AI path crashes its AI prerun
+  (Verification, External); to report there.
+- Times computed with traffic (signals, single track): a task of its
+  own; the direction agreed is in section 7.
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -15,6 +36,312 @@ Sources:
   reference only: TSRE reads the files with its own parsers (ParserX,
   `SimisTextReader`) and takes no Open Rails code.
 - The activity windows' code, read for crashes (2026-10-13, below).
+
+## Progress
+
+**Phase 1, windows that cannot crash (done 2026-10-13).** Every case of
+the crash table below is fixed:
+- Events are stable objects (`QVector<ActivityEvent*>`); `deleteEvent` is
+  the one place that frees one, after the properties panel lets go of it.
+  New selects and shows the event; Delete without a selection does nothing.
+- Every panel shows nothing and is disabled when it has no object
+  (`showEvent`, `showService`, `showTraffic`, `showTimetable` take NULL);
+  the activity settings are disabled until an activity is chosen. Every
+  handler checks its object, list item and indexes.
+- `ActivityTools::currentActivity()` replaces the 34 lookups of
+  `ActLib::Act[...]` that read entry 0 (or created an empty one) with no
+  activity chosen.
+- Selecting a traffic instance blocks the service and time fields'
+  signals: its timetable is no longer reset.
+- Service and traffic Delete work as the path's does (confirmation, users
+  listed, file removed, the library forgets the object); New refuses names
+  with `\ / : * ? " < > |` and names in use, in any case.
+- Speed zones and failed signals renumber after a delete; a delete removes
+  one item.
+- The timetable rows, its average speed and the savers of per-stop arrays
+  use only complete stops (a stop missing a field crashed the window and
+  the save).
+- Found by the suite: Jump To a loose consist not yet placed on the track
+  (`Consist::getWagonWorldPosition`); the traffic Clone dialog had no
+  buttons and cloned on close (now OK/Cancel); `ActivityTools` freed its
+  settings fields twice when destroyed (member order); wagon and siding
+  descriptions created empty track items for unknown ids.
+
+Suite `activity-ui` (see Verification). Left for phase 3, as they are
+about saving: creating a speed zone or failed signal, adding or cloning a
+traffic instance do not mark the file changed; the service and traffic
+windows list the library's objects of every loaded route.
+
+**Phase 2, keeping what is not understood (done 2026-10-13).**
+- `ParserX::KeepBlock` takes the block a reader does not model, from its
+  token to its closing bracket, as it is in the file (quoted brackets
+  included); `ParserX::WriteKept` writes such blocks at the end of their
+  block. The existing ParserX readers use it wherever they skipped a
+  token: activity (`Tr_Activity`, header, `Tr_Activity_File`, the traffic
+  definition, the event, object, zone, signal and passenger lists), player
+  and AI service instances, timetables, events, outcome lists, wagon
+  lists, activity objects, consists (train, `TrainCfg`, each car; `.con`
+  files too), services (definition, timetable, stops), traffic.
+- So Open Rails' additions not modelled yet (header `FuelWood`,
+  `FuelSand`, `ORTSLoadStationsPopulation`; `ORTSAICrossingHornPattern`;
+  `Reversible_Event`, `ORTSTriggeringTrain`; the outcomes
+  `ORTSActivitySound`, `ORTSRestartWaitingTrain` and the block form of
+  `ORTSWeatherChange`; consists' `ORTSEOT`, `LoadData`), `Comment` blocks
+  and anything newer survive a save. Phase 6 models them.
+- Per-stop arrays are written stop by stop with the fields each has, so a
+  file with a field missing for a stop reads back as it was. Stops as
+  records are left to phase 5, where stops are edited.
+- `PlatformData` read in file order (platform, passengers).
+- Fixed on the way: `ORTSActSoundFile` on an event was read and then
+  skipped as unknown; `ParserX::SplitToMultiline` added a line break to
+  texts ending with one (every save of 30 local activities grew their
+  briefings and messages); service names, consist and path and the
+  traffic name read with `GetStringInside`, which stops at an empty
+  value's bracket; a consist whose cars are missing no longer gets NaN
+  for `MaxVelocity`.
+
+Suite `activity-roundtrip`: the written fixtures keep every block and
+save the same twice; all 441 local ACT, SRV and TRF files (`~/ORTS`) are
+read, written and read back with no difference.
+
+**Phase 3, saving and undo (done 2026-10-14).**
+- Save counts instead of a saved flag: a snapshot keeps how often its
+  object had been saved; restoring one from before a save leaves the
+  object unsaved, restoring the saved state leaves it saved. Paths have
+  it now (task 06's save-then-undo defect); activity, service and traffic
+  snapshots get it with their undo.
+- Dirty state: unticking a stop, choosing no path, a new speed zone or
+  failed signal, an added or cloned traffic instance mark their file
+  changed; ticking a stop beyond the path's platforms does nothing (it
+  read past the end).
+- Instances are found by the pair (service, start time), names in any
+  case (`Traffic::getInstance`); the joined `nameTime` is gone.
+- `PathID` is the file name: `ActLib::GetPathByName` tries the file
+  first, then `TrPathName`; the service panel lists paths by file and
+  writes the file name; `Service::initToPlay` and `PathUsers` use the
+  same (`Path::isNamed`).
+- The unsaved list already names each file. Narrowing (`SkipCount` above
+  65535) is reported by Check Activity (phase 4).
+
+- Undo for activity data: `Undo::PushActivityData`, `PushServiceData`,
+  `PushTrafficData` keep the file's text (`toText`, the writer without the
+  file), whether it was unsaved and its save count; undo reads the text
+  back into the same object (`restore`). Writers no longer mark anything
+  saved (the timetable and service definition writers did); `save` does,
+  after writing.
+- `ActivityEdit` (activity windows) opens a step per edit, typing
+  continues one; service edits also keep the activities using the
+  service, timetable edits the activity's traffic. Map tools (new loose
+  consist, speed zone, event location) and the Delete key on activity
+  objects make steps too; `Undo::PushGameObjData` keeps an activity
+  object's activity, so dragging one is undone. A step that changed
+  nothing (a field left as it was) is dropped when it ends.
+- Restoring replaces events, objects and instances with new ones:
+  `ActivityNotifier` tells the windows before (they let go, the 3D view
+  drops a selected activity object) and after (they show the activity,
+  service, traffic and the event, by its ID, again). Activities naming
+  a restored traffic look its instances up again.
+
+Suite `activity-edit` (new): path naming, stops, instance keys, instance
+add and remove, undo of activities, services and traffic (text, saved
+state, notifications, no empty steps, instances found again), on written
+files; `path-edit` gained save-then-undo; the `activity-ui` monkey now
+also undoes (about 300 undos restoring activity data per run, 30 other
+seeds clean).
+
+**Phase 4, Check Activity (done 2026-10-14).**
+- `CheckActivity` (`tsre/trains/ActivityCheck`) lists findings, errors
+  and warnings, each naming what it points at: the player's and AI
+  trains' services, their consists and paths; instances in the activity
+  and its traffic pattern, both ways; stops complete, on the service's
+  path and within the platform as the path passes it (with a track
+  database), in path order; the activity's copy of the stops against the
+  service's; times in order (stops timed 0, as MSTS writes untimed ones,
+  left out); the player's timetable starting with the activity; event
+  station stops, sidings, wagons (of a loose consist or the player's
+  train) and event links; loose consists with missing cars; broken
+  paths, passing paths that do not come back (counted by the path reader,
+  which drops them); skip counts above 65535.
+- The activity panel's "Check Activity" opens the list; a row shows what
+  it names (the event or service or traffic in its window, the path
+  chosen, the view at a loose consist). Saving lists activities with
+  errors in the unsaved dialog.
+- Run on the six MSTS routes and the Open Rails starter route with their
+  track databases (`activity-check-route`), it found a real defect:
+  `Traffic::load` replaced the traffic's file name with the name inside
+  the file, so the AI traffic of 9 of the 60 activities of the MSTS
+  routes, which name traffic by file, was not found. Traffic is now found by file first
+  (`nameId`), then by the name inside (`displayName`, written back). The
+  rest calibrated the checks: an AI train missing from its traffic
+  pattern is a warning (Open Rails runs it without the pattern's
+  timetable, as the starter route's own activities do); stops are
+  measured along the whole platform; event links a warning. Left on the
+  local content: 2 warnings, no errors.
+- Checked in phase 6, with the additions they concern: triggering and
+  restarted trains, the restart's waiting point on the train's path; and
+  in phase 7, loose consists on the track (below).
+
+Suites `activity-check` (a sound activity without errors; one with each
+kind of problem, found and pointing at its object) and
+`activity-check-route` (`--game-root`, `--route`: the findings by kind).
+
+**Phase 5, paths to services and timetables (done 2026-10-14).**
+- A path's platform list (`Path::pathObjects`) is its platform passes by
+  the rule found in the data (Reference, MSTS, `SkipCount`): each pass
+  over both of a platform's items between reversals, a switchback
+  platform twice; the platform the path starts or ends in; overlapping
+  platforms once. A pass keeps every item it meets with its distance. A
+  stop's `SkipCount` is its pass's place; the service's station list
+  shows a second pass as "(pass 2)".
+- An edit of a path (and its undo) makes its services follow
+  (`ActLib::PathChanged`, `Service::followPath`): a stop stays at the
+  same pass of its platform, taking its new place and distance; a stop
+  the path no longer passes is removed; new platforms are offered, not
+  stops. The activities and traffic running the service follow
+  (`ServiceStops::Follow`): a kept stop keeps its times and efficiency,
+  a new one takes the departure of the stop before it. The same happens
+  for ticking and unticking stops and choosing another path, which used
+  to reset every timetable using the service to its start time. All of
+  it is in the edit's undo step; the activity panel shows what changed
+  under the paths.
+- Choosing a path for a service stops at the first pass of each
+  platform.
+- Times move: a traffic instance's new start time moves its stops, and
+  the activities' AI trains paired with it (service and time) follow;
+  the activity's start time moves the player's timetable. Stops timed 0
+  stay untimed.
+- An edit keeps the passing paths before and after the nodes it changes
+  (those after move with the nodes) and reports those it goes through.
+- Check Activity measures stops against their pass: on the local routes
+  the last distance warning (a stop on a switchback's second pass) is
+  gone.
+
+Tests: `path-edit` (passes on a test track: each platform, overlapping
+ones once, a start inside a platform, a switchback twice, a reversal
+inside a platform none; a service, activity and traffic following an
+edit and its undo; a stop at a switchback's first pass; a new stop's
+time; start times moving timetables; passing paths kept and dropped).
+
+**Phase 6, Open Rails additions (done 2026-10-14).**
+- Modelled, and written only when set: the header's fuel wood and sand
+  and station loads file; the AI horn pattern (after
+  `NextActivityObjectUID`); an event's triggering train
+  (`ORTSTriggeringTrain`, service and optional start time) and
+  `Reversible_Event` in the spelling read; the outcomes
+  `ORTSActivitySound` (file, type, the place of a `Location` sound),
+  `ORTSWeatherChange` in Open Rails' form (each of the four values with
+  its transition time; a TSRE preset fills them in) and
+  `ORTSRestartWaitingTrain` (the train, the delay, the waiting point to
+  match). TSRE's older forms (a sound or weather preset in the outcomes,
+  with copies at event level) are read and written in Open Rails' forms,
+  their copies dropped; an event-level sound of the file's own stays as
+  read.
+- Windows: the activity panel edits the horn pattern, wood, sand and
+  station loads; the event panel picks the triggering train and the
+  restarted train from the activity's AI trains (name and start time),
+  the waiting point from that train's path (or a value typed), a sound's
+  place typed, picked on the map or at the event's location, and the
+  weather values with their times.
+- Path tool: a waiting point has a kind (wait, until a time, uncouple
+  keeping the first or last cars, horn, crossing horn) and its fields,
+  written as Open Rails' value (`WaitingPoint`); the path shows each
+  point's meaning.
+- Overlays (`ACTIVITIES/OPENRAILS/<name>.act`, found in any case): the
+  activity panel shows a line with **Merge...** while the activity has
+  one; Merge... lists what it adds and what it leaves out (as Open Rails
+  merges: the horn settings, and per event ID of the same kind its
+  lines; an outcome Open Rails keeps one of replaces the activity's,
+  others are added). Confirmed, it is one undo step; saving renames the
+  overlay to `.merged` (`.merged.2`... when one exists). Undo before the
+  save takes the merge out; after the save the renamed file stays.
+  Check Activity notes an overlay not merged, and each line it would
+  leave out.
+- Check Activity: an event's triggering train and a restarted train
+  must be AI trains of the activity (errors); the restart's waiting
+  point value must be on that train's path (a warning). The local
+  routes gain no findings.
+
+Tests: `activity-edit` (the merge's preview, apply, undo, save with the
+rename, the reread), `activity-check` (the new checks, and a restart at
+a real waiting point without one), `path-edit` (waiting point values
+both ways), `activity-ui` (the overlay line, Merge... cancelled and
+confirmed, its undo; the waiting point dialog for each kind; the random
+run over a fixture with the new outcomes and an overlay).
+
+**Phase 7, seeing the activity (done 2026-10-14).** As section 7 says,
+with these details:
+- The Timetable window lists the trains (`ActivityTrains`: the player's,
+  the AI trains, the pattern's runs the activity lacks) by start time,
+  with a splitter above the line saying where the chosen train's times
+  are saved and the timetable panel. The rows are made again after an
+  edit in the timetable, an undo, or when the window is used again (other
+  windows change what they show).
+- Add to Activity and Remove from Activity edit the activity's AI trains
+  (`Activity::addAITrain`, `removeAITrain`; a new one takes
+  `NextServiceUID`). Make Own Copy... writes the pattern's text into a new
+  traffic pattern (`ActivityTrains::CopyPattern`) and points the activity
+  at it (`Activity::setTrafficName`); its dialog has its own title.
+- A service's train stands behind its start (the first vehicle across
+  it). When the track behind the start is shorter than the train, the
+  train moves ahead until its rear is 1 m before the track's end
+  (`Consist::initOnTrack` with `fitOnTrack`, `Consist::roomBehind`,
+  `Ruch::endsPassed`); before, its rear vehicles turned back at the end
+  over the others (`Ruch` turns back at an end node). Play places the
+  player's train the same way. Each vehicle now moves to its place in
+  one go. Loose consists are placed as before.
+- The player's train is drawn without Play (`Activity::playerService`
+  looks the service up until Play links it), in 3D and on the map, and
+  is selectable as `activityService(0)`.
+- Map and 3D: `Activity::shownAITrains` (the chosen train first, a service
+  once; not in play mode). 3D draws the path's lines in the AI styles
+  (`Path::LineAITrain`, `LineChosenTrain`, made when first drawn) and the
+  consist at the start, selectable as `activityService(place + 1)`;
+  `getServiceConsistById` finds its consist. The map draws the bands in
+  the palette's `aiPath` and `aiPathChosen` (under the player's path) and
+  the consists, with the same selection ids. A click on an AI consist
+  chooses its row (`RouteEditorGLWidget::activityTrainSelected`).
+- The traffic window's Any column uses `ActLib::TrafficUsers`
+  (`IsTrafficInUse` only says a pattern of the name exists). Check
+  Activity warns of a name in another case (`instance.name.case`); the
+  local content has none.
+- Check Activity: a loose consist more than 1 m from the track is an
+  error (Open Rails cannot place it); one whose cars run past the track's
+  end, a warning (`LooseConsistPlace`). TSRE places the cars behind the
+  position; all 81 loose consists of the local MSTS routes fit so (12
+  would not the other way). The local routes gain no findings.
+
+Tests: `activity-edit` (the rows, by start time, a run the activity
+lacks, a name in another case; remove and add with undo; the trains
+shown, a service once; Make Own Copy and its undo, a taken name; a save
+without a merge leaving the overlay), `path-edit` (waiting points of each
+kind saved in a path file and read back; the track behind a start
+ending at the track's end), `activity-ui` (the window's
+rows, bold player, problem signs; where the times are saved, shared with
+another activity; Make Own Copy... through its dialog and undo; remove,
+add, undo; Show All Trains; a train chosen on the map; the traffic
+window's Any; the random run over the new window). Capture
+`tests/renderer/map-ai-trains.json` (EUROPE1 lclsrvce, twelve AI trains
+of three services on two paths): the player's train at its start
+without Play (its centre pick the player's), the bands and consists on
+the map, the cyan line in 3D, the centre pick of an AI wagon being that
+train
+(`--test-suite renderer-capture --test-cases <file> --game-root
+~/ORTS/MSTS --route EUROPE1`).
+
+**Minor issues, for a later check (2026-10-14):**
+- `SkipCount` exceptions in MSTS's own content (Reference, MSTS): 30
+  services number their stops 0, 1, 2... and are renumbered by passes
+  when their path is edited; 4 have stale counts. How strictly MSTS
+  reads `SkipCount` is not known (to be asked of the MSTS analysis).
+- On a back pass MSTS names the platform item met first (Masaki on
+  JAPAN2); a stop TSRE makes names the pass's last item. Both identify
+  the platform.
+- Junction choices (`PathTrack::junctionChoices`) keep one direction per
+  junction (the last facing pass); a path through a junction twice can
+  move the editor's preview train wrongly on the second pass. Display
+  only; the files are not affected. Of the 191 local paths, 3 pass a
+  junction twice from its points, 1 (USA2) taking another branch the
+  second time. The Play train also ignores reversal points.
 
 ## Objective
 
@@ -201,6 +528,31 @@ Smaller:
   saves the file (Open Rails manual).
 - Unknown meanings remain: `SkipCount` on repeated visits, start/end in
   world, MSAE's timetable computation.
+- **`SkipCount` (checked 2026-10-14):** a stop's place among the
+  platform passes along its path. Found from the data (a probe over every
+  service of the six MSTS routes and the starter route, on their track
+  databases):
+  - each pass over a platform counts: a switchback station (Okoba,
+    Masaki on JAPAN2) counts twice, once in, once out, and a stop may be on
+    either pass;
+  - a pass counts only when the train goes over both of the platform's
+    items between two reversals; one that reverses inside the platform
+    does not count;
+  - the platform the path starts in counts;
+  - platforms the train is on at once (Minami Shinjuku: two overlapping
+    pairs) count once;
+  - a stop names the platform item it meets at its `DistanceDownPath` on
+    that pass (usually the far item, on a back pass the near one).
+  TSRE's list (each platform pair once, at its far end) matches where no
+  path reverses at a platform; the rule matches every stop on EUROPE1,
+  EUROPE2, JAPAN2, USA1 and BNSF_SCENIC, 384 of 955 on JAPAN1, 11 of 46 on
+  USA2. The rest: 30 services (JAPAN1's Shin-Hakone traffic, USA2's Long
+  Haul traffic) number their stops 0, 1, 2... instead; 3 JAPAN1 services
+  are one short after the outbound Odakyu platforms that another service
+  on the same platforms (PubHol) counts, so their data are stale; 1 USA2
+  service has a single stop at 2 where the rule gives 24. MSTS ships both
+  conventions, so how strictly the simulator reads `SkipCount` is not
+  known from the files; Open Rails reads it and does not use it.
 
 ### Open Rails additions (manual and code, checked 2026-10-13)
 
@@ -311,7 +663,8 @@ speed limit outcomes). TSRE keeps them: MSAE needs them.
 - **Records instead of parallel arrays:** a stop is one record (platform,
   distance, skip count, efficiency, arrival, departure, its kept blocks);
   a file with a field missing reads into records with that field unset
-  and is reported, not written short.
+  and is reported, not written short. (Phase 2 writes the arrays stop by
+  stop without loss; records come with phase 5's stop editing.)
 - Known fields that were dropped get modelled (section 6).
 - `PlatformData` read into locals in file order; written in the same
   order.
@@ -391,6 +744,12 @@ that jumps to each item:
   on it is removed; new platforms on the path are offered, not ticked. A
   report lists what changed, per service, activity and traffic; undo takes
   it all back.
+- **`SkipCount` (Reference, MSTS):** the platform list of a path becomes
+  its platform passes by the rule found there (each full pass between
+  reversals, the start platform, overlapping platforms once), which is
+  also the "visit" a stop is identified by. Stops kept by an edit keep
+  their pass and take its new place; a file that numbers its stops
+  0, 1, 2... is not renumbered unless its stops change.
 - **Times move, they do not reset:** a new start time for an instance
   moves every arrival and departure by the difference; **the activity's
   start time moves the player timetable (decided)**.
@@ -448,12 +807,88 @@ that jumps to each item:
 
 ### 7. Seeing the activity
 
-- Map and 3D: every AI instance's path (its own colour, its name and start
-  time at its start), its consist at its start position; the player's as
-  now. Selecting an instance in the traffic panel selects it on the map and
-  the reverse.
-- An overview in the traffic panel: instances sorted by start time, each
-  with service, path, consist, first and last stop and times.
+**The Timetable window becomes the activity's overview (decided
+2026-10-14):** it is already per activity (the traffic window is per
+traffic file), so it is upgraded, not duplicated by another window.
+
+How the files share the times (checked in Open Rails' code, `AI.cs:785`,
+`ActivityFile.cs:744`): the player's timetable is in the activity; an AI
+train's is in the traffic pattern the activity names (one file), found by
+service name and start time, the name compared exactly. The activity adds
+an efficiency per stop. A pattern may serve several activities, so an AI
+train's times are shared; its efficiency is the activity's own.
+
+**Layout:** the trains across the window; under them, side by side,
+what is known of the chosen train on the left (about 40% of the width)
+and its stops and times on the right; splitters between them (revised
+with the user the same day: the trains need the width, the other two do
+not). The window follows the activity chosen in the activity panel, as
+do the Events, Services and Traffic windows, the map and 3D (none chosen
+included); the Services and Traffic windows' Any columns show what
+activities use.
+
+1. The trains, one row each, by start time (the player's first at equal
+   times):
+
+   | Start | Train | Path | Consist | First stop | Last stop |
+   |---|---|---|---|---|---|
+
+   - the player's train in bold, "(player)" after its name;
+   - the activity's AI trains;
+   - the pattern's runs the activity does not have, greyed, "(not in the
+     activity)": the activity takes a pattern's runs when the pattern is
+     chosen, so runs added later are only in the pattern;
+   - a warning sign on a train whose service, path or consist is missing,
+     which has no times in the pattern, or which the pattern names in
+     another case (Open Rails then finds no times); its tooltip says what;
+   - first stop with its departure, last stop with its arrival (none for
+     a train with one stop); times to the second.
+
+   Under it: **Show All Trains** (map and 3D), **Add to Activity**,
+   **Remove from Activity**, **Jump To**.
+2. Left: a line saying where the chosen train's times are saved, always
+   there (no pop-ups, as for overlays), then the train's start time,
+   engine and speeds:
+   - the player's: in the activity;
+   - an AI train's: in the traffic pattern, with the other activities
+     using it, and **Make Own Copy...** when there are any;
+   - a run not in the activity: Add to Activity puts it in.
+3. Right: the chosen train's stops with Arrive, Depart and Performance,
+   and Calculate.
+
+**Actions,** each one undo step:
+- Add to Activity: the run joins the activity's AI trains (its stops, the
+  service's efficiency); Remove from Activity takes an AI train out (the
+  pattern keeps the run; events naming it are Check Activity's).
+- Make Own Copy...: a name asked, a new traffic pattern with the same runs
+  written, the activity pointed at it. Undo points the activity back; the
+  new pattern stays, as New in the traffic window leaves one.
+- Jump To: the camera to the train's start.
+
+**Map and 3D:**
+- The player's train and path whenever the activity is chosen (they were
+  drawn only after Play, which links the activity to its service).
+- The chosen AI train: its path (3D lines in cyan, on the map a band in
+  the palette's `aiPath` colour) and its consist at its start.
+- Show All Trains: every AI train of the activity likewise, the others in
+  blue; a service run by several trains is drawn once.
+- Clicking an AI train's consist (3D or map) chooses its row.
+- No name labels (the earlier plan): the table names the trains, and
+  choosing a row shows which is which.
+
+**Also in this phase:** the traffic window's "Any" column (it showed
+every file as used); Check Activity warning of an AI train named in
+another case than its pattern's run.
+
+**Times computed with traffic (later, not this task).** Calculate takes
+each train alone. A calculation with signals and single track is a
+dispatching simulation, a task of its own. Direction agreed: the traffic
+pattern keeps the booked times and is never rewritten with delays (Open
+Rails runs the same way: an AI train waits for its booked departure and
+leaves late when held, `Train.CalculateDepartTime`); the player's train,
+whose timetable is the activity's own, is fitted between the AI trains;
+an author who wants AI times for one activity makes its own copy of the
+pattern first (Make Own Copy...).
 
 ## Phases
 
@@ -461,35 +896,53 @@ that jumps to each item:
    instead of vector pointers, signals blocked when showing, the traffic
    time fix, Delete for services and traffic, unique zone and signal ids.
    Suite `activity-ui`.
-2. **Preservation and the round-trip suite:** kept blocks, records for
-   stops, `PlatformData`. Suite `activity-roundtrip`.
+2. **Preservation and the round-trip suite:** kept blocks, lossless
+   per-stop writers, `PlatformData`. Suite `activity-roundtrip`.
 3. **Saving and undo:** revisions, the dirty-state fixes, instance keys,
    `PathID` by file, activity/service/traffic undo, path save-then-undo.
 4. **Check Activity.**
-5. **Paths to services and timetables:** stops by platform and visit,
+5. **Paths to services and timetables:** stops as records, by platform and visit,
    recomputing after path changes, moving times, passing branches kept.
 6. **Open Rails additions** in the windows and the path tool; merging an
    overlay into its activity.
-7. **Seeing the activity:** AI paths and consists on the map, the
-   traffic overview.
+7. **Seeing the activity:** the Timetable window as the activity's
+   trains (where times are saved, adding and removing AI trains, an own
+   copy of the pattern), AI trains on the map and in 3D.
 
 Phases 1 to 3 make TSRE safe to edit and save with; each later phase
 stands alone.
 
 ## Verification
 
-- **`activity-ui`** (offscreen, like `editor-tools`): each activity window
-  is opened with nothing selected, with an empty activity, and with a
-  loaded EUROPE1 activity; every button is pressed, every field edited,
-  every list item selected, in turn and after deleting what is shown. No
-  crash; showing an item changes nothing (the files written after only
-  looking are identical); the cases in the crash table each covered.
-- **`activity-roundtrip`** (`--game-root`, `--route`, or all routes under a
-  root): every ACT, SRV, TRF is read, written to a temporary folder and
-  read back with `SimisTextReader` into block trees; the trees must match
-  the original's apart from number formatting and the documented order
-  changes. Run on the 68 ACT, 302 SRV and 71 TRF files here, and on
-  community content with Open Rails additions when available.
+- **`activity-ui`** (offscreen, done in phase 1): a route written for the
+  test (an activity with events of each kind, outcomes of each kind, a
+  wagon list, a loose consist, speed zones and failed signals; a player
+  timetable with a stop missing fields; services, a traffic pattern with
+  an instance of a missing service; consists of missing wagons) opened in
+  the Activity Tools panel and the four windows, connected as the editor
+  connects them. Checked: panels without an object disabled; buttons with
+  nothing chosen change nothing; selecting every row of every list changes
+  nothing (`ActLib::GetUnsavedInfo` empty) and keeps the traffic
+  timetables; event delete and new; service and traffic New refusing bad
+  and taken names, Delete removing the files. Then about 6,000 random actions
+  (buttons, fields, combos, lists, tables, sliders) in four rounds,
+  dialogs cancelled and confirmed, without and with a track database,
+  with and without an activity chosen, undoing now and then (phase
+  3): no crash. The sequence is fixed;
+  `TSRE_ACTIVITY_UI_SEED` tries others, `TSRE_ACTIVITY_UI_TRACE` logs each
+  action. Play is left out (it places the train on terrain the test route
+  does not have).
+- **`activity-roundtrip`** (done in phase 2): written fixtures (an
+  activity with every Open Rails addition of the tables above, comments
+  and unknown blocks at each level, a quoted bracket, a stop missing
+  fields; a service, a traffic pattern and a consist likewise) are read,
+  written and read back with `SimisTextReader` into block trees: nothing
+  missing, changed or added, and a second save the same as the first.
+  With `--test-cases <folder>`, every ACT, SRV and TRF file under it
+  likewise, the differences counted by block (blocks of one name compare
+  in order; the order between names is free; numbers within formatting).
+  The 441 files here: no difference. Community content with Open Rails
+  additions when available.
 - **`activity-edit`** on written fixtures:
   - every Open Rails token above, a `Comment`, an unknown block at each
     level, kept through load, edit, save; attributes not set are not
@@ -513,6 +966,27 @@ stands alone.
 - **External:** activities edited in TSRE load in Open Rails (a small
   check program around its own readers in the Linux fork, if worth
   building) and in MSAE (by the user); a test activity runs.
+  - Open Rails (done 2026-10-14, the Linux fork's RunActivity):
+    `scripts/orts-activity-check.sh <game-root> <route> <work-dir>
+    [activity] [seconds]` makes a view of the game root in the work
+    folder (the route's ACTIVITIES, PATHS, SERVICES and TRAFFIC copied),
+    lets TSRE write variants into it (suite `activity-export`, which
+    refuses a game root without the file `TSRE_SCRATCH`): the activity
+    resaved; with the Open Rails additions (horn and pattern, sand, a
+    weather change, sounds everywhere and at a place, an event triggered
+    by an AI train with ORTSContinue and Reversible_Event, a restart of a
+    waiting train); with its own traffic pattern, a stop moved and an AI
+    train taken out; with a waiting point (until 15:00) on the first AI
+    train's path. Each runs in Open Rails with its own settings until its
+    3D view appears and then for the seconds given. On EUROPE1's lclsrvce
+    (150 s) all five reach the view with no errors and no warnings the
+    stock activity has not. Waiting points of 45 s, horn (60015) and
+    uncouple (40305) load too.
+  - Open Rails itself fails on one: a wait until 08:30 (30830) on that AI
+    path stops the activity loading ("Collection was modified" in
+    `AITrain.PerformActions` during `AI.PrerunAI`), the same file with
+    15:00 or 45 s loads. An Open Rails defect to report, not TSRE's.
+  - MSAE: by the user.
 - `path-edit`, `path-roundtrip`, `content-path` and the editor suites keep
   passing.
 

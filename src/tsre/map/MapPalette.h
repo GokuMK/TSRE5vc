@@ -48,6 +48,10 @@ struct MapPalette {
     QColor pathEnd = QColor(220, 30, 30);
     // A path's parts off the track database.
     QColor pathBroken = QColor(230, 0, 160);
+    // An activity's AI trains' paths, and the one chosen in the Timetable
+    // window.
+    QColor aiPath = QColor(120, 160, 240);
+    QColor aiPathChosen = QColor(0, 190, 230);
     QColor wagon = QColor(100, 140, 220);
     QColor engine = QColor(35, 55, 150);
     QColor speedZone = QColor(255, 0, 102);

@@ -33,6 +33,11 @@ public slots:
     void serviceNameChanged(int id);
     void bNewServiceSelected();
     void bDeleteServiceSelected();
+    // The service (by its file's name) shown and chosen in the list.
+    void selectService(QString nameId);
+    // Undo replaces activity data (ActivityNotifier).
+    void activityDataRestoring();
+    void activityDataRestored();
 
 signals:
     void reloadServicesList();
@@ -40,8 +45,10 @@ signals:
 private:
     QTreeWidget serviceList;
     
-    Activity *activity;
-    Route *route;
+    Activity *activity = NULL;
+    Route *route = NULL;
+    // The service of the selected row, or NULL.
+    Service *selectedService();
 };
 
 #endif	/* ACTIVITYSERVICEWINDOW_H */

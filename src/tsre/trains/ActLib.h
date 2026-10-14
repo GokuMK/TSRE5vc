@@ -46,7 +46,9 @@ public:
     static int AddPath(QString path, QString name);
     // After an edit of a path (task editor 06): the services running on it
     // place their consists again.
-    static void PathChanged(Path *path);
+    // A path's nodes changed (an edit, or undo with report false): its
+    // services follow it, and the activities and traffic running them.
+    static void PathChanged(Path *path, bool report = true);
     // A path made in the editor (New, Clone), kept with the paths read.
     static int AddNewPath(Path *path);
     // Takes a deleted path out of the library. The object stays, as services
@@ -54,9 +56,23 @@ public:
     static void RemovePath(Path *path);
     // The services and activities of the path's route that name it.
     static QStringList PathUsers(Path *path);
+    // Take a deleted service or traffic out of the library; the objects
+    // stay, as activities may still point at them.
+    static void RemoveService(Service *service);
+    // The activities stop pointing at the traffic's instances (it is
+    // restored by undo); they look them up again when used.
+    static void ForgetInstances(Traffic *traffic);
+    static void RemoveTraffic(Traffic *traffic);
+    // The activities and traffic of its route that name the service; the
+    // activities that name the traffic.
+    static QStringList ServiceUsers(Service *service);
+    static QStringList TrafficUsers(Traffic *traffic);
+    // A service or traffic file of the route by this name (without the
+    // extension, in any case) is loaded or on disk.
+    static bool ServiceExists(QString nameId, QString routePath = {});
+    static bool TrafficExists(QString nameId, QString routePath = {});
     static int LoadAllAct(QString gameRoot, bool gui = false);
     static void GetUnsavedInfo(QVector<QString> &items);
-    static void UpdateServiceChanges(QString serviceNameId, QString routePath = {});
     static void SaveAll();
 private:
 

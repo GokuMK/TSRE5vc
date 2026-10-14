@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <QDebug>
 #include <QTextStream>
+#include <algorithm>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
@@ -23,7 +24,6 @@ ActivityTimetable::ActivityTimetable() {
 ActivityTimetable::ActivityTimetable(QString n, int t){
     name = n;
     time = t;
-    nameTime = name + QString::number(time);
     empty = false;
 }
 
@@ -35,15 +35,31 @@ ActivityTimetable::~ActivityTimetable() {
 
 void ActivityTimetable::setService(QString sn){
     name = sn;
-    nameTime = name + QString::number(time);
     reloadTimetable();
     modified = true;
 }
 
+// A timetable moves with its start; stops timed 0 (untimed, as MSTS writes
+// them) stay so. Without stops yet, it takes the service's.
 void ActivityTimetable::setTime(int t){
+    if(arrivalTime.isEmpty() && departTime.isEmpty()){
+        time = t;
+        reloadTimetable();
+        modified = true;
+        return;
+    }
+    const int delta = t - time;
+    for(int i = 0; i < arrivalTime.size(); i++){
+        const bool untimed = arrivalTime[i] == 0 && i < departTime.size() && departTime[i] == 0;
+        if(!untimed)
+            arrivalTime[i] += delta;
+    }
+    for(int i = 0; i < departTime.size(); i++){
+        const bool untimed = departTime[i] == 0 && i < arrivalTime.size() && arrivalTime[i] == 0;
+        if(!untimed)
+            departTime[i] += delta;
+    }
     time = t;
-    nameTime = name + QString::number(time);
-    reloadTimetable();
     modified = true;
 }
 
@@ -107,7 +123,6 @@ void ActivityTimetable::load(FileBuffer* data) {
         name = ParserX::GetStringInside(data);
         time = ParserX::GetNumber(data);
     } 
-    nameTime = name+QString::number(time);
     empty = false;
     
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
@@ -137,30 +152,39 @@ void ActivityTimetable::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#trafficDefinition-Timetable - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
 }
 
+void ActivityTimetable::setModified(bool val){
+    modified = val;
+}
+
 void ActivityTimetable::save(QTextStream* out, QString off) {
-    if(empty){
-        modified = false;
+    if(empty)
         return;
-    }
     if(actTimetable)
         *out << off << "Player_Traffic_Definition ( "<< time <<"\n";
     else
         *out << off << "Service_Definition ( "<< ParserX::AddComIfReq(name) << " "<< time <<"\n";
 
-    for(int i = 0; i<arrivalTime.size(); i++){
-        *out << off << "	ArrivalTime ( "<<arrivalTime[i]<<" )\n";
-        *out << off << "	DepartTime ( "<<departTime[i]<<" )\n";
-        *out << off << "	SkipCount ( "<<skipCount[i]<<" )\n";
-        *out << off << "	DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
-        *out << off << "	PlatformStartID ( "<<platformStartID[i]<<" )\n";
+    // Stop by stop; a field the file lacks for a stop stays missing, so the
+    // file reads back as it was read.
+    const int stops = std::max({arrivalTime.size(), departTime.size(), skipCount.size(),
+                                distanceDownPath.size(), platformStartID.size()});
+    for(int i = 0; i<stops; i++){
+        if(i < arrivalTime.size())
+            *out << off << "	ArrivalTime ( "<<arrivalTime[i]<<" )\n";
+        if(i < departTime.size())
+            *out << off << "	DepartTime ( "<<departTime[i]<<" )\n";
+        if(i < skipCount.size())
+            *out << off << "	SkipCount ( "<<skipCount[i]<<" )\n";
+        if(i < distanceDownPath.size())
+            *out << off << "	DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
+        if(i < platformStartID.size())
+            *out << off << "	PlatformStartID ( "<<platformStartID[i]<<" )\n";
     }
+    ParserX::WriteKept(out, kept, off + "	");
     *out << off << ")\n";
-    
-    modified = false;
 }

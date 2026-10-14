@@ -15,6 +15,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/ActLib.h>
+#include <routeEditor/activity/ActivityEdit.h>
 
 ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(parent) {
     //this->setMinimumHeight(400);
@@ -127,7 +128,8 @@ ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(
     
     vlist->setContentsMargins(1,1,1,1);
     this->setLayout(vbox);
-    
+    // No service shown yet.
+    setEnabled(false);
 }
 
 ActivityServiceProperties::~ActivityServiceProperties() {
@@ -140,6 +142,20 @@ void ActivityServiceProperties::setPaths(QVector<Path*>& path){
 
 void ActivityServiceProperties::showService(Service *s){
     service = s;
+    if(s == NULL){
+        cConFiles.clear();
+        cPath.clear();
+        stationList.clear();
+        lUsedBy.clear();
+        eFileName.clear();
+        eDisplayName.clear();
+        ePlayerPerformance.clear();
+        eStartSpeed.clear();
+        eEndSpeed.clear();
+        setEnabled(false);
+        return;
+    }
+    setEnabled(true);
     cConFiles.clear();
     ConLib::loadSimpleList(Game::root);
     cConFiles.addItem(
@@ -158,12 +174,11 @@ void ActivityServiceProperties::showService(Service *s){
     cPath.addItem(
         //% "UNDEFINED"
         qtTrId("route.editor.activity.service.properties.item.undefined.2"), "#");
-    for(int i = 0; i < paths.size(); i++ )
-        cPath.addItem(paths[i]->displayName, /*QVariant(i)*/QVariant(paths[i]->trPathName));
-    if(s->pathId.length() > 0){
-        cPath.setCurrentIndex(cPath.findData(s->pathId));
-    } else {
-        cPath.setCurrentIndex(0);
+    cPath.setCurrentIndex(0);
+    for(int i = 0; i < paths.size(); i++ ){
+        cPath.addItem(paths[i]->displayName, QVariant(paths[i]->nameId));
+        if(s->pathId.length() > 0 && paths[i]->isNamed(s->pathId))
+            cPath.setCurrentIndex(i + 1);
     }
     
     eFileName.setText(s->nameId);
@@ -178,7 +193,11 @@ void ActivityServiceProperties::showService(Service *s){
 }
 
 void ActivityServiceProperties::cPathEnabled(int val){
-    if(cPath.currentIndex() <= 0){
+    if(service == NULL)
+        return;
+    ActivityEdit edit(service);
+    edit.alsoUsersOf(service);
+    if(cPath.currentIndex() <= 0 || cPath.currentIndex() > paths.size()){
         service->setNewPath("");
         setStationList();
         return;
@@ -190,38 +209,48 @@ void ActivityServiceProperties::cPathEnabled(int val){
         setStationList();
         return;
     }
-    service->setNewPath(p->trPathName);
+    service->setNewPath(p->nameId);
     setStationList();
 }
 
 void ActivityServiceProperties::eDisplayNameEnabled(QString val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service, true);
+    edit.alsoUsersOf(service);
     service->setDisplayName(val);
 }
 void ActivityServiceProperties::ePlayerPerformanceEnabled(QString val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service, true);
+    edit.alsoUsersOf(service);
     service->setEfficiency(val.toFloat());
 }
 
 void ActivityServiceProperties::eStartSpeedEnabled(QString val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service, true);
+    edit.alsoUsersOf(service);
     service->setStartSpeed(val.toFloat());
 }
 
 void ActivityServiceProperties::eEndSpeedEnabled(QString val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service, true);
+    edit.alsoUsersOf(service);
     service->setEndSpeed(val.toFloat());
 }
     
 void ActivityServiceProperties::cConFilesEnabled(int val){
     if(service == NULL)
         return;
+    ActivityEdit edit(service);
+    edit.alsoUsersOf(service);
     if(cConFiles.currentIndex() <= 0){
-        service->trainConfig = "";
+        service->setTrainConfig("");
         return;
     }
     service->setTrainConfig(cConFiles.currentData().toString().section(".", 0, -2));
@@ -239,11 +268,15 @@ void ActivityServiceProperties::bOkEnabled(){
     this->close();
 }
 */
+Service *ActivityServiceProperties::shownService() const {
+    return service;
+}
+
 void ActivityServiceProperties::setStationList(){
     stationList.clear();
     QStringList list;
     QList<QTreeWidgetItem *> items;
-    if(cPath.currentIndex() <= 0){
+    if(service == NULL || cPath.currentIndex() <= 0 || cPath.currentIndex() > paths.size()){
         return;
     }
     Path *p = paths[cPath.currentIndex()-1];
@@ -257,15 +290,18 @@ void ActivityServiceProperties::setStationList(){
     qDebug() << p->pathObjects.size();
 
     int count = -1;
+    QHash<int, int> passes;
     foreach(Path::PathObject* i, p->pathObjects){
         count++;
         if(i == NULL)
             continue;
-        qDebug() << i->name;
-        qDebug() << i->distanceDownPath;
         list.clear();
         list.append(QString(""));
-        list.append(i->name);
+        // A platform the path passes again (a switchback): which pass.
+        const int pass = ++passes[i->platform];
+        list.append(pass > 1 ? QString(
+            //% "%1 (pass %2)"
+            qtTrId("route.editor.activity.service.properties.platform.pass")).arg(i->name).arg(pass) : i->name);
         float dist = i->distanceDownPath;
         dist = 0.01*((int)(dist/10));
         list.append(QString::number(dist));
@@ -284,6 +320,8 @@ void ActivityServiceProperties::setStationList(){
 
 void ActivityServiceProperties::setUsedByList(){
     lUsedBy.clear();
+    if(service == NULL)
+        return;
     QStringList list;
     QList<QTreeWidgetItem *> items;
     
@@ -299,8 +337,10 @@ void ActivityServiceProperties::setUsedByList(){
 }
 
 void ActivityServiceProperties::stationListSelected(QTreeWidgetItem* item, int column){
-    if(service == NULL)
+    if(service == NULL || item == NULL)
         return;
+    ActivityEdit edit(service);
+    edit.alsoUsersOf(service);
     if(item->checkState(0) == Qt::Checked){
         qDebug() << "item->checkState(0) == Qt::Checked";
         service->enableStationStop(item->type());

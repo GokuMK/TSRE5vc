@@ -26,6 +26,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/TextObj.h>
 #include <tsre/tdb/TDB.h>
+#include <tsre/tdb/Ruch.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/hud/SimpleHud.h>
 #include <tsre/sound/SoundSystem.h>
@@ -66,6 +67,7 @@ Consist::Consist(Consist * con, bool fullCopy) {
         engItems.back().eng = con->engItems[i].eng;
         engItems.back().flip = con->engItems[i].flip;
         engItems.back().uid = con->engItems[i].uid;
+        engItems.back().kept = con->engItems[i].kept;
     }
     
     if(fullCopy){
@@ -96,6 +98,8 @@ Consist::Consist(Consist * con, bool fullCopy) {
         modified = con->modified;
         defaultValue = con->defaultValue;
         maxVelocityFixed = con->maxVelocityFixed;
+        kept = con->kept;
+        keptCfg = con->keptCfg;
     }
     
     initPos();
@@ -230,7 +234,7 @@ bool Consist::load(FileBuffer* data){
                             ParserX::SkipToken(data);
                             continue;
                         }
-                        ParserX::SkipToken(data);
+                        engItems.back().kept.push_back(ParserX::KeepBlock(data, sh));
                     }
                     ParserX::SkipToken(data);
                     continue;
@@ -256,18 +260,17 @@ bool Consist::load(FileBuffer* data){
                             ParserX::SkipToken(data);
                             continue;
                         }
-                        ParserX::SkipToken(data);
+                        engItems.back().kept.push_back(ParserX::KeepBlock(data, sh));
                     }
                     ParserX::SkipToken(data);
                     continue;
                 }
-                ParserX::SkipToken(data);
+                keptCfg.push_back(ParserX::KeepBlock(data, sh));
             }
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#train - undefined token " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
     }
     return ok;
 }
@@ -319,7 +322,8 @@ void Consist::initPos(){
     }
 
 
-    if(!maxVelocityFixed){
+    // Without the cars' data (missing files) the file's values stay.
+    if(!maxVelocityFixed && mass > 0){
         //qDebug() << "mv "<< this->maxVelocity[0] <<" "<< this->maxVelocity[1];
         this->maxVelocity[0] = tmaxspeed / 3.6;
         //this->maxVelocity[1] = emass / mass;
@@ -603,7 +607,7 @@ TextObj *Consist::typeLabel(int wagonType) {
     return *label;
 }
 
-void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections){
+void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections, bool fitOnTrack){
     if(direction > 0)
         direction = 1;
     
@@ -627,16 +631,38 @@ void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junction
     float conLen = 0;
     if(engItems.size() > 0)
         conLen = engItems[0].pos;
+    float advance = 0;
+    if(fitOnTrack && conLength > conLen){
+        const float behind = conLength - conLen + 1.0f;
+        const float room = roomBehind(tpos, direction, junctionDirections, behind);
+        if(room < behind){
+            advance = behind - room;
+            qDebug() << "coninit advance" << advance;
+        }
+    }
+    // Each vehicle moved to its place in one go: none passes the track's
+    // end on the way (a traveller turns back there).
     for(int i = 0; i < engItems.size(); i++){
         if(engItems[i].engPointer == NULL)
             engItems[i].engPointer = new Eng(Game::currentEngLib->eng[engItems[i].eng]);
-        engItems[i].engPointer->initOnTrack(tpos, direction, junctionDirections);
+        engItems[i].engPointer->initOnTrack(tpos, direction, junctionDirections,
+                                            advance - (engItems[i].conLength - conLen));
         engItems[i].engPointer->flip = engItems[i].flip;
-        //engItems[i].engPointer->move(26.5*i);
-        //engItems[i].engPointer->move(engItems[i].conLength);
-        engItems[i].engPointer->move(-(engItems[i].conLength-conLen));
     }
     this->isOnTrack = true;
+}
+
+float Consist::roomBehind(const float *tpos, int direction, QMap<int, int> *junctionDirections, float wanted){
+    Ruch probe;
+    probe.set(tpos[0], tpos[1], direction, junctionDirections);
+    float behind = 0;
+    while(behind < wanted){
+        probe.next(-0.5f);
+        if(probe.endsPassed > 0)
+            return behind;
+        behind += 0.5f;
+    }
+    return wanted;
 }
 
 void Consist::setTrainSpeed(float val){
@@ -794,7 +820,8 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
 bool Consist::getWagonWorldPosition(int id, float *posTW){
     if (loaded != 1) return false;
     
-    if(id >= engItems.size())
+    // A consist not yet placed on the track has no wagons there.
+    if(id < 0 || id >= engItems.size() || engItems[id].engPointer == NULL)
         return false;
     
     float *drawPosition = engItems[id].engPointer->getCurrentPositionOnTrack();
@@ -851,6 +878,7 @@ void Consist::save(){
     out << "\n";
     out << "Train (\n";
     save("", &out);
+    ParserX::WriteKept(&out, kept, "	");
     out << ")\n";
     
     file.close(); 
@@ -877,6 +905,7 @@ void Consist::save(QString woff, QTextStream* out){
             *out << woff <<"			Flip ( )\n";
             *out << woff <<"			UiD ( " << engItems[i].uid << " )\n";
             *out << woff <<"			EngineData ( " << ParserX::AddComIfReq(engItems[i].ename) << " " << ParserX::AddComIfReq(engItems[i].epath) << " )\n";
+            ParserX::WriteKept(out, engItems[i].kept, woff + "			");
             *out << woff <<"		)\n";
         } 
         if(this->engItems[i].type == 0){
@@ -885,9 +914,11 @@ void Consist::save(QString woff, QTextStream* out){
             if(this->engItems[i].flip)
             *out << woff <<"			Flip ( )\n";
             *out << woff <<"			UiD ( " << engItems[i].uid << " )\n";
+            ParserX::WriteKept(out, engItems[i].kept, woff + "			");
             *out << woff <<"		)\n";
         }
     }
+    ParserX::WriteKept(out, keptCfg, woff + "		");
     *out << woff <<"	)\n";
 }
 

@@ -17,6 +17,7 @@
 #include <tsre/Game.h>
 #include <QDebug>
 #include <QFile>
+#include <QSet>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/tdb/TDB.h>
 #include <routeEditor/AboutWindow.h>
@@ -25,6 +26,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/map/MapFeatures.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/ServiceStops.h>
 #include <tsre/renderer/RenderQueue.h>
 
 Service::Service(QString p, QString n, bool nowe) {
@@ -59,7 +61,6 @@ Service::~Service() {
 }
 
 void Service::load(){
-    QString sh;
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
@@ -73,7 +74,13 @@ void Service::load(){
     file->close();
     data->toUtf16();
     data->skipBOM();
+    parse(data);
+    delete data;
+    loaded = 1;
+}
 
+void Service::parse(FileBuffer *data){
+    QString sh;
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         if (sh == ("simisa@@@@@@@@@@jinx0v0t______")) {
             continue;
@@ -86,17 +93,17 @@ void Service::load(){
                     continue;
                 }
                 if (sh == ("name")) {
-                    displayName = ParserX::GetString(data);
+                    displayName = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("train_config")) {
-                    trainConfig = ParserX::GetString(data);
+                    trainConfig = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("pathid")) {
-                    pathId = ParserX::GetString(data);
+                    pathId = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -150,20 +157,17 @@ void Service::load(){
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#stationstop - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                stationStop.back().kept.push_back(ParserX::KeepBlock(data, sh));
                             }
                             ParserX::SkipToken(data);
                             continue;
                         }
-                        qDebug() << "#timetable - undefined token: " << sh;
-                        ParserX::SkipToken(data);
+                        keptTimetable.push_back(ParserX::KeepBlock(data, sh));
                     }
                     ParserX::SkipToken(data);
                     continue;
                 }
-                qDebug() << "#service_definition - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                kept.push_back(ParserX::KeepBlock(data, sh));
             }
             ParserX::SkipToken(data);
             continue;
@@ -171,7 +175,35 @@ void Service::load(){
         qDebug() << "#SRV - undefined token: " << sh;
         ParserX::SkipToken(data);
     }
-    loaded = 1;
+}
+
+std::shared_ptr<TextSnapshot> Service::snapshot(){
+    auto copy = std::make_shared<TextSnapshot>();
+    copy->text = toText();
+    copy->unsaved = isModified();
+    copy->saves = saves;
+    return copy;
+}
+
+void Service::restore(const TextSnapshot &snapshot){
+    const QString oldPath = pathId, oldConsist = trainConfig;
+    displayName.clear();
+    trainConfig.clear();
+    pathId.clear();
+    maxWheelAcceleration = efficiency = startingSpeed = endingSpeed = startInWorld = endInWorld = 0;
+    stationStop.clear();
+    kept.clear();
+    keptTimetable.clear();
+    serial = -1;
+    FileBuffer *data = FileBuffer::fromText(snapshot.text);
+    parse(data);
+    delete data;
+    // The train shown on its path is made again when they changed.
+    if(pathId != oldPath || trainConfig != oldConsist){
+        pathPointer = NULL;
+        conPointer = NULL;
+    }
+    modified = snapshot.unsaved || snapshot.saves != saves;
 }
 
 void Service::save(){
@@ -194,7 +226,16 @@ void Service::save(){
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
-    
+    out << toText();
+    out.flush();
+    file.close();
+    modified = false;
+    ++saves;
+}
+
+QString Service::toText(){
+    QString text;
+    QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0v0t______\n";
     out << "\n";
     out << "Service_Definition (\n";
@@ -216,19 +257,21 @@ void Service::save(){
         out << "			PlatformStartID ( "<<stationStop[i].platformStartID<<" )\n";
         out << "			DistanceDownPath ( "<<stationStop[i].distanceDownPath<<" )\n";
         out << "			SkipCount ( "<<stationStop[i].skipCount<<" )\n";
+        ParserX::WriteKept(&out, stationStop[i].kept, "			");
         out << "		)\n";
     }
+    ParserX::WriteKept(&out, keptTimetable, "		");
     out << "	)\n";
+    ParserX::WriteKept(&out, kept, "	");
     out << ")\n";
-    
-    file.close();
-    modified = false;
+    out.flush();
+    return text;
 }
 
-void Service::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId) {
+void Service::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, int pathStyle) {
     initToPlay();
     if (pathPointer != NULL)
-        pathPointer->pushRenderItems(queue, playerT, selectionId);
+        pathPointer->pushRenderItems(queue, playerT, selectionId, pathStyle);
     if (conPointer != NULL)
         conPointer->pushRenderItemsOnTrack(queue, playerT, selectionId);
 }
@@ -245,6 +288,8 @@ Path *Service::getPathPointer() {
 }
 
 void Service::initToPlay(){
+    if(pathPointer == NULL)
+        pathPointer = ActLib::GetPathByName(pathId, ContentPath::parentDirectory(path));
     if(pathPointer == NULL){
         QDir dir(Game::root + "/ROUTES/" + Game::route + "/PATHS");
         int pathPointerId;
@@ -256,7 +301,7 @@ void Service::initToPlay(){
         int conPointerId;
         qDebug() << "conid" << (conPointerId =  ConLib::addCon(dir.path(), trainConfig+".con"));
         conPointer = new Consist(ConLib::con[conPointerId], true);
-        conPointer->initOnTrack(pathPointer->getStartPositionTXZ(), pathPointer->getStartDirection(), pathPointer->getJunctionDirections());
+        conPointer->initOnTrack(pathPointer->getStartPositionTXZ(), pathPointer->getStartDirection(), pathPointer->getJunctionDirections(), true);
     }
 }
 
@@ -264,7 +309,7 @@ void Service::pathChanged(Path *path){
     if(path == NULL || pathPointer != path || conPointer == NULL)
         return;
     float start[4];
-    conPointer->initOnTrack(pathPointer->getStartPositionTXZ(start), pathPointer->getStartDirection(), pathPointer->getJunctionDirections());
+    conPointer->initOnTrack(pathPointer->getStartPositionTXZ(start), pathPointer->getStartDirection(), pathPointer->getJunctionDirections(), true);
 }
 
 Consist *Service::getConsistPointer(){
@@ -290,40 +335,76 @@ void Service::setNameId(QString val){
 }
 
 void Service::setNewPath(QString pathName){
+    const QVector<StationStop> before = stationStop;
     stationStop.clear();
     pathId = pathName;
-    if(pathId.length() <= 0)
+    modified = true;
+    // Every platform of the new path a stop; a stop at the same pass of a
+    // platform as before keeps its times in the activities.
+    const auto follow = [&]{
+        QVector<int> from(stationStop.size(), -1);
+        QVector<bool> used(before.size(), false);
+        QHash<int, int> seenAfter;
+        for(int j = 0; j < stationStop.size(); j++){
+            const int platform = ServiceStops::Platform(stationStop[j].platformStartID);
+            const int pass = seenAfter[platform]++;
+            int seenBefore = 0;
+            for(int i = 0; i < before.size(); i++){
+                if(ServiceStops::Platform(before[i].platformStartID) != platform)
+                    continue;
+                if(seenBefore++ == pass && !used[i]){
+                    from[j] = i;
+                    used[i] = true;
+                    break;
+                }
+            }
+        }
+        ServiceStops::Follow(this, before, from);
+    };
+    if(pathId.length() <= 0){
+        follow();
         return;
+    }
     qDebug() << "new path:" << pathId;
     Path *p = ActLib::GetPathByName(pathId, ContentPath::parentDirectory(path));
     if(p == NULL){
         qDebug() << "null path";
+        follow();
         return;
     }
     p->init3dShapes(false);
 
-    int ii = 0;
-    foreach(Path::PathObject* i, p->pathObjects){
-        if(i == NULL)
+    // A stop at each platform, at the first of its passes (a switchback
+    // passes one twice); its SkipCount the pass's place.
+    QSet<int> stopped;
+    for(int ii = 0; ii < p->pathObjects.size(); ii++){
+        const Path::PathObject *i = p->pathObjects[ii];
+        if(i == NULL || stopped.contains(i->platform))
             continue;
+        stopped.insert(i->platform);
         stationStop.push_back(StationStop());
         stationStop.back().platformStartID = i->trItemId;
         stationStop.back().distanceDownPath = i->distanceDownPath;
-        stationStop.back().skipCount = ii++;
+        stationStop.back().skipCount = ii;
     }
     modified = true;
-    ActLib::UpdateServiceChanges(nameId, ContentPath::parentDirectory(path));
+    follow();
 }
 
 void Service::disableStationStop(int count){
     for(int ii = 0; ii < stationStop.size(); ii++ ){
         if(stationStop[ii].skipCount == count){
+            const QVector<StationStop> before = stationStop;
             stationStop.remove(ii);
-            ActLib::UpdateServiceChanges(nameId, ContentPath::parentDirectory(path));
+            modified = true;
+            QVector<int> from;
+            for(int i = 0; i < before.size(); i++)
+                if(i != ii)
+                    from.push_back(i);
+            ServiceStops::Follow(this, before, from);
             return;
         }
     }
-    modified = true;
 }
 
 void Service::setDisplayName(QString val){
@@ -361,9 +442,10 @@ void Service::enableStationStop(int count){
         return;
     }
     p->init3dShapes(false);
-    if(p->pathObjects.size() < count)
+    if(count < 0 || count >= p->pathObjects.size() || p->pathObjects[count] == NULL)
         return;
     
+    const QVector<StationStop> before = stationStop;
     float dist = p->pathObjects[count]->distanceDownPath;
     int i;
     for(i = 0; i < stationStop.size(); i++ ){
@@ -375,7 +457,91 @@ void Service::enableStationStop(int count){
     stationStop[i].distanceDownPath = p->pathObjects[count]->distanceDownPath;
     stationStop[i].platformStartID = p->pathObjects[count]->trItemId;
     stationStop[i].skipCount = count;
-    
-    ActLib::UpdateServiceChanges(nameId, ContentPath::parentDirectory(path));
     modified = true;
+    QVector<int> from;
+    for(int j = 0; j < stationStop.size(); j++)
+        from.push_back(j < i ? j : (j == i ? -1 : j - 1));
+    ServiceStops::Follow(this, before, from);
+}
+QStringList Service::followPath(Path *path){
+    QStringList report;
+    if(path == NULL || !path->isNamed(pathId) || stationStop.isEmpty())
+        return report;
+    const QVector<Path::PathObject> &old = path->previousPasses();
+    QVector<Path::PathObject> now;
+    for(const Path::PathObject *pass : path->pathObjects)
+        now.push_back(*pass);
+    const QVector<int> oldPass = ServiceStops::Passes(stationStop, old);
+    const QVector<StationStop> before = stationStop;
+    QVector<StationStop> after;
+    QVector<int> from;
+    QStringList removed;
+    for(int i = 0; i < before.size(); i++){
+        StationStop stop = before[i];
+        const int p = oldPass[i];
+        if(p < 0){
+            // Not at a platform the path passed: left as it is.
+            after.push_back(stop);
+            from.push_back(i);
+            continue;
+        }
+        // Which pass of its platform the stop is at, before and now.
+        int pass = 0;
+        for(int v = 0; v < p; v++)
+            pass += old[v].platform == old[p].platform ? 1 : 0;
+        int q = -1;
+        for(int v = 0, seen = 0; v < now.size() && q < 0; v++)
+            if(now[v].platform == old[p].platform && seen++ == pass)
+                q = v;
+        if(q < 0){
+            removed << old[p].name;
+            continue;
+        }
+        float distance = now[q].distanceDownPath;
+        if(now[q].meets(stop.platformStartID, &distance)){
+            stop.distanceDownPath = distance;
+        } else {
+            stop.platformStartID = now[q].trItemId;
+            stop.distanceDownPath = now[q].distanceDownPath;
+        }
+        stop.skipCount = q;
+        after.push_back(stop);
+        from.push_back(i);
+    }
+    // In the order the path passes them.
+    QVector<int> order(after.size());
+    for(int j = 0; j < order.size(); j++)
+        order[j] = j;
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b){
+        return after[a].distanceDownPath < after[b].distanceDownPath;
+    });
+    QVector<StationStop> sorted;
+    QVector<int> sortedFrom;
+    for(int j : order){
+        sorted.push_back(after[j]);
+        sortedFrom.push_back(from[j]);
+    }
+    bool same = sorted.size() == before.size();
+    for(int j = 0; same && j < sorted.size(); j++)
+        same = sorted[j].platformStartID == before[j].platformStartID
+                && sorted[j].skipCount == before[j].skipCount
+                && std::fabs(sorted[j].distanceDownPath - before[j].distanceDownPath) < 0.01f;
+    if(same)
+        return report;
+    stationStop = sorted;
+    modified = true;
+    if(removed.isEmpty())
+        report << QString(
+            //% "%1: its %2 stops follow the path."
+            qtTrId("activity.follow.service.stops")).arg(nameId).arg(sorted.size());
+    else
+        report << QString(
+            //% "%1: its stops follow the path; the path no longer passes %2, those stops are removed."
+            qtTrId("activity.follow.service.removed")).arg(nameId, removed.join(", "));
+    const QStringList users = ServiceStops::Follow(this, before, sortedFrom);
+    if(!users.isEmpty())
+        report << QString(
+            //% "%1: the timetables of %2 follow."
+            qtTrId("activity.follow.users")).arg(nameId, users.join(", "));
+    return report;
 }

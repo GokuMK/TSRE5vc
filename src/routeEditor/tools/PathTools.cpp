@@ -9,6 +9,7 @@
  */
 
 #include "PathTools.h"
+#include "WaitPointDialog.h"
 #include "ToolContext.h"
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
@@ -204,15 +205,11 @@ public:
             qtTrId("route.editor.path.tool.remove.reverse"),
             PathTrack::removeLastReverse(tdb, nodes));
 
-        // Wait points: the time is asked when the entry is chosen.
+        // Wait points: the kind and its time are asked when the entry is
+        // chosen (MSTS's seconds, or Open Rails' meanings).
         QWidget *view = ctx.view();
         auto askTime = [view](int seconds, bool &ok) {
-            return QInputDialog::getInt(view,
-                //% "Wait Point"
-                qtTrId("route.editor.path.tool.wait.title"),
-                //% "Wait (seconds):"
-                qtTrId("route.editor.path.tool.wait.seconds"),
-                seconds, 0, PathTrack::MaxWaitTime, 10, &ok);
+            return WaitPointDialog::ask(view, seconds, ok);
         };
         const Result addWait = onTrack ? PathTrack::waitAt(tdb, nodes, point, PathTrack::DefaultWaitTime)
                                        : failed(Note::NoTrack);
@@ -238,7 +235,7 @@ public:
         const Result editWait = wait >= 0 ? PathTrack::setWaitTime(tdb, nodes, wait, nodes[wait].waitTime)
                                           : failed(Note::NoWait);
         addTimed(
-            //% "Edit Wait Time..."
+            //% "Edit Wait Point..."
             qtTrId("route.editor.path.tool.wait.edit"),
             editWait, [=] {
                 bool ok = false;

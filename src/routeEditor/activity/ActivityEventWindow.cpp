@@ -9,6 +9,8 @@
  */
 
 #include "ActivityEventWindow.h"
+#include <tsre/trains/ActivityNotifier.h>
+#include <routeEditor/activity/ActivityEdit.h>
 #include "ActivityEventProperties.h"
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
@@ -83,6 +85,7 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     timeWidget.setLayout(timeListLayout);
     
     QTabWidget *tabWidget = new QTabWidget;
+    tabs = tabWidget;
     tabWidget->setContentsMargins(1,1,1,1);
     tabWidget->addTab(&actionWidget,
         //% "Action"
@@ -110,72 +113,98 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     QObject::connect(&timeList, SIGNAL(itemClicked(QListWidgetItem*)),
                       this, SLOT(eventListSelected(QListWidgetItem*)));
     
+    // Undo replaces activity data: let go of it before, show it after.
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
+                     this, &ActivityEventWindow::activityDataRestoring);
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored,
+                     this, &ActivityEventWindow::activityDataRestored);
     QObject::connect(eventProperties, SIGNAL(eventNameChanged(int)),
                       this, SLOT(eventNameChanged(int)));
     
 }
 
 void ActivityEventWindow::eventNameChanged(int id){
+    Q_UNUSED(id);
     if(activity == NULL)
         return;
-    int j = -1;
-    /*for(int i = 0; i < activity->event.size(); i++ ){
-        if(activity->event[i].id == id){
-            j = i;
-            break;
-        }
-    }
-    if(j == -1){*/
-    if(activity->currentEventSelected == NULL){
-        showEvents(activity);
-    }
-
-    QListWidget *list = NULL;
-    if(activity->currentEventSelected->category == ActivityEvent::CategoryAction)
-        list = &actionList;
-    if(activity->currentEventSelected->category == ActivityEvent::CategoryLocation)
-        list = &locationList;
-    if(activity->currentEventSelected->category == ActivityEvent::CategoryTime)
-        list = &timeList;
-
-    int idxR = list->currentRow();
     showEvents(activity);
-    list->item(idxR)->setSelected(true);
-    list->setCurrentRow(idxR);
-    eventListSelected(list->item(idxR));
 }
 
 void ActivityEventWindow::showEvents(Activity* act){
     if(this->isHidden())
         return;
+    if(act != activity)
+        eventProperties->showEvent(NULL);
     activity = act;
-    
+
     actionList.clear();
     locationList.clear();
     timeList.clear();
-    
+    if(activity == NULL)
+        return;
+
     for(int i = 0; i < activity->event.size(); i++ ){
-        if(activity->event[i].category == ActivityEvent::CategoryAction){
-            new QListWidgetItem ( activity->event[i].name, &actionList, i );
+        const ActivityEvent *e = activity->event[i];
+        if(e == NULL)
+            continue;
+        if(e->category == ActivityEvent::CategoryAction){
+            new QListWidgetItem ( e->name, &actionList, i );
         }
-        if(activity->event[i].category == ActivityEvent::CategoryLocation){
-            new QListWidgetItem ( activity->event[i].name, &locationList, i );
+        if(e->category == ActivityEvent::CategoryLocation){
+            new QListWidgetItem ( e->name, &locationList, i );
         }
-        if(activity->event[i].category == ActivityEvent::CategoryTime){
-            new QListWidgetItem ( activity->event[i].name, &timeList, i );
+        if(e->category == ActivityEvent::CategoryTime){
+            new QListWidgetItem ( e->name, &timeList, i );
         }
     }
-    
+
     eventProperties->setEventList(act->getEventIdNameList());
     eventProperties->setStationStopList(act->getServiceStationStopNameList());
+    selectShownEvent();
+}
+
+void ActivityEventWindow::selectShownEvent(){
+    if(activity == NULL || activity->currentEventSelected == NULL)
+        return;
+    const int index = activity->event.indexOf(activity->currentEventSelected);
+    for(QListWidget *list : {&actionList, &locationList, &timeList}){
+        for(int row = 0; row < list->count(); row++){
+            if(list->item(row)->type() == index){
+                QSignalBlocker blocker(list);
+                list->setCurrentRow(row);
+            }
+        }
+    }
+}
+
+void ActivityEventWindow::selectEvent(int id){
+    if(activity == NULL)
+        return;
+    for(ActivityEvent *e : activity->event){
+        if(e == NULL || e->id != id)
+            continue;
+        activity->currentEventSelected = e;
+        eventProperties->showEvent(e);
+        if(e->category == ActivityEvent::CategoryAction)
+            tabs->setCurrentIndex(0);
+        if(e->category == ActivityEvent::CategoryLocation)
+            tabs->setCurrentIndex(1);
+        if(e->category == ActivityEvent::CategoryTime)
+            tabs->setCurrentIndex(2);
+        selectShownEvent();
+        return;
+    }
 }
 
 void ActivityEventWindow::eventListSelected(QListWidgetItem * item){
-    if(activity == NULL)
+    if(activity == NULL || item == NULL)
         return;
-    eventProperties->showEvent(&activity->event[item->type()]);
-    activity->currentEventSelected = &activity->event[item->type()];
-    
+    const int index = item->type();
+    if(index < 0 || index >= activity->event.size() || activity->event[index] == NULL)
+        return;
+    eventProperties->showEvent(activity->event[index]);
+    activity->currentEventSelected = activity->event[index];
+
     this->resize(this->width(), this->minimumHeight());
 }
 
@@ -190,18 +219,46 @@ void ActivityEventWindow::bNewEventSelected(){
         category = ActivityEvent::CategoryTime;
     if(locationWidget.isVisible())
         category = ActivityEvent::CategoryLocation;
-    
-    activity->newEvent(category);
-    
+    if(category == ActivityEvent::CategoryUndefined)
+        return;
+
+    ActivityEdit edit(activity);
+    ActivityEvent *e = activity->newEvent(category);
+    activity->currentEventSelected = e;
+    eventProperties->showEvent(e);
     showEvents(activity);
 }
 
 void ActivityEventWindow::bDeleteEventSelected(){
-    if(activity == NULL)
+    if(activity == NULL || activity->currentEventSelected == NULL)
         return;
-    activity->deleteCurrentEvent();
+    ActivityEdit edit(activity);
+    // The properties stop showing it before it is freed.
+    eventProperties->showEvent(NULL);
+    activity->deleteEvent(activity->currentEventSelected);
     showEvents(activity);
 }
 
 ActivityEventWindow::~ActivityEventWindow() {
+}
+// The event shown is found again by its ID.
+void ActivityEventWindow::activityDataRestoring(){
+    restoredEventId = activity != NULL && activity->currentEventSelected != NULL
+            ? activity->currentEventSelected->id : -99999;
+    eventProperties->showEvent(NULL);
+    actionList.clear();
+    locationList.clear();
+    timeList.clear();
+}
+
+void ActivityEventWindow::activityDataRestored(){
+    if(activity == NULL)
+        return;
+    for(ActivityEvent *e : activity->event)
+        if(e != NULL && e->id == restoredEventId){
+            activity->currentEventSelected = e;
+            eventProperties->showEvent(e);
+            break;
+        }
+    showEvents(activity);
 }

@@ -12,22 +12,27 @@
 #define	SERVICE_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
+#include <memory>
+#include <tsre/trains/TextSnapshot.h>
 
 class RenderQueue;
 
 class GLUU;
 class Path;
 class Consist;
+class FileBuffer;
 
 struct MapFeatures;
 
 class Service {
 public:
     struct StationStop{
-        int platformStartID;
-        float distanceDownPath;
-        int skipCount;
+        int platformStartID = 0;
+        float distanceDownPath = 0;
+        int skipCount = 0;
+        QStringList kept;
     };
     
     QString displayName;
@@ -46,6 +51,10 @@ public:
     float startInWorld;
     float endInWorld;
     QVector<StationStop> stationStop;
+    // Blocks TSRE does not read, as they were in the file, by the block
+    // they were in (stops have their own); written at the end of it.
+    QStringList kept;
+    QStringList keptTimetable;
     int loaded = -1;
     int ref = 0;
     
@@ -64,9 +73,16 @@ public:
     void setTrainConfig(QString val);
     void load();
     void save();
+    // The file's text, as save writes it.
+    QString toText();
+    // Undo: the service as text, and back.
+    std::shared_ptr<TextSnapshot> snapshot();
+    void restore(const TextSnapshot &snapshot);
     Consist *getConsistPointer();
     void updateSim(float *playerT, float deltaTime);
-    void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId);
+    // Its path (in the path's line style) and its consist at the path's
+    // start.
+    void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, int pathStyle = 0);
     // The service's consist for the map mode, and its path.
     void getMapFeatures(MapFeatures &consist, int tileX, int tileZ);
     Path *getPathPointer();
@@ -74,11 +90,20 @@ public:
     // The consist goes to the start of its path again after the path was
     // edited.
     void pathChanged(Path *path);
+    // The path was edited (or undone): each stop stays at its platform's
+    // pass (the same platform, the same pass of it), taking its new place
+    // and distance, or goes when the path no longer passes it so; the
+    // activities and traffic running the service follow. What changed, for
+    // the report.
+    QStringList followPath(Path *path);
 private:
     bool modified = false;
     int serial = -1;
+    // Times saved: a state restored from before a save is not on disk.
+    int saves = 0;
     Path *pathPointer = NULL;
     Consist *conPointer = NULL;
+    void parse(FileBuffer *data);
 };
 
 #endif	/* SERVICE_H */

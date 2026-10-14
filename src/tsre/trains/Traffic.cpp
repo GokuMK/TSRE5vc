@@ -19,6 +19,9 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/trains/ActivityTimetable.h>
+#include <tsre/trains/ActLib.h>
+#include <tsre/Undo.h>
+#include <tsre/trains/Activity.h>
 
 Traffic::Traffic(QString p, QString n, bool nowe) {
     pathid = p + "/" + n;
@@ -45,7 +48,6 @@ Traffic::~Traffic() {
 }
 
 void Traffic::load(){
-    QString sh;
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
@@ -59,14 +61,20 @@ void Traffic::load(){
     file->close();
     data->toUtf16();
     data->skipBOM();
+    parse(data);
+    delete data;
+    loaded = 1;
+}
 
+void Traffic::parse(FileBuffer *data){
+    QString sh;
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         //qDebug() << sh;
         if (sh == ("simisa@@@@@@@@@@jinx0f0t______")) {
             continue;
         }
         if (sh == ("traffic_definition")) {
-            nameId = ParserX::GetString(data);
+            displayName = ParserX::GetStringInside(data);
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 if (sh == ("serial")) {
                     serial = ParserX::GetNumber(data);
@@ -80,8 +88,7 @@ void Traffic::load(){
                     ParserX::SkipToken(data);
                     continue;
                 }
-                qDebug() << "#traffic_definition - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                kept.push_back(ParserX::KeepBlock(data, sh));
             }
             ParserX::SkipToken(data);
             continue;
@@ -89,16 +96,71 @@ void Traffic::load(){
         qDebug() << "#TRF - undefined token: " << sh;
         ParserX::SkipToken(data);
     }
-    loaded = 1;
 }
 
-ActivityTimetable* Traffic::getTimetableByServiceName(QString nameTime){
+std::shared_ptr<TextSnapshot> Traffic::snapshot(){
+    auto copy = std::make_shared<TextSnapshot>();
+    copy->text = toText();
+    copy->unsaved = isModified();
+    copy->saves = saves;
+    return copy;
+}
+
+void Traffic::restore(const TextSnapshot &snapshot){
+    ActLib::ForgetInstances(this);
+    qDeleteAll(service);
+    service.clear();
+    kept.clear();
+    displayName.clear();
+    serial = -1;
+    FileBuffer *data = FileBuffer::fromText(snapshot.text);
+    parse(data);
+    delete data;
+    modified = snapshot.unsaved || snapshot.saves != saves;
+}
+
+ActivityTimetable* Traffic::getInstance(const QString &serviceName, int time){
     for(int i = 0; i < service.size(); i++){
-        //qDebug() << nameTime << service[i]->nameTime;
-        if(service[i]->nameTime == nameTime)
+        if(service[i]->time == time && service[i]->name.compare(serviceName, Qt::CaseInsensitive) == 0)
             return service[i];
     }
     return NULL;
+}
+
+void Traffic::setInstanceTime(ActivityTimetable *instance, int time){
+    if(instance == NULL || instance->time == time)
+        return;
+    const int before = instance->time;
+    for(Activity *activity : ActLib::Act){
+        if(activity == NULL || activity->loaded != 1 || activity->traffic == NULL
+                || activity->routeHashid != routeHashid
+                || activity->traffic->name.compare(nameId, Qt::CaseInsensitive) != 0)
+            continue;
+        bool kept = false;
+        for(ActivityServiceDefinition &train : activity->traffic->service){
+            if(train.time != before || train.name.compare(instance->name, Qt::CaseInsensitive) != 0)
+                continue;
+            if(!kept)
+                Undo::PushActivityData(activity);
+            kept = true;
+            train.time = time;
+            train.setChanged();
+        }
+    }
+    instance->setTime(time);
+    modified = true;
+}
+
+void Traffic::addInstance(ActivityTimetable *instance){
+    service.push_back(instance);
+    modified = true;
+}
+
+void Traffic::removeInstance(int index){
+    if(index < 0 || index >= service.size())
+        return;
+    service.remove(index);
+    modified = true;
 }
 
 bool Traffic::isModified(){
@@ -129,10 +191,21 @@ void Traffic::save(){
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
-    
+    out << toText();
+    out.flush();
+    file.close();
+    modified = false;
+    for(ActivityTimetable *instance : service)
+        instance->setModified(false);
+    ++saves;
+}
+
+QString Traffic::toText(){
+    QString text;
+    QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0f0t______\n";
     out << "\n";
-    out << "Traffic_Definition ( " << ParserX::AddComIfReq(nameId) << "\n";
+    out << "Traffic_Definition ( " << ParserX::AddComIfReq(displayName.isEmpty() ? nameId : displayName) << "\n";
     if (serial >= 0) {
         out << "	Serial ( " << serial << " )\n";
     }
@@ -141,8 +214,6 @@ void Traffic::save(){
         if(!service[i]->empty)
             service[i]->save(&out, off);
     }
+    ParserX::WriteKept(&out, kept, off);
     out << ")\n";
-    
-    file.close();
-    modified = false;
-}
+    out.flush();    return text;}
