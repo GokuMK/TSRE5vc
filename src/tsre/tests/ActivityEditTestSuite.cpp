@@ -152,6 +152,52 @@ Tr_Activity (
 )
 )";
 
+// TSRE's older forms: a sound and a weather preset in the outcomes, each
+// with a copy at event level; and an event-level sound of its own.
+const char *legacyActivity = R"(SIMISA@@@@@@@@@@JINX0a0t______
+
+Tr_Activity (
+	Tr_Activity_Header (
+		RouteID ( TEST )
+		Name ( "Legacy" )
+		StartTime ( 8 0 0 )
+		Duration ( 1 0 )
+	)
+	Tr_Activity_File (
+		NextServiceUID ( 1 )
+		NextActivityObjectUID ( 32768 )
+		Events (
+			EventCategoryTime (
+				EventTypeTime ( )
+				ID ( 1 )
+				Activation_Level ( 1 )
+				Outcomes (
+					ORTSActSoundFile ( "a.wav" Cab )
+					ORTSWeatherChange ( "rain" )
+				)
+				Name ( "Older" )
+				Time ( 60 )
+				ORTSActSoundFile ( "a.wav" Cab )
+				ORTSWeatherChange (
+					Name ( "rain" )
+					ORTSOvercast ( 0.9 60 )
+					ORTSFog ( 300 120 )
+				)
+			)
+			EventCategoryTime (
+				EventTypeTime ( )
+				ID ( 2 )
+				Activation_Level ( 1 )
+				Outcomes ( )
+				Name ( "Own" )
+				Time ( 90 )
+				ORTSActSoundFile ( "b.wav" Everywhere )
+			)
+		)
+	)
+)
+)";
+
 }
 
 int TsreTests::runActivityEditSuite(bool verbose) {
@@ -170,7 +216,8 @@ int TsreTests::runActivityEditSuite(bool verbose) {
           && writeSimis(route + "/PATHS/Trap.pat", pathText("Other"))
           && writeSimis(route + "/SERVICES/Stops.srv", serviceText)
           && writeSimis(route + "/TRAFFIC/Keys.trf", trafficText)
-          && writeSimis(route + "/ACTIVITIES/Undo.act", activityText),
+          && writeSimis(route + "/ACTIVITIES/Undo.act", activityText)
+          && writeSimis(route + "/ACTIVITIES/Legacy.act", legacyActivity),
           "write the test route");
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "TEST");
@@ -312,6 +359,41 @@ int TsreTests::runActivityEditSuite(bool verbose) {
         QObject::disconnect(before);
         QObject::disconnect(after);
     }
+    // TSRE's older forms become Open Rails' outcomes; its event-level copies
+    // go; an event-level form of its own stays as read.
+    {
+        Activity legacy(route + "/ACTIVITIES/Legacy.act", route + "/ACTIVITIES", QString("Legacy.act"));
+        const ActivityEvent *older = legacy.event.value(0), *own = legacy.event.value(1);
+        const QString text = legacy.toText();
+        check(older && older->ortsActSoundFileDeprecated.isEmpty() && older->ortsWeatherChangeDeprecated == nullptr,
+              "TSRE's event-level copies of its outcomes are dropped");
+        const ActivityEvent::Outcome *weather = older ? older->outcomes.value(1) : nullptr;
+        check(weather && weather->value.toString().isEmpty() && weather->weather[0] == 0.9f
+              && weather->weatherTime[1] == 120,
+              "a weather preset takes its values from its copy");
+        check(text.count("ORTSActivitySound") == 1 && text.count("ORTSActSoundFile") == 2
+              && text.count("ORTSWeatherChange") == 1 && text.contains("ORTSOvercast ( 0.9 60 )"),
+              "written in Open Rails' outcome forms; the other event's own sound as read");
+        check(own && own->ortsActSoundFileDeprecated == QVector<QString>({"b.wav", "Everywhere"}),
+              "an event-level sound of its own stays");
+    }
+    // Open Rails' additions are written only when set.
+    {
+        Activity fresh(route + "/ACTIVITIES", "fresh.act", true);
+        fresh.init("TEST", "fresh");
+        ActivityEvent *event = fresh.newEvent(ActivityEvent::CategoryLocation);
+        const QString text = fresh.toText();
+        check(!text.contains("FuelWood") && !text.contains("ORTS") && !text.contains("Reversible"),
+              "a new activity has no Open Rails attributes");
+        fresh.setFuelWood(50);
+        fresh.setOrtsHornPattern("Single");
+        event->setTriggeringTrain("AI", -1);
+        const QString set = fresh.toText();
+        check(set.contains("FuelWood ( 50 )") && set.contains("ORTSAICrossingHornPattern ( Single )")
+              && set.contains("ORTSTriggeringTrain ( AI )") && set.indexOf("ORTSAICrossingHornPattern") > set.indexOf("NextActivityObjectUID"),
+              "set, they are written; the horn pattern after NextActivityObjectUID");
+    }
+
     Undo::Clear();
     for (int id = firstAct; id < ActLib::jestact; ++id) ActLib::Act[id] = nullptr;
     for (int id = firstTraffic; id < ActLib::jesttraffic; ++id) ActLib::Traffics[id] = nullptr;

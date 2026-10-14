@@ -98,6 +98,11 @@ public:
         int fuelWater = -1;
         int fuelCoal = -1;
         int fuelDiesel = -1;
+        // Open Rails: wood and sand at the start (%, -1 not set), the loads
+        // at stations (OPENRAILS/<name>.load-stations-loads-or).
+        int fuelWood = -1;
+        int fuelSand = -1;
+        QString loadStationsPopulation;
         int* voltage = NULL;
         QStringList kept;
         void load(FileBuffer* data);
@@ -122,6 +127,9 @@ public:
     int nextActivityObjectUID = -1;
     int nextEventUID = 0;
     int ortsAIHornAtCrossings = -9999;
+    // Open Rails: how AI trains sound the horn at crossings (US, Single;
+    // empty not set).
+    QString ortsAICrossingHornPattern;
     QVector<ActivityObject*> activityObjects;
     QVector<QPair<int, int>> platformNumPassengersWaiting;
     QVector<ActivityObject*> restrictedSpeedZone;
@@ -183,6 +191,10 @@ public:
     void setFuelCoal(int val);
     void setFuelWater(int val);
     void setFuelDiesel(int val);
+    void setFuelWood(int val);
+    void setFuelSand(int val);
+    void setLoadStationsPopulation(const QString &val);
+    void setOrtsHornPattern(const QString &val);
     void setHazardWorkers(int val);
     void setHazardAnimals(int val);
     void setDescription(QString val);

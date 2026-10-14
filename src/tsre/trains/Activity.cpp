@@ -196,6 +196,11 @@ void Activity::parse(FileBuffer *data) {
                             ParserX::SkipToken(data);
                             continue;
                         }
+                        if (sh == ("ortsaicrossinghornpattern")) {
+                            ortsAICrossingHornPattern = ParserX::GetStringInside(data);
+                            ParserX::SkipToken(data);
+                            continue;
+                        }
                         if (sh == ("traffic_definition")) {
                             traffic = new TrafficDefinition();
                             traffic->name = ParserX::GetStringInside(data);
@@ -432,6 +437,7 @@ void Activity::clearContent() {
     nextActivityObjectUID = -1;
     nextEventUID = 0;
     ortsAIHornAtCrossings = -9999;
+    ortsAICrossingHornPattern.clear();
     isInitActivityObjects = false;
 }
 
@@ -459,6 +465,8 @@ QString Activity::toText() {
         out << "		NextActivityObjectUID ( " << nextActivityObjectUID << " )\n";
     if (ortsAIHornAtCrossings != -9999)
         out << "		ORTSAIHornAtCrossings ( " << ortsAIHornAtCrossings << " )\n";
+    if (!ortsAICrossingHornPattern.isEmpty())
+        out << "		ORTSAICrossingHornPattern ( " << ParserX::AddComIfReq(ortsAICrossingHornPattern) << " )\n";
     if (traffic != NULL){
         out << "		Traffic_Definition ( " << ParserX::AddComIfReq(traffic->name) <<"\n";
         for(int i = 0; i<traffic->service.size(); i++)
@@ -814,6 +822,21 @@ void Activity::ActivityHeader::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
+        if (sh == ("fuelwood")) {
+            fuelWood = ParserX::GetNumber(data);
+            ParserX::SkipToken(data);
+            continue;
+        }
+        if (sh == ("fuelsand")) {
+            fuelSand = ParserX::GetNumber(data);
+            ParserX::SkipToken(data);
+            continue;
+        }
+        if (sh == ("ortsloadstationspopulation")) {
+            loadStationsPopulation = ParserX::GetStringInside(data);
+            ParserX::SkipToken(data);
+            continue;
+        }
         if (sh == ("voltage")) {
             voltage = new int[2];
             voltage[0] = ParserX::GetNumber(data);
@@ -875,6 +898,12 @@ void Activity::ActivityHeader::save(QTextStream* out) {
         *out << "		FuelCoal ( " << fuelCoal << " )\n";
     if (fuelDiesel != -1)
         *out << "		FuelDiesel ( " << fuelDiesel << " )\n";
+    if (fuelWood != -1)
+        *out << "		FuelWood ( " << fuelWood << " )\n";
+    if (fuelSand != -1)
+        *out << "		FuelSand ( " << fuelSand << " )\n";
+    if (!loadStationsPopulation.isEmpty())
+        *out << "		ORTSLoadStationsPopulation ( " << ParserX::AddComIfReq(loadStationsPopulation) << " )\n";
     ParserX::WriteKept(out, kept, "		");
     *out << "	)\n";
 }
@@ -1198,6 +1227,26 @@ void Activity::setFuelWater(int val){
 
 void Activity::setFuelDiesel(int val){
     header->fuelDiesel = val;
+    modified = true;
+}
+
+void Activity::setFuelWood(int val){
+    header->fuelWood = val;
+    modified = true;
+}
+
+void Activity::setFuelSand(int val){
+    header->fuelSand = val;
+    modified = true;
+}
+
+void Activity::setLoadStationsPopulation(const QString &val){
+    header->loadStationsPopulation = val;
+    modified = true;
+}
+
+void Activity::setOrtsHornPattern(const QString &val){
+    ortsAICrossingHornPattern = val;
     modified = true;
 }
 

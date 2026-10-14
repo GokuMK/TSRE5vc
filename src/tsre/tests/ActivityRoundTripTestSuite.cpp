@@ -527,10 +527,31 @@ int TsreTests::runActivityRoundTripSuite(const QString &contentRoot, bool verbos
         check(activity.loaded == 1 && activity.platformNumPassengersWaiting.size() == 2
               && activity.platformNumPassengersWaiting[0] == qMakePair(41, 20),
               "PlatformData: the platform, then the passengers");
-        check(activity.keptFile.size() == 2 && activity.keptFile[0].startsWith("ORTSAICrossingHornPattern"),
-              "Open Rails' horn pattern kept in Tr_Activity_File");
-        check(activity.header && activity.header->kept.size() == 4 && activity.header->kept[3] == "Comment ( \"In the header (sic\" )",
+        check(activity.ortsAICrossingHornPattern == "US" && activity.keptFile.size() == 1,
+              "Open Rails' horn pattern read");
+        check(activity.header && activity.header->fuelWood == 80 && activity.header->fuelSand == 90
+              && activity.header->loadStationsPopulation == "Stations",
+              "Open Rails' wood, sand and station loads read");
+        check(activity.header && activity.header->kept.size() == 1 && activity.header->kept[0] == "Comment ( \"In the header (sic\" )",
               "a comment with a quoted bracket kept as written");
+        const ActivityEvent *pickUp = activity.event.value(0), *here = activity.event.value(1);
+        check(pickUp && pickUp->reversableEvent && pickUp->reversibleSpelling && pickUp->keptOutcomes.isEmpty()
+              && here && here->triggeringService == "AI" && here->triggeringTime == 30000,
+              "Reversible_Event and the triggering train read");
+        const ActivityEvent::Outcome *sound = nullptr, *weather = nullptr, *restart = nullptr;
+        for (const ActivityEvent::Outcome *outcome : pickUp ? pickUp->outcomes : QVector<ActivityEvent::Outcome*>()) {
+            if (outcome->category == ActivityEvent::Outcome::CategorySoundFile) sound = outcome;
+            if (outcome->category == ActivityEvent::Outcome::CategoryWeatherChange) weather = outcome;
+            if (outcome->category == ActivityEvent::Outcome::CategoryRestartTrain) restart = outcome;
+        }
+        check(sound && sound->value.toStringList() == QStringList({"horn.wav", "Location"}) && sound->soundAt
+              && sound->soundTile[0] == -6 && sound->soundPosition[2] == 20,
+              "the activity sound with its place read");
+        check(weather && weather->weather[0] == 0.8f && weather->weatherTime[1] == 60 && weather->weather[3] == 1,
+              "the weather change's values read");
+        check(restart && restart->restartService == "AI" && restart->restartTime == 30000
+              && restart->restartDelay == 60 && restart->restartWaitingPoint == 31200,
+              "the train restart read");
         const QString text = readText(first + "/Kept.act");
         check(text.indexOf("ORTSAICrossingHornPattern") > text.indexOf("NextActivityObjectUID"),
               "Open Rails' activity additions written after NextActivityObjectUID");

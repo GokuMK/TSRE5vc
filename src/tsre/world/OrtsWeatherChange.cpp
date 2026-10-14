@@ -122,6 +122,17 @@ void OrtsWeatherChange::load(FileBuffer* data) {
     }
 }
 
+void OrtsWeatherChange::values(float value[4], int time[4]) const {
+    value[0] = isOvercast ? finalOvercastFactor : -1;
+    time[0] = isOvercast ? overcastTransitionTime : -1;
+    value[1] = isFog ? finalFogDistance : -1;
+    time[1] = isFog ? fogTransitionTime : -1;
+    value[2] = isIntensity ? finalPrecipitationIntensity : -1;
+    time[2] = isIntensity ? precipitationIntensityTransitionTime : -1;
+    value[3] = isLiquidity ? finalPrecipitationLiquidity : -1;
+    time[3] = isLiquidity ? precipitationLiquidityTransitionTime : -1;
+}
+
 void OrtsWeatherChange::save(QTextStream* out, QString off) {
     *out << off << "ORTSWeatherChange (\n";
     if(name.length() > 0)
