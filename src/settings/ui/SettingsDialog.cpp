@@ -1455,7 +1455,7 @@ void SettingsDialog::applyGraphicsPreset(int index) {
     if (QMessageBox::question(this,
             //% "Graphics preset"
             qtTrId("settings.dialog.message.graphics.preset"),
-            //% "Set %1 rendering setting(s) to the %2 preset? Sizes, distances, fog and the time keep their values. The profile changes when you save it."
+            //% "Set %1 rendering setting(s) to the %2 preset? Sizes, distances and the time keep their values. The profile changes when you save it."
             qtTrId("settings.dialog.text.graphics.preset.question")
                 .arg(differing.size()).arg(name)) != QMessageBox::Yes)
         return;

@@ -28,6 +28,9 @@ QVector<PresetRow> presetRows() {
         {"core.rendering.toneMapping", 0, 0, 3},
         {"core.rendering.exposure", 0.0, 0.0, 0.0},
         {"core.rendering.bloom", 0.0, 3.0, 2.0},
+        // The classic fog's cap; with the physical sky a fifth of the
+        // weather's haze, so far mountains stay blue.
+        {"core.rendering.fogDensity", 0.7, 0.7, 0.3},
         {"core.rendering.timeOfDay.enabled", true, true, true},
         // Classic, classic, physical.
         {"core.rendering.sky.model", 0, 0, 1},

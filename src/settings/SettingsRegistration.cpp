@@ -1025,7 +1025,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "OpenGL width used for editor line primitives when an item does not request a custom width."
                 QT_TRID_NOOP("settings.core.rendering.default.line.width.description")).withRange(1, 16, 1).withUnit("px").inGroup("rendering").inSubgroup("overlays"),
         "oglDefaultLineWidth", "Game::oglDefaultLineWidth", "OpenGL renderer", true, "hot-cache");
-    ADD(SettingsDefinition::floating("core.rendering.fogDensity", 0.3)
+    ADD(SettingsDefinition::floating("core.rendering.fogDensity", 0.7)
             .withNameId(
                 //% "Fog density"
                 QT_TRID_NOOP("settings.core.rendering.fog.density.name")).withDescriptionId(

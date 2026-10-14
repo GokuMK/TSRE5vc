@@ -1236,9 +1236,10 @@ void RouteEditorGLWidget::applySky() {
             sky.haze = 3.912f / std::max(visibility, 200.0f);
     }
     // With a physical sky the fog density scales that haze (the air's
-    // haze of terrain, clouds and light shafts): 0.7 as the weather has it,
-    // 0.3 (the default; the user: above it the far mountains' blue goes)
-    // about a fifth, 0 clear air, its Rayleigh blue only; 1 twice.
+    // haze of terrain, clouds and light shafts): 0.7 (the default, the
+    // classic fog's) as the weather has it, 0.3 (Advanced Environment; the
+    // user: above it the far mountains' blue goes) about a fifth, 0 clear
+    // air, its Rayleigh blue only; 1 twice.
     const float hazeScale = gluu->fogDensity / 0.7f;
     sky.shaftHaze = sky.haze;
     sky.haze *= hazeScale * hazeScale;

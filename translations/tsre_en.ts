@@ -2524,107 +2524,107 @@ Consist with this file name already exist. Overwrite?
         <translation>Procedural terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4680"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4681"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2534"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2535"/>
         <source>OSM Data</source>
         <translation>OSM Data</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2539"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2540"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2545"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2546"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2778"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2779"/>
         <source>Imagery</source>
         <translation>Imagery</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2781"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2782"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>This route has no geographic reference, so imagery cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2783"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2784"/>
         <source>No imagery source can be shown: %1</source>
         <translation>No imagery source can be shown: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2835"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2836"/>
         <source>Measure Distance</source>
         <translation>Measure Distance</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4686"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4687"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4692"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4693"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4698"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4699"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Select Similar 1x1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4704"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4705"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Select Similar 3x3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4710"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4711"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4716"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4717"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Set Terrain to Object</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4722"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4723"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Set position to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4728"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4729"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Set rotation to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4734"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4735"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pick for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4740"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4741"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pick rotation for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4746"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4747"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pick elevation for placement</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4758"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4759"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4776"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4777"/>
         <source>No Tool</source>
         <translation>No Tool</translation>
     </message>
@@ -2802,7 +2802,7 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Nearest TDB/RDB Vector</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4794"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4795"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
@@ -10919,8 +10919,9 @@ Profile used at application startup: %1</translation>
     </message>
     <message id="settings.dialog.text.graphics.preset.question">
         <location filename="../src/settings/ui/SettingsDialog.cpp" line="1459"/>
-        <source>Set %1 rendering setting(s) to the %2 preset? Sizes, distances, fog and the time keep their values. The profile changes when you save it.</source>
-        <translation>Set %1 rendering setting(s) to the %2 preset? Sizes, distances, fog and the time keep their values. The profile changes when you save it.</translation>
+        <source>Set %1 rendering setting(s) to the %2 preset? Sizes, distances and the time keep their values. The profile changes when you save it.</source>
+        <oldsource>Set %1 rendering setting(s) to the %2 preset? Sizes, distances, fog and the time keep their values. The profile changes when you save it.</oldsource>
+        <translation>Set %1 rendering setting(s) to the %2 preset? Sizes, distances and the time keep their values. The profile changes when you save it.</translation>
     </message>
     <message id="settings.dialog.message.cannot.apply.preset.2">
         <location filename="../src/settings/ui/SettingsDialog.cpp" line="1472"/>
@@ -12582,32 +12583,32 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>%1 m</translation>
     </message>
     <message id="settings.graphics.preset.openrails.basic.name">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="47"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="50"/>
         <source>OpenRails Basic</source>
         <translation>OpenRails Basic</translation>
     </message>
     <message id="settings.graphics.preset.openrails.basic.description">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="49"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="52"/>
         <source>The look of Open Rails: the route&apos;s sky and fog, no shadows, reflections or lamps. The sun still moves with the time of day.</source>
         <translation>The look of Open Rails: the route&apos;s sky and fog, no shadows, reflections or lamps. The sun still moves with the time of day.</translation>
     </message>
     <message id="settings.graphics.preset.openrails.extended.name">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="53"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="56"/>
         <source>OpenRails Extended</source>
         <translation>OpenRails Extended</translation>
     </message>
     <message id="settings.graphics.preset.openrails.extended.description">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="55"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="58"/>
         <source>Open Rails with shadows, reflections, shaded water and lamps lighting the scene, dimmed by day; still the route&apos;s sky, without tone mapping. A new profile starts with it.</source>
         <translation>Open Rails with shadows, reflections, shaded water and lamps lighting the scene, dimmed by day; still the route&apos;s sky, without tone mapping. A new profile starts with it.</translation>
     </message>
     <message id="settings.graphics.preset.advanced.environment.name">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="59"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="62"/>
         <source>Advanced Environment</source>
         <translation>Advanced Environment</translation>
     </message>
     <message id="settings.graphics.preset.advanced.environment.description">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="61"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="64"/>
         <source>The sky computed from the atmosphere, volumetric clouds and light shafts from the weather, ambient occlusion, AgX tone mapping and auto exposure, lamps that keep their strength in tunnels. QRhi renderer; costs the most time per frame.</source>
         <translation>The sky computed from the atmosphere, volumetric clouds and light shafts from the weather, ambient occlusion, AgX tone mapping and auto exposure, lamps that keep their strength in tunnels. QRhi renderer; costs the most time per frame.</translation>
     </message>

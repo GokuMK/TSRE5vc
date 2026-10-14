@@ -56,9 +56,11 @@ is unlit too (not modelled here).
   transmittance; the ambient occlusion share likewise.
 - The fog density setting scales the weather's haze (terrain, clouds and
   light shafts alike, `sky.haze`): (density / 0.7)^2, 0.7 the weather's own, 0
-  clear air (Rayleigh and Mie only), 1 about twice. Default 0.3, about a
-  fifth (user, 2026-10-14: above it the far mountains' blue goes; it was
-  0.7, the classic fog's).
+  clear air (Rayleigh and Mie only), 1 about twice. 0.3 keeps about a
+  fifth (user, 2026-10-14: above it the far mountains' blue goes). The
+  default was 0.3 for a day; it is 0.7 again, since the same setting caps
+  the classic fog, and the Advanced Environment preset sets 0.3 (user,
+  2026-10-14).
 - Only with a physical sky on QRhi and not in the map view (`hazeParams.z`);
   otherwise the classic fog as before, and the sky band never.
 

@@ -213,7 +213,7 @@ Writes use `QSaveFile`, retain five timestamped backups, and detect external fil
 
 ### Graphics presets
 
-The **Graphics Presets** menu sets the rendering settings that make a look in one step, after asking (unsaved until **Save Profile**; **Apply to Running TSRE** shows it at once). The menu marks the preset the shown values match. A preset leaves sizes, distances, fog, the time and the sun and moon as they are. The values are in `src/settings/GraphicsPresets.cpp`:
+The **Graphics Presets** menu sets the rendering settings that make a look in one step, after asking (unsaved until **Save Profile**; **Apply to Running TSRE** shows it at once). The menu marks the preset the shown values match. A preset leaves sizes, distances, the time and the sun and moon as they are. The values are in `src/settings/GraphicsPresets.cpp`:
 
 | Setting | OpenRails Basic | OpenRails Extended | Advanced Environment |
 | --- | --- | --- | --- |
@@ -227,13 +227,16 @@ The **Graphics Presets** menu sets the rendering settings that make a look in on
 | Tone mapping | Off | Off | AgX |
 | Exposure | 0 | 0 | 0 |
 | Glow (bloom) | 0 | 3 | 2 |
+| Fog density | 0.7 | 0.7 | 0.3 |
 | Time of day | on | on | on |
 | Sky | Classic | Classic | Physical |
 | Clouds | Off | Off | High |
 | Light shafts | Off | Off | Volumetric |
 
 OpenRails Extended is what a new profile starts with. Basic keeps time of day:
-the classic sky takes its colours and the sun its place from it.
+the classic sky takes its colours and the sun its place from it. Fog density
+caps the classic fog (0.7, as before the physical sky) and scales the physical
+sky's haze, where 0.3 keeps the far mountains blue.
 
 ### Local elevation directories
 

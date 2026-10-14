@@ -8,7 +8,7 @@
 
 // Rendering settings set together for one look. A preset sets only the
 // effects that make the look: shadows, reflections, water, lamps, sky,
-// clouds, the image's exposure. Sizes, distances, fog and the time keep
+// clouds, fog, the image's exposure. Sizes, distances and the time keep
 // their values.
 struct GraphicsPreset {
     QString id;
