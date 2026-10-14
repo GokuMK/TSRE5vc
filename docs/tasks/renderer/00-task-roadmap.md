@@ -35,6 +35,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [ ] `30-cleanup-fine-tuning-and-fixes.md` (open list of small renderer items: cleanup such as settings read every frame, fine-tuning, bug fixes noted in other tasks)
 - [ ] `31-moonlight.md` (the moon lights the night by its phase and height and casts shadows; in every mode)
 - [ ] `32-aerial-haze.md` (distant terrain through the air: per colour, the horizon's light by direction, the weather's haze; dark blue far mountains with any time and weather)
+- [ ] `33-mist-and-ground-fog.md` (fog from the weather and the terrain: radiation and valley fog on calm clear mornings, pooled by a floor map around the camera; a froxel volume near the camera, a march through the fog layer far ahead; planned on `feature/mist`, awaiting review)
 
 Renderer work continues on Windows hardware; software rendering (llvmpipe,
 lavapipe) no longer shows the remaining problems. Measurement and
