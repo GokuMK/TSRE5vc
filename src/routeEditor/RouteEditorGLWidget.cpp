@@ -1220,6 +1220,10 @@ void RouteEditorGLWidget::applySky() {
     for (int c = 0; c < 3; ++c)
         sky.moonLight[c] = std::pow(moonLight[c] / Daylight::SunLight, 2.2f);
     sky.cameraHeight = camera->getPos()[1];
+    sky.groundHeight = Game::terrainLib != nullptr
+            ? std::min(Game::terrainLib->getHeight(int(camera->pozT[0]), int(camera->pozT[1]), camera->getPos()[0],
+                                                   camera->getPos()[2]), sky.cameraHeight)
+            : sky.cameraHeight;
     // The night sky's floor, as the classic sky's (Daylight).
     const float night[3] = {0.015f, 0.022f, 0.05f};
     std::copy(night, night + 3, sky.night);

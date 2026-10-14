@@ -998,6 +998,38 @@ shafts on against off, of 255):
   rays would want mist near the ground (or stronger forward scattering
   there).
 
+### The cloud map's edge at a low sun; haze on the ground (2026-10-14)
+
+- Found trying the near layer: the shafts read the cloud shadow map where
+  the air meets the plane under the clouds, along the sun. At a low sun that
+  lies many km towards it (6 degrees, 900 m under the clouds: 8.6 km), past
+  the map (7 km each way), and its clamped edge stood for all of it: at
+  sunset all the air counted lit or (here) shaded at once, and the "greying"
+  of the sky above was mostly that. Past the maps the shafts now take the
+  clouds' average open share, as the lit shaders do (`cloudVisible`): the
+  pine view at 19:30 changes by up to 122 of 255, the far views at the
+  user's CMK camera (17:00, 19:00) by under 0.1 on average.
+- The far march stays (the user: far shafts matter most, the driver looks
+  far ahead). Besides it, haze lying on the ground: ten times the weather's
+  own haze at the ground under the camera (`Sky::groundHeight`), thinning
+  over 120 m of height, over the first 500 m of each ray in 12 steps closer
+  near the camera, scattering forward (Henyey-Greenstein 0.85), its lit
+  light added (strength 0.1), nothing taken away.
+- Pines with the sun 6 degrees up behind them: a warm glow of lit haze
+  around the sun and over the treeline, the crowns dark in front (mean 2.9,
+  at most 98 of 255); the user's CMK camera at 17:00 facing the sun, mean
+  1.0; away from the sun at noon at most 1, in the evening 0.
+- No rays through the trees: a beam through a gap is a few metres wide; 12
+  steps over 100 m, at half resolution and without frames averaged, find it
+  now and then. Ten times denser haze shows a strong glow, still no beams.
+  Streaks would want the near light blurred along the lines to the sun (as
+  the screen-space shafts), or many more steps and frames averaged
+  (volumetric fog).
+- Cost on the Steam Deck (median frame, noisy): about 1.6 to 2 ms with the
+  near layer, against 1.0 without it. Its clouds taken once over the 500 m
+  instead of per step saved nothing measurable and changed the glow (mean
+  0.9): left per step.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

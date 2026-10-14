@@ -115,7 +115,8 @@ struct VolumeParameters {
     float cloudSun[4];    // sun x / y, z / y, the map's plane y, shadow map on
     float march[4];       // distance (m), steps, jitter, 0
     float colour[4];      // the sun's colour (display)
-    float cloudsMid[4];   // the mid layer's cloud shadow map: centre x, z
+    float cloudsMid[4];   // the mid layer's cloud shadow map: centre x, z; the open share past the maps
+    float ground[4];      // the camera above the ground (m), the near layer's extinction at it (1/m), reach (m), scale height (m)
 };
 
 const char *VolumeFragment = R"(#version 440
@@ -133,6 +134,7 @@ layout(std140, binding = 0) uniform Volume {
     vec4 march;
     vec4 colour;
     vec4 cloudsMid;
+    vec4 ground;
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 layout(binding = 2) uniform sampler2D cloudShadowMap;
@@ -155,6 +157,38 @@ float sceneDistance(float depth, vec2 ndc) {
 float henyeyGreenstein(float c, float g) {
     float g2 = g * g;
     return (1.0 - g2) / (4.0 * 3.14159265 * pow(1.0 + g2 - 2.0 * g * c, 1.5));
+}
+
+// The sun's light at a point of the air through the clouds (their shadow
+// map holds the light under them only).
+float cloudVisible(vec3 p) {
+    float visible = 1.0;
+    if (clouds.w > 0.0 && p.y < cloudSun.z) {
+        vec2 c = p.xz + cloudSun.xy * (cloudSun.z - p.y);
+        vec2 low = (c - clouds.xy) * clouds.z + 0.5;
+        vec2 mid = (c - cloudsMid.xy) * clouds.z + 0.5;
+        // Past the maps (a low sun reaches the air through clouds many km
+        // away) the clouds' average, as the lit shaders take: their clamped
+        // edge made all the air at sunset shaded or lit at once.
+        float inside = smoothstep(0.5, 0.45, max(max(abs(low.x - 0.5), abs(low.y - 0.5)),
+                                                 max(abs(mid.x - 0.5), abs(mid.y - 0.5))));
+        float through = inside > 0.0 ? textureLod(cloudShadowMap, low, 0.0).r * textureLod(cloudShadowMap, mid, 0.0).g
+                                     : 1.0;
+        visible *= mix(cloudsMid.z, through, inside);
+    }
+    return visible;
+}
+
+// ... and past terrain and objects.
+float shadowVisible(vec3 p) {
+    float visible = 1.0;
+    if (cloudSun.w > 0.0) {
+        vec4 q = shadowMatrix * vec4(p, 1.0);
+        vec3 m = q.xyz / q.w * 0.5 + 0.5;
+        if (all(greaterThan(m.xy, vec2(0.0))) && all(lessThan(m.xy, vec2(1.0))) && m.z < 1.0)
+            visible *= texture(shadowMap, vec3(m.xy, m.z - 0.002));
+    }
+    return visible;
 }
 
 void main() {
@@ -182,25 +216,37 @@ void main() {
     float light = 0.0, open = 0.0, transmittance = 1.0;
     for (int i = 0; i < steps; ++i) {
         vec3 p = camera.xyz + d * ((float(i) + jitter) * dt);
-        float visible = 1.0;
-        // (The map holds the light under the clouds only.)
-        if (clouds.w > 0.0 && p.y < cloudSun.z) {
-            vec2 c = p.xz + cloudSun.xy * (cloudSun.z - p.y);
-            visible *= textureLod(cloudShadowMap, (c - clouds.xy) * clouds.z + 0.5, 0.0).r
-                       * textureLod(cloudShadowMap, (c - cloudsMid.xy) * clouds.z + 0.5, 0.0).g;
-        }
-        if (cloudSun.w > 0.0) {
-            vec4 q = shadowMatrix * vec4(p, 1.0);
-            vec3 m = q.xyz / q.w * 0.5 + 0.5;
-            if (all(greaterThan(m.xy, vec2(0.0))) && all(lessThan(m.xy, vec2(1.0))) && m.z < 1.0)
-                visible *= texture(shadowMap, vec3(m.xy, m.z - 0.002));
-        }
+        float visible = cloudVisible(p) * shadowVisible(p);
         light += transmittance * sigma * dt * visible;
         open += transmittance * sigma * dt;
         transmittance *= exp(-sigma * dt);
     }
-    // The haze's light with the sun's shadows, and without (the fog's).
-    result = vec4(light * phase * 4.0 * 3.14159265, open * phase * 4.0 * 3.14159265, open, 1.0);
+    // The haze lying on the ground (ground.y at it, thinning over ground.w of
+    // height) over the first ground.z of the view, where trees and buildings
+    // cast their shadows into it: its steps closer near the camera. Its light
+    // is mostly forward (as droplets' and dust's): it shows towards the sun,
+    // rays between dark trunks and crowns, and adds next to nothing
+    // elsewhere (the near view's colours keep).
+    float nearLight = 0.0;
+    if (ground.y > 0.0) {
+        float reach = scene > 0.0 ? min(scene, ground.z) : ground.z;
+        const int NearSteps = 12;
+        float nearTransmittance = 1.0;
+        for (int i = 0; i < NearSteps; ++i) {
+            float f = (float(i) + jitter) / float(NearSteps);
+            float t = reach * f * f;
+            float step = reach * 2.0 * f / float(NearSteps);
+            vec3 p = camera.xyz + d * t;
+            float above = max(ground.x + (p.y - camera.y), 0.0);
+            float sigmaNear = ground.y * exp(-above / ground.w);
+            nearLight += nearTransmittance * sigmaNear * step * cloudVisible(p) * shadowVisible(p);
+            nearTransmittance *= exp(-sigmaNear * step);
+        }
+        nearLight *= henyeyGreenstein(dot(d, s), 0.85) * 4.0 * 3.14159265;
+    }
+    // The haze's light with the sun's shadows, and without (the fog's); the
+    // near layer's light.
+    result = vec4(light * phase * 4.0 * 3.14159265, open * phase * 4.0 * 3.14159265, open, nearLight);
 }
 )";
 
@@ -213,7 +259,7 @@ const char *VolumeAddFragment = R"(
 layout(binding = 1) uniform sampler2D shafts;
 
 void main() {
-    vec3 s = textureLod(shafts, uv, 0.0).rgb;
+    vec4 s = textureLod(shafts, uv, 0.0);
     float blocked = s.g > 1e-5 ? clamp(1.0 - s.r / s.g, 0.0, 1.0) : 0.0;
     // Against the clouds' average shade (colour.a): the shafts' contrast,
     // not the overcast's dimming, which the ambient light already has.
@@ -227,7 +273,8 @@ void main() {
     vec4 far = inverse * vec4(ndc, 1.0, 1.0);
     float towards = max(dot(normalize(far.xyz / far.w), normalize(direction.xyz)), 0.0);
     float forward = mix(0.2, 1.0, towards * towards * towards);
-    result = vec4(colour.rgb * s.r * sun.z, 1.0 - clamp(shade * haze * sun.w * forward, 0.0, 0.35));
+    // The near layer's light, added (camera.w: its strength).
+    result = vec4(colour.rgb * (s.r * sun.z + s.a * camera.w), 1.0 - clamp(shade * haze * sun.w * forward, 0.0, 0.35));
 }
 )";
 
@@ -528,6 +575,8 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     if (cloudShadowPlane(plane) && l.volumeCloudMap != nullptr) {
         cloudShadowCentre(0, v.clouds[0], v.clouds[1]);
         cloudShadowCentre(1, v.cloudsMid[0], v.cloudsMid[1]);
+        // Past the maps: the share of the sun the clouds leave open on average.
+        v.cloudsMid[2] = 1.0f - 0.85f * std::clamp(sky.overcast, 0.0f, 1.0f);
         v.clouds[2] = 1.0f / (CloudShadowExtent * 1000.0f);
         v.clouds[3] = 1.0f;
         v.cloudSun[0] = sunDirection.x() / sunDirection.y();
@@ -535,6 +584,15 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
         v.cloudSun[2] = viewPosition[1] + plane * 1000.0f - sky.cameraHeight;
     }
     v.cloudSun[3] = l.volumeSunMap != nullptr ? 1.0f : 0.0f;
+    // The haze lying on the ground: ten times the weather's average at it,
+    // thinning over 120 m of height, over the first 500 m of the view (the
+    // far shafts are the long march's). At a sun 6 degrees up behind pines a
+    // glow of lit haze around it (mean 2.9, at most 98 of 255); away from the
+    // sun at most 1.
+    v.ground[0] = std::max(sky.cameraHeight - sky.groundHeight, 0.0f);
+    v.ground[1] = std::clamp(sky.shaftHaze, 0.0f, 0.02f) * 10.0f;
+    v.ground[2] = 500.0f;
+    v.ground[3] = 120.0f;
     v.march[0] = 1500.0f;
     // 24 steps: as 40 to within 0.03 of 255, 0.6 ms less on the Steam Deck.
     v.march[1] = 24.0f;
@@ -548,6 +606,8 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     parameters.sun[3] = 0.8f * fade;
     // For the view's directions (forward scattering).
     parameters.camera[0] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
+    // The near layer's light, added.
+    parameters.camera[3] = 0.1f * fade;
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, parameters.inverse);
     parameters.direction[0] = sunDirection.x();
     parameters.direction[1] = sunDirection.y();

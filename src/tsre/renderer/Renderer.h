@@ -134,6 +134,9 @@ public:
         // The weather's own haze (1/m), unscaled: what the volumetric light
         // shafts scatter in (scaled with the rest, they all but vanished).
         float shaftHaze = 1.5e-4f;
+        // The ground under the camera (m, as cameraHeight): the haze lying
+        // on it, where the near light shafts are.
+        float groundHeight = 0.0f;
         // The share of the sun the clouds around the camera block on
         // average (0-1).
         float overcast = 0.0f;
