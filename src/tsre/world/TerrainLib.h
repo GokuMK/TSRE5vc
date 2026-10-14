@@ -91,6 +91,12 @@ public:
     virtual bool tryGetHeight(int x, int z, float posx, float posz,
                               float &height, bool addR = false,
                               bool loadIfNeeded = false);
+    // The terrain tile with heights covering a world tile: the detailed one,
+    // else the distant one; neither is loaded, null when none is.
+    Terrain *groundTile(int x, int z);
+    // Counts tiles becoming available or not (loaded, reloaded, dropped):
+    // what was built from the loaded ground is out of date once it moves.
+    quint64 availabilityRevision() const { return availability; }
     virtual void getRotation(float *rot, int x, int z, float posx, float posz);
     virtual void setHeight(int x, int z, float posx, float posz, float h);
     virtual void fillHeightMap(int x, int z, float *data);
@@ -148,6 +154,7 @@ protected:
     QSet<QString> terrainLodWarnings;
     virtual Terrain *edgeTerrainAt(int worldX, int worldZ, bool low, bool load);
     HeightWindow* heightWindow = NULL;
+    quint64 availability = 0;
 };
 
 #endif	/* TERRAINLIB_H */

@@ -161,7 +161,9 @@ WeatherFog::State WeatherFog::radiation(const Weather &weather, double hours, do
     s.amount *= float(1.0 - burn);
     if (s.amount < 0.01f)
         return State();
+    // It thins from the top too, so it draws back from the slopes.
     s.base = float(s.depth * 0.5 * smooth(0.3, 1.0, burn));
+    s.depth *= float(1.0 - 0.35 * burn);
     s.visibility *= float(1.0 + 4.0 * burn);
     s.patchiness = float(std::max(double(s.patchiness), burn));
     return s;

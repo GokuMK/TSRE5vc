@@ -68,7 +68,10 @@ class MapOverlayFade;
 class OsmMapLayer;
 class ImageryMapLayer;
 class WeatherMapLayer;
+class FogMapLayer;
+#include <tsre/environment/FogFloor.h>
 #include <tsre/environment/WeatherFog.h>
+#include <tsre/world/FogFloorSampler.h>
 #include <tsre/environment/WeatherImport.h>
 #include <tsre/environment/WeatherGenerator.h>
 class Weather;
@@ -554,6 +557,19 @@ private:
     // in the bottom right corner while shown.
     std::unique_ptr<ImageryMapLayer> imageryMap;
     std::unique_ptr<WeatherMapLayer> weatherMap;
+    // Where fog lies (task renderer 33): the fog at the camera, kept while
+    // the weather's time moves under a minute and the camera under a km; the
+    // floor map around the camera, sampled a few tiles a frame while there
+    // is fog; drawn over the weather in map mode.
+    WeatherFog::State fogNow;
+    double fogNowHours = std::nan(""), fogNowEast = 0.0, fogNowNorth = 0.0;
+    quint64 fogNowRevision = 0;
+    FogFloor fogFloor;
+    FogFloorSampler fogFloorSampler;
+    QElapsedTimer fogFloorAge;
+    quint64 fogFloorTerrain = 0;  // the terrain's availability revision sampled
+    std::unique_ptr<FogMapLayer> fogMap;
+    void updateFog();
     QString currentEnvironmentFile = QStringLiteral("editor.env");
     QString currentEnvironmentSlot;
     bool weatherModified = false;

@@ -1,7 +1,7 @@
 # Task 33 - Mist and Ground Fog
 
 Status: planned 2026-10-14 on `feature/mist` (from `main` after the clouds
-merge), reviewed by the user the same day (Decisions); step 1 done. QRhi renderer with the physical
+merge), reviewed by the user the same day (Decisions); steps 1 and 2 done. QRhi renderer with the physical
 sky. Builds on tasks 28 (clouds, shadows, light shafts), 32 (aerial haze)
 and environment 01 (weather data).
 
@@ -129,17 +129,19 @@ weather time), not per frame.
 A map around the camera that says how far each place lies above the ground
 that cold air drains to.
 
-- **Size:** 256 x 256 cells of 64 m (16 km, 8 km each way). Built on a worker
-  thread from the detailed and distant terrain, again when the camera has
-  moved 1 to 2 km, swapped in when ready.
+- **Size:** 256 x 256 cells of 64 m (16 km, 8 km each way). Sampled from
+  the detailed and distant terrain a few tiles a frame on the main thread
+  (the terrain is not safe to read elsewhere), again when the camera has
+  moved 1 km, swapped in when complete (see step 2).
 - **Floor:** the lowest ground within about 1.5 km, then smoothed over a few
   hundred metres. The fog's top is the floor plus the fog's depth: it fills
   valleys to a level top, while slopes and hills above that stay clear.
 - **Height above the region:** how far the floor stands above the lowest
   floor within about 5 km. Fog thins with it, since broad hills and plateaus
   shed their cold air into the valleys around them.
-- **Water:** cells under a tile's water level get extra moisture, so fog
-  forms earlier and thicker there.
+- **Water:** cells under a tile's drawn water get moisture; fog lies on
+  water and wet ground wherever they are (a pond on a hill), up to half its
+  depth.
 - **Patches:** the cloud noise volume (task 28) at a few hundred metres'
   scale, drifting with the low wind, breaks the fog into patches. The pooled
   shape itself stays where the terrain puts it.
@@ -296,7 +298,8 @@ the terrain cannot explain.
     from 3 km down to 150 m;
   - after sunrise: the sun's warmth (hours times the sine of its height)
     burns it off, deeper fog taking longer; it thins, lifts (up to half its
-    depth) and breaks up as it clears;
+    depth), loses up to a third of its depth (drawing back from the slopes)
+    and breaks up as it clears;
   - mist in rain: half the amount at 3 mm/h, 2 km visibility, 150 m deep;
     the denser of the two counts;
   - keyframes blend: off, set, or the model's.
@@ -308,14 +311,52 @@ the terrain cannot explain.
   | Morning mist, 4:30 | 100 %, 33 m deep, 890 m visibility |
   | Morning mist, 9:00 and 19:00 | none |
   | Valley fog, 4:30 | 100 %, 136 m deep, 150 m |
-  | Valley fog, 7:30 | 41 %, lifted 26 m, 505 m |
-  | Valley fog, winter noon | 71 %, 180 m deep, 323 m (summer noon: none) |
+  | Valley fog, 7:30 | 41 %, 108 m deep, lifted 26 m, 505 m |
+  | Valley fog, winter noon | 71 %, 162 m deep, 323 m (summer noon: none) |
   | Valley fog with 9 m/s wind, overcast, or the clear preset | none |
   | Rain preset | 35 %, 150 m deep, 2 km |
 
 - **Environment panel:** the air, and the fog at the camera now ("set by
   the weather" when a keyframe sets it).
 - Nothing drawn yet: steps 2 and 3.
+
+## Step 2 (done, 2026-10-14)
+
+- **`FogFloor`** (environment): 256 x 256 cells of 64 m from the ground
+  heights (unknown where no terrain is loaded) and water.
+  - Floor: the lowest ground within 1.5 km (a running minimum, van Herk /
+    Gil-Werman, along rows then columns), smoothed twice over 5 cells
+    (about 300 m), never above the ground.
+  - Height above the region: the floor less the lowest floor within 5 km.
+  - Moisture: water within 2 cells, three times the share, at most 1.
+  - The fog's top: the floor plus the depth times the region's share (all
+    up to 30 m above the region's lowest floor, none from 250 m), or the
+    ground plus up to half the depth over water and wet ground, whichever
+    is higher. About a millisecond for the whole map.
+- **`FogFloorSampler`** (world): fills the cells a few world tiles a frame
+  (8 of the 81 a 16 km map touches) from `TerrainLib::groundTile` (the
+  detailed tile, else the distant one; nothing loaded) and
+  `Terrain::waterAt` (patches with drawn water, levels as the water mesh
+  takes them).
+- **The editor** (`updateFog`): the fog at the camera is computed again
+  when the weather's time moves a minute, the camera 1 km or the weather
+  changes; while there is fog, a floor map is sampled about the camera, again
+  when it has moved 1 km or tiles have loaded or gone (a new availability
+  count in `TerrainLib`, also bumped by the distant tiles the drawing
+  creates), at most once a second.
+- **Map view** (`FogMapLayer`): with the weather layer on, misty blue-grey
+  (pale on a dark palette) where the ground lies under the fog's top, the
+  more opaque the deeper (full from 30 m), over the clouds.
+- **Routes have terrain only along the line:** PeakRail 20 of 81 world
+  tiles around Darley Dale, SPAIN-CANFRANC 1, SWITZERLAND 2; their distant
+  terrain does not reach further at those places. Fog lies only where the
+  ground is known, which is all a camera can see.
+- **PeakRail, valley fog at 4:30:** the Derwent valley from Rowsley to
+  Matlock and its side valleys under 126 m of fog, the hills out of it; at
+  7:30 thinner and drawn back from the side valleys; the morning mist (33 m)
+  only along the river and the valley floor.
+- `TSRE_FOG_LOG=1` logs each floor map built (cells known, ground and floor
+  heights, cells under fog, tiles detailed, distant and missing).
 
 ## Verification
 

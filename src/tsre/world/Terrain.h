@@ -230,6 +230,9 @@ public:
     void refreshWaterShapes();
     void getRotation(float *rot, int x, int z, int posx, int posz);
     float getHeight(int x, int z, float posx, float posz, bool addR);
+    // Whether the patch at a place draws water, and its level there (the
+    // tile's corner levels, as the water is drawn).
+    bool waterAt(int x, int z, float posx, float posz, float &level);
     
 public slots:
     void menuToggleWater();

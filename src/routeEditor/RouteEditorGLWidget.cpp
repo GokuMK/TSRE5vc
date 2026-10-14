@@ -107,6 +107,7 @@
 #include <QDir>
 #include <QMessageBox>
 #include <tsre/map/WeatherMapLayer.h>
+#include <tsre/map/FogMapLayer.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <QFileInfo>
 #include <tsre/environment/WeatherPresets.h>
@@ -737,6 +738,7 @@ void RouteEditorGLWidget::paintScene(){
     applyTimeOfDay();
     applySky();
     applyClouds();
+    updateFog();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
@@ -2726,6 +2728,75 @@ WeatherFog::State RouteEditorGLWidget::weatherFog() const {
     return WeatherFog::at(*weather, now, east, north, sun);
 }
 
+void RouteEditorGLWidget::updateFog() {
+    if (currentWeather() == nullptr || camera == nullptr || Game::terrainLib == nullptr)
+        return;
+    double east, north;
+    cameraWorldPosition(east, north);
+    const double hours = weatherHours();
+    if (std::isnan(fogNowHours) || fogNowRevision != weatherRevision || std::abs(hours - fogNowHours) > 1.0 / 60.0
+            || std::hypot(east - fogNowEast, north - fogNowNorth) > 1000.0) {
+        const WeatherFog::State before = fogNow;
+        fogNow = weatherFog();
+        fogNowHours = hours;
+        fogNowRevision = weatherRevision;
+        fogNowEast = east;
+        fogNowNorth = north;
+        if (fogMap && (fogNow.amount != before.amount || fogNow.depth != before.depth || fogNow.base != before.base))
+            fogMap->invalidate();
+    }
+    if (fogNow.amount <= 0.0f)
+        return;
+    // A new floor map once the camera is 1 km from the last one's centre, or
+    // when terrain tiles have loaded or gone since (at most once a second
+    // while they stream in).
+    if (!fogFloorSampler.active()) {
+        const bool moved = !fogFloor.valid()
+                || std::hypot(east - fogFloorSampler.centreEast(), north - fogFloorSampler.centreNorth()) > 1000.0;
+        const bool tiles = Game::terrainLib->availabilityRevision() != fogFloorTerrain
+                && (!fogFloorAge.isValid() || fogFloorAge.elapsed() > 1000);
+        if (moved || tiles) {
+            fogFloorTerrain = Game::terrainLib->availabilityRevision();
+            fogFloorSampler.start(east, north);
+        }
+    }
+    if (fogFloorSampler.active()) {
+        if (fogFloorSampler.step(*Game::terrainLib, 8, fogFloor)) {
+            fogFloorAge.restart();
+            if (fogMap)
+                fogMap->invalidate();
+            // Diagnostics: TSRE_FOG_LOG=1 logs each floor map built.
+            static const bool log = qEnvironmentVariableIsSet("TSRE_FOG_LOG");
+            if (log) {
+                float groundLow = 1e9f, groundHigh = -1e9f, floorLow = 1e9f, floorHigh = -1e9f;
+                int fogged = 0, wet = 0;
+                for (int row = 0; row < FogFloor::Size; ++row)
+                    for (int column = 0; column < FogFloor::Size; ++column) {
+                        const FogFloor::Sample s = fogFloor.cell(column, row);
+                        if (!s.known)
+                            continue;
+                        groundLow = std::min(groundLow, s.ground);
+                        groundHigh = std::max(groundHigh, s.ground);
+                        floorLow = std::min(floorLow, s.floor);
+                        floorHigh = std::max(floorHigh, s.floor);
+                        fogged += FogFloor::top(s, fogNow.depth) > s.ground ? 1 : 0;
+                        wet += s.moisture > 0.5f ? 1 : 0;
+                    }
+                qInfo().noquote() << QString("[fog] floor map: %1 of %2 cells known, ground %3-%4 m, floor %5-%6 m, "
+                                             "%7 under %8 m of fog, %9 wet; world tiles %10 detailed, %11 distant, "
+                                             "%12 without terrain")
+                                     .arg(FogFloor::Size * FogFloor::Size - fogFloor.unknownCells())
+                                     .arg(FogFloor::Size * FogFloor::Size).arg(groundLow, 0, 'f', 0).arg(groundHigh, 0, 'f', 0)
+                                     .arg(floorLow, 0, 'f', 0).arg(floorHigh, 0, 'f', 0).arg(fogged)
+                                     .arg(fogNow.depth, 0, 'f', 0).arg(wet).arg(fogFloorSampler.detailedTiles)
+                                     .arg(fogFloorSampler.distantTiles).arg(fogFloorSampler.missingTiles);
+            }
+        }
+        // The next tiles in the next frame.
+        update();
+    }
+}
+
 namespace {
 
 // A route position (MSTS world metres) on the globe.
@@ -2998,6 +3069,13 @@ void RouteEditorGLWidget::paintMap() {
     // The weather over the route's data, as a weather app shows it.
     if (mapLayers.shows(MapLayer::Weather) && weatherMap && currentWeather())
         weatherMap->pushRenderItems(queue, view, palette, *currentWeather(), weatherHours(), true);
+    // Where the fog lies, over the clouds.
+    if (mapLayers.shows(MapLayer::Weather) && currentWeather()) {
+        updateFog();
+        if (!fogMap)
+            fogMap = std::make_unique<FogMapLayer>();
+        fogMap->pushRenderItems(queue, view, palette, fogFloor, fogNow);
+    }
     mapMeasure->pushRenderItems(queue, view, palette, Game::PixelRatio);
     updateMapLabels();
     mapLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);
