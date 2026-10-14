@@ -1,7 +1,7 @@
 # Task 33 - Mist and Ground Fog
 
 Status: planned 2026-10-14 on `feature/mist` (from `main` after the clouds
-merge); this plan awaits the user's review. QRhi renderer with the physical
+merge), reviewed by the user the same day (Decisions); step 1 in progress. QRhi renderer with the physical
 sky. Builds on tasks 28 (clouds, shadows, light shafts), 32 (aerial haze)
 and environment 01 (weather data).
 
@@ -22,6 +22,8 @@ designer can force it or turn it off per weather, without drawing areas.
 
 | Topic | Decision |
 |---|---|
+| Scope | Radiation and valley fog and rain mist; sea fog later, if it makes sense |
+| Humidity | Temperature and dew point per keyframe: the values users know |
 | Designer control | The fog override per keyframe and the Environment panel's session setting; no painted areas for now |
 | Near and far | Both at once: the ground fog of a morning is seen up close as much as far ahead (step 3) |
 | Setting | A separate "Mist and fog" setting, on in Advanced Environment |
@@ -262,18 +264,6 @@ aerial haze stays as it is: it is the dry air. The fog adds to it.
 Later: steam fog over water in autumn, sea fog, fog in the OpenGL renderer
 (a height fog in the classic fog), painted fog areas if a route needs one
 the terrain cannot explain.
-
-## Questions for the user
-
-1. **Scope:** radiation and valley fog and rain mist first; sea and
-   advection fog later?
-2. **Humidity in the weather:** temperature and dew point per keyframe, or
-   only their gap (the dew point spread)? Fog needs only the gap. The
-   temperature also serves rain or snow and frozen ground near 0 °C, frost
-   and rime after a foggy night, and steam fog over water warmer than the
-   air. Weather sources give both, and both are the numbers a designer
-   knows. Storing both costs one number per keyframe; the gap alone means
-   changing the format again later. Recommended: both.
 
 ## Verification
 
