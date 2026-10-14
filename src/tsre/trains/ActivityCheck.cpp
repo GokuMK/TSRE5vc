@@ -16,6 +16,7 @@
 #include <QFileInfo>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
+#include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/ServiceStops.h>
@@ -483,8 +484,33 @@ private:
                 qtTrId("activity.check.overlay.skipped").arg(line));
     }
 
-    // Loose consists whose cars' files are missing.
+    // Loose consists whose cars' files are missing; on the track database,
+    // those not on the track or running past its end.
     void consists() {
+        for (ActivityObject *object : activity->activityObjects) {
+            if (object == NULL || object->con == NULL || object->objectTypeId != ActivityObject::WAGONLIST)
+                continue;
+            const float first = object->con->engItems.isEmpty() ? 0 : object->con->engItems[0].pos;
+            const float length = object->con->conLength - first;
+            float distance = 0, room = 0;
+            if (!LooseConsistPlace(object->tile, int(object->direction), length, &distance, &room))
+                break;
+            ActivityFinding *finding = NULL;
+            if (distance < 0 || distance > 1)
+                finding = &add(ActivityFinding::Error, "consist.off.track",
+                    //% "The loose consist %1 is not on the track: the nearest track is %2 m away."
+                    qtTrId("activity.check.consist.off.track").arg(object->con->showName)
+                    .arg(distance < 0 ? QString("> 2048") : QString::number(distance)));
+            else if (room < length - 0.5f)
+                finding = &add(ActivityFinding::Warning, "consist.past.end",
+                    //% "The loose consist %1 runs past the end of the track: %2 m of track for %3 m of cars."
+                    qtTrId("activity.check.consist.past.end").arg(object->con->showName)
+                    .arg(room, 0, 'f', 0).arg(length, 0, 'f', 0));
+            if (finding != NULL) {
+                finding->target = ActivityFinding::Position;
+                std::copy(object->tile, object->tile + 4, finding->position);
+            }
+        }
         for (ActivityObject *object : activity->activityObjects)
             if (object != NULL && object->con != NULL && object->con->isBroken()) {
                 ActivityFinding &finding = add(ActivityFinding::Error, "consist.cars.missing",
@@ -496,6 +522,18 @@ private:
     }
 };
 
+}
+
+bool LooseConsistPlace(const float *tile, int direction, float length, float *distance, float *room) {
+    if (Game::trackDB == NULL || !Game::trackDB->loaded)
+        return false;
+    float posT[2] = {tile[0], -tile[1]};
+    float pos[3] = {tile[2], 0, -tile[3]};
+    float tpos[3] = {0, 0, 0};
+    const int found = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, tpos, false);
+    *distance = found;
+    *room = found < 0 ? 0 : Consist::roomBehind(tpos, direction > 0 ? 1 : 0, NULL, length);
+    return true;
 }
 
 QVector<ActivityFinding> CheckActivity(Activity *activity) {

@@ -23,6 +23,7 @@
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/Consist.h>
+#include <tsre/trains/ActivityCheck.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Traffic.h>
 #include <tsre/trains/ActivityNotifier.h>
@@ -536,6 +537,22 @@ int TsreTests::runPathEditSuite(bool verbose) {
             const float other = Consist::roomBehind(start, 1, nullptr, 100);
             check(std::fabs(std::min(one, other) - 30) <= 1 && std::max(one, other) == 100,
                   QString("the room behind a start ends at the track's end: %1, %2").arg(one).arg(other));
+        }
+
+        // Loose consists on the track (Check Activity): on it at 50 m, with
+        // 50 m behind one way and the train's 100 m the other; 10 m beside
+        // it (the side without the other tracks laid here) is off it.
+        {
+            const float on[4] = {0, 0, 50, 0};
+            const float beside[4] = {0, 0, 50, -10};
+            float distance = -2, room = 0, otherRoom = 0, besideDistance = -2, besideRoom = 0;
+            const bool placed = LooseConsistPlace(on, 0, 100, &distance, &room)
+                    && LooseConsistPlace(on, 1, 100, &distance, &otherRoom)
+                    && LooseConsistPlace(beside, 0, 100, &besideDistance, &besideRoom);
+            check(placed && distance == 0 && std::fabs(std::min(room, otherRoom) - 50) <= 1
+                  && std::max(room, otherRoom) == 100 && besideDistance >= 9,
+                  QString("a loose consist on the track, its room behind; one beside it: %1 %2 %3 %4")
+                  .arg(distance).arg(room).arg(otherRoom).arg(besideDistance));
         }
 
         // Waiting points of each kind saved in the path file and read back

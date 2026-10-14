@@ -903,8 +903,14 @@ void ActivityTools::actSaveEnabled(){
 
 void ActivityTools::activitySelected(QString n){
     Activity *a = currentActivity();
-    // The Timetable window follows the activity chosen (when it is open).
+    // Map and 3D, and the windows showing the activity's parts (when they
+    // are open), follow the activity chosen, none included.
+    if(route != NULL)
+        route->activitySelected(a);
     emit showTimetable(a);
+    emit showEvents(a);
+    emit showServices(route);
+    emit showTraffic(route);
     // The settings edit the activity chosen: nothing without one.
     settingsWidget.setEnabled(a != NULL);
     if(a == NULL)
@@ -993,12 +999,6 @@ void ActivityTools::activitySelected(QString n){
 
     reloadActivityObjectLists();
     showOverlay();
-    
-    if(route != NULL){
-        //if(!ActLib::act[id]->isInitActivityObjects)
-        //    ActLib::act[id]->initActivityObjects();
-        route->activitySelected(a);
-    }
     
     eBriefing.blockSignals(true);
     eDescription.blockSignals(true);

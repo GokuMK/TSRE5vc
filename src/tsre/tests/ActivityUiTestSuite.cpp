@@ -935,15 +935,26 @@ for (QWidget *window : windows)
             check(activity->toText() == original && unsaved().isEmpty(), "both undone: " + unsaved().join(", "));
             timetable.selectTrain(0);
             check(activity->shownAITrain == -1, "choosing the player's train on the map");
-            // The window follows the activity chosen in the panel.
+            // The windows, map and 3D follow the activity chosen in the
+            // panel, none included.
             if (activities) {
+                QListWidget *actions = listWith(&events, "Pick up");
+                QTreeWidget *files = treeWith(&traffic, "Unused");
+                const auto ticked = [&]() {
+                    for (int i = 0; files && i < files->topLevelItemCount(); ++i)
+                        if (files->topLevelItem(i)->text(0) == "Traffic")
+                            return files->topLevelItem(i)->checkState(1) == Qt::Checked;
+                    return false;
+                };
                 activities->setCurrentIndex(-1);
                 emit activities->textActivated(QString());
-                const int none = rows->topLevelItemCount();
+                const bool none = rows->topLevelItemCount() == 0 && actions && actions->count() == 0
+                        && !ticked() && route->getCurrentActivity() == nullptr;
                 activities->setCurrentIndex(activities->findText(activity->header->name));
                 emit activities->textActivated(activities->currentText());
-                check(none == 0 && rows->topLevelItemCount() == 3,
-                      "the Timetable window follows the activity chosen in the panel");
+                check(none && rows->topLevelItemCount() == 3 && actions && actions->count() > 0 && ticked()
+                      && route->getCurrentActivity() == activity,
+                      "the Timetable, Events and Traffic windows follow the activity chosen in the panel");
             }
         }
     }

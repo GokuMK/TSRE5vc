@@ -109,12 +109,11 @@ void ActivityServiceWindow::showServices(Route* r){
                 item->setCheckState(1, Qt::Checked);
         }
 
+        // Any: an activity of the route runs it.
         if(ActLib::IsServiceInUse(ActLib::Services[i]->nameId))
             item->setCheckState(2, Qt::Checked);
         else
             item->setCheckState(2, Qt::Unchecked);
-
-        item->setCheckState(2, Qt::Checked);
         item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
         items.append(item);
     }

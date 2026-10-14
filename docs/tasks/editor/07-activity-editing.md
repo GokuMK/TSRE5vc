@@ -159,9 +159,8 @@ seeds clean).
   measured along the whole platform; event links a warning. Left on the
   local content: 2 warnings, no errors.
 - Checked in phase 6, with the additions they concern: triggering and
-  restarted trains, the restart's waiting point on the train's path. Not
-  done: loose consists on the track (the consist is placed only when
-  drawn).
+  restarted trains, the restart's waiting point on the train's path; and
+  in phase 7, loose consists on the track (below).
 
 Suites `activity-check` (a sound activity without errors; one with each
 kind of problem, found and pointing at its object) and
@@ -286,6 +285,11 @@ with these details:
   (`IsTrafficInUse` only says a pattern of the name exists). Check
   Activity warns of a name in another case (`instance.name.case`); the
   local content has none.
+- Check Activity: a loose consist more than 1 m from the track is an
+  error (Open Rails cannot place it); one whose cars run past the track's
+  end, a warning (`LooseConsistPlace`). TSRE places the cars behind the
+  position; all 81 loose consists of the local MSTS routes fit so (12
+  would not the other way). The local routes gain no findings.
 
 Tests: `activity-edit` (the rows, by start time, a run the activity
 lacks, a name in another case; remove and add with undo; the trains
@@ -314,9 +318,11 @@ train
   JAPAN2); a stop TSRE makes names the pass's last item. Both identify
   the platform.
 - Junction choices (`PathTrack::junctionChoices`) keep one direction per
-  junction; a path through a junction twice can move the editor's preview
-  train wrongly on the second pass. Display only; the files are not
-  affected.
+  junction (the last facing pass); a path through a junction twice can
+  move the editor's preview train wrongly on the second pass. Display
+  only; the files are not affected. Of the 191 local paths, 3 pass a
+  junction twice from its points, 1 (USA2) taking another branch the
+  second time. The Play train also ignores reversal points.
 
 ## Objective
 
@@ -797,7 +803,10 @@ train's times are shared; its efficiency is the activity's own.
 what is known of the chosen train on the left (about 40% of the width)
 and its stops and times on the right; splitters between them (revised
 with the user the same day: the trains need the width, the other two do
-not). The window follows the activity chosen in the activity panel.
+not). The window follows the activity chosen in the activity panel, as
+do the Events, Services and Traffic windows, the map and 3D (none chosen
+included); the Services and Traffic windows' Any columns show what
+activities use.
 
 1. The trains, one row each, by start time (the player's first at equal
    times):
@@ -938,6 +947,27 @@ stands alone.
 - **External:** activities edited in TSRE load in Open Rails (a small
   check program around its own readers in the Linux fork, if worth
   building) and in MSAE (by the user); a test activity runs.
+  - Open Rails (done 2026-10-14, the Linux fork's RunActivity):
+    `scripts/orts-activity-check.sh <game-root> <route> <work-dir>
+    [activity] [seconds]` makes a view of the game root in the work
+    folder (the route's ACTIVITIES, PATHS, SERVICES and TRAFFIC copied),
+    lets TSRE write variants into it (suite `activity-export`, which
+    refuses a game root without the file `TSRE_SCRATCH`): the activity
+    resaved; with the Open Rails additions (horn and pattern, sand, a
+    weather change, sounds everywhere and at a place, an event triggered
+    by an AI train with ORTSContinue and Reversible_Event, a restart of a
+    waiting train); with its own traffic pattern, a stop moved and an AI
+    train taken out; with a waiting point (until 15:00) on the first AI
+    train's path. Each runs in Open Rails with its own settings until its
+    3D view appears and then for the seconds given. On EUROPE1's lclsrvce
+    (150 s) all five reach the view with no errors and no warnings the
+    stock activity has not. Waiting points of 45 s, horn (60015) and
+    uncouple (40305) load too.
+  - Open Rails itself fails on one: a wait until 08:30 (30830) on that AI
+    path stops the activity loading ("Collection was modified" in
+    `AITrain.PerformActions` during `AI.PrerunAI`), the same file with
+    15:00 or 45 s loads. An Open Rails defect to report, not TSRE's.
+  - MSAE: by the user.
 - `path-edit`, `path-roundtrip`, `content-path` and the editor suites keep
   passing.
 

@@ -27,3 +27,10 @@ struct ActivityFinding {
 // broken paths, values MSTS keeps narrower. Stops and sidings are checked
 // against the track database when one is loaded.
 QVector<ActivityFinding> CheckActivity(Activity *activity);
+// Where a loose consist stands on the track database: the distance in
+// whole metres from its position (tile x and z, x and z, as the file
+// writes them) to the nearest track (-1 none near), and the track behind
+// it up to `length` metres (TSRE places the cars behind the position; the
+// loose consists of the MSTS routes all fit so). False without a track
+// database.
+bool LooseConsistPlace(const float *tile, int direction, float length, float *distance, float *room);
