@@ -301,7 +301,7 @@ void Service::initToPlay(){
         int conPointerId;
         qDebug() << "conid" << (conPointerId =  ConLib::addCon(dir.path(), trainConfig+".con"));
         conPointer = new Consist(ConLib::con[conPointerId], true);
-        conPointer->initOnTrack(pathPointer->getStartPositionTXZ(), pathPointer->getStartDirection(), pathPointer->getJunctionDirections());
+        conPointer->initOnTrack(pathPointer->getStartPositionTXZ(), pathPointer->getStartDirection(), pathPointer->getJunctionDirections(), true);
     }
 }
 
@@ -309,7 +309,7 @@ void Service::pathChanged(Path *path){
     if(path == NULL || pathPointer != path || conPointer == NULL)
         return;
     float start[4];
-    conPointer->initOnTrack(pathPointer->getStartPositionTXZ(start), pathPointer->getStartDirection(), pathPointer->getJunctionDirections());
+    conPointer->initOnTrack(pathPointer->getStartPositionTXZ(start), pathPointer->getStartDirection(), pathPointer->getJunctionDirections(), true);
 }
 
 Consist *Service::getConsistPointer(){

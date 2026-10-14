@@ -29,6 +29,8 @@
 class Ruch {
 public:
     int onJunction = 0;
+    // Track ends passed: the traveller turns back at one.
+    int endsPassed = 0;
     
     Ruch();
     void next(float m);

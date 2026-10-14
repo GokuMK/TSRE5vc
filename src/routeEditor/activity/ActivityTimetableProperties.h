@@ -25,6 +25,9 @@ public:
     // The instance's timetable, or nothing: then the panel is empty and
     // disabled.
     void showTimetable(ActivityServiceDefinition* s, Activity *owner = NULL);
+    // The train's start time, engine and speeds, apart from the stops: the
+    // window puts it beside them.
+    QWidget *info = NULL;
     
 public slots:
     void lTimetableSelected(int row, int column);

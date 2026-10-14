@@ -263,6 +263,14 @@ with these details:
   `NextServiceUID`). Make Own Copy... writes the pattern's text into a new
   traffic pattern (`ActivityTrains::CopyPattern`) and points the activity
   at it (`Activity::setTrafficName`); its dialog has its own title.
+- A service's train stands behind its start (the first vehicle across
+  it). When the track behind the start is shorter than the train, the
+  train moves ahead until its rear is 1 m before the track's end
+  (`Consist::initOnTrack` with `fitOnTrack`, `Consist::roomBehind`,
+  `Ruch::endsPassed`); before, its rear vehicles turned back at the end
+  over the others (`Ruch` turns back at an end node). Play places the
+  player's train the same way. Each vehicle now moves to its place in
+  one go. Loose consists are placed as before.
 - The player's train is drawn without Play (`Activity::playerService`
   looks the service up until Play links it), in 3D and on the map, and
   is selectable as `activityService(0)`.
@@ -283,7 +291,8 @@ Tests: `activity-edit` (the rows, by start time, a run the activity
 lacks, a name in another case; remove and add with undo; the trains
 shown, a service once; Make Own Copy and its undo, a taken name; a save
 without a merge leaving the overlay), `path-edit` (waiting points of each
-kind saved in a path file and read back), `activity-ui` (the window's
+kind saved in a path file and read back; the track behind a start
+ending at the track's end), `activity-ui` (the window's
 rows, bold player, problem signs; where the times are saved, shared with
 another activity; Make Own Copy... through its dialog and undo; remove,
 add, undo; Show All Trains; a train chosen on the map; the traffic
@@ -785,9 +794,10 @@ an efficiency per stop. A pattern may serve several activities, so an AI
 train's times are shared; its efficiency is the activity's own.
 
 **Layout:** the trains across the window; under them, side by side
-(each about half the width), where the chosen train's times are saved
-and its timetable; splitters between them (revised with the user the
-same day: the trains need the width, the other two do not).
+(each about half the width), what is known of the chosen train on the
+left and its stops and times on the right; splitters between them
+(revised with the user the same day: the trains need the width, the
+other two do not).
 
 1. The trains, one row each, by start time (the player's first at equal
    times):
@@ -809,13 +819,14 @@ same day: the trains need the width, the other two do not).
    Under it: **Show All Trains** (map and 3D), **Add to Activity**,
    **Remove from Activity**, **Jump To**.
 2. Left: a line saying where the chosen train's times are saved, always
-   there (no pop-ups, as for overlays):
+   there (no pop-ups, as for overlays), then the train's start time,
+   engine and speeds:
    - the player's: in the activity;
    - an AI train's: in the traffic pattern, with the other activities
      using it, and **Make Own Copy...** when there are any;
    - a run not in the activity: Add to Activity puts it in.
-3. Right: the chosen train's timetable, as now: stops with Arrive,
-   Depart and Performance, Calculate, start time, engine and speeds.
+3. Right: the chosen train's stops with Arrive, Depart and Performance,
+   and Calculate.
 
 **Actions,** each one undo step:
 - Add to Activity: the run joins the activity's AI trains (its stops, the

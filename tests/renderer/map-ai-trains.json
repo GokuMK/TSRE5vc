@@ -1,5 +1,5 @@
 {
-  "notes": "AI trains shown from the Timetable window (docs/tasks/editor/07-activity-editing.md, section 7) on EUROPE1's lclsrvce: twelve AI trains of three services on two paths, all shown, the one on the short path (its place 11) chosen. The player's train and path without Play (player-start; its centre pick is service 0). Map: the AI paths' bands in the AI colours (the chosen one cyan), the consists at their starts; the centre pick of 'consist' is that AI train (service 12). 3D: the chosen path's line cyan and wide past its train.",
+  "notes": "AI trains shown from the Timetable window (docs/tasks/editor/07-activity-editing.md, section 7) on EUROPE1's lclsrvce: twelve AI trains of three services on two paths, all shown, the one on the short path (its place 11) chosen; that path starts at a track's end, so its train is moved ahead, its rear at the end. The player's train and path without Play (player-start; its centre pick is service 0). Map: the AI paths' bands in the AI colours (the chosen one cyan), the consists at their starts; the centre picks of 'chosen-start' and 'consist' are that AI train (service 12). 3D: the chosen path's line cyan and wide past its train.",
   "output": "build/renderer-ai-trains",
   "activity": "lclsrvce.act",
   "aiTrains": "all,11",

@@ -100,7 +100,9 @@ public:
     bool engFilter(QString q);
     bool couplingFilter(QString q);
     bool searchFilter(QString q);
-    void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections);
+    // On the track at the position (node, distance), moved by offset
+    // metres along it (behind when negative) in one go.
+    void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections, float offset = 0);
     void getCameraPosition(float *out = NULL);
     // What its sounds read (speed, throttle...); NULL without sound.
     const SoundValues *soundValues();

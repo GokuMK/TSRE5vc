@@ -106,8 +106,9 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     topLayout->addWidget(&trains);
     topLayout->addLayout(buttons);
 
-    // Under the trains, side by side: where the chosen train's times are
-    // saved (with Make Own Copy...), and its timetable.
+    // Under the trains, side by side: on the left what is known of the
+    // chosen train (where its times are saved, with Make Own Copy...; its
+    // start, engine and speeds), on the right its stops and times.
     QWidget *saved = new QWidget;
     QVBoxLayout *savedLayout = new QVBoxLayout(saved);
     savedLayout->setContentsMargins(0, 0, 0, 0);
@@ -115,6 +116,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     savedIn.setAlignment(Qt::AlignTop | Qt::AlignLeft);
     savedLayout->addWidget(&savedIn);
     savedLayout->addWidget(bCopy, 0, Qt::AlignLeft);
+    savedLayout->addSpacing(6);
+    savedLayout->addWidget(timetableProperties->info);
     savedLayout->addStretch(1);
     QSplitter *bottom = new QSplitter(Qt::Horizontal);
     bottom->addWidget(saved);

@@ -22,6 +22,7 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTimetable.h>
+#include <tsre/trains/Consist.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Traffic.h>
 #include <tsre/trains/ActivityNotifier.h>
@@ -526,6 +527,16 @@ int TsreTests::runPathEditSuite(bool verbose) {
                                      [&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 40}); }}));
         check(branch.droppedByLastEdit() == 1 && branch.snapshot()->passing.isEmpty(),
               "an edit through a passing path drops it and counts it");
+
+        // A service's train stands behind its start: the track behind it,
+        // 30 m one way to the track's end, the train's length the other.
+        {
+            const float start[2] = {10, 30};
+            const float one = Consist::roomBehind(start, 0, nullptr, 100);
+            const float other = Consist::roomBehind(start, 1, nullptr, 100);
+            check(std::fabs(std::min(one, other) - 30) <= 1 && std::max(one, other) == 100,
+                  QString("the room behind a start ends at the track's end: %1, %2").arg(one).arg(other));
+        }
 
         // Waiting points of each kind saved in the path file and read back
         // as their values.

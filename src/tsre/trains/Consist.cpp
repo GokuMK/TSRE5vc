@@ -26,6 +26,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/TextObj.h>
 #include <tsre/tdb/TDB.h>
+#include <tsre/tdb/Ruch.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/hud/SimpleHud.h>
 #include <tsre/sound/SoundSystem.h>
@@ -606,7 +607,7 @@ TextObj *Consist::typeLabel(int wagonType) {
     return *label;
 }
 
-void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections){
+void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections, bool fitOnTrack){
     if(direction > 0)
         direction = 1;
     
@@ -630,16 +631,38 @@ void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junction
     float conLen = 0;
     if(engItems.size() > 0)
         conLen = engItems[0].pos;
+    float advance = 0;
+    if(fitOnTrack && conLength > conLen){
+        const float behind = conLength - conLen + 1.0f;
+        const float room = roomBehind(tpos, direction, junctionDirections, behind);
+        if(room < behind){
+            advance = behind - room;
+            qDebug() << "coninit advance" << advance;
+        }
+    }
+    // Each vehicle moved to its place in one go: none passes the track's
+    // end on the way (a traveller turns back there).
     for(int i = 0; i < engItems.size(); i++){
         if(engItems[i].engPointer == NULL)
             engItems[i].engPointer = new Eng(Game::currentEngLib->eng[engItems[i].eng]);
-        engItems[i].engPointer->initOnTrack(tpos, direction, junctionDirections);
+        engItems[i].engPointer->initOnTrack(tpos, direction, junctionDirections,
+                                            advance - (engItems[i].conLength - conLen));
         engItems[i].engPointer->flip = engItems[i].flip;
-        //engItems[i].engPointer->move(26.5*i);
-        //engItems[i].engPointer->move(engItems[i].conLength);
-        engItems[i].engPointer->move(-(engItems[i].conLength-conLen));
     }
     this->isOnTrack = true;
+}
+
+float Consist::roomBehind(const float *tpos, int direction, QMap<int, int> *junctionDirections, float wanted){
+    Ruch probe;
+    probe.set(tpos[0], tpos[1], direction, junctionDirections);
+    float behind = 0;
+    while(behind < wanted){
+        probe.next(-0.5f);
+        if(probe.endsPassed > 0)
+            return behind;
+        behind += 0.5f;
+    }
+    return wanted;
 }
 
 void Consist::setTrainSpeed(float val){

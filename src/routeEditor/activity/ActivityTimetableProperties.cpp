@@ -69,28 +69,36 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
         qtTrId("route.editor.activity.timetable.properties.button.b.calculate"));
     QObject::connect(bCalculate, SIGNAL(released()), this, SLOT(bCalculateSelected()));
     vlist->addWidget(bCalculate, row++, 0, 1, 2);
-    vlist->addWidget(new QLabel(
+    vbox->addItem(vlist);
+
+    info = new QWidget(this);
+    QGridLayout *infoGrid = new QGridLayout(info);
+    infoGrid->setSpacing(2);
+    infoGrid->setContentsMargins(0, 0, 0, 0);
+    row = 0;
+    infoGrid->addWidget(new QLabel(
         //% "Start Time:"
         qtTrId("route.editor.activity.timetable.properties.label.start.time")), row, 0);
-    vlist->addWidget(&eTime, row++, 1);
+    infoGrid->addWidget(&eTime, row++, 1);
     eTime.setDisplayFormat("HH:mm:ss");
     eTime.setDisabled(true);
-    vlist->addWidget(new QLabel(
+    infoGrid->addWidget(new QLabel(
         //% "Consist main ENG:"
         qtTrId("route.editor.activity.timetable.properties.label.consist.main.eng")), row, 0);
-    vlist->addWidget(&eMainEng, row++, 1);
+    infoGrid->addWidget(&eMainEng, row++, 1);
     eMainEng.setDisabled(true);
-    vlist->addWidget(new QLabel(
+    infoGrid->addWidget(new QLabel(
         //% "Max ENG Speed:"
         qtTrId("route.editor.activity.timetable.properties.label.max.eng.speed")), row, 0);
-    vlist->addWidget(&eMaxSpeed, row++, 1);
+    infoGrid->addWidget(&eMaxSpeed, row++, 1);
     eMaxSpeed.setDisabled(true);
-    vlist->addWidget(new QLabel(
+    infoGrid->addWidget(new QLabel(
         //% "Timetable Avg Speed:"
         qtTrId("route.editor.activity.timetable.properties.label.timetable.avg.speed")), row, 0);
-    vlist->addWidget(&eAvgSpeed, row++, 1);
+    infoGrid->addWidget(&eAvgSpeed, row++, 1);
     eAvgSpeed.setDisabled(true);
-    vbox->addItem(vlist);
+    // Until the window takes it: under the stops.
+    vbox->addWidget(info);
 
     //vbox->addStretch(1);
     this->setLayout(vbox);
@@ -116,10 +124,13 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s, Ac
         eMainEng.clear();
         eMaxSpeed.clear();
         eAvgSpeed.clear();
+        eTime.setTime(QTime(0, 0));
         setEnabled(false);
+        info->setEnabled(false);
         return;
     }
     setEnabled(true);
+    info->setEnabled(true);
 
     QTableWidgetItem *newItem;
     QTime time;
