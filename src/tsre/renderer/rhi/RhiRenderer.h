@@ -758,6 +758,10 @@ private:
         QRhiTexture *integrated = nullptr;
         QRhiTexture *floor = nullptr;
         quint64 floorRevision = ~0ull;
+        // The highest fog top on the map, for the map and depth it was found for.
+        float highestTop = 0.0f;
+        quint64 topRevision = ~0ull;
+        float topDepth = -1.0f;
         QRhiBuffer *uniforms = nullptr;
         QRhiSampler *linear = nullptr;
         QRhiShaderResourceBindings *injectBindings[2] = {};

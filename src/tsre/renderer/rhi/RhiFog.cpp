@@ -36,7 +36,8 @@ struct FogParameters {
     float camera[4];           // camera (view space), y sign
     float previousCamera[4];   // last frame's camera, the history's share
     float grid[4];             // cells across, down, slices, log(far / near)
-    float range[4];            // nearest distance (m), the view's y less heights above sea level
+    float range[4];            // nearest distance (m), the view's y less heights above sea level, the highest
+                               // fog top on the map (m above sea level), 0
     float jitter[4];           // where in its cell each is sampled this frame (0-1)
     float fog[4];              // extinction at the floor (1/m), depth, base, soft edge (m)
     float map[4];              // the floor map's north-west corner (view x, z), its size (m), on
@@ -168,13 +169,33 @@ void main() {
     ivec3 id = ivec3(gl_GlobalInvocationID);
     if (id.x >= int(grid.x) || id.y >= int(grid.y) || id.z >= int(grid.z))
         return;
-    vec2 uv = (vec2(id.xy) + jitter.xy) / grid.xy;
+    // The cell's middle ray. A thin layer seen at a grazing angle rises and
+    // falls metres within a cell's depth and width: one point jittered over
+    // them each frame crossed its top and switched the cell's fog on and
+    // off (the user, 2026-10-14: mist flashing at CMK at 4:15). Four points
+    // along the slice, shifted each frame, take its share of the layer.
+    vec2 uv = (vec2(id.xy) + 0.5) / grid.xy;
     vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.w);
     vec4 far = inverse * vec4(ndc, 1.0, 1.0);
     vec3 d = normalize(far.xyz / far.w);
+    const int Points = 4;
+    float sigma = 0.0, above = 0.0, sigmaAbove = 0.0;
+    // A slice above the highest fog top on the map has none (most cells
+    // look at the sky or over the fog).
+    float low = min(d.y * sliceDistance(float(id.z)), d.y * sliceDistance(float(id.z) + 1.0)) + camera.y - range.y;
+    for (int k = 0; k < Points && low < range.z; ++k) {
+        float a, sa;
+        float s = density(camera.xyz + d * sliceDistance(float(id.z) + (float(k) + jitter.z) / float(Points)), a, sa);
+        sigma += s;
+        above += a * s;
+        sigmaAbove += sa * s;
+    }
+    sigma /= float(Points);
+    // The fog's depth and extinction above, as the fog in the cell has them.
+    above = sigma > 0.0 ? above / (sigma * float(Points)) : 0.0;
+    sigmaAbove = sigma > 0.0 ? sigmaAbove / (sigma * float(Points)) : 0.0;
+    // Its light at one point, shifted along the slice each frame.
     vec3 p = camera.xyz + d * sliceDistance(float(id.z) + jitter.z);
-    float above, sigmaAbove;
-    float sigma = density(p, above, sigmaAbove);
     vec3 scattered = vec3(0.0);
     if (sigma > 0.0) {
         // The sky's light: the horizon's colour, as far fog shows it, dimmer
@@ -191,9 +212,9 @@ void main() {
         scattered = (skyLight + sunLight) * sigma;
     }
     vec4 current = vec4(scattered, sigma);
-    // Last frame's cell at this point, where it was in view.
+    // Last frame's cell at this cell's middle, where it was in view.
     if (previousCamera.w > 0.0) {
-        vec3 r = p - previousCamera.xyz;
+        vec3 r = camera.xyz + d * sliceDistance(float(id.z) + 0.5) - previousCamera.xyz;
         vec4 clip = previous * vec4(r, 0.0);
         if (clip.w > 0.0) {
             vec2 before = clip.xy / clip.w * 0.5 + 0.5;
@@ -480,13 +501,26 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
                                   + std::pow(viewPosition[1] - f.previousCamera[1], 2.0f)
                                   + std::pow(viewPosition[2] - f.previousCamera[2], 2.0f));
     std::copy(f.previousCamera, f.previousCamera + 3, p.previousCamera);
-    p.previousCamera[3] = f.historyValid && moved < 50.0f ? (fog.quality >= 2 ? 0.9f : 0.85f) : 0.0f;
+    p.previousCamera[3] = f.historyValid && moved < 50.0f ? 0.95f : 0.0f;
     p.grid[0] = float(f.width);
     p.grid[1] = float(f.height);
     p.grid[2] = float(f.slices);
     p.grid[3] = std::log(FogFar / FogNear);
     p.range[0] = FogNear;
     p.range[1] = viewPosition[1] - sky.cameraHeight;
+    // The highest fog top on the map (with its soft edge), when the map or
+    // the fog's depth changed.
+    if (f.topRevision != fog.revision || f.topDepth != fog.depth) {
+        float highest = -1e9f;
+        for (size_t i = 0; i + 3 < fog.map->size(); i += 4) {
+            const float *c = &(*fog.map)[i];
+            highest = std::max(highest, std::max(c[0] + fog.depth * c[1], c[2] + fog.depth * 0.5f * c[3]));
+        }
+        f.highestTop = highest + std::clamp(fog.depth * 0.15f, 3.0f, 20.0f);
+        f.topRevision = fog.revision;
+        f.topDepth = fog.depth;
+    }
+    p.range[2] = f.highestTop;
     // Still (captures): the cells' middles, so frames repeat.
     if (clouds.still) {
         p.jitter[0] = p.jitter[1] = p.jitter[2] = 0.5f;

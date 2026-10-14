@@ -418,6 +418,25 @@ the terrain cannot explain.
 - **Fog off is pixel-identical** to the merge's captures (the CMK preset
   views, fog density 0.3 as then).
 
+### Flashing mist (user, 2026-10-14)
+
+- CMK at 4:15, morning mist, looking into the rising sun: the mist flashed
+  dark and bright fast. 40 frames in a row: a mean change of 2.8 of 255 a
+  frame, a quarter of the pixels unlike both neighbours (fog off 0.12;
+  the clock stopped, the same; with the cells' jitter fixed it settled
+  after a few frames and stayed still).
+- The cause: each cell took its fog at one point, jittered each frame over
+  its width and its slice's depth. The mist is 30 m deep and seen at a
+  grazing angle; at 1 km a slice is 155 m long, about 10 m of height, so
+  the point crossed the mist's top and switched the cell's fog on and off.
+- Now each cell's fog is the mean of four points along its slice, shifted
+  each frame, on the cell's middle ray; its light at one point (shifted along
+  the slice); the history 0.95 (was 0.9 High, 0.85 Low). The mean change is
+  0.04 a frame, nothing flashing, High and Low; the look the same. Cells
+  whose slice lies above the highest fog top on the map take no fog at once
+  (the same images). High about 1.5 to 2 ms in thick fog on the Steam Deck,
+  Low about 0.5 ms.
+
 ## Verification
 
 - **Captures** on hilly routes with valleys and rivers (POLAND, BNSF_SCENIC,
