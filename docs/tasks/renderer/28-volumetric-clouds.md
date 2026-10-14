@@ -1,7 +1,7 @@
 # Task 28 - Volumetric Clouds and Sky
 
-Status: in progress on `feature/clouds` (from `feature/weather`), started
-2026-10-11; steps 1-3 and 5-8 done (7: task 27), step 4 in part; reviewed
+Status: merged into `main` 2026-10-14 (from `feature/clouds`, itself from
+`feature/weather`), started 2026-10-11; steps 1-3 and 5-8 done (7: task 27), step 4 in part; reviewed
 and timed on the Steam Deck 2026-10-12 (presets by pixels, temporal update,
 horizon, stable cloud shadows, cached enclosure: see "Review and
 performance"); step 9
