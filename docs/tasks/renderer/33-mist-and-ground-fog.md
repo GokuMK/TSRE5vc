@@ -1,7 +1,7 @@
 # Task 33 - Mist and Ground Fog
 
 Status: planned 2026-10-14 on `feature/mist` (from `main` after the clouds
-merge), reviewed by the user the same day (Decisions); steps 1 and 2 done. QRhi renderer with the physical
+merge), reviewed by the user the same day (Decisions); steps 1 to 3 done. QRhi renderer with the physical
 sky. Builds on tasks 28 (clouds, shadows, light shafts), 32 (aerial haze)
 and environment 01 (weather data).
 
@@ -194,6 +194,9 @@ aerial haze stays as it is: it is the dry air. The fog adds to it.
   as the clouds are.
 - Valley fog seen from a hill, and fog banks down the line, come from this
   part.
+- Not built (step 3): one volume with its slices spaced in the logarithm of
+  the distance reaches 10 km, past the floor map's 8 km, with slices under
+  a metre near the camera; the march was not needed.
 
 ### Colours and order
 
@@ -357,6 +360,63 @@ the terrain cannot explain.
   only along the river and the valley floor.
 - `TSRE_FOG_LOG=1` logs each floor map built (cells known, ground and floor
   heights, cells under fog, tiles detailed, distant and missing).
+
+## Step 3 (done, 2026-10-14)
+
+- **Setting** `core.rendering.mist` (Mist and fog): Off, Low, High; kept by
+  the editor (as lamps by day) and passed to the renderer with the fog
+  (`Renderer::Fog`: the fog now, the floor map's cells, their revision);
+  Advanced Environment sets High.
+- **The volume** (`RhiFog.cpp`): one per frame for the main view, x and y by
+  the screen (High a cell of 8 x 8 pixels, Low 16 x 16), 64 slices spaced in
+  the logarithm of the distance from 1 m to 10 km (at 10 m a slice is 1.5 m
+  deep, at 100 m 15 m, at 1 km 155 m). Two compute passes after the cloud
+  shadow map, before the view's geometry:
+  - injection: each cell's fog (the floor map, `FogFloor::top`, a soft edge
+    of 15 % of the depth, 3 to 20 m) and its light, blended with last
+    frame's cell at that point (0.9 on High, 0.85 on Low; dropped after a
+    50 m jump), sampled at a Halton point in the cell (its middle in
+    captures, with the clouds still);
+  - integration: each column front to back, light added up to each slice's
+    end and the share let through (Hillaire's energy-conserving step).
+  Vulkan and Direct3D 11 (compute and 3D storage textures); elsewhere off.
+- **Its light:**
+  - the sky's: the horizon's colour of the aerial haze in that direction
+    (linear): far fog meets the hazy horizon without a seam (the first try,
+    the lit shaders' ambient, made fog darker than the sky it hid);
+  - dimmed deeper in the fog (half at the floor of a thick one);
+  - the sun's or the moon's (the lit shaders' light): through the fog above
+    the point towards it, the clouds' shadow map and the three sun shadow
+    maps (the near one, else the middle, else the far, as the lit shaders);
+    0.7 of a Henyey-Greenstein lobe of 0.85 and 0.3 isotropic, times 0.8:
+    a warm glow around a low sun, the fog's own shadows faint beams.
+- **Applied:** in `applyHaze` (Haze.glsl), at each lit fragment, the fog
+  first and the air over it (far fog banks turn blue with the distance);
+  the glow through it with `hazeThrough`. The sky and the clouds behind the
+  fog: a pass after the clouds' composite, the far end of each column
+  mixed over pixels at the sky's depth. Secondary views (the water
+  reflection, the environment cube) have no volume.
+- **The sun under the fog** (ShadowSampling.glsl, `cloudShadow`): every lit
+  surface's sun goes through the fog above it along the sun (the floor map
+  in the lit shaders): under thick fog at a low sun no shadows, lifting fog
+  dims the ground under it.
+- The near haze layer of the volumetric shafts is off while the fog is on.
+- **PeakRail, valley fog** (captures, High): inside the fog at dawn a pale
+  beige-grey, the trees faint; from 150 m up a sea of fog over the valley
+  under a blue sky, the far ridge out of it; 60 m up towards the rising sun
+  its disc pale through the fog with a warm glow; at 7:00 the fog lifted
+  26 m, the ground under it dim, the trees fading into it; at 8:00 thin
+  remnants over the valley; at noon none. Morning mist at 5:00: a low mist
+  over the fields under a blue sky, the sun glowing behind the trees.
+- **Low against High:** the same in these views (mean under 0.5 of 255;
+  at most 36 on the fog's edge against the hills from above). The fog's
+  shadows (trees in front of the sun) give at most 14 of 255 in thin fog.
+- **Cost on the Steam Deck** (1280 x 800, Advanced Environment, frame
+  medians of three rounds): Low about 0.5 ms, High (64 slices) about 1 to
+  1.5 ms in thick fog, under 1 ms seen from above; with 128 slices High
+  took 2 to 3 ms. Nothing without fog (the passes are skipped).
+- **Fog off is pixel-identical** to the merge's captures (the CMK preset
+  views, fog density 0.3 as then).
 
 ## Verification
 

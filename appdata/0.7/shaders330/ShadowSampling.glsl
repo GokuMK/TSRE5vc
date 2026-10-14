@@ -49,9 +49,34 @@ uniform vec4 cloudShadowMid;
 // the clouds' average shade (past the maps).
 uniform vec4 cloudShadowSun;
 
-float cloudShadow(vec3 position) {
-    if (cloudShadowArea.w <= 0.0)
+// Fog lying on the ground (task 33): the floor map (floor, the share of the
+// fog's depth pooled above it, ground, moisture) and the fog's shape. The sun
+// reaches a point under the fog's top through the fog above it, along the
+// sun: a low sun not at all, so the ground under thick fog has no shadows.
+uniform sampler2D fogFloorMap;
+// The fog's extinction at the floor (1/m; 0 without fog), depth (m), base
+// (m), 1 / sin of the light's height.
+uniform vec4 fogShape;
+// The map's north-west corner (x, z), its size (m), the view's y less heights.
+uniform vec4 fogPlace;
+
+float fogSunThrough(vec3 position) {
+    if (fogShape.x <= 0.0)
         return 1.0;
+    vec2 m = (position.xz - fogPlace.xy) / fogPlace.z;
+    if (any(lessThan(m, vec2(0.0))) || any(greaterThan(m, vec2(1.0))))
+        return 1.0;
+    vec4 cell = textureLod(fogFloorMap, m, 0.0);
+    float height = position.y - fogPlace.w;
+    float top = max(cell.x + fogShape.y * cell.y, cell.z + fogShape.y * 0.5 * cell.w);
+    float above = max(top - max(height, cell.x + fogShape.z), 0.0);
+    return exp(-fogShape.x * (1.0 + 0.5 * cell.w) * min(above * fogShape.w, 3000.0));
+}
+
+float cloudShadow(vec3 position) {
+    float fog = fogSunThrough(position);
+    if (cloudShadowArea.w <= 0.0)
+        return fog;
     vec2 p = position.xz + cloudShadowSun.xy * (cloudShadowSun.z - position.y);
     vec2 low = (p - cloudShadowArea.xy) * cloudShadowArea.z + 0.5;
     vec2 mid = (p - cloudShadowMid.xy) * cloudShadowArea.z + 0.5;
@@ -65,7 +90,7 @@ float cloudShadow(vec3 position) {
     float midThrough = max(textureLod(cloudShadowMap, mid, 0.0).a, 1e-3);
     float through = 1.0 / max(1.0 / lowThrough + 1.0 / midThrough - 1.0, 1.0);
     float shade = mix(cloudShadowSun.w, through, inside);
-    return mix(1.0, shade, cloudShadowArea.w);
+    return mix(1.0, shade, cloudShadowArea.w) * fog;
 }
 #endif
 

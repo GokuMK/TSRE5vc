@@ -187,6 +187,11 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     dummyDepth->create();
     dummyBlack = rhi->newTexture(QRhiTexture::RGBA8, QSize(1, 1));
     dummyBlack->create();
+    // No fog: nothing added, everything let through (Haze.glsl).
+    if (rhi->isFeatureSupported(QRhi::ThreeDimensionalTextures)) {
+        dummy3D = rhi->newTexture(QRhiTexture::RGBA8, 1, 1, 1, 1, QRhiTexture::ThreeDimensional);
+        dummy3D->create();
+    }
     shadowSampler = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                     QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     shadowSampler->setTextureCompareOp(QRhiSampler::LessOrEqual);
@@ -208,6 +213,10 @@ RhiRenderer::RhiRenderer(RhiContext *context)
         QRhiTextureUploadDescription cubeUpload;
         cubeUpload.setEntries(faces.cbegin(), faces.cend());
         batch->uploadTexture(dummyCube, cubeUpload);
+        if (dummy3D != nullptr) {
+            // Black, alpha 1: no fog's light, all let through.
+            batch->uploadTexture(dummy3D, QRhiTextureUploadEntry(0, 0, QRhiTextureSubresourceUploadDescription(black)));
+        }
     }
 }
 
@@ -251,6 +260,7 @@ void RhiRenderer::releaseResources() {
     releaseGlowSplats();
     releaseGlowClear();
     releaseLightShafts();
+    releaseFog();
     releaseCloudResources();
     releaseSkyResources();
     releaseEnclosureOpenness();
@@ -282,8 +292,9 @@ void RhiRenderer::releaseResources() {
     delete dummyArray;
     delete dummyCube;
     delete dummyDepth;
+    delete dummy3D;
     delete shadowSampler;
-    dummy2D = dummyArray = dummyCube = dummyDepth = nullptr;
+    dummy2D = dummyArray = dummyCube = dummyDepth = dummy3D = nullptr;
     shadowSampler = nullptr;
 }
 
@@ -406,6 +417,7 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setVec("lightDirection", Game::sunLightDirection[0], Game::sunLightDirection[1],
                     Game::sunLightDirection[2]);
     writeCloudShadowUniforms(program);
+    writeFogUniforms(program);
     // The sky enclosure (task 27): off leaves lamps and ambient as before.
     const bool enclosed = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
     program->setMat4("skyEnclosureMatrix", enclosure.viewProjection);
@@ -919,6 +931,7 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     // keep targets and resource sets of deleted textures (changing tone
     // mapping, which keeps the size, crashed; user, 2026-10-12).
     releaseLightShafts();
+    releaseFog();
     // The clouds' maps (weather, cover, shadow, the sky's light) read none of
     // them and stay: released with them, a resized window's frame lost its
     // cloud shadows (user, 2026-10-14).
@@ -1954,6 +1967,17 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                 texture = shadowMaps[map].depth;
             break;
         }
+        case 4:
+            // The fog volume (task 33): the main view's, once filled.
+            texture = dummy3D;
+            slotSampler = sampler(false, true);
+            if (slot.binding == RhiShaderSource::FogVolumeBinding && !secondaryView
+                    && currentTarget == TARGET_VIEW && fogWanted() && createFog(fog.quality, view.size)
+                    && fogResources.filled) {
+                texture = fogResources.integrated;
+                slotSampler = fogResources.linear;
+            }
+            break;
         default:
             texture = dummy2D;
             if (slot.binding == RhiShaderSource::SkyEnclosureBinding) {
@@ -1976,6 +2000,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                         = enclosureOpen[slot.binding == RhiShaderSource::SkyEnclosureFarOpenBinding ? 1 : 0];
                 if (o.valid && o.texture != nullptr) {
                     texture = o.texture;
+                    slotSampler = sampler(false, true);
+                }
+                break;
+            }
+            if (slot.binding == RhiShaderSource::FogFloorBinding) {
+                if (fogResources.filled && fogResources.floor != nullptr && fogWanted()) {
+                    texture = fogResources.floor;
                     slotSampler = sampler(false, true);
                 }
                 break;
@@ -2174,6 +2205,7 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (pass > PASS_ALPHA_TEST) {
             applyAmbientOcclusion();
             applyClouds();
+            applySkyFog();
         }
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();
@@ -2285,8 +2317,11 @@ void RhiRenderer::flushTarget() {
     }
     // The clouds' maps (cover, shadow) before the main view's geometry,
     // which samples the shadow.
-    if (state.clearColor && currentTarget == TARGET_VIEW && !secondaryView)
+    if (state.clearColor && currentTarget == TARGET_VIEW && !secondaryView) {
         prepareClouds(cb, frameBatch);
+        // The fog volume after the cloud shadow map, which it reads.
+        prepareFog(cb, frameBatch);
+    }
     if (skyFirst) {
         drawSky(cb, *state.attachments, frameBatch);
         clears &= ~1;
@@ -2581,6 +2616,7 @@ void RhiRenderer::renderFrame() {
     drawPasses(PASS_SKY, PASS_UI, true);
     applyAmbientOcclusion();
     applyClouds();
+    applySkyFog();
     flushTarget();
     // The view goes to the frame when the surface ends it, after the
     // client painted its overlay.
@@ -2616,6 +2652,8 @@ void RhiRenderer::resetFrame() {
     cloudsPrepared = false;
     reflectionCloudsApplied = false;
     shaftsApplied = false;
+    fogResources.ready = false;
+    fogResources.skyApplied = false;
     std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }
 

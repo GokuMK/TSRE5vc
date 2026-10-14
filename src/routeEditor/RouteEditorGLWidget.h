@@ -568,8 +568,17 @@ private:
     FogFloorSampler fogFloorSampler;
     QElapsedTimer fogFloorAge;
     quint64 fogFloorTerrain = 0;  // the terrain's availability revision sampled
+    quint64 fogFloorBuilds = 0;   // floor maps completed
     std::unique_ptr<FogMapLayer> fogMap;
     void updateFog();
+    // The fog for the renderer: core.rendering.mist (kept as lampsByDay), the
+    // fog now, the floor map's cells (floor, share, ground, moisture) made
+    // again when a new map is complete.
+    int mistQuality = 0;
+    std::vector<float> fogMapCells;
+    quint64 fogMapBuilt = ~0ull;
+    quint64 fogMapRevision = 0;
+    void applyFog();
     QString currentEnvironmentFile = QStringLiteral("editor.env");
     QString currentEnvironmentSlot;
     bool weatherModified = false;

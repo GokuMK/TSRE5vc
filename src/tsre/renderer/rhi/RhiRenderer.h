@@ -731,6 +731,78 @@ private:
         const QRhiTexture *volumeSunMap = nullptr;
     } lightShafts;
     bool shaftsApplied = false;
+public:
+    // The fog's passes (RhiFog.cpp), for tests: the injection and the
+    // integration (compute), the sky's (fragment).
+    static QList<QByteArray> fogShaders();
+    void setFog(const Fog &fog) override;
+private:
+    // Fog lying on the ground (task 33, RhiFog.cpp). A volume of cells over
+    // the main view (froxels): x and y by the screen, slices by the distance,
+    // spaced evenly in its logarithm from 1 m to the far end. Each frame,
+    // before the view's geometry, a compute pass fills every cell with the
+    // fog's density there (the weather's fog where the floor map pools it)
+    // and the light it scatters (the sun through the shadow maps and the
+    // cloud shadow map, the sky), blended with last frame's cells moved with
+    // the camera; a second sums each column front to back into the light
+    // added and the share let through. The lit shaders read it at their
+    // fragments (Haze.glsl), the sky and the clouds behind it a pass after
+    // the clouds' composite. Vulkan and Direct3D 11 (compute); off elsewhere.
+    Fog fog;
+    struct FogResources {
+        int quality = 0;
+        QSize viewSize;
+        int width = 0, height = 0, slices = 0;
+        // The cells of this frame and the last (alternating), the sums.
+        QRhiTexture *scatter[2] = {};
+        QRhiTexture *integrated = nullptr;
+        QRhiTexture *floor = nullptr;
+        quint64 floorRevision = ~0ull;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiSampler *linear = nullptr;
+        QRhiShaderResourceBindings *injectBindings[2] = {};
+        QRhiShaderResourceBindings *integrateBindings[2] = {};
+        QRhiComputePipeline *inject = nullptr;
+        QRhiComputePipeline *integrate = nullptr;
+        // The maps the injection's bindings hold (shadow maps and the cloud
+        // shadow map come and go).
+        const QRhiTexture *boundMaps[4] = {};
+        int current = 0;
+        bool historyValid = false;
+        float previousForward[16] = {};
+        float previousCamera[3] = {};
+        unsigned frame = 0;
+        // The sky and the clouds behind the fog.
+        QRhiBuffer *skyUniforms = nullptr;
+        QRhiTextureRenderTarget *skyTarget = nullptr;
+        QRhiRenderPassDescriptor *skyPass = nullptr;
+        QRhiShaderResourceBindings *skyBindings = nullptr;
+        QRhiGraphicsPipeline *skyPipeline = nullptr;
+        const QRhiTexture *skyViewColor = nullptr;
+        // This frame's volume is filled; the sky has its fog; the volume
+        // has been filled once (until then the lit shaders take none).
+        bool ready = false;
+        bool skyApplied = false;
+        bool filled = false;
+        bool unsupported = false;
+    } fogResources;
+    // A volume letting everything through, where a lit shader has no fog.
+    QRhiTexture *dummy3D = nullptr;
+    // Whether the main view has fog this frame.
+    bool fogWanted() const;
+    bool createFog(int quality, const QSize &viewSize);
+    void releaseFog();
+    // The volume, before the main view's geometry, which reads it.
+    void prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);
+    // The sky and the clouds behind the fog, after the clouds' composite.
+    void applySkyFog();
+    // The lit shaders' fog uniforms (Haze.glsl).
+    void writeFogUniforms(RhiProgram *program);
+    // The view's directions to the volume's x and y (0-1, its y sign in).
+    void fogForward(float *out) const;
+    // The volume's slices: nearest and farthest distance (m).
+    static constexpr float FogNear = 1.0f;
+    static constexpr float FogFar = 10000.0f;
     bool createLightShafts(QRhiTexture *cloudTexture);
     void applyLightShafts();
     void applyVolumetricShafts(const QVector3D &sunDirection, float elevation);

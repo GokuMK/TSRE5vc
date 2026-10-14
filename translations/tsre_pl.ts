@@ -2492,107 +2492,107 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4764"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4885"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2553"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2559"/>
         <source>OSM Data</source>
         <translation>Dane OSM</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2558"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2564"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2564"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2570"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2818"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2932"/>
         <source>Imagery</source>
         <translation>Zobrazowanie</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2821"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2935"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić zobrazowania.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2823"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2937"/>
         <source>No imagery source can be shown: %1</source>
         <translation>Nie można wyświetlić żadnego źródła zobrazowania: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2875"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2989"/>
         <source>Measure Distance</source>
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4770"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4891"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4776"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4897"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4782"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4903"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4788"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4909"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4794"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4915"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4800"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4921"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4806"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4927"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4812"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4933"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4818"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4939"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4824"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4945"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4830"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4951"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4842"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4963"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4860"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4981"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -2770,7 +2770,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4878"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4999"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -9563,455 +9563,480 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Volumetric</source>
         <translation>Wolumetryczne</translation>
     </message>
-    <message id="settings.core.rendering.sky.enclosure.name">
+    <message id="settings.core.rendering.mist.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1145"/>
+        <source>Mist and fog</source>
+        <translation>Mgła i mgiełka</translation>
+    </message>
+    <message id="settings.core.rendering.mist.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1147"/>
+        <source>Fog lying on the ground, from the weather: in valleys and over rivers after calm, clear nights, burning off as the sun climbs, lit by the sun through trees and clouds. With the physical sky (QRhi renderer on Vulkan or Direct3D 11). High is finer near the camera and costs more time per frame.</source>
+        <translation>Mgła leżąca przy ziemi, z pogody: w dolinach i nad rzekami po spokojnych, pogodnych nocach, rozwiewana przez wschodzące słońce, oświetlona słońcem przez drzewa i chmury. Z fizycznym niebem (renderer QRhi na Vulkanie lub Direct3D 11). Wysoka jest dokładniejsza przy kamerze i zajmuje więcej czasu na klatkę.</translation>
+    </message>
+    <message id="settings.core.rendering.mist.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1150"/>
+        <source>Off</source>
+        <translation>Wyłączona</translation>
+    </message>
+    <message id="settings.core.rendering.mist.option.low">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1152"/>
+        <source>Low</source>
+        <translation>Niska</translation>
+    </message>
+    <message id="settings.core.rendering.mist.option.high">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1154"/>
+        <source>High</source>
+        <translation>Wysoka</translation>
+    </message>
+    <message id="settings.core.rendering.sky.enclosure.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1159"/>
         <source>Sky enclosure</source>
         <translation>Zakrycie nieba</translation>
     </message>
     <message id="settings.core.rendering.sky.enclosure.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1147"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1161"/>
         <source>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky&apos;s ambient light drops to the enclosed ambient. QRhi renderer.</source>
         <translation>Wykrywa, gdzie niebo jest zasłonięte (tunele, przejścia pod torami, mosty, dachy), z mapy głębokości widzianej z góry: lampy zachowują tam w dzień nocną moc, a światło otoczenia z nieba spada do światła otoczenia pod zakryciem. Renderer QRhi.</translation>
     </message>
     <message id="settings.core.rendering.enclosed.ambient.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1152"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1166"/>
         <source>Enclosed ambient</source>
         <translation>Światło otoczenia pod zakryciem</translation>
     </message>
     <message id="settings.core.rendering.enclosed.ambient.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1154"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1168"/>
         <source>The share of the sky&apos;s ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</source>
         <translation>Część światła otoczenia z nieba, która zostaje tam, gdzie niebo jest całkiem zasłonięte, aby tunele starych tras bez lamp były czytelne. Trasa może ustawić własną wartość w swoich ustawieniach (TsreEnclosedAmbient w pliku TRK).</translation>
     </message>
     <message id="settings.core.rendering.render.track.items.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1159"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1173"/>
         <source>Render TrackDB items</source>
         <translation>Renderuj elementy TrackDB</translation>
     </message>
     <message id="settings.core.rendering.render.track.items.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1161"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1175"/>
         <source>Display TrackDB and RoadDB interactive-item markers in the Route Editor scene.</source>
         <translation>Wyświetlaj w scenie Edytora tras znaczniki elementów interaktywnych TrackDB i RoadDB.</translation>
     </message>
     <message id="settings.core.interface.hide.tools.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1168"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1182"/>
         <source>Hide Route Editor tools</source>
         <translation>Ukryj narzędzia Edytora tras</translation>
     </message>
     <message id="settings.core.interface.hide.tools.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1170"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1184"/>
         <source>Hide the Route Editor&apos;s auxiliary tool windows after its saved layout is created.</source>
         <translation>Ukryj pomocnicze okna narzędzi Edytora tras po odtworzeniu zapisanego układu.</translation>
     </message>
     <message id="settings.core.interface.accent.color.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1175"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1189"/>
         <source>System-theme accent colour</source>
         <translation>Kolor akcentu motywu systemowego</translation>
     </message>
     <message id="settings.core.interface.accent.color.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1177"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1191"/>
         <source>Used only when Use system theme is enabled. Controls interface headings and selections, with contrast adjusted against light or dark system palettes. TSRE&apos;s built-in dark theme retains its own coordinated accent colours.</source>
         <translation>Używane tylko po włączeniu „Użyj motywu systemowego”. Steruje kolorem nagłówków i zaznaczeń interfejsu, z kontrastem dopasowanym do jasnej lub ciemnej palety systemowej. Wbudowany ciemny motyw TSRE zachowuje własne dopasowane kolory akcentu.</translation>
     </message>
     <message id="settings.core.interface.main.window.layout.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1182"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1196"/>
         <source>Route Editor window layout</source>
         <translation>Układ okien Edytora tras</translation>
     </message>
     <message id="settings.core.interface.main.window.layout.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1184"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1198"/>
         <source>Compact startup code: P enables Properties, T enables Tools, and W denotes the main world view.</source>
         <translation>Skrócony kod startowy: P włącza Właściwości, T włącza Narzędzia, a W oznacza główny widok świata.</translation>
     </message>
     <message id="settings.core.interface.consist.window.layout.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1189"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1203"/>
         <source>Consist Editor window layout</source>
         <translation>Układ okna Edytora składów</translation>
     </message>
     <message id="settings.core.interface.consist.window.layout.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1191"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1205"/>
         <source>Compact startup code controlling the C, 1, 2, and U Consist Editor panels.</source>
         <translation>Skrócony kod startowy sterujący panelami C, 1, 2 i U Edytora składów.</translation>
     </message>
     <message id="settings.core.interface.consist.background.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1196"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1210"/>
         <source>Consist preview background</source>
         <translation>Tło podglądu składu</translation>
     </message>
     <message id="settings.core.interface.consist.background.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1198"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1212"/>
         <source>Background colour applied to the Consist Editor&apos;s consist preview when its window is created.</source>
         <translation>Kolor tła podglądu składu używany przy tworzeniu okna Edytora składów.</translation>
     </message>
     <message id="settings.core.interface.shape.background.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1203"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1217"/>
         <source>Shape preview background</source>
         <translation>Tło podglądu modelu 3D</translation>
     </message>
     <message id="settings.core.interface.shape.background.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1205"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1219"/>
         <source>Background colour applied to shape preview widgets in the Consist Editor and Shape Viewer.</source>
         <translation>Kolor tła podglądu modeli 3D w Edytorze składów i Przeglądarce modeli 3D.</translation>
     </message>
     <message id="settings.core.interface.hud.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1210"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1224"/>
         <source>Enable Route Editor HUD</source>
         <translation>Włącz HUD Edytora tras</translation>
     </message>
     <message id="settings.core.interface.hud.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1212"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1226"/>
         <source>Display the Route Editor heads-up overlay.</source>
         <translation>Wyświetl nakładkę HUD Edytora tras.</translation>
     </message>
     <message id="settings.core.interface.hud.scale.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1217"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1231"/>
         <source>HUD scale</source>
         <translation>Skala HUD</translation>
     </message>
     <message id="settings.core.interface.hud.scale.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1219"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1233"/>
         <source>Scale multiplier used to build the Route Editor HUD projection.</source>
         <translation>Mnożnik skali używany do tworzenia projekcji HUD Edytora tras.</translation>
     </message>
     <message id="settings.core.interface.hud.show.editor.fps.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1224"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1238"/>
         <source>Show editor FPS</source>
         <translation>Pokaż FPS edytora</translation>
     </message>
     <message id="settings.core.interface.hud.show.editor.fps.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1226"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1240"/>
         <source>Display Route Editor frame-rate diagnostics in the HUD.</source>
         <translation>Wyświetlaj diagnostykę liczby klatek Edytora tras w HUD.</translation>
     </message>
     <message id="settings.core.interface.marker.lines.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1231"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1245"/>
         <source>Show route marker lines</source>
         <translation>Pokaż linie znaczników trasy</translation>
     </message>
     <message id="settings.core.interface.marker.lines.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1233"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1247"/>
         <source>Create line geometry connecting imported route-marker points.</source>
         <translation>Utwórz geometrię linii łączącą zaimportowane punkty znaczników trasy.</translation>
     </message>
     <message id="settings.core.track.default.grade.format.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1240"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1254"/>
         <source>Default track grade format</source>
         <translation>Domyślny format pochylenia toru</translation>
     </message>
     <message id="settings.core.track.default.grade.format.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1242"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1256"/>
         <source>Initial grade input format in track, dynamic-track, and ruler properties.</source>
         <translation>Początkowy format wprowadzania pochylenia we właściwościach toru, toru dynamicznego i linijki.</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.permille">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1245"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1259"/>
         <source>Permille</source>
         <translation>Promile</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.percent">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1247"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1261"/>
         <source>Percent</source>
         <translation>Procent</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.one.in.x">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1249"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1263"/>
         <source>1 in X</source>
         <translation>1 na X</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.angle">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1251"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1265"/>
         <source>Angle</source>
         <translation>Kąt</translation>
     </message>
     <message id="settings.core.editing.default.move.step.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1256"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1270"/>
         <source>Default movement step</source>
         <translation>Domyślny krok przesunięcia</translation>
     </message>
     <message id="settings.core.editing.default.move.step.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1258"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1272"/>
         <source>Initial translation increment and live-track quantization grid used by Route Editor controls.</source>
         <translation>Początkowy krok przesuwania i siatka kwantyzacji aktywnego toru używane przez elementy sterujące Edytora tras.</translation>
     </message>
     <message id="settings.core.track.maximum.elevation.permille.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1263"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1277"/>
         <source>Maximum absolute track grade</source>
         <translation>Maksymalne bezwzględne pochylenie toru</translation>
     </message>
     <message id="settings.core.track.maximum.elevation.permille.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1265"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1279"/>
         <source>Clamp track and dynamic-track property input to this absolute grade, expressed in per mille.</source>
         <translation>Ograniczaj wartości pochylenia toru i toru dynamicznego do tej wartości bezwzględnej, wyrażonej w promilach.</translation>
     </message>
     <message id="settings.core.track.snap.rotation.only.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1270"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1284"/>
         <source>Default to rotation-only snapping</source>
         <translation>Domyślnie przyciągaj tylko obrót</translation>
     </message>
     <message id="settings.core.track.snap.rotation.only.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1272"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1286"/>
         <source>Initial state of the Auto Placement &apos;Only Rot&apos; option for each newly loaded route. Panel changes affect only the current route session and do not update this profile default.</source>
         <translation>Początkowy stan opcji automatycznego rozmieszczania „Tylko obrót” dla każdej nowo wczytanej trasy. Zmiany w panelu dotyczą tylko bieżącej sesji trasy i nie zmieniają wartości domyślnej profilu.</translation>
     </message>
     <message id="settings.core.track.snap.radius.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1277"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1291"/>
         <source>Default placement snap radius</source>
         <translation>Domyślny promień przyciągania przy umieszczaniu</translation>
     </message>
     <message id="settings.core.track.snap.radius.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1279"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1293"/>
         <source>Initial maximum snapping distance used by Auto Placement for each newly loaded route. Panel changes affect only the current route session and do not update this profile default.</source>
         <translation>Początkowa maksymalna odległość przyciągania używana przez Automatyczne rozmieszczanie dla każdej nowo wczytanej trasy. Zmiany w panelu dotyczą tylko bieżącej sesji trasy i nie zmieniają wartości domyślnej profilu.</translation>
     </message>
     <message id="settings.core.track.procedural.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1284"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1298"/>
         <source>Procedural track mode</source>
         <translation>Tryb torów proceduralnych</translation>
     </message>
     <message id="settings.core.track.procedural.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1286"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1300"/>
         <source>Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Forced also falls back to DefaultTrack.</source>
         <translation>Wyłączone zawsze używa geometrii zastępczej; Włączone używa żądanych szablonów proceduralnych, gdy są dostępne; Wymuszone w razie potrzeby korzysta także z DefaultTrack.</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.disabled">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1289"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1303"/>
         <source>Disabled</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.enabled">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1291"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1305"/>
         <source>Enabled</source>
         <translation>Włączone</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.forced">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1293"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1307"/>
         <source>Forced</source>
         <translation>Wymuszone</translation>
     </message>
     <message id="settings.core.terrain.seasonal.editing.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1298"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1312"/>
         <source>Edit seasonal terrain files</source>
         <translation>Edytuj sezonowe pliki terenu</translation>
     </message>
     <message id="settings.core.terrain.seasonal.editing.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1300"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1314"/>
         <source>When a content season is selected, load and save terrain texture and raw files in that season&apos;s directories.</source>
         <translation>Po wybraniu pory roku zawartości wczytuj i zapisuj tekstury terenu oraz pliki surowe w katalogach tej pory roku.</translation>
     </message>
     <message id="settings.core.terrain.procedural.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1305"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1319"/>
         <source>Enable procedural materials</source>
         <translation>Włącz materiały proceduralne</translation>
     </message>
     <message id="settings.core.terrain.procedural.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1307"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1321"/>
         <source>Generate and display procedural terrain materials. When disabled, use saved static textures without loading or rewriting procedural maps or bakes. Procedural texture tools are unavailable; saved material data is preserved. Requires an application restart.</source>
         <translation>Generuj i wyświetlaj proceduralne materiały terenu. Po wyłączeniu używane są zapisane tekstury statyczne bez wczytywania ani nadpisywania map proceduralnych lub wypaleń. Narzędzia tekstur proceduralnych są niedostępne, ale zapisane dane materiałów pozostają zachowane. Wymaga ponownego uruchomienia aplikacji.</translation>
     </message>
     <message id="settings.core.terrain.procedural.detail.distance.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1312"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1326"/>
         <source>Detailed texture distance</source>
         <translation>Zasięg tekstur szczegółowych</translation>
     </message>
     <message id="settings.core.terrain.procedural.detail.distance.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1314"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1328"/>
         <source>Horizontal camera-to-patch-centre distance for detailed procedural textures. Beyond this distance use the saved tile bake when available. Independent of terrain geometry and object draw distances; applies immediately.</source>
         <translation>Pozioma odległość kamery od środka fragmentu dla szczegółowych tekstur proceduralnych. Poza tą odległością używane jest zapisane wypalenie kafla, jeśli jest dostępne. Niezależne od geometrii terenu i odległości rysowania obiektów; działa natychmiast.</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1319"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1333"/>
         <source>Patch texture size</source>
         <translation>Rozmiar tekstury fragmentu</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1321"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1335"/>
         <source>Width and height of each generated detailed patch texture. Higher values increase generation time and memory use. Does not resize the painted material-ID map. Requires an application restart.</source>
         <translation>Szerokość i wysokość każdej generowanej szczegółowej tekstury fragmentu. Wyższe wartości zwiększają czas generowania i zużycie pamięci. Nie zmienia rozmiaru malowanej mapy ID materiałów. Wymaga ponownego uruchomienia aplikacji.</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.128">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1323"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1337"/>
         <source>128 x 128</source>
         <translation>128 × 128</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1325"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1339"/>
         <source>256 x 256</source>
         <translation>256 × 256</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1327"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1341"/>
         <source>512 x 512</source>
         <translation>512 × 512</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1329"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1343"/>
         <source>1024 x 1024</source>
         <translation>1024 × 1024</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1331"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1345"/>
         <source>2048 x 2048</source>
         <translation>2048 × 2048</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1336"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1350"/>
         <source>Baked tile texture size</source>
         <translation>Rozmiar wypalonej tekstury kafla</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1338"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1352"/>
         <source>Width and height of the whole-tile DXT1 fallback texture. Existing bakes remain visible; a changed size is generated on the next tile save after restarting. Does not resize the material-ID map.</source>
         <translation>Szerokość i wysokość zastępczej tekstury DXT1 całego kafla. Istniejące wypalenia pozostają widoczne; nowy rozmiar zostanie wygenerowany przy następnym zapisie kafla po ponownym uruchomieniu. Nie zmienia rozmiaru mapy ID materiałów.</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1340"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1354"/>
         <source>256 x 256</source>
         <translation>256 × 256</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1342"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1356"/>
         <source>512 x 512</source>
         <translation>512 × 512</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1344"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1358"/>
         <source>1024 x 1024</source>
         <translation>1024 × 1024</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1346"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1360"/>
         <source>2048 x 2048</source>
         <translation>2048 × 2048</translation>
     </message>
     <message id="settings.core.terrain.procedural.validate.bake.inputs.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1351"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1365"/>
         <source>Validate baked texture inputs</source>
         <translation>Sprawdzaj dane wejściowe wypalania tekstur</translation>
     </message>
     <message id="settings.core.terrain.procedural.validate.bake.inputs.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1353"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1367"/>
         <source>Diagnostic/repair mode: hash the entire material-ID map and generation/source metadata on load and save. A mismatch requests a full rebake on save, but keeps displaying the existing fallback. Can cause pauses; leave off for normal editing. Requires an application restart.</source>
         <translation>Tryb diagnostyczno-naprawczy: podczas wczytywania i zapisu oblicza skrót całej mapy ID materiałów oraz metadanych generowania/źródła. Niezgodność wymusza pełne ponowne wypalenie przy zapisie, ale do tego czasu wyświetlana jest istniejąca tekstura zastępcza. Może powodować przerwy; podczas zwykłej edycji pozostaw wyłączone. Wymaga ponownego uruchomienia aplikacji.</translation>
     </message>
     <message id="settings.core.route.loading.preload.all.world.files.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1358"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1372"/>
         <source>Preload all world files</source>
         <translation>Wstępnie wczytuj wszystkie pliki World</translation>
     </message>
     <message id="settings.core.route.loading.preload.all.world.files.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1360"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1374"/>
         <source>Load every route world tile during route initialization instead of only the normal working set; server mode forces this on.</source>
         <translation>Podczas inicjalizacji trasy wczytuj wszystkie kafle World zamiast tylko zwykłego zestawu roboczego; tryb serwera wymusza tę opcję.</translation>
     </message>
     <message id="settings.core.geometry.positive.quaternions.only.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1365"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1379"/>
         <source>Canonicalize quaternion signs</source>
         <translation>Ujednolicaj znaki kwaternionów</translation>
     </message>
     <message id="settings.core.geometry.positive.quaternions.only.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1367"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1381"/>
         <source>Convert object rotations to the equivalent representation with a non-negative W component. Existing affected objects are marked as modified when loaded. Intended for route compatibility or migration.</source>
         <translation>Konwertuj obroty obiektów do równoważnej reprezentacji z nieujemną składową W. Istniejące obiekty objęte zmianą są oznaczane jako zmodyfikowane podczas wczytywania. Opcja przeznaczona do zgodności lub migracji tras.</translation>
     </message>
     <message id="settings.core.maps.image.resolution.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1374"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1388"/>
         <source>Generated map resolution</source>
         <translation>Rozdzielczość generowanej mapy</translation>
     </message>
     <message id="settings.core.maps.image.resolution.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1376"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1390"/>
         <source>Width and height of the composite terrain-map image created after downloaded map tiles are assembled.</source>
         <translation>Szerokość i wysokość zbiorczego obrazu mapy terenu tworzonego po połączeniu pobranych kafli mapy.</translation>
     </message>
     <message id="settings.core.content.loading.prefer.open.rails.eng.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1383"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1397"/>
         <source>Load OpenRails ENG overrides</source>
         <translation>Wczytuj nadpisania ENG Open Rails</translation>
     </message>
     <message id="settings.core.content.loading.prefer.open.rails.eng.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1385"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1399"/>
         <source>For each locomotive, first try its ENG file and include paths under the trainset OpenRails subdirectory.</source>
         <translation>Dla każdej lokomotywy najpierw użyj jej pliku ENG i uwzględnij ścieżki w podkatalogu OpenRails danego trainsetu.</translation>
     </message>
     <message id="settings.core.network.client.login.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1392"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1406"/>
         <source>Route Editor client login</source>
         <translation>Logowanie klienta Edytora tras</translation>
     </message>
     <message id="settings.core.network.client.login.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1394"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1408"/>
         <source>Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
         <translation>Szablon połączenia w postaci użytkownik[:hasło]@host[:port]. Chronione części wstawiaj jako {secret:ID}, np. user:{secret:network.clientPassword}@server:port. Niepusta wartość uruchamia tryb klienta zdalnego.</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1399"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1413"/>
         <source>Server authentication mode</source>
         <translation>Tryb uwierzytelniania serwera</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1401"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1415"/>
         <source>Select no authentication or validate users against users.txt in the server working directory.</source>
         <translation>Wybierz brak uwierzytelniania albo sprawdzanie użytkowników na podstawie users.txt w katalogu roboczym serwera.</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.option.default">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1404"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1418"/>
         <source>None</source>
         <translation>Brak</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.option.file">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1406"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1420"/>
         <source>users.txt file</source>
         <translation>Plik users.txt</translation>
     </message>
     <message id="settings.core.network.player.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1411"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1425"/>
         <source>Player mode</source>
         <translation>Tryb gracza</translation>
     </message>
     <message id="settings.core.network.player.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1413"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1427"/>
         <source>Experimental mode that hides Route Editor editing UI, suppresses the 3D placement pointer, and skips the interactive out-of-sync TrackSection repair prompt.</source>
         <translation>Tryb eksperymentalny ukrywający interfejs edycji Edytora tras, wyłączający wskaźnik umieszczania 3D i pomijający interaktywny monit naprawy niesynchronizowanych TrackSection.</translation>
     </message>
     <message id="settings.core.network.use.network.engine.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1418"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1432"/>
         <source>Use external locomotive data</source>
         <translation>Używaj zewnętrznych danych lokomotyw</translation>
     </message>
     <message id="settings.core.network.use.network.engine.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1420"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1434"/>
         <source>Experimental integration that reads locomotive speed from TrainNetworkEng and publishes elevation, path distance, and geographic position during simulation updates.</source>
         <translation>Eksperymentalna integracja odczytująca prędkość lokomotywy z TrainNetworkEng i udostępniająca wysokość, odległość na drodze przejazdu oraz położenie geograficzne podczas aktualizacji symulacji.</translation>
     </message>
     <message id="settings.core.advanced.use.quad.tree.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1427"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1441"/>
         <source>Use saved terrain QuadTree</source>
         <oldsource>Use quadtree terrain library</oldsource>
         <translation>Używaj zapisanego QuadTree terenu</translation>
     </message>
     <message id="settings.core.advanced.use.quad.tree.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1429"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1443"/>
         <source>Use the route&apos;s saved terrain index. When disabled, reconstruct a temporary index from terrain descriptors; use Errors and Messages &gt; Fix to adopt it for ordinary saving. Remote clients always use the server&apos;s index.</source>
         <oldsource>Construct TerrainLibQt instead of the legacy TerrainLibSimple implementation when loading a route; remote-client mode forces this on.</oldsource>
         <translation>Używaj zapisanego indeksu terenu trasy. Po wyłączeniu odtwórz tymczasowy indeks z deskryptorów terenu; wybierz Błędy i komunikaty &gt; Napraw, aby przyjąć go do zwykłego zapisu. Klienci zdalni zawsze używają indeksu serwera.</translation>
     </message>
     <message id="settings.core.advanced.use.empty.track.items.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1434"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1448"/>
         <source>Reuse empty TrackDB item slots</source>
         <translation>Ponownie wykorzystuj puste miejsca elementów TrackDB</translation>
     </message>
     <message id="settings.core.advanced.use.empty.track.items.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1436"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1450"/>
         <source>Allocate new TrackDB items into existing emptyitem slots before extending the TrackDB item array.</source>
         <translation>Przydzielaj nowe elementy TrackDB do istniejących pustych miejsc emptyitem przed rozszerzeniem tablicy elementów TrackDB.</translation>
     </message>
     <message id="settings.core.advanced.ignore.missing.global.shapes.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1441"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1455"/>
         <source>Hide missing GLOBAL track shapes</source>
         <translation>Ukrywaj brakujące układy torowe GLOBAL</translation>
     </message>
     <message id="settings.core.advanced.ignore.missing.global.shapes.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1443"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1457"/>
         <source>Filter TrackSection shapes whose files are absent from GLOBAL/SHAPES out of Route Editor placement lists.</source>
         <translation>Ukrywaj na listach umieszczania Edytora tras układy TrackSection, których plików brakuje w GLOBAL/SHAPES.</translation>
     </message>
@@ -11322,12 +11347,12 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Zapisano %1</translation>
     </message>
     <message id="tsre.game.title.tsre">
-        <location filename="../src/tsre/Game.cpp" line="550"/>
+        <location filename="../src/tsre/Game.cpp" line="553"/>
         <source>TSRE</source>
         <translation>TSRE</translation>
     </message>
     <message id="tsre.game.text.welcome.in.tsre.this.is.experimental.version">
-        <location filename="../src/tsre/Game.cpp" line="553"/>
+        <location filename="../src/tsre/Game.cpp" line="556"/>
         <source>Welcome in TSRE!
 
 This is experimental version.
@@ -11502,22 +11527,22 @@ TSRE pobierze teraz dane aplikacji.</translation>
         <translation>Poziom wody</translation>
     </message>
     <message id="tsre.world.terrain.action.toggle.water">
-        <location filename="../src/tsre/world/Terrain.cpp" line="3766"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="3786"/>
         <source>&amp;Toggle Water</source>
         <translation>Przełącz &amp;wodę</translation>
     </message>
     <message id="tsre.world.terrain.action.put.texture">
-        <location filename="../src/tsre/world/Terrain.cpp" line="3772"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="3792"/>
         <source>&amp;Put Texture</source>
         <translation>&amp;Nałóż teksturę</translation>
     </message>
     <message id="tsre.world.terrain.action.toggle.draw">
-        <location filename="../src/tsre/world/Terrain.cpp" line="3778"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="3798"/>
         <source>&amp;Toggle Draw</source>
         <translation>Przełącz &amp;rysowanie</translation>
     </message>
     <message id="tsre.world.terrain.action.select.objects">
-        <location filename="../src/tsre/world/Terrain.cpp" line="3784"/>
+        <location filename="../src/tsre/world/Terrain.cpp" line="3804"/>
         <source>&amp;Select Objects</source>
         <translation>&amp;Zaznacz obiekty</translation>
     </message>
@@ -12852,32 +12877,32 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Anuluj</translation>
     </message>
     <message id="settings.graphics.preset.openrails.basic.name">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="50"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="52"/>
         <source>OpenRails Basic</source>
         <translation>OpenRails podstawowy</translation>
     </message>
     <message id="settings.graphics.preset.openrails.basic.description">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="52"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="54"/>
         <source>The look of Open Rails: the route&apos;s sky and fog, no shadows, reflections or lamps. The sun still moves with the time of day.</source>
         <translation>Wygląd Open Rails: niebo i mgła trasy, bez cieni, odbić i lamp. Słońce nadal porusza się zgodnie z porą dnia.</translation>
     </message>
     <message id="settings.graphics.preset.openrails.extended.name">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="56"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="58"/>
         <source>OpenRails Extended</source>
         <translation>OpenRails rozszerzony</translation>
     </message>
     <message id="settings.graphics.preset.openrails.extended.description">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="58"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="60"/>
         <source>Open Rails with shadows, reflections, shaded water and lamps lighting the scene, dimmed by day; still the route&apos;s sky, without tone mapping. A new profile starts with it.</source>
         <translation>Open Rails z cieniami, odbiciami, cieniowaną wodą i lampami oświetlającymi scenę, przyciemnionymi w dzień; nadal niebo trasy, bez mapowania tonów. Z nim startuje nowy profil.</translation>
     </message>
     <message id="settings.graphics.preset.advanced.environment.name">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="62"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="64"/>
         <source>Advanced Environment</source>
         <translation>Zaawansowane środowisko</translation>
     </message>
     <message id="settings.graphics.preset.advanced.environment.description">
-        <location filename="../src/settings/GraphicsPresets.cpp" line="64"/>
+        <location filename="../src/settings/GraphicsPresets.cpp" line="66"/>
         <source>The sky computed from the atmosphere, volumetric clouds and light shafts from the weather, ambient occlusion, AgX tone mapping and auto exposure, lamps that keep their strength in tunnels. QRhi renderer; costs the most time per frame.</source>
         <translation>Niebo obliczane z atmosfery, chmury wolumetryczne i smugi światła z pogody, okluzja otoczenia, mapowanie tonów AgX i automatyczna ekspozycja, lampy zachowujące siłę w tunelach. Renderer QRhi; zajmuje najwięcej czasu na klatkę.</translation>
     </message>

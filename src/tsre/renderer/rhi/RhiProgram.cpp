@@ -44,6 +44,7 @@ void reflect(RhiProgram &program) {
             switch (sampler.type) {
             case QShaderDescription::Sampler2DArray: entry.type = 1; break;
             case QShaderDescription::SamplerCube: entry.type = 2; break;
+            case QShaderDescription::Sampler3D: entry.type = 4; break;
             case QShaderDescription::Sampler2D:
                 entry.type = 0;
                 break;

@@ -32,7 +32,7 @@ float hazeLayer(float h0, float h1, float scale) {
 
 // What the air lets through of a surface's light, per colour; the same air
 // as the clouds' (Rayleigh, Mie and the haze, RhiClouds.cpp airTo).
-vec3 hazeThrough(vec3 position) {
+vec3 airThrough(vec3 position) {
     vec3 ray = position - cameraPosition;
     float distance = length(ray) / 1000.0;
     float h0 = hazeParams.x;
@@ -40,6 +40,34 @@ vec3 hazeThrough(vec3 position) {
     vec3 sigma = vec3(5.802e-3, 13.558e-3, 33.1e-3) * hazeLayer(h0, h1, 8.0)
             + vec3(4.44e-3 * hazeLayer(h0, h1, 1.2) + hazeParams.y * hazeLayer(h0, h1, 1.5));
     return exp(-sigma * distance);
+}
+
+// Fog lying on the ground (task 33, RhiFog.cpp): the main view's volume of
+// cells, x and y by the view's directions, slices by the distance (evenly
+// in its logarithm); each holds the fog's light added up to its far end
+// (linear) and the share let through.
+uniform sampler3D fogVolume;
+uniform mat4 fogForward;
+// On, the nearest slice's distance (m), log(far / near), slices.
+uniform vec4 fogParams;
+
+vec4 fogAt(vec3 position) {
+    if (fogParams.x < 0.5)
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    vec3 ray = position - cameraPosition;
+    vec4 clip = fogForward * vec4(ray, 0.0);
+    if (clip.w <= 0.0)
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
+    // Slice i holds the sums up to its far end (continuous slice i + 1).
+    float slice = log(max(length(ray), fogParams.y) / fogParams.y) / fogParams.z * fogParams.w;
+    vec4 f = textureLod(fogVolume, vec3(uv, (slice - 0.5) / fogParams.w), 0.0);
+    return vec4(max(f.rgb, vec3(0.0)), clamp(f.a, 0.0, 1.0));
+}
+
+// What the air and the fog let through of a surface's light (its glow too).
+vec3 hazeThrough(vec3 position) {
+    return airThrough(position) * fogAt(position).a;
 }
 
 // The air's own light in a direction: the horizon's colour there (display).
@@ -56,8 +84,12 @@ vec3 hazeLight(vec3 position) {
 // cover it is lit as the ambient is). Mixed in linear light, as the final
 // pass reads the view.
 vec3 applyHaze(vec3 display, vec3 position, float amount, float lightScale) {
-    vec3 through = mix(vec3(1.0), hazeThrough(position), amount);
+    // The fog lies low, in front of what the air reaches: the fog first, then
+    // the air over both (far fog banks turn blue with the distance).
+    vec4 fog = fogAt(position);
+    vec3 surface = pow(max(display, vec3(0.0)), vec3(2.2)) * mix(1.0, fog.a, amount) + fog.rgb * (amount * lightScale);
+    vec3 through = mix(vec3(1.0), airThrough(position), amount);
     vec3 air = pow(max(hazeLight(position) * lightScale, vec3(0.0)), vec3(2.2));
-    return pow(pow(max(display, vec3(0.0)), vec3(2.2)) * through + air * (vec3(1.0) - through), vec3(1.0 / 2.2));
+    return pow(surface * through + air * (vec3(1.0) - through), vec3(1.0 / 2.2));
 }
 #endif

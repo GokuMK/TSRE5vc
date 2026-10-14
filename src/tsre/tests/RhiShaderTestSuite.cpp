@@ -107,8 +107,22 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
         }
     }
     // Ambient occlusion passes: code-held GLSL 440.
+    // The fog's compute passes (task 33): Vulkan and Direct3D 11 only.
+    const QList<QByteArray> fog = RhiRenderer::fogShaders();
+    for (int i = 0; i < 2; ++i) {
+        QShaderBaker baker;
+        baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
+                                   {QShader::HlslShader, QShaderVersion(50)}});
+        baker.setGeneratedShaderVariants({QShader::StandardShader});
+        baker.setSourceString(fog[i], QShader::ComputeStage);
+        const QShader shader = baker.bake();
+        if (!shader.isValid())
+            qWarning().noquote() << baker.errorMessage();
+        check(shader.isValid(), QString("fog compute pass %1 bakes").arg(i));
+    }
     const QList<QByteArray> occlusion = RhiRenderer::ambientOcclusionShaders() + RhiRenderer::imageShaders()
-            + RhiRenderer::skyShaders() + RhiRenderer::cloudShaders() + RhiRenderer::lightShaftShaders();
+            + RhiRenderer::skyShaders() + RhiRenderer::cloudShaders() + RhiRenderer::lightShaftShaders()
+            + QList<QByteArray>{fog[2]};
     for (int i = 0; i < occlusion.size(); ++i) {
         QShaderBaker baker;
         baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},

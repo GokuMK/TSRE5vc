@@ -186,6 +186,31 @@ public:
     };
     virtual void setClouds(const Clouds &clouds) {}
 
+    // Fog lying on the ground (task 33): the weather's fog where the floor
+    // map puts it. The QRhi renderer draws it with the physical sky.
+    struct Fog {
+        int quality = 0;              // core.rendering.mist: 0 off, 1 low, 2 high
+        float amount = 0.0f;          // 0-1
+        float visibility = 40000.0f;  // m, in the fog at the valley floor
+        float depth = 0.0f;           // m, its top above the floor
+        float base = 0.0f;            // m above the floor it has lifted to
+        float patchiness = 0.0f;
+        // The floor map: size x size cells, RGBA (floor, the share of the
+        // depth pooled above it, ground, moisture; heights in the view's
+        // y), row 0 at the north edge; its north-west corner (world metres
+        // east, north) and cell size; a new revision when it changed.
+        const std::vector<float> *map = nullptr;
+        int size = 0;
+        double west = 0.0;
+        double north = 0.0;
+        float cell = 64.0f;
+        quint64 revision = 0;
+        // The camera (world metres east, north).
+        double cameraEast = 0.0;
+        double cameraNorth = 0.0;
+    };
+    virtual void setFog(const Fog &fog) {}
+
     // The sky enclosure (task 27): a depth map from straight above around
     // the camera, of terrain and opaque surfaces. A surface with something
     // over it (terrain over a tunnel, a bridge deck, a roof) is enclosed:

@@ -137,6 +137,7 @@ tools(std::make_unique<ToolRegistry>()) {
     connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+    mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
     timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
@@ -148,6 +149,8 @@ tools(std::make_unique<ToolRegistry>()) {
                 environmentChanged = true;
             if (key == "core.rendering.lampsByDay")
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+            if (key == "core.rendering.mist")
+                mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
             if (key == "core.rendering.timeOfDay.running")
                 timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
             // The frame-rate limit applies at once.
@@ -739,6 +742,7 @@ void RouteEditorGLWidget::paintScene(){
     applySky();
     applyClouds();
     updateFog();
+    applyFog();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
@@ -2728,6 +2732,44 @@ WeatherFog::State RouteEditorGLWidget::weatherFog() const {
     return WeatherFog::at(*weather, now, east, north, sun);
 }
 
+void RouteEditorGLWidget::applyFog() {
+    if (renderer == NULL)
+        return;
+    Renderer::Fog f;
+    f.quality = mistQuality;
+    if (mistQuality > 0 && fogNow.amount > 0.0f && fogFloor.valid()) {
+        constexpr int N = FogFloor::Size;
+        if (fogMapBuilt != fogFloorBuilds) {
+            // Cells without terrain lie far below everything: no fog.
+            fogMapCells.resize(size_t(N) * N * 4);
+            for (int row = 0; row < N; ++row)
+                for (int column = 0; column < N; ++column) {
+                    const FogFloor::Sample s = fogFloor.cell(column, row);
+                    float *cell = &fogMapCells[(size_t(row) * N + column) * 4];
+                    cell[0] = s.known ? s.floor : -10000.0f;
+                    cell[1] = FogFloor::share(s);
+                    cell[2] = s.known ? s.ground : -10000.0f;
+                    cell[3] = s.known ? s.moisture : 0.0f;
+                }
+            fogMapBuilt = fogFloorBuilds;
+            ++fogMapRevision;
+        }
+        f.amount = fogNow.amount;
+        f.visibility = fogNow.visibility;
+        f.depth = fogNow.depth;
+        f.base = fogNow.base;
+        f.patchiness = fogNow.patchiness;
+        f.map = &fogMapCells;
+        f.size = N;
+        f.west = fogFloor.west();
+        f.north = fogFloor.north();
+        f.cell = float(FogFloor::CellSize);
+        f.revision = fogMapRevision;
+        cameraWorldPosition(f.cameraEast, f.cameraNorth);
+    }
+    renderer->setFog(f);
+}
+
 void RouteEditorGLWidget::updateFog() {
     if (currentWeather() == nullptr || camera == nullptr || Game::terrainLib == nullptr)
         return;
@@ -2763,6 +2805,7 @@ void RouteEditorGLWidget::updateFog() {
     if (fogFloorSampler.active()) {
         if (fogFloorSampler.step(*Game::terrainLib, 8, fogFloor)) {
             fogFloorAge.restart();
+            ++fogFloorBuilds;
             if (fogMap)
                 fogMap->invalidate();
             // Diagnostics: TSRE_FOG_LOG=1 logs each floor map built.
