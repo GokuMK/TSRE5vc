@@ -18,6 +18,14 @@ too thin).
 It is automatic: the weather and the terrain decide where and when. A route
 designer can force it or turn it off per weather, without drawing areas.
 
+## Decisions (user, 2026-10-14)
+
+| Topic | Decision |
+|---|---|
+| Designer control | The fog override per keyframe and the Environment panel's session setting; no painted areas for now |
+| Near and far | Both at once: the ground fog of a morning is seen up close as much as far ahead (step 3) |
+| Setting | A separate "Mist and fog" setting, on in Advanced Environment |
+
 ## What exists
 
 - Aerial haze (task 32): per colour, from the weather's visibility, scaled by
@@ -236,16 +244,19 @@ aerial haze stays as it is: it is the dry air. The fog adds to it.
 2. **The floor map:** built on a worker, uploaded, shown in the map view.
    Unit tests on a made-up terrain: a V valley fills to a level top, a
    plateau stays thin, water adds.
-3. **Fog in the far march:** the half-resolution march through the fog
-   layer, at first from the camera (the near part too, coarsely); the
-   composite. First look at valley fog from hills and down the line.
-4. **The froxel volume near the camera:** compute passes, the sun with its
-   shadows, the sky, frames averaged, applied in the lit shaders; the march
-   starts at its end. The near haze layer of the shafts goes.
-5. **Lamps and signals in fog:** the light grid in the volume; the signals'
+3. **The fog near and far, together:** one density and lighting function
+   shared by both parts.
+   - The froxel volume: compute passes, the sun with its shadows, the sky,
+     frames averaged, applied in the lit shaders.
+   - The half-resolution march through the fog layer from the volume's end,
+     and its composite.
+   - The near haze layer of the shafts goes.
+   First look: ground fog around the camera and on the line ahead, valley
+   fog from hills.
+4. **Lamps and signals in fog:** the light grid in the volume; the signals'
    glow.
-6. **Patches and motion:** noise drift, edges, burn-off lifting into stratus.
-7. **Setting, preset, panel control, docs;** timing on the Steam Deck at
+5. **Patches and motion:** noise drift, edges, burn-off lifting into stratus.
+6. **Setting, preset, panel control, docs;** timing on the Steam Deck at
    each quality.
 
 Later: steam fog over water in autumn, sea fog, fog in the OpenGL renderer
@@ -256,15 +267,13 @@ the terrain cannot explain.
 
 1. **Scope:** radiation and valley fog and rain mist first; sea and
    advection fog later?
-2. **Humidity in the weather:** temperature and dew point per keyframe
-   (Open-Meteo has both, and the temperature serves snow and frost later),
-   or one value (the dew point spread)?
-3. **Designer control:** the fog override per keyframe, plus the panel's
-   session setting, with no painted areas for now?
-4. **Order:** the far fog first (step 3, what a driver sees ahead), then the
-   froxel volume for beams and lamps?
-5. **Setting:** a separate "Mist and fog" setting, on in Advanced
-   Environment?
+2. **Humidity in the weather:** temperature and dew point per keyframe, or
+   only their gap (the dew point spread)? Fog needs only the gap. The
+   temperature also serves rain or snow and frozen ground near 0 °C, frost
+   and rime after a foggy night, and steam fog over water warmer than the
+   air. Weather sources give both, and both are the numbers a designer
+   knows. Storing both costs one number per keyframe; the gap alone means
+   changing the format again later. Recommended: both.
 
 ## Verification
 
