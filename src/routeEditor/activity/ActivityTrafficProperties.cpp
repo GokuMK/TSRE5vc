@@ -287,6 +287,6 @@ void ActivityTrafficProperties::eTimeSelected(QTime val){
     if(s == NULL)
         return;
     ActivityEdit edit(traffic, true);
-    s->setTime(val.msecsSinceStartOfDay()/1000);
+    traffic->setInstanceTime(s, val.msecsSinceStartOfDay()/1000);
     lServcies.currentItem()->setText(1, val.toString("HH:mm:ss"));
 }

@@ -290,15 +290,18 @@ void ActivityServiceProperties::setStationList(){
     qDebug() << p->pathObjects.size();
 
     int count = -1;
+    QHash<int, int> passes;
     foreach(Path::PathObject* i, p->pathObjects){
         count++;
         if(i == NULL)
             continue;
-        qDebug() << i->name;
-        qDebug() << i->distanceDownPath;
         list.clear();
         list.append(QString(""));
-        list.append(i->name);
+        // A platform the path passes again (a switchback): which pass.
+        const int pass = ++passes[i->platform];
+        list.append(pass > 1 ? QString(
+            //% "%1 (pass %2)"
+            qtTrId("route.editor.activity.service.properties.platform.pass")).arg(i->name).arg(pass) : i->name);
         float dist = i->distanceDownPath;
         dist = 0.01*((int)(dist/10));
         list.append(QString::number(dist));

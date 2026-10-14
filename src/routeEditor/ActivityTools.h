@@ -136,6 +136,7 @@ private:
     // Before the fields it holds: members are destroyed in reverse order,
     // and it would free the fields declared before it.
     QWidget settingsWidget;
+    QLabel pathReport;
     QLineEdit eDisplayName;
     QLineEdit eFileName;
 

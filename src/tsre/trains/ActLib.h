@@ -46,7 +46,9 @@ public:
     static int AddPath(QString path, QString name);
     // After an edit of a path (task editor 06): the services running on it
     // place their consists again.
-    static void PathChanged(Path *path);
+    // A path's nodes changed (an edit, or undo with report false): its
+    // services follow it, and the activities and traffic running them.
+    static void PathChanged(Path *path, bool report = true);
     // A path made in the editor (New, Clone), kept with the paths read.
     static int AddNewPath(Path *path);
     // Takes a deleted path out of the library. The object stays, as services
@@ -71,7 +73,6 @@ public:
     static bool TrafficExists(QString nameId, QString routePath = {});
     static int LoadAllAct(QString gameRoot, bool gui = false);
     static void GetUnsavedInfo(QVector<QString> &items);
-    static void UpdateServiceChanges(QString serviceNameId, QString routePath = {});
     static void SaveAll();
 private:
 

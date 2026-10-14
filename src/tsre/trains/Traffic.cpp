@@ -20,6 +20,7 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/ActLib.h>
+#include <tsre/Undo.h>
 #include <tsre/trains/Activity.h>
 
 Traffic::Traffic(QString p, QString n, bool nowe) {
@@ -124,6 +125,30 @@ ActivityTimetable* Traffic::getInstance(const QString &serviceName, int time){
             return service[i];
     }
     return NULL;
+}
+
+void Traffic::setInstanceTime(ActivityTimetable *instance, int time){
+    if(instance == NULL || instance->time == time)
+        return;
+    const int before = instance->time;
+    for(Activity *activity : ActLib::Act){
+        if(activity == NULL || activity->loaded != 1 || activity->traffic == NULL
+                || activity->routeHashid != routeHashid
+                || activity->traffic->name.compare(nameId, Qt::CaseInsensitive) != 0)
+            continue;
+        bool kept = false;
+        for(ActivityServiceDefinition &train : activity->traffic->service){
+            if(train.time != before || train.name.compare(instance->name, Qt::CaseInsensitive) != 0)
+                continue;
+            if(!kept)
+                Undo::PushActivityData(activity);
+            kept = true;
+            train.time = time;
+            train.setChanged();
+        }
+    }
+    instance->setTime(time);
+    modified = true;
 }
 
 void Traffic::addInstance(ActivityTimetable *instance){

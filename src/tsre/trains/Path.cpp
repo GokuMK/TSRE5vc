@@ -484,47 +484,137 @@ void Path::rebuildDerived() {
     junctionDirections = PathTrack::junctionChoices(tdb, mainNodes, mainLegs);
     startDirection = !mainNodes.isEmpty() && mainNodes[0].isPoint() && !mainNodes[0].forward ? 1 : 0;
 
-    // The platforms along the path, each pair once, at its far end.
-    qDeleteAll(pathObjectsMap);
-    pathObjectsMap.clear();
-    QHash<int, float> pairAlong;
-    QHash<int, int> pairItem;
-    float down = 0.0f;
-    for (const PathTrack::Leg &leg : mainLegs) {
-        if (leg.broken)
-            continue;
-        auto it = tdb->trackNodes.find(leg.track);
+    findPlatformPasses(tdb);
+    isinit1 = true;
+}
+
+bool Path::PathObject::meets(int itemId, float *distance) const {
+    for (const QPair<int, float> &item : items)
+        if (item.first == itemId) {
+            if (distance != NULL)
+                *distance = item.second;
+            return true;
+        }
+    return false;
+}
+
+void Path::findPlatformPasses(TDB *tdb) {
+    previousObjects.clear();
+    for (const PathObject *object : pathObjects)
+        previousObjects.push_back(*object);
+    qDeleteAll(pathObjects);
+    pathObjects.clear();
+    const auto platformItem = [tdb](int id) -> TRitem* {
+        auto item = tdb->trackItems.find(id);
+        return item != tdb->trackItems.end() && item->second != NULL && item->second->type == "platformitem"
+                && item->second->platformTrItemData != NULL ? item->second : NULL;
+    };
+    const auto platformItems = [&](int track) {
+        QVector<TRitem*> items;
+        auto it = tdb->trackNodes.find(track);
         const TRnode *vector = it != tdb->trackNodes.end() ? it->second : NULL;
-        for (int i = 0; vector != NULL && i < vector->iTri; ++i) {
-            const int id = vector->trItemRef[i];
-            auto item = tdb->trackItems.find(id);
-            if (item == tdb->trackItems.end() || item->second == NULL
-                    || item->second->type != "platformitem")
+        for (int i = 0; vector != NULL && i < vector->iTri; ++i)
+            if (TRitem *item = platformItem(vector->trItemRef[i]))
+                items.push_back(item);
+        return items;
+    };
+    const auto within = [](const PathTrack::Leg &leg, float at) {
+        return at >= std::min(leg.from, leg.to) - PathTrack::SamePlace
+            && at <= std::max(leg.from, leg.to) + PathTrack::SamePlace;
+    };
+    QVector<float> legStart(mainLegs.size());
+    float down = 0.0f;
+    for (int i = 0; i < mainLegs.size(); ++i) {
+        legStart[i] = down;
+        down += std::fabs(mainLegs[i].to - mainLegs[i].from);
+    }
+    // The legs between reversals: the train meets each item at most once
+    // in a run.
+    QVector<QPair<int, int>> runs;
+    int runStart = 0;
+    for (int i = 1; i <= mainLegs.size(); ++i) {
+        const bool reversal = i < mainLegs.size() && mainLegs[i].track == mainLegs[i - 1].track
+                && std::fabs(mainLegs[i].from - mainLegs[i - 1].to) < PathTrack::SamePlace
+                && mainLegs[i].forward() != mainLegs[i - 1].forward();
+        if (i == mainLegs.size() || reversal) {
+            runs.push_back({runStart, i});
+            runStart = i;
+        }
+    }
+    for (const QPair<int, int> &run : runs) {
+        // The items of each platform met in the run.
+        QMap<int, PathObject> met;
+        for (int l = run.first; l < run.second; ++l) {
+            const PathTrack::Leg &leg = mainLegs[l];
+            if (leg.broken)
                 continue;
-            const float at = item->second->getTrackPosition();
-            if (at < std::min(leg.from, leg.to) - PathTrack::SamePlace
-                    || at > std::max(leg.from, leg.to) + PathTrack::SamePlace)
-                continue;
-            const int partner = item->second->platformTrItemData != NULL
-                    ? int(item->second->platformTrItemData[1]) : id;
-            const int pair = std::min(id, partner);
-            const float along = down + std::fabs(at - leg.from);
-            if (!pairAlong.contains(pair) || along > pairAlong.value(pair)) {
-                pairAlong.insert(pair, along);
-                pairItem.insert(pair, id);
+            for (TRitem *item : platformItems(leg.track)) {
+                const float at = item->getTrackPosition();
+                if (!within(leg, at))
+                    continue;
+                const int id = int(item->trItemId);
+                const int pair = std::min(id, int(item->platformTrItemData[1]));
+                PathObject &object = met[pair];
+                object.platform = pair;
+                object.items.push_back({id, legStart[l] + std::fabs(at - leg.from)});
             }
         }
-        down += std::fabs(leg.to - leg.from);
+        QVector<PathObject> passes;
+        for (auto it = met.begin(); it != met.end(); ++it) {
+            PathObject &object = it.value();
+            QSet<int> ids;
+            for (const QPair<int, float> &item : object.items)
+                ids.insert(item.first);
+            bool counts = ids.size() >= 2;
+            // One item met: the path starts or ends inside the platform
+            // (its other item on the first or last leg's track, beyond it).
+            if (!counts && !mainLegs.isEmpty()) {
+                TRitem *item = platformItem(object.items.first().first);
+                const int partnerId = item != NULL ? int(item->platformTrItemData[1]) : -1;
+                TRitem *partner = platformItem(partnerId);
+                const PathTrack::Leg &first = mainLegs.first(), &last = mainLegs.last();
+                if (partner != NULL) {
+                    const float at = partner->getTrackPosition();
+                    bool onFirst = false, onLast = false;
+                    for (TRitem *t : platformItems(first.track))
+                        onFirst = onFirst || int(t->trItemId) == partnerId;
+                    for (TRitem *t : platformItems(last.track))
+                        onLast = onLast || int(t->trItemId) == partnerId;
+                    counts = (run.first == 0 && onFirst && (first.forward() ? at < first.from : at > first.from))
+                          || (run.second == mainLegs.size() && onLast && (last.forward() ? at > last.to : at < last.to));
+                }
+            }
+            if (!counts)
+                continue;
+            std::sort(object.items.begin(), object.items.end(),
+                      [](const QPair<int, float> &a, const QPair<int, float> &b) { return a.second < b.second; });
+            object.trItemId = object.items.last().first;
+            object.distanceDownPath = object.items.last().second;
+            passes.push_back(object);
+        }
+        // In the order the train meets them; platforms it is on at once
+        // (overlapping) as one.
+        std::sort(passes.begin(), passes.end(), [](const PathObject &a, const PathObject &b) {
+            return a.items.first().second < b.items.first().second;
+        });
+        const int firstOfRun = pathObjects.size();
+        for (const PathObject &pass : passes) {
+            PathObject *last = pathObjects.size() > firstOfRun ? pathObjects.last() : NULL;
+            if (last != NULL && pass.items.first().second <= last->distanceDownPath + PathTrack::SamePlace) {
+                last->items += pass.items;
+                if (pass.distanceDownPath > last->distanceDownPath) {
+                    last->distanceDownPath = pass.distanceDownPath;
+                    last->trItemId = pass.trItemId;
+                }
+                continue;
+            }
+            pathObjects.push_back(new PathObject(pass));
+        }
     }
-    for (auto it = pairAlong.begin(); it != pairAlong.end(); ++it) {
-        PathObject *object = new PathObject();
-        object->trItemId = pairItem.value(it.key());
-        object->name = tdb->trackItems[object->trItemId]->stationName;
-        object->distanceDownPath = it.value();
-        pathObjectsMap.insert(it.value(), object);
+    for (PathObject *object : pathObjects) {
+        TRitem *item = platformItem(object->trItemId);
+        object->name = item != NULL ? item->stationName : QString();
     }
-    pathObjects = pathObjectsMap.values();
-    isinit1 = true;
 }
 
 const QVector<Node> &Path::nodes() {
@@ -553,9 +643,27 @@ void Path::apply(const QVector<Node> &nodes) {
     int same = 0;
     while (same < nodes.size() && same < mainNodes.size() && sameNode(nodes[same], mainNodes[same]))
         ++same;
-    for (int i = passing.size() - 1; i >= 0; --i)
-        if (passing[i].to >= same || passing[i].from >= same)
-            passing.removeAt(i);
+    // The nodes the same at the end, apart from those the same at the start.
+    int tail = 0;
+    while (tail < nodes.size() - same && tail < mainNodes.size() - same
+           && sameNode(nodes[nodes.size() - 1 - tail], mainNodes[mainNodes.size() - 1 - tail]))
+        ++tail;
+    // Passing paths before the change stay, those after it move with the
+    // nodes; those through it go.
+    const int shift = nodes.size() - mainNodes.size();
+    const int firstOfTail = mainNodes.size() - tail;
+    lastDroppedPassing = 0;
+    for (int i = passing.size() - 1; i >= 0; --i) {
+        if (passing[i].to < same)
+            continue;
+        if (passing[i].from >= firstOfTail) {
+            passing[i].from += shift;
+            passing[i].to += shift;
+            continue;
+        }
+        passing.removeAt(i);
+        ++lastDroppedPassing;
+    }
     mainNodes = nodes;
     modified = true;
     rebuildDerived();
@@ -576,8 +684,9 @@ void Path::restore(const PathSnapshot &snapshot) {
     mainNodes = snapshot.nodes;
     passing = snapshot.passing;
     modified = snapshot.modified || snapshot.saves != saves;
+    lastDroppedPassing = 0;
     rebuildDerived();
-    ActLib::PathChanged(this);
+    ActLib::PathChanged(this, false);
 }
 
 void Path::copyFrom(Path &source) {

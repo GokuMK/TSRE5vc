@@ -210,6 +210,18 @@ ActivityTools::ActivityTools(QString name)
     QObject::connect(actPathsRefreshList, SIGNAL(released()), this, SLOT(actPathsRefreshListSelected()));
     vlist1->addWidget(actPathsRefreshList,1,1,1,3);
     vbox->addItem(vlist1);    
+    // What the last path edit did to the services on it.
+    pathReport.setWordWrap(true);
+    pathReport.setContentsMargins(3,0,0,0);
+    pathReport.hide();
+    vbox->addWidget(&pathReport);
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::pathFollowed, this,
+                     [this](const QString &path, const QStringList &lines) {
+        pathReport.setText(QString(
+            //% "Path %1 edited:"
+            qtTrId("route.editor.activity.tools.path.followed")).arg(path) + "\n" + lines.join("\n"));
+        pathReport.show();
+    });
    
     label = new QLabel(
         //% "Activity Objects List:"

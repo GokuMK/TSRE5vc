@@ -959,10 +959,16 @@ void Activity::setDuration(int h, int m){
     modified = true;
 }
 
+// The player's timetable moves with the start (task editor 07, decided).
 void Activity::setStartTime(int h, int m, int s){
+    const int before = header->startTime[0]*3600 + header->startTime[1]*60 + header->startTime[2];
     header->startTime[0] = h;
     header->startTime[1] = m;
     header->startTime[2] = s;
+    const int delta = h*3600 + m*60 + s - before;
+    ActivityServiceDefinition *player = playerServiceDefinition;
+    if(delta != 0 && player != NULL && player->trafficDefinition != NULL)
+        player->trafficDefinition->setTime(player->trafficDefinition->time + delta);
     modified = true;
 }
 
@@ -1374,24 +1380,3 @@ QVector<ActivityServiceDefinition*> Activity::getServiceList(){
     return s;
 }
 
-void Activity::updateService(QString serviceName){
-    if(playerServiceDefinition != NULL)
-        if(playerServiceDefinition->name == serviceName){
-            playerServiceDefinition->reloadTimetable();
-        }
-    
-    if(traffic == NULL)
-        return;
-    
-    Traffic *t = ActLib::GetTrafficByName(traffic->name, ContentPath::parentDirectory(path));
-    if(t == NULL){
-        return;
-    }
-    for(int i = 0; i < traffic->service.size(); i++){
-        if(traffic->service[i].trafficDefinition != NULL){
-            if(traffic->service[i].name == serviceName){
-                traffic->service[i].reloadTimetable();
-            }
-        }
-    }
-}

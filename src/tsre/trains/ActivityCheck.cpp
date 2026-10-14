@@ -16,12 +16,13 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/Service.h>
+#include <tsre/trains/ServiceStops.h>
 #include <tsre/trains/Traffic.h>
 
 namespace {
 
-// How far a stop may be from its platform as the path passes it: TSRE
-// measures to the platform's far end, MSTS's files anywhere along it.
+// How far a stop may be from where its pass meets its platform item (MSAE's
+// distances vary by some metres).
 constexpr float StopTolerance = 50.0f;
 
 QString clock(int seconds) {
@@ -161,55 +162,39 @@ private:
         if (Game::trackDB == NULL || !Game::trackDB->loaded || path->isBroken())
             return;
         path->nodes();
-        // Each platform item: where the path leaves the platform, and the
-        // platform's length before that.
-        QHash<int, float> along, length;
-        for (const Path::PathObject *object : path->pathObjects) {
-            if (object == NULL)
-                continue;
-            along.insert(object->trItemId, object->distanceDownPath);
-            length.insert(object->trItemId, 0.0f);
-            TRitem *item = const_cast<TRitem*>(trackItem(object->trItemId));
-            if (item == NULL || item->platformTrItemData == NULL)
-                continue;
-            const int partnerId = int(item->platformTrItemData[1]);
-            TRitem *partner = const_cast<TRitem*>(trackItem(partnerId));
-            const float platform = partner != NULL
-                    ? std::fabs(item->getTrackPosition() - partner->getTrackPosition()) : 0.0f;
-            along.insert(partnerId, object->distanceDownPath);
-            length.insert(object->trItemId, platform);
-            length.insert(partnerId, platform);
-        }
+        // Each stop at its pass over its platform (Path::PathObject: the
+        // passes as MSTS counts them).
+        QVector<Path::PathObject> passes;
+        for (const Path::PathObject *pass : path->pathObjects)
+            passes.push_back(*pass);
+        const QVector<int> at = ServiceStops::Passes(service->stationStop, passes);
         const QString name = service->nameId;
-        float previous = -1;
+        int previous = -1;
         bool ordered = true;
-        for (const Service::StationStop &stop : service->stationStop) {
-            if (!along.contains(stop.platformStartID)) {
-                const TRitem *item = trackItem(stop.platformStartID);
+        for (int i = 0; i < service->stationStop.size(); ++i) {
+            const Service::StationStop &stop = service->stationStop[i];
+            const TRitem *item = trackItem(stop.platformStartID);
+            const QString platform = item != NULL ? item->platformName : QString::number(stop.platformStartID);
+            if (at[i] < 0) {
                 target(add(ActivityFinding::Warning, "stop.not.on.path",
                            //% "%1: the stop at %2 is not on the path %3."
-                           qtTrId("activity.check.stop.not.on.path")
-                           .arg(name, item != NULL ? item->platformName : QString::number(stop.platformStartID),
-                                path->nameId)),
+                           qtTrId("activity.check.stop.not.on.path").arg(name, platform, path->nameId)),
                        ActivityFinding::Service, name);
                 continue;
             }
-            const float distance = along.value(stop.platformStartID);
-            const float from = distance - length.value(stop.platformStartID);
-            const float off = stop.distanceDownPath < from ? from - stop.distanceDownPath
-                            : std::max(0.0f, stop.distanceDownPath - distance);
-            if (off > StopTolerance) {
-                const TRitem *item = trackItem(stop.platformStartID);
+            const Path::PathObject &pass = passes[at[i]];
+            float distance = pass.distanceDownPath;
+            if (!pass.meets(stop.platformStartID, &distance) && item != NULL && item->platformTrItemData != NULL)
+                pass.meets(int(item->platformTrItemData[1]), &distance);
+            const float off = std::fabs(distance - stop.distanceDownPath);
+            if (off > StopTolerance)
                 target(add(ActivityFinding::Warning, "stop.distance",
                            //% "%1: the stop at %2 is %3 m from where the path passes it."
-                           qtTrId("activity.check.stop.distance")
-                           .arg(name, item != NULL ? item->platformName : QString::number(stop.platformStartID))
-                           .arg(int(off))),
+                           qtTrId("activity.check.stop.distance").arg(name, platform).arg(int(off))),
                        ActivityFinding::Service, name);
-            }
-            if (distance < previous)
+            if (at[i] < previous)
                 ordered = false;
-            previous = distance;
+            previous = at[i];
         }
         if (!ordered)
             target(add(ActivityFinding::Warning, "stops.order",

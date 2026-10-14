@@ -49,13 +49,31 @@ class Path : public GameObj {
 public:
     static void CreatePaths(TDB * tdb);
 
+    // A pass of the path over a platform, as MSTS counts a stop's
+    // SkipCount (task editor 07, Reference): each pass over both of a
+    // platform's items between reversals (a switchback platform twice), the
+    // platform the path starts or ends in, platforms passed together once.
+    // A stop's SkipCount is its pass's place in pathObjects.
     struct PathObject {
         QString name;
+        // The platform item the pass leaves the platform at, and the
+        // distance down the path to it.
         int trItemId = -1;
-        float distanceDownPath;
+        float distanceDownPath = 0;
+        // The platform: the lower id of its two items.
+        int platform = -1;
+        // Each platform item met in the pass, with its distance.
+        QVector<QPair<int, float>> items;
+        // Whether the pass meets the item; its distance there.
+        bool meets(int itemId, float *distance = NULL) const;
     };
 
     QVector<PathObject*> pathObjects;
+    // The passes before the last change of the path (Path::apply, restore):
+    // services find their stops' passes in them.
+    const QVector<PathObject> &previousPasses() const { return previousObjects; }
+    // Passing paths the last edit dropped.
+    int droppedByLastEdit() const { return lastDroppedPassing; }
 
     QString displayName;
     QString name;
@@ -138,7 +156,10 @@ private:
     QVector<OglObj*> lines;
     QVector<float> linesX;
     QVector<float> linesZ;
-    QMap<float, PathObject*> pathObjectsMap;
+    QVector<PathObject> previousObjects;
+    int lastDroppedPassing = 0;
+    // The passes over platforms (PathObject), from the resolved legs.
+    void findPlatformPasses(TDB *tdb);
     QMap<int, int> junctionDirections;
     int startDirection = 0;
     // The nodes of the main path, and the passing paths beside it: the

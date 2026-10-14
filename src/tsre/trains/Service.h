@@ -88,6 +88,12 @@ public:
     // The consist goes to the start of its path again after the path was
     // edited.
     void pathChanged(Path *path);
+    // The path was edited (or undone): each stop stays at its platform's
+    // pass (the same platform, the same pass of it), taking its new place
+    // and distance, or goes when the path no longer passes it so; the
+    // activities and traffic running the service follow. What changed, for
+    // the report.
+    QStringList followPath(Path *path);
 private:
     bool modified = false;
     int serial = -1;

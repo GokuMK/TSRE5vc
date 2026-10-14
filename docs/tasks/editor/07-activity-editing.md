@@ -1,8 +1,7 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 to 4 done (2026-10-14, branch `feature/activity-editing`);
-`SkipCount` worked out from the data (Reference, MSTS), phase 5 next.
-Design decisions taken (below).
+Status: phases 1 to 5 done (2026-10-14, branch `feature/activity-editing`);
+phase 6 (Open Rails additions) next. Design decisions taken (below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -165,6 +164,56 @@ seeds clean).
 Suites `activity-check` (a sound activity without errors; one with each
 kind of problem, found and pointing at its object) and
 `activity-check-route` (`--game-root`, `--route`: the findings by kind).
+
+**Phase 5, paths to services and timetables (done 2026-10-14).**
+- A path's platform list (`Path::pathObjects`) is its platform passes by
+  the rule found in the data (Reference, MSTS, `SkipCount`): each pass
+  over both of a platform's items between reversals, a switchback
+  platform twice; the platform the path starts or ends in; overlapping
+  platforms once. A pass keeps every item it meets with its distance. A
+  stop's `SkipCount` is its pass's place; the service's station list
+  shows a second pass as "(pass 2)".
+- An edit of a path (and its undo) makes its services follow
+  (`ActLib::PathChanged`, `Service::followPath`): a stop stays at the
+  same pass of its platform, taking its new place and distance; a stop
+  the path no longer passes is removed; new platforms are offered, not
+  stops. The activities and traffic running the service follow
+  (`ServiceStops::Follow`): a kept stop keeps its times and efficiency,
+  a new one takes the departure of the stop before it. The same happens
+  for ticking and unticking stops and choosing another path, which used
+  to reset every timetable using the service to its start time. All of
+  it is in the edit's undo step; the activity panel shows what changed
+  under the paths.
+- Choosing a path for a service stops at the first pass of each
+  platform.
+- Times move: a traffic instance's new start time moves its stops, and
+  the activities' AI trains paired with it (service and time) follow;
+  the activity's start time moves the player's timetable. Stops timed 0
+  stay untimed.
+- An edit keeps the passing paths before and after the nodes it changes
+  (those after move with the nodes) and reports those it goes through.
+- Check Activity measures stops against their pass: on the local routes
+  the last distance warning (a stop on a switchback's second pass) is
+  gone.
+
+Tests: `path-edit` (passes on a test track: each platform, overlapping
+ones once, a start inside a platform, a switchback twice, a reversal
+inside a platform none; a service, activity and traffic following an
+edit and its undo; a stop at a switchback's first pass; a new stop's
+time; start times moving timetables; passing paths kept and dropped).
+
+**Minor issues, for a later check (2026-10-14):**
+- `SkipCount` exceptions in MSTS's own content (Reference, MSTS): 30
+  services number their stops 0, 1, 2... and are renumbered by passes
+  when their path is edited; 4 have stale counts. How strictly MSTS
+  reads `SkipCount` is not known (to be asked of the MSTS analysis).
+- On a back pass MSTS names the platform item met first (Masaki on
+  JAPAN2); a stop TSRE makes names the pass's last item. Both identify
+  the platform.
+- Junction choices (`PathTrack::junctionChoices`) keep one direction per
+  junction; a path through a junction twice can move the editor's preview
+  train wrongly on the second pass. Display only; the files are not
+  affected.
 
 ## Objective
 

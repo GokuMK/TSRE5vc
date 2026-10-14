@@ -51,6 +51,8 @@ public:
     void save(QTextStream* out);
     // Saved: it and its timetable unchanged since.
     void setModified(bool val);
+    // Changed (its timetable, a traffic instance, is not).
+    void setChanged() { modified = true; }
     void reloadTimetable();
     void reloadDefinition();
     bool isModified();
@@ -204,7 +206,6 @@ public:
     QMap<int, QString> getServiceStationStopNameList();
     ActivityObject* getObjectById(int id);
     Consist* getServiceConsistById(int id);
-    void updateService(QString serviceName);
 
 private:
     bool modified = false;

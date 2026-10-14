@@ -10,6 +10,8 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/ActLib.h>
+#include <tsre/Undo.h>
+#include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Traffic.h>
@@ -86,17 +88,6 @@ int ActLib::AddAct(QString path, QString name, bool nowe) {
     if(!nowe && Act[jestact]->loaded == 1 && Act[jestact]->header)
         route[Act[jestact]->header->routeid].push_back(jestact);
     return jestact++;
-}
-
-void ActLib::UpdateServiceChanges(QString serviceNameId, QString routePath){
-    const QString ownerKey = routeKey(routePath);
-    QHashIterator<int, Activity*> i(Act);
-    while (i.hasNext()) {
-        i.next();
-        if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(i.value()->routeHashid != ownerKey) continue;
-        i.value()->updateService(serviceNameId);
-    }
 }
 
 int ActLib::AddService(QString path, QString name, bool nowe) {
@@ -231,10 +222,25 @@ Path* ActLib::GetPathByName(QString name, QString routePath){
     return byTrPathName;
 }
 
-void ActLib::PathChanged(Path *path) {
-    for (Service *service : Services)
-        if (service != NULL)
-            service->pathChanged(path);
+// The services on the path follow it (task editor 07, phase 5), kept for
+// undo first; what changed goes to the activity windows.
+void ActLib::PathChanged(Path *path, bool report) {
+    QStringList lines;
+    for (Service *service : Services) {
+        if (service == NULL)
+            continue;
+        if (service->loaded == 1 && service->routeHashid == path->routeHashid && path->isNamed(service->pathId)) {
+            Undo::PushServiceData(service);
+            lines += service->followPath(path);
+        }
+        service->pathChanged(path);
+    }
+    if (path->droppedByLastEdit() > 0)
+        lines << QString(
+            //% "%1: %2 passing paths the edit went through are dropped."
+            qtTrId("activity.follow.passing.dropped")).arg(path->nameId).arg(path->droppedByLastEdit());
+    if (report && !lines.isEmpty())
+        emit ActivityNotifier::instance()->pathFollowed(path->nameId, lines);
 }
 
 int ActLib::AddNewPath(Path *path) {

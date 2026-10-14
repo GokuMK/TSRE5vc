@@ -11,4 +11,6 @@ public:
 signals:
     void restoring();
     void restored();
+    // A path edit moved, removed or kept the stops of services on it.
+    void pathFollowed(const QString &path, const QStringList &lines);
 };

@@ -39,9 +39,27 @@ void ActivityTimetable::setService(QString sn){
     modified = true;
 }
 
+// A timetable moves with its start; stops timed 0 (untimed, as MSTS writes
+// them) stay so. Without stops yet, it takes the service's.
 void ActivityTimetable::setTime(int t){
+    if(arrivalTime.isEmpty() && departTime.isEmpty()){
+        time = t;
+        reloadTimetable();
+        modified = true;
+        return;
+    }
+    const int delta = t - time;
+    for(int i = 0; i < arrivalTime.size(); i++){
+        const bool untimed = arrivalTime[i] == 0 && i < departTime.size() && departTime[i] == 0;
+        if(!untimed)
+            arrivalTime[i] += delta;
+    }
+    for(int i = 0; i < departTime.size(); i++){
+        const bool untimed = departTime[i] == 0 && i < arrivalTime.size() && arrivalTime[i] == 0;
+        if(!untimed)
+            departTime[i] += delta;
+    }
     time = t;
-    reloadTimetable();
     modified = true;
 }
 

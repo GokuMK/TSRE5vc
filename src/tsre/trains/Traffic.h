@@ -57,6 +57,9 @@ public:
     // 123).
     ActivityTimetable* getInstance(const QString &serviceName, int time);
     void addInstance(ActivityTimetable *instance);
+    // A new start time for the instance: its stops move with it, and the
+    // activities' AI trains paired with it (service and time) follow.
+    void setInstanceTime(ActivityTimetable *instance, int time);
     // Takes the instance out of the traffic; the object stays, as
     // activities may point at it.
     void removeInstance(int index);
