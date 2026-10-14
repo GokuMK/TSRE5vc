@@ -1,7 +1,7 @@
 # Task 07 - Activity Editing (ACT, SRV, TRF)
 
-Status: phases 1 to 5 done (2026-10-14, branch `feature/activity-editing`);
-phase 6 (Open Rails additions) next. Design decisions taken (below).
+Status: phases 1 to 6 done (2026-10-14, branch `feature/activity-editing`);
+phase 7 (seeing the activity) next. Design decisions taken (below).
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):
@@ -157,9 +157,10 @@ seeds clean).
   timetable, as the starter route's own activities do); stops are
   measured along the whole platform; event links a warning. Left on the
   local content: 2 warnings, no errors.
-- Left for phase 6, with the additions they concern: triggering and
-  restarted trains, restart delays against waiting points. Not done:
-  loose consists on the track (the consist is placed only when drawn).
+- Checked in phase 6, with the additions they concern: triggering and
+  restarted trains, the restart's waiting point on the train's path. Not
+  done: loose consists on the track (the consist is placed only when
+  drawn).
 
 Suites `activity-check` (a sound activity without errors; one with each
 kind of problem, found and pointing at its object) and
@@ -201,6 +202,52 @@ ones once, a start inside a platform, a switchback twice, a reversal
 inside a platform none; a service, activity and traffic following an
 edit and its undo; a stop at a switchback's first pass; a new stop's
 time; start times moving timetables; passing paths kept and dropped).
+
+**Phase 6, Open Rails additions (done 2026-10-14).**
+- Modelled, and written only when set: the header's fuel wood and sand
+  and station loads file; the AI horn pattern (after
+  `NextActivityObjectUID`); an event's triggering train
+  (`ORTSTriggeringTrain`, service and optional start time) and
+  `Reversible_Event` in the spelling read; the outcomes
+  `ORTSActivitySound` (file, type, the place of a `Location` sound),
+  `ORTSWeatherChange` in Open Rails' form (each of the four values with
+  its transition time; a TSRE preset fills them in) and
+  `ORTSRestartWaitingTrain` (the train, the delay, the waiting point to
+  match). TSRE's older forms (a sound or weather preset in the outcomes,
+  with copies at event level) are read and written in Open Rails' forms,
+  their copies dropped; an event-level sound of the file's own stays as
+  read.
+- Windows: the activity panel edits the horn pattern, wood, sand and
+  station loads; the event panel picks the triggering train and the
+  restarted train from the activity's AI trains (name and start time),
+  the waiting point from that train's path (or a value typed), a sound's
+  place typed, picked on the map or at the event's location, and the
+  weather values with their times.
+- Path tool: a waiting point has a kind (wait, until a time, uncouple
+  keeping the first or last cars, horn, crossing horn) and its fields,
+  written as Open Rails' value (`WaitingPoint`); the path shows each
+  point's meaning.
+- Overlays (`ACTIVITIES/OPENRAILS/<name>.act`, found in any case): the
+  activity panel shows a line with **Merge...** while the activity has
+  one; Merge... lists what it adds and what it leaves out (as Open Rails
+  merges: the horn settings, and per event ID of the same kind its
+  lines; an outcome Open Rails keeps one of replaces the activity's,
+  others are added). Confirmed, it is one undo step; saving renames the
+  overlay to `.merged` (`.merged.2`... when one exists). Undo before the
+  save takes the merge out; after the save the renamed file stays.
+  Check Activity notes an overlay not merged, and each line it would
+  leave out.
+- Check Activity: an event's triggering train and a restarted train
+  must be AI trains of the activity (errors); the restart's waiting
+  point value must be on that train's path (a warning). The local
+  routes gain no findings.
+
+Tests: `activity-edit` (the merge's preview, apply, undo, save with the
+rename, the reread), `activity-check` (the new checks, and a restart at
+a real waiting point without one), `path-edit` (waiting point values
+both ways), `activity-ui` (the overlay line, Merge... cancelled and
+confirmed, its undo; the waiting point dialog for each kind; the random
+run over a fixture with the new outcomes and an overlay).
 
 **Minor issues, for a later check (2026-10-14):**
 - `SkipCount` exceptions in MSTS's own content (Reference, MSTS): 30

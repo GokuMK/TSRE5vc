@@ -75,6 +75,28 @@ TrackPath (
 )").arg(name);
 }
 
+// Three nodes, a waiting point until 15:00 (31500) in the middle.
+const char *waitsPath = R"(SIMISA@@@@@@@@@@JINX0P0t______
+
+Serial ( 1 )
+TrackPDPs (
+	TrackPDP ( 0 0 10 0 10 2 0 )
+	TrackPDP ( 0 0 50 0 10 1 0 )
+	TrackPDP ( 0 0 100 0 10 2 0 )
+)
+TrackPath (
+	TrPathName ( "Waits" )
+	Name ( "Waits" )
+	TrPathStart ( "A" )
+	TrPathEnd ( "B" )
+	TrPathNodes ( 3
+		TrPathNode ( 7b0c0002 1 4294967295 0 )
+		TrPathNode ( 7b0c0002 2 4294967295 1 )
+		TrPathNode ( 00000000 4294967295 4294967295 2 )
+	)
+)
+)";
+
 QString serviceText(const QString &name, const QString &consist, const QString &path, int skip) {
     return QString(R"(SIMISA@@@@@@@@@@JINX0v0t______
 
@@ -191,6 +213,11 @@ Tr_Activity (
 				Activation_Level ( 1 )
 				Outcomes (
 					ActivateEvent ( 2 )
+					ORTSRestartWaitingTrain (
+						ORTSWaitingTrainToRestart ( AI 30000 )
+						ORTSDelayToRestart ( 60 )
+						ORTSMatchingWPDelay ( 31500 )
+					)
 				)
 				Name ( "Start" )
 				Time ( 60 )
@@ -278,6 +305,14 @@ Tr_Activity (
 				Activation_Level ( 1 )
 				Outcomes (
 					IncActLevel ( 77 )
+					ORTSRestartWaitingTrain (
+						ORTSWaitingTrainToRestart ( Nobody )
+						ORTSDelayToRestart ( 60 )
+					)
+					ORTSRestartWaitingTrain (
+						ORTSWaitingTrainToRestart ( AI 99 )
+						ORTSMatchingWPDelay ( 31600 )
+					)
 				)
 				Name ( "Links" )
 				Time ( 60 )
@@ -301,6 +336,15 @@ Tr_Activity (
 				Outcomes ( )
 				Name ( "Passengers" )
 				StationStop ( 5 )
+			)
+			EventCategoryLocation (
+				EventTypeLocation ( )
+				ID ( 4 )
+				Activation_Level ( 1 )
+				Outcomes ( )
+				Name ( "Triggered" )
+				Location ( 0 0 10 10 50 )
+				ORTSTriggeringTrain ( Nobody 100 )
 			)
 		)
 		ActivityObjects (
@@ -344,7 +388,8 @@ int TsreTests::runActivityCheckSuite(bool verbose) {
     check(writeSimis(route + "/PATHS/Main.pat", pathText("Main", false))
           && writeSimis(route + "/PATHS/Dangling.pat", pathText("Dangling", true))
           && writeSimis(route + "/SERVICES/Player.srv", serviceText("Player", "Train", "Main", 0))
-          && writeSimis(route + "/SERVICES/AI.srv", serviceText("AI", "Train", "Main", 0))
+          && writeSimis(route + "/PATHS/Waits.pat", waitsPath)
+          && writeSimis(route + "/SERVICES/AI.srv", serviceText("AI", "Train", "Waits", 0))
           && writeSimis(route + "/SERVICES/NoPath.srv", serviceText("NoPath", "Nope", "Gone", 70000))
           && writeSimis(route + "/SERVICES/Dangling.srv", serviceText("Dangling", "Train", "Dangling", 0))
           && writeSimis(route + "/TRAFFIC/Keys.trf", trafficText)
@@ -376,10 +421,14 @@ int TsreTests::runActivityCheckSuite(bool verbose) {
     if (Activity *good = activities.value("Good")) {
         const QVector<ActivityFinding> findings = CheckActivity(good);
         QStringList errors;
-        for (const ActivityFinding &finding : findings)
+        bool restart = false;
+        for (const ActivityFinding &finding : findings) {
             if (finding.severity == ActivityFinding::Error)
                 errors << finding.code + ": " + finding.text;
+            restart = restart || finding.code.startsWith("event.restart");
+        }
         check(errors.isEmpty(), "a sound activity has no errors " + errors.join("; "));
+        check(!restart, "a restart names an AI train and a waiting point on its path");
     }
     if (Activity *bad = activities.value("Bad")) {
         const QVector<ActivityFinding> findings = CheckActivity(bad);
@@ -393,7 +442,8 @@ int TsreTests::runActivityCheckSuite(bool verbose) {
                                  "instance.service.missing", "service.path.missing", "service.consist.missing",
                                  "skipcount.narrow", "path.passing.unjoined", "stops.incomplete",
                                  "time.depart.before.arrival", "time.order", "player.start", "event.link.missing",
-                                 "event.wagon.missing", "event.station.missing", "consist.cars.missing"})
+                                 "event.wagon.missing", "event.station.missing", "consist.cars.missing",
+                                 "event.triggering.missing", "event.restart.missing", "event.restart.waiting.point"})
             check(codes.contains(code), QString("found: ") + code);
         bool targets = true;
         for (const ActivityFinding &finding : findings) {

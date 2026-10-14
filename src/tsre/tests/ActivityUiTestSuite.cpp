@@ -36,6 +36,7 @@
 #include <routeEditor/activity/ActivityTimetableProperties.h>
 #include <routeEditor/activity/ActivityTimetableWindow.h>
 #include <routeEditor/activity/ActivityTrafficWindow.h>
+#include <routeEditor/tools/WaitPointDialog.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
 #include <tsre/tdb/TDB.h>
@@ -46,6 +47,7 @@
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ActivityObject.h>
+#include <tsre/trains/ActivityOverlay.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Traffic.h>
@@ -173,6 +175,7 @@ Tr_Activity (
 				Name ( "Here" )
 				Location ( 0 0 10 10 50 )
 				TriggerOnStop ( 1 )
+				ORTSTriggeringTrain ( AI 30000 )
 			)
 			EventCategoryTime (
 				EventTypeTime ( )
@@ -181,6 +184,15 @@ Tr_Activity (
 				Outcomes (
 					DecActLevel ( 2 )
 					RestoreActLevel ( 3 )
+					ORTSRestartWaitingTrain (
+						ORTSWaitingTrainToRestart ( AI 30000 )
+						ORTSDelayToRestart ( 10 )
+						ORTSMatchingWPDelay ( 30830 )
+					)
+					ORTSActivitySound (
+						ORTSActSoundFile ( "bell.wav" Location )
+						ORTSSoundLocation ( 0 0 10 1 50 )
+					)
 				)
 				Name ( "Time" )
 				Time ( 60 )
@@ -220,6 +232,29 @@ Tr_Activity (
 		ActivityFailedSignals (
 			ActivityFailedSignal ( 3 )
 			ActivityFailedSignal ( 4 )
+		)
+	)
+)
+)";
+
+// Its Open Rails overlay: the horn at crossings, an event's ORTSContinue
+// and another message.
+const char *overlayText = R"(SIMISA@@@@@@@@@@JINX0a0t______
+
+Tr_Activity (
+	Tr_Activity_File (
+		ORTSAIHornAtCrossings ( 1 )
+		Events (
+			EventCategoryAction (
+				ID ( 4 )
+				ORTSContinue ( 10 )
+			)
+			EventCategoryTime (
+				ID ( 6 )
+				Outcomes (
+					DisplayMessage ( "From the overlay." )
+				)
+			)
 		)
 	)
 )
@@ -665,7 +700,9 @@ int TsreTests::runActivityUiSuite(bool verbose) {
     QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
     const QString engine = "Engine (\n\t\t\tUiD ( 0 )\n\t\t\tEngineData ( missing_engine missing_folder )\n\t\t)";
     const QString wagon = "Wagon (\n\t\t\tUiD ( 0 )\n\t\t\tWagonData ( missing_wagon missing_folder )\n\t\t)";
+    QDir().mkpath(routePath + "/ACTIVITIES/OPENRAILS");
     check(writeSimis(routePath + "/ACTIVITIES/Test.act", activityText)
+          && writeSimis(routePath + "/ACTIVITIES/OPENRAILS/Test.act", overlayText)
           && writeSimis(routePath + "/SERVICES/Player.srv", QString(serviceText).arg("Player", "Train"))
           && writeSimis(routePath + "/SERVICES/AI.srv", QString(serviceText).arg("AI", "Wagons"))
           && writeSimis(routePath + "/TRAFFIC/Traffic.trf", trafficText)
@@ -785,6 +822,37 @@ for (QWidget *window : windows)
         for (int row = 0; row < findings->topLevelItemCount(); ++row)
             emit findings->itemClicked(findings->topLevelItem(row), 0);
     check(unsaved().isEmpty(), "showing what the findings name changes nothing: " + unsaved().join(", "));
+
+    // The Open Rails overlay: a line under Activity Info; Merge... shows what
+    // it adds and puts it in as one undo step.
+    QPushButton *merge = tools.findChild<QPushButton*>("overlayMerge");
+    check(merge && merge->isVisible() && merge->isEnabled(), "the activity's overlay is shown");
+    if (merge) {
+        const QString original = activity->toText();
+        closer.accept = false;
+        merge->click();
+        check(activity->toText() == original && activity->mergedOverlay.isEmpty(), "Merge... cancelled changes nothing");
+        closer.accept = true;
+        merge->click();
+        closer.accept = false;
+        check(activity->mergedOverlay == ActivityOverlay::PathOf(activity) && activity->toText().contains("ORTSAIHornAtCrossings ( 1 )")
+              && activity->toText().contains("From the overlay.") && !merge->isEnabled(),
+              "Merge... confirmed puts the overlay in");
+        Undo::UndoLast();
+        QApplication::processEvents();
+        check(activity->toText() == original && activity->mergedOverlay.isEmpty() && merge->isEnabled() && unsaved().isEmpty(),
+              "undo takes it out, and Merge... can be used again");
+    }
+
+    // A path's waiting point: the dialog gives back the value it shows.
+    {
+        bool same = true;
+        for (int value : {90, 30830, 40305, 50210, 60015, 60021}) {
+            WaitPointDialog dialog(nullptr, value);
+            same = same && dialog.value() == value;
+        }
+        check(same, "the waiting point dialog gives back each kind's value");
+    }
 
     // Events: deleting the shown event clears the panel; a new one is shown.
     QPushButton *deleteEvent = buttonNamed(&events, "route.editor.activity.event.window.button.b.delete.action.event");

@@ -13,4 +13,6 @@ signals:
     void restored();
     // A path edit moved, removed or kept the stops of services on it.
     void pathFollowed(const QString &path, const QStringList &lines);
+    // Saving an activity renamed the overlay merged into it.
+    void overlayRenamed(const QString &path);
 };

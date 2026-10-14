@@ -5,11 +5,15 @@
 #include <QFile>
 #include <QScopedValueRollback>
 #include <QTemporaryDir>
+#include <routeEditor/activity/ActivityEdit.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityCheck.h>
+#include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/ActivityOverlay.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/Path.h>
@@ -198,6 +202,75 @@ Tr_Activity (
 )
 )";
 
+// An activity and its Open Rails overlay: the horn, an event's outcomes
+// and ORTSContinue added; the horn pattern the same; an event of another
+// kind and one the activity has not left out.
+const char *overlaidActivity = R"(SIMISA@@@@@@@@@@JINX0a0t______
+
+Tr_Activity (
+	Tr_Activity_Header (
+		RouteID ( TEST )
+		Name ( "Overlaid" )
+		StartTime ( 8 0 0 )
+		Duration ( 1 0 )
+	)
+	Tr_Activity_File (
+		NextServiceUID ( 1 )
+		NextActivityObjectUID ( 32768 )
+		ORTSAICrossingHornPattern ( US )
+		Events (
+			EventCategoryTime (
+				EventTypeTime ( )
+				ID ( 1 )
+				Activation_Level ( 1 )
+				Outcomes (
+					DisplayMessage ( "Base" )
+				)
+				Name ( "One" )
+				Time ( 60 )
+			)
+			EventCategoryTime (
+				EventTypeTime ( )
+				ID ( 2 )
+				Activation_Level ( 1 )
+				Outcomes ( )
+				Name ( "Two" )
+				Time ( 120 )
+			)
+		)
+	)
+)
+)";
+
+const char *overlayText = R"(SIMISA@@@@@@@@@@JINX0a0t______
+
+Tr_Activity (
+	Tr_Activity_File (
+		ORTSAIHornAtCrossings ( 1 )
+		ORTSAICrossingHornPattern ( US )
+		Events (
+			EventCategoryTime (
+				ID ( 1 )
+				Outcomes (
+					DisplayMessage ( "Overlay" )
+					ORTSWeatherChange (
+						ORTSOvercast ( 0.5 30 )
+					)
+				)
+				ORTSContinue ( 10 )
+			)
+			EventCategoryLocation (
+				ID ( 2 )
+			)
+			EventCategoryTime (
+				ID ( 9 )
+				Time ( 30 )
+			)
+		)
+	)
+)
+)";
+
 }
 
 int TsreTests::runActivityEditSuite(bool verbose) {
@@ -217,7 +290,10 @@ int TsreTests::runActivityEditSuite(bool verbose) {
           && writeSimis(route + "/SERVICES/Stops.srv", serviceText)
           && writeSimis(route + "/TRAFFIC/Keys.trf", trafficText)
           && writeSimis(route + "/ACTIVITIES/Undo.act", activityText)
-          && writeSimis(route + "/ACTIVITIES/Legacy.act", legacyActivity),
+          && writeSimis(route + "/ACTIVITIES/Legacy.act", legacyActivity)
+          && writeSimis(route + "/ACTIVITIES/Overlaid.act", overlaidActivity)
+          && QDir().mkpath(route + "/ACTIVITIES/OpenRails")
+          && writeSimis(route + "/ACTIVITIES/OpenRails/overlaid.ACT", overlayText),
           "write the test route");
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "TEST");
@@ -392,6 +468,67 @@ int TsreTests::runActivityEditSuite(bool verbose) {
         check(set.contains("FuelWood ( 50 )") && set.contains("ORTSAICrossingHornPattern ( Single )")
               && set.contains("ORTSTriggeringTrain ( AI )") && set.indexOf("ORTSAICrossingHornPattern") > set.indexOf("NextActivityObjectUID"),
               "set, they are written; the horn pattern after NextActivityObjectUID");
+    }
+
+    // An Open Rails overlay: found in any case, shown before it is merged,
+    // merged as one undo step, renamed when the activity is saved.
+    {
+        Activity *overlaid = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "Overlaid.act"));
+        const QString overlay = route + "/ACTIVITIES/OpenRails/overlaid.ACT";
+        check(overlaid && overlaid->loaded == 1 && ActivityOverlay::PathOf(overlaid) == overlay,
+              "the overlay is found in any case");
+        const auto codes = [](Activity *checked) {
+            QStringList found;
+            for (const ActivityFinding &finding : CheckActivity(checked))
+                found << finding.code;
+            return found;
+        };
+        if (overlaid) {
+            const QString original = overlaid->toText();
+            const QStringList found = codes(overlaid);
+            check(found.contains("overlay.present") && found.count("overlay.skipped") == 3,
+                  "Check Activity notes the overlay and what a merge leaves out: " + found.join(", "));
+            const ActivityOverlay::Result preview = ActivityOverlay::Merge(overlaid, overlay, false);
+            check(preview.readable && preview.added.size() == 4 && preview.skipped.size() == 3
+                  && overlaid->toText() == original && !overlaid->isUnSaved(),
+                  QString("the preview lists 4 additions, 3 left out, and changes nothing: %1 | %2")
+                  .arg(preview.added.join("; "), preview.skipped.join("; ")));
+            {
+                ActivityEdit edit(overlaid);
+                ActivityOverlay::Merge(overlaid, overlay, true);
+                overlaid->mergedOverlay = overlay;
+            }
+            const QString merged = overlaid->toText();
+            const ActivityEvent *one = overlaid->event.value(0);
+            check(overlaid->isUnSaved() && merged.contains("ORTSAIHornAtCrossings ( 1 )")
+                  && merged.contains("ORTSContinue ( 10 )") && merged.contains("DisplayMessage ( Overlay )") && !merged.contains("Base")
+                  && merged.contains("ORTSOvercast ( 0.5 30 )") && one && one->outcomes.size() == 2
+                  && merged.count("ORTSAICrossingHornPattern") == 1,
+                  "merged: the horn, ORTSContinue, the message replaced, the weather added");
+            check(!codes(overlaid).contains("overlay.present"), "a merged overlay is no longer noted");
+            check(ActivityOverlay::Merge(overlaid, overlay, false).added.isEmpty(), "merging again adds nothing");
+            Undo::UndoLast();
+            check(overlaid->toText() == original && overlaid->mergedOverlay.isEmpty() && !overlaid->isUnSaved(),
+                  "undo takes the merge out");
+            {
+                ActivityEdit edit(overlaid);
+                ActivityOverlay::Merge(overlaid, overlay, true);
+                overlaid->mergedOverlay = overlay;
+            }
+            QString renamed;
+            QMetaObject::Connection told = QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::overlayRenamed,
+                                                            [&](const QString &path) { renamed = path; });
+            overlaid->save();
+            QObject::disconnect(told);
+            check(!QFile::exists(overlay) && QFile::exists(overlay + ".merged") && renamed == overlay
+                  && overlaid->mergedOverlay.isEmpty() && ActivityOverlay::PathOf(overlaid).isEmpty(),
+                  "saving renames the overlay to .merged");
+            Activity reread(route + "/ACTIVITIES/Overlaid.act", route + "/ACTIVITIES", QString("Overlaid.act"));
+            check(reread.toText() == overlaid->toText(), "the merged activity reads back as saved");
+            Undo::UndoLast();
+            check(overlaid->mergedOverlay.isEmpty() && overlaid->isUnSaved(),
+                  "undo after the save leaves the renamed overlay alone");
+        }
     }
 
     Undo::Clear();

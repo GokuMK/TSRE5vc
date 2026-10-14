@@ -58,6 +58,15 @@ public slots:
     void bDescCarSelected();
     void bPickNewEventWagonToolSelected();
     void eActionSpeedSelected();
+    // Open Rails' additions.
+    void cTriggeringTrainSelected(int index);
+    void eSoundLocationEdited();
+    void bSoundAtEventSelected();
+    void bPickSoundLocationSelected(bool val);
+    void weatherEdited();
+    void cRestartTrainSelected(int index);
+    void eRestartDelayEdited();
+    void cRestartWaitingPointEdited();
         
 signals:
     void eventNameChanged(int id);
@@ -104,6 +113,20 @@ private:
     QLineEdit eLocationPosition;
     QSpinBox eLocationRadius;
     QCheckBox cLocationStop;
+    QComboBox cTriggeringTrain;
+    QLineEdit eSoundLocation;
+    QPushButton *bSoundAtEvent = NULL;
+    QCheckBox cWeatherSet[4];
+    QDoubleSpinBox eWeatherValue[4];
+    QSpinBox eWeatherTime[4];
+    QComboBox cRestartTrain;
+    QSpinBox eRestartDelay;
+    QComboBox cRestartWaitingPoint;
+    // The activity's AI trains in the combo (service and start time as
+    // data), the one given chosen; "none" first.
+    void fillTrains(QComboBox &combo, const QString &service, int time);
+    // The waiting points of the train's path.
+    void fillWaitingPoints(const QString &service, int value);
     QListWidget outcomeList;
     
     ActivityEvent* event = NULL;

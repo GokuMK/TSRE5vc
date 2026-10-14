@@ -11,6 +11,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActLib.h>
+#include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -369,6 +370,15 @@ void Activity::save() {
     setSaved();
     nowe = false;
     ++saves;
+    // A merged overlay is kept, renamed so that Open Rails stops adding it.
+    if(!mergedOverlay.isEmpty() && QFile::exists(mergedOverlay)){
+        QString target = mergedOverlay + ".merged";
+        for(int i = 2; QFile::exists(target); i++)
+            target = mergedOverlay + ".merged." + QString::number(i);
+        if(QFile::rename(mergedOverlay, target))
+            emit ActivityNotifier::instance()->overlayRenamed(mergedOverlay);
+    }
+    mergedOverlay.clear();
     
     tpath = pathid;
     tpath.remove(tpath.length()-4, 4);
@@ -400,10 +410,12 @@ std::shared_ptr<TextSnapshot> Activity::snapshot() {
     copy->text = toText();
     copy->unsaved = isUnSaved();
     copy->saves = saves;
+    copy->pending = mergedOverlay;
     return copy;
 }
 
 void Activity::restore(const TextSnapshot &snapshot) {
+    mergedOverlay = snapshot.pending;
     clearContent();
     FileBuffer *data = FileBuffer::fromText(snapshot.text);
     parse(data);
@@ -414,6 +426,7 @@ void Activity::restore(const TextSnapshot &snapshot) {
 
 void Activity::clearContent() {
     currentEventSelected = NULL;
+    currentOutcomeSelected = NULL;
     qDeleteAll(event);
     event.clear();
     qDeleteAll(activityObjects);
@@ -1063,6 +1076,18 @@ void Activity::pickNewEventLocation(float* tdbPos){
 
 }
 
+void Activity::pickSoundLocation(float *tdbPos){
+    if(currentEventSelected == NULL || currentOutcomeSelected == NULL
+            || !currentEventSelected->outcomes.contains(currentOutcomeSelected)
+            || currentOutcomeSelected->category != ActivityEvent::Outcome::CategorySoundFile)
+        return;
+    float drawPosition[7];
+    if(Game::trackDB == NULL || !Game::trackDB->getDrawPositionOnTrNode(drawPosition, tdbPos[0], tdbPos[1]))
+        return;
+    currentOutcomeSelected->setSoundLocation(true, drawPosition[5], drawPosition[6],
+                                             drawPosition[0], drawPosition[1], drawPosition[2]);
+}
+
 bool Activity::newFailedSignalFromSelected(){
     if(Game::currentSelectedGameObj == NULL)
         return false;
@@ -1387,8 +1412,10 @@ void Activity::deleteEvent(ActivityEvent *e){
     const int i = event.indexOf(e);
     if(i < 0)
         return;
-    if(currentEventSelected == e)
+    if(currentEventSelected == e){
         currentEventSelected = NULL;
+        currentOutcomeSelected = NULL;
+    }
     event.remove(i);
     delete e;
     modified = true;

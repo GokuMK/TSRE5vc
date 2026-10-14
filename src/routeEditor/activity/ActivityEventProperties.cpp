@@ -18,6 +18,12 @@
 #include <tsre/GameObj.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/OrtsWeatherChange.h>
+#include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActLib.h>
+#include <tsre/trains/Path.h>
+#include <tsre/trains/Service.h>
+#include <tsre/trains/WaitingPoint.h>
 
 namespace {
 QString translatedActivityId(const QString &id) {
@@ -52,6 +58,9 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     buttonTools["pickNewEventLocationTool"] = new QPushButton(
         //% "Pick new location"
         qtTrId("route.editor.activity.event.properties.button.pick.new.location"));
+    buttonTools["pickSoundLocationTool"] = new QPushButton(
+        //% "Pick on the map"
+        qtTrId("route.editor.activity.event.properties.button.pick.sound.location"));
     //buttonTools["pickNewEventWagonTool"] = new QPushButton("Pick new Car");
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
@@ -71,6 +80,9 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     cSoundType.addItem(
         //% "Ground"
         qtTrId("route.editor.activity.event.properties.item.ground"), QString("Ground"));
+    cSoundType.addItem(
+        //% "At a place"
+        qtTrId("route.editor.activity.event.properties.item.location"), QString("Location"));
 
     
     cActionType.setStyleSheet("combobox-popup: 0;");
@@ -263,6 +275,15 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->addWidget(&cLocationStop, row++, 1, 1, 2);
     QObject::connect(&cLocationStop, SIGNAL(stateChanged(int)),
                       this, SLOT(cLocationStopSelected(int)));
+    // Open Rails: an AI train passing triggers the event.
+    vlist->addWidget(new QLabel(
+        //% "Triggered by:"
+        qtTrId("route.editor.activity.event.properties.label.triggering.train")), row, 0);
+    vlist->addWidget(&cTriggeringTrain, row++, 1, 1, 2);
+    cTriggeringTrain.setToolTip(
+        //% "Open Rails: an AI train of the activity triggers the event, not the player's."
+        qtTrId("route.editor.activity.event.properties.tooltip.triggering.train"));
+    QObject::connect(&cTriggeringTrain, SIGNAL(activated(int)), this, SLOT(cTriggeringTrainSelected(int)));
     
     locationWidget.setLayout(vlist);
     
@@ -454,6 +475,23 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
         qtTrId("route.editor.activity.event.properties.label.sound.type")), row, 0);
     vlist->addWidget(&cSoundType, row++, 1);
     QObject::connect(&cSoundType, SIGNAL(textActivated(QString)), this, SLOT(cSoundTypeSelected(QString)));
+    // Where a sound "at a place" plays: tile x and z, x, y, z.
+    vlist->addWidget(new QLabel(
+        //% "Place:"
+        qtTrId("route.editor.activity.event.properties.label.sound.location")), row, 0);
+    vlist->addWidget(&eSoundLocation, row++, 1);
+    eSoundLocation.setToolTip(
+        //% "Tile x, tile z, x, y, z"
+        qtTrId("route.editor.activity.event.properties.tooltip.sound.location"));
+    QObject::connect(&eSoundLocation, SIGNAL(editingFinished()), this, SLOT(eSoundLocationEdited()));
+    QObject::connect(buttonTools["pickSoundLocationTool"], SIGNAL(toggled(bool)),
+                      this, SLOT(bPickSoundLocationSelected(bool)));
+    vlist->addWidget(buttonTools["pickSoundLocationTool"], row++, 1);
+    bSoundAtEvent = new QPushButton(
+        //% "At the event's location"
+        qtTrId("route.editor.activity.event.properties.button.sound.at.event"));
+    QObject::connect(bSoundAtEvent, SIGNAL(released()), this, SLOT(bSoundAtEventSelected()));
+    vlist->addWidget(bSoundAtEvent, row++, 1);
     outcomeProperties[(int)ActivityEvent::Outcome::CategorySoundFile] = new QWidget(this);
     outcomeProperties[(int)ActivityEvent::Outcome::CategorySoundFile]->setLayout(vlist);
     vbox->addWidget(outcomeProperties[(int)ActivityEvent::Outcome::CategorySoundFile]);
@@ -473,11 +511,69 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     cWeatherChange.setStyleSheet("combobox-popup: 0;");
     cWeatherChange.setMaxVisibleItems(30);
     cWeatherChange.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    vlist->addWidget(&cWeatherChange, row++, 1);
+    vlist->addWidget(&cWeatherChange, row++, 1, 1, 2);
     QObject::connect(&cWeatherChange, SIGNAL(textActivated(QString)), this, SLOT(cWeatherChangeSelected(QString)));
+    // Open Rails' values, each with its transition seconds.
+    const QString weatherNames[4] = {
+        //% "Overcast (0-1):"
+        qtTrId("route.editor.activity.event.properties.weather.overcast"),
+        //% "Fog (m):"
+        qtTrId("route.editor.activity.event.properties.weather.fog"),
+        //% "Precipitation (0-0.02):"
+        qtTrId("route.editor.activity.event.properties.weather.intensity"),
+        //% "Rain (1) or snow (0):"
+        qtTrId("route.editor.activity.event.properties.weather.liquidity")};
+    const double weatherMax[4] = {1, 100000, 0.02, 1};
+    const int weatherDecimals[4] = {2, 0, 4, 2};
+    for(int i = 0; i < 4; i++){
+        cWeatherSet[i].setText(weatherNames[i]);
+        eWeatherValue[i].setRange(0, weatherMax[i]);
+        eWeatherValue[i].setDecimals(weatherDecimals[i]);
+        eWeatherValue[i].setSingleStep(weatherMax[i] / 20);
+        eWeatherTime[i].setRange(0, 86400);
+        eWeatherTime[i].setSuffix(" s");
+        vlist->addWidget(&cWeatherSet[i], row, 0);
+        vlist->addWidget(&eWeatherValue[i], row, 1);
+        vlist->addWidget(&eWeatherTime[i], row++, 2);
+        QObject::connect(&cWeatherSet[i], SIGNAL(toggled(bool)), this, SLOT(weatherEdited()));
+        QObject::connect(&eWeatherValue[i], SIGNAL(valueChanged(double)), this, SLOT(weatherEdited()));
+        QObject::connect(&eWeatherTime[i], SIGNAL(valueChanged(int)), this, SLOT(weatherEdited()));
+    }
     outcomeProperties[(int)ActivityEvent::Outcome::CategoryWeatherChange] = new QWidget(this);
     outcomeProperties[(int)ActivityEvent::Outcome::CategoryWeatherChange]->setLayout(vlist);
     vbox->addWidget(outcomeProperties[(int)ActivityEvent::Outcome::CategoryWeatherChange]);
+
+    // Outcome Restart a Waiting Train (Open Rails)
+
+    vlist = new QGridLayout;
+    vlist->setSpacing(2);
+    vlist->setContentsMargins(3,0,3,0);
+    row = 0;
+    vlist->addWidget(new QLabel(
+        //% "AI train:"
+        qtTrId("route.editor.activity.event.properties.label.restart.train")), row, 0);
+    vlist->addWidget(&cRestartTrain, row++, 1);
+    QObject::connect(&cRestartTrain, SIGNAL(activated(int)), this, SLOT(cRestartTrainSelected(int)));
+    vlist->addWidget(new QLabel(
+        //% "Delay:"
+        qtTrId("route.editor.activity.event.properties.label.restart.delay")), row, 0);
+    eRestartDelay.setRange(0, 86400);
+    eRestartDelay.setSuffix(" s");
+    vlist->addWidget(&eRestartDelay, row++, 1);
+    QObject::connect(&eRestartDelay, SIGNAL(valueChanged(int)), this, SLOT(eRestartDelayEdited()));
+    vlist->addWidget(new QLabel(
+        //% "Waiting point:"
+        qtTrId("route.editor.activity.event.properties.label.restart.waiting.point")), row, 0);
+    cRestartWaitingPoint.setEditable(true);
+    cRestartWaitingPoint.setToolTip(
+        //% "The value of the waiting point in the AI train's path where it waits"
+        qtTrId("route.editor.activity.event.properties.tooltip.restart.waiting.point"));
+    vlist->addWidget(&cRestartWaitingPoint, row++, 1);
+    QObject::connect(&cRestartWaitingPoint, SIGNAL(activated(int)), this, SLOT(cRestartWaitingPointEdited()));
+    QObject::connect(cRestartWaitingPoint.lineEdit(), SIGNAL(editingFinished()), this, SLOT(cRestartWaitingPointEdited()));
+    outcomeProperties[(int)ActivityEvent::Outcome::CategoryRestartTrain] = new QWidget(this);
+    outcomeProperties[(int)ActivityEvent::Outcome::CategoryRestartTrain]->setLayout(vlist);
+    vbox->addWidget(outcomeProperties[(int)ActivityEvent::Outcome::CategoryRestartTrain]);
     
     vbox->addStretch(1);
     this->setLayout(vbox);
@@ -510,6 +606,8 @@ ActivityEventProperties::~ActivityEventProperties() {
 void ActivityEventProperties::showEvent(ActivityEvent *e){
     if(event != NULL && event != e)
         event->unselect();
+    if(eventActivity() != NULL)
+        eventActivity()->currentOutcomeSelected = NULL;
     outcome = NULL;
     if(e == NULL){
         event = NULL;
@@ -607,6 +705,7 @@ void ActivityEventProperties::showEvent(ActivityEvent *e){
                 
             eLocationPosition.setText(QString::number(event->location[0]) +" "+ QString::number(event->location[1]) +" "+ QString::number(event->location[2]) +" "+ QString::number(event->location[3]));
         }
+        fillTrains(cTriggeringTrain, event->triggeringService, event->triggeringTime);
     }
     if(event->category == ActivityEvent::CategoryTime){
         timeWidget.show();
@@ -700,6 +799,8 @@ void ActivityEventProperties::bRemoveOutcomeSelected(){
 
 void ActivityEventProperties::outcomeListSelected(QListWidgetItem* item){
     outcome = NULL;
+    if(eventActivity() != NULL)
+        eventActivity()->currentOutcomeSelected = NULL;
     if(event == NULL || item == NULL)
         return;
     if(item->type() < 0 || item->type() >= event->outcomes.size())
@@ -707,6 +808,8 @@ void ActivityEventProperties::outcomeListSelected(QListWidgetItem* item){
     outcome = event->outcomes[item->type()];
     if(outcome == NULL)
         return;
+    if(eventActivity() != NULL)
+        eventActivity()->currentOutcomeSelected = outcome;
     
     foreach(QWidget *w, outcomeProperties){
         if(w == NULL)
@@ -737,6 +840,18 @@ void ActivityEventProperties::outcomeListSelected(QListWidgetItem* item){
         const QStringList sound = outcome->value.toStringList();
         eSoundFileName.setText(sound.value(0));
         cSoundType.setCurrentIndex(cSoundType.findData(sound.value(1)));
+        const bool at = sound.value(1) == "Location";
+        eSoundLocation.setEnabled(at);
+        buttonTools["pickSoundLocationTool"]->setEnabled(at);
+        bSoundAtEvent->setEnabled(at && event->location != NULL);
+        eSoundLocation.setText(outcome->soundAt ? QString("%1 %2 %3 %4 %5").arg(outcome->soundTile[0]).arg(outcome->soundTile[1])
+                .arg(outcome->soundPosition[0]).arg(outcome->soundPosition[1]).arg(outcome->soundPosition[2]) : QString());
+    }
+    if(outcome->category == ActivityEvent::Outcome::CategoryRestartTrain){
+        fillTrains(cRestartTrain, outcome->restartService, outcome->restartTime);
+        QSignalBlocker blocker(eRestartDelay);
+        eRestartDelay.setValue(outcome->restartDelay);
+        fillWaitingPoints(outcome->restartService, outcome->restartWaitingPoint);
     }
     
     if(outcome->category == ActivityEvent::Outcome::CategoryWeatherChange){
@@ -748,6 +863,14 @@ void ActivityEventProperties::outcomeListSelected(QListWidgetItem* item){
         }
         int index = cWeatherChange.findData(outcome->value.toString());
         cWeatherChange.setCurrentIndex(index);
+        for(int i = 0; i < 4; i++){
+            QSignalBlocker set(cWeatherSet[i]), value(eWeatherValue[i]), time(eWeatherTime[i]);
+            cWeatherSet[i].setChecked(outcome->weather[i] >= 0);
+            eWeatherValue[i].setValue(std::max(0.0f, outcome->weather[i]));
+            eWeatherTime[i].setValue(std::max(0, outcome->weatherTime[i]));
+            eWeatherValue[i].setEnabled(outcome->weather[i] >= 0);
+            eWeatherTime[i].setEnabled(outcome->weather[i] >= 0);
+        }
     }
 }
 
@@ -799,16 +922,155 @@ void ActivityEventProperties::cSoundTypeSelected(QString val){
     if(outcome == NULL)
         return;
     Q_UNUSED(val);
-    ActivityEdit edit(eventActivity());
-    outcome->setSoundType(cSoundType.currentData().toString());
+    {
+        ActivityEdit edit(eventActivity());
+        outcome->setSoundType(cSoundType.currentData().toString());
+    }
+    // A sound at a place shows its place.
+    const int id = outcomeList.currentRow();
+    showEvent(event);
+    selctOutcomeOnList(id);
 }
 
 void ActivityEventProperties::cWeatherChangeSelected(QString val){
     if(outcome == NULL)
         return;
     Q_UNUSED(val);
+    {
+        ActivityEdit edit(eventActivity());
+        outcome->setWeatherName(cWeatherChange.currentData().toString());
+    }
+    const int id = outcomeList.currentRow();
+    showEvent(event);
+    selctOutcomeOnList(id);
+}
+
+void ActivityEventProperties::fillTrains(QComboBox &combo, const QString &service, int time){
+    QSignalBlocker blocker(combo);
+    combo.clear();
+    combo.addItem(
+        //% "(none)"
+        qtTrId("route.editor.activity.event.properties.item.no.train"), QStringList());
+    Activity *activity = eventActivity();
+    if(activity != NULL && activity->traffic != NULL)
+        for(const ActivityServiceDefinition &train : activity->traffic->service)
+            combo.addItem(QString("%1 %2").arg(train.name,
+                          QTime::fromMSecsSinceStartOfDay(((train.time % 86400) + 86400) % 86400 * 1000).toString("HH:mm:ss")),
+                          QStringList({train.name, QString::number(train.time)}));
+    combo.setCurrentIndex(0);
+    for(int i = 1; i < combo.count(); i++){
+        const QStringList data = combo.itemData(i).toStringList();
+        if(data.value(0).compare(service, Qt::CaseInsensitive) == 0 && (time < 0 || data.value(1).toInt() == time)){
+            combo.setCurrentIndex(i);
+            break;
+        }
+    }
+    // A train named that is not in the activity is shown as it is.
+    if(!service.isEmpty() && combo.currentIndex() == 0){
+        combo.addItem(time >= 0 ? QString("%1 %2").arg(service).arg(time) : service,
+                      QStringList({service, QString::number(time)}));
+        combo.setCurrentIndex(combo.count() - 1);
+    }
+}
+
+void ActivityEventProperties::fillWaitingPoints(const QString &service, int value){
+    QSignalBlocker blocker(cRestartWaitingPoint);
+    cRestartWaitingPoint.clear();
+    Activity *activity = eventActivity();
+    Service *train = activity != NULL ? ActLib::GetServiceByName(service, ContentPath::parentDirectory(activity->path)) : NULL;
+    Path *path = train != NULL ? ActLib::GetPathByName(train->pathId, ContentPath::parentDirectory(activity->path)) : NULL;
+    if(path != NULL)
+        for(const PathTrack::Node &node : path->nodes())
+            if(node.type == PathTrack::NodeType::Wait)
+                cRestartWaitingPoint.addItem(QString("%1 (%2)").arg(node.waitTime).arg(WaitingPoint::describe(node.waitTime)),
+                                             node.waitTime);
+    int index = cRestartWaitingPoint.findData(value);
+    if(index < 0){
+        cRestartWaitingPoint.addItem(QString::number(value), value);
+        index = cRestartWaitingPoint.count() - 1;
+    }
+    cRestartWaitingPoint.setCurrentIndex(index);
+}
+
+void ActivityEventProperties::cTriggeringTrainSelected(int index){
+    if(event == NULL)
+        return;
+    const QStringList data = cTriggeringTrain.itemData(index).toStringList();
     ActivityEdit edit(eventActivity());
-    outcome->setWeatherName(cWeatherChange.currentData().toString());
+    event->setTriggeringTrain(data.value(0), data.size() > 1 ? data[1].toInt() : -1);
+}
+
+void ActivityEventProperties::eSoundLocationEdited(){
+    if(outcome == NULL || outcome->category != ActivityEvent::Outcome::CategorySoundFile)
+        return;
+    const QStringList parts = eSoundLocation.text().simplified().split(' ', Qt::SkipEmptyParts);
+    ActivityEdit edit(eventActivity());
+    if(parts.size() == 5)
+        outcome->setSoundLocation(true, parts[0].toInt(), parts[1].toInt(), parts[2].toFloat(),
+                                  parts[3].toFloat(), parts[4].toFloat());
+    else if(parts.isEmpty())
+        outcome->setSoundLocation(false, 0, 0, 0, 0, 0);
+}
+
+void ActivityEventProperties::bSoundAtEventSelected(){
+    if(event == NULL || event->location == NULL || outcome == NULL
+            || outcome->category != ActivityEvent::Outcome::CategorySoundFile)
+        return;
+    {
+        ActivityEdit edit(eventActivity());
+        outcome->setSoundLocation(true, event->location[0], event->location[1], event->location[2], 0, event->location[3]);
+    }
+    const int id = outcomeList.currentRow();
+    showEvent(event);
+    selctOutcomeOnList(id);
+}
+
+void ActivityEventProperties::bPickSoundLocationSelected(bool val){
+    if(outcome == NULL)
+        return;
+    emit enableTool(val ? "pickSoundLocationTool" : "");
+}
+
+void ActivityEventProperties::weatherEdited(){
+    if(outcome == NULL || outcome->category != ActivityEvent::Outcome::CategoryWeatherChange)
+        return;
+    ActivityEdit edit(eventActivity(), true);
+    for(int i = 0; i < 4; i++){
+        const bool set = cWeatherSet[i].isChecked();
+        eWeatherValue[i].setEnabled(set);
+        eWeatherTime[i].setEnabled(set);
+        outcome->setWeather(i, set ? eWeatherValue[i].value() : -1, eWeatherTime[i].value());
+    }
+}
+
+void ActivityEventProperties::cRestartTrainSelected(int index){
+    if(outcome == NULL || outcome->category != ActivityEvent::Outcome::CategoryRestartTrain)
+        return;
+    const QStringList data = cRestartTrain.itemData(index).toStringList();
+    {
+        ActivityEdit edit(eventActivity());
+        outcome->setRestartTrain(data.value(0), data.size() > 1 ? data[1].toInt() : -1);
+    }
+    fillWaitingPoints(outcome->restartService, outcome->restartWaitingPoint);
+}
+
+void ActivityEventProperties::eRestartDelayEdited(){
+    if(outcome == NULL || outcome->category != ActivityEvent::Outcome::CategoryRestartTrain)
+        return;
+    ActivityEdit edit(eventActivity(), true);
+    outcome->setRestartDelay(eRestartDelay.value());
+}
+
+void ActivityEventProperties::cRestartWaitingPointEdited(){
+    if(outcome == NULL || outcome->category != ActivityEvent::Outcome::CategoryRestartTrain)
+        return;
+    // A waiting point chosen, or its value typed.
+    bool ok = false;
+    int value = cRestartWaitingPoint.currentText().section(' ', 0, 0).toInt(&ok);
+    if(!ok)
+        return;
+    ActivityEdit edit(eventActivity());
+    outcome->setRestartWaitingPoint(value);
 }
 
 void ActivityEventProperties::setEventList(QMap<int, QString> eventNames){
@@ -987,6 +1249,15 @@ void ActivityEventProperties::bPickNewEventWagonToolSelected(){
 }
 
 void ActivityEventProperties::msg(QString text, QString val){
+    // A sound's place picked on the map.
+    if(text == "refreshActivityEvent"){
+        if(event != NULL){
+            const int id = outcomeList.currentRow();
+            showEvent(event);
+            selctOutcomeOnList(id);
+        }
+        return;
+    }
     if(text == "viewMode"){
         ToolButtons::applyMode(buttonTools, ToolButtons::modeOf(val));
         return;

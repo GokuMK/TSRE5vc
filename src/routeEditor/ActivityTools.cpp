@@ -31,6 +31,7 @@
 #include <routeEditor/activity/ActivityEdit.h>
 #include <routeEditor/activity/ActivityCheckWindow.h>
 #include <tsre/trains/ActivityCheck.h>
+#include <tsre/trains/ActivityOverlay.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <QDialog>
 #include <QEvent>
@@ -48,6 +49,9 @@ ActivityTools::ActivityTools(QString name)
     QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored, this, [this] {
         if(currentActivity() != NULL)
             activitySelected(QString());
+    });
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::overlayRenamed, this, [this] {
+        showOverlay();
     });
     setFixedWidth(250);
     cSeason.setStyleSheet("combobox-popup: 0;");
@@ -354,6 +358,21 @@ ActivityTools::ActivityTools(QString name)
         qtTrId("route.editor.activity.tools.button.act.settings.open"));
     QObject::connect(actSettingsOpen, SIGNAL(released()), this, SLOT(actSettingsOpenEnabled()));
     vbox->addWidget(actSettingsOpen);
+    {
+        overlayLabel.setWordWrap(true);
+        QPushButton *merge = new QPushButton(
+            //% "Merge..."
+            qtTrId("route.editor.activity.tools.button.overlay.merge"));
+        merge->setObjectName("overlayMerge");
+        QObject::connect(merge, SIGNAL(released()), this, SLOT(actOverlayMergeEnabled()));
+        QHBoxLayout *line = new QHBoxLayout;
+        line->setContentsMargins(3,0,0,0);
+        line->addWidget(&overlayLabel, 1);
+        line->addWidget(merge);
+        overlayLine.setLayout(line);
+        overlayLine.hide();
+        vbox->addWidget(&overlayLine);
+    }
     
     label = new QLabel(
         //% "Experimental:"
@@ -433,6 +452,45 @@ ActivityTools::ActivityTools(QString name)
     cHornAtCrossings.setMinimumHeight(25);
     vlist->addWidget(&cHornAtCrossings, row++, 1, 1, 2);
     QObject::connect(&cHornAtCrossings, SIGNAL(stateChanged(int)), this, SLOT(cHornAtCrossingsEnabled(int)));
+    // Open Rails: how AI trains sound the horn; wood, sand and station
+    // loads. Each written only when set.
+    vlist->addWidget(new QLabel(
+        //% "Horn Pattern:"
+        qtTrId("route.editor.activity.tools.label.horn.pattern")), row, 0);
+    cHornPattern.addItem(
+        //% "Not set"
+        qtTrId("route.editor.activity.tools.item.not.set"), QString());
+    cHornPattern.addItem(
+        //% "US (long, long, short, long)"
+        qtTrId("route.editor.activity.tools.item.horn.us"), QString("US"));
+    cHornPattern.addItem(
+        //% "Single blast"
+        qtTrId("route.editor.activity.tools.item.horn.single"), QString("Single"));
+    vlist->addWidget(&cHornPattern, row++, 1, 1, 2);
+    QObject::connect(&cHornPattern, SIGNAL(activated(int)), this, SLOT(cHornPatternEnabled(int)));
+    for(QSpinBox *fuel : {&sFuelWood, &sFuelSand}){
+        fuel->setRange(-1, 100);
+        fuel->setSuffix(" %");
+        fuel->setSpecialValueText(qtTrId("route.editor.activity.tools.item.not.set"));
+    }
+    vlist->addWidget(new QLabel(
+        //% "Fuel Wood:"
+        qtTrId("route.editor.activity.tools.label.fuel.wood")), row, 0);
+    vlist->addWidget(&sFuelWood, row++, 1, 1, 2);
+    QObject::connect(&sFuelWood, SIGNAL(valueChanged(int)), this, SLOT(sFuelWoodEnabled(int)));
+    vlist->addWidget(new QLabel(
+        //% "Fuel Sand:"
+        qtTrId("route.editor.activity.tools.label.fuel.sand")), row, 0);
+    vlist->addWidget(&sFuelSand, row++, 1, 1, 2);
+    QObject::connect(&sFuelSand, SIGNAL(valueChanged(int)), this, SLOT(sFuelSandEnabled(int)));
+    vlist->addWidget(new QLabel(
+        //% "Station Loads:"
+        qtTrId("route.editor.activity.tools.label.load.stations")), row, 0);
+    eLoadStations.setToolTip(
+        //% "Open Rails: ACTIVITIES/OPENRAILS/<name>.load-stations-loads-or"
+        qtTrId("route.editor.activity.tools.tooltip.load.stations"));
+    vlist->addWidget(&eLoadStations, row++, 1, 1, 2);
+    QObject::connect(&eLoadStations, SIGNAL(textEdited(QString)), this, SLOT(eLoadStationsEnabled(QString)));
     
     eFuelCoal = GuiFunct::newQLineEdit(25,3);
     eFuelDiesel = GuiFunct::newQLineEdit(25,3);
@@ -686,6 +744,68 @@ void ActivityTools::actPlayEnabled(){
 
 }
 
+void ActivityTools::showOverlay(){
+    Activity *a = currentActivity();
+    const QString path = ActivityOverlay::PathOf(a);
+    overlayLine.setVisible(!path.isEmpty());
+    if(path.isEmpty())
+        return;
+    QPushButton *merge = overlayLine.findChild<QPushButton*>("overlayMerge");
+    const bool merged = a->mergedOverlay == path;
+    if(merge != NULL)
+        merge->setEnabled(!merged);
+    overlayLabel.setText(merged ?
+        //% "The overlay %1 is merged; it is renamed when the activity is saved."
+        qtTrId("route.editor.activity.tools.overlay.merged").arg(QFileInfo(path).fileName()) :
+        //% "Open Rails adds the overlay %1 to this activity."
+        qtTrId("route.editor.activity.tools.overlay.present").arg(QFileInfo(path).fileName()));
+}
+
+void ActivityTools::actOverlayMergeEnabled(){
+    Activity *a = currentActivity();
+    const QString path = ActivityOverlay::PathOf(a);
+    if(a == NULL || path.isEmpty() || a->mergedOverlay == path)
+        return;
+    const ActivityOverlay::Result preview = ActivityOverlay::Merge(a, path, false);
+    QDialog dialog(this);
+    dialog.setWindowTitle(
+        //% "Merge the Overlay"
+        qtTrId("route.editor.activity.tools.overlay.title"));
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    QLabel *intro = new QLabel(preview.readable ?
+        //% "These additions go into the activity as edits (one undo step). Saving the activity renames %1 to %2."
+        qtTrId("route.editor.activity.tools.overlay.intro").arg(QFileInfo(path).fileName(), QFileInfo(path).fileName() + ".merged") :
+        //% "The overlay %1 cannot be read."
+        qtTrId("route.editor.activity.tools.overlay.unreadable").arg(QFileInfo(path).fileName()));
+    intro->setWordWrap(true);
+    layout->addWidget(intro);
+    QListWidget *lines = new QListWidget;
+    for(const QString &line : preview.added)
+        lines->addItem(line);
+    for(const QString &line : preview.skipped){
+        QListWidgetItem *item = new QListWidgetItem(
+            //% "Left out: %1"
+            qtTrId("route.editor.activity.tools.overlay.left.out").arg(line), lines);
+        item->setForeground(QBrush(QColor(140, 140, 140)));
+    }
+    lines->setMinimumSize(480, 220);
+    layout->addWidget(lines);
+    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    buttons->button(QDialogButtonBox::Ok)->setEnabled(preview.readable && !preview.added.isEmpty());
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if(dialog.exec() != QDialog::Accepted)
+        return;
+    {
+        ActivityEdit edit(a);
+        ActivityOverlay::Merge(a, path, true);
+        a->mergedOverlay = path;
+    }
+    activitySelected(QString());
+    emit showEvents(a);
+}
+
 void ActivityTools::actCheckEnabled(){
     Activity *a = currentActivity();
     if(a == NULL)
@@ -818,6 +938,19 @@ void ActivityTools::activitySelected(QString n){
     else
         cHornAtCrossings.setChecked(false);
     cHornAtCrossings.blockSignals(false);
+    {
+        QSignalBlocker pattern(cHornPattern), wood(sFuelWood), sand(sFuelSand), loads(eLoadStations);
+        const int index = cHornPattern.findData(a->ortsAICrossingHornPattern);
+        if(index >= 0){
+            cHornPattern.setCurrentIndex(index);
+        } else {
+            cHornPattern.addItem(a->ortsAICrossingHornPattern, a->ortsAICrossingHornPattern);
+            cHornPattern.setCurrentIndex(cHornPattern.count() - 1);
+        }
+        sFuelWood.setValue(a->header->fuelWood);
+        sFuelSand.setValue(a->header->fuelSand);
+        eLoadStations.setText(a->header->loadStationsPopulation);
+    }
    
     if(a->playerServiceDefinition == NULL){
         cService.setCurrentIndex(0);
@@ -857,6 +990,7 @@ void ActivityTools::activitySelected(QString n){
     }
 
     reloadActivityObjectLists();
+    showOverlay();
     
     if(route != NULL){
         //if(!ActLib::act[id]->isInitActivityObjects)
@@ -1457,6 +1591,38 @@ void ActivityTools::cHornAtCrossingsEnabled(int val){
         a->setOrtsHornAtCrossigns(true);
     else
         a->setOrtsHornAtCrossigns(false);
+}
+
+void ActivityTools::cHornPatternEnabled(int index){
+    Activity *a = currentActivity();
+    if(a == NULL)
+        return;
+    ActivityEdit edit(a);
+    a->setOrtsHornPattern(cHornPattern.itemData(index).toString());
+}
+
+void ActivityTools::sFuelWoodEnabled(int val){
+    Activity *a = currentActivity();
+    if(a == NULL)
+        return;
+    ActivityEdit edit(a, true);
+    a->setFuelWood(val);
+}
+
+void ActivityTools::sFuelSandEnabled(int val){
+    Activity *a = currentActivity();
+    if(a == NULL)
+        return;
+    ActivityEdit edit(a, true);
+    a->setFuelSand(val);
+}
+
+void ActivityTools::eLoadStationsEnabled(QString val){
+    Activity *a = currentActivity();
+    if(a == NULL)
+        return;
+    ActivityEdit edit(a, true);
+    a->setLoadStationsPopulation(val.trimmed());
 }
 
 void ActivityTools::eFuelCoalEnabled(QString val){

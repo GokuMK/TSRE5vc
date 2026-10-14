@@ -8,4 +8,7 @@ struct TextSnapshot {
     QString text;
     bool unsaved = false;
     int saves = 0;
+    // What else the object keeps until it is saved (an activity: the
+    // overlay merged into it, renamed when it is saved).
+    QString pending;
 };

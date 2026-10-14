@@ -1630,6 +1630,26 @@ void Route::actPickNewEventLocation(int x, int z, float* p, bool useHeight){
     }
 }
 
+// The shown sound outcome plays at the track nearest the pointer.
+void Route::actPickSoundLocation(int x, int z, float* p, bool useHeight){
+    if(currentActivity == NULL)
+        return;
+    float tp[3];
+    float tpos[3];
+    float posT[2];
+    Vec3::copy(tp, p);
+    Game::check_coords(x, z, tp);
+    posT[0] = x;
+    posT[1] = z;
+    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
+    if(ok >= 0){
+        Undo::StateBegin();
+        Undo::PushActivityData(currentActivity);
+        currentActivity->pickSoundLocation(tpos);
+        Undo::StateEnd();
+    }
+}
+
 void Route::actNewLooseConsist(int x, int z, float* p, bool useHeight){
     if(currentActivity == NULL)
         return;

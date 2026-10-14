@@ -12,6 +12,8 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTimetable.h>
+#include <tsre/trains/ActivityOverlay.h>
+#include <QFileInfo>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Path.h>
@@ -54,6 +56,7 @@ public:
         timetables();
         events();
         consists();
+        overlay();
         return findings;
     }
 
@@ -367,7 +370,57 @@ private:
                                     //% "Event %1: an outcome names event %2, which does not exist."
                                     qtTrId("activity.check.event.link.missing").arg(name).arg(outcome->value.toInt())),
                                 event);
+            // Open Rails: an AI train triggering the event, or restarted by
+            // it at the waiting point of the value given.
+            if (!event->triggeringService.isEmpty() && aiTrain(event->triggeringService, event->triggeringTime) == NULL)
+                eventTarget(add(ActivityFinding::Error, "event.triggering.missing",
+                                //% "Event %1: the AI train %2 that triggers it is not in the activity."
+                                qtTrId("activity.check.event.triggering.missing")
+                                .arg(name, train(event->triggeringService, event->triggeringTime))), event);
+            for (const ActivityEvent::Outcome *outcome : event->outcomes) {
+                if (outcome == NULL || outcome->type != ActivityEvent::Outcome::TypeORTSRestartWaitingTrain)
+                    continue;
+                const ActivityServiceDefinition *restarted = aiTrain(outcome->restartService, outcome->restartTime);
+                if (restarted == NULL)
+                    eventTarget(add(ActivityFinding::Error, "event.restart.missing",
+                                    //% "Event %1: the AI train %2 it restarts is not in the activity."
+                                    qtTrId("activity.check.event.restart.missing")
+                                    .arg(name, train(outcome->restartService, outcome->restartTime))), event);
+                else if (outcome->restartWaitingPoint > 0 && !waitsAt(restarted->name, outcome->restartWaitingPoint))
+                    eventTarget(add(ActivityFinding::Warning, "event.restart.waiting.point",
+                                    //% "Event %1: the path of the AI train %2 has no waiting point of value %3; Open Rails restarts nothing."
+                                    qtTrId("activity.check.event.restart.waiting.point")
+                                    .arg(name, restarted->name).arg(outcome->restartWaitingPoint)), event);
+            }
         }
+    }
+
+    // One of the activity's AI trains: by service, and by start time when
+    // one is given.
+    const ActivityServiceDefinition *aiTrain(const QString &service, int time) {
+        if (service.isEmpty() || activity->traffic == NULL)
+            return NULL;
+        for (const ActivityServiceDefinition &instance : activity->traffic->service)
+            if (instance.name.compare(service, Qt::CaseInsensitive) == 0 && (time < 0 || instance.time == time))
+                return &instance;
+        return NULL;
+    }
+
+    static QString train(const QString &service, int time) {
+        return time < 0 ? service : QString("%1 %2").arg(service, clock(time));
+    }
+
+    // Whether the service's path has a waiting point of the value; a
+    // missing service or path is reported with the service.
+    bool waitsAt(const QString &service, int value) {
+        Service *found = ActLib::GetServiceByName(service, routePath);
+        Path *path = found != NULL ? ActLib::GetPathByName(found->pathId, routePath) : NULL;
+        if (path == NULL)
+            return true;
+        for (const PathTrack::Node &node : path->nodes())
+            if (node.type == PathTrack::NodeType::Wait && node.waitTime == value)
+                return true;
+        return false;
     }
 
     void eventTarget(ActivityFinding &finding, const ActivityEvent *event) {
@@ -399,6 +452,26 @@ private:
             if (item.uid == car)
                 return true;
         return false;
+    }
+
+    // An Open Rails overlay adds to the activity when Open Rails loads it:
+    // noted, with what it names that the activity no longer has.
+    void overlay() {
+        const QString path = ActivityOverlay::PathOf(activity);
+        if (path.isEmpty() || activity->mergedOverlay == path)
+            return;
+        add(ActivityFinding::Warning, "overlay.present",
+            //% "Open Rails adds the overlay %1 to this activity (Merge... in the activity panel puts it in)."
+            qtTrId("activity.check.overlay.present").arg(QFileInfo(path).fileName()));
+        const ActivityOverlay::Result merge = ActivityOverlay::Merge(activity, path, false);
+        if (!merge.readable)
+            add(ActivityFinding::Warning, "overlay.unreadable",
+                //% "The overlay %1 cannot be read."
+                qtTrId("activity.check.overlay.unreadable").arg(QFileInfo(path).fileName()));
+        for (const QString &line : merge.skipped)
+            add(ActivityFinding::Warning, "overlay.skipped",
+                //% "Overlay: %1"
+                qtTrId("activity.check.overlay.skipped").arg(line));
     }
 
     // Loose consists whose cars' files are missing.

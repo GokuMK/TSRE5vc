@@ -141,6 +141,9 @@ public:
     // Blocks TSRE does not read, as they were in the file, by the block
     // they were in (Tr_Activity, Tr_Activity_File and its lists); written
     // at the end of that block.
+    // The Open Rails overlay merged into the activity: renamed to
+    // <name>.act.merged when the activity is saved.
+    QString mergedOverlay;
     QStringList kept;
     QStringList keptFile;
     QStringList keptEvents;
@@ -164,6 +167,8 @@ public:
 
     QString editorConListSelected;
     ActivityEvent *currentEventSelected = NULL;
+    // The outcome shown of that event (a sound's place is picked on the map).
+    ActivityEvent::Outcome *currentOutcomeSelected = NULL;
     void init(QString route, QString name);
     //void setRouteContent(QVector<Path*>* p, QVector<Service*>* s, QVector<Traffic*>* t);
     //Traffic *getTrafficByName(QString name);
@@ -180,6 +185,8 @@ public:
     void setSeason(int val);
     void setWeather(int val);
     void pickNewEventLocation(float *tdbPos);
+    // The shown sound outcome plays at the track position.
+    void pickSoundLocation(float *tdbPos);
     void newLooseConsist(float *tdbPos);
     void newSpeedZone(float *tdbPos);
     bool newFailedSignalFromSelected();
