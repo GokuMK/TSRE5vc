@@ -100,6 +100,9 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
     settings->addWidget(new QLabel(
         //% "Terrain mesh LOD: "
         qtTrId("route.editor.trk.window.label.terrain.mesh.lod")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Enclosed ambient: "
+        qtTrId("route.editor.trk.window.label.enclosed.ambient")), row++, 0);
     settings->addWidget(GuiFunct::newTQLabel(
         //% "Environment"
         qtTrId("route.editor.trk.window.label.environment")), row++, 0);
@@ -164,6 +167,16 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
     terrainLodLayout->addWidget(&terrainLodSummary);
     terrainLodLayout->addWidget(&terrainLodEdit);
     settings->addWidget(terrainLodWidget, row++, 1);
+    settings->addWidget(&enclosedAmbient, row++, 1);
+    // Below 0: the setting's value.
+    enclosedAmbient.setRange(-0.05, 1.0);
+    enclosedAmbient.setSingleStep(0.05);
+    enclosedAmbient.setSpecialValueText(
+        //% "Default"
+        qtTrId("route.editor.trk.window.item.enclosed.ambient.default"));
+    enclosedAmbient.setToolTip(
+        //% "The share of the sky's ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer)."
+        qtTrId("route.editor.trk.window.tooltip.enclosed.ambient"));
     QObject::connect(&terrainLodEdit, &QPushButton::released,
                      this, &TrkWindow::terrainLodEnabled);
     row++;
@@ -251,6 +264,7 @@ int TrkWindow::exec() {
     this->startpZ.setText(QString::number(trk->startpZ));
     
     this->terrainErrorScale.setValue(trk->terrainErrorScale);
+    this->enclosedAmbient.setValue(trk->tsreEnclosedAmbient < 0.0f ? -0.05 : trk->tsreEnclosedAmbient);
     pendingTerrainLodLevels = trk->terrainLodLevels;
     terrainLodSummary.setText(
                 TerrainLodProfileDialog::summary(pendingTerrainLodLevels));
@@ -316,6 +330,7 @@ void TrkWindow::bokEnabled(){
     trk->tempRestrictedSpeed = tempRestrictedSpeed.value()/3.6;
     trk->speedLimit = speedLimit.value()/3.6;
     trk->terrainLodLevels = pendingTerrainLodLevels;
+    trk->tsreEnclosedAmbient = enclosedAmbient.value() < 0.0 ? -1.0f : float(enclosedAmbient.value());
     accept();
 }
 

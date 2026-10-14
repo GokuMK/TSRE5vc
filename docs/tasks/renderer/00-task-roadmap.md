@@ -29,8 +29,12 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [ ] `24-hdr-and-bloom.md` (float view with tone curves and exposure; bloom only from emitted light; defaults unchanged, look to be tuned)
 - [x] `25-qrhi-hardware-investigation.md` (Steam Deck under Windows: paged terrain, frame pacing and memory fixed; open performance work in its handover)
 - [x] `26-signal-lights.md` (signal lights in the default aspect from sigcfg.dat; glow on QRhi, plain discs on OpenGL; flashing and animation later)
-- [ ] `27-sky-enclosure-and-tunnel-lighting.md` (a top-down enclosure map: lamps at full strength and ambient with a floor where the sky is hidden; best done with the clouds task)
-- [ ] `28-volumetric-clouds.md` (physical sky, raymarched low and mid clouds, flat high layer, cloud shadows, overcast light and light shafts on QRhi; weather from `docs/tasks/environment/01-weather-data.md`; includes task 27)
+- [ ] `27-sky-enclosure-and-tunnel-lighting.md` (a top-down enclosure map: lamps at full strength and ambient with a floor where the sky is hidden; done with task 28, in `main` since 2026-10-14, off by default and on in the Advanced Environment graphics preset; found a QRhi Vulkan glow loss after depth-only passes)
+- [ ] `28-volumetric-clouds.md` (physical sky, raymarched low and mid clouds, flat high layer, cloud shadows, overcast light and light shafts on QRhi; weather from `docs/tasks/environment/01-weather-data.md`; includes task 27. Steps 1-3 and 5-8 in `main` since 2026-10-14, off by default and on in the Advanced Environment graphics preset; timed on the Steam Deck; step 9 (OpenGL fallback) not started; next: mist and ground fog)
+- [ ] `29-auto-exposure.md` (lamps at one strength all day, the view's exposure adapting to its measured brightness, night views as Dimmed; setting "Lamps by day", Dimmed the default; in `main` since 2026-10-14)
+- [ ] `30-cleanup-fine-tuning-and-fixes.md` (open list of small renderer items: cleanup such as settings read every frame, fine-tuning, bug fixes noted in other tasks)
+- [ ] `31-moonlight.md` (the moon lights the night by its phase and height and casts shadows; in every mode)
+- [ ] `32-aerial-haze.md` (distant terrain through the air: per colour, the horizon's light by direction, the weather's haze; dark blue far mountains with any time and weather)
 
 Renderer work continues on Windows hardware; software rendering (llvmpipe,
 lavapipe) no longer shows the remaining problems. Measurement and

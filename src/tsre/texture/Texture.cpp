@@ -207,6 +207,55 @@ bool readGpuPixels(const Texture &source, Texture &destination) {
     return true;
 }
 
+// The same for a texture the QRhi renderer holds: its RGBA8 rows into the
+// destination's 3 or 4 bytes a pixel, or its blocks decoded.
+bool readRhiPixels(const Texture &source, Texture &destination) {
+    if (source.tex == nullptr || source.tex[0] == 0)
+        return false;
+    QByteArray data;
+    const RhiTextures::Contents contents = RhiTextures::readBack(source.tex[0], data);
+    const qsizetype pixels = qsizetype(source.width) * source.height;
+    if (contents == RhiTextures::Contents::Rgba8) {
+        if (data.size() != pixels * 4 || destination.imageSize != pixels * destination.bytesPerPixel)
+            return false;
+        const auto *in = reinterpret_cast<const unsigned char *>(data.constData());
+        if (destination.bytesPerPixel == 4) {
+            std::memcpy(destination.imageData, in, size_t(pixels) * 4);
+        } else {
+            for (qsizetype i = 0; i < pixels; ++i)
+                std::memcpy(destination.imageData + i * 3, in + i * 4, 3);
+        }
+        return true;
+    }
+    if (contents == RhiTextures::Contents::None) {
+        destination.errorMessage = "Cannot read the texture back from the QRhi renderer";
+        return false;
+    }
+    const DxtCodec::Format format = contents == RhiTextures::Contents::Bc1 ? DxtCodec::Format::Dxt1
+            : contents == RhiTextures::Contents::Bc2 ? DxtCodec::Format::Dxt3
+                                                     : DxtCodec::Format::Dxt5;
+    if (!DxtCodec::decodeInto(data, source.width, source.height, format,
+                              destination.type == GL_RGBA, destination.imageData,
+                              destination.imageSize, destination.errorMessage)) {
+        destination.error = true;
+        return false;
+    }
+    return true;
+}
+
+// Reads a resident texture back with the renderer that holds it.
+bool readResidentPixels(const Texture &source, Texture &destination) {
+    return Game::renderBackend == "qrhi" ? readRhiPixels(source, destination)
+                                         : readGpuPixels(source, destination);
+}
+
+// Whether a resident texture can be read back: QRhi needs no current
+// OpenGL context.
+bool canReadResident(const Texture &texture) {
+    return texture.glLoaded && texture.tex != nullptr
+            && (Game::renderBackend == "qrhi" || QOpenGLContext::currentContext() != nullptr);
+}
+
 } // namespace
 
 Texture::Texture() {}
@@ -268,9 +317,9 @@ Texture::Texture(const Texture *orig) {
                                 message)) {
         imageData = new unsigned char[imageSize];
         memcpy(imageData, decoded.constData(), imageSize);
-    } else if (orig->glLoaded && orig->tex && QOpenGLContext::currentContext()) {
+    } else if (canReadResident(*orig)) {
         imageData = new unsigned char[imageSize];
-        if (!readGpuPixels(*orig, *this)) {
+        if (!readResidentPixels(*orig, *this)) {
             delete[] imageData;
             imageData = nullptr;
             return;
@@ -293,11 +342,11 @@ void Texture::setEditable() {
         return;
     if (decodeToCpu())
         return;
-    if (!glLoaded || !tex || !QOpenGLContext::currentContext())
+    if (!canReadResident(*this))
         return;
     imageSize = width * height * bytesPerPixel;
     imageData = new unsigned char[imageSize];
-    if (!readGpuPixels(*this, *this)) {
+    if (!readResidentPixels(*this, *this)) {
         delete[] imageData;
         imageData = nullptr;
         return;

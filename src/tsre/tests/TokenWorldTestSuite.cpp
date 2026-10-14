@@ -5,6 +5,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/world/Tile.h>
 #include <tsre/world/objects/WorldObj.h>
+#include <tsre/world/objects/StaticObj.h>
 #include <tsre/world/objects/TelepoleObj.h>
 #include <tsre/world/TelepoleData.h>
 #include <tsre/world/Ref.h>
@@ -549,6 +550,21 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
                             .arg(subObjId < 0 ? "absent" : QString::number(subObjId)));
                 }
             }
+        }
+    }
+    {
+        // TSRELightRange (TSRE only): the light reach of a placed object,
+        // read from text world files and kept by copies.
+        Tile tile;
+        const QString text = QStringLiteral(" Static ( UiD ( 35 ) Position ( 1 2 3 ) TSRELightRange ( 80 ) ) )");
+        const QByteArray bytes = fields([&](QDataStream& s) { for (QChar c : text) s << c.unicode(); });
+        auto input = buffer(bytes);
+        tile.loadUtf16Data(input.get());
+        const bool read = tile.jestObiektow == 1 && tile.obiekty[0]->tsreLightRange == 80.0f;
+        test.check(read, "TSRELightRange is read from a text world file");
+        if (read) {
+            StaticObj copy(*static_cast<StaticObj*>(tile.obiekty[0]));
+            test.check(copy.tsreLightRange == 80.0f, "TSRELightRange survives a copy (undo)");
         }
     }
     return test.finish();

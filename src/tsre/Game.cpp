@@ -134,6 +134,11 @@ bool Game::waterShaded = true;
 bool Game::waterReflection = true;
 bool Game::localLightsEnabled = true;
 int Game::ambientOcclusionQuality = 0;
+int Game::skyModel = 0;
+int Game::cloudQuality = 0;
+int Game::lightShafts = 0;
+bool Game::skyEnclosure = false;
+float Game::enclosedAmbient = 0.3f;
 int Game::toneMapping = 0;
 float Game::exposure = 0.0f;
 float Game::bloomStrength = 3.0f;
@@ -372,6 +377,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.water.reflection", waterReflection);
     // Read by the renderers and WaterWaves each frame (task renderer 18).
     claim("core.rendering.water.depth", SettingType::Bool);
+    // Read by RouteEditorGLWidget each frame (task renderer 29).
+    claim("core.rendering.lampsByDay", SettingType::Enum);
     claim("core.rendering.water.windSpeed", SettingType::Float);
     claim("core.rendering.water.windDirection", SettingType::Float);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);
@@ -386,10 +393,23 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.timeOfDay.enabled", timeOfDayEnabled);
     floating("core.rendering.timeOfDay.time", timeOfDayHours);
     string("core.rendering.timeOfDay.date", timeOfDayDate, SettingType::String);
+    // Kept by RouteEditorGLWidget, which runs the time on (the clock).
+    claim("core.rendering.timeOfDay.running", SettingType::Bool);
     // Read by SkySatellites each frame (task editor 05).
     claim("core.rendering.sky.sun", SettingType::Bool);
     claim("core.rendering.sky.moon", SettingType::Bool);
     claim("core.rendering.sky.sunSize", SettingType::Float);
+    claim("core.rendering.sky.model", SettingType::Enum);
+    if (appliesNow("core.rendering.sky.model"))
+        skyModel = settings.runtimeInt("core.rendering.sky.model");
+    claim("core.rendering.clouds", SettingType::Enum);
+    if (appliesNow("core.rendering.clouds"))
+        cloudQuality = settings.runtimeInt("core.rendering.clouds");
+    claim("core.rendering.lightShafts", SettingType::Enum);
+    if (appliesNow("core.rendering.lightShafts"))
+        lightShafts = settings.runtimeInt("core.rendering.lightShafts");
+    boolean("core.rendering.skyEnclosure", skyEnclosure);
+    floating("core.rendering.enclosedAmbient", enclosedAmbient);
     floating("core.rendering.localLights.exposure", localLightsExposure);
     floating("core.rendering.localLights.emissiveGain", localLightsEmissiveGain);
     integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);

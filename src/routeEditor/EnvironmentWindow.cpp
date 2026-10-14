@@ -11,9 +11,11 @@
 #include <settings/SettingsManager.h>
 #include <QCheckBox>
 #include <QColorDialog>
+#include <QComboBox>
 #include <QDateEdit>
 #include <QDoubleSpinBox>
 #include <QGridLayout>
+#include <tsre/Game.h>
 #include <tsre/gui/GuiFunct.h>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -21,6 +23,7 @@
 #include <QPushButton>
 #include <QSlider>
 #include <QTimeEdit>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QDebug>
@@ -43,6 +46,7 @@ const char *const Exposure = "core.rendering.exposure";
 const char *const Sun = "core.rendering.sky.sun";
 const char *const Moon = "core.rendering.sky.moon";
 const char *const SunSize = "core.rendering.sky.sunSize";
+const char *const Running = "core.rendering.timeOfDay.running";
 
 SettingsManager &settings() {
     return SettingsManager::instance();
@@ -83,6 +87,29 @@ QIcon resetIcon(const QColor &colour) {
     return QIcon(pixmap);
 }
 
+// A word-wrapped label that keeps the height of its wrapped text at its
+// width: in the scrolled tool panel the rows below would not make room for a
+// line that wraps.
+class WrappingLabel : public QLabel {
+public:
+    using QLabel::QLabel;
+    // The wrapped text's height at the label's width (heightForWidth gave
+    // twice the lines here).
+    void fitHeight() {
+        const QMargins m = contentsMargins();
+        const int width = std::max(1, this->width() - m.left() - m.right());
+        const QRect text = fontMetrics().boundingRect(QRect(0, 0, width, 100000), Qt::TextWordWrap, this->text());
+        const int height = text.height() + m.top() + m.bottom();
+        if (height != minimumHeight())
+            setMinimumHeight(height);
+    }
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QLabel::resizeEvent(event);
+        fitHeight();
+    }
+};
+
 QTime timeOfHours(double hours) {
     const int minutes = std::clamp(int(std::lround(hours * 60.0)), 0, 24 * 60 - 1);
     return QTime(minutes / 60, minutes % 60);
@@ -91,8 +118,8 @@ QTime timeOfHours(double hours) {
 
 QStringList EnvironmentWindow::keys() {
     QStringList list;
-    for (const char *key : {TimeEnabled, Time, Date, Sun, Moon, SunSize, FogColor, FogDensity, LocalLights,
-                            Bloom, Exposure})
+    for (const char *key : {TimeEnabled, Time, Date, Running, Sun, Moon, SunSize, FogColor, FogDensity,
+                            LocalLights, Bloom, Exposure})
         list << QString::fromLatin1(key);
     return list;
 }
@@ -215,6 +242,48 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     connect(dateEdit, &QDateEdit::dateChanged, this,
             [this](QDate date) { set(Date, date.toString("yyyy-MM-dd")); });
     connect(today, &QToolButton::clicked, this, [this] { dateEdit->setDate(QDate::currentDate()); });
+    // The clock: the time of day and the weather run on at a speed (seconds
+    // of the day a real second; this session only), real time first; Stop
+    // keeps the time.
+    clockSpeed = new QComboBox(this);
+    clockSpeed->setObjectName("clockSpeed");
+    clockSpeed->setStyleSheet("combobox-popup: 0;");
+    clockSpeed->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    clockSpeed->setToolTip(
+        //% "How far the time of day and the weather run on in a real second."
+        qtTrId("route.editor.environment.window.clock.tooltip"));
+    for (int seconds : {1, 5, 10, 30})
+        //% "%1 s/s"
+        clockSpeed->addItem(qtTrId("route.editor.environment.window.clock.seconds").arg(seconds), double(seconds));
+    for (int minutes : {1, 2, 3, 4})
+        //% "%1 min/s"
+        clockSpeed->addItem(qtTrId("route.editor.environment.window.clock.minutes").arg(minutes),
+                            double(minutes * 60));
+    clockButton = new QToolButton(this);
+    clockButton->setObjectName(QString::fromLatin1(Running));
+    clockButton->setFixedWidth(ValueWidth);
+    {
+        const int r = grid->rowCount();
+        grid->addWidget(GuiFunct::newQLabel(
+            //% "Clock:"
+            qtTrId("route.editor.environment.window.clock"), LabelWidth), r, 0);
+        grid->addWidget(line({clockSpeed, clockButton}), r, 1);
+    }
+    connect(clockSpeed, QOverload<int>::of(&QComboBox::activated), this,
+            [this](int index) { emit clockSpeedChanged(clockSpeed->itemData(index).toDouble()); });
+    connect(clockButton, &QToolButton::clicked, this, [this] {
+        if (settings().runtimeBool(Running)) {
+            // The time where it stopped, also for the panel and the profile.
+            set(Time, double(Game::timeOfDayHours));
+            set(Running, false);
+        } else {
+            set(Running, true);
+        }
+    });
+    // While the time runs, the panel shows it a few times a second.
+    clockDisplay = new QTimer(this);
+    clockDisplay->setInterval(250);
+    connect(clockDisplay, &QTimer::timeout, this, &EnvironmentWindow::showClock);
     sun = new QCheckBox(this);
     row(Sun,
         //% "Sun:"
@@ -232,15 +301,15 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     sunSize = number(SunSize,
         //% "Size:"
         qtTrId("route.editor.environment.window.sun.size"), 0.2, 5.0, 0.1, 1, QStringLiteral("°"));
-    readout = new QLabel(this);
+    readout = new WrappingLabel(this);
     readout->setWordWrap(true);
     readout->setContentsMargins(0, 2, 0, 2);
     grid->addWidget(readout, grid->rowCount(), 0, 1, 3);
 
-    // Environment.
+    // Fog.
     section(
-        //% "Environment:"
-        qtTrId("route.editor.environment.window.group.environment"));
+        //% "Fog:"
+        qtTrId("route.editor.environment.window.group.fog"));
     fogButton = new QPushButton(this);
     row(FogColor,
         //% "Fog colour:"
@@ -315,6 +384,28 @@ QToolButton *EnvironmentWindow::resetButtonFor(const QString &key) {
     return button;
 }
 
+void EnvironmentWindow::showClock() {
+    const QTime time = timeOfHours(Game::timeOfDayHours);
+    quietly(timeSlider, &QSlider::setValue, time.hour() * 60 + time.minute());
+    quietly(timeEdit, &QTimeEdit::setTime, time);
+    const QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (date.isValid())
+        quietly(dateEdit, &QDateEdit::setDate, date);
+}
+
+void EnvironmentWindow::showRunning() {
+    const bool running = settings().runtimeBool(Running);
+    clockButton->setText(running ?
+        //% "Stop"
+        qtTrId("route.editor.environment.window.clock.stop") :
+        //% "Resume"
+        qtTrId("route.editor.environment.window.clock.resume"));
+    if (running)
+        clockDisplay->start();
+    else
+        clockDisplay->stop();
+}
+
 void EnvironmentWindow::set(const QString &key, const QVariant &value) {
     QString error;
     if (!settings().setSessionValue(key, value, &error))
@@ -327,6 +418,8 @@ void EnvironmentWindow::refresh(const QStringList &changedKeys) {
         if (control != controls.constEnd() && control->load)
             control->load();
     }
+    if (changedKeys.contains(QString::fromLatin1(Running)))
+        showRunning();
     refreshMarks();
 }
 
@@ -342,6 +435,8 @@ void EnvironmentWindow::refreshMarks() {
         it->label->setFont(font);
         it->reset->setEnabled(session);
     }
+    // Stop / Resume has no reset of its own: Reset all and Save take it.
+    any = any || settings().runtimeValueSource(QString::fromLatin1(Running)) == SettingsManager::ForcedSession;
     resetButton->setEnabled(any);
     saveButton->setEnabled(any);
 }
@@ -409,6 +504,8 @@ void EnvironmentWindow::environmentInfo(float sunElevation, float sunAzimuth, fl
                 .arg(moonElevation, 0, 'f', 1).arg(moonFraction * 100.0f, 0, 'f', 0);
     readout->setText(lines.join('\n'));
     readout->setVisible(!lines.isEmpty());
+    if (readout->width() > 50)
+        static_cast<WrappingLabel *>(readout)->fitHeight();
 }
 
 void EnvironmentWindow::hideEvent(QHideEvent *e) {

@@ -1,0 +1,20 @@
+{
+  "notes": "Cloud edges in motion on CMK (task 28, second round): the camera moves along the track, one frame per view, temporal mode (not still). Roofs, masts and hills against the sky must show no 4 x 4 blocks or stale gaps. QRhi, physical sky, clouds on; QT_ENABLE_HIGHDPI_SCALING=0 for 1280 x 800.",
+  "output": "build/renderer-clouds-motion",
+  "width": 1280, "height": 800, "pickGrid": [0, 0], "timingFrames": 1, "diffTolerance": 16, "shadows": true,
+  "settle": { "minFrames": 1, "stableFrames": 1, "maxFrames": 1, "maxSeconds": 60 },
+  "views": [
+    {"name": "m00", "tile": [-5306, -14963], "pos": [640, 110, 0], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m01", "tile": [-5306, -14963], "pos": [640, 110, 4], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m02", "tile": [-5306, -14963], "pos": [640, 110, 8], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m03", "tile": [-5306, -14963], "pos": [640, 110, 12], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m04", "tile": [-5306, -14963], "pos": [640, 110, 16], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m05", "tile": [-5306, -14963], "pos": [640, 110, 20], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m06", "tile": [-5306, -14963], "pos": [640, 110, 24], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m07", "tile": [-5306, -14963], "pos": [640, 110, 28], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m08", "tile": [-5306, -14963], "pos": [640, 110, 32], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m09", "tile": [-5306, -14963], "pos": [640, 110, 36], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m10", "tile": [-5306, -14963], "pos": [640, 110, 40], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "m11", "tile": [-5306, -14963], "pos": [640, 110, 44], "rot": [0.6, 0.02], "weatherPreset": "fair_cumulus", "time": 13}
+  ]
+}

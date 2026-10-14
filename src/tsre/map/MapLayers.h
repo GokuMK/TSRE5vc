@@ -15,7 +15,7 @@
 // toggles, which live in Game.
 enum class MapLayer {
     Track, Road, Junctions, Ends, TrackObjects, Paths, Activity, Terrain, FadedOverlay, Pointer,
-    OsmData, OsmTransparentAreas, Markers, Imagery, ScaleBar, Count
+    OsmData, OsmTransparentAreas, Markers, Imagery, ScaleBar, Weather, Count
 };
 
 struct MapLayers {
@@ -24,7 +24,7 @@ struct MapLayers {
     // set is shown for a purpose. Imagery is off: it downloads from a web service.
     // The scale bar is on.
     bool visible[int(MapLayer::Count)] = {true, true, true, true, true, true, true, true, false,
-                                          true, false, false, false, false, true};
+                                          true, false, false, false, false, true, false};
     bool shows(MapLayer layer) const { return visible[int(layer)]; }
     void set(MapLayer layer, bool show) { visible[int(layer)] = show; }
 };

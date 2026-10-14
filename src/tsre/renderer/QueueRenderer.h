@@ -60,6 +60,8 @@ public:
         quint8 category = 0;
         bool owned = false;
         bool castsShadow = false;
+        // Its object's light reach (m), 0 for the default.
+        float lightReach = 0.0f;
     };
 
 protected:
@@ -106,15 +108,20 @@ protected:
     // Shadow casters within range on the ground plane (measured to their
     // bounds) and inside the light view, grouped by packet: shadowCasters,
     // groupPlans and instanceUpload.
-    void planShadowCasters(float range, const float *viewProjection);
+    // Shadow casters in range and inside the light's view; with enclosure,
+    // terrain and every opaque surface instead (the sky enclosure, task 27).
+    void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
+                           float minRadius = 0.0f, bool alphaTested = false);
     // The lights of every queued instance in submission space, punctual
     // lights scaled by exposure and emissive ones by emissiveGain, with
     // ranges derived where missing (task 21). emittersOnly keeps only the
     // emissive ones, also those too dim to light anything (their glow,
     // task 24), with signal lights scaled by signalGain (task 26); signal
-    // lights are left out otherwise.
+    // lights are left out otherwise. Ranges follow the brightness as shown:
+    // times rangeGain, the exposure the view applies (task 29).
     void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
-                      float emissiveGain, bool emittersOnly = false, float signalGain = 0.0f) const;
+                      float emissiveGain, bool emittersOnly = false, float signalGain = 0.0f,
+                      float rangeGain = 1.0f) const;
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> shadowCasters;

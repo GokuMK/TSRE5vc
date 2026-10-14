@@ -16,12 +16,14 @@
 #include <functional>
 
 class QCheckBox;
+class QComboBox;
 class QDateEdit;
 class QDoubleSpinBox;
 class QLabel;
 class QPushButton;
 class QSlider;
 class QTimeEdit;
+class QTimer;
 class QToolButton;
 
 // The environment of the running editor (task editor 05): time of day with
@@ -42,8 +44,11 @@ public slots:
     // Writes the current values into the profile and saves it.
     bool saveToProfile(QString *error = nullptr);
 
+
 signals:
     void windowClosed();
+    // The clock's speed chosen: seconds of the day a real second.
+    void clockSpeedChanged(double secondsPerSecond);
 
 protected:
     void hideEvent(QHideEvent *e) override;
@@ -68,6 +73,13 @@ private:
     QCheckBox *sun = nullptr;
     QCheckBox *moon = nullptr;
     QDoubleSpinBox *sunSize = nullptr;
+    // The clock (its speed, and core.rendering.timeOfDay.running): the
+    // editor runs the time on; the panel shows it while it runs.
+    QComboBox *clockSpeed = nullptr;
+    QToolButton *clockButton = nullptr;
+    QTimer *clockDisplay = nullptr;
+    void showClock();
+    void showRunning();
     QLabel *readout = nullptr;
     QPushButton *saveButton = nullptr;
     QPushButton *resetButton = nullptr;

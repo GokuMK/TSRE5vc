@@ -147,6 +147,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.category = RenderStats::category();
     instance.owned = owned;
     instance.castsShadow = castsShadow(packet);
+    instance.lightReach = currentLightReach;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
         float origin[3];
@@ -317,7 +318,7 @@ void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances){
 }
 
 void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
-                                 float emissiveGain, bool emittersOnly, float signalGain) const{
+                                 float emissiveGain, bool emittersOnly, float signalGain, float rangeGain) const{
     lights.clear();
     for(const PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
@@ -359,8 +360,13 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     for(int c = 0; c < 3; ++c)
                         light.color[c] = source.color[c] * source.intensity * gain;
                     light.radius = source.radius * scale;
-                    const float brightness = std::max({light.color[0], light.color[1], light.color[2]});
-                    const float reach = LightGrid::rangeFor(brightness, light.radius);
+                    light.signal = source.signal;
+                    const float brightness = std::max({light.color[0], light.color[1], light.color[2]}) * rangeGain;
+                    // Up to the default reach, or the reach its object asks
+                    // for; the asset's own range can only shorten it.
+                    const float reach = LightGrid::rangeFor(brightness, light.radius,
+                            instance.lightReach > 0.0f ? std::min(instance.lightReach, LightGrid::MaxReach)
+                                                       : LightGrid::DefaultReach);
                     light.range = source.range > 0.0f ? std::min(source.range * scale, reach) : reach;
                     light.spot = source.type == RenderItem::Light::SPOT;
                     light.cosInner = std::cos(source.innerCone);
@@ -373,14 +379,20 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
     }
 }
 
-void QueueRenderer::planShadowCasters(float range, const float *viewProjection){
+void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
+                                      float minRadius, bool alphaTested){
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Depth does not depend on draw order, so repeated packets draw instanced.
     shadowCasters.clear();
-    for(PassQueue &queue : passes){
+    for(int pass = 0; pass < PASS_COUNT; ++pass){
+        // The enclosure maps: opaque surfaces; the views from below (the
+        // lowest surfaces: track beds, tunnel floors) alpha-tested ones too.
+        if(enclosure && pass != PASS_TERRAIN && pass != PASS_OPAQUE && !(alphaTested && pass == PASS_ALPHA_TEST))
+            continue;
+        PassQueue &queue = passes[pass];
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
             for(const DrawInstance &instance : *list){
-                if(!instance.castsShadow || !hasMesh(instance.packet))
+                if((!enclosure && !instance.castsShadow) || !hasMesh(instance.packet))
                     continue;
                 // Measure the range to the bounds, so long meshes whose origin
                 // is out of range still cast near the camera.
@@ -392,6 +404,9 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection){
                 const float dz = center[2] - viewPosition[2];
                 const float reach = range + radius;
                 if(dx * dx + dz * dz > reach * reach || !visible(instance, lightFrustum))
+                    continue;
+                // The far enclosure map: terrain and large objects only.
+                if(pass != PASS_TERRAIN && radius < minRadius)
                     continue;
                 shadowCasters.push_back(&instance);
             }

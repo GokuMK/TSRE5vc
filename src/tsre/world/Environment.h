@@ -14,9 +14,10 @@
 
 #include <QString>
 #include <QVector>
+#include <tsre/environment/EnvFile.h>
 
-class FileBuffer;
-
+// The route's environment file: its water layers for drawing, and the whole
+// file with its weather (task environment 01).
 class Environment {
 public:
     struct WaterLayer {
@@ -30,12 +31,17 @@ public:
     int surfaceWaterLayer() const;
     // The other layers from the lowest up, at most count of them.
     QVector<int> lowerWaterLayers(int count) const;
-    Environment(QString path);
+    // The file as read, and its weather (its block, or derived from it and
+    // the TRK slot it fills).
+    Env::File file;
+    Weather weather;
+    Env::SlotWeather slot = Env::SlotWeather::Unknown;
+    QString path;
+    Environment(QString path, Env::SlotWeather slot = Env::SlotWeather::Unknown);
     virtual ~Environment();
 private:
     bool loaded;
     QString texturePath;
-    void loadWaterLayer(FileBuffer* data);
 };
 
 #endif	/* ENVIRONMENT_H */

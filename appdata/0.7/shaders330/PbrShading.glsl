@@ -19,6 +19,12 @@ uniform float pbrOcclusionStrength;
 uniform float pbrAlphaCutoff;
 uniform int pbrBlend;
 uniform int pbrUnlit;
+#ifdef TSRE_RHI
+// Undoes auto exposure (task 29) for unlit materials and emissive colour,
+// designed for the screen (linear; 1 without it). Their glow is not undone:
+// it follows the lamps.
+uniform float emissiveScale;
+#endif
 // Bit per map present: 1 metallic-roughness, 2 normal, 4 occlusion, 8 emissive,
 // 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal, 128 specular,
 // 256 specular colour, 512 transmission, 1024 thickness.
@@ -59,6 +65,10 @@ uniform float glowFocal;
 // The daylight scale of this surface's glow, 0 with local lights off: the
 // lamps' (task 21), or the signal lights' for signals (task 26).
 uniform float pbrGlowScale;
+#ifdef TSRE_RHI
+// The glow's scale where the sky is enclosed (task 27).
+uniform float pbrGlowEnclosed;
+#endif
 #endif
 #include "EnvironmentLighting.glsl"
 
@@ -122,7 +132,15 @@ vec4 pbrShade() {
         discard;
     float alpha = pbrBlend != 0 ? base.a : 1.0;
     if (pbrUnlit != 0) {
-        vec3 unlit = toDisplay(base.rgb * colorBrightness);
+        vec3 unlitLight = base.rgb * colorBrightness;
+#ifdef TSRE_RHI
+        unlitLight *= emissiveScale;
+#endif
+        vec3 unlit = toDisplay(unlitLight);
+#ifdef TSRE_RHI
+        if (hazeOn())
+            return vec4(applyHaze(unlit, vLightPosition, 1.0, 1.0), alpha);
+#endif
         return vec4(mix(unlit, skyColor.rgb, fogFactor), alpha);
     }
 
@@ -187,6 +205,12 @@ vec4 pbrShade() {
     vec3 l = normalize(lightDirection);
     float nDotL = max(dot(n, l), 0.0);
     float shadow = clamp(shadowedVisibility(1.0), 0.0, 1.0);
+#ifdef TSRE_RHI
+    shadow *= cloudShadow(vLightPosition);
+    float shade;
+    float enclosed = skyEnclosed(vLightPosition, n, shade);
+    shadow *= enclosureSun(vLightPosition, shade, l);
+#endif
     vec3 sun = PbrPi * toLinear(diffuseColor.rgb) * shadow;
     if (nDotL > 0.0) {
         vec3 fresnel;
@@ -195,6 +219,7 @@ vec4 pbrShade() {
         color += (diffuse + specular) * sun * nDotL;
     }
 #ifdef TSRE_RHI
+    float lamps = lampScale(shade);
     // Lamps and glowing surfaces, shaded as the sun is.
     vec3 coatLocal = vec3(0.0);
     ivec2 lightCell = localLightCell(vWorldPosition);
@@ -202,6 +227,7 @@ vec4 pbrShade() {
         vec3 lightDir, radiance;
         if (!localLight(lightCell.x + i, vWorldPosition, lightDir, radiance))
             continue;
+        radiance *= lamps;
         float lightNDotL = max(dot(n, lightDir), 0.0);
         if (lightNDotL > 0.0) {
             vec3 fresnel;
@@ -244,6 +270,9 @@ vec4 pbrShade() {
         environment = environment * (1.0 - coatFresnel)
                 + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
     }
+#ifdef TSRE_RHI
+    environment *= skyAmbient(shade);
+#endif
     color += environment * occlusion;
 #ifdef TSRE_RHI
     vec3 ambientLight = environment * occlusion * colorBrightness;
@@ -263,7 +292,11 @@ vec4 pbrShade() {
     vec3 emissive = pbrEmissive;
     if ((pbrTextures & 8) != 0)
         emissive *= toLinear(texture(pbrEmissiveMap, pbrUv(4)).rgb);
+#ifdef TSRE_RHI
+    color += emissive * emissiveScale;
+#else
     color += emissive;
+#endif
 
 #ifdef TSRE_RHI
     // Shrinking below 32 pixels, the surface hands its glow to its emitters'
@@ -276,10 +309,17 @@ vec4 pbrShade() {
                 / max(distance(cameraPosition, vWorldPosition), 0.001);
         glowShare = smoothstep(16.0, 32.0, pixels);
     }
-    pbrGlowOut = vec4(emissive * (1.0 - fogFactor) * glowShare * pbrGlowScale, alpha);
+    vec3 notFog = hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor);
+    pbrGlowOut = vec4(emissive * notFog * glowShare * mix(pbrGlowScale, pbrGlowEnclosed, enclosed),
+                      alpha);
     // The display-space share of the environment light, after fog.
     pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
-                         * (1.0 - fogFactor), alpha);
-#endif
+                         * notFog, alpha);
+    // Under cover the haze is lit as the ambient is.
+    if (hazeOn())
+        return vec4(applyHaze(toDisplay(color), vLightPosition, 1.0, skyAmbient(shade)), alpha);
+    return vec4(mix(toDisplay(color), skyColor.rgb * skyAmbient(shade), fogFactor), alpha);
+#else
     return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor), alpha);
+#endif
 }

@@ -1,0 +1,28 @@
+{
+  "output": "build/renderer-clouds",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [0, 0],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 40,
+    "maxSeconds": 600
+  },
+  "views": [
+    {"name": "cumulus", "rot": [3.1416, 0.12], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "cumulus-up", "rot": [3.1416, 0.6], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "broken", "rot": [3.1416, 0.12], "weatherPreset": "broken", "time": 13},
+    {"name": "overcast", "rot": [3.1416, 0.12], "weatherPreset": "overcast", "time": 13},
+    {"name": "cumulus-evening", "rot": [4.7124, 0.12], "weatherPreset": "fair_cumulus", "time": 19.5},
+    {"name": "scattered-sun", "rot": [4.0, 0.25], "weatherPreset": "scattered", "time": 17},
+    {"name": "shadows-aerial", "offset": [0, 400, 0], "rot": [3.1416, -0.45], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "shadows-ground", "rot": [0.8, -0.05], "weatherPreset": "fair_cumulus", "time": 15},
+    {"name": "sun-cumulus", "rot": [4.0, 0.3], "weatherPreset": "fair_cumulus", "time": 17},
+    {"name": "sun-low", "rot": [4.4, 0.1], "weatherPreset": "fair_cumulus", "time": 19},
+    {"name": "broken-night", "rot": [3.1416, 0.2], "weatherPreset": "broken", "time": 23}
+  ]
+}

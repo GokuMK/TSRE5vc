@@ -1,5 +1,6 @@
 #include <tsre/tests/SettingsTestSuite.h>
 
+#include <settings/GraphicsPresets.h>
 #include <settings/SettingsRegistration.h>
 #include <tsre/geo/ElevationSource.h>
 #include <tsre/geo/ImagerySource.h>
@@ -22,9 +23,12 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QLocale>
+#include <QMenu>
 #include <QPushButton>
 #include <QMessageBox>
+#include <QTimer>
 #include <algorithm>
 #include <QTemporaryDir>
 #include <QTranslator>
@@ -44,7 +48,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 113,
+    check(manager.registry().definitions().size() == 120,
           "catalog-includes-terrain-elevation-and-imagery-sources");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
@@ -489,7 +493,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 113,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 120,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()
@@ -779,6 +783,95 @@ int TsreTests::runSettingsSuite(bool verbose) {
               && resetDialog.findChild<QAction *>("reset-group-defaults")
               && resetDialog.findChild<QAction *>("new-profile"),
               "setting-action-resets-one-setting-to-its-default");
+    }
+    {
+        // Answers the question a menu action asks, once it shows.
+        auto answerYes = [] {
+            QTimer::singleShot(50, [] {
+                if (auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()))
+                    box->button(QMessageBox::Yes)->click();
+            });
+        };
+        QTemporaryDir presetWorkspace;
+        SettingsManager presetSource;
+        SettingsRegistration::registerAll(presetSource.registry());
+        const QString presetFile = presetWorkspace.filePath("settings.json");
+        check(presetWorkspace.isValid() && presetSource.loadFile(presetFile, &error),
+              "preset-dialog-profile");
+        bool presetsValid = GraphicsPresets::all().size() == 3;
+        for (const GraphicsPreset &preset : GraphicsPresets::all()) {
+            for (const auto &entry : preset.values)
+                presetsValid = presetsValid && presetSource.registry().contains(entry.first)
+                        && presetSource.setValue(entry.first, entry.second, &error);
+        }
+        check(presetsValid, "graphics-presets-set-registered-settings-to-accepted-values");
+        QString reloadError;
+        presetSource.reload(&reloadError);
+
+        // A setting from another fork, in a group this build does not have.
+        QJsonObject forkGroup{{"id", "forkGroup"}, {"name", "Fork group"}};
+        QJsonObject forkSetting{{"key", "fork.only.setting"}, {"name", "Fork only"},
+            {"type", "bool"}, {"value", true}, {"default", false},
+            {"group", "forkGroup"}, {"apply", "restart"}};
+        QJsonObject withFork = presetSource.document();
+        QJsonArray forkGroups = withFork.value("groups").toArray();
+        forkGroups.append(forkGroup);
+        withFork["groups"] = forkGroups;
+        check(presetSource.replaceDocument(withFork, &error)
+              && presetSource.addSettingObject(forkSetting, &error)
+              && presetSource.save(&error)
+              && presetSource.unregisteredKeys() == QStringList{"fork.only.setting"},
+              "unregistered-keys-are-the-settings-the-build-does-not-register");
+
+        SettingsDialog presetDialog(&presetSource);
+        auto *edited = presetDialog.findChild<SettingsManager *>();
+        auto presetAction = [&](const char *id) {
+            return presetDialog.findChild<QAction *>(QString("graphics-preset:") + id);
+        };
+        auto holdsPreset = [&](int index) {
+            for (const auto &entry : GraphicsPresets::all().at(index).values) {
+                const SettingsDefinition *definition = edited->registry().definition(entry.first);
+                if (!definition || settingJsonFromVariant(edited->value(entry.first), definition->type)
+                        != settingJsonFromVariant(entry.second, definition->type))
+                    return false;
+            }
+            return true;
+        };
+        QAction *basic = presetAction("openRailsBasic");
+        QAction *extended = presetAction("openRailsExtended");
+        QAction *advanced = presetAction("advancedEnvironment");
+        auto *presetMenu = presetDialog.findChild<QMenu *>("graphics-presets");
+        check(edited && basic && extended && advanced && presetMenu && holdsPreset(1),
+              "graphics-presets-menu-and-new-profile-is-openrails-extended");
+        answerYes();
+        if (basic)
+            basic->trigger();
+        check(edited && holdsPreset(0) && !holdsPreset(1) && edited->isModified()
+              && !edited->value("core.rendering.shadows.enabled").toBool()
+              && edited->value("core.rendering.timeOfDay.enabled").toBool(),
+              "graphics-preset-openrails-basic-sets-its-settings");
+        answerYes();
+        if (advanced)
+            advanced->trigger();
+        if (presetMenu)
+            emit presetMenu->aboutToShow();
+        check(edited && holdsPreset(2) && advanced->isChecked()
+              && !basic->isChecked() && !extended->isChecked()
+              && edited->value("core.rendering.sky.model").toInt() == 1
+              && edited->value("core.rendering.toneMapping").toInt() == 3,
+              "graphics-preset-advanced-environment-sets-its-settings-and-is-marked");
+
+        QAction *removeUnsupported = presetDialog.findChild<QAction *>("remove-unsupported-settings");
+        answerYes();
+        if (removeUnsupported)
+            removeUnsupported->trigger();
+        bool forkGroupLeft = false;
+        for (const QJsonValue &group : edited->groupsArray())
+            forkGroupLeft = forkGroupLeft || group.toObject().value("id").toString() == "forkGroup";
+        check(removeUnsupported && edited && !edited->contains("fork.only.setting")
+              && !forkGroupLeft && edited->unregisteredKeys().isEmpty()
+              && edited->contains("core.rendering.bloom") && holdsPreset(2),
+              "remove-unsupported-drops-unregistered-settings-and-their-empty-groups");
     }
     const QStringList resetKeys = preserved.resetToDefaults(preserved.resettableKeys(), &error);
     check(resetKeys.contains(fogKey) && resetKeys.contains(bloomKey) && preserved.hasDefaultValue(bloomKey)

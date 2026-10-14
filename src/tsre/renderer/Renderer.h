@@ -15,6 +15,7 @@
 #include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <functional>
+#include <memory>
 #include <vector>
 
 class RenderSurface;
@@ -114,6 +115,139 @@ public:
     // the camera) and depth planes, which screen-space effects such as
     // ambient occlusion need to rebuild positions from depth.
     virtual void setSceneProjection(const float *projection, float zNear, float zFar) {}
+
+    // The sky of the following frames (task 28). With physical set, a
+    // renderer that can (QRhi) draws the atmosphere behind each view in
+    // place of the sky band's background, and the caller leaves the skydome
+    // out.
+    struct Sky {
+        bool physical = false;
+        // Towards the sun (world: x east, y up, z south).
+        float sun[3] = {0.0f, 1.0f, 0.0f};
+        // The camera above sea level (m).
+        float cameraHeight = 0.0f;
+        // Display colour the sky keeps at least (night).
+        float night[3] = {0.0f, 0.0f, 0.0f};
+        // Extinction of the low haze (1/m), from the weather's visibility
+        // scaled by the fog density (the aerial haze, task 32).
+        float haze = 1.5e-4f;
+        // The weather's own haze (1/m), unscaled: what the volumetric light
+        // shafts scatter in (scaled with the rest, they all but vanished).
+        float shaftHaze = 1.5e-4f;
+        // The ground under the camera (m, as cameraHeight): the haze lying
+        // on it, where the near light shafts are.
+        float groundHeight = 0.0f;
+        // The share of the sun the clouds around the camera block on
+        // average (0-1).
+        float overcast = 0.0f;
+        // Towards the moon, and its light relative to the sun's (linear,
+        // per colour; 0 without moonlight): it lights the clouds at night
+        // (task 31).
+        float moon[3] = {0.0f, 1.0f, 0.0f};
+        float moonLight[3] = {0.0f, 0.0f, 0.0f};
+    };
+    virtual void setSky(const Sky &sky) { this->sky = sky; }
+    // Whether the sky set is drawn here as the atmosphere.
+    virtual bool drawsPhysicalSky() const { return false; }
+
+    // The clouds of the following frames (task 28), with a physical sky.
+    // World metres: east, north (as the weather's).
+    struct Clouds {
+        // 0 none, 1-3 quality.
+        int quality = 0;
+        // Each frame complete, without jitter or history (captures).
+        bool still = false;
+        // The weather around the camera: size x size texels per layer (low,
+        // mid, high, one after the other), rows from north to south, RGBA:
+        // coverage, type, base (km), top (km).
+        int size = 0;
+        double west = 0.0;
+        double north = 0.0;
+        float texel = 0.0f;
+        std::shared_ptr<const std::vector<float>> layers;
+        // Changes whenever the layers do.
+        quint64 revision = 0;
+        // How far each layer has drifted with its wind (east, north).
+        float drift[3][2] = {};
+        // The drift the layers above were sampled with: the fields move with
+        // their layer's wind, so the renderer reads them shifted by drift -
+        // built instead of drawing them again each frame.
+        float built[3][2] = {};
+        quint32 seed = 0;
+        // The low and mid layers' extent (km): bottom and top.
+        float bottom = 0.0f;
+        float top = 0.0f;
+        // The camera.
+        double cameraEast = 0.0;
+        double cameraNorth = 0.0;
+        // The pixels of each block of the image marched a frame (of 16): more
+        // in a fast timelapse, where the clouds change much between frames.
+        int passes = 1;
+    };
+    virtual void setClouds(const Clouds &clouds) {}
+
+    // The sky enclosure (task 27): a depth map from straight above around
+    // the camera, of terrain and opaque surfaces. A surface with something
+    // over it (terrain over a tunnel, a bridge deck, a roof) is enclosed:
+    // its ambient light keeps only ambientFloor of the sky's, and lamps and
+    // their glow keep their night strength there by day.
+    struct SkyEnclosure {
+        bool enabled = false;
+        // World (view space of the queue) to the map, OpenGL clip space.
+        float viewProjection[16] = {};
+        // Metres one unit of the map's depth spans.
+        float metresPerDepth = 1.0f;
+        // The filter's spacing in map coordinates.
+        float filter = 0.0f;
+        float ambientFloor = 0.3f;
+        // The far map behind it: wider and coarser, of terrain and large
+        // objects; the near map fades into it, it into open sky.
+        bool farEnabled = false;
+        float farViewProjection[16] = {};
+        float farFilter = 0.0f;
+    };
+    // Auto exposure (task 29): with it on, the light of the sun and the sky
+    // is scaled by sceneLight (1 by day, Daylight::DayLocalLights at night),
+    // lamps keep one scale, and the view's exposure adapts to its measured
+    // brightness: it takes the exposure of an ordinary outdoor view as bright
+    // as it is (the curve), an ordinary view of the hour 1 / sceneLight.
+    struct ExposureControl {
+        static constexpr int CurveSize = 24;
+        bool enabled = false;
+        float sceneLight = 1.0f;
+        // log2 of the luminance an ordinary outdoor view has (scene light).
+        float referenceLog2 = 0.0f;
+        // Daylight::adaptationCurve: luminance (log2, ascending) to exposure
+        // (log2).
+        float curveLuminance[CurveSize] = {};
+        float curveExposure[CurveSize] = {};
+        int curvePoints = 0;
+        // Stops added to the exposure (Daylight::exposureBias).
+        float biasStops = 0.0f;
+        // Take the exposure at once (camera jump, a jump of the time of day).
+        bool snap = false;
+        // Since the last frame.
+        float seconds = 0.0f;
+    };
+    virtual void setExposureControl(const ExposureControl &control) {}
+    // Whether the view can hold the light auto exposure needs (QRhi with
+    // tone mapping).
+    virtual bool autoExposureAvailable() const { return false; }
+    // Frames shown as drawn (the map's palette): no tone curve, exposure or
+    // bloom.
+    virtual void setPlainImage(bool plain) {}
+    // Starts a map (size texels) when the renderer has them: 0 the near map,
+    // 1 the far one, 2 and 3 the same seen from below (the lowest surfaces).
+    // The shadow program then draws enclosure casters into it, the far maps
+    // only those of minRadius and more.
+    virtual bool beginSkyEnclosure(int size, int map = 0) { return false; }
+    // After a map and its view from below: how open the sky is around each
+    // point (radius in map coordinates), for the gradual darkening under
+    // cover.
+    virtual void finishSkyEnclosure(bool far, float radius, float metresPerDepth) {}
+    virtual void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
+                                        float minRadius = 0.0f) {}
+    virtual void setSkyEnclosure(const SkyEnclosure &enclosure) {}
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.
@@ -194,6 +328,7 @@ public:
     static int pendingRetiredPackets();
 
 protected:
+    Sky sky;
     // Borrowed packets queued in all renderers; retirement waits for zero.
     static int queuedPackets;
     static quint64 currentFrame;

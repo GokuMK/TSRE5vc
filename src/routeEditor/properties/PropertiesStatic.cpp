@@ -12,6 +12,7 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/objects/StaticObj.h>
 #include <tsre/fileFunctions/ParserX.h>
+#include <tsre/renderer/LightGrid.h>
 #include <routeEditor/properties/EditFileNameDialog.h>
 #include <tsre/Game.h>
 
@@ -191,6 +192,24 @@ PropertiesStatic::PropertiesStatic(){
     detailLevelView->addWidget(&enableCustomDetailLevel, 1, 0);
     detailLevelView->addWidget(&customDetailLevel, 1, 1);
     vbox->addItem(detailLevelView);
+
+    label = new QLabel(
+        //% "Light Reach (m):"
+        qtTrId("route.editor.properties.static.label.light.reach"));
+    label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    label->setContentsMargins(3,0,0,0);
+    vbox->addWidget(label);
+    this->lightRange.setAlignment(Qt::AlignCenter);
+    this->lightRange.setPlaceholderText(
+        //% "Default: %1"
+        qtTrId("route.editor.properties.static.placeholder.light.reach").arg(LightGrid::DefaultReach));
+    this->lightRange.setToolTip(
+        //% "How far the lights of this object reach. Empty for the default, which suits most lamps; set more only where this object should light a larger area (up to %1 m). Each metre more costs drawing time wherever its light reaches."
+        qtTrId("route.editor.properties.static.tooltip.light.reach").arg(LightGrid::MaxReach));
+    this->lightRange.setValidator(new QDoubleValidator(0, LightGrid::MaxReach, 1, this));
+    QObject::connect(&lightRange, SIGNAL(textEdited(QString)),
+                      this, SLOT(lightRangeEdited(QString)));
+    vbox->addWidget(&this->lightRange);
     
     label = new QLabel(
         //% "Flags:"
@@ -336,6 +355,7 @@ void PropertiesStatic::showObj(GameObj* obj){
         customDetailLevel.setEnabled(false);
     }
     enableCustomDetailLevel.blockSignals(false);
+    lightRange.setText(worldObj->tsreLightRange > 0.0f ? QString::number(worldObj->tsreLightRange) : QString());
     
     this->flags.setText(ParserX::MakeFlagsString(worldObj->staticFlags));
     this->checkboxAnim.blockSignals(true);
@@ -446,6 +466,18 @@ void PropertiesStatic::customDetailLevelEdited(QString val){
         Undo::SinglePushWorldObjData(worldObj);
         staticObj->setCustomDetailLevel(level);
     }
+}
+
+void PropertiesStatic::lightRangeEdited(QString val){
+    if(worldObj == NULL)
+        return;
+    bool ok = false;
+    float metres = val.trimmed().isEmpty() ? 0.0f : val.toFloat(&ok);
+    if(!val.trimmed().isEmpty() && !ok)
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    worldObj->tsreLightRange = std::clamp(metres, 0.0f, LightGrid::MaxReach);
+    worldObj->setModified();
 }
 
 void PropertiesStatic::checkboxAnimEdited(int val){

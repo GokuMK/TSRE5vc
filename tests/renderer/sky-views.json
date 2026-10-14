@@ -1,0 +1,33 @@
+{
+  "output": "build/renderer-sky",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [0, 0],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 8,
+    "stableFrames": 2,
+    "maxFrames": 60,
+    "maxSeconds": 300
+  },
+  "views": [
+    {
+      "name": "start"
+    },
+    {
+      "name": "yaw180",
+      "rot": [3.1416, 0]
+    },
+    {
+      "name": "up",
+      "rot": [0, 0.6]
+    },
+    {
+      "name": "aerial",
+      "offset": [0, 250, 0],
+      "rot": [0, -0.2]
+    }
+  ]
+}

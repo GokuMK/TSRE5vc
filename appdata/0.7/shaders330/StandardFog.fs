@@ -50,6 +50,11 @@ flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
 uniform float enableNormals;
 uniform float colorBrightness;
+#ifdef TSRE_RHI
+// Undoes auto exposure (task 29) for unlit shading, designed for the screen
+// (display space; 1 without it).
+uniform float unlitScale;
+#endif
 // 1 - RenderItem::Material::opacity; 0 (opaque) where nothing sets it.
 uniform float materialTransparency;
 
@@ -89,6 +94,7 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 #include "ShadowSampling.glsl"
 #ifdef TSRE_RHI
 #include "LocalLights.glsl"
+#include "Haze.glsl"
 #endif
 #ifdef TSRE_PBR
 #include "PbrShading.glsl"
@@ -120,6 +126,11 @@ void main() {
         if(textureEnabled == 0) {
             fragColor = shapeColor;
             fragColor.a *= 1.0 - materialTransparency;
+#ifdef TSRE_RHI
+            // Plain colours (editor lines, markers) are for the screen, never
+            // lit: undo auto exposure (task 29).
+            fragColor.rgb *= unlitScale;
+#endif
         } else {
             fragColor = texture(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
@@ -142,30 +153,53 @@ void main() {
 #ifdef TSRE_UNLIT
             // Overlays: no sun lighting, shadows or fog.
             fragColor.xyz *= colorBrightness;
+#ifdef TSRE_RHI
+            fragColor.xyz *= unlitScale;
+#endif
 #else
             // calculate normals
             vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);
             vec3 lights = normalize(lightDirection);
             float cosTheta = clamp(dot( normal, lights ), 0, 1);
             float visibility = shadowedVisibility(cosTheta);
+#ifdef TSRE_RHI
+            visibility *= cloudShadow(vLightPosition);
+            float shade;
+            float enclosed = skyEnclosed(vLightPosition, normal, shade);
+            visibility *= enclosureSun(vLightPosition, shade, lights);
+#endif
 
             // calculate light color
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
+#ifdef TSRE_RHI
+            color += ambientColor.xyz * skyAmbient(shade);
+#else
             color += ambientColor.xyz;
+#endif
 #ifdef TSRE_RHI
             // Lamps and glowing surfaces add their light in linear terms.
-            vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals);
+            vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(shade);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
-            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * colorBrightness * (1.0 - fogFactor),
+            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * skyAmbient(shade) * colorBrightness
+                              * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor)),
                               fragColor.a);
 #endif
             fragColor.xyz *= color*colorBrightness;
 
             // Fog tints the colour only; mixing alpha towards the sky's 1 made
             // translucent surfaces turn opaque with distance.
+#ifdef TSRE_RHI
+            // Under cover the haze is lit as the ambient is: no bright fog
+            // deep in a tunnel.
+            if (hazeOn())
+                fragColor.rgb = applyHaze(fragColor.rgb, vLightPosition, 1.0, skyAmbient(shade));
+            else
+                fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * skyAmbient(shade), fogFactor);
+#else
             fragColor.rgb = mix(fragColor.rgb, skyColor.rgb, fogFactor);
+#endif
 #endif
         }
 #endif

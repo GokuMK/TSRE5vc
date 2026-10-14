@@ -99,6 +99,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/geo/osm/*.cpp"
     "./src/tsre/coords/*.h"
     "./src/tsre/coords/*.cpp"
+    "./src/tsre/environment/*.h"
+    "./src/tsre/environment/*.cpp"
     "./src/tsre/tests/*.h"
     "./src/tsre/tests/*.cpp"
     "./src/tsre/world/objects/*.h"

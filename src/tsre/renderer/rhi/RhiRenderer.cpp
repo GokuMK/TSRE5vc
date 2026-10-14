@@ -250,6 +250,11 @@ void RhiRenderer::releaseResources() {
     releaseBloom();
     releaseGlowSplats();
     releaseGlowClear();
+    releaseLightShafts();
+    releaseCloudResources();
+    releaseSkyResources();
+    releaseEnclosureOpenness();
+    releaseLuminance();
     delete presentUniforms;
     delete presentLinear;
     delete dummyBlack;
@@ -323,6 +328,29 @@ RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass) {
 }
 
 // The values GLUU::setMatrixUniforms gives a program, from the GLUU fields.
+float RhiRenderer::cloudSkyLight() const {
+    const CloudResources &c = cloudResources;
+    if (!c.skyValid || !cloudsWanted())
+        return 1.0f;
+    // Under the clouds' cover the sky's light through them (the sun's light
+    // through them is the sun's share, through their shadow). Into a broken
+    // field their sunlit sides scatter the sun's light down besides: the
+    // light through them again, the sun's on the ground against the sky's,
+    // more where they are many among gaps, none under a closed deck (the sun
+    // would count twice there).
+    auto linear = [](const float *colour) {
+        return 0.2126f * std::pow(std::max(colour[0], 0.0f), 2.2f) + 0.7152f * std::pow(std::max(colour[1], 0.0f), 2.2f)
+                + 0.0722f * std::pow(std::max(colour[2], 0.0f), 2.2f);
+    };
+    const float *l = Game::sunLightDirection;
+    const float length = std::sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
+    const float rise = length > 0.0f ? std::max(l[1] / length, 0.0f) : 0.0f;
+    const float skyLight = linear(gluu->ambientColor);
+    const float sunOverSky = skyLight > 1e-5f ? linear(gluu->diffuseColor) * rise / skyLight : 0.0f;
+    const float cover = c.skyCover, through = c.skyThrough;
+    return (1.0f - cover) + cover * through + cover * (1.0f - cover) * through * sunOverSky;
+}
+
 void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     if (program == nullptr)
         return;
@@ -344,14 +372,53 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
-    program->setVec("skyColor", gluu->fogColor[0], gluu->fogColor[1], gluu->fogColor[2], gluu->fogColor[3]);
-    program->setVec("diffuseColor", gluu->diffuseColor[0], gluu->diffuseColor[1], gluu->diffuseColor[2],
-                    gluu->diffuseColor[3]);
-    program->setVec("ambientColor", gluu->ambientColor[0], gluu->ambientColor[1], gluu->ambientColor[2],
-                    gluu->ambientColor[3]);
+    // With auto exposure (task 29) the light of the sun and the sky in the
+    // scene's scale (display colours: linear light by sceneLight); unlit
+    // shading and emissive colour are designed for the screen: undone by the
+    // exposure.
+    const float scene = sceneScaleDisplay();
+    program->setVec("skyColor", gluu->fogColor[0] * scene, gluu->fogColor[1] * scene, gluu->fogColor[2] * scene,
+                    gluu->fogColor[3]);
+    // The air's haze with a physical sky (Haze.glsl), in place of the fog.
+    float hazeValues[4];
+    hazeParameters(hazeValues);
+    program->setVec("hazeParams", hazeValues[0], hazeValues[1], hazeValues[2], hazeValues[3]);
+    if (hazeValues[2] > 0.0f) {
+        program->setVec("hazeSun", haze.sun[0], haze.sun[1]);
+        float ring[8][4];
+        for (int i = 0; i < 8; ++i) {
+            for (int k = 0; k < 3; ++k)
+                ring[i][k] = haze.ring[i][k] * scene;
+            ring[i][3] = 1.0f;
+        }
+        program->set("hazeRing", ring, int(sizeof(ring)));
+    }
+    program->setVec("diffuseColor", gluu->diffuseColor[0] * scene, gluu->diffuseColor[1] * scene,
+                    gluu->diffuseColor[2] * scene, gluu->diffuseColor[3]);
+    // The sky's light through the clouds overhead (display colour).
+    const float sky = scene * std::pow(cloudSkyLight(), 1.0f / 2.2f);
+    program->setVec("ambientColor", gluu->ambientColor[0] * sky, gluu->ambientColor[1] * sky,
+                    gluu->ambientColor[2] * sky, gluu->ambientColor[3]);
+    const float exposure = autoExposure();
+    program->setFloat("unlitScale", std::pow(1.0f / exposure, 1.0f / 2.2f));
+    program->setFloat("emissiveScale", 1.0f / exposure);
     program->setVec("specularColor", 1.0f, 1.0f, 1.0f, 1.0f);
     program->setVec("lightDirection", Game::sunLightDirection[0], Game::sunLightDirection[1],
                     Game::sunLightDirection[2]);
+    writeCloudShadowUniforms(program);
+    // The sky enclosure (task 27): off leaves lamps and ambient as before.
+    const bool enclosed = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
+    program->setMat4("skyEnclosureMatrix", enclosure.viewProjection);
+    program->setVec("skyEnclosureParams", enclosed ? 1.0f : 0.0f, enclosure.metresPerDepth, enclosure.filter,
+                    enclosure.ambientFloor);
+    const bool farEnclosed = enclosed && enclosure.farEnabled && enclosureFarDrawn && enclosureFarMap.valid();
+    program->setMat4("skyEnclosureFarMatrix", enclosure.farViewProjection);
+    program->setVec("skyEnclosureFar", farEnclosed ? 1.0f : 0.0f, enclosure.farFilter);
+    program->setVec("skyEnclosureOpen", enclosed && enclosureOpen[0].valid ? 1.0f : 0.0f,
+                    farEnclosed && enclosureOpen[1].valid ? 1.0f : 0.0f);
+    // With auto exposure lamps keep one scale (gathered at it), enclosed or
+    // not: the exposure finds the tunnel dark.
+    program->setFloat("localLightDay", enclosed && !exposureActive() ? gluu->localLightAdaptation : 1.0f);
     program->setFloat("isAlpha", gluu->alpha);
     program->setFloat("alphaTest", gluu->alphaTest);
     program->setFloat("textureEnabled", 1.0f);
@@ -453,11 +520,14 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         // lights keep more of it by day (task 26); the sun all of it.
         float glowScale = 1.0f;
         if (p.glow != RenderItem::Pbr::GLOW_FULL) {
-            const float daylight = p.glow == RenderItem::Pbr::GLOW_SIGNAL ? gluu->signalLightAdaptation
+            const float daylight = p.glow == RenderItem::Pbr::GLOW_SIGNAL ? signalScale()
                                                                           : gluu->localLightAdaptation;
             glowScale = Game::localLightsEnabled ? daylight : 0.0f;
         }
         program->setFloat("pbrGlowScale", glowScale);
+        // Enclosed (task 27), glow keeps its night strength.
+        program->setFloat("pbrGlowEnclosed", p.glow == RenderItem::Pbr::GLOW_FULL || exposureActive() ? glowScale
+                                             : (Game::localLightsEnabled ? 1.0f : 0.0f));
         program->setFloat("pbrNormalScale", p.normalScale);
         program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
         program->setFloat("pbrAlphaCutoff", p.alphaCutoff);
@@ -807,6 +877,10 @@ void RhiRenderer::releaseAttachments(Attachments &attachments) {
             }
         }
     }
+    delete attachments.skyTarget;
+    delete attachments.skyPass;
+    attachments.skyTarget = nullptr;
+    attachments.skyPass = nullptr;
     for (int clears = 0; clears < 4; ++clears) {
         delete attachments.targets[clears];
         delete attachments.passes[clears];
@@ -840,6 +914,24 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     releaseAmbientOcclusion();
     releaseBloom();
     releaseGlowClear();
+    // Everything else drawing into or reading the view's textures: the new
+    // ones can take the old ones' addresses, so a pointer comparison would
+    // keep targets and resource sets of deleted textures (changing tone
+    // mapping, which keeps the size, crashed; user, 2026-10-12).
+    releaseLightShafts();
+    // The clouds' maps (weather, cover, shadow, the sky's light) read none of
+    // them and stay: released with them, a resized window's frame lost its
+    // cloud shadows (user, 2026-10-14).
+    releaseMainCloudView();
+    // Auto exposure keeps its last measurement: a resized view is the same
+    // scene (dropped, it eased towards no correction until the next one).
+    const bool measured = luminance.measured;
+    const float measuredLog2 = luminance.measuredLog2;
+    releaseLuminance();
+    luminance.measured = measured;
+    luminance.measuredLog2 = measuredLog2;
+    waterDepth.boundDepth = nullptr;
+    depthProbe.boundDepth = nullptr;
     return createAttachments(view, format, size, QRhiTexture::UsedAsTransferSource,
                              ambient ? QRhiTexture::RGBA8 : QRhiTexture::UnknownFormat,
                              glow ? QRhiTexture::RGBA16F : QRhiTexture::UnknownFormat);
@@ -956,6 +1048,236 @@ void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
     }
 }
 
+bool RhiRenderer::enclosureTarget(int which) const {
+    return which == TargetEnclosure || which == TargetEnclosureFar || which == TargetEnclosureBottom
+            || which == TargetEnclosureFarBottom;
+}
+
+bool RhiRenderer::beginSkyEnclosure(int size, int map) {
+    beginFrameIfNeeded();
+    flushTarget();
+    if (map < 0 || map > 3)
+        return false;
+    Attachments *maps[4] = {&enclosureMap, &enclosureFarMap, &enclosureBottomMap, &enclosureFarBottomMap};
+    const int which[4] = {TargetEnclosure, TargetEnclosureFar, TargetEnclosureBottom, TargetEnclosureFarBottom};
+    Attachments &attachments = *maps[map];
+    const QSize pixels(std::max(1, size), std::max(1, size));
+    if ((!attachments.valid() || attachments.size != pixels)
+            && !createAttachments(attachments, QRhiTexture::UnknownFormat, pixels, {}))
+        return false;
+    // Rows in OpenGL's order, as the shadow maps: the lit shaders look it up
+    // the same way.
+    attachments.openGlRows = true;
+    targets[which[map]].attachments = &attachments;
+    currentTarget = which[map];
+    TargetState &state = target();
+    state.clearColor = false;
+    state.clearDepth = true;
+    setViewport(0, 0, pixels.width(), pixels.height());
+    if (map == 0)
+        enclosureDrawn = true;
+    else if (map == 1)
+        enclosureFarDrawn = true;
+    // A map drawn anew: its openness waits for its view from below.
+    if (map < 2)
+        enclosureOpen[map].valid = false;
+    return true;
+}
+
+void RhiRenderer::renderEnclosureCasters(float range, int statsSlot, const float *viewProjection, float minRadius) {
+    beginFrameIfNeeded();
+    if (!enclosureTarget(currentTarget) || !targetReady())
+        return;
+    // The views from below look for the lowest surfaces, which are often
+    // alpha-tested (tracks, tunnel tubes).
+    const bool below = currentTarget == TargetEnclosureBottom || currentTarget == TargetEnclosureFarBottom;
+    planShadowCasters(range, viewProjection, true, minRadius, below);
+    recordCasters(statsSlot);
+}
+
+namespace {
+
+// How open the sky is around a point of an enclosure map, from 8 rays out
+// to the radius over the maps: under cover a ray goes on; at the first
+// column without cover it finds an opening if that column's surface lies
+// low in the space under the cover here (the cutting at a tunnel's portal,
+// the ground beside a viaduct or a bridge), and is blocked if it rises
+// nearly to the cover (the rock beside a tunnel). An opening adds the more
+// light the nearer it is. A column has cover where its highest surface (the
+// map from above) lies more than 3 m over its lowest (the view from below,
+// its rows the other way round).
+const char *OpennessFragment = R"(#version 440
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 result;
+layout(std140, binding = 0) uniform Openness {
+    vec4 params; // radius (map coordinates), metres per depth unit
+};
+layout(binding = 1) uniform sampler2D topMap;
+layout(binding = 2) uniform sampler2D bottomMap;
+
+const int Steps = 12;
+// An opening's surface lies within 5 m of the floor, or in the lower 60 %
+// of the space between the floor and the cover over it. (The floor is the
+// lowest surface: by a river, the river bed under a bridge lies well below
+// the ground its arches stand on; measured from it alone, the fields beside
+// the bridge rose like walls, user 2026-10-12.)
+const float OpeningHeight = 5.0;
+const float OpeningShare = 0.6;
+
+bool opening(float surfaceOverFloor, float coverOverFloor) {
+    return surfaceOverFloor < max(OpeningHeight, OpeningShare * coverOverFloor);
+}
+
+float topAt(vec2 p) { return textureLod(topMap, p, 0.0).r; }
+float bottomAt(vec2 p) { return textureLod(bottomMap, vec2(p.x, 1.0 - p.y), 0.0).r; }
+
+// A column without cover: open sky (1), unless it is solid ground rising
+// nearly to the cover of a hollow beside it (the rock beside a tunnel, where
+// points moved off the walls land): 0. (All of them 0 darkened the ground
+// along a viaduct's footprint: filtered against the hollow's value under
+// the deck, user 2026-10-12.)
+float uncovered(vec2 p, float top, float step) {
+    for (int d = 0; d < 8; ++d) {
+        float angle = float(d) * 0.785398;
+        for (int s = 1; s <= 2; ++s) {
+            vec2 q = p + vec2(cos(angle), sin(angle)) * step * float(s);
+            float floorThere = bottomAt(q);
+            float coverThere = (1.0 - topAt(q) - floorThere) * params.y;
+            if (coverThere > 3.0 && !opening((1.0 - top - floorThere) * params.y, coverThere))
+                return 0.0;
+        }
+    }
+    return 1.0;
+}
+
+void main() {
+    float floorDepth = bottomAt(uv);
+    float topHere = topAt(uv);
+    // Points in a hollow (cover over a floor) look for openings; in columns
+    // without cover the floor is the top itself.
+    float coverHere = (1.0 - topHere - floorDepth) * params.y;
+    float hollow = smoothstep(2.0, 4.0, coverHere);
+    // Steps of about 1.5 m (the rays' are 2.5 m).
+    float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6) : 1.0;
+    if (hollow <= 0.0) {
+        result = vec4(open, 0.0, 0.0, 1.0);
+        return;
+    }
+    float light = 0.0;
+    for (int d = 0; d < 8; ++d) {
+        float angle = float(d) * 0.785398 + 0.2;
+        vec2 direction = vec2(cos(angle), sin(angle)) * (params.x / float(Steps));
+        for (int s = 1; s <= Steps; ++s) {
+            vec2 q = uv + direction * float(s);
+            float top = topAt(q);
+            // Still under cover: on.
+            if ((1.0 - top - bottomAt(q)) * params.y > 3.0)
+                continue;
+            // The views from above and below start the same distance from
+            // the map's middle height: the top there over the floor here.
+            if (opening((1.0 - top - floorDepth) * params.y, coverHere)) {
+                // Falling off as an opening's view does with distance.
+                float near = 1.0 - float(s - 1) / float(Steps);
+                light += near * near;
+            }
+            break;
+        }
+    }
+    // Two open sides near by (a viaduct's arches) light it fully.
+    result = vec4(mix(open, clamp(light * 0.5, 0.0, 1.0), hollow), 0.0, 0.0, 1.0);
+}
+)";
+
+
+}
+
+void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDepth) {
+    beginFrameIfNeeded();
+    // The view from below.
+    flushTarget();
+    RhiRenderSurface *s = surface();
+    if (s == nullptr || s->frame().commandBuffer == nullptr)
+        return;
+    Attachments &top = far ? enclosureFarMap : enclosureMap;
+    Attachments &bottom = far ? enclosureFarBottomMap : enclosureBottomMap;
+    if (!top.valid() || !bottom.valid())
+        return;
+    EnclosureOpenness &o = enclosureOpen[far ? 1 : 0];
+    constexpr int Size = 256;
+    if (o.texture == nullptr) {
+        o.texture = rhi->newTexture(QRhiTexture::RGBA8, QSize(Size, Size), 1, QRhiTexture::RenderTarget);
+        o.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
+        if (!o.texture->create() || !o.uniforms->create()) {
+            releaseEnclosureOpenness();
+            return;
+        }
+        o.target = rhi->newTextureRenderTarget({QRhiColorAttachment(o.texture)});
+        o.pass = o.target->newCompatibleRenderPassDescriptor();
+        o.target->setRenderPassDescriptor(o.pass);
+        if (!o.target->create()) {
+            releaseEnclosureOpenness();
+            return;
+        }
+    }
+    if (o.bindings == nullptr || o.boundTop != top.depth || o.boundBottom != bottom.depth) {
+        delete o.bindings;
+        const auto fragment = QRhiShaderResourceBinding::FragmentStage;
+        o.bindings = rhi->newShaderResourceBindings();
+        o.bindings->setBindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, o.uniforms),
+                                 QRhiShaderResourceBinding::sampledTexture(1, fragment, top.depth,
+                                                                           sampler(false, true, true)),
+                                 QRhiShaderResourceBinding::sampledTexture(2, fragment, bottom.depth,
+                                                                           sampler(false, true, true))});
+        o.bindings->create();
+        o.boundTop = top.depth;
+        o.boundBottom = bottom.depth;
+    }
+    if (opennessPipeline == nullptr) {
+        static QShader vertex, fragment;
+        if (!vertex.isValid()) {
+            vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
+            fragment = bakeInline(OpennessFragment, QShader::FragmentStage, rhi);
+        }
+        opennessPipeline = rhi->newGraphicsPipeline();
+        opennessPipeline->setShaderStages({{QRhiShaderStage::Vertex, vertex}, {QRhiShaderStage::Fragment, fragment}});
+        opennessPipeline->setShaderResourceBindings(o.bindings);
+        opennessPipeline->setRenderPassDescriptor(o.pass);
+        if (!opennessPipeline->create()) {
+            delete opennessPipeline;
+            opennessPipeline = nullptr;
+            return;
+        }
+    }
+    const float params[4] = {radius, metresPerDepth, 0.0f, 0.0f};
+    QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    batch->updateDynamicBuffer(o.uniforms, 0, sizeof(params), params);
+    QRhiCommandBuffer *cb = s->frame().commandBuffer;
+    cb->beginPass(o.target, Qt::black, {1.0f, 0}, batch);
+    cb->setGraphicsPipeline(opennessPipeline);
+    cb->setViewport(QRhiViewport(0, 0, float(Size), float(Size)));
+    cb->setShaderResources(o.bindings);
+    cb->draw(3);
+    cb->endPass();
+    o.valid = true;
+}
+
+void RhiRenderer::releaseEnclosureOpenness() {
+    for (EnclosureOpenness &o : enclosureOpen) {
+        delete o.bindings;
+        delete o.target;
+        delete o.pass;
+        delete o.uniforms;
+        delete o.texture;
+        o = EnclosureOpenness();
+    }
+    delete opennessPipeline;
+    opennessPipeline = nullptr;
+}
+
+void RhiRenderer::setSkyEnclosure(const SkyEnclosure &next) {
+    enclosure = next;
+}
+
 bool RhiRenderer::openGlRowTarget() const {
     const Attachments *attachments = targets[currentTarget].attachments;
     return attachments != nullptr && attachments->openGlRows;
@@ -986,8 +1308,12 @@ void RhiRenderer::clear(bool color, bool depth, const float *clearColor) {
     if ((color || depth) && !state.draws.empty())
         flushTarget();
     // As glClearColor: the colour of this and later clears.
-    if (clearColor != nullptr)
-        nextClearColor = QColor::fromRgbF(clearColor[0], clearColor[1], clearColor[2], 1.0f);
+    if (clearColor != nullptr) {
+        // The sky's colour, in the scene's scale with auto exposure.
+        const float scene = sceneScaleDisplay();
+        nextClearColor = QColor::fromRgbF(std::min(clearColor[0] * scene, 1.0f), std::min(clearColor[1] * scene, 1.0f),
+                                          std::min(clearColor[2] * scene, 1.0f), 1.0f);
+    }
     if (color)
         state.color = nextClearColor;
     state.clearColor = state.clearColor || color;
@@ -1221,6 +1547,7 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         view.projection(0.2f, view.sceneFar, projection);
         Mat4::multiply(gluu->fMatrix, projection, viewMatrix);
         view.projection(100.0f, 10000.0f, projection);
+        setSkyInverse(projection, viewMatrix);
         Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
         applyFrameUniforms();
         setFogLod(0.0f);
@@ -1228,6 +1555,13 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         depthRange[0] = 0.99f;
         depthRange[1] = 1.0f;
         return;
+    }
+    if (band == BAND_SCENE) {
+        // The clouds of every view read it.
+        float scene[16];
+        view.projection(0.2f, view.sceneFar, scene);
+        bandScale[currentTarget][0] = scene[0];
+        bandScale[currentTarget][1] = scene[5];
     }
     if (band == BAND_SCENE && !secondaryView && currentTarget == TARGET_VIEW) {
         // Ambient occlusion reads this band's depth back.
@@ -1241,6 +1575,8 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         sceneDepthRange[1] = 0.98f;
         sceneProjectionValid = true;
     }
+    if (band == BAND_DISTANT && !secondaryView && currentTarget == TARGET_VIEW)
+        distantFar = view.distantFar;
     if (band == BAND_DISTANT) {
         if (view.mirrorPlane != nullptr) {
             // Below the plane only the water bed would show; clip it just
@@ -1620,6 +1956,37 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         }
         default:
             texture = dummy2D;
+            if (slot.binding == RhiShaderSource::SkyEnclosureBinding) {
+                if (enclosureMap.valid() && enclosureDrawn) {
+                    texture = enclosureMap.depth;
+                    slotSampler = sampler(false, true, true);
+                }
+                break;
+            }
+            if (slot.binding == RhiShaderSource::SkyEnclosureFarBinding) {
+                if (enclosureFarMap.valid() && enclosureFarDrawn) {
+                    texture = enclosureFarMap.depth;
+                    slotSampler = sampler(false, true, true);
+                }
+                break;
+            }
+            if (slot.binding == RhiShaderSource::SkyEnclosureOpenBinding
+                    || slot.binding == RhiShaderSource::SkyEnclosureFarOpenBinding) {
+                const EnclosureOpenness &o
+                        = enclosureOpen[slot.binding == RhiShaderSource::SkyEnclosureFarOpenBinding ? 1 : 0];
+                if (o.valid && o.texture != nullptr) {
+                    texture = o.texture;
+                    slotSampler = sampler(false, true);
+                }
+                break;
+            }
+            if (slot.binding == RhiShaderSource::CloudShadowBinding) {
+                if (cloudResources.shadow != nullptr && cloudResources.shadowValid) {
+                    texture = cloudResources.shadow;
+                    slotSampler = sampler(false, true);
+                }
+                break;
+            }
             if (slot.binding >= 22 && slot.binding <= 24) {
                 QRhiTexture *grid[3] = {lightData, lightCells, lightIndices};
                 if (grid[slot.binding - 22] != nullptr && !lightGrid.empty()) {
@@ -1720,7 +2087,11 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && target().attachments->color != nullptr;
     key.depthWrite = !(item->pbr.enabled && item->pbr.blend);
     key.decal = item->material.decal && selectionId == 0;
-    key.cullBack = !item->material.doubleSided;
+    // The sky enclosure maps look down on everything: single-sided roofs and
+    // tunnel tubes, made to be seen from below, count too. (The sun's shadow
+    // maps keep culling: unculled they cost 5-10 ms at the CMK station; the
+    // lit shaders take the sun out under such covers from the enclosure.)
+    key.cullBack = !item->material.doubleSided && !enclosureTarget(currentTarget);
     // Targets flipped against the backend's convention turn the winding
     // around.
     key.frontCw = frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer());
@@ -1800,8 +2171,10 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (queue.ordered.empty() && queue.grouped.empty())
             continue;
         // Occlusion of the opaque scene, before blended and later passes.
-        if (pass > PASS_ALPHA_TEST)
+        if (pass > PASS_ALPHA_TEST) {
             applyAmbientOcclusion();
+            applyClouds();
+        }
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();
         // Water sees the bed: the frame and its depth so far.
@@ -1838,6 +2211,10 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
         return;
     // Casters in range and inside the light view, instanced by packet.
     planShadowCasters(range, viewProjection);
+    recordCasters(statsSlot);
+}
+
+void RhiRenderer::recordCasters(int statsSlot) {
     std::vector<const float *> matrices;
     for (const GroupPlan &plan : groupPlans) {
         RenderItem *item = shadowCasters[plan.begin]->packet;
@@ -1888,6 +2265,8 @@ void RhiRenderer::flushTarget() {
             && uploadGlowSplats(frameBatch, state.attachments->pipelinePass());
     // Clears happen at the start of the pass; otherwise the contents stay.
     int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
+    // A physical sky takes the colour clear's place, before the geometry.
+    const bool skyFirst = (clears & 1) && skyFor(currentTarget) && state.attachments->color != nullptr;
     if ((clears & 1) && state.attachments->color3 != nullptr) {
         // The glow (bloom) starts black, not in the background colour: the
         // clear gets a pass of its own, then the glow is cleared again.
@@ -1903,6 +2282,14 @@ void RhiRenderer::flushTarget() {
         cb->beginPass(glowClear, Qt::black, {1.0f, 0});
         cb->endPass();
         clears = 0;
+    }
+    // The clouds' maps (cover, shadow) before the main view's geometry,
+    // which samples the shadow.
+    if (state.clearColor && currentTarget == TARGET_VIEW && !secondaryView)
+        prepareClouds(cb, frameBatch);
+    if (skyFirst) {
+        drawSky(cb, *state.attachments, frameBatch);
+        clears &= ~1;
     }
     cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
     frameBatch = nullptr;
@@ -2007,7 +2394,15 @@ void RhiRenderer::present() {
     if (gpuSeconds > 0.0)
         gpuMs = float(gpuSeconds * 1000.0);
     // Bloom from the view's glow, before the frame's pass begins.
-    QRhiTexture *bloomTexture = renderBloom(frame.commandBuffer);
+    QRhiTexture *bloomTexture = plainImage ? nullptr : renderBloom(frame.commandBuffer);
+    // The view's brightness for auto exposure (task 29), then the light
+    // shafts over it: like bloom, light the eye sees, not the scene the
+    // exposure meters (measured with them, the exposure took back what
+    // they added and gave back what they darkened; user, 2026-10-14).
+    if (exposureActive())
+        measureLuminance(frame.commandBuffer);
+    if (!plainImage)
+        applyLightShafts();
     QRhiTexture *bloomSource = bloomTexture != nullptr ? bloomTexture : dummyBlack;
     if (presentUniforms == nullptr) {
         presentUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
@@ -2138,8 +2533,9 @@ void main() {
         overlayDrawn = s->overlayPainted() & overlay->rect();
     }
     // Tone curve, exposure and bloom strength (bloom levels add up, so
-    // their sum is averaged).
-    const float image[4] = {float(toneMapping()), std::exp2(Game::exposure),
+    // their sum is averaged); none for a plain image.
+    const float image[4] = {plainImage ? 0.0f : float(toneMapping()),
+                            plainImage ? 1.0f : std::exp2(Game::exposure) * autoExposure(),
                             bloomTexture != nullptr
                                     ? Game::bloomStrength / float(std::max<size_t>(1, bloom.levels.size()))
                                     : 0.0f,
@@ -2184,6 +2580,7 @@ void RhiRenderer::renderFrame() {
     }
     drawPasses(PASS_SKY, PASS_UI, true);
     applyAmbientOcclusion();
+    applyClouds();
     flushTarget();
     // The view goes to the frame when the surface ends it, after the
     // client painted its overlay.
@@ -2213,6 +2610,13 @@ void RhiRenderer::resetFrame() {
     glowSplats.gathered = glowSplats.pending = false;
     ambientOcclusionApplied = false;
     sceneProjectionValid = false;
+    skyResources.viewRendered = false;
+    skyResources.usesThisFrame = 0;
+    cloudsApplied = false;
+    cloudsPrepared = false;
+    reflectionCloudsApplied = false;
+    shaftsApplied = false;
+    std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }
 
 void RhiRenderer::writeLightUniforms(RhiProgram *program) {
@@ -2240,8 +2644,18 @@ void RhiRenderer::prepareLights() {
     timer.start();
     frameLights.clear();
     if (Game::localLightsEnabled)
-        gatherLights(frameLights, Game::localLightsExposure * gluu->localLightAdaptation,
-                     Game::localLightsEmissiveGain * gluu->localLightAdaptation);
+    {
+        // With the sky enclosure the lamps keep their strength here and the
+        // shaders dim them where the sky is open (task 27).
+        const float day = enclosure.enabled && enclosureDrawn && enclosureMap.valid() && !exposureActive()
+                ? 1.0f : gluu->localLightAdaptation;
+        // With auto exposure the lamps reach as far as they show: their
+        // ranges follow the exposure, in half stops so that adapting does
+        // not rebuild the grid each frame (task 29).
+        const float shown = exposureActive() ? std::exp2(std::round(std::log2(autoExposure()) * 2.0f) * 0.5f) : 1.0f;
+        gatherLights(frameLights, Game::localLightsExposure * day, Game::localLightsEmissiveGain * day, false, 0.0f,
+                     shown);
+    }
     // Static scenes keep their grid: the lights and the camera's grid
     // window decide it.
     quint64 hash = 1469598103934665603ull;

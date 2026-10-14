@@ -77,6 +77,10 @@ public:
     float qDirection[4];
     float matrix[16];
     int staticDetailLevel = -1;
+    // TSRELightRange: how far (m) the lights of this object reach, for a
+    // place that should be lit farther than lights reach by default
+    // (LightGrid::DefaultReach); 0 for the default. TSRE only.
+    float tsreLightRange = 0.0f;
     unsigned int staticFlags = 0;
     unsigned int vDbId = 4294967295;
     int collideFlags = 0;

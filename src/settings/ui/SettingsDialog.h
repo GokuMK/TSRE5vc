@@ -38,6 +38,9 @@ private slots:
     void duplicateProfile();
     void resetGroupToDefaults();
     void resetAllToDefaults();
+    void applyGraphicsPreset(int index);
+    void markGraphicsPreset();
+    void removeUnsupportedSettings();
     void switchProfile(int index);
     void openProfileFolder();
     void addCustomSetting();
@@ -73,6 +76,7 @@ private:
     QLabel *m_catalogMessage;
     QAction *m_duplicateProfileAction;
     QAction *m_resetGroupAction;
+    QVector<QAction *> m_presetActions;
     QLabel *m_statusLabel;
     QPushButton *m_applyRuntime;
     QWidget *m_resultsTab = nullptr;
@@ -96,6 +100,11 @@ private:
     // Applies the editors, then sets the keys back to the build's defaults
     // after asking `question` (%1: how many differ) when it is not empty.
     void resetToDefaults(const QStringList &keys, const QString &question);
+    // Whether a registered setting shows `value`: in its editor, else in the
+    // profile.
+    bool showsValue(const QString &key, const QVariant &value) const;
+    // Rebuilds the rows and stays on the tab shown.
+    void rebuildKeepingTab();
     void showError(const QString &title, const QString &message);
 };
 

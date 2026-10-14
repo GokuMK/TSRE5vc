@@ -173,6 +173,9 @@ vec4 waterShade() {
     // Lit like the legacy layers, by the sun on a flat surface.
     vec3 l = normalize(lightDirection);
     float shadow = clamp(shadowedVisibility(clamp(l.y, 0.0, 1.0)), 0.0, 1.0);
+#ifdef TSRE_RHI
+    shadow *= cloudShadow(vLightPosition);
+#endif
     body *= (diffuseColor.rgb * shadow + ambientColor.rgb) * colorBrightness;
 
     float variance;
@@ -215,5 +218,9 @@ vec4 waterShade() {
         color += ggxSpecular(n, v, l, roughness, vec3(0.02), sunFresnel) * sun * nDotL
                 * colorBrightness * surface;
     }
+#ifdef TSRE_RHI
+    if (hazeOn())
+        return vec4(applyHaze(toDisplay(color), vWorldPosition, 1.0 - bedShare, 1.0), 1.0);
+#endif
     return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor * (1.0 - bedShare)), 1.0);
 }

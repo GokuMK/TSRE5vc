@@ -107,6 +107,6 @@ glow.
 - Tuning by eye: default curve, exposure, bloom strength, and the glow
   splats' brightness against the lenses' own glow.
 - Exposure following time of day (replacing the lamps' daylight scale of
-  task 21 with a real exposure) and eye adaptation.
+  task 21 with a real exposure) and eye adaptation: task 29.
 - MSTS light sources as emitters (signal lamps, train lights), so they
   glow too.

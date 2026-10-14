@@ -14,6 +14,7 @@ unsigned int createCompressed(int, int, Blocks, const QVector<QByteArray> &) { r
 void release(unsigned int) {}
 void setSampling(unsigned int, bool, bool) {}
 void updateRegion(unsigned int, int, int, int, int, const QByteArray &) {}
+Contents readBack(unsigned int, QByteArray &) { return Contents::None; }
 bool clampedToEdge(unsigned int) { return false; }
 }
 int Game::AASamples = 0;

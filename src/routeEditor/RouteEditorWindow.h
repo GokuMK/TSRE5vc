@@ -25,6 +25,7 @@ class NaviBox;
 class AboutWindow;
 class NaviWindow;
 class EnvironmentWindow;
+class EnvironmentTools;
 class ShapeViewWindow;
 class PropertiesAbstract;
 class PropertiesGroup;
@@ -64,7 +65,6 @@ public slots:
     void hideShowToolWidget(bool show);
     void hideShowPropertiesWidget(bool show);
     void hideShowNaviWidget(bool);
-    void hideShowEnvironmentWidget(bool);
     void hideShowShapeViewWidget(bool);
     void hideShowErrorMsgWidget(bool);
     void viewWorldGrid(bool show);
@@ -84,10 +84,10 @@ public slots:
     void showToolsTerrain(bool show);
     void showToolsGeo(bool show);
     void showToolsActivity(bool show);
+    void showToolsEnvironment(bool show);
     void showTerrainTreeEditr();
     void showWorldObjPivotPointsEnabled(bool show);
     void naviWindowClosed();
-    void environmentWindowClosed();
     void errorMessagesWindowClosed();
     void shapeVeiwWindowClosed();
     void viewUnselectAll();
@@ -174,6 +174,9 @@ private:
     AboutWindow* aboutWindow;
     NaviWindow* naviWindow;
     EnvironmentWindow* environmentWindow;
+    // The Environment panel (F5), holding environmentWindow's controls.
+    EnvironmentTools *environmentTools = nullptr;
+    QAction *mapWeatherAction = nullptr;
     ErrorMessagesWindow* errorMessagesWindow;
     ClientUsersWindow* clientUsersWindow;
     SettingsDialog* settingsDialog = nullptr;

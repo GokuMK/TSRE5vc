@@ -1,0 +1,18 @@
+{
+  "notes": "A generated cold front (docs/tasks/environment/01-weather-data.md) seen from EUROPE1's start with the physical sky and clouds: the warm sector, the band approaching from the west, under it, and clearing behind it. Run with --set=core.rendering.sky.model=1 --set=core.rendering.clouds=3 and TSRE_CLOUDS_STILL=1.",
+  "output": "build/renderer-front",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [0, 0],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": true,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 40, "maxSeconds": 900},
+  "views": [
+    {"name": "11h-west", "rot": [4.7124, 0.12], "weatherScenario": "cold_front", "weatherTime": 11, "time": 11},
+    {"name": "12h30-west", "rot": [4.7124, 0.12], "weatherScenario": "cold_front", "weatherTime": 12.5, "time": 12.5},
+    {"name": "13h30-up", "rot": [4.7124, 0.35], "weatherScenario": "cold_front", "weatherTime": 13.5, "time": 13.5},
+    {"name": "15h-west", "rot": [4.7124, 0.12], "weatherScenario": "cold_front", "weatherTime": 15, "time": 15},
+    {"name": "15h-east", "rot": [1.5708, 0.12], "weatherScenario": "cold_front", "weatherTime": 15, "time": 15}
+  ]
+}

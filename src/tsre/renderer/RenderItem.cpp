@@ -70,18 +70,22 @@ void RenderItem::enableTextureId(int id){
 unsigned char RenderItem::drawSurface() const{
     if(material.opacity < 1.0f && material.surface != SURFACE_TERRAIN)
         return SURFACE_BLENDED;
-    if(material.surface != SURFACE_BLENDED || !material.textured || pbr.enabled
-            || Game::blendedParts == 0)
+    if((material.surface != SURFACE_BLENDED && material.surface != SURFACE_ALPHA_TEST)
+            || !material.textured || pbr.enabled || Game::blendedParts == 0)
         return material.surface;
-    // Until the texture has loaded the part stays blended.
+    // Until the texture has loaded the part stays as its material says.
     unsigned char alpha = material.textureAlpha;
     if(material.textureId >= 0){
         const auto found = TexLib::mtex.find(material.textureId);
         alpha = found != TexLib::mtex.end() && found->second != nullptr && found->second->loaded
                 ? found->second->alphaClass.load() : TextureAlpha::Unknown;
     }
+    // A texture without transparent texels cuts nothing out: opaque (so it
+    // also counts in the opaque-only passes, as the sky enclosure).
     if(alpha == TextureAlpha::Opaque)
         return SURFACE_OPAQUE;
+    if(material.surface == SURFACE_ALPHA_TEST)
+        return SURFACE_ALPHA_TEST;
     if(alpha == TextureAlpha::Binary && Game::blendedParts >= 2)
         return SURFACE_ALPHA_TEST;
     return SURFACE_BLENDED;

@@ -56,9 +56,14 @@ void RenderQueue::setShadowCasting(bool cast) {
     shadowCasting = cast;
 }
 
+void RenderQueue::setLightReach(float metres) {
+    currentLightReach = metres > 0.0f ? metres : 0.0f;
+}
+
 void RenderQueue::resetQueueState() {
     currentLayer = LAYER_SCENE;
     shadowCasting = true;
+    currentLightReach = 0.0f;
     matrixStackDepth = 0;
 }
 

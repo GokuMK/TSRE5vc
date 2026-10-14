@@ -106,6 +106,14 @@
 #include <tsre/shape/ShapeLoader.h>
 #include <QDir>
 #include <QMessageBox>
+#include <tsre/map/WeatherMapLayer.h>
+#include <tsre/fileFunctions/ContentPath.h>
+#include <QFileInfo>
+#include <tsre/environment/WeatherPresets.h>
+#include <tsre/environment/Atmosphere.h>
+#include <tsre/world/Trk.h>
+#include <tsre/tdb/TDB.h>
+#include <tsre/tdb/TRnode.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
@@ -125,7 +133,10 @@ m_yRot(0),
 m_zRot(0),
 tools(std::make_unique<ToolRegistry>()) {
     surface = RenderSurface::create(this, this);
+    connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
+    lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+    timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
@@ -134,6 +145,10 @@ tools(std::make_unique<ToolRegistry>()) {
             if (key == "core.rendering.skyColor" || key == "core.rendering.fogColor"
                     || key == "core.rendering.fogDensity")
                 environmentChanged = true;
+            if (key == "core.rendering.lampsByDay")
+                lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+            if (key == "core.rendering.timeOfDay.running")
+                timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 timer.start(renderTimerStep(), this);
@@ -262,6 +277,20 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
 
     if (!simulationPaused)
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
+    // The clock: the time of day, and with it the weather and the clouds,
+    // run on. Set elsewhere (the panel), it goes on from there; the settings
+    // hear of it only past midnight.
+    if (!simulationPaused && timeRuns) {
+        if (float(clockHours) != Game::timeOfDayHours)
+            clockHours = Game::timeOfDayHours;
+        QString date = Game::timeOfDayDate;
+        if (advanceClock((timeNow - lastTime) / 1000.0, timeSpeed, clockHours, date)) {
+            SettingsManager &settings = SettingsManager::instance();
+            settings.setSessionValue("core.rendering.timeOfDay.date", date);
+            settings.setSessionValue("core.rendering.timeOfDay.time", clockHours);
+        }
+        Game::timeOfDayHours = float(clockHours);
+    }
 
     lastTime = timeNow;
 
@@ -385,6 +414,13 @@ void RouteEditorGLWidget::cameraInit(){
         mapMeasure = std::make_unique<MapMeasureLayer>();
     if (!mapScaleBar)
         mapScaleBar = std::make_unique<MapScaleBar>();
+    if (!weatherMap) {
+        weatherMap = std::make_unique<WeatherMapLayer>();
+        // From the worker thread: draw again once an image is ready.
+        weatherMap->setReadyCallback([this] {
+            QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
+        });
+    }
     if (!imageryMap) {
         imageryMap = std::make_unique<ImageryMapLayer>();
         // From the fetch thread: draw again once tiles arrive.
@@ -696,8 +732,11 @@ void RouteEditorGLWidget::paintScene(){
         return;
     }
     RenderStats::ScopedFrame statsFrame(!selectionPass);
+    renderer->setPlainImage(false);
     // The sun and the sky of the chosen time of day (or the fixed light).
     applyTimeOfDay();
+    applySky();
+    applyClouds();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
@@ -723,6 +762,17 @@ void RouteEditorGLWidget::paintScene(){
         // The first view waits for all its shapes; after a jump the wait is
         // limited, so a long load does not hold the editor.
         const qint64 jumpWaitMs = 2000;
+        // The exposure takes its target at once after a jump of the camera
+        // or of the time of day; it adapts over time otherwise.
+        const qint64 frameNs = exposureClock.isValid() ? exposureClock.nsecsElapsed() : 0;
+        exposureClock.restart();
+        exposure.seconds = float(frameNs * 1e-9);
+        exposure.snap = jumped || wholeViewPending || frameNs == 0
+                || std::abs(Game::timeOfDayHours - lastExposureHours) > 0.1f
+                || std::abs(std::log2(std::max(exposure.sceneLight, 1e-6f) / std::max(lastSceneLight, 1e-6f))) > 0.5f;
+        lastSceneLight = exposure.sceneLight;
+        lastExposureHours = Game::timeOfDayHours;
+        renderer->setExposureControl(exposure);
         if (wholeViewPending)
             loadWholeView("first view", -1);
         else if (jumped)
@@ -752,10 +802,11 @@ void RouteEditorGLWidget::paintScene(){
     RenderStats::setCategory(RenderStats::CategoryTerrain);
     // Terrain receives shadows but does not cast them.
     renderer->setShadowCasting(false);
-    // Environment map faces look in every direction: gather terrain patches
+    // Environment map faces look in every direction, and the sky enclosure
+    // needs the terrain over a tunnel, above the view: gather terrain patches
     // all around the camera and let the renderer cull each view.
     const bool renderEnvironment = !selectionPass && Game::environmentMapEnabled;
-    Terrain::gatherAllDirections = renderEnvironment;
+    Terrain::gatherAllDirections = renderEnvironment || (!selectionPass && Game::skyEnclosure);
     Game::terrainLib->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
     renderer->setShadowCasting(true);
     RenderStats::setCategory(RenderStats::CategoryWorld);
@@ -780,7 +831,8 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::translate(renderer->transform(), renderer->transform(), 0, -50, 0);
     Mat4::rotate(renderer->transform(), renderer->transform(), 2.0, 0, 1, 0);
     renderer->setLayer(RenderQueue::LAYER_SKY);
-    route->skydome->pushRenderItems(queue);
+    if (!renderer->drawsPhysicalSky())
+        route->skydome->pushRenderItems(queue);
     Mat4::identity(renderer->transform());
     Mat4::translate(renderer->transform(), renderer->transform(), camera->getPos());
     skySatellites.push(queue, skyState);
@@ -804,6 +856,11 @@ void RouteEditorGLWidget::paintScene(){
     if (!selectionPass && Game::shadowsEnabled > 0 && sunCastsShadows){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderShadowMaps();
+        RenderStats::endPhase(RenderStats::PhaseShadow);
+    }
+    if (!selectionPass){
+        RenderStats::beginPhase(RenderStats::PhaseShadow);
+        renderSkyEnclosure();
         RenderStats::endPhase(RenderStats::PhaseShadow);
     }
     if (renderEnvironment){
@@ -1022,6 +1079,8 @@ constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
 
 void RouteEditorGLWidget::applyTimeOfDay() {
     TimeOfDayState &state = timeOfDay;
+    // Off unless time of day runs with lamps by day on auto exposure.
+    exposure = Renderer::ExposureControl();
     if (!state.saved) {
         std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, state.sunDirection);
         std::copy(gluu->skyColor, gluu->skyColor + 4, state.sky);
@@ -1051,6 +1110,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         std::copy(sun, sun + 3, skyState.sunDirection);
         skyState.sunElevation = float(std::asin(std::clamp(sun[1], -1.0f, 1.0f)) * 180.0 / M_PI);
         skyState.moon = false;
+        std::fill(moonLight, moonLight + 3, 0.0f);
         std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
         reportEnvironment(skyState.sunElevation, std::nanf(""), std::nanf(""), std::nanf(""));
         if (state.applied) {
@@ -1112,7 +1172,9 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     // From true bearings to the world's grid.
     sun.azimuth -= state.gridNorth;
     moon.azimuth -= state.gridNorth;
-    SunPosition::direction(sun, Game::sunLightDirection);
+    float sunDirection[3];
+    SunPosition::direction(sun, sunDirection);
+    std::copy(sunDirection, sunDirection + 3, Game::sunLightDirection);
     // Shadows of a sun near the horizon would stretch across the maps.
     SunPosition::Result shadowSun = sun;
     shadowSun.elevation = std::max(sun.elevation, Daylight::MinShadowElevation);
@@ -1122,17 +1184,231 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     std::copy(light.fog, light.fog + 4, gluu->fogColor);
     std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
     std::copy(light.ambient, light.ambient + 4, gluu->ambientColor);
-    gluu->localLightAdaptation = light.localLights;
-    gluu->signalLightAdaptation = light.signalLights;
-    sunCastsShadows = light.sunUp;
+    // The moon lights the night (task 31): up at night, it is the light of
+    // the shading and the shadows; the sky keeps the sun.
+    const Daylight::Moonlight moonLight = Daylight::moonlight(sun.elevation, moon.elevation,
+                                                              moon.illuminatedFraction);
+    const bool moonLit = moonLight.strength > 0.0f;
+    if (moonLit) {
+        MoonPosition::direction(moon, Game::sunLightDirection);
+        MoonPosition::Result shadowMoon = moon;
+        shadowMoon.elevation = std::max(moon.elevation, Daylight::MinShadowElevation);
+        MoonPosition::direction(shadowMoon, shadowSunDirection);
+        std::copy(moonLight.diffuse, moonLight.diffuse + 4, gluu->diffuseColor);
+    }
+    for (int c = 0; c < 3; ++c)
+        gluu->ambientColor[c] += moonLight.ambient[c];
+    std::copy(moonLight.diffuse, moonLight.diffuse + 3, this->moonLight);
+    // Lamps by day (task 29): dimmed as the sun rises, or full strength.
+    gluu->localLightAdaptation = lampsByDay == 1 ? 1.0f : light.localLights;
+    gluu->signalLightAdaptation = lampsByDay == 1 ? 1.0f : light.signalLights;
+    // Auto exposure: lamps at one scale, the light of the sun and the sky in
+    // the scene's scale, the view adapting (task 29). Signals keep their
+    // scale; the renderer undoes the exposure on them.
+    if (lampsByDay == 2 && renderer != NULL && renderer->autoExposureAvailable()) {
+        gluu->localLightAdaptation = Daylight::DayLocalLights;
+        exposure.enabled = true;
+        exposure.sceneLight = light.sceneLight;
+        exposure.referenceLog2 = std::log2(light.sceneLight) + Daylight::viewLuminanceLog2(sun.elevation);
+        exposure.curvePoints = Daylight::adaptationCurve(exposure.curveLuminance, exposure.curveExposure,
+                                                         Renderer::ExposureControl::CurveSize);
+        exposure.biasStops = Daylight::exposureBias(sun.elevation);
+    }
+    sunCastsShadows = light.sunUp || moonLit;
     // The sun and the moon on the sky.
-    std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, skyState.sunDirection);
+    std::copy(sunDirection, sunDirection + 3, skyState.sunDirection);
     skyState.sunElevation = float(sun.elevation);
     skyState.moon = true;
     MoonPosition::direction(moon, skyState.moonDirection);
     skyState.moonElevation = float(moon.elevation);
     skyState.moonFraction = float(moon.illuminatedFraction);
     std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
+}
+
+// The sky for the renderer. A physical sky (QRhi) replaces the skydome and
+// gives the fog its colour: the horizon's, averaged around it.
+void RouteEditorGLWidget::applySky() {
+    Renderer::Sky sky;
+    sky.physical = Game::skyModel == 1;
+    // The sun of the sky, also when the moon lights the scene; the moon
+    // lights the clouds at night (task 31).
+    std::copy(skyState.sunDirection, skyState.sunDirection + 3, sky.sun);
+    if (skyState.moon)
+        std::copy(skyState.moonDirection, skyState.moonDirection + 3, sky.moon);
+    for (int c = 0; c < 3; ++c)
+        sky.moonLight[c] = std::pow(moonLight[c] / Daylight::SunLight, 2.2f);
+    sky.cameraHeight = camera->getPos()[1];
+    sky.groundHeight = Game::terrainLib != nullptr
+            ? std::min(Game::terrainLib->getHeight(int(camera->pozT[0]), int(camera->pozT[1]), camera->getPos()[0],
+                                                   camera->getPos()[2]), sky.cameraHeight)
+            : sky.cameraHeight;
+    // The night sky's floor, as the classic sky's (Daylight).
+    const float night[3] = {0.015f, 0.022f, 0.05f};
+    std::copy(night, night + 3, sky.night);
+    // Haze from the weather's visibility at the camera (Koschmieder).
+    if (const Weather *weather = currentWeather(); weather != nullptr && !weather->keyframes.isEmpty()) {
+        double east, north;
+        cameraWorldPosition(east, north);
+        const float visibility = weather->surface(weatherHours(), east, north).visibility;
+        if (visibility > 0.0f)
+            sky.haze = 3.912f / std::max(visibility, 200.0f);
+    }
+    // With a physical sky the fog density scales that haze (the air's
+    // haze of terrain, clouds and light shafts): 0.7 (the default, the
+    // classic fog's) as the weather has it, 0.3 (Advanced Environment; the
+    // user: above it the far mountains' blue goes) about a fifth, 0 clear
+    // air, its Rayleigh blue only; 1 twice.
+    const float hazeScale = gluu->fogDensity / 0.7f;
+    sky.shaftHaze = sky.haze;
+    sky.haze *= hazeScale * hazeScale;
+    // Last frame's (applyClouds measures it after this).
+    sky.overcast = Game::cloudQuality > 0 ? cloudOvercast : 0.0f;
+    renderer->setSky(sky);
+    if (!renderer->drawsPhysicalSky()) {
+        if (physicalSkyApplied && !Game::timeOfDayEnabled) {
+            std::copy(timeOfDay.sky, timeOfDay.sky + 4, gluu->skyColor);
+            std::copy(timeOfDay.fog, timeOfDay.fog + 4, gluu->fogColor);
+        }
+        physicalSkyApplied = false;
+        return;
+    }
+    physicalSkyApplied = true;
+    const Atmosphere::Rgb horizon = Atmosphere::horizonColour(std::max(0.001, sky.cameraHeight / 1000.0), sky.sun);
+    for (int c = 0; c < 3; ++c) {
+        gluu->fogColor[c] = std::max(horizon[c], night[c]);
+        gluu->skyColor[c] = gluu->fogColor[c];
+        skyState.skyColor[c] = gluu->fogColor[c];
+    }
+}
+
+// The weather of the environment around the camera, for the renderer's
+// clouds: 128 x 128 km at 2 km a texel per layer (the weather's own cells
+// are 2 km or more; the renderer's noise makes the clouds), moved in 8 km
+// steps, rebuilt when the weather or its time changes or the camera leaves
+// its step: a rebuild samples the weather 12000 times.
+void RouteEditorGLWidget::applyClouds() {
+    Renderer::Clouds &c = cloudState;
+    const Weather *weather = currentWeather();
+    if (Game::cloudQuality <= 0 || !renderer->drawsPhysicalSky() || weather == nullptr
+            || weather->keyframes.isEmpty()) {
+        if (c.quality != 0) {
+            c.quality = 0;
+            renderer->setClouds(c);
+        }
+        if (overcastApplied && !Game::timeOfDayEnabled)
+            std::copy(timeOfDay.ambient, timeOfDay.ambient + 4, gluu->ambientColor);
+        overcastApplied = false;
+        return;
+    }
+    constexpr int Size = 64;
+    constexpr float Texel = 2000.0f;
+    constexpr double Step = 8000.0;
+    c.quality = Game::cloudQuality;
+    // Captures want each frame complete and the same.
+    static const bool still = qEnvironmentVariableIsSet("TSRE_CLOUDS_STILL");
+    c.still = still;
+    double east, north;
+    cameraWorldPosition(east, north);
+    c.cameraEast = east;
+    c.cameraNorth = north;
+    const double hours = weatherHours();
+    const Weather::Frame frame = weather->frame(hours);
+    for (int l = 0; l < 3; ++l) {
+        c.drift[l][0] = float(frame.drift[l][0]);
+        c.drift[l][1] = float(frame.drift[l][1]);
+    }
+    c.seed = weather->seed;
+    // A fast timelapse refreshes the clouds faster (the user: from 2 min a
+    // second twice, at 4 min four times; static scenes, a lower frame rate
+    // is fine): the history cannot follow clouds that change that much.
+    const bool fast = timeRuns && !simulationPaused;
+    c.passes = fast && timeSpeed >= 240.0 ? 4 : (fast && timeSpeed >= 120.0 ? 2 : 1);
+    const double west = std::floor((east - Size * Texel * 0.5) / Step) * Step;
+    const double top = std::ceil((north + Size * Texel * 0.5) / Step) * Step;
+    // The fields move with their layers' wind, which the renderer follows
+    // (drift - built): sampled again only for another place or weather, a
+    // shift of 2 km (the near cover map reaches 2.7 km past where it is
+    // read; the high layer drifts four times as fast as the low one),
+    // keyframes blending on, or an hour later.
+    constexpr double RebuildShift = 2000.0;
+    double shifted = 0.0;
+    for (int l = 0; l < 3; ++l)
+        shifted = std::max(shifted, std::hypot(frame.drift[l][0] - c.built[l][0], frame.drift[l][1] - c.built[l][1]));
+    const bool blendMoved = frame.blend.a != cloudBlendA || frame.blend.b != cloudBlendB
+            || std::abs(frame.blend.weight - cloudBlendWeight) > 0.02;
+    if (c.size != Size || west != c.west || top != c.north || weatherRevision != cloudWeatherRevision
+            || !(std::abs(hours - cloudHours) < 1.0) || shifted > RebuildShift || blendMoved) {
+        c.size = Size;
+        c.west = west;
+        c.north = top;
+        c.texel = Texel;
+        cloudHours = hours;
+        cloudBlendA = frame.blend.a;
+        cloudBlendB = frame.blend.b;
+        cloudBlendWeight = frame.blend.weight;
+        cloudWeatherRevision = weatherRevision;
+        for (int l = 0; l < 3; ++l) {
+            c.built[l][0] = float(frame.drift[l][0]);
+            c.built[l][1] = float(frame.drift[l][1]);
+        }
+        auto layers = std::make_shared<std::vector<float>>(size_t(3) * Size * Size * 4);
+        float bottom = 1e9f, highest = -1e9f;
+        for (int l = 0; l < 3; ++l)
+            for (int j = 0; j < Size; ++j)
+                for (int i = 0; i < Size; ++i) {
+                    const WeatherLayerValues v = weather->layer(frame, west + (i + 0.5) * Texel,
+                                                                top - (j + 0.5) * Texel, l);
+                    float *out = &(*layers)[((size_t(l) * Size + j) * Size + i) * 4];
+                    out[0] = v.coverage;
+                    out[1] = v.type;
+                    out[2] = v.base / 1000.0f;
+                    out[3] = v.top / 1000.0f;
+                    if (l < 2 && v.coverage > 0.0f) {
+                        bottom = std::min(bottom, out[2]);
+                        highest = std::max(highest, out[3]);
+                    }
+                }
+        if (bottom > highest)
+            bottom = highest = 0.0f;
+        c.bottom = bottom;
+        c.top = highest;
+        c.layers = layers;
+        ++c.revision;
+        // Overcast: the low and mid layers' cover within 10 km of the
+        // camera, the two combined as independent.
+        double sum = 0.0;
+        int count = 0;
+        const int ci = std::clamp(int((east - west) / Texel), 5, Size - 6);
+        const int cj = std::clamp(int((top - north) / Texel), 5, Size - 6);
+        for (int j = cj - 5; j <= cj + 5; ++j)
+            for (int i = ci - 5; i <= ci + 5; ++i) {
+                const float lowCover = (*layers)[((size_t(0) * Size + j) * Size + i) * 4];
+                const float midCover = (*layers)[((size_t(1) * Size + j) * Size + i) * 4];
+                sum += 1.0 - (1.0 - lowCover) * (1.0 - midCover);
+                ++count;
+            }
+        cloudOvercast = float(sum / std::max(1, count));
+    }
+    renderer->setClouds(c);
+    // Under a covered sky the light comes grey from all around: less
+    // colour, and a grey horizon. How much of it the clouds let through is
+    // the renderer's: the sun's through their shadow, the sky's ambient
+    // through them (RhiRenderer::cloudSkyLight; before, the ambient was
+    // raised by half under an overcast to make up for the sun, whatever the
+    // clouds' depth).
+    const float o = std::clamp((cloudOvercast - 0.3f) / 0.6f, 0.0f, 1.0f);
+    const float *ambient = Game::timeOfDayEnabled ? gluu->ambientColor : timeOfDay.ambient;
+    float base[3] = {ambient[0], ambient[1], ambient[2]};
+    const float grey = (base[0] + base[1] + base[2]) / 3.0f;
+    for (int k = 0; k < 3; ++k)
+        gluu->ambientColor[k] = base[k] + (grey - base[k]) * 0.6f * o;
+    const float fogGrey = (gluu->fogColor[0] * 0.3f + gluu->fogColor[1] * 0.55f + gluu->fogColor[2] * 0.15f) * 0.85f;
+    for (int k = 0; k < 3; ++k) {
+        gluu->fogColor[k] += (fogGrey - gluu->fogColor[k]) * 0.8f * o;
+        gluu->skyColor[k] = gluu->fogColor[k];
+        skyState.skyColor[k] = gluu->fogColor[k];
+    }
+    overcastApplied = true;
 }
 
 // Tells the environment window where the sun and moon stand (true bearing;
@@ -1233,6 +1509,136 @@ void RouteEditorGLWidget::renderShadowMaps() {
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
     renderer->releaseProgram();
+}
+
+// The sky enclosure (task 27): terrain and opaque surfaces seen from 2 km
+// above the camera, down to 2 km below it, in two maps. The lit shaders find
+// in them whether something stands over a point.
+// - Near: 400 m across at 1024 texels (0.39 m), everything opaque within
+//   300 m. Drawn from a point snapped to cells of 80 of its texels (31.25 m;
+//   16 m in height), so its texels keep their place on the ground, and kept
+//   while the camera stays in its cell; once a second it is drawn anyway,
+//   for edits.
+// - Far: 1200 m across at 1024 texels (1.17 m), terrain and objects of 3 m
+//   radius and more, behind the near map (bridges, halls, tunnels farther
+//   off). Cells of 128 texels (150 m), drawn anyway every 600 frames, and
+//   never in a frame the near map is drawn in (a redraw costs a few ms).
+// Each map is drawn again from below (the lowest surfaces); where the two
+// lie apart there is cover, and the renderer finds from both how open the sky
+// is around each point (OpenRadius), so the light fades from the open sky in.
+void RouteEditorGLWidget::renderSkyEnclosure() {
+    Renderer::SkyEnclosure enclosure;
+    enclosure.enabled = Game::skyEnclosure;
+    if (!enclosure.enabled) {
+        enclosureAge = farEnclosureAge = -1;
+        renderer->setSkyEnclosure(enclosure);
+        return;
+    }
+    constexpr int Size = 1024;
+    constexpr float Half = 200.0f;
+    constexpr float FarHalf = 600.0f;
+    // Over the terrain above deep tunnels, and down to the ground under high
+    // bridges (from 300 m above with 600 m of depth, the terrain over a
+    // deep tunnel was cut off, and ground more than 300 m below the camera
+    // read as covered: a dark square seen from above; user, 2026-10-12).
+    constexpr float Above = 2000.0f;
+    constexpr float Depth = 4000.0f;
+    constexpr float Cell = 80.0f * 2.0f * Half / Size;
+    constexpr float FarCell = 128.0f * 2.0f * FarHalf / Size;
+    constexpr float CellHeight = 16.0f;
+    constexpr int RedrawFrames = 60;
+    constexpr int FarRedrawFrames = 600;
+    constexpr float FarMinRadius = 3.0f;
+    // How far around a point open sky counts for the gradual darkening
+    // under cover (a tunnel from its portals in).
+    constexpr float OpenRadius = 30.0f;
+    const float *position = camera->getPos();
+    auto snap = [position](float cell, float *eye) {
+        eye[0] = std::floor(position[0] / cell + 0.5f) * cell;
+        eye[1] = std::floor(position[1] / CellHeight + 0.5f) * CellHeight + Above;
+        eye[2] = std::floor(position[2] / cell + 0.5f) * cell;
+    };
+    // From above, or from as far below (the lowest surfaces; its rows run
+    // the other way round).
+    auto look = [](float half, const float *eye, float *viewProjection, bool below = false) {
+        const float sign = below ? -1.0f : 1.0f;
+        float from[3] = {eye[0], eye[1] - (below ? 2.0f * Above : 0.0f), eye[2]};
+        float centre[3] = {eye[0], from[1] - sign * Above, eye[2]};
+        float up[3] = {0.0f, 0.0f, -sign};
+        float projection[16], view[16];
+        Mat4::ortho(projection, -half, half, -half, half, 0.0f, Depth);
+        Mat4::lookAt(view, from, centre, up);
+        Mat4::multiply(viewProjection, projection, view);
+    };
+    auto draw = [this](int map, const float *viewProjection, float range, float minRadius) {
+        // Renderers without the maps (OpenGL) draw nothing.
+        if (!renderer->beginSkyEnclosure(Size, map))
+            return false;
+        // The shadow program draws with uShadowPMatrix.
+        renderer->useProgram(Renderer::PROGRAM_SHADOW);
+        Mat4::identity(gluu->mvMatrix);
+        Mat4::identity(gluu->objStrMatrix);
+        float *saved = gluu->pShadowMatrix;
+        float matrix[16];
+        std::copy(viewProjection, viewProjection + 16, matrix);
+        gluu->pShadowMatrix = matrix;
+        renderer->applyFrameUniforms();
+        renderer->renderEnclosureCasters(range, RenderStats::FrameStats::PassSlots - 1, matrix, minRadius);
+        gluu->pShadowMatrix = saved;
+        renderer->applyFrameUniforms();
+        renderer->releaseProgram();
+        return true;
+    };
+    float eye[3], farEye[3];
+    snap(Cell, eye);
+    snap(FarCell, farEye);
+    const bool redraw = enclosureAge < 0 || enclosureAge >= RedrawFrames
+            || !std::equal(eye, eye + 3, enclosureEye);
+    const bool farRedraw = farEnclosureAge < 0
+            || (!redraw && (farEnclosureAge >= FarRedrawFrames || !std::equal(farEye, farEye + 3, farEnclosureEye)));
+    look(Half, eye, enclosure.viewProjection);
+    enclosure.metresPerDepth = Depth;
+    enclosure.filter = 2.0f / Size;
+    enclosure.farFilter = 2.0f / Size;
+    enclosure.ambientFloor = route != NULL && route->trk != NULL && route->trk->tsreEnclosedAmbient >= 0.0f
+            ? route->trk->tsreEnclosedAmbient : Game::enclosedAmbient;
+    if (redraw) {
+        if (!draw(0, enclosure.viewProjection, Half * 1.5f, 0.0f)) {
+            enclosureAge = farEnclosureAge = -1;
+            renderer->setSkyEnclosure(Renderer::SkyEnclosure());
+            return;
+        }
+        float below[16];
+        look(Half, eye, below, true);
+        if (draw(2, below, Half * 1.5f, 0.0f))
+            renderer->finishSkyEnclosure(false, OpenRadius / (2.0f * Half), Depth);
+        std::copy(eye, eye + 3, enclosureEye);
+        enclosureAge = 0;
+    } else {
+        ++enclosureAge;
+    }
+    if (farRedraw) {
+        float farViewProjection[16];
+        look(FarHalf, farEye, farViewProjection);
+        if (draw(1, farViewProjection, FarHalf * 1.5f, FarMinRadius)) {
+            float below[16];
+            look(FarHalf, farEye, below, true);
+            if (draw(3, below, FarHalf * 1.5f, FarMinRadius))
+                renderer->finishSkyEnclosure(true, OpenRadius / (2.0f * FarHalf), Depth);
+            std::copy(farEye, farEye + 3, farEnclosureEye);
+            farEnclosureAge = 0;
+        } else {
+            farEnclosureAge = -1;
+        }
+    } else {
+        ++farEnclosureAge;
+    }
+    // The far map as last drawn (its redraw may wait a frame for the near
+    // map's).
+    enclosure.farEnabled = farEnclosureAge >= 0;
+    if (enclosure.farEnabled)
+        look(FarHalf, farEnclosureEye, enclosure.farViewProjection);
+    renderer->setSkyEnclosure(enclosure);
 }
 
 // Renders the faces scheduled for this frame from the camera position, from
@@ -2166,6 +2572,222 @@ bool RouteEditorGLWidget::prepareOsmLayer() {
     return true;
 }
 
+QVector<RouteEditorGLWidget::EnvironmentSlot> RouteEditorGLWidget::environmentSlots() const {
+    QVector<EnvironmentSlot> list;
+    if (route == NULL || route->trk == NULL)
+        return list;
+    for (const char *season : {"Spring", "Summer", "Autumn", "Winter"})
+        for (const char *kind : {"Clear", "Rain", "Snow"}) {
+            const QString name = QString::fromLatin1(season) + QString::fromLatin1(kind);
+            for (const auto &entry : route->trk->environment)
+                if (QString::fromStdString(entry.first).compare(name, Qt::CaseInsensitive) == 0)
+                    list.push_back({name, entry.second});
+        }
+    return list;
+}
+
+QStringList RouteEditorGLWidget::environmentFiles() const {
+    const QDir directory(Game::root + "/ROUTES/" + Game::route + "/ENVFILES");
+    return directory.entryList({"*.env", "*.ENV"}, QDir::Files, QDir::Name | QDir::IgnoreCase);
+}
+
+bool RouteEditorGLWidget::chooseEnvironment(const QString &file, const QString &slot, QString *error) {
+    if (route == NULL)
+        return false;
+    const QString path = ContentPath::normalize(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/" + file);
+    if (!QFileInfo::exists(path)) {
+        if (error) *error = "No env file " + path;
+        return false;
+    }
+    Env::SlotWeather kind = Env::SlotWeather::Unknown;
+    if (slot.endsWith("Clear", Qt::CaseInsensitive)) kind = Env::SlotWeather::Clear;
+    else if (slot.endsWith("Rain", Qt::CaseInsensitive)) kind = Env::SlotWeather::Rain;
+    else if (slot.endsWith("Snow", Qt::CaseInsensitive)) kind = Env::SlotWeather::Snow;
+    Environment *environment = new Environment(path, kind);
+    delete route->env;
+    route->env = environment;
+    currentEnvironmentFile = file;
+    currentEnvironmentSlot = slot;
+    weatherModified = false;
+    if (weatherMap)
+        weatherMap->invalidate();
+    emit weatherChanged();
+    update();
+    return true;
+}
+
+void RouteEditorGLWidget::setWeatherPreset(const QString &preset, quint32 seed) {
+    if (route == NULL || route->env == NULL)
+        return;
+    Environment &environment = *route->env;
+    if (preset.isEmpty()) {
+        environment.weather = environment.file.weatherOrDerived(environment.slot);
+        QString error;
+        if (!environment.weather.loadMaps(QFileInfo(environment.path).absolutePath(), error))
+            qWarning() << "Weather maps:" << error;
+        weatherModified = false;
+    } else {
+        environment.weather = WeatherPresets::weather(preset, seed);
+        weatherModified = true;
+    }
+    if (weatherMap)
+        weatherMap->invalidate();
+    emit weatherChanged();
+    update();
+}
+
+bool RouteEditorGLWidget::saveEnvironment(QString *error) {
+    if (route == NULL || route->env == NULL)
+        return false;
+    if (!Game::writeEnabled) {
+        if (error) *error = "Route saving is disabled.";
+        return false;
+    }
+    Environment &environment = *route->env;
+    environment.file.weather = environment.weather;
+    QString message;
+    if (!environment.file.save(environment.path, message)
+            || !environment.weather.saveMaps(QFileInfo(environment.path).absolutePath(), message)) {
+        if (error) *error = message;
+        return false;
+    }
+    weatherModified = false;
+    emit weatherChanged();
+    return true;
+}
+
+const Weather *RouteEditorGLWidget::currentWeather() const {
+    return route != NULL && route->env != NULL ? &route->env->weather : nullptr;
+}
+
+double RouteEditorGLWidget::weatherHours() const {
+    if (!std::isnan(diagnosticWeatherHours))
+        return diagnosticWeatherHours;
+    const Weather *weather = currentWeather();
+    if (weather == nullptr)
+        return 0.0;
+    QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (!date.isValid())
+        date = QDate(2026, 6, 21);
+    return weather->editorHours(date, Game::timeOfDayHours);
+}
+
+bool RouteEditorGLWidget::routeArea(double &west, double &north, double &east, double &south) const {
+    if (Game::trackDB == NULL)
+        return false;
+    bool any = false;
+    int minX = 0, maxX = 0, minZ = 0, maxZ = 0;
+    for (const auto &entry : Game::trackDB->trackNodes) {
+        const TRnode *node = entry.second;
+        if (node == NULL)
+            continue;
+        for (int i = 0; i < node->iTrv; ++i) {
+            const int x = node->trVectorSection[i].tileX, z = node->trVectorSection[i].tileZ;
+            minX = any ? std::min(minX, x) : x;
+            maxX = any ? std::max(maxX, x) : x;
+            minZ = any ? std::min(minZ, z) : z;
+            maxZ = any ? std::max(maxZ, z) : z;
+            any = true;
+        }
+    }
+    if (!any)
+        return false;
+    // Whole tiles; MSTS tile z counts north.
+    west = minX * 2048.0 - 1024.0;
+    east = maxX * 2048.0 + 1024.0;
+    south = minZ * 2048.0 - 1024.0;
+    north = maxZ * 2048.0 + 1024.0;
+    return true;
+}
+
+void RouteEditorGLWidget::cameraWorldPosition(double &east, double &north) const {
+    east = camera->pozT[0] * 2048.0 + camera->getPos()[0];
+    north = -(camera->pozT[1] * 2048.0 + camera->getPos()[2]);
+}
+
+namespace {
+
+// A route position (MSTS world metres) on the globe.
+bool worldToLatLon(double east, double north, double &latitude, double &longitude) {
+    if (Game::GeoCoordConverter == nullptr)
+        return false;
+    const int tileX = int(std::floor((east + 1024.0) / 2048.0));
+    const int tileZ = int(std::floor((north + 1024.0) / 2048.0));
+    PreciseTileCoordinate tile;
+    // As the camera fills it: MSTS tile z, local z pointing south.
+    tile.setTWxyz(tileX, tileZ, float(east - tileX * 2048.0), 0.0f, float(-(north - tileZ * 2048.0)));
+    IghCoordinate internal;
+    LatitudeLongitudeCoordinate out;
+    if (Game::GeoCoordConverter->ConvertToInternal(&tile, &internal) == NULL
+            || Game::GeoCoordConverter->ConvertToLatLon(&internal, &out) == NULL
+            || !std::isfinite(out.Latitude) || !std::isfinite(out.Longitude))
+        return false;
+    latitude = out.Latitude;
+    longitude = out.Longitude;
+    return true;
+}
+
+} // namespace
+
+bool RouteEditorGLWidget::importWeather(const WeatherImport::Request &asked, QString *error,
+                                        const std::function<bool()> &cancelled) {
+    if (route == NULL || route->env == NULL)
+        return false;
+    QString message;
+    WeatherImport::Request request = asked;
+    // Automatic: the finest model with data over the area.
+    if (request.model == QLatin1String(WeatherImport::Automatic)
+            && !WeatherImport::chooseModel(request, worldToLatLon, request.model, message, cancelled)) {
+        if (error) *error = message;
+        return false;
+    }
+    QVector<WeatherImport::Sample> samples;
+    int columns = 0, rows = 0;
+    if (!WeatherImport::samples(request, worldToLatLon, samples, columns, rows, message)) {
+        if (error) *error = message;
+        return false;
+    }
+    // The bearing of the grid's north at the area's centre, for the winds.
+    const double centreE = (request.west + request.east) * 0.5, centreN = (request.north + request.south) * 0.5;
+    double lat0, lon0, lat1, lon1, bearing = 0.0;
+    if (worldToLatLon(centreE, centreN, lat0, lon0) && worldToLatLon(centreE, centreN + 1000.0, lat1, lon1))
+        bearing = std::atan2((lon1 - lon0) * std::cos(lat0 * M_PI / 180.0), lat1 - lat0) * 180.0 / M_PI;
+    QVector<WeatherImport::Series> series;
+    Weather weather;
+    if (!WeatherImport::download(request, samples, series, message, cancelled)
+            || !WeatherImport::build(request, samples, columns, rows, series, bearing, weather, message)) {
+        if (error) *error = message;
+        return false;
+    }
+    weather.maps = "WEATHER/" + QFileInfo(route->env->path).completeBaseName();
+    route->env->weather = weather;
+    weatherModified = true;
+    if (weatherMap)
+        weatherMap->invalidate();
+    emit weatherChanged();
+    update();
+    return true;
+}
+
+bool RouteEditorGLWidget::generateWeather(const WeatherGenerator::Settings &settings) {
+    if (route == NULL || route->env == NULL)
+        return false;
+    Weather weather = WeatherGenerator::generate(settings);
+    weather.maps = "WEATHER/" + QFileInfo(route->env->path).completeBaseName();
+    route->env->weather = weather;
+    weatherModified = true;
+    if (weatherMap)
+        weatherMap->invalidate();
+    emit weatherChanged();
+    update();
+    return true;
+}
+
+void RouteEditorGLWidget::setDiagnosticWeather(const QString &preset, quint32 seed, double hours) {
+    setWeatherPreset(preset, seed);
+    diagnosticWeatherHours = hours;
+}
+
 bool RouteEditorGLWidget::prepareImageryLayer() {
     QString error;
     if (imageryMap && imageryMap->prepare(error))
@@ -2250,7 +2872,8 @@ void RouteEditorGLWidget::showMapContextMenu(const QPoint &position) {
 }
 
 bool RouteEditorGLWidget::mapLayersBusy() const {
-    return (osmMap && osmMap->busy()) || (imageryMap && mapLayers.shows(MapLayer::Imagery) && imageryMap->busy());
+    return (osmMap && osmMap->busy()) || (imageryMap && mapLayers.shows(MapLayer::Imagery) && imageryMap->busy())
+            || (weatherMap && mapLayers.shows(MapLayer::Weather) && weatherMap->busy());
 }
 
 void RouteEditorGLWidget::updateMapLabels() {
@@ -2297,6 +2920,10 @@ void RouteEditorGLWidget::paintMap() {
         }
         return;
     }
+    // The map shows its palette as it is: no auto exposure (task 29), tone
+    // curve, exposure or bloom.
+    renderer->setExposureControl(Renderer::ExposureControl());
+    renderer->setPlainImage(true);
     const int width = qRound(float(this->width()) * Game::PixelRatio);
     const int height = qRound(float(this->height()) * Game::PixelRatio);
     cameraMap->setViewport(width, height);
@@ -2347,6 +2974,9 @@ void RouteEditorGLWidget::paintMap() {
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
     activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
                                  mapLayers.shows(MapLayer::Paths));
+    // The weather over the route's data, as a weather app shows it.
+    if (mapLayers.shows(MapLayer::Weather) && weatherMap && currentWeather())
+        weatherMap->pushRenderItems(queue, view, palette, *currentWeather(), weatherHours(), true);
     mapMeasure->pushRenderItems(queue, view, palette, Game::PixelRatio);
     updateMapLabels();
     mapLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);
@@ -2791,6 +3421,22 @@ void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
 
 void RouteEditorGLWidget::setSimulationPaused(bool paused) {
     simulationPaused = paused;
+}
+
+void RouteEditorGLWidget::setClockSpeed(double secondsPerSecond) {
+    timeSpeed = std::max(secondsPerSecond, 0.0);
+}
+
+bool RouteEditorGLWidget::advanceClock(double seconds, double speed, double &hours, QString &date) {
+    hours += std::clamp(seconds, 0.0, 1.0) * speed / 3600.0;
+    if (hours < 24.0)
+        return false;
+    hours -= 24.0;
+    QDate day = QDate::fromString(date.trimmed(), "yyyy-MM-dd");
+    if (!day.isValid())
+        day = QDate(2026, 6, 21);
+    date = day.addDays(1).toString("yyyy-MM-dd");
+    return true;
 }
 
 QVector<quint32> RouteEditorGLWidget::probeSelectionIds(

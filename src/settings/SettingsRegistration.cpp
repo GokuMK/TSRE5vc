@@ -843,7 +843,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Blended shape parts"
                 QT_TRID_NOOP("settings.core.rendering.blended.parts.name")).withDescriptionId(
-                //% "MSTS shapes mark many opaque parts as blended. Draw such parts with the opaque ones when their texture has no partly transparent texels, so they sort correctly and receive ambient occlusion."
+                //% "MSTS shapes mark many opaque parts as blended or alpha-tested. Draw such parts with the opaque ones when their texture has no transparent texels, so they sort correctly, receive ambient occlusion and count as cover in the sky enclosure."
                 QT_TRID_NOOP("settings.core.rendering.blended.parts.description"))
             .withOptions(numericChoices({{0,
                 //% "As marked in the shape"
@@ -944,6 +944,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "glTF lamps and emissive surfaces light the scene around them. QRhi renderer only."
                 QT_TRID_NOOP("settings.core.rendering.local.lights.enabled.description")).inGroup("rendering").inSubgroup("lights"),
         "localLightsEnabled", "Game::localLightsEnabled", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.lampsByDay", 0)
+            .withNameId(
+                //% "Lamps by day"
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.name")).withDescriptionId(
+                //% "How lamps compare with daylight. Dimmed fades them as the sun rises, a stand-in for the eye's adaptation. Full strength keeps their night strength all day. Auto exposure keeps them at one strength and lets the view adapt to the light instead, as an eye or a camera does: tunnels brighten after a moment, night stays night. Auto exposure needs the QRhi renderer and tone mapping (AgX suits it); otherwise lamps are dimmed. Applies with time of day on."
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.description"))
+            .withOptions(numericChoices({{0,
+                //% "Dimmed"
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.option.dimmed")}, {1,
+                //% "Full strength"
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.option.full")}, {2,
+                //% "Auto exposure"
+                QT_TRID_NOOP("settings.core.rendering.lamps.by.day.option.auto")}})).inGroup("rendering").inSubgroup("lights"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::enumeration("core.rendering.ambientOcclusion", 0)
             .withNameId(
                 //% "Ambient occlusion"
@@ -1015,7 +1029,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Fog density"
                 QT_TRID_NOOP("settings.core.rendering.fog.density.name")).withDescriptionId(
-                //% "Fog density copied into each OpenGL scene helper when it is constructed."
+                //% "With the physical sky: how hazy the air is, scaling the weather's haze (0.3 about a fifth of it, 0.7 all of it, 0 clear air). Otherwise the most the classic fog covers."
                 QT_TRID_NOOP("settings.core.rendering.fog.density.description")).withRange(0, 1, 0.01).inGroup("rendering").inSubgroup("environment"),
         "fogDensity", "Game::fogDensity", "GLUU", true, "hot-cache");
     ADD(SettingsDefinition::string("core.rendering.fogColor", "#E6F8FF", SettingType::Color)
@@ -1053,6 +1067,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Date for the sun's path, as yyyy-MM-dd."
                 QT_TRID_NOOP("settings.core.rendering.time.of.day.date.description")).inGroup("rendering").inSubgroup("environment"),
         "timeOfDayDate", "Game::timeOfDayDate", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.running", true)
+            .withNameId(
+                //% "Time runs"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.running.name")).withDescriptionId(
+                //% "The time of day and the weather run on while the editor runs (at the speed set in the Environment panel); off keeps the time set (Environment panel: Stop / Resume)."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.running.description")).inGroup("rendering").inSubgroup("environment"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.sky.sun", true)
             .withNameId(
                 //% "Sun on the sky"
@@ -1074,6 +1095,64 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger."
                 QT_TRID_NOOP("settings.core.rendering.sky.sun.size.description")).withRange(0.2, 5, 0.1).withUnit("°").inGroup("rendering").inSubgroup("environment"),
         "", "", "SkySatellites", false, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.sky.model", 0)
+            .withNameId(
+                //% "Sky"
+                QT_TRID_NOOP("settings.core.rendering.sky.model.name")).withDescriptionId(
+                //% "Classic draws the route's sky dome in the time of day's colours. Physical computes the sky from the atmosphere for the sun's place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky."
+                QT_TRID_NOOP("settings.core.rendering.sky.model.description"))
+            .withOptions(numericChoices({{0,
+                //% "Classic"
+                QT_TRID_NOOP("settings.core.rendering.sky.model.option.classic")}, {1,
+                //% "Physical"
+                QT_TRID_NOOP("settings.core.rendering.sky.model.option.physical")}})).inGroup("rendering").inSubgroup("environment"),
+        "skyModel", "Game::skyModel", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.clouds", 0)
+            .withNameId(
+                //% "Clouds"
+                QT_TRID_NOOP("settings.core.rendering.clouds.name")).withDescriptionId(
+                //% "Volumetric clouds from the environment's weather, with the physical sky (QRhi renderer). Higher quality marches the clouds in finer steps and costs more time per frame."
+                QT_TRID_NOOP("settings.core.rendering.clouds.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.off")}, {1,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.low")}, {2,
+                //% "Medium"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.medium")}, {3,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.high")}, {4,
+                //% "Ultra"
+                QT_TRID_NOOP("settings.core.rendering.clouds.option.ultra")}})).inGroup("rendering").inSubgroup("environment"),
+        "cloudQuality", "Game::cloudQuality", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.lightShafts", 0)
+            .withNameId(
+                //% "Light shafts"
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.name")).withDescriptionId(
+                //% "Rays of sunlight through gaps in clouds, trees and buildings. Screen space draws them when the sun is on the screen or near it; volumetric marches the haze in front of the camera, so shafts under clouds and through trees show from any view, at more cost. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.description.modes"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.option.off")}, {1,
+                //% "Screen space"
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.option.screen")}, {2,
+                //% "Volumetric"
+                QT_TRID_NOOP("settings.core.rendering.light.shafts.option.volumetric")}})).inGroup("rendering").inSubgroup("environment"),
+        "lightShafts", "Game::lightShafts", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.skyEnclosure", false)
+            .withNameId(
+                //% "Sky enclosure"
+                QT_TRID_NOOP("settings.core.rendering.sky.enclosure.name")).withDescriptionId(
+                //% "Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky's ambient light drops to the enclosed ambient. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.sky.enclosure.description")).inGroup("rendering").inSubgroup("lights"),
+        "skyEnclosure", "Game::skyEnclosure", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.enclosedAmbient", 0.3)
+            .withNameId(
+                //% "Enclosed ambient"
+                QT_TRID_NOOP("settings.core.rendering.enclosed.ambient.name")).withDescriptionId(
+                //% "The share of the sky's ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file)."
+                QT_TRID_NOOP("settings.core.rendering.enclosed.ambient.description")).withRange(0, 1, 0.05).inGroup("rendering").inSubgroup("lights"),
+        "enclosedAmbient", "Game::enclosedAmbient", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
                 //% "Render TrackDB items"

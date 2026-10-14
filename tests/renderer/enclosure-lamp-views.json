@@ -1,0 +1,24 @@
+{
+  "notes": "Street lamps inside a tunnel mouth of EUROPE1 and in the open before it, at noon and at night, for the sky enclosure (task 27). Needs tsre_street_lamp.gltf in the route's SHAPES: tests/renderer/lights/lamp-root.sh builds a game root of links with it.",
+  "output": "build/renderer-enclosure",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [0, 0],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": true,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 60,
+    "maxSeconds": 300
+  },
+  "objects": [
+    {"file": "tsre_street_lamp.gltf", "tile": [-6110, -15068], "pos": [-638.0, 340.0, 173.0], "yaw": 0},
+    {"file": "tsre_street_lamp.gltf", "tile": [-6110, -15068], "pos": [-631.0, 340.0, 192.0], "yaw": 0}
+  ],
+  "views": [
+    {"name": "lamps-noon", "tile": [-6110, -15068], "pos": [-636.0, 343.0, 212.0], "rot": [3.1416, -0.05], "time": 12},
+    {"name": "lamps-night", "tile": [-6110, -15068], "pos": [-636.0, 343.0, 212.0], "rot": [3.1416, -0.05], "time": 23}
+  ]
+}

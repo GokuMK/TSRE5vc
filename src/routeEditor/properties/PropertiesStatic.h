@@ -34,6 +34,7 @@ public slots:
     void editFileNameEnabled();
     void cCollisionTypeEdited(int val);
     void removeCollisionsEnabled();
+    void lightRangeEdited(QString val);
     void reloadEnabled();
     
 signals:
@@ -44,6 +45,7 @@ private:
     QComboBox cShadowType;
     QComboBox cCollisionType;
     QLineEdit eCollisionFlags;
+    QLineEdit lightRange;
 };
 
 #endif	/* PROPERTIESSTATIC_H */

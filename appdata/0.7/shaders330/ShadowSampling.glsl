@@ -32,6 +32,178 @@ float receiverPlaneBias(vec2 gradient, vec2 offset, float limit) {
     return clamp(dot(gradient, offset), -limit, limit);
 }
 
+#ifdef TSRE_RHI
+// Clouds between the sun and a point (task 28): maps of what they let
+// through along the sun from a plane under them, around the camera, each
+// drifting with its layer: straight through (red low, green mid; the light
+// shafts') and in all, the light scattered through the cloud too (blue low,
+// alpha mid; two-stream, by the cloud's optical depth: thin clouds' shadows
+// light, a cumulus's about a quarter of the sun, a storm's dark).
+uniform sampler2D cloudShadowMap;
+// The low layer's map's centre (x, z), 1 / the maps' extent, on (1) or off
+// (0).
+uniform vec4 cloudShadowArea;
+// The mid layer's map's centre (x, z).
+uniform vec4 cloudShadowMid;
+// The sun's x / y and z / y (along it to the maps' plane), the plane's y,
+// the clouds' average shade (past the maps).
+uniform vec4 cloudShadowSun;
+
+float cloudShadow(vec3 position) {
+    if (cloudShadowArea.w <= 0.0)
+        return 1.0;
+    vec2 p = position.xz + cloudShadowSun.xy * (cloudShadowSun.z - position.y);
+    vec2 low = (p - cloudShadowArea.xy) * cloudShadowArea.z + 0.5;
+    vec2 mid = (p - cloudShadowMid.xy) * cloudShadowArea.z + 0.5;
+    // Past the maps the clouds' average shade (their clamped edges would
+    // stretch into stripes), with no hard border.
+    float inside = smoothstep(0.5, 0.45, max(max(abs(low.x - 0.5), abs(low.y - 0.5)),
+                                             max(abs(mid.x - 0.5), abs(mid.y - 0.5))));
+    // The two layers' optical depths add: 1 / (1 + k (d1 + d2)) from each
+    // 1 / (1 + k d).
+    float lowThrough = max(textureLod(cloudShadowMap, low, 0.0).b, 1e-3);
+    float midThrough = max(textureLod(cloudShadowMap, mid, 0.0).a, 1e-3);
+    float through = 1.0 / max(1.0 / lowThrough + 1.0 / midThrough - 1.0, 1.0);
+    float shade = mix(cloudShadowSun.w, through, inside);
+    return mix(1.0, shade, cloudShadowArea.w);
+}
+#endif
+
+#ifdef TSRE_RHI
+// The sky enclosure (task 27): the depth of the highest surface seen from
+// straight above around the camera. A point with something over it (terrain
+// over a tunnel, a deck, a roof) is enclosed: it gets less of the sky's
+// ambient light, and lamps keep their night strength there by day.
+uniform sampler2D skyEnclosureMap;
+uniform mat4 skyEnclosureMatrix;
+// On (1) or off (0), metres per unit of the map's depth, the filter's
+// spacing (map coordinates), the ambient light left where fully enclosed.
+uniform vec4 skyEnclosureParams;
+// The daylight scale of lamps where the sky is open (1 without the map).
+uniform float localLightDay;
+// The far map behind it (wider, coarser; terrain and large objects): on (1)
+// or off (0), its filter's spacing.
+uniform sampler2D skyEnclosureFarMap;
+uniform mat4 skyEnclosureFarMatrix;
+uniform vec2 skyEnclosureFar;
+// How open the sky is around each point of the near and the far map (0 deep
+// under cover, towards 1 near open sky), on (1) or off (0) each.
+uniform sampler2D skyEnclosureOpenMap;
+uniform sampler2D skyEnclosureFarOpenMap;
+uniform vec2 skyEnclosureOpen;
+
+// Where a map has the point: its map coordinates and depth, and how much the
+// map counts there (1 inside, fading to 0 towards its edge; 0 outside it or
+// its depth range, where it knows nothing: below its far plane every tap
+// read as covered).
+float enclosureShare(mat4 matrix, vec3 p, float fadeStart, float fadeEnd, out vec3 m) {
+    vec4 clip = matrix * vec4(p, 1.0);
+    m = clip.xyz / clip.w * 0.5 + 0.5;
+    if (m.z <= 0.0 || m.z >= 1.0)
+        return 0.0;
+    return 1.0 - smoothstep(fadeStart, fadeEnd, max(abs(m.x - 0.5), abs(m.y - 0.5)));
+}
+
+// 0 open to 1 enclosed in one map: the share of 16 taps around the point
+// with something more than 1.5-4 m above it. Only wide cover counts: a roof
+// or the terrain over a tunnel covers all the taps (half at its edge), while
+// thin things overhead (wires, lamp heads, gantries) cover a few, which lit
+// the ground under them in the map's texels with lamps at night strength by
+// day (user, 2026-10-12).
+// The 16 texels come in 4 gathers (2 x 2 texels each, a filter step
+// apart): a quarter of the fetches of 16 taps (5-7 ms at 4K).
+float enclosureTaps(sampler2D map, vec3 m, float spacing) {
+    float sum = 0.0;
+    for (int j = 0; j < 2; ++j)
+        for (int i = 0; i < 2; ++i) {
+            vec4 top = textureGather(map, m.xy + (vec2(i, j) - 0.5) * 2.0 * spacing);
+            sum += dot(smoothstep(vec4(1.5), vec4(4.0), (m.z - top) * skyEnclosureParams.y), vec4(1.0));
+        }
+    return smoothstep(0.3, 0.9, sum / 16.0);
+}
+
+// The same in the far map, coarse anyway: one gather.
+float enclosureTapsCoarse(sampler2D map, vec3 m, float spacing) {
+    vec4 top = textureGather(map, m.xy);
+    float sum = dot(smoothstep(vec4(1.5), vec4(4.0), (m.z - top) * skyEnclosureParams.y), vec4(1.0));
+    return smoothstep(0.3, 0.9, sum / 4.0);
+}
+
+// 0 open to 1 enclosed: the near map, fading into the far one towards its
+// edge, the far one into open sky towards its own. The point is moved 2 m off
+// walls first, past the eaves, so they do not count their own roof.
+// shade: how deep under cover, for the sky's ambient light and the lamps:
+// the enclosure less where open sky is near, so a tunnel darkens from its
+// portals in and the arches of a viaduct, open at both sides, stay lighter
+// (user, 2026-10-12).
+float skyEnclosed(vec3 position, vec3 normal, out float shade) {
+    shade = 0.0;
+    if (skyEnclosureParams.x <= 0.0)
+        return 0.0;
+    vec2 side = normal.xz;
+    float sideLength = length(side);
+    vec3 p = position;
+    if (sideLength > 1e-3)
+        p += vec3(side.x, 0.0, side.y) / sideLength * min(sideLength * 3.0, 1.0) * 2.0;
+    vec3 m;
+    float near = enclosureShare(skyEnclosureMatrix, p, 0.35, 0.48, m);
+    float enclosed = 0.0;
+    if (near > 0.0) {
+        float e = enclosureTaps(skyEnclosureMap, m, skyEnclosureParams.z) * near;
+        enclosed = e;
+        shade = skyEnclosureOpen.x > 0.0 ? e * (1.0 - textureLod(skyEnclosureOpenMap, m.xy, 0.0).r) : e;
+    }
+    if (near < 1.0 && skyEnclosureFar.x > 0.0) {
+        vec3 f;
+        float far = enclosureShare(skyEnclosureFarMatrix, p, 0.4, 0.49, f);
+        if (far > 0.0) {
+            float e = enclosureTapsCoarse(skyEnclosureFarMap, f, skyEnclosureFar.y) * far * (1.0 - near);
+            enclosed += e;
+            shade += skyEnclosureOpen.y > 0.0 ? e * (1.0 - textureLod(skyEnclosureFarOpenMap, f.xy, 0.0).r) : e;
+        }
+    }
+    return enclosed;
+}
+
+// Whether the maps have cover more than 0.5-2 m over a point (0-1): the
+// near map, else the far one, else none.
+float coverOver(vec3 q) {
+    vec3 m;
+    if (enclosureShare(skyEnclosureMatrix, q, 0.45, 0.48, m) > 0.5)
+        return smoothstep(0.5, 2.0, (m.z - textureLod(skyEnclosureMap, m.xy, 0.0).r) * skyEnclosureParams.y);
+    if (skyEnclosureFar.x > 0.0 && enclosureShare(skyEnclosureFarMatrix, q, 0.45, 0.49, m) > 0.5)
+        return smoothstep(0.5, 2.0, (m.z - textureLod(skyEnclosureFarMap, m.xy, 0.0).r) * skyEnclosureParams.y);
+    return 0.0;
+}
+
+// The sun past the covers the shadow maps miss (terrain casts no shadow;
+// tunnel tubes, seen from inside, face the sun with their backs): where a
+// point lies deep under cover (shade, from skyEnclosed), the points 3 and
+// 12 m higher on its way to the sun are looked up; cover over either blocks
+// the sun (deep in a tunnel), none lets it in. Weighted by shade, not the
+// plain enclosure: under a viaduct, open at its sides, the sun passes the
+// deck before it gets that high, and the shadow maps cast the deck's
+// shadow (this drew a band under its footprint, user 2026-10-12). 1 in the
+// open, with no lookups (user, 2026-10-12: a tunnel floor in the noon sun).
+float enclosureSun(vec3 position, float shade, vec3 sunDirection) {
+    if (shade <= 0.0)
+        return 1.0;
+    vec3 s = normalize(sunDirection);
+    if (s.y < 0.05)
+        return 1.0;
+    float blocked = max(coverOver(position + s * (3.0 / s.y)), coverOver(position + s * (12.0 / s.y)));
+    return 1.0 - blocked * shade;
+}
+
+float skyAmbient(float enclosed) {
+    return mix(1.0, skyEnclosureParams.w, enclosed);
+}
+
+float lampScale(float enclosed) {
+    return mix(localLightDay, 1.0, enclosed);
+}
+#endif
+
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
     float shadowIntensity = 0.1;

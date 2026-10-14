@@ -14,6 +14,7 @@
 #include <QVector3D>
 #include <QWidget>
 #include <tsre/renderer/RenderSurface.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/world/SkySatellites.h>
 #include <vector>
 #include <QOpenGLFunctions>
@@ -66,6 +67,10 @@ class TerrainMapLayer;
 class MapOverlayFade;
 class OsmMapLayer;
 class ImageryMapLayer;
+class WeatherMapLayer;
+#include <tsre/environment/WeatherImport.h>
+#include <tsre/environment/WeatherGenerator.h>
+class Weather;
 class MapMeasureLayer;
 class MapScaleBar;
 class QLabel;
@@ -125,9 +130,17 @@ public:
     // Renders a frame with the mouse at a device-pixel point and returns
     // the 3D pointer position read from the depth there.
     QVector3D probePointer(const QPoint &devicePoint);
-    // Stops simulation updates (traffic, animation) so separate processes
-    // render the same scene. Content loading continues.
+    // Stops simulation updates (traffic, animation, the clock) so separate
+    // processes render the same scene. Content loading continues.
     void setSimulationPaused(bool paused);
+    // The clock's step: seconds of the editor at speed seconds of the day a
+    // second run the time of day (hours) on; past midnight the date
+    // (yyyy-MM-dd) moves on, and it returns true. A stalled editor goes on
+    // from where it was (at most a second's step).
+    static bool advanceClock(double seconds, double speed, double &hours, QString &date);
+    // The clock's speed: seconds of the day a real second (1 real time; this
+    // session only).
+    void setClockSpeed(double secondsPerSecond);
     Route *currentRoute() const override { return route; }
     // The view mode (task editor 04): the 3D scene, or the map from straight
     // above. Switching moves to the pointer's place in the other mode; tools
@@ -144,6 +157,46 @@ public:
     bool prepareImageryLayer();
     // A map layer is still building on a worker thread (captures wait for it).
     bool mapLayersBusy() const;
+
+    // The editor's environment (task environment 01): the env file whose
+    // weather the map and the Environment panel (F5) show; editor.env at
+    // first.
+    struct EnvironmentSlot {
+        QString name;       // SpringClear ...
+        QString file;
+    };
+    // The TRK's season and weather slots with their env files.
+    QVector<EnvironmentSlot> environmentSlots() const;
+    // The env files in the route's ENVFILES.
+    QStringList environmentFiles() const;
+    QString environmentFile() const { return currentEnvironmentFile; }
+    QString environmentSlot() const { return currentEnvironmentSlot; }
+    // Reads another env file as the editor's environment (its water and
+    // weather); slot: the TRK slot chosen, if any.
+    bool chooseEnvironment(const QString &file, const QString &slot, QString *error);
+    // The weather of a preset, or with an empty name the env file's own.
+    void setWeatherPreset(const QString &preset, quint32 seed);
+    // Writes the env file with the weather as its block.
+    bool saveEnvironment(QString *error);
+    bool environmentModified() const { return weatherModified; }
+    const Weather *currentWeather() const;
+    // The weather's hours at the editor's date and time.
+    double weatherHours() const;
+    // Captures: a preset weather and its hours (NaN: the editor's time).
+    void setDiagnosticWeather(const QString &preset, quint32 seed, double hours);
+    // The track database's extent (MSTS world metres); false without track.
+    bool routeArea(double &west, double &north, double &east, double &south) const;
+    // The camera's place (MSTS world metres).
+    void cameraWorldPosition(double &east, double &north) const;
+    // A weather from historical data (task environment 01, step 3) for the
+    // request's area, set as the editor's weather (unsaved, as a preset).
+    // A route-scale weather from a scenario (a front over the route), in
+    // place of the environment's, not saved.
+    bool generateWeather(const WeatherGenerator::Settings &settings);
+    // The weather's hour for captures (NaN: the editor's time).
+    void setDiagnosticWeatherTime(double hours) { diagnosticWeatherHours = hours; }
+    bool importWeather(const WeatherImport::Request &request, QString *error,
+                       const std::function<bool()> &cancelled = {});
 
     // The render surface does the drawing; these forward to it so the view
     // code reads as before.
@@ -208,6 +261,8 @@ signals:
     // Sun and moon at the camera (true bearing); NaN where unknown (no
     // moon, or no sun bearing, without time of day).
     void environmentInfo(float sunElevation, float sunAzimuth, float moonElevation, float moonFraction);
+    // Another env file or weather (task environment 01).
+    void weatherChanged();
     void posInfo(PreciseTileCoordinate* pos);
     void pointerInfo(float* pos);
     void setToolbox(QString name);
@@ -246,6 +301,31 @@ protected:
     // Time of day (Game::timeOfDayEnabled): puts the sun where it stands over
     // the camera and lights the scene for it; off, restores the fixed light.
     void applyTimeOfDay();
+    // The physical sky (task 28): the renderer's sky and the fog colour.
+    void applySky();
+    bool physicalSkyApplied = false;
+    // The clouds (task 28): the weather around the camera for the renderer.
+    void applyClouds();
+    // The sky enclosure map (task 27), after the shadow maps.
+    void renderSkyEnclosure();
+    // Where the sky enclosure map was last drawn from (snapped), and the
+    // frames since: it is kept while the camera stays in its cell.
+    float enclosureEye[3] = {0.0f, 0.0f, 0.0f};
+    int enclosureAge = -1;
+    float farEnclosureEye[3] = {0.0f, 0.0f, 0.0f};
+    int farEnclosureAge = -1;
+    Renderer::Clouds cloudState;
+    quint64 weatherRevision = 0;
+    quint64 cloudWeatherRevision = ~0ull;
+    double cloudHours = std::nan("");
+    // The keyframes' blend the clouds' weather was sampled at.
+    int cloudBlendA = -1;
+    int cloudBlendB = -1;
+    double cloudBlendWeight = 0.0;
+    // The share of the sky the clouds cover around the camera (0-1), and
+    // whether the overcast light changed the frame's colours.
+    float cloudOvercast = 0.0f;
+    bool overcastApplied = false;
     struct TimeOfDayState {
         bool saved = false;
         bool applied = false;
@@ -266,6 +346,9 @@ protected:
     // The sun and the moon on the sky (task editor 05).
     SkySatellites skySatellites;
     SkySatellites::State skyState;
+    // The moon's light of this frame (display units; 0 without moonlight),
+    // for the sky (task 31).
+    float moonLight[3] = {0.0f, 0.0f, 0.0f};
     // Sky or fog settings changed; applyTimeOfDay takes them.
     bool environmentChanged = false;
     float reportedEnvironment[4] = {-1000.0f, -1000.0f, -1000.0f, -1000.0f};
@@ -418,6 +501,21 @@ private:
     void loadWholeView(const char *reason, qint64 limitMs);
     // From a whole view's start to the next frame: the time it was shown.
     QElapsedTimer wholeViewShown;
+    // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),
+    // kept from the settings as they change: frames read no settings.
+    int lampsByDay = 0;
+    // The clock: core.rendering.timeOfDay.running, kept as lampsByDay; its
+    // speed for this session only (the Environment panel); the time it runs
+    // on, finer than Game::timeOfDayHours.
+    bool timeRuns = true;
+    double timeSpeed = 1.0;
+    double clockHours = 0.0;
+    // Auto exposure (task 29): this frame's control, set by applyTimeOfDay
+    // and handed over once camera jumps are known.
+    Renderer::ExposureControl exposure;
+    QElapsedTimer exposureClock;
+    float lastSceneLight = 1.0f;
+    float lastExposureHours = 0.0f;
     const char *wholeViewReason = nullptr;
     // Its phases, from its start: loaded, frame gathered, frame drawn.
     qint64 wholeViewMarks[3] = {0, 0, 0};
@@ -451,6 +549,11 @@ private:
     // Map > Imagery: the imagery catalogue's world tile source, with its attribution
     // in the bottom right corner while shown.
     std::unique_ptr<ImageryMapLayer> imageryMap;
+    std::unique_ptr<WeatherMapLayer> weatherMap;
+    QString currentEnvironmentFile = QStringLiteral("editor.env");
+    QString currentEnvironmentSlot;
+    bool weatherModified = false;
+    double diagnosticWeatherHours = std::nan("");
     QLabel *imageryAttribution = NULL;
     void showImageryAttribution(bool show);
     // Map labels: the marker set (Map > Markers), stations, platforms and sidings (Map >

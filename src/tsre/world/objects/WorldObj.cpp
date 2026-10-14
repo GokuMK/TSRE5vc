@@ -15,6 +15,7 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <math.h>
+#include <algorithm>
 #include <QString>
 #include <tsre/world/objects/StaticObj.h>
 #include <tsre/world/objects/DynTrackObj.h>
@@ -314,6 +315,7 @@ WorldObj::WorldObj(const WorldObj& o) {
     Quat::copy(qDirection, (float*)o.qDirection);
     memcpy(matrix, o.matrix, sizeof(float)*16);
     staticDetailLevel = o.staticDetailLevel;
+    tsreLightRange = o.tsreLightRange;
     staticFlags = o.staticFlags;
     vDbId = o.vDbId;
     collideFlags = o.collideFlags;
@@ -563,6 +565,10 @@ void WorldObj::set(QString sh, FileBuffer* data) {
         staticDetailLevel = ParserX::GetNumber(data);
         return;
     }
+    if (sh == ("tsrelightrange")) {
+        tsreLightRange = std::max(0.0f, float(ParserX::GetNumber(data)));
+        return;
+    }
     if (sh == ("collideflags")) {
         collideFlags = ParserX::GetNumber(data);
         return;
@@ -639,7 +645,9 @@ void WorldObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     }
 
     Mat4::multiply(queue.transform(), queue.transform(), matrix);
+    queue.setLightReach(tsreLightRange);
     shapeToRender->pushRenderItem(queue, selectionId, shapeState);
+    queue.setLightReach(0.0f);
     if (selected)
         pushRenderBox(queue);
 }

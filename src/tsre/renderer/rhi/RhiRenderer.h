@@ -70,6 +70,17 @@ public:
                              const float *viewProjection = nullptr) override;
     void renderFrame() override;
     void resetFrame() override;
+    bool drawsPhysicalSky() const override;
+    void setSky(const Sky &sky) override;
+    void setClouds(const Clouds &clouds) override;
+    bool beginSkyEnclosure(int size, int map = 0) override;
+    void finishSkyEnclosure(bool far, float radius, float metresPerDepth) override;
+    void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
+                                float minRadius = 0.0f) override;
+    void setSkyEnclosure(const SkyEnclosure &enclosure) override;
+    void setExposureControl(const ExposureControl &control) override;
+    bool autoExposureAvailable() const override;
+    void setPlainImage(bool plain) override { plainImage = plain; }
 
     // The environment map and water reflection storage (RhiReflections.cpp)
     // drive these.
@@ -162,6 +173,9 @@ private:
         // textures sampled by direction or projection rather than by screen
         // position: shadow maps and cube faces.
         bool openGlRows = false;
+        // The sky's pass: the colour attachment alone.
+        QRhiTextureRenderTarget *skyTarget = nullptr;
+        QRhiRenderPassDescriptor *skyPass = nullptr;
         QRhiTextureRenderTarget *targets[4] = {};
         QRhiRenderPassDescriptor *passes[4] = {};
         QSize size;
@@ -182,12 +196,17 @@ private:
         std::vector<PipelineKey> keys;
         std::vector<BindingKey> bindings;
     };
-    // Targets by Renderer::Target, then selection, an environment map face
-    // and the water reflection.
-    static constexpr int TargetSelection = TARGET_SHADOW_FAR + 1;
+    // Targets by Renderer::Target, then the near sky enclosure map,
+    // selection, an environment map face, the water reflection, the far sky
+    // enclosure map and both seen from below.
+    static constexpr int TargetEnclosure = TARGET_SHADOW_FAR + 1;
+    static constexpr int TargetSelection = TargetEnclosure + 1;
     static constexpr int TargetEnvironment = TargetSelection + 1;
     static constexpr int TargetReflection = TargetEnvironment + 1;
-    static constexpr int TargetCount = TargetReflection + 1;
+    static constexpr int TargetEnclosureFar = TargetReflection + 1;
+    static constexpr int TargetEnclosureBottom = TargetEnclosureFar + 1;
+    static constexpr int TargetEnclosureFarBottom = TargetEnclosureBottom + 1;
+    static constexpr int TargetCount = TargetEnclosureFarBottom + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -275,6 +294,67 @@ private:
     // adds, or null without bloom.
     QRhiTexture *renderBloom(QRhiCommandBuffer *cb);
     void releaseBloom();
+    // Auto exposure (task 29; RhiImage.cpp). The view's log-average
+    // luminance is measured (64 x 64, then 1 x 1) and read back a frame or
+    // two later; the exposure follows it around the exposure of an ordinary
+    // view (1 / sceneLight).
+    ExposureControl exposureControl;
+    bool plainImage = false;
+    // The air between the camera and surfaces with a physical sky
+    // (Haze.glsl): the horizon's colour by the angle from the sun's
+    // direction across the ground (display, greyed under an overcast as the
+    // fog colour is), drawn again when the sun or the camera's height moves.
+    struct Haze {
+        float clear[8][3] = {};
+        float ring[8][3] = {};
+        float sun[2] = {1.0f, 0.0f};
+        float drawnSun[3] = {};
+        float drawnHeight = -1e9f;
+        bool valid = false;
+    } haze;
+    // The lit shaders' hazeParams: camera altitude (km), the weather's haze
+    // (1/km), on.
+    void hazeParameters(float *out) const;
+    bool exposureActive() const;
+    // The scale of gamma-space light colours (sceneLight^(1/2.2)), 1 off.
+    float sceneScaleDisplay() const;
+    // The exposure (linear) the final pass applies besides the setting.
+    float autoExposure() const;
+    // The signals' glow scale: signals are to be seen, so with auto
+    // exposure they keep the look the lamps' scale gives them, with the
+    // exposure offset and a boost (task 29).
+    float signalScale() const;
+    void measureLuminance(QRhiCommandBuffer *cb);
+    void releaseLuminance();
+    struct Luminance {
+        QRhiTexture *grid = nullptr;     // 64 x 64 log2 luminance
+        QRhiTexture *mean = nullptr;     // 1 x 1
+        QRhiTextureRenderTarget *gridTarget = nullptr;
+        QRhiTextureRenderTarget *meanTarget = nullptr;
+        QRhiRenderPassDescriptor *gridPass = nullptr;
+        QRhiRenderPassDescriptor *meanPass = nullptr;
+        QRhiShaderResourceBindings *gridBindings = nullptr;
+        QRhiShaderResourceBindings *meanBindings = nullptr;
+        QRhiGraphicsPipeline *gridPipeline = nullptr;
+        QRhiGraphicsPipeline *meanPipeline = nullptr;
+        QRhiSampler *linear = nullptr;
+        QRhiSampler *nearest = nullptr;
+        const QRhiTexture *boundView = nullptr;
+        const QRhiTexture *boundDepth = nullptr;
+        QRhiReadbackResult readback;
+        bool pending = false;
+        // The last measurement (log2 luminance, scene light).
+        float measuredLog2 = 0.0f;
+        bool measured = false;
+        // The adapted correction (stops) around an ordinary view's exposure.
+        float correction = 0.0f;
+        // Measured frames to take the target at once after a snap (the
+        // read-back lags).
+        int snapFrames = 0;
+        // Bumped by a snap: read-backs issued before it are dropped.
+        int generation = 0;
+        int pendingGeneration = 0;
+    } luminance;
     struct Bloom {
         QSize viewSize;
         std::vector<QRhiTexture *> levels;
@@ -306,6 +386,8 @@ private:
         float focal = 1.0f;
         float lod = 1.0f;
         float fogDensity = 1.0f;
+        // The air's haze, as the lit shaders' (hazeParams).
+        float haze[4] = {};
         QRhiViewport viewport;
         QRhiBuffer *instances = nullptr;
         quint32 capacity = 0;
@@ -314,6 +396,9 @@ private:
         QRhiShaderResourceBindings *bindings = nullptr;
         QRhiGraphicsPipeline *pipeline = nullptr;
         QRhiRenderPassDescriptor *pipelinePass = nullptr;
+        // Gathered for the sky enclosure (task 27), and the map bound.
+        bool enclosed = false;
+        QRhiTexture *enclosureTexture = nullptr;
     } glowSplats;
     void gatherGlowSplats();
     void prepareGlowSplats();
@@ -380,6 +465,287 @@ private:
     // view draws and read by every view.
     void prepareLights();
     void releaseLights();
+public:
+    static QList<QByteArray> skyShaders();
+private:
+    // Physical sky (RhiSky.cpp).
+    struct SkyResources {
+        QRhiTexture *transmittance = nullptr;
+        QRhiTexture *multiple = nullptr;
+        QRhiTexture *view = nullptr;
+        QRhiTexture::Format tableFormat = QRhiTexture::RGBA16F;
+        QRhiTextureRenderTarget *viewTarget = nullptr;
+        QRhiRenderPassDescriptor *viewPass = nullptr;
+        QRhiBuffer *viewUniforms = nullptr;
+        QRhiSampler *linear = nullptr;
+        QRhiShaderResourceBindings *viewBindings = nullptr;
+        QRhiGraphicsPipeline *viewPipeline = nullptr;
+        // One per sky pass in a frame (a frame may draw several cube faces):
+        // a dynamic buffer holds its last values for the whole frame.
+        struct Use {
+            QRhiBuffer *uniforms = nullptr;
+            QRhiShaderResourceBindings *bindings = nullptr;
+        };
+        std::vector<Use> uses;
+        size_t usesThisFrame = 0;
+        std::vector<std::pair<QRhiRenderPassDescriptor *, QRhiGraphicsPipeline *>> pipelines;
+        bool tablesUploaded = false;
+        bool viewRendered = false;
+    } skyResources;
+    float skyInverse[TargetCount][16] = {};
+    // Projection x camera rotation (the clouds' reprojection).
+    float skyForward[TargetCount][16] = {};
+    // The main view's distant band far plane (m).
+    float distantFar = 10000.0f;
+    bool skyInverseValid[TargetCount] = {};
+    bool skyFor(int which) const;
+    bool createSkyResources();
+    void releaseSkyResources();
+    void setSkyInverse(const float *projection, const float *viewMatrix);
+    void drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiResourceUpdateBatch *&updates);
+public:
+    static QList<QByteArray> cloudShaders();
+private:
+    // Volumetric clouds (RhiClouds.cpp).
+    Clouds clouds;
+    bool cloudsApplied = false;
+    // A view's own clouds: the march, the image built from it over frames
+    // and the composite into the view. The main view's are part of
+    // CloudResources; the water reflection and each environment cube face
+    // have their own.
+    struct CloudView {
+        // The march (one texel per update block) and the cloud image.
+        QSize size;
+        QSize imageSize;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiBuffer *updateUniforms = nullptr;
+        quint32 updateStride = 0;
+        QRhiTexture *march = nullptr;
+        // The finished cloud image (the history alternates): the composite
+        // and the light shafts read it.
+        QRhiTexture *image = nullptr;
+        // Where the clouds of each pixel are (front, mean distance, layer,
+        // each times their cover, and the cover): from the march, kept with
+        // the image's history; the composite tests the scene's depth against
+        // it, the history follows each pixel's own cloud.
+        QRhiTexture *marchDepth = nullptr;
+        QRhiTexture *historyDepth[2] = {};
+        QRhiTexture *imageDepth = nullptr;
+        QRhiTextureRenderTarget *marchTarget = nullptr;
+        QRhiRenderPassDescriptor *marchPass = nullptr;
+        QRhiShaderResourceBindings *marchBindings = nullptr;
+        QRhiGraphicsPipeline *marchPipeline = nullptr;
+        QRhiTexture *history[2] = {};
+        QRhiTextureRenderTarget *historyTargets[2] = {};
+        QRhiRenderPassDescriptor *historyPasses[2] = {};
+        QRhiShaderResourceBindings *temporalBindings[2] = {};
+        QRhiGraphicsPipeline *temporalPipeline = nullptr;
+        int current = 0;
+        // The update pass (pixel of each block) the next run starts with.
+        int nextPass = 0;
+        bool historyValid = false;
+        float previous[16] = {};
+        bool previousValid = false;
+        double lastEast = 0.0;
+        double lastNorth = 0.0;
+        // The layers' drift at the last frame (m east, north).
+        float lastDrift[3][2] = {};
+        bool driftValid = false;
+        QRhiTexture *compositeColor = nullptr;
+        QRhiTextureRenderTarget *compositeTarget = nullptr;
+        QRhiRenderPassDescriptor *compositePass = nullptr;
+        QRhiShaderResourceBindings *compositeBindings[2] = {};
+        QRhiGraphicsPipeline *compositePipeline = nullptr;
+        // Off where another view's pipelines are used (the cube's faces
+        // share face 0's).
+        bool ownsPipelines = true;
+    };
+    struct CloudResources : CloudView {
+        int quality = 0;
+        QRhiTexture *shape = nullptr;
+        QRhiTexture *detail = nullptr;
+        QRhiTexture *curl = nullptr;
+        QRhiResourceUpdateBatch *pendingUploads = nullptr;
+        QRhiTexture *weather = nullptr;
+        quint64 weatherRevision = ~0ull;
+        QRhiTexture *coverNear = nullptr;
+        QRhiTexture *coverFar = nullptr;
+        QRhiTextureRenderTarget *coverTargets[2] = {};
+        QRhiRenderPassDescriptor *coverPasses[2] = {};
+        QRhiBuffer *coverUniforms[2] = {};
+        QRhiShaderResourceBindings *coverBindings[2] = {};
+        QRhiGraphicsPipeline *coverPipeline = nullptr;
+        std::vector<double> coverKey;
+        // What the cloud shadow map was last drawn for.
+        std::vector<double> shadowKey;
+        int frame = 0;
+        // The main view's march parameters as last written: the reflection
+        // and the cube, drawn before this frame's are, take them with their
+        // own views.
+        std::vector<float> parameters;
+        QRhiSampler *linear = nullptr;
+        QRhiSampler *nearest = nullptr;
+        QRhiSampler *repeat = nullptr;
+        QRhiTexture *shadow = nullptr;
+        QRhiTextureRenderTarget *shadowTarget = nullptr;
+        QRhiRenderPassDescriptor *shadowPass = nullptr;
+        QRhiGraphicsPipeline *shadowPipeline = nullptr;
+        bool shadowValid = false;
+        // The shadow map's centre per layer (low, mid) on that layer's own
+        // ground, its drift taken off (m east, north): the map drifts with
+        // the layer between draws.
+        double shadowCentre[2][2] = {};
+        // The centres moved back to the camera: the map is drawn there
+        // before the view reads it.
+        bool shadowPlaced = false;
+        // The sky's light through the clouds around the camera: what they
+        // let through straight down over the shadow map's extent (64 x 64),
+        // then their cover and the mean of what they let through, read back
+        // after the shadow map is drawn (cloudSkyLight).
+        QRhiTexture *skyLight = nullptr;
+        QRhiTextureRenderTarget *skyLightTarget = nullptr;
+        QRhiRenderPassDescriptor *skyLightPass = nullptr;
+        QRhiGraphicsPipeline *skyLightPipeline = nullptr;
+        QRhiTexture *skyMean = nullptr;
+        QRhiTextureRenderTarget *skyMeanTarget = nullptr;
+        QRhiRenderPassDescriptor *skyMeanPass = nullptr;
+        QRhiShaderResourceBindings *skyMeanBindings = nullptr;
+        QRhiGraphicsPipeline *skyMeanPipeline = nullptr;
+        QRhiReadbackResult skyReadback;
+        bool skyWanted = false;
+        bool skyPending = false;
+        bool skyValid = false;
+        float skyCover = 0.0f;
+        float skyThrough = 1.0f;
+    } cloudResources;
+    // The share of the clear sky's light (linear) the ground gets with the
+    // clouds overhead: the open sky, the light through the clouds, and the
+    // sun's light their sides scatter down into a broken field; 1 without
+    // clouds. The ambient takes it.
+    float cloudSkyLight() const;
+    bool cloudsPrepared = false;
+    // The clouds in the water reflection: their own image at a quarter of
+    // the main view's pixels (the reflection has a quarter of the view's).
+    CloudView reflectionClouds;
+    bool reflectionCloudsApplied = false;
+    // The environment cube's clouds, per face (task 28): a preset below
+    // Low, as the cube is read blurred.
+    CloudView environmentClouds[6];
+    int environmentFace = -1;
+    bool environmentCloudsApplied = false;
+    // Each target's scene band projection scale (x, y), for the clouds.
+    float bandScale[TargetCount][2] = {};
+    bool createCloudView(CloudView &v, const QSize &viewSize, int pixels, QRhiTexture *color,
+                         QRhiTexture *glow, QRhiTexture *depth, int colorLayer = 0,
+                         const CloudView *share = nullptr);
+    void releaseCloudView(CloudView &v);
+    void releaseEnvironmentClouds();
+    void writeCloudUpdates(CloudView &v, QRhiResourceUpdateBatch *updates);
+    void runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize &viewSize, QRhiResourceUpdateBatch *updates,
+                      int passes);
+    // The clouds of the reflection or a cube face, after its opaque passes.
+    void applySecondaryClouds();
+    void applyViewClouds(CloudView &v, int target, const Attachments &attachments, int colorLayer, int pixels,
+                         int steps, int lightSteps, int passes, const CloudView *share);
+    // The sky enclosure maps (task 27): near, and far behind it; each also
+    // seen from below.
+    Attachments enclosureMap;
+    Attachments enclosureFarMap;
+    Attachments enclosureBottomMap;
+    Attachments enclosureFarBottomMap;
+    SkyEnclosure enclosure;
+    bool enclosureDrawn = false;
+    bool enclosureFarDrawn = false;
+    // How open the sky is around each point of the near and the far map.
+    struct EnclosureOpenness {
+        QRhiTexture *texture = nullptr;
+        QRhiTextureRenderTarget *target = nullptr;
+        QRhiRenderPassDescriptor *pass = nullptr;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        const QRhiTexture *boundTop = nullptr;
+        const QRhiTexture *boundBottom = nullptr;
+        bool valid = false;
+    } enclosureOpen[2];
+    QRhiGraphicsPipeline *opennessPipeline = nullptr;
+    bool enclosureTarget(int which) const;
+    void releaseEnclosureOpenness();
+    void recordCasters(int statsSlot);
+    bool cloudShadowPlane(float &altitude) const;
+    // The cloud shadow map's extent (km) and texels per side.
+    static constexpr float CloudShadowExtent = 14.0f;
+    static constexpr int CloudShadowSize = 512;
+    // A layer's (0 low, 1 mid) cloud shadow map centre now: its offset from
+    // the camera (m east, north) and its place in the view's space (x, z).
+    void cloudShadowOffset(int layer, double &east, double &north) const;
+    void cloudShadowCentre(int layer, float &x, float &z) const;
+    // Moves a layer's map back near the camera when it has drifted too far,
+    // before the frame's draws take its place.
+    void placeCloudShadow();
+    // The planet radius of the cloud shell (km): smaller than the Earth's,
+    // so the clouds reach the horizon within the weather around the camera.
+    float cloudShellRadius() const;
+    // The clouds' light (task 31): towards it (normalized) and its light
+    // relative to the sun's. The sun, also under the horizon while it still
+    // reaches the clouds; then the moon, fading in.
+    void cloudLight(float *direction, float *colour) const;
+    // The layers' moves since the view's last frame (km east, north: low and
+    // mid; high) and the low layer's middle height (km), for its history;
+    // the cloud shell's radius (km).
+    void cloudMotion(CloudView &v, float *motion, float *motionHigh);
+    void writeCloudShadowUniforms(RhiProgram *program);
+    void prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);
+public:
+    static QList<QByteArray> lightShaftShaders();
+private:
+    // Screen-space light shafts (RhiLightShafts.cpp).
+    struct LightShafts {
+        QSize size;
+        QRhiTexture *viewColor = nullptr;
+        QRhiTexture *cloudTexture = nullptr;
+        QRhiTexture *white = nullptr;
+        QRhiResourceUpdateBatch *whiteUpload = nullptr;
+        QRhiTexture *mask = nullptr;
+        QRhiTexture *blurred = nullptr;
+        QRhiTextureRenderTarget *maskTarget = nullptr;
+        QRhiTextureRenderTarget *blurTarget = nullptr;
+        QRhiTextureRenderTarget *addTarget = nullptr;
+        QRhiRenderPassDescriptor *maskPass = nullptr;
+        QRhiRenderPassDescriptor *blurPass = nullptr;
+        QRhiRenderPassDescriptor *addPass = nullptr;
+        QRhiShaderResourceBindings *maskBindings = nullptr;
+        QRhiShaderResourceBindings *blurBindings = nullptr;
+        QRhiShaderResourceBindings *addBindings = nullptr;
+        QRhiGraphicsPipeline *maskPipeline = nullptr;
+        QRhiGraphicsPipeline *blurPipeline = nullptr;
+        QRhiGraphicsPipeline *addPipeline = nullptr;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiSampler *linear = nullptr;
+        // Volumetric (step 8).
+        QRhiBuffer *volumeUniforms = nullptr;
+        QRhiShaderResourceBindings *volumeBindings = nullptr;
+        QRhiShaderResourceBindings *volumeAddBindings = nullptr;
+        QRhiGraphicsPipeline *volumePipeline = nullptr;
+        QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
+        const QRhiTexture *volumeCloudMap = nullptr;
+        const QRhiTexture *volumeSunMap = nullptr;
+    } lightShafts;
+    bool shaftsApplied = false;
+    bool createLightShafts(QRhiTexture *cloudTexture);
+    void applyLightShafts();
+    void applyVolumetricShafts(const QVector3D &sunDirection, float elevation);
+    void releaseLightShafts();
+    bool cloudsWanted() const;
+    bool createCloudVolumes();
+    bool createCloudResources(const QSize &viewSize, int quality);
+    void applyClouds();
+    void releaseCloudBuffers();
+    // The maps the views share (weather, cover, shadow, the sky's light).
+    bool createSharedCloudMaps();
+    // The main view's own cloud resources, for a new view target: the shared
+    // maps and what they hold stay.
+    void releaseMainCloudView();
+    void releaseCloudResources();
     void writeLightUniforms(RhiProgram *program);
     LightGrid lightGrid;
     std::vector<LightGrid::Light> frameLights;

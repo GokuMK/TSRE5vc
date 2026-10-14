@@ -199,7 +199,9 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
     }*/
     
     if(shapePointer != NULL){
+        queue.setLightReach(tsreLightRange);
         shapePointer->pushRenderItem(queue, selectionId, shapeState);
+        queue.setLightReach(0.0f);
     }
 
     if(selected){
@@ -417,6 +419,8 @@ if(this->staticFlags != 0)
 *(out) << "		VDbId ( "<<this->vDbId<<" )\n";
 if(this->staticDetailLevel > -1)
 *(out) << "		StaticDetailLevel ( "<<this->staticDetailLevel<<" )\n";
+if(this->tsreLightRange > 0.0f)
+*(out) << "		TSRELightRange ( "<<this->tsreLightRange<<" )\n";
 *(out) << "	)\n";
 }
 

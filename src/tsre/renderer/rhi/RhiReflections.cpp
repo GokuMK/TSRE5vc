@@ -81,7 +81,10 @@ void RhiRenderer::beginOffscreen(int which, Attachments *attachments, const floa
     TargetState &state = targets[which];
     state.attachments = attachments;
     // As glClearColor: later clears take this colour too.
-    nextClearColor = QColor::fromRgbF(clearColor[0], clearColor[1], clearColor[2], 1.0f);
+    // In the scene's scale with auto exposure (task 29).
+    const float scene = sceneScaleDisplay();
+    nextClearColor = QColor::fromRgbF(std::min(clearColor[0] * scene, 1.0f), std::min(clearColor[1] * scene, 1.0f),
+                                      std::min(clearColor[2] * scene, 1.0f), 1.0f);
     state.color = nextClearColor;
     state.clearColor = state.clearDepth = true;
     setViewport(0, 0, attachments->size.width(), attachments->size.height());
@@ -207,6 +210,11 @@ bool RhiRenderer::createEnvironment(int faceSize, int levels) {
 void RhiRenderer::beginEnvironmentFace(int face, const float *clearColor) {
     if (environment.cube == nullptr || face < 0 || face >= EnvironmentMap::FaceCount)
         return;
+    // The last face's clouds, if no later pass of it drew them.
+    if (currentTarget == TargetEnvironment)
+        applySecondaryClouds();
+    environmentFace = face;
+    environmentCloudsApplied = false;
     beginOffscreen(TargetEnvironment, &environment.faces[face], clearColor);
 }
 
@@ -214,9 +222,11 @@ void RhiRenderer::endEnvironmentFaces(const QVector<int> &prefilterFaces) {
     if (environment.cube == nullptr)
         return;
     if (currentTarget == TargetEnvironment) {
+        applySecondaryClouds();
         flushTarget();
         currentTarget = TARGET_VIEW;
     }
+    environmentFace = -1;
     environment.mipmapsPending = true;
     for (int face : prefilterFaces)
         if (!environment.prefilterPending.contains(face))
@@ -361,6 +371,9 @@ void RhiRenderer::releaseEnvironment() {
     e.previewPass = nullptr;
     if (currentTarget == TargetEnvironment)
         currentTarget = TARGET_VIEW;
+    // Their clouds draw into the cube's faces and read its depth.
+    releaseEnvironmentClouds();
+    environmentFace = -1;
     targets[TargetEnvironment].attachments = nullptr;
     targets[TargetEnvironment].draws.clear();
     targets[TargetEnvironment].keys.clear();
@@ -405,6 +418,8 @@ void RhiRenderer::beginReflection(const float *clearColor) {
 void RhiRenderer::endReflection() {
     if (currentTarget != TargetReflection)
         return;
+    // The clouds, if no later pass of the reflection drew them.
+    applySecondaryClouds();
     flushTarget();
     currentTarget = TARGET_VIEW;
     RhiRenderSurface *s = surface();
@@ -427,5 +442,7 @@ void RhiRenderer::releaseReflection() {
     targets[TargetReflection].keys.clear();
     targets[TargetReflection].bindings.clear();
     reflectionSampled = nullptr;
+    // Its clouds draw into the reflection's colour and read its depth.
+    releaseCloudView(reflectionClouds);
     releaseAttachments(reflection);
 }

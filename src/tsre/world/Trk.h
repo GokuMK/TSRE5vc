@@ -52,6 +52,9 @@ public:
     float startpZ;
     float distantTerrainYOffset = 0;
     int tsreSuperelevation = 0;
+    // The ambient left where the sky is hidden (task 27); negative: the
+    // setting's.
+    float tsreEnclosedAmbient = -1.0f;
     bool milepostUnitsKilometers;
     int maxLineVoltage;
     QString defaultSignalSMS;

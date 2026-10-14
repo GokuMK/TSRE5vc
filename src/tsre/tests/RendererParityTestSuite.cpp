@@ -21,6 +21,7 @@
 #include <QJsonArray>
 #include <tsre/geo/TerrainOverlays.h>
 #include <QJsonDocument>
+#include <tsre/environment/WeatherGenerator.h>
 #include <QJsonObject>
 #include <QScopedValueRollback>
 #include <QTextStream>
@@ -47,6 +48,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <settings/SettingsManager.h>
 #include <tsre/math3d/GLMatrix.h>
 
 namespace {
@@ -87,6 +89,22 @@ struct ViewSpec {
     bool osmData = false;
     bool osmTransparentAreas = false;
     bool imagery = false;
+    // Map mode weather (task environment 01): the layer, a preset weather and
+    // its seed, and its hours (NaN: the editor's time of day).
+    bool weather = false;
+    QString weatherPreset;
+    quint32 weatherSeed = 1;
+    // A generated front instead of a preset (WeatherGenerator::scenarioNames).
+    QString weatherScenario;
+    double weatherHeading = 70.0;
+    double weatherSpeed = 35.0;
+    double weatherArrival = 14.0;
+    double weatherTime = std::nan("");
+    // Time of day (hours) for this view; NaN keeps the profile's.
+    double time = std::nan("");
+    // Settings (key: JSON value) for this view and the following ones, applied
+    // to the running editor as the Settings Editor's Apply to Running TSRE.
+    QJsonObject settings;
     // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
     // overlay opacity (0 to 1).
     QStringList overlayActions;
@@ -118,10 +136,41 @@ struct ViewSpec {
 // A static object placed for the capture only (not saved): a shape of the
 // route's SHAPES directory, at an offset (x, height above the terrain, z)
 // from the start view's position, turned by yaw degrees.
+// A view's weather: a preset, or a front generated over the route's area
+// (40 km around its track), at the view's weather time.
+void applyViewWeather(RouteEditorGLWidget &widget, const ViewSpec &spec) {
+    const int scenario = WeatherGenerator::scenarioNames().indexOf(spec.weatherScenario);
+    if (scenario < 0) {
+        widget.setDiagnosticWeather(spec.weatherPreset, spec.weatherSeed, spec.weatherTime);
+        return;
+    }
+    WeatherGenerator::Settings s;
+    s.scenario = WeatherGenerator::Scenario(scenario);
+    s.heading = spec.weatherHeading;
+    s.speed = spec.weatherSpeed;
+    s.arrival = spec.weatherArrival;
+    s.seed = spec.weatherSeed;
+    double west, north, east, south;
+    if (!widget.routeArea(west, north, east, south))
+        return;
+    s.west = west - 40000.0;
+    s.east = east + 40000.0;
+    s.south = south - 40000.0;
+    s.north = north + 40000.0;
+    widget.generateWeather(s);
+    widget.setDiagnosticWeatherTime(spec.weatherTime);
+}
+
 struct PlacedObject {
     QString file;
     float offset[3] = {0.0f, 0.0f, 0.0f};
     float yaw = 0.0f;
+    // At a tile and position of its own (y absolute) instead of an offset
+    // from the start, which needs the terrain there.
+    bool absolute = false;
+    int tileX = 0;
+    int tileZ = 0;
+    float position[3] = {0.0f, 0.0f, 0.0f};
 };
 
 struct Options {
@@ -250,6 +299,12 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         placed.file = object.value("file").toString();
         readFloatArray(object.value("offset"), placed.offset, 3);
         placed.yaw = float(object.value("yaw").toDouble(0.0));
+        const QJsonArray objectTile = object.value("tile").toArray();
+        if (objectTile.size() == 2 && readFloatArray(object.value("pos"), placed.position, 3)) {
+            placed.absolute = true;
+            placed.tileX = objectTile[0].toInt();
+            placed.tileZ = objectTile[1].toInt();
+        }
         if (placed.file.isEmpty()) {
             error = "placed object without a file";
             return false;
@@ -278,6 +333,18 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
         view.imagery = object.value("imagery").toBool(false);
+        view.weather = object.value("weather").toBool(false);
+        view.weatherPreset = object.value("weatherPreset").toString();
+        view.weatherSeed = quint32(object.value("weatherSeed").toInt(1));
+        view.weatherScenario = object.value("weatherScenario").toString();
+        view.weatherHeading = object.value("weatherHeading").toDouble(70.0);
+        view.weatherSpeed = object.value("weatherSpeed").toDouble(35.0);
+        view.weatherArrival = object.value("weatherArrival").toDouble(14.0);
+        if (object.contains("weatherTime"))
+            view.weatherTime = object.value("weatherTime").toDouble();
+        if (object.contains("time"))
+            view.time = object.value("time").toDouble();
+        view.settings = object.value("settings").toObject();
         for (const QJsonValue &action : object.value("overlay").toArray())
             view.overlayActions << action.toString();
         view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
@@ -507,8 +574,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         item.currentFilename = placed.file;
         int tileX = startTileX, tileZ = startTileZ;
         float position[3] = {startPos[0] + placed.offset[0], 0.0f, startPos[2] + placed.offset[2]};
-        Game::check_coords(tileX, tileZ, position);
-        position[1] = Game::terrainLib->getHeight(tileX, tileZ, position[0], position[2]) + placed.offset[1];
+        if (placed.absolute) {
+            tileX = placed.tileX;
+            tileZ = placed.tileZ;
+            std::copy(placed.position, placed.position + 3, position);
+        } else {
+            Game::check_coords(tileX, tileZ, position);
+            position[1] = Game::terrainLib->getHeight(tileX, tileZ, position[0], position[2]) + placed.offset[1];
+        }
         float rotation[4];
         float up[3] = {0.0f, 1.0f, 0.0f};
         Quat::setAxisAngle(rotation, up, placed.yaw * float(M_PI) / 180.0f);
@@ -577,6 +650,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setMapLayerVisible(MapLayer::OsmData, spec.osmData);
             widget.setMapLayerVisible(MapLayer::OsmTransparentAreas, spec.osmTransparentAreas);
             widget.setMapLayerVisible(MapLayer::Imagery, spec.imagery);
+            widget.setMapLayerVisible(MapLayer::Weather, spec.weather);
+            if (spec.weather)
+                applyViewWeather(widget, spec);
             TerrainOverlays::setOpacity(float(spec.overlayOpacity));
             for (const QString &action : spec.overlayActions)
                 widget.runDiagnosticOverlayAction(action);
@@ -595,7 +671,29 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 Game::terrainLib->setDistantAsCurrent();
             else
                 Game::terrainLib->setDetailedAsCurrent();
+        } else if (!spec.weatherPreset.isEmpty() || !spec.weatherScenario.isEmpty()) {
+            // The weather of a 3D view (the clouds).
+            applyViewWeather(widget, spec);
         }
+        if (!spec.settings.isEmpty()) {
+            SettingsManager &settings = SettingsManager::instance();
+            QJsonObject document = settings.document();
+            QJsonArray entries = document.value("settings").toArray();
+            for (int i = 0; i < entries.size(); ++i) {
+                QJsonObject entry = entries[i].toObject();
+                const QString key = entry.value("key").toString();
+                if (spec.settings.contains(key)) {
+                    entry["value"] = spec.settings.value(key);
+                    entries[i] = entry;
+                }
+            }
+            document["settings"] = entries;
+            QString error;
+            if (!settings.applyProfileToRuntime(document, nullptr, &error))
+                qWarning() << CaptureLog << "settings not applied:" << error;
+        }
+        if (!std::isnan(spec.time))
+            Game::timeOfDayHours = float(spec.time);
 
         QElapsedTimer settleTimer;
         settleTimer.start();
@@ -633,8 +731,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         bool stable = true;
         double minCpuMs = -1.0;
         RenderStats::FrameStats stats;
+        // Whole frames: a grab waits for the GPU and reads the image back,
+        // so its time is the CPU's, the GPU's and a fixed readback.
+        std::vector<double> frameMs;
+        QElapsedTimer frameTimer;
         for (int i = 0; i < options.timingFrames; ++i) {
+            frameTimer.start();
             image = widget.grabFramebuffer();
+            frameMs.push_back(frameTimer.nsecsElapsed() / 1e6);
             const QByteArray hash = imageHash(image);
             if (i > 0 && hash != previousHash)
                 stable = false;
@@ -669,6 +773,15 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
 
         QJsonObject statsJson = RenderStats::toJson(stats);
         statsJson["minCpuMs"] = minCpuMs;
+        if (!frameMs.empty()) {
+            std::sort(frameMs.begin(), frameMs.end());
+            statsJson["minFrameMs"] = frameMs.front();
+            statsJson["medianFrameMs"] = frameMs[frameMs.size() / 2];
+            qInfo().noquote() << CaptureLog << spec.name << "frame ms: min"
+                              << QString::number(frameMs.front(), 'f', 1) << "median"
+                              << QString::number(frameMs[frameMs.size() / 2], 'f', 1)
+                              << "cpu" << QString::number(minCpuMs, 'f', 1);
+        }
 
         QJsonObject view;
         view["name"] = spec.name;

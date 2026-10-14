@@ -51,6 +51,10 @@
 #include <routeEditor/properties/PropertiesConsist.h>
 #include <routeEditor/NaviWindow.h>
 #include <routeEditor/EnvironmentWindow.h>
+#include <routeEditor/EnvironmentTools.h>
+#include <QProxyStyle>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <routeEditor/ErrorMessagesWindow.h>
 #include <routeEditor/ClientUsersWindow.h>
 #include <tsre/ErrorMessagesLib.h>
@@ -110,6 +114,49 @@ QString projectionCountry(Route *route,
 }
 }
 
+namespace {
+
+// Tool panels are narrow: their scroll bars take a third of the style's width.
+class ThinScrollBars : public QProxyStyle {
+public:
+    // Over Fusion, the style TSRE runs on (main.cpp), drawn with its palette.
+    // Without a base a proxy takes the platform's style (on Windows the
+    // native one, which ignores the palette: light bars in the dark theme),
+    // and the application style has no name to copy: the style sheet wraps
+    // it.
+    ThinScrollBars() : QProxyStyle(QStyleFactory::create(QStringLiteral("Fusion"))) {}
+    int pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const override {
+        const int value = QProxyStyle::pixelMetric(metric, option, widget);
+        return metric == PM_ScrollBarExtent ? std::max(4, (value + 2) / 3) : value;
+    }
+};
+
+// A tool panel (F1-F5) in a scroll area of the tool box's width, so a tall
+// panel scrolls instead of being cut off.
+QScrollArea *scrollPanel(QWidget *panel, QWidget *parent) {
+    static ThinScrollBars *thin = new ThinScrollBars;
+    auto *area = new QScrollArea(parent);
+    area->setWidgetResizable(true);
+    area->setFrameShape(QFrame::NoFrame);
+    area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    area->verticalScrollBar()->setStyle(thin);
+    area->setFixedWidth(260);
+    // The panel keeps the width beside the scroll bar, so its rows squeeze
+    // into it as they did at a fixed width (wider, they would be cut off).
+    panel->setFixedWidth(260 - thin->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, area->verticalScrollBar()));
+    area->setWidget(panel);
+    return area;
+}
+
+// The scroll area holding a panel.
+QWidget *panelArea(QWidget *panel) {
+    QWidget *viewport = panel->parentWidget();
+    QWidget *area = viewport != nullptr ? viewport->parentWidget() : nullptr;
+    return qobject_cast<QScrollArea *>(area) != nullptr ? area : panel;
+}
+
+} // namespace
+
 RouteEditorWindow::RouteEditorWindow() {
 
     objTools = new ObjTools("ObjTools");
@@ -123,6 +170,7 @@ RouteEditorWindow::RouteEditorWindow() {
     aboutWindow = new AboutWindow(this);
     naviWindow = new NaviWindow(this);
     environmentWindow = new EnvironmentWindow(this);
+    environmentTools = new EnvironmentTools(glWidget, environmentWindow);
     errorMessagesWindow = ErrorMessagesLib::GetWindow(this);
     clientUsersWindow = new ClientUsersWindow(this);
     activityEventWindow = new ActivityEventWindow(this);
@@ -159,7 +207,7 @@ RouteEditorWindow::RouteEditorWindow() {
     QWidget* main = new QWidget();
     box = new QWidget(this);
     box2 = new QWidget(this);
-    box->setFixedWidth(250);
+    box->setFixedWidth(260);
     box->setWindowTitle(
         //% "Tools Window"
         qtTrId("route.editor.route.editor.window.title.tools.window"));
@@ -175,12 +223,14 @@ RouteEditorWindow::RouteEditorWindow() {
     //mainLayout2->setContentsMargins(0,0,0,0);
     mainLayout2->setSpacing(0);
     mainLayout2->setContentsMargins(0,0,0,0);
-    mainLayout2->addWidget(objTools);
-    mainLayout2->addWidget(terrainTools);
-    mainLayout2->addWidget(geoTools);
+    mainLayout2->addWidget(scrollPanel(objTools, box));
+    mainLayout2->addWidget(scrollPanel(terrainTools, box));
+    mainLayout2->addWidget(scrollPanel(geoTools, box));
     if(Game::serverClient == NULL){
-        mainLayout2->addWidget(activityTools);
+        mainLayout2->addWidget(scrollPanel(activityTools, box));
     }
+    mainLayout2->addWidget(scrollPanel(environmentTools, box));
+    panelArea(environmentTools)->hide();
     //mainLayout2->addWidget(naviBox);
     //mainLayout2->setAlignment(naviBox, Qt::AlignBottom);
     box->setLayout(mainLayout2);
@@ -436,6 +486,8 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.paths"), MapLayer::Paths},
         {//% "&Activity"
          qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
+        {//% "&Weather"
+         qtTrId("route.editor.route.editor.window.action.map.weather"), MapLayer::Weather},
         {//% "Terra&in"
          qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
         {//% "Ima&gery"
@@ -465,7 +517,11 @@ RouteEditorWindow::RouteEditorWindow() {
                 return;
             }
             glWidget->setMapLayerVisible(layer, visible);
+            if (layer == MapLayer::Weather)
+                environmentTools->setWeatherOnMap(visible);
         });
+        if (layer == MapLayer::Weather)
+            mapWeatherAction = action;
         mapMenu->addAction(action);
     }
     // Window
@@ -484,11 +540,6 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.navi.action"), this);
     windowMenu->addAction(naviAction);
     QObject::connect(naviAction, SIGNAL(triggered(bool)), this, SLOT(hideShowNaviWidget(bool)));
-    environmentAction = GuiFunct::newMenuCheckAction(
-        //% "&Environment Window"
-        qtTrId("route.editor.route.editor.window.action.environment.action"), this, false);
-    windowMenu->addAction(environmentAction);
-    QObject::connect(environmentAction, SIGNAL(triggered(bool)), this, SLOT(hideShowEnvironmentWidget(bool)));
     shapeViewAction = GuiFunct::newMenuCheckAction(
         //% "&Shape View Window"
         qtTrId("route.editor.route.editor.window.action.shape.view.action"), this, false);
@@ -532,6 +583,12 @@ RouteEditorWindow::RouteEditorWindow() {
     activityAction->setShortcut(QKeySequence("F4"));
     windowMenu->addAction(activityAction);
     QObject::connect(activityAction, SIGNAL(triggered(bool)), this, SLOT(showToolsActivity(bool)));
+    environmentAction = GuiFunct::newMenuCheckAction(
+        //% "&Environment"
+        qtTrId("route.editor.route.editor.window.action.environment.panel"), this, false);
+    environmentAction->setShortcut(QKeySequence("F5"));
+    windowMenu->addAction(environmentAction);
+    QObject::connect(environmentAction, SIGNAL(triggered(bool)), this, SLOT(showToolsEnvironment(bool)));
     // Tools
     toolsMenu = menuBar()->addMenu(
         //% "&Tools"
@@ -614,7 +671,7 @@ RouteEditorWindow::RouteEditorWindow() {
     helpMenu->addAction(aboutAction);
     
     hideAllTools();
-    objTools->show();
+    panelArea(objTools)->show();
     
     
     if(Settings::boolean("core.interface.hideTools")){
@@ -781,8 +838,12 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(naviWindow, SIGNAL(windowClosed()),
                       this, SLOT(naviWindowClosed())); 
-    QObject::connect(environmentWindow, SIGNAL(windowClosed()),
-                      this, SLOT(environmentWindowClosed()));
+    // The panel's "Show on the map" is Map > Weather.
+    QObject::connect(environmentTools, &EnvironmentTools::weatherOnMapToggled, this, [this](bool shown) {
+        if (mapWeatherAction != nullptr)
+            mapWeatherAction->setChecked(shown);
+        glWidget->setMapLayerVisible(MapLayer::Weather, shown);
+    });
     
     QObject::connect(errorMessagesWindow, SIGNAL(windowClosed()),
                       this, SLOT(errorMessagesWindowClosed())); 
@@ -1131,10 +1192,10 @@ void RouteEditorWindow::showToolsObjectAndTerrain(bool show){
     if(show){
         hideShowToolWidget(true);
         hideAllTools();
-        objTools->show();
+        panelArea(objTools)->show();
         objectsAndTerrainAction->setChecked(true);
-        terrainTools->show();
-        box->setFixedWidth(500);
+        panelArea(terrainTools)->show();
+        box->setFixedWidth(520);
     } else {
         hideShowToolWidget(false);
     }
@@ -1167,6 +1228,15 @@ void RouteEditorWindow::showToolsActivity(bool show){
     }
 }
 
+void RouteEditorWindow::showToolsEnvironment(bool show){
+    if(show){
+        hideShowToolWidget(true);
+        setToolbox("environmentTools");
+    } else {
+        hideShowToolWidget(false);
+    }
+}
+
 void RouteEditorWindow::showActivityEventEditor(){
     activityEventWindow->show();
 }
@@ -1186,39 +1256,46 @@ void RouteEditorWindow::showActivityTimetableEditor(){
 void RouteEditorWindow::setToolbox(QString name){
     if(name == "objTools"){
         hideAllTools();
-        objTools->show();
+        panelArea(objTools)->show();
         objectsAction->setChecked(true);
     }
     if(name == "terrainTools"){
         hideAllTools();
-        terrainTools->show();
+        panelArea(terrainTools)->show();
         terrainAction->setChecked(true);       
     }
     if(name == "geoTools"){
         hideAllTools();
-        geoTools->show();
+        panelArea(geoTools)->show();
         geoAction->setChecked(true);
     }
     if(name == "activityTools"){
         hideAllTools();
         if(Game::serverClient == NULL){
-            activityTools->show();
+            panelArea(activityTools)->show();
             activityAction->setChecked(true);
         }
+    }
+    if(name == "environmentTools"){
+        hideAllTools();
+        panelArea(environmentTools)->show();
+        environmentAction->setChecked(true);
     }
 }
 
 void RouteEditorWindow::hideAllTools(){
-    objTools->hide();
-    terrainTools->hide();
-    geoTools->hide();
-    activityTools->hide();
+    panelArea(objTools)->hide();
+    panelArea(terrainTools)->hide();
+    panelArea(geoTools)->hide();
+    panelArea(activityTools)->hide();
+    panelArea(environmentTools)->hide();
     objectsAction->setChecked(false);
     terrainAction->setChecked(false);     
     geoAction->setChecked(false);
     activityAction->setChecked(false);
+    environmentAction->setChecked(false);
     objectsAndTerrainAction->setChecked(false);
-    box->setFixedWidth(250);
+    box->setFixedWidth(260);
 }
 
 void RouteEditorWindow::showSettingsEditor() {
@@ -1323,10 +1400,6 @@ void RouteEditorWindow::hideShowNaviWidget(bool show){
     else naviWindow->hide();
 }
 
-void RouteEditorWindow::hideShowEnvironmentWidget(bool show){
-    if(show) environmentWindow->show();
-    else environmentWindow->hide();
-}
 
 void RouteEditorWindow::hideShowToolWidget(bool show){
     if(show) box->show();
@@ -1415,11 +1488,6 @@ void RouteEditorWindow::naviWindowClosed(){
     naviAction->blockSignals(false);
 }
 
-void RouteEditorWindow::environmentWindowClosed(){
-    environmentAction->blockSignals(true);
-    environmentAction->setChecked(false);
-    environmentAction->blockSignals(false);
-}
 
 void RouteEditorWindow::errorMessagesWindowClosed(){
     errorViewAction->blockSignals(true);

@@ -31,6 +31,8 @@ const float SunsetSky[3] = {0.93f, 0.62f, 0.45f};
 const float TwilightSky[3] = {0.18f, 0.24f, 0.42f};
 const float NightSky[3] = {0.015f, 0.022f, 0.05f};
 const float NightAmbient[3] = {0.035f, 0.045f, 0.075f};
+const float MoonColour[3] = {0.8f, 0.88f, 1.0f};
+const float MoonSkyColour[3] = {0.7f, 0.8f, 1.0f};
 
 }
 
@@ -42,8 +44,8 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     const float strength = smoothstep(-1.0f, 20.0f, h);
     const float white = smoothstep(2.0f, 25.0f, h);
     for (int c = 0; c < 3; ++c)
-        light.diffuse[c] = 0.7f * strength * mix(SunsetSun[c], 1.0f, white);
-    light.diffuse[3] = 0.7f * strength;
+        light.diffuse[c] = SunLight * strength * mix(SunsetSun[c], 1.0f, white);
+    light.diffuse[3] = SunLight * strength;
     // Ambient: the day's light down to civil twilight, then night.
     const float day = smoothstep(-12.0f, 8.0f, h);
     for (int c = 0; c < 3; ++c)
@@ -67,7 +69,65 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     // linear fade left them invisible until the sun had set.
     light.localLights = std::pow(DayLocalLights, smoothstep(0.0f, 20.0f, h));
     light.signalLights = std::pow(DaySignalLights, smoothstep(0.0f, 20.0f, h));
+    light.sceneLight = DayLocalLights / light.localLights;
     return light;
+}
+
+float viewLuminanceLog2(double elevationDegrees) {
+    // Sun elevation (degrees), log2 luminance: measured with the sky a fifth
+    // of the scene (RhiImage.cpp SkyWeight), the aerial haze at the fog
+    // density 0.3; the sun up from the user's CMK camera turned away from it
+    // in clear weather, under the horizon from the CMK lake view (they agree
+    // there: -9.48 and -9.42 at -2.8 degrees). 2026-10-14.
+    static const float Table[][2] = {{-14.0f, -13.2f}, {-10.0f, -12.65f}, {-7.5f, -11.55f}, {-4.5f, -10.17f},
+                                     {-1.5f, -8.62f}, {2.0f, -7.83f}, {6.0f, -6.97f}, {14.0f, -5.75f},
+                                     {28.0f, -4.68f}, {46.0f, -4.33f}, {60.0f, -4.18f}};
+    const int count = int(sizeof(Table) / sizeof(Table[0]));
+    const float h = float(elevationDegrees);
+    if (h <= Table[0][0])
+        return Table[0][1];
+    for (int i = 1; i < count; ++i)
+        if (h <= Table[i][0])
+            return mix(Table[i - 1][1], Table[i][1], (h - Table[i - 1][0]) / (Table[i][0] - Table[i - 1][0]));
+    return Table[count - 1][1];
+}
+
+Moonlight moonlight(double sunElevationDegrees, double moonElevationDegrees, double illuminatedFraction) {
+    Moonlight light;
+    const float phase = std::pow(std::clamp(float(illuminatedFraction), 0.0f, 1.0f), 2.5f);
+    const float height = smoothstep(-1.0f, 20.0f, float(moonElevationDegrees));
+    const float night = 1.0f - smoothstep(-8.0f, -1.0f, float(sunElevationDegrees));
+    light.strength = phase * height * night;
+    for (int c = 0; c < 3; ++c) {
+        light.diffuse[c] = FullMoonLight * light.strength * MoonColour[c];
+        // The moonlit sky: a quarter of the moon's light.
+        light.ambient[c] = 0.25f * FullMoonLight * light.strength * MoonSkyColour[c];
+    }
+    light.diffuse[3] = FullMoonLight * light.strength;
+    return light;
+}
+
+float exposureBias(double elevationDegrees) {
+    const float h = float(elevationDegrees);
+    if (h >= 0.0f)
+        return mix(EveningExposureBias, DayExposureBias, smoothstep(0.0f, 20.0f, h));
+    return mix(NightExposureBias, EveningExposureBias, smoothstep(-12.0f, 0.0f, h));
+}
+
+int adaptationCurve(float *luminanceLog2, float *exposureLog2, int capacity) {
+    // Sun elevations: the table's, denser where the scene light changes.
+    static const float Elevations[] = {-14.0f, -10.0f, -7.5f, -4.5f, -1.5f, 0.0f, 2.0f, 4.0f, 6.0f,
+                                       8.0f, 10.0f, 12.0f, 14.0f, 16.0f, 18.0f, 20.0f, 28.0f, 60.0f};
+    int count = 0;
+    for (float h : Elevations) {
+        if (count == capacity)
+            break;
+        const float scene = std::log2(DayLocalLights / std::pow(DayLocalLights, smoothstep(0.0f, 20.0f, h)));
+        luminanceLog2[count] = scene + viewLuminanceLog2(h);
+        exposureLog2[count] = -scene;
+        ++count;
+    }
+    return count;
 }
 
 }

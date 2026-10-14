@@ -1,0 +1,20 @@
+{
+  "notes": "Cloud edges while the camera turns and moves on CMK (task 28, second round), one frame per view, temporal mode. As clouds-motion.json.",
+  "output": "build/renderer-clouds-turn",
+  "width": 1280, "height": 800, "pickGrid": [0, 0], "timingFrames": 1, "diffTolerance": 16, "shadows": true,
+  "settle": { "minFrames": 1, "stableFrames": 1, "maxFrames": 1, "maxSeconds": 60 },
+  "views": [
+    {"name": "r00", "tile": [-5306, -14963], "pos": [640, 95, 0], "rot": [0.300, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r01", "tile": [-5306, -14963], "pos": [640, 95, 3], "rot": [0.350, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r02", "tile": [-5306, -14963], "pos": [640, 95, 6], "rot": [0.400, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r03", "tile": [-5306, -14963], "pos": [640, 95, 9], "rot": [0.450, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r04", "tile": [-5306, -14963], "pos": [640, 95, 12], "rot": [0.500, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r05", "tile": [-5306, -14963], "pos": [640, 95, 15], "rot": [0.550, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r06", "tile": [-5306, -14963], "pos": [640, 95, 18], "rot": [0.600, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r07", "tile": [-5306, -14963], "pos": [640, 95, 21], "rot": [0.650, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r08", "tile": [-5306, -14963], "pos": [640, 95, 24], "rot": [0.700, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r09", "tile": [-5306, -14963], "pos": [640, 95, 27], "rot": [0.750, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r10", "tile": [-5306, -14963], "pos": [640, 95, 30], "rot": [0.800, 0.05], "weatherPreset": "fair_cumulus", "time": 13},
+    {"name": "r11", "tile": [-5306, -14963], "pos": [640, 95, 33], "rot": [0.850, 0.05], "weatherPreset": "fair_cumulus", "time": 13}
+  ]
+}

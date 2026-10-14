@@ -764,8 +764,50 @@ bool SettingsManager::removeSetting(const QString &key, QString *error) {
     m_document["settings"] = array;
     rebuildIndex();
     m_modified = true;
+    m_issues = SettingsValidator::validateDocument(m_document, m_registry);
     emit settingsChanged();
     return true;
+}
+
+QStringList SettingsManager::unregisteredKeys() const {
+    QStringList result;
+    for (const QJsonValue &entry : m_document.value("settings").toArray()) {
+        const QString key = entry.toObject().value("key").toString();
+        if (!m_registry.contains(key))
+            result.append(key);
+    }
+    return result;
+}
+
+QStringList SettingsManager::removeUnregisteredSettings() {
+    const QStringList removed = unregisteredKeys();
+    if (removed.isEmpty())
+        return removed;
+    QJsonArray kept;
+    QSet<QString> usedGroups;
+    for (const QJsonValue &entry : m_document.value("settings").toArray()) {
+        const QJsonObject setting = entry.toObject();
+        if (!m_registry.contains(setting.value("key").toString()))
+            continue;
+        kept.append(setting);
+        usedGroups.insert(setting.value("group").toString());
+    }
+    QSet<QString> registeredGroups;
+    for (const SettingsGroupDefinition &group : m_registry.groups())
+        registeredGroups.insert(group.id);
+    QJsonArray groups;
+    for (const QJsonValue &entry : m_document.value("groups").toArray()) {
+        const QString id = entry.toObject().value("id").toString();
+        if (registeredGroups.contains(id) || usedGroups.contains(id))
+            groups.append(entry);
+    }
+    m_document["settings"] = kept;
+    m_document["groups"] = groups;
+    rebuildIndex();
+    m_modified = true;
+    m_issues = SettingsValidator::validateDocument(m_document, m_registry);
+    emit settingsChanged();
+    return removed;
 }
 
 bool SettingsManager::replaceDocument(const QJsonObject &document, QString *error) {
