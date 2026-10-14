@@ -980,12 +980,23 @@ shafts on against off, of 255):
   exposure. They now also cover water and blended surfaces (drawn after
   them before), as the air in front of them would.
 - Cost on the Steam Deck (median frame, 60 frames): screen space about
-  1.3 ms, volumetric 1.6 ms at 40 steps; 24 steps look the same (0.03 of
-  255 at most) and take 1.0 ms; 16 save nothing more (the rest is the full
-  resolution composite).
-- What the volumetric shafts show here: the air under the clouds in their
-  shadow, darkening the low sky towards the sun; rays from near trees fall
-  within the march's first steps (62 m) and stay faint.
+  1.3 ms, volumetric 1.6 ms at 40 steps, 1.0 ms at 24; 16 save nothing more
+  (the rest is the full resolution composite).
+- 24 steps against 40, the user asking whether nothing is lost (the march:
+  along each ray up to the scene or 1.5 km, 6 km to the clouds' plane over
+  the sky, whether the air at each step is in the sun's light, by the far
+  sun shadow map, 1.4 m texels over 1.4 km, and the cloud shadow map). A
+  view with the sun 5 degrees up behind pines (CMK river, 19:30; effect
+  against off: mean 5.9, at most 27 of 255): against 128 steps, 40 differ
+  by 1 at most, 24 by 2; with the jitter moving, the spread over 8 frames at
+  most 0.8 (40) and 1.4 (24).
+- What the volumetric shafts show: the air under the clouds in their shadow,
+  over the 6 km to the clouds' plane, greying the sky and clouds towards
+  the sun. No rays through the trees at any step count (128 too): the trees'
+  shadows are in the map, but the 50 to 150 m of air in front of them
+  scatters about 1 % of the light at a 25 to 40 km visibility. Visible tree
+  rays would want mist near the ground (or stronger forward scattering
+  there).
 
 ## Verification
 
