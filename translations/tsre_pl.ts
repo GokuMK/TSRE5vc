@@ -2492,7 +2492,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4743"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4764"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
@@ -2512,87 +2512,87 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2797"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2818"/>
         <source>Imagery</source>
         <translation>Zobrazowanie</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2800"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2821"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić zobrazowania.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2802"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2823"/>
         <source>No imagery source can be shown: %1</source>
         <translation>Nie można wyświetlić żadnego źródła zobrazowania: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2854"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2875"/>
         <source>Measure Distance</source>
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4749"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4770"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4755"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4776"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4761"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4782"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4767"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4788"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4773"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4794"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4779"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4800"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4785"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4806"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4791"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4812"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4797"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4818"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4803"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4824"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4809"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4830"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4821"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4842"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4839"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4860"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -2770,7 +2770,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4857"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4878"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -12488,191 +12488,221 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Passing front</source>
         <translation>Przechodzący front</translation>
     </message>
+    <message id="route.editor.environment.tools.preset.morning.mist">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="66"/>
+        <source>Morning mist</source>
+        <translation>Poranna mgiełka</translation>
+    </message>
+    <message id="route.editor.environment.tools.preset.valley.fog">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="69"/>
+        <source>Valley fog</source>
+        <translation>Mgła w dolinach</translation>
+    </message>
     <message id="route.editor.environment.tools.group.file">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="103"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="109"/>
         <source>Environment File:</source>
         <translation>Plik środowiska:</translation>
     </message>
     <message id="route.editor.environment.tools.file.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="110"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="116"/>
         <source>The env file the editor shows: a season and weather of the route (TRK), or any file in ENVFILES.</source>
         <translation>Plik env pokazywany w edytorze: pora roku i pogoda trasy (TRK) albo dowolny plik z ENVFILES.</translation>
     </message>
     <message id="route.editor.environment.tools.reload">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="114"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="120"/>
         <source>Reload</source>
         <translation>Wczytaj ponownie</translation>
     </message>
     <message id="route.editor.environment.tools.save">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="117"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="123"/>
         <source>Save</source>
         <translation>Zapisz</translation>
     </message>
     <message id="route.editor.environment.tools.save.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="120"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="126"/>
         <source>Write the weather into the env file.</source>
         <translation>Zapisz pogodę w pliku env.</translation>
     </message>
     <message id="route.editor.environment.tools.save.title">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="131"/>
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="138"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="137"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="144"/>
         <source>Save Weather</source>
         <translation>Zapis pogody</translation>
     </message>
     <message id="route.editor.environment.tools.save.question">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="133"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="139"/>
         <source>Write the weather into %1? Other programs reading the file keep its MSTS contents.</source>
         <translation>Zapisać pogodę w %1? Inne programy czytające plik zachowują jego zawartość MSTS.</translation>
     </message>
     <message id="route.editor.environment.tools.group.weather">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="144"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="150"/>
         <source>Weather:</source>
         <translation>Pogoda:</translation>
     </message>
     <message id="route.editor.environment.tools.preset.file">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="150"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="156"/>
         <source>From the file</source>
         <translation>Z pliku</translation>
     </message>
     <message id="route.editor.environment.tools.preset">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="155"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="161"/>
         <source>Preset:</source>
         <translation>Wzorzec:</translation>
     </message>
     <message id="route.editor.environment.tools.seed.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="162"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="168"/>
         <source>Another number places the clouds differently.</source>
         <translation>Inna liczba rozmieszcza chmury inaczej.</translation>
     </message>
     <message id="route.editor.environment.tools.seed">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="165"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="171"/>
         <source>Seed:</source>
         <translation>Ziarno:</translation>
     </message>
     <message id="route.editor.environment.tools.on.map">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="169"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="175"/>
         <source>Show on the map</source>
         <translation>Pokaż na mapie</translation>
     </message>
     <message id="route.editor.environment.tools.details">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="174"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="180"/>
         <source>Weather Details...</source>
         <translation>Szczegóły pogody...</translation>
     </message>
     <message id="route.editor.environment.tools.import">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="179"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="185"/>
         <source>Import Weather...</source>
         <translation>Importuj pogodę...</translation>
     </message>
     <message id="route.editor.environment.tools.import.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="183"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="189"/>
         <source>The weather of a day over the route, past or forecast, from Open-Meteo.</source>
         <translation>Pogoda z wybranego dnia nad trasą, miniona lub prognozowana, z Open-Meteo.</translation>
     </message>
     <message id="route.editor.environment.tools.generate">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="191"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="197"/>
         <source>Generate Weather...</source>
         <translation>Generuj pogodę...</translation>
     </message>
     <message id="route.editor.environment.tools.generate.tooltip">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="195"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="201"/>
         <source>A day of weather over the route from a scenario: a front sweeping across it, so part of the route can be clear while another part is under cloud or rain.</source>
         <translation>Doba pogody nad trasą ze scenariusza: front przechodzący nad nią, tak że część trasy może być bezchmurna, a inna pod chmurami lub w deszczu.</translation>
     </message>
     <message id="route.editor.environment.tools.details.title">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="204"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="210"/>
         <source>Weather Details</source>
         <translation>Szczegóły pogody</translation>
     </message>
     <message id="route.editor.environment.tools.group.session">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="227"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="233"/>
         <source>Editor Session:</source>
         <translation>Sesja edytora:</translation>
     </message>
     <message id="route.editor.environment.tools.title">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="287"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="293"/>
         <source>Environment</source>
         <translation>Środowisko</translation>
     </message>
     <message id="route.editor.environment.tools.source.derived">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="316"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="322"/>
         <source>Derived from the env file (%1)</source>
         <translation>Wyprowadzona z pliku env (%1)</translation>
     </message>
     <message id="route.editor.environment.tools.source.imported">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="319"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="325"/>
         <source>%1, not saved</source>
         <translation>%1, niezapisana</translation>
     </message>
     <message id="route.editor.environment.tools.source.unsaved">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="322"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="328"/>
         <source>Preset, not saved</source>
         <translation>Wzorzec, niezapisany</translation>
     </message>
     <message id="route.editor.environment.tools.source.file">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="324"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="330"/>
         <source>The env file&apos;s weather (%1)</source>
         <translation>Pogoda z pliku env (%1)</translation>
     </message>
     <message id="route.editor.environment.tools.keyframes">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="328"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="334"/>
         <source>%1 keyframes over %2 h; now %3 h</source>
         <translation>Klatek kluczowych: %1 w ciągu %2 h; teraz %3 h</translation>
     </message>
     <message id="route.editor.environment.tools.layer.low">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="337"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="343"/>
         <source>Low</source>
         <translation>Niskie</translation>
     </message>
     <message id="route.editor.environment.tools.layer.mid">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="339"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="345"/>
         <source>Mid</source>
         <translation>Średnie</translation>
     </message>
     <message id="route.editor.environment.tools.layer.high">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="341"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="347"/>
         <source>High</source>
         <translation>Wysokie</translation>
     </message>
     <message id="route.editor.environment.tools.layer.none">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="347"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="353"/>
         <source>%1: none</source>
         <translation>%1: brak</translation>
     </message>
     <message id="route.editor.environment.tools.layer.values">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="351"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="357"/>
         <source>%1: %2 %3%, %4-%5 m</source>
         <translation>%1: %2 %3%, %4-%5 m</translation>
     </message>
     <message id="route.editor.environment.tools.wind">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="357"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="363"/>
         <source>Wind (low): from %1°, %2 m/s</source>
         <translation>Wiatr (nisko): z %1°, %2 m/s</translation>
     </message>
     <message id="route.editor.environment.tools.precipitation.none">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="363"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="369"/>
         <source>Precipitation: none</source>
         <translation>Opady: brak</translation>
     </message>
     <message id="route.editor.environment.tools.precipitation">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="366"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="372"/>
         <source>Precipitation: %1, %2 mm/h</source>
         <translation>Opady: %1, %2 mm/h</translation>
     </message>
     <message id="route.editor.environment.tools.snow">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="369"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="375"/>
         <source>snow</source>
         <translation>śnieg</translation>
     </message>
     <message id="route.editor.environment.tools.rain">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="371"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="377"/>
         <source>rain</source>
         <translation>deszcz</translation>
     </message>
     <message id="route.editor.environment.tools.visibility">
-        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="373"/>
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="379"/>
         <source>Visibility: %1 km</source>
         <translation>Widoczność: %1 km</translation>
+    </message>
+    <message id="route.editor.environment.tools.air">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="383"/>
+        <source>Air: %1 °C, dew point %2 °C</source>
+        <translation>Powietrze: %1 °C, punkt rosy %2 °C</translation>
+    </message>
+    <message id="route.editor.environment.tools.fog.none">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="388"/>
+        <source>Fog: none</source>
+        <translation>Mgła: brak</translation>
+    </message>
+    <message id="route.editor.environment.tools.fog.set">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="391"/>
+        <source>Fog (set by the weather): %1%, %2 m deep, %3 m visibility in it</source>
+        <translation>Mgła (ustawiona w pogodzie): %1%, głęboka na %2 m, widoczność w niej %3 m</translation>
+    </message>
+    <message id="route.editor.environment.tools.fog">
+        <location filename="../src/routeEditor/EnvironmentTools.cpp" line="395"/>
+        <source>Fog: %1%, %2 m deep, %3 m visibility in it</source>
+        <translation>Mgła: %1%, głęboka na %2 m, widoczność w niej %3 m</translation>
     </message>
     <message id="route.editor.weather.generate.title">
         <location filename="../src/routeEditor/WeatherGenerateDialog.cpp" line="39"/>

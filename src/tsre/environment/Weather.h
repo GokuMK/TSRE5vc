@@ -53,12 +53,31 @@ struct WeatherWind {
     float speed = 0.0f;
 };
 
+// The air 2 m above the ground, °C: fog forms when the night cools it to its
+// dew point (task renderer 33).
+struct WeatherAir {
+    float temperature = 15.0f;
+    float dewPoint = 8.0f;
+};
+
+// A keyframe's fog: from the weather and the terrain (auto), none, or set by
+// the weather's author.
+struct WeatherFogSetting {
+    enum Mode { Auto, Off, Set };
+    Mode mode = Auto;
+    float amount = 1.0f;        // 0-1
+    float visibility = 200.0f;  // m, in the fog at the valley floor
+    float depth = 60.0f;        // m, its top above the valley floor
+};
+
 struct WeatherKeyframe {
     float time = 0.0f;
     std::array<WeatherWind, WeatherLayer::Count> wind;
     WeatherPrecipitation precipitation = WeatherPrecipitation::None;
     float precipitationRate = 0.0f;  // mm/h
     float visibility = 30000.0f;     // m
+    WeatherAir air;
+    WeatherFogSetting fog;
     // Coverage varied by large-scale noise: amount (0-1) and scale (m).
     float variationAmount = 0.2f;
     float variationScale = 30000.0f;
@@ -118,6 +137,8 @@ public:
     };
     Blend blend(double hours) const;
     WeatherWind wind(double hours, int layer) const;
+    // The air at a time, keyframes blended; the same everywhere.
+    WeatherAir air(double hours) const;
     // Where the wind blows towards, m/s.
     static void velocity(const WeatherWind &wind, double &east, double &north);
     // How far a layer has moved since the start, m.

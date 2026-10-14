@@ -2,6 +2,7 @@
 
 #include <tsre/environment/EnvFile.h>
 #include <tsre/environment/WeatherDetail.h>
+#include <tsre/environment/WeatherFog.h>
 #include <tsre/environment/WeatherPresets.h>
 #include <tsre/environment/WeatherImport.h>
 #include <tsre/environment/WeatherGenerator.h>
@@ -456,6 +457,17 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
         c.check(near(rainy.visibility, 10000.0, 1500.0) && rainy.precipitation == WeatherPrecipitation::Rain,
                 QString("import-rain-visibility (%1)").arg(rainy.visibility));
         c.check(imported.attribution.contains("Copernicus") && imported.source.contains("era5"), "import-attribution");
+        c.check(near(imported.keyframes[0].air.temperature, 10.75, 1e-3) && near(imported.keyframes[0].air.dewPoint, 7.5, 1e-3)
+                && imported.keyframes[0].fog.mode == WeatherFogSetting::Auto, "import-air");
+        // Fog reported at one sample of four: a set fog of a quarter; the air
+        // around it is damp, not 300 m thick.
+        QVector<WeatherImport::Series> foggy = series;
+        for (int &code : foggy[1].weatherCode)
+            code = 45;
+        Weather fogged;
+        c.check(WeatherImport::build(request, samples, columns, rows, foggy, 10.0, fogged, error)
+                && fogged.keyframes[0].fog.mode == WeatherFogSetting::Set && near(fogged.keyframes[0].fog.amount, 0.25, 1e-6)
+                && fogged.surface(0.0, 25000.0, 25000.0).visibility > 3000.0f, "import-fog-code");
         // Past the grid the maps fade to the keyframe's values (no stripes).
         Weather still = imported;
         for (WeatherKeyframe &k : still.keyframes)
@@ -577,6 +589,80 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
                         .arg(westNoon.precipitationRate).arg(centreMorning.precipitationRate));
         c.check(eastNoon.coverage > westLow.coverage,
                 QString("generator-cloud-ahead-clearer-behind (%1 %2)").arg(eastNoon.coverage).arg(westLow.coverage));
+        // The warm sector ahead of a cold front is damp, the air behind it dry.
+        c.check(w.air(5.0).dewPoint > w.air(20.0).dewPoint + 5.0f && w.air(3.0).temperature < w.air(15.0).temperature,
+                QString("generator-air (%1 %2)").arg(w.air(5.0).dewPoint).arg(w.air(20.0).dewPoint));
+    }
+
+    // Fog from the weather (task renderer 33). A summer sun: up from about
+    // 3:55 to 20:05, 60 degrees at noon; a winter one: up from about 7:10 to
+    // 16:50, 16 degrees at noon. Relative weathers count the time of day.
+    {
+        const WeatherFog::SunElevation summer = [](double h) { return 20.0 - 40.0 * std::cos(2.0 * M_PI * h / 24.0); };
+        const WeatherFog::SunElevation winter = [](double h) { return -8.0 - 24.0 * std::cos(2.0 * M_PI * h / 24.0); };
+        const Weather mist = WeatherPresets::weather("morning_mist");
+        const Weather valley = WeatherPresets::weather("valley_fog");
+        auto text = [](const WeatherFog::State &s) {
+            return QString("%1 %2 m deep %3 m vis %4 m base").arg(s.amount).arg(s.depth).arg(s.visibility).arg(s.base);
+        };
+        const WeatherFog::State dawn = WeatherFog::at(mist, 4.5, 0.0, 0.0, summer);
+        c.check(dawn.amount > 0.8f && dawn.depth > 20.0f && dawn.depth < 80.0f && dawn.visibility > 400.0f
+                && dawn.visibility < 2000.0f, "fog-mist-at-dawn (" + text(dawn) + ")");
+        c.check(WeatherFog::at(mist, 19.0, 0.0, 0.0, summer).amount == 0.0f
+                && WeatherFog::at(mist, 9.0, 0.0, 0.0, summer).amount == 0.0f
+                && WeatherFog::at(mist, 23.0, 0.0, 0.0, summer).amount < dawn.amount,
+                "fog-mist-none-in-the-evening-gone-by-nine");
+        const WeatherFog::State valleyDawn = WeatherFog::at(valley, 4.5, 0.0, 0.0, summer);
+        c.check(valleyDawn.depth > 100.0f && valleyDawn.visibility < 300.0f, "fog-valley-deep-and-thick (" + text(valleyDawn) + ")");
+        const WeatherFog::State clearing = WeatherFog::at(valley, 7.5, 0.0, 0.0, summer);
+        c.check(clearing.amount > 0.0f && clearing.amount < valleyDawn.amount && clearing.base > 0.0f
+                && clearing.visibility > valleyDawn.visibility, "fog-clears-and-lifts (" + text(clearing) + ")");
+        const WeatherFog::State winterNoon = WeatherFog::at(valley, 12.0, 0.0, 0.0, winter);
+        c.check(WeatherFog::at(valley, 12.0, 0.0, 0.0, summer).amount == 0.0f && winterNoon.amount > 0.2f,
+                "fog-winter-valley-stays (" + text(winterNoon) + ")");
+
+        Weather windy = valley, cloudy = valley;
+        for (WeatherKeyframe &k : windy.keyframes)
+            k.wind[WeatherLayer::Low].speed = 9.0f;
+        for (WeatherKeyframe &k : cloudy.keyframes)
+            k.layers[WeatherLayer::Low] = {0.0f, 0.95f, 500.0f, 1100.0f, 0.8f};
+        const WeatherFog::State cloudyDawn = WeatherFog::at(cloudy, 4.5, 0.0, 0.0, summer);
+        c.check(WeatherFog::at(windy, 4.5, 0.0, 0.0, summer).amount == 0.0f && cloudyDawn.amount < 0.05f
+                && WeatherFog::at(WeatherPresets::weather("clear"), 4.5, 0.0, 0.0, summer).amount == 0.0f,
+                "fog-none-with-wind-clouds-or-dry-air (" + text(cloudyDawn) + ")");
+        const WeatherFog::State rainNoon = WeatherFog::at(WeatherPresets::weather("rain"), 12.0, 0.0, 0.0, summer);
+        c.check(rainNoon.amount > 0.2f && near(rainNoon.visibility, 2000.0, 1e-3), "fog-mist-in-rain (" + text(rainNoon) + ")");
+
+        Weather off = valley, set = WeatherPresets::weather("clear");
+        off.keyframes[0].fog.mode = WeatherFogSetting::Off;
+        set.keyframes[0].fog = {WeatherFogSetting::Set, 0.7f, 150.0f, 40.0f};
+        const WeatherFog::State forced = WeatherFog::at(set, 12.0, 0.0, 0.0, summer);
+        c.check(WeatherFog::at(off, 4.5, 0.0, 0.0, summer).amount == 0.0f && near(forced.amount, 0.7, 1e-6)
+                && near(forced.visibility, 150.0, 1e-3) && near(forced.depth, 40.0, 1e-3), "fog-override-off-and-set");
+
+        // The air and the fog setting in the file.
+        Weather file = WeatherPresets::weather("clear");
+        file.keyframes.push_back(file.keyframes[0]);
+        file.keyframes.push_back(file.keyframes[0]);
+        file.keyframes[1].time = 6.0f;
+        file.keyframes[2].time = 12.0f;
+        file.keyframes[0].air = {11.5f, 9.25f};
+        file.keyframes[1].fog = {WeatherFogSetting::Set, 0.5f, 300.0f, 70.0f};
+        file.keyframes[2].fog.mode = WeatherFogSetting::Off;
+        QStringList fileWarnings;
+        const Weather read = Weather::fromNode(file.toNode(), fileWarnings);
+        c.check(fileWarnings.isEmpty() && read.keyframes.size() == 3 && near(read.keyframes[0].air.temperature, 11.5, 1e-6)
+                && near(read.keyframes[0].air.dewPoint, 9.25, 1e-6)
+                && read.keyframes[0].fog.mode == WeatherFogSetting::Auto
+                && read.keyframes[1].fog.mode == WeatherFogSetting::Set && near(read.keyframes[1].fog.visibility, 300.0, 1e-3)
+                && near(read.keyframes[1].fog.depth, 70.0, 1e-3) && read.keyframes[2].fog.mode == WeatherFogSetting::Off
+                && near(read.air(3.0).temperature, (11.5 + 16.0) / 2.0, 1e-4),
+                "fog-air-and-setting-round-trip " + fileWarnings.join("; "));
+        Env::File fromPreset;
+        fromPreset.parse("tsre_weather ( tsre_weather_preset ( valley_fog ) tsre_weather_keyframe ( tsre_weather_time ( 0 ) ) )",
+                         error);
+        c.check(fromPreset.weather && !fromPreset.weather->keyframes.isEmpty()
+                && near(fromPreset.weather->keyframes[0].air.dewPoint, 9.0, 1e-6), "fog-air-from-the-preset");
     }
 
     qInfo() << "[tests:weather] cases=" << (c.passed + c.failed) << "passed=" << c.passed << "failed=" << c.failed;

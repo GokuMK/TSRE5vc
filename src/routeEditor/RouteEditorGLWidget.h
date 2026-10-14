@@ -68,6 +68,7 @@ class MapOverlayFade;
 class OsmMapLayer;
 class ImageryMapLayer;
 class WeatherMapLayer;
+#include <tsre/environment/WeatherFog.h>
 #include <tsre/environment/WeatherImport.h>
 #include <tsre/environment/WeatherGenerator.h>
 class Weather;
@@ -188,6 +189,9 @@ public:
     bool routeArea(double &west, double &north, double &east, double &south) const;
     // The camera's place (MSTS world metres).
     void cameraWorldPosition(double &east, double &north) const;
+    // The weather's fog at the camera now (task renderer 33), with the sun
+    // at the camera's place.
+    WeatherFog::State weatherFog() const;
     // A weather from historical data (task environment 01, step 3) for the
     // request's area, set as the editor's weather (unsaved, as a preset).
     // A route-scale weather from a scenario (a front over the route), in

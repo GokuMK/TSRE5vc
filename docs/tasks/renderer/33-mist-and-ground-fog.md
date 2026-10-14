@@ -1,7 +1,7 @@
 # Task 33 - Mist and Ground Fog
 
 Status: planned 2026-10-14 on `feature/mist` (from `main` after the clouds
-merge), reviewed by the user the same day (Decisions); step 1 in progress. QRhi renderer with the physical
+merge), reviewed by the user the same day (Decisions); step 1 done. QRhi renderer with the physical
 sky. Builds on tasks 28 (clouds, shadows, light shafts), 32 (aerial haze)
 and environment 01 (weather data).
 
@@ -264,6 +264,58 @@ aerial haze stays as it is: it is the dry air. The fog adds to it.
 Later: steam fog over water in autumn, sea fog, fog in the OpenGL renderer
 (a height fog in the classic fog), painted fog areas if a route needs one
 the terrain cannot explain.
+
+## Step 1 (done, 2026-10-14)
+
+- **Weather data:** `WeatherKeyframe` has `air` (temperature, dew point)
+  and `fog` (auto, off, or set: amount, visibility, depth), written as
+  `tsre_weather_air` and `tsre_weather_fog`. Files without them take the
+  preset's values, or 15 °C and 8 °C.
+- **Presets:** each has its air (clear 16/6, rain 10/9, the front damp in
+  its rain and drier behind). `morning_mist` (14/8, low wind 2.5 m/s) and
+  `valley_fog` (12/9, 2 m/s) are clear, calm and damp; their fog comes from
+  the model.
+- **Import:** keeps the hourly temperature and dew point. Fog codes (45, 48)
+  set the keyframe's fog (the share of samples reporting it, 200 m
+  visibility, 80 m deep) instead of a cloud base 30 m up and 300 m
+  visibility everywhere; the haze around it is 5 km.
+- **Generator:** the air across each front (warm sector 15/12 to 16/13,
+  rain nearly saturated, behind a cold front 10/2), 4 °C warmer at 15:00
+  and cooler at night.
+- **The model** (`WeatherFog`), from the night that made the fog (since the
+  last sunset, or the night before the last sunrise; at most 16 h):
+  - the night's low cloud (and mid, at 0.7), low wind, and rain in the 12 h
+    before (wet ground: 1.5 °C damper);
+  - cooling up to 8 °C over a long night: `8 x clear x mixing x (1 - exp(-night / 5 h))`,
+    clouds taking up to 80 % of it, wind up to half;
+  - the gap left: the evening's spread less the cooling, or the weather's
+    own spread at the end of the night where smaller (hourly data);
+  - amount: saturation (the gap from 1.5 to 0 °C) times the wind's mixing
+    (none above 8 m/s at about 100 m); depth 20 m + 40 m per degree below
+    the dew point (up to 250 m), shallower in very light wind; visibility
+    from 3 km down to 150 m;
+  - after sunrise: the sun's warmth (hours times the sine of its height)
+    burns it off, deeper fog taking longer; it thins, lifts (up to half its
+    depth) and breaks up as it clears;
+  - mist in rain: half the amount at 3 mm/h, 2 km visibility, 150 m deep;
+    the denser of the two counts;
+  - keyframes blend: off, set, or the model's.
+- **Results** (tests, a sun up 3:55 to 20:05 in summer, 7:10 to 16:50 in
+  winter):
+
+  | Weather, time | Fog |
+  |---|---|
+  | Morning mist, 4:30 | 100 %, 33 m deep, 890 m visibility |
+  | Morning mist, 9:00 and 19:00 | none |
+  | Valley fog, 4:30 | 100 %, 136 m deep, 150 m |
+  | Valley fog, 7:30 | 41 %, lifted 26 m, 505 m |
+  | Valley fog, winter noon | 71 %, 180 m deep, 323 m (summer noon: none) |
+  | Valley fog with 9 m/s wind, overcast, or the clear preset | none |
+  | Rain preset | 35 %, 150 m deep, 2 km |
+
+- **Environment panel:** the air, and the fog at the camera now ("set by
+  the weather" when a keyframe sets it).
+- Nothing drawn yet: steps 2 and 3.
 
 ## Verification
 

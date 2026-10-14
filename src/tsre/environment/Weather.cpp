@@ -186,6 +186,25 @@ Weather Weather::fromNode(const EnvNode &block, QStringList &warnings) {
                     k.precipitationRate = float(rate);
                 } else if (f == "tsre_weather_visibility") {
                     if (field.numberAt(0, v[0])) k.visibility = float(v[0]);
+                } else if (f == "tsre_weather_air") {
+                    if (numbers(field, 2, v))
+                        k.air = {float(v[0]), float(v[1])};
+                    else
+                        warnings << "Invalid tsre_weather_air";
+                } else if (f == "tsre_weather_fog") {
+                    const QString mode = fv.value(0).toLower();
+                    if (mode == "auto") {
+                        k.fog.mode = WeatherFogSetting::Auto;
+                    } else if (mode == "off") {
+                        k.fog.mode = WeatherFogSetting::Off;
+                    } else if (field.numberAt(0, v[0])) {
+                        k.fog.mode = WeatherFogSetting::Set;
+                        k.fog.amount = float(std::clamp(v[0], 0.0, 1.0));
+                        if (field.numberAt(1, v[1])) k.fog.visibility = float(std::max(v[1], 10.0));
+                        if (field.numberAt(2, v[2])) k.fog.depth = float(std::max(v[2], 1.0));
+                    } else {
+                        warnings << "Invalid tsre_weather_fog " + mode;
+                    }
                 } else if (f == "tsre_weather_variation") {
                     if (field.numberAt(0, v[0])) k.variationAmount = float(v[0]);
                     if (field.numberAt(1, v[1])) k.variationScale = float(v[1]);
@@ -250,6 +269,15 @@ EnvNode Weather::toNode() const {
                                         {EnvNode::value(precipitationName(k.precipitation)),
                                          EnvNode::number(k.precipitationRate)});
         frame.items << EnvNode::blockOf("tsre_weather_visibility", {EnvNode::number(k.visibility)});
+        frame.items << EnvNode::blockOf("tsre_weather_air",
+                                        {EnvNode::number(k.air.temperature), EnvNode::number(k.air.dewPoint)});
+        if (k.fog.mode == WeatherFogSetting::Set)
+            frame.items << EnvNode::blockOf("tsre_weather_fog",
+                                            {EnvNode::number(k.fog.amount), EnvNode::number(k.fog.visibility),
+                                             EnvNode::number(k.fog.depth)});
+        else
+            frame.items << EnvNode::blockOf("tsre_weather_fog",
+                                            {EnvNode::value(k.fog.mode == WeatherFogSetting::Off ? "off" : "auto")});
         frame.items << EnvNode::blockOf("tsre_weather_variation",
                                         {EnvNode::number(k.variationAmount), EnvNode::number(k.variationScale)});
         for (int l = 0; l < WeatherLayer::Count; ++l) {
@@ -309,6 +337,15 @@ WeatherWind Weather::wind(double hours, int layer) const {
     const WeatherWind &a = keyframes[b.a].wind[layer], &c = keyframes[b.b].wind[layer];
     return {float(mixAngle(a.direction, c.direction, b.weight)),
             float(a.speed + (c.speed - a.speed) * b.weight)};
+}
+
+WeatherAir Weather::air(double hours) const {
+    if (keyframes.isEmpty())
+        return WeatherAir();
+    const Blend b = blend(hours);
+    const WeatherAir &a = keyframes[b.a].air, &c = keyframes[b.b].air;
+    const float w = float(b.weight);
+    return {a.temperature + (c.temperature - a.temperature) * w, a.dewPoint + (c.dewPoint - a.dewPoint) * w};
 }
 
 void Weather::velocity(const WeatherWind &wind, double &east, double &north) {

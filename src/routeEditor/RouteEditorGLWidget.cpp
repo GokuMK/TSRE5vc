@@ -2705,6 +2705,27 @@ void RouteEditorGLWidget::cameraWorldPosition(double &east, double &north) const
     north = -(camera->pozT[1] * 2048.0 + camera->getPos()[2]);
 }
 
+WeatherFog::State RouteEditorGLWidget::weatherFog() const {
+    const Weather *weather = currentWeather();
+    if (weather == nullptr || weather->keyframes.isEmpty() || camera == nullptr)
+        return WeatherFog::State();
+    QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (!date.isValid())
+        date = QDate(2026, 6, 21);
+    // Weather hours to the editor's solar time, over the days around.
+    const double now = weatherHours();
+    const double latitude = timeOfDay.latitude, longitude = timeOfDay.longitude;
+    const double solarNow = Game::timeOfDayHours;
+    auto sun = [&](double hours) {
+        const double solar = solarNow + (hours - now);
+        const int days = int(std::floor(solar / 24.0));
+        return SunPosition::atSolarTime(latitude, longitude, date.addDays(days), solar - days * 24.0).elevation;
+    };
+    double east, north;
+    cameraWorldPosition(east, north);
+    return WeatherFog::at(*weather, now, east, north, sun);
+}
+
 namespace {
 
 // A route position (MSTS world metres) on the globe.

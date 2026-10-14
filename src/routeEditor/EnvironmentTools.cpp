@@ -61,6 +61,12 @@ QString presetTitle(const QString &name) {
     if (name == "front")
         //% "Passing front"
         return qtTrId("route.editor.environment.tools.preset.front");
+    if (name == "morning_mist")
+        //% "Morning mist"
+        return qtTrId("route.editor.environment.tools.preset.morning.mist");
+    if (name == "valley_fog")
+        //% "Valley fog"
+        return qtTrId("route.editor.environment.tools.preset.valley.fog");
     return name;
 }
 
@@ -372,6 +378,22 @@ void EnvironmentTools::refresh() {
         //% "Visibility: %1 km"
         lines << qtTrId("route.editor.environment.tools.visibility")
                      .arg(mix(ka.visibility, kb.visibility) / 1000.0, 0, 'f', 1);
+        const WeatherAir air = weather->air(hours);
+        //% "Air: %1 °C, dew point %2 °C"
+        lines << qtTrId("route.editor.environment.tools.air")
+                     .arg(air.temperature, 0, 'f', 1).arg(air.dewPoint, 0, 'f', 1);
+        const WeatherFog::State fog = view->weatherFog();
+        if (fog.amount < 0.01f)
+            //% "Fog: none"
+            lines << qtTrId("route.editor.environment.tools.fog.none");
+        else if (near.fog.mode == WeatherFogSetting::Set)
+            //% "Fog (set by the weather): %1%, %2 m deep, %3 m visibility in it"
+            lines << qtTrId("route.editor.environment.tools.fog.set").arg(int(std::lround(fog.amount * 100)))
+                         .arg(int(std::lround(fog.depth))).arg(int(std::lround(fog.visibility)));
+        else
+            //% "Fog: %1%, %2 m deep, %3 m visibility in it"
+            lines << qtTrId("route.editor.environment.tools.fog").arg(int(std::lround(fog.amount * 100)))
+                         .arg(int(std::lround(fog.depth))).arg(int(std::lround(fog.visibility)));
     }
     info->setText(lines.join('\n'));
 }

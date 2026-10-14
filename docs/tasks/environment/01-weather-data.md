@@ -161,6 +161,8 @@ tsre_weather (
         tsre_weather_wind ( high 270 25 )
         tsre_weather_precipitation ( none 0 )     // none, rain, snow; mm/h
         tsre_weather_visibility ( 30000 )
+        tsre_weather_air ( 14 8 )                 // 2 m above the ground: temperature, dew point (°C)
+        tsre_weather_fog ( auto )                 // auto, off, or amount 0-1, visibility (m), depth (m)
         tsre_weather_variation ( 0.25 30000 )     // coverage varied by noise: amount, scale (m)
         tsre_weather_layer ( low cumulus 0.35 900 2200 1.0 )  // type, coverage, base, top, density
         tsre_weather_layer ( mid altocumulus 0.10 3500 4200 0.6 )
@@ -177,9 +179,12 @@ level. Whether it later moves into `world` (for example the weather into
 The `//` notes explain the example; env files have no comments (MSTS uses
 `comment ( ... )` and `skip ( ... )` blocks, and names starting with `_`).
 
+- The air and the fog (added 2026-10-14, task renderer 33): auto fog comes
+  from the air, the night's clouds and wind and the time of day
+  (`WeatherFog`); off and a set fog override it for the keyframe.
 - A preset is a named set of these values in TSRE's code (fair cumulus,
   scattered, broken, overcast, rain, snow, thunderstorm, a passing front as
-  several keyframes); a weather can start from one and override any
+  several keyframes, morning mist, valley fog); a weather can start from one and override any
   value. A preset weather has no grid or maps: it is the same everywhere
   except for the variation noise, and covers the whole world.
 - Layer values in a keyframe are uniform; per-cell maps (below) replace
