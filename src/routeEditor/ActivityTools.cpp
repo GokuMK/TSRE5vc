@@ -903,6 +903,8 @@ void ActivityTools::actSaveEnabled(){
 
 void ActivityTools::activitySelected(QString n){
     Activity *a = currentActivity();
+    // The Timetable window follows the activity chosen (when it is open).
+    emit showTimetable(a);
     // The settings edit the activity chosen: nothing without one.
     settingsWidget.setEnabled(a != NULL);
     if(a == NULL)

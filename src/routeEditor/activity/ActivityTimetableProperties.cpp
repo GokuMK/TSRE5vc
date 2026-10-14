@@ -63,6 +63,8 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
     lTimetable.horizontalHeader()->resizeSection(2,60);
     lTimetable.horizontalHeader()->resizeSection(3,100);
     lTimetable.horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
+    // The station's name takes the width the times leave.
+    lTimetable.horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     vlist->addWidget(&lTimetable, row++, 0, 1, 2);
     QPushButton *bCalculate = new QPushButton(
         //% "Calculate"

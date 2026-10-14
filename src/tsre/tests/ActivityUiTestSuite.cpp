@@ -935,6 +935,16 @@ for (QWidget *window : windows)
             check(activity->toText() == original && unsaved().isEmpty(), "both undone: " + unsaved().join(", "));
             timetable.selectTrain(0);
             check(activity->shownAITrain == -1, "choosing the player's train on the map");
+            // The window follows the activity chosen in the panel.
+            if (activities) {
+                activities->setCurrentIndex(-1);
+                emit activities->textActivated(QString());
+                const int none = rows->topLevelItemCount();
+                activities->setCurrentIndex(activities->findText(activity->header->name));
+                emit activities->textActivated(activities->currentText());
+                check(none == 0 && rows->topLevelItemCount() == 3,
+                      "the Timetable window follows the activity chosen in the panel");
+            }
         }
     }
     // The traffic window's Any: the patterns an activity names.

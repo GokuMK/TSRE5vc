@@ -793,11 +793,11 @@ service name and start time, the name compared exactly. The activity adds
 an efficiency per stop. A pattern may serve several activities, so an AI
 train's times are shared; its efficiency is the activity's own.
 
-**Layout:** the trains across the window; under them, side by side
-(each about half the width), what is known of the chosen train on the
-left and its stops and times on the right; splitters between them
-(revised with the user the same day: the trains need the width, the
-other two do not).
+**Layout:** the trains across the window; under them, side by side,
+what is known of the chosen train on the left (about 40% of the width)
+and its stops and times on the right; splitters between them (revised
+with the user the same day: the trains need the width, the other two do
+not). The window follows the activity chosen in the activity panel.
 
 1. The trains, one row each, by start time (the player's first at equal
    times):

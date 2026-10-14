@@ -123,8 +123,9 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     bottom->addWidget(saved);
     bottom->addWidget(timetableProperties);
     bottom->setChildrenCollapsible(false);
-    bottom->setStretchFactor(0, 1);
-    bottom->setStretchFactor(1, 1);
+    // The information about 40% of the width, the times the rest.
+    bottom->setStretchFactor(0, 2);
+    bottom->setStretchFactor(1, 3);
 
     QSplitter *splitter = new QSplitter(Qt::Vertical);
     splitter->addWidget(top);
@@ -136,7 +137,7 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     v->addWidget(splitter);
     this->setLayout(v);
     resize(960, 600);
-    bottom->setSizes({480, 480});
+    bottom->setSizes({384, 576});
     
     // Undo replaces activity data: let go of it before, show it after.
     QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
