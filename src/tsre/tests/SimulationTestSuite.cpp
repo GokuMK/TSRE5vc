@@ -534,6 +534,177 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
               "the section at a boundary is the one a train going that way enters");
     }
 
+    // Occupation and authority (task 02, phase 2): a 2 km line cut into
+    // sections by signals at 500, 1000 and 1500 m; the passing loop.
+    {
+        QTemporaryDir folder;
+        const QString config = folder.path() + "/sigcfg.dat";
+        writeUtf16(config, testSigCfg);
+        const SigCfg signalConfig(config);
+        TestTrack::Layout line;
+        line.end(1, 10);
+        line.track(10, 1, 2, 200);
+        line.end(2, 10);
+        TestTrack::signalHead(line, 10, 801, 500.0f, true, "Home");
+        TestTrack::signalHead(line, 10, 802, 1000.0f, true, "Home");
+        TestTrack::signalHead(line, 10, 803, 1500.0f, false, "Home");
+        TDB *db = &line.db;
+        const QScopedValueRollback<TDB *> live(Game::trackDB, db);
+        auto lineGeometry = std::make_shared<const Sim::TrackGeometry>(db);
+        auto lineNetwork = std::make_shared<const Sim::TrackNetwork>(db, *lineGeometry, &signalConfig, false);
+        const int t0 = 8 * 3600;
+        // A path from one place to another, its start turned when it would
+        // run the other way.
+        const auto routeOf = [](TDB *tdb, PathTrack::TrackPoint from, PathTrack::TrackPoint to, double leadIn,
+                                bool turn = false) {
+            PathTrack::Result made = PathTrack::startAt(tdb, from);
+            if (turn)
+                made = PathTrack::turnStart(tdb, made.nodes);
+            made = PathTrack::endAt(tdb, made.nodes, to);
+            return Sim::BuildRoute(tdb, made.nodes, PathTrack::legs(tdb, made.nodes), leadIn);
+        };
+        const auto trainOn = [](const Sim::TrainRoute &route, const Sim::TrackNetwork &network, int start) {
+            Sim::TrainPlan p;
+            p.vehicles = {Sim::Vehicle{20.0f, false, 4}, Sim::Vehicle{20.0f, false, 1}};
+            p.length = 40.0f;
+            p.maxSpeed = 20.0f;
+            Sim::SetRates(p);
+            p.startTime = start;
+            p.route = route;
+            p.startFront = route.pathStart + 10.0;
+            for (const Sim::RouteTrack &part : route.parts)
+                p.projection.push_back(network.project(part));
+            return p;
+        };
+        const auto inputOf = [&](std::shared_ptr<const Sim::TrackGeometry> geometry,
+                                 std::shared_ptr<const Sim::TrackNetwork> network, std::vector<Sim::TrainPlan> plans) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->network = network;
+            for (size_t i = 0; i < plans.size(); ++i) {
+                plans[i].id = int(i);
+                made->trains.push_back(plans[i]);
+            }
+            return made;
+        };
+        const auto firstEvent = [](const std::vector<Sim::TrainEvent> &all, int train, Sim::TrainEvent::Kind kind) {
+            for (const Sim::TrainEvent &e : all)
+                if (e.train == train && e.kind == kind)
+                    return &e;
+            return static_cast<const Sim::TrainEvent *>(nullptr);
+        };
+        const Sim::TrainRoute east = routeOf(db, {10, 100.0f}, {10, 1990.0f}, 31.0);
+        const auto following = inputOf(lineGeometry, lineNetwork, {trainOn(east, *lineNetwork, t0), trainOn(east, *lineNetwork, t0 + 10)});
+        const auto runFollowing = [&](double stepSize, double *closest) {
+            Sim::SimulationCore core(following);
+            std::vector<Sim::TrainEvent> all;
+            *closest = 1e9;
+            for (int i = 0; i < 100000 && !core.finished(); ++i) {
+                core.step(stepSize);
+                for (const Sim::TrainEvent &e : core.takeEvents())
+                    all.push_back(e);
+                const Sim::TrainState &a = core.trains()[0], &b = core.trains()[1];
+                if (a.status != Sim::TrainStatus::Finished && b.status != Sim::TrainStatus::Waiting)
+                    *closest = std::min(*closest, (a.front - 40.0) - b.front);
+            }
+            return all;
+        };
+        double closest = 0.0;
+        const std::vector<Sim::TrainEvent> followed = runFollowing(0.1, &closest);
+        const Sim::TrainEvent *startB = firstEvent(followed, 1, Sim::TrainEvent::Started);
+        const Sim::TrainEvent *blockedB = firstEvent(followed, 1, Sim::TrainEvent::Blocked);
+        check(startB != nullptr && startB->time > t0 + 30 && blockedB != nullptr && blockedB->index == 0
+                  && firstEvent(followed, 1, Sim::TrainEvent::Finished) != nullptr && closest > 0.0,
+              QString("a following train starts when the first has left its section (at +%1 s), never reaches its rear "
+                      "(closest %2 m), and finishes").arg(startB ? startB->time - t0 : -1).arg(closest));
+        double closestLong = 0.0;
+        const std::vector<Sim::TrainEvent> followedLong = runFollowing(5.0, &closestLong);
+        check(closestLong > 0.0 && followedLong.size() == followed.size(),
+              QString("in 5 s steps likewise (closest %1 m)").arg(closestLong));
+        double again = 0.0;
+        const std::vector<Sim::TrainEvent> repeated = runFollowing(0.1, &again);
+        bool same = repeated.size() == followed.size();
+        for (size_t i = 0; same && i < repeated.size(); ++i)
+            same = repeated[i].kind == followed[i].kind && repeated[i].train == followed[i].train
+                    && repeated[i].time == followed[i].time && repeated[i].index == followed[i].index;
+        check(same, "the same input, the same events");
+
+        // Opposing trains on a single line longer than they look ahead (12 km,
+        // a section a kilometre): each reserves towards the other until they
+        // wait nose to nose. (On the short line the first train reserves
+        // all of it, the other's start too, which then waits to start.)
+        {
+            TestTrack::Layout longLine;
+            longLine.end(1, 10);
+            longLine.track(10, 1, 2, 1200);
+            longLine.end(2, 10);
+            for (int k = 1; k < 12; ++k)
+                TestTrack::signalHead(longLine, 10, 900 + k, k * 1000.0f, true, "Home");
+            TDB *longDb = &longLine.db;
+            const QScopedValueRollback<TDB *> liveLong(Game::trackDB, longDb);
+            auto longGeometry = std::make_shared<const Sim::TrackGeometry>(longDb);
+            auto longNetwork = std::make_shared<const Sim::TrackNetwork>(longDb, *longGeometry, &signalConfig, false);
+            const Sim::TrainRoute out = routeOf(longDb, {10, 100.0f}, {10, 11900.0f}, 31.0);
+            const Sim::TrainRoute back = routeOf(longDb, {10, 11960.0f}, {10, 100.0f}, 31.0);
+            Sim::SimulationCore opposing(inputOf(longGeometry, longNetwork, {trainOn(out, *longNetwork, t0),
+                                                                             trainOn(back, *longNetwork, t0)}));
+            std::vector<Sim::TrainEvent> met;
+            for (int i = 0; i < 3000; ++i) {
+                opposing.step(1.0);
+                for (const Sim::TrainEvent &e : opposing.takeEvents())
+                    met.push_back(e);
+            }
+            const Sim::TrainEvent *deadlockA = firstEvent(met, 0, Sim::TrainEvent::Deadlock);
+            const Sim::TrainEvent *deadlockB = firstEvent(met, 1, Sim::TrainEvent::Deadlock);
+            check(deadlockA != nullptr && deadlockB != nullptr && deadlockA->index == 1 && deadlockB->index == 0
+                      && opposing.trains()[0].deadlocked && opposing.trains()[1].deadlocked,
+                  "opposing trains on a single line stop short of each other: a deadlock, reported for both");
+        }
+
+        // A loose consist on the track a train starts on: it never starts.
+        auto blockedInput = inputOf(lineGeometry, lineNetwork, {trainOn(east, *lineNetwork, t0)});
+        Sim::StaticConsist standing;
+        standing.track.push_back(Sim::RouteInterval{10, 120.0f, 140.0f, 0.0});
+        blockedInput->staticConsists.push_back(standing);
+        Sim::SimulationCore stuck(blockedInput);
+        stuck.step(60.0);
+        const std::vector<Sim::TrainEvent> stuckEvents = stuck.takeEvents();
+        const Sim::TrainEvent *stuckBlocked = firstEvent(stuckEvents, 0, Sim::TrainEvent::Blocked);
+        check(stuck.trains()[0].status == Sim::TrainStatus::Waiting && stuckBlocked != nullptr
+                  && stuckBlocked->index == Sim::StandingConsist && stuck.holders()[size_t(lineNetwork->sectionAt(10, 130.0f, true))] == Sim::StandingConsist,
+              "a train starting on a loose consist's track waits, blocked by it");
+
+        // The passing loop: two trains for track 10 from the loop's two
+        // branches take turns at the junction; one on track 13 alone runs.
+        TestTrack::Layout loop;
+        TestTrack::passingLoop(loop);
+        TDB *loopDb = &loop.db;
+        const QScopedValueRollback<TDB *> liveLoop(Game::trackDB, loopDb);
+        auto loopGeometry = std::make_shared<const Sim::TrackGeometry>(loopDb);
+        auto loopNetwork = std::make_shared<const Sim::TrackNetwork>(loopDb, *loopGeometry, &signalConfig, false);
+        const Sim::TrainRoute fromMain = routeOf(loopDb, {11, 150.0f}, {10, 10.0f}, 0.0, true);
+        const Sim::TrainRoute fromSide = routeOf(loopDb, {12, 50.0f}, {10, 10.0f}, 0.0);
+        const Sim::TrainRoute alone = routeOf(loopDb, {13, 45.0f}, {13, 95.0f}, 0.0);
+        Sim::SimulationCore merging(inputOf(loopGeometry, loopNetwork, {trainOn(fromMain, *loopNetwork, t0),
+                                                                        trainOn(fromSide, *loopNetwork, t0),
+                                                                        trainOn(alone, *loopNetwork, t0)}));
+        std::vector<Sim::TrainEvent> merged;
+        for (int i = 0; i < 3000 && !merging.finished(); ++i) {
+            merging.step(1.0);
+            for (const Sim::TrainEvent &e : merging.takeEvents())
+                merged.push_back(e);
+        }
+        const Sim::TrainEvent *endA = firstEvent(merged, 0, Sim::TrainEvent::Finished);
+        const Sim::TrainEvent *endB = firstEvent(merged, 1, Sim::TrainEvent::Finished);
+        const Sim::TrainEvent *waitB = firstEvent(merged, 1, Sim::TrainEvent::Blocked);
+        check(endA != nullptr && endB != nullptr && waitB != nullptr && waitB->index == 0 && endA->time < endB->time
+                  && firstEvent(merged, 0, Sim::TrainEvent::Blocked) == nullptr,
+              "two routes into one junction take turns: the second waits for the first");
+        check(firstEvent(merged, 2, Sim::TrainEvent::Finished) != nullptr && firstEvent(merged, 2, Sim::TrainEvent::Blocked) == nullptr,
+              "a route clear of theirs runs without waiting");
+    }
+
     qInfo().noquote() << QString("simulation-core: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }
@@ -716,6 +887,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
     const float speedLimit = content->trk != nullptr ? content->trk->speedLimit : 44.4444f;
     int activities = 0, trains = 0, finished = 0, warnings = 0, stopsMade = 0;
     int projectedParts = 0, projectedWhole = 0, looseConsists = 0, placedConsists = 0;
+    int waits = 0, deadlocks = 0, stuck = 0;
     Activity *busiest = nullptr;
     size_t busiestTrains = 0;
     std::vector<double> lateness;
@@ -763,9 +935,26 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 qInfo().noquote() << "[tests:simulation-route]" << activity->name << warning;
         timer.restart();
         Sim::SimulationCore core(input);
-        for (int s = 0; s < 24 * 3600 && !core.finished(); ++s) {
+        // To the end, or until every train left is in a deadlock.
+        const auto allStuck = [&core] {
+            for (const Sim::TrainState &state : core.trains())
+                if (state.status != Sim::TrainStatus::Finished && state.stoppedAt != Sim::StopKind::End && !state.deadlocked)
+                    return false;
+            return true;
+        };
+        for (int s = 0; s < 24 * 3600 && !core.finished() && !allStuck(); ++s) {
             core.step(1.0);
             for (const Sim::TrainEvent &event : core.takeEvents()) {
+                if (event.kind == Sim::TrainEvent::Blocked)
+                    ++waits;
+                if (event.kind == Sim::TrainEvent::Deadlock) {
+                    ++deadlocks;
+                    if (verbose) {
+                        const Sim::TrainPlan &p = input->trains[size_t(event.train)];
+                        qInfo().noquote() << "[tests:simulation-route] deadlock:" << activity->name << p.service
+                                          << p.serviceTime << "waits for" << event.index << "at" << event.time;
+                    }
+                }
                 if (event.kind != Sim::TrainEvent::Arrived)
                     continue;
                 ++stopsMade;
@@ -789,14 +978,29 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         }
         runMs += timer.elapsed();
         simulated += core.time() - input->startTime;
-        for (const Sim::TrainState &state : core.trains())
-            finished += state.status == Sim::TrainStatus::Finished || state.stoppedAt == Sim::StopKind::End ? 1 : 0;
+        for (size_t t = 0; t < core.trains().size(); ++t) {
+            const Sim::TrainState &state = core.trains()[t];
+            const bool done = state.status == Sim::TrainStatus::Finished || state.stoppedAt == Sim::StopKind::End;
+            finished += done ? 1 : 0;
+            const bool waiting = !done && (state.deadlocked || state.blockedBy != Sim::NoHolder);
+            stuck += waiting ? 1 : 0;
+            if (waiting && verbose) {
+                const Sim::TrainPlan &p = input->trains[t];
+                const int by = state.blockedBy;
+                qInfo().noquote() << "[tests:simulation-route] stuck:" << activity->name << p.service << p.serviceTime
+                                  << (state.deadlocked ? "deadlocked," : "") << "waiting for"
+                                  << (by == Sim::StandingConsist ? QString("a standing consist")
+                                      : by >= 0 ? input->trains[size_t(by)].service + (input->trains[size_t(by)].player ? " (player)" : "")
+                                      : QString("-"))
+                                  << (by >= 0 && core.trains()[size_t(by)].stoppedAt == Sim::StopKind::End ? "(at its path's end)" : "");
+            }
+        }
     }
-    check(activities > 0 && trains > 0 && finished == trains,
-          QString("%1 activities: %2 trains (%3 warnings) made in %4 ms; all finished: %5, %6 station stops, "
-                  "%7 h simulated in %8 ms")
-          .arg(activities).arg(trains).arg(warnings).arg(inputMs).arg(finished).arg(stopsMade)
-          .arg(simulated / 3600.0, 0, 'f', 1).arg(runMs));
+    check(activities > 0 && trains > 0 && finished + stuck == trains,
+          QString("%1 activities: %2 trains (%3 warnings) made in %4 ms; %5 finished, %6 stuck waiting for track "
+                  "(%7 waits, %8 trains in deadlocks), %9 station stops, %10 h simulated in %11 ms")
+          .arg(activities).arg(trains).arg(warnings).arg(inputMs).arg(finished).arg(stuck).arg(waits).arg(deadlocks)
+          .arg(stopsMade).arg(simulated / 3600.0, 0, 'f', 1).arg(runMs));
     check(projectedWhole == projectedParts && placedConsists == looseConsists,
           QString("%1 route parts projected onto the network end to end: %2; loose consists on the track: %3 of %4")
               .arg(projectedParts).arg(projectedWhole).arg(placedConsists).arg(looseConsists));

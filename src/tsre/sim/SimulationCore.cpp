@@ -33,23 +33,52 @@ double waitUntil(const WaitPlan &wait, double time) {
 }
 
 SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : in(std::move(input)) {
-    now = in->startTime;
     states.resize(in->trains.size());
+    runtime.resize(in->trains.size());
     for (size_t i = 0; i < states.size(); ++i)
         states[i].front = in->trains[i].startFront;
-    // The pre-run: trains that started before the activity, each alone (they
-    // do not meet in this task), up to its start.
-    for (size_t i = 0; i < states.size(); ++i) {
-        double t = in->trains[i].startTime;
-        while (t < now) {
-            const double h = std::min(MaxStep, now - t);
-            advance(int(i), t, t + h);
-            t += h;
+    const TrackNetwork *network = in->network.get();
+    holder.assign(network != nullptr ? network->sections().size() : 0, NoHolder);
+    // Loose consists hold the track they stand on for the whole run.
+    if (network != nullptr)
+        for (const StaticConsist &consist : in->staticConsists) {
+            const RouteInterval *previous = nullptr;
+            for (const RouteInterval &interval : consist.track) {
+                if (previous != nullptr && previous->node != interval.node) {
+                    const int junction = network->endSection(previous->node, previous->forward() ? 1 : 0);
+                    if (junction >= 0)
+                        holder[size_t(junction)] = StandingConsist;
+                }
+                const float low = std::min(interval.from, interval.to), high = std::max(interval.from, interval.to);
+                const auto [first, count] = network->nodeSections(interval.node);
+                for (int k = first; k < first + count; ++k) {
+                    const TrackSection &section = network->sections()[size_t(k)];
+                    if (section.to > low + 1e-3f && section.from < high - 1e-3f)
+                        holder[size_t(k)] = StandingConsist;
+                }
+                previous = &interval;
+            }
         }
+    // The pre-run: all trains together from the first one's start up to the
+    // activity's (Open Rails' pre-run of AI trains).
+    now = in->startTime;
+    double first = now;
+    for (const TrainPlan &plan : in->trains)
+        first = std::min(first, double(plan.startTime));
+    if (first < now) {
+        const double start = now;
+        now = first;
+        run(start - first);
+        now = start;
     }
+    stepCount = 0;
 }
 
 void SimulationCore::step(double seconds) {
+    run(seconds);
+}
+
+void SimulationCore::run(double seconds) {
     double left = seconds;
     while (left > 1e-9) {
         const double h = std::min(MaxStep, left);
@@ -58,6 +87,7 @@ void SimulationCore::step(double seconds) {
         now += h;
         left -= h;
         ++stepCount;
+        findDeadlocks(now);
     }
 }
 
@@ -93,8 +123,15 @@ void SimulationCore::advance(int train, double from, double to) {
         if (to < plan.startTime)
             return;
         t = std::max(from, double(plan.startTime));
+        // Its whole length on track no one else holds, else it waits.
+        if (!occupy(train)) {
+            blocked(train, t);
+            return;
+        }
         s.status = TrainStatus::Running;
         s.speed = 0.0f;
+        s.blockedBy = NoHolder;
+        runtime[size_t(train)].reported = Unreported;
         record(t, train, TrainEvent::Started);
         // Starting at its first station (within a train's length of the
         // stop): it stands there until its departure.
@@ -111,15 +148,39 @@ void SimulationCore::advance(int train, double from, double to) {
     const std::vector<RouteTrack> &parts = plan.route.parts;
     while (t < to - 1e-9) {
         if (s.status == TrainStatus::Stopped) {
-            if (s.stoppedAt == StopKind::End || s.until > to)
+            if (s.stoppedAt == StopKind::End)
                 return;
+            if (s.stoppedAt == StopKind::Blocked) {
+                // Goes on when the track ahead is its own again.
+                extendAuthority(train);
+                if (s.authority < parts[size_t(s.part)].length() - 1e-6
+                        && s.authority - AuthorityMargin <= s.front + AtTarget) {
+                    blocked(train, t);
+                    break;
+                }
+                s.status = TrainStatus::Running;
+                s.stoppedAt = StopKind::None;
+                s.blockedBy = NoHolder;
+                s.deadlocked = false;
+                runtime[size_t(train)].reported = Unreported;
+                continue;
+            }
+            if (s.until > to)
+                break;
             t = std::max(t, s.until);
             if (s.stoppedAt == StopKind::Reversal) {
-                // The old rear leads, the train's length along the next part.
+                // The old rear leads, the train's length along the next part,
+                // on the track it holds (given back and taken again).
+                releaseAll(train);
                 ++s.part;
                 s.reversed = !s.reversed;
                 s.front = std::min(double(plan.length), parts[size_t(s.part)].length());
                 record(t, train, TrainEvent::Reversed);
+                if (!occupy(train)) {
+                    s.stoppedAt = StopKind::Blocked;
+                    blocked(train, t);
+                    break;
+                }
             } else if (s.stoppedAt == StopKind::Station) {
                 record(t, train, TrainEvent::Departed, s.nextStop - 1);
             }
@@ -128,9 +189,13 @@ void SimulationCore::advance(int train, double from, double to) {
             continue;
         }
 
+        // The track ahead, as far as it can be had.
+        extendAuthority(train);
+
         // The next target on this part: a station stop, a waiting point
         // that stops the train, else the part's end (a reversal or the path's
-        // end). Stops and points left behind were passed.
+        // end), or the end of its authority short of that. Stops and points
+        // left behind were passed.
         while (s.nextStop < int(plan.stops.size())) {
             const StopPlan &stop = plan.stops[size_t(s.nextStop)];
             if (stop.part > s.part || (stop.part == s.part && stop.front >= s.front - Passed))
@@ -166,6 +231,14 @@ void SimulationCore::advance(int train, double from, double to) {
                 index = w;
             }
             break;
+        }
+        if (s.authority < parts[size_t(s.part)].length() - 1e-6) {
+            const double limit = std::max(s.front, s.authority - AuthorityMargin);
+            if (limit < target) {
+                target = limit;
+                kind = StopKind::Blocked;
+                index = -1;
+            }
         }
 
         const double distance = std::max(0.0, target - s.front);
@@ -242,12 +315,170 @@ void SimulationCore::advance(int train, double from, double to) {
             break;
         case StopKind::End:
             record(t, train, TrainEvent::Finished);
-            // AI trains leave; the player's train stands at its path's end.
-            if (!plan.player)
+            // AI trains leave, giving back their track; the player's train
+            // stands at its path's end.
+            if (!plan.player) {
                 s.status = TrainStatus::Finished;
+                releaseAll(train);
+            }
+            releaseBehind(train);
             return;
+        case StopKind::Blocked:
+            s.until = t;
+            blocked(train, t);
+            break;
         case StopKind::None:
             break;
+        }
+    }
+    releaseBehind(train);
+}
+
+bool SimulationCore::occupy(int train) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    const double partLength = plan.route.parts[size_t(s.part)].length();
+    if (in->network == nullptr || size_t(s.part) >= plan.projection.size()) {
+        s.authority = partLength;
+        return true;
+    }
+    const std::vector<ProjectedSection> &way = plan.projection[size_t(s.part)].sections;
+    const double rear = s.front - plan.length;
+    size_t k = 0;
+    while (k < way.size() && way[k].leave < rear - 1e-6)
+        ++k;
+    const size_t begin = k;
+    double reach = s.front;
+    while (k < way.size() && way[k].enter <= s.front + 1e-6) {
+        const int h = holder[size_t(way[k].section)];
+        if (h != NoHolder && h != train) {
+            s.blockedBy = h;
+            s.waitSection = way[k].section;
+            return false;
+        }
+        reach = std::max(reach, way[k].leave);
+        ++k;
+    }
+    for (size_t i = begin; i < k; ++i) {
+        holder[size_t(way[i].section)] = train;
+        rt.held.push_back({way[i].section, way[i].leave});
+    }
+    rt.next = k;
+    s.authority = k >= way.size() ? partLength : reach;
+    s.blockedBy = NoHolder;
+    s.waitSection = -1;
+    return true;
+}
+
+void SimulationCore::extendAuthority(int train) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    const double partLength = plan.route.parts[size_t(s.part)].length();
+    if (in->network == nullptr || size_t(s.part) >= plan.projection.size()) {
+        s.authority = partLength;
+        return;
+    }
+    const std::vector<ProjectedSection> &way = plan.projection[size_t(s.part)].sections;
+    const std::vector<TrackSection> &sections = in->network->sections();
+    const double lookahead = std::max(AutoNodeDistance,
+                                      AutoNodeTime * std::min(double(plan.maxSpeed), double(in->routeSpeedLimit)));
+    const double want = std::min(s.front + lookahead, partLength);
+    s.blockedBy = NoHolder;
+    s.waitSection = -1;
+    while (s.authority < want - 1e-6 && rt.next < way.size()) {
+        // A track section with the junctions before it and the crossings on
+        // it, all or nothing.
+        size_t end = rt.next;
+        bool track = false;
+        double reach = s.authority;
+        while (end < way.size()) {
+            if (sections[size_t(way[end].section)].kind == TrackSection::Track) {
+                if (track)
+                    break;
+                track = true;
+            }
+            reach = std::max(reach, way[end].leave);
+            ++end;
+        }
+        for (size_t k = rt.next; k < end; ++k) {
+            const int h = holder[size_t(way[k].section)];
+            if (h != NoHolder && h != train) {
+                s.blockedBy = h;
+                s.waitSection = way[k].section;
+                return;
+            }
+        }
+        for (size_t k = rt.next; k < end; ++k) {
+            holder[size_t(way[k].section)] = train;
+            rt.held.push_back({way[k].section, way[k].leave});
+        }
+        s.authority = std::max(s.authority, reach);
+        rt.next = end;
+    }
+    if (rt.next >= way.size())
+        s.authority = partLength;
+}
+
+void SimulationCore::releaseBehind(int train) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    const TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    const double rear = s.front - plan.length;
+    while (!rt.held.empty() && rt.held.front().leave < rear - 1e-6) {
+        const int section = rt.held.front().section;
+        rt.held.pop_front();
+        // Not while it holds it again further on (a loop passed twice).
+        bool again = false;
+        for (const Held &other : rt.held)
+            again = again || other.section == section;
+        if (!again && holder[size_t(section)] == train)
+            holder[size_t(section)] = NoHolder;
+    }
+}
+
+void SimulationCore::releaseAll(int train) {
+    Runtime &rt = runtime[size_t(train)];
+    for (const Held &held : rt.held)
+        if (holder[size_t(held.section)] == train)
+            holder[size_t(held.section)] = NoHolder;
+    rt.held.clear();
+    rt.next = 0;
+    states[size_t(train)].authority = 0.0;
+}
+
+void SimulationCore::blocked(int train, double time) {
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    if (s.blockedBy == NoHolder || rt.reported == s.blockedBy)
+        return;
+    rt.reported = s.blockedBy;
+    record(time, train, TrainEvent::Blocked, s.blockedBy);
+}
+
+void SimulationCore::findDeadlocks(double time) {
+    auto waiting = [this](int train) {
+        const TrainState &s = states[size_t(train)];
+        return s.blockedBy >= 0
+                && (s.status == TrainStatus::Waiting || (s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Blocked));
+    };
+    for (size_t i = 0; i < states.size(); ++i) {
+        if (states[i].deadlocked || !waiting(int(i)))
+            continue;
+        // Follow who waits for whom; a ring back to this train is a deadlock.
+        std::vector<int> ring = {int(i)};
+        int next = states[i].blockedBy;
+        while (next >= 0 && waiting(next) && ring.size() <= states.size()
+               && std::find(ring.begin(), ring.end(), next) == ring.end()) {
+            ring.push_back(next);
+            next = states[size_t(next)].blockedBy;
+        }
+        if (next != int(i))
+            continue;
+        for (int member : ring) {
+            states[size_t(member)].deadlocked = true;
+            record(time, member, TrainEvent::Deadlock, states[size_t(member)].blockedBy);
         }
     }
 }

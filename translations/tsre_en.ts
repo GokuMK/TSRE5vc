@@ -13730,98 +13730,143 @@ Missing local elevation files (downloaded automatically when supported):
         <source>The activity has no train the simulation can run.</source>
         <translation>The activity has no train the simulation can run.</translation>
     </message>
+    <message id="simulation.state.waiting.track">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="448"/>
+        <source>to start: its track is held by %1</source>
+        <translation>to start: its track is held by %1</translation>
+    </message>
     <message id="simulation.state.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="447"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="450"/>
         <source>starts at %1</source>
         <translation>starts at %1</translation>
     </message>
     <message id="simulation.state.running">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="450"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="453"/>
         <source>running %1 km/h</source>
         <translation>running %1 km/h</translation>
     </message>
     <message id="simulation.state.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="453"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="456"/>
         <source>finished</source>
         <translation>finished</translation>
     </message>
     <message id="simulation.state.station">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="463"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="466"/>
         <source>at %1 until %2</source>
         <translation>at %1 until %2</translation>
     </message>
     <message id="simulation.state.wait">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="467"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="470"/>
         <source>at a waiting point until %1</source>
         <translation>at a waiting point until %1</translation>
     </message>
     <message id="simulation.state.reversal">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="470"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="473"/>
         <source>reversing</source>
         <translation>reversing</translation>
     </message>
     <message id="simulation.state.end">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="473"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="476"/>
         <source>at its path&apos;s end</source>
         <translation>at its path&apos;s end</translation>
     </message>
+    <message id="simulation.state.deadlock">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="480"/>
+        <source>deadlocked: waiting for %1</source>
+        <translation>deadlocked: waiting for %1</translation>
+    </message>
+    <message id="simulation.state.blocked">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="482"/>
+        <source>waiting for track held by %1</source>
+        <translation>waiting for track held by %1</translation>
+    </message>
+    <message id="simulation.train.player">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="495"/>
+        <source>%1 (player)</source>
+        <translation>%1 (player)</translation>
+    </message>
+    <message id="simulation.train.ai">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="497"/>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
+    <message id="simulation.holder.consist">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="503"/>
+        <source>a standing consist</source>
+        <translation>a standing consist</translation>
+    </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="488"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="515"/>
         <source>started</source>
         <translation>started</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="492"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="519"/>
         <source>arrived at %1, booked %2</source>
         <translation>arrived at %1, booked %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="494"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="521"/>
         <source>arrived at %1</source>
         <translation>arrived at %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="498"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="525"/>
         <source>departed from %1, booked %2</source>
         <translation>departed from %1, booked %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="500"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="527"/>
         <source>departed from %1</source>
         <translation>departed from %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="505"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="532"/>
         <source>at a waiting point: %1</source>
         <translation>at a waiting point: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="509"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="536"/>
         <source>reversed</source>
         <translation>reversed</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="512"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="539"/>
         <source>sounded the horn</source>
         <translation>sounded the horn</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="515"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="542"/>
         <source>reached its path&apos;s end</source>
         <translation>reached its path&apos;s end</translation>
     </message>
+    <message id="simulation.event.blocked">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="545"/>
+        <source>waits for track held by %1</source>
+        <translation>waits for track held by %1</translation>
+    </message>
+    <message id="simulation.event.deadlock">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="548"/>
+        <source>deadlocked: waits for %1, which waits for it in turn</source>
+        <translation>deadlocked: waits for %1, which waits for it in turn</translation>
+    </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="535"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="568"/>
         <source>Every train has finished its path.</source>
         <translation>Every train has finished its path.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="537"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="570"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</translation>
     </message>
+    <message id="simulation.status.deadlock">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="579"/>
+        <source>Deadlock: %1 wait for each other.</source>
+        <translation>Deadlock: %1 wait for each other.</translation>
+    </message>
     <message id="simulation.status.warnings">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="540"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="582"/>
         <source>Not simulated: %1.</source>
         <translation>Not simulated: %1.</translation>
     </message>

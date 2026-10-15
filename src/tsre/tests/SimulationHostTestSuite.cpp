@@ -73,10 +73,12 @@ bool writeSimis(const QString &path, const QString &text) {
     return true;
 }
 
-// A route of one 2 km line (tests/TrackLayoutSupport), its platform
-// "Middle" from 1000 to 1200 m; the path Main from 100 to 1900 m; the
-// service S of an engine and a carriage stopping there; the activity
-// starting at 08:00 with the player's S and an AI S at 08:01.
+// A route of two 2 km lines (tests/TrackLayoutSupport), each with a
+// platform from 1000 to 1200 m ("Middle", "Middle 2"); the paths Main and
+// Second from 100 to 1900 m on them; the services S and S2 of an engine and
+// a carriage stopping there; the activity starting at 08:00 with the
+// player's S and an AI S2 at 08:01 (on its own line: trains hold the track
+// they use, task 02).
 const char *activityText = R"(SIMISA@@@@@@@@@@JINX0a0t______
 
 Tr_Activity (
@@ -110,7 +112,7 @@ Tr_Activity (
 		NextServiceUID ( 2 )
 		NextActivityObjectUID ( 32768 )
 		Traffic_Definition ( T
-			Service_Definition ( S 28860
+			Service_Definition ( S2 28860
 				UiD ( 1 )
 			)
 		)
@@ -122,9 +124,9 @@ const char *serviceText = R"(SIMISA@@@@@@@@@@JINX0v0t______
 
 Service_Definition (
 	Serial ( 1 )
-	Name ( "S" )
+	Name ( "%1" )
 	Train_Config ( Two )
-	PathID ( "Main" )
+	PathID ( "%2" )
 	MaxWheelAcceleration ( 0 )
 	Efficiency ( 1 )
 	TimeTable (
@@ -135,7 +137,7 @@ Service_Definition (
 		Efficiency ( 1 )
 		SkipCount ( 0 )
 		DistanceDownPath ( 900 )
-		PlatformStartID ( 101 )
+		PlatformStartID ( %3 )
 	)
 )
 )";
@@ -144,12 +146,12 @@ const char *trafficText = R"(SIMISA@@@@@@@@@@JINX0f0t______
 
 Traffic_Definition ( T
 	Serial ( 1 )
-	Service_Definition ( S 28860
+	Service_Definition ( S2 28860
 		ArrivalTime ( 29000 )
 		DepartTime ( 29060 )
 		SkipCount ( 0 )
 		DistanceDownPath ( 900 )
-		PlatformStartID ( 101 )
+		PlatformStartID ( 201 )
 	)
 )
 )";
@@ -162,8 +164,8 @@ TrackPDPs (
 	TrackPDP ( 0 0 1900 0 0 2 0 )
 )
 TrackPath (
-	TrPathName ( Main )
-	Name ( "Main" )
+	TrPathName ( %1 )
+	Name ( "%1" )
 	TrPathStart ( "A" )
 	TrPathEnd ( "B" )
 	TrPathNodes ( 2
@@ -383,9 +385,11 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     for (const QString &dir : {"ACTIVITIES", "SERVICES", "TRAFFIC", "PATHS"})
         QDir().mkpath(routePath + "/" + dir);
     check(writeSimis(routePath + "/ACTIVITIES/Simulated.act", activityText)
-          && writeSimis(routePath + "/SERVICES/S.srv", serviceText)
+          && writeSimis(routePath + "/SERVICES/S.srv", QString(serviceText).arg("S", "Main").arg(101))
+          && writeSimis(routePath + "/SERVICES/S2.srv", QString(serviceText).arg("S2", "Second").arg(201))
           && writeSimis(routePath + "/TRAFFIC/T.trf", trafficText)
-          && writeSimis(routePath + "/PATHS/Main.pat", pathText)
+          && writeSimis(routePath + "/PATHS/Main.pat", QString(pathText).arg("Main"))
+          && writeSimis(routePath + "/PATHS/Second.pat", QString(pathText).arg("Second"))
           && writeSimis(temp.path() + "/TRAINS/CONSISTS/Two.con", consistText)
           && writeSimis(temp.path() + "/TRAINS/TRAINSET/TEST/loco.eng", QString(vehicleText).arg("loco", "Engine"))
           && writeSimis(temp.path() + "/TRAINS/TRAINSET/TEST/car.wag", QString(vehicleText).arg("car", "Carriage")),
@@ -395,7 +399,11 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     layout.end(1, 10);
     layout.track(10, 1, 2, 200);
     layout.end(2, 10);
+    layout.end(3, 30);
+    layout.track(30, 3, 4, 200);
+    layout.end(4, 30);
     TestTrack::platform(layout, 10, 101, 1000.0f, 1200.0f, "Middle");
+    TestTrack::platform(layout, 30, 201, 1000.0f, 1200.0f, "Middle 2");
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "R");
     const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &layout.db);
@@ -410,17 +418,19 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     Route *route = new Route();
     route->loadPaths();
     Path *main = ActLib::GetPathByName("Main", routePath);
-    if (main != nullptr) {
-        PathTrack::Result made = PathTrack::startAt(&layout.db, {10, 100.0f});
-        made = PathTrack::endAt(&layout.db, made.nodes, {10, 1900.0f});
-        main->apply(made.nodes);
-    }
+    Path *second = ActLib::GetPathByName("Second", routePath);
+    for (auto [path, track] : {std::make_pair(main, 10), std::make_pair(second, 30)})
+        if (path != nullptr) {
+            PathTrack::Result made = PathTrack::startAt(&layout.db, {track, 100.0f});
+            made = PathTrack::endAt(&layout.db, made.nodes, {track, 1900.0f});
+            path->apply(made.nodes);
+        }
     route->loadServices();
     route->loadTraffic();
     route->loadActivities();
     Activity *activity = route->activityId.isEmpty() ? nullptr : ActLib::Act.value(route->activityId[0]);
-    check(main != nullptr && !main->isBroken() && activity != nullptr && activity->loaded == 1,
-          "the activity loads, its path on the test line");
+    check(main != nullptr && !main->isBroken() && second != nullptr && !second->isBroken() && activity != nullptr
+              && activity->loaded == 1, "the activity loads, its paths on the test lines");
     if (activity == nullptr || activity->loaded != 1) {
         qInfo().noquote() << QString("simulation-ui: %1 passed, %2 failed").arg(passed).arg(failed + 1);
         return 1;

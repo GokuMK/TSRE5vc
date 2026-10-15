@@ -1,7 +1,7 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
-Status: phase 1 done (2026-10-16, branch `feature/simulation`); phase 2
-next. Decisions taken are at the end.
+Status: phases 1 and 2 done (2026-10-16, branch `feature/simulation`);
+phase 3 next. Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -52,6 +52,40 @@ covered once, every NORMAL head on a section boundary, every junction
 link ahead of its head, speed posts along the track and facing their way,
 every route part projected end to end, every loose consist placed). The
 network takes 1 to 4 ms and 69 to 239 KiB on the local routes.
+
+**Phase 2, occupation and Auto Node (done 2026-10-16).** In the core:
+- every section has one holder (a train, a standing consist, or none); a
+  train holds the sections under its whole length and those reserved
+  ahead of it, takes them a track section at a time (with the junctions
+  before it and the crossings on it), all or nothing, and gives each back
+  when its rear has left it; an AI train at its path's end gives back all
+  (the player's keeps standing there);
+- authority as Open Rails' Auto Node: up to 5,000 m ahead, or two minutes
+  at its top speed if further, as far as it can reserve; the driver brakes
+  to stop 10 m short of its end and goes on when it is extended;
+- a train starts when the track under it is free, else waits; loose
+  consists hold their track for the whole run;
+- at a reversal the train gives back its track and takes again what it
+  stands on;
+- the pre-run runs all trains together from the first one's start;
+- events: a train waits for track (and for whom), a deadlock (a ring of
+  trains each waiting for the next), each reported once; the Timetable
+  window's states ("waiting for track held by …", "deadlocked: waiting for
+  …", "to start: its track is held by …") and the panel's status line
+  name them.
+
+Tests (`simulation-core`): a following train starts when the first has
+left its section and never reaches its rear, in 0.1 s and 5 s steps, the
+same events each time; opposing trains on a single line longer than they
+look ahead deadlock and both are reported (on a short line the first one
+reserves it all and the other waits to start); a train on a loose
+consist's track waits; two routes into one junction take turns while a
+route clear of them runs on. `simulation-route` counts trains finished and
+stuck: EUROPE1, EUROPE2 and JAPAN2 all finish; JAPAN1 49 of 50 (one AI
+train's path runs through a loose consist); single-track USA1 (41 of 46),
+USA2 (39 of 48) and BNSF_SCENIC (5 of 16) deadlock without signals and
+stretch claims (phases 3 and 5). `simulation-ui`'s AI train has its own
+line now.
 
 ## Objective
 

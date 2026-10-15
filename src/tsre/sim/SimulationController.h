@@ -109,6 +109,10 @@ public:
     // and an event as the Timetable window lists it.
     QString stateText(int train) const;
     QString eventText(const TrainEvent &event) const;
+    // A train as the Timetable window names it ("Local 09:30"); a section's
+    // holder (a train, a standing consist).
+    QString trainName(int train) const;
+    QString holderName(int holder) const;
     QString statusText() const;
 
     // The simulated trains in 3D, with the ids of the trains at their starts

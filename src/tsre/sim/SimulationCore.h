@@ -1,4 +1,5 @@
 #pragma once
+#include <deque>
 #include <memory>
 #include <vector>
 #include <tsre/sim/SimulationInput.h>
@@ -6,8 +7,13 @@
 namespace Sim {
 
 enum class TrainStatus { Waiting, Running, Stopped, Finished };
-// Why a train stands.
-enum class StopKind { None, Station, Wait, Reversal, End };
+// Why a train stands. Blocked: at the end of its authority, the track ahead
+// held by another train or a standing consist.
+enum class StopKind { None, Station, Wait, Reversal, End, Blocked };
+
+// Who holds a section: a train's id, or these.
+constexpr int NoHolder = -1;
+constexpr int StandingConsist = -2;
 
 // A train's state in the simulation.
 struct TrainState {
@@ -29,12 +35,24 @@ struct TrainState {
     int nextWait = 0;
     // Metres travelled.
     double travelled = 0.0;
+    // The route distance (on its part) up to which its track is reserved.
+    double authority = 0.0;
+    // Waiting for track (to start, or at the end of its authority): who
+    // holds the section it waits for (a train, StandingConsist), and the
+    // section; NoHolder when it does not wait.
+    int blockedBy = NoHolder;
+    int waitSection = -1;
+    // It is in a deadlock (reported once).
+    bool deadlocked = false;
 };
 
 // Something that happened to a train, for the editor (task simulation 01,
 // section 6).
 struct TrainEvent {
-    enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished };
+    // Blocked: waiting for track held by `index` (a train, StandingConsist);
+    // Deadlock: in a ring of trains waiting for each other, waiting for
+    // train `index`.
+    enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -49,6 +67,12 @@ class SimulationCore {
 public:
     // The longest step taken at once: longer steps are cut into these.
     static constexpr double MaxStep = 0.1;
+    // A train stops this far short of the end of its authority.
+    static constexpr double AuthorityMargin = 10.0;
+    // Where no signal limits it, a train reserves this far ahead, or as far
+    // as two minutes at its top speed (Open Rails' Auto Node).
+    static constexpr double AutoNodeDistance = 5000.0;
+    static constexpr double AutoNodeTime = 120.0;
 
     // Trains that started before the activity are run up to its start (the
     // pre-run).
@@ -65,6 +89,9 @@ public:
     const std::vector<TrainState> &trains() const { return states; }
     // The events since the last call.
     std::vector<TrainEvent> takeEvents();
+    // Who holds each section of the network (a train, StandingConsist,
+    // NoHolder).
+    const std::vector<int> &holders() const { return holder; }
     // The two ends of each of a train's vehicles, in the consist's order:
     // the vehicle's front (as the consist lists it) and its rear, their
     // roll looking from the rear to the front. False for a train not on the
@@ -82,11 +109,43 @@ private:
     unsigned long long stepCount = 0;
     std::vector<TrainState> states;
     std::vector<TrainEvent> events;
+    // Per network section.
+    std::vector<int> holder;
+    // Per train, what the frames need not see: the sections it holds in its
+    // route's order (where it leaves each), and the next projected section
+    // it would reserve on its part.
+    struct Held {
+        int section = -1;
+        double leave = 0.0;
+    };
+    // Not yet reported waiting.
+    static constexpr int Unreported = -100;
+    struct Runtime {
+        std::deque<Held> held;
+        size_t next = 0;
+        // Whom it was last reported waiting for.
+        int reported = Unreported;
+    };
+    std::vector<Runtime> runtime;
 
+    // All trains from `now` on by `seconds`, in steps of at most MaxStep.
+    void run(double seconds);
     // One train from `from` to `to` (seconds after midnight, at most
     // MaxStep apart).
     void advance(int train, double from, double to);
     void record(double time, int train, TrainEvent::Kind kind, int index = -1);
+    // Reservation (task 02): the sections under a train standing at its
+    // start, all or nothing; the track ahead up to its lookahead, a section
+    // (with the junctions before it and the crossings on it) at a time;
+    // giving back what its rear has left, or everything.
+    bool occupy(int train);
+    void extendAuthority(int train);
+    void releaseBehind(int train);
+    void releaseAll(int train);
+    // A Blocked event, once for each holder it waits for.
+    void blocked(int train, double time);
+    // Rings of trains each waiting for track the next one holds.
+    void findDeadlocks(double time);
 };
 
 }

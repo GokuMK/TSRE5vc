@@ -443,6 +443,9 @@ QString SimulationController::stateText(int train) const {
     const TrainState &s = now->trains[size_t(train)].state;
     switch (s.status) {
     case TrainStatus::Waiting:
+        if (s.blockedBy != NoHolder && now->time >= plan.startTime)
+            //% "to start: its track is held by %1"
+            return qtTrId("simulation.state.waiting.track").arg(holderName(s.blockedBy));
         //% "starts at %1"
         return qtTrId("simulation.state.waiting").arg(clock(plan.startTime));
     case TrainStatus::Running:
@@ -471,10 +474,34 @@ QString SimulationController::stateText(int train) const {
     case StopKind::End:
         //% "at its path's end"
         return qtTrId("simulation.state.end");
+    case StopKind::Blocked:
+        if (s.deadlocked)
+            //% "deadlocked: waiting for %1"
+            return qtTrId("simulation.state.deadlock").arg(holderName(s.blockedBy));
+        //% "waiting for track held by %1"
+        return qtTrId("simulation.state.blocked").arg(holderName(s.blockedBy));
     case StopKind::None:
         break;
     }
     return QString();
+}
+
+QString SimulationController::trainName(int train) const {
+    if (in == nullptr || train < 0 || size_t(train) >= in->trains.size())
+        return QString();
+    const TrainPlan &plan = in->trains[size_t(train)];
+    return plan.player ?
+        //% "%1 (player)"
+        qtTrId("simulation.train.player").arg(plan.service) :
+        //% "%1 %2"
+        qtTrId("simulation.train.ai").arg(plan.service, clock(plan.serviceTime));
+}
+
+QString SimulationController::holderName(int holder) const {
+    if (holder == StandingConsist)
+        //% "a standing consist"
+        return qtTrId("simulation.holder.consist");
+    return trainName(holder);
 }
 
 QString SimulationController::eventText(const TrainEvent &event) const {
@@ -513,6 +540,12 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     case TrainEvent::Finished:
         //% "reached its path's end"
         return qtTrId("simulation.event.finished");
+    case TrainEvent::Blocked:
+        //% "waits for track held by %1"
+        return qtTrId("simulation.event.blocked").arg(holderName(event.index));
+    case TrainEvent::Deadlock:
+        //% "deadlocked: waits for %1, which waits for it in turn"
+        return qtTrId("simulation.event.deadlock").arg(holderName(event.index));
     }
     return QString();
 }
@@ -535,6 +568,15 @@ QString SimulationController::statusText() const {
             ? qtTrId("simulation.status.finished")
             //% "Trains: %1 waiting, %2 running, %3 standing, %4 finished."
             : qtTrId("simulation.status.trains").arg(waiting).arg(moving).arg(standing).arg(finished);
+    // Trains waiting for each other for good: the user changes their times
+    // or paths.
+    QStringList deadlocked;
+    for (size_t t = 0; t < now->trains.size(); ++t)
+        if (now->trains[t].state.deadlocked)
+            deadlocked << trainName(int(t));
+    if (!deadlocked.isEmpty())
+        //% "Deadlock: %1 wait for each other."
+        text += " " + qtTrId("simulation.status.deadlock").arg(deadlocked.join(", "));
     if (in != nullptr && !in->warnings.isEmpty())
         //% "Not simulated: %1."
         text += " " + qtTrId("simulation.status.warnings").arg(in->warnings.join("; "));
