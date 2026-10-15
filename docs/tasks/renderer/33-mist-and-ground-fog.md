@@ -512,6 +512,24 @@ the terrain cannot explain.
   fixed on the screen.
 - The capture views can now settle on their own (one frame after a turn).
 
+### Beams through trees, a low sun (user, 2026-10-15)
+
+- Measured at PeakRail's start, 2 m up in the morning mist, the sun beside a
+  big tree: the fog's shadows (beams) at 5:00 a mean of 2.1, at most 19 of
+  255; at 5:20 at most 71. In thick valley fog none: a sun 10 degrees up
+  crosses hundreds of metres of it to any point (as it should).
+- Not the sky's light (the horizon's colour towards the sun, unshadowed): an
+  even sky light gave 15 % more.
+- The sun's: the fog took the lit shaders' sun, which fades by the horizon
+  as a look (`Daylight`, at 10 degrees 0.044 against the sky's 0.25 linear).
+  Now the brighter of it and the day's sun through the air towards it
+  (`Atmosphere::sunLight`; two to three times at 10 degrees, less red): at
+  5:00 the beams a mean of 4.1, at most 37, rays from the tree into the
+  field, a warmer glow around the sun (the view a mean of 7.6 brighter);
+  from 7:00 on the same images (at most 1 of 255).
+- Left: rays thinner than a cell (8 pixels) blur; streaks along the lines
+  to the sun (as the screen-space shafts) would sharpen them.
+
 ## Verification
 
 - **Captures** on hilly routes with valleys and rivers (POLAND, BNSF_SCENIC,

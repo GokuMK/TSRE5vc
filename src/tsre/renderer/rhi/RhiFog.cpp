@@ -23,7 +23,9 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/Game.h>
+#include <tsre/environment/Atmosphere.h>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/world/Daylight.h>
 
 namespace {
 
@@ -580,6 +582,22 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     for (int i = 0; i < 3; ++i) {
         p.lightColour[i] = std::pow(std::max(gluu->diffuseColor[i] * scene, 0.0f), 2.2f);
         p.ambient[i] = std::pow(std::max(gluu->ambientColor[i] * skyScale, 0.0f), 2.2f);
+    }
+    // A low sun: the day's sun through the air towards it (Atmosphere), where
+    // that is brighter than the lit shaders' sun, which fades by the horizon
+    // as a look (Daylight): at 10 degrees two to three times, less red. The
+    // mist around a low sun glows, and the trees' beams in it show twice as
+    // strong (the user, 2026-10-15). From about 20 degrees up the lit
+    // shaders' is the brighter, and stays.
+    const float sunLength = std::sqrt(sky.sun[0] * sky.sun[0] + sky.sun[1] * sky.sun[1] + sky.sun[2] * sky.sun[2]);
+    if (sunLength > 0.0f && length > 0.0f
+            && (sky.sun[0] * l[0] + sky.sun[1] * l[1] + sky.sun[2] * l[2]) / (sunLength * length) > 0.9999f) {
+        const double height = std::max(0.001, double(sky.cameraHeight) / 1000.0);
+        const Atmosphere::Rgb through = Atmosphere::model().sunLight(height, p.light[1]);
+        const Atmosphere::Rgb overhead = Atmosphere::model().sunLight(height, 1.0);
+        const float noon = std::pow(Daylight::SunLight * scene, 2.2f);
+        for (int i = 0; i < 3; ++i)
+            p.lightColour[i] = std::max(p.lightColour[i], noon * float(through[i] / std::max(overhead[i], 1e-6f)));
     }
     float plane = 0.0f;
     if (cloudShadowPlane(plane) && maps[0] != dummy2D && p.light[1] > 0.01f) {
