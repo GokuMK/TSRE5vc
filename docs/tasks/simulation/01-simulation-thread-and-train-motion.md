@@ -115,9 +115,8 @@ time); those stops behave as untimed ones.
   Settle, booked 08:31:00"), Follow: the camera put behind the train and
   above, looking at it (centred on the map), then moved as it moves, so
   the user can still look around.
-- The world's time of day is set to the activity's start at start
-  (`core.rendering.timeOfDay.time`) and then follows the simulation (the
-  follow-up below).
+- The world's time of day is set to the activity's start at start and
+  then is the simulation's (`WorldClock`, the follow-up below).
 - Activity editing off (`ActivityNotifier::editingLocked`): the panel's
   activity choice, settings, New Activity, player and traffic choices,
   path, consist, speed zone and failed signal buttons; the Events,
@@ -147,26 +146,43 @@ map's vehicles, Run to an earlier time, Stop and undo after it).
 options (`simulateTo`, `simulationChosen`, a view's `train`) the
 `renderer-capture` suite now takes.
 
-**Follow-up: the world's clock follows the simulation (2026-10-15, the
-user).** The world's state that depends on time (sun, sky, lights,
-weather, clouds) all reads the time of day (`Game::timeOfDayHours` and
-the date); `Route::updateSim` only animates objects by wall time. So the
-simulation is the clock and the world reads it: while a simulation exists
-the view's frame loop takes the time of day and the date from the
-simulation's latest frame (`SimulationController::worldClock`) instead of
-running its own clock. Paused, the sky stops; at 64× it runs at 64× (the
-clouds refresh as the clock's speed asks); Run to back in time sets it
-back. A run as fast as possible leaves the world at its time until the
-run pauses, then the world jumps there (the clouds could not follow, and
-it saves the work). Past midnight the date moves on a day from the
-world's date at start. On Stop the clock goes on from the simulation's
-time on its own (the session's time and date are set to it). The other way
-round, the view's frames stepping the simulation, would tie the
-simulation to the frame rate and the main thread; the world only reads
-the time, so one direction is enough. The views also draw the host's
-latest frame now, not the one the windows take ten times a second (trains
-moved in steps before). `simulation-ui` checks the clock (24 checks). The
-Environment window's time shows the clock only while its own clock runs.
+**Follow-up: one world clock (2026-10-15, the user).** The world's state
+that depends on time (sun, sky, lights, weather, clouds, and the fog on
+`feature/mist`) all reads the time of day (`Game::timeOfDayHours` and the
+date); `Route::updateSim` only animates objects by wall time. So there is
+one clock, `WorldClock` (`src/tsre/environment`), and everything reads and
+drives it:
+- Its source is the simulation while one exists (`WorldClock::Source`,
+  which `SimulationController` is); otherwise the main thread runs it, as
+  the view's frame loop did (running by `core.rendering.timeOfDay.running`,
+  at the session's speed). The view's frame loop only ticks it.
+- The Environment window drives it whichever runs it: Stop and Resume
+  pause and play the simulation, its speed is the simulation's (and the
+  activity panel's speed is the clock's: a simulation starts at the
+  clock's speed), setting the time runs the simulation to it on the day
+  shown (from the start again when earlier, running on after when it ran),
+  setting the date moves the simulation's dates. Its time shows the clock
+  always, not into a field being edited.
+- With a simulation: paused, the sky stops; at 64× it runs at 64× (the
+  clouds refresh as the clock's speed asks); a run back in time sets it
+  back; a run as fast as possible leaves the world at its time until the
+  run pauses, then the world jumps there (the clouds could not follow, and
+  it saves the work); past midnight the date moves on a day from the
+  world's date at start. On Stop the editor's clock goes on from the
+  simulation's time, date and speed (not as fast as possible; the
+  session's time and date are set to it).
+- The other way round, the view's frames stepping the simulation, would
+  tie the simulation to the frame rate and the main thread; the world only
+  reads the time, so one direction is enough.
+
+The views also draw the host's latest frame now, not the one the windows
+take ten times a second (trains moved in steps before). Tests:
+`simulation-ui` (29 checks: the clock follows, holds in a fast run, the
+next day; its speed, Resume, time and Stop drive the simulation; after Stop
+the editor's clock takes over) and `environment-window` (the editor's clock
+ticked, the time field sets it while stopped). `feature/mist` (task
+renderer 33) reads the clock the same way and does not change it; merging
+both will meet only around the view's clock members.
 
 **Phase 4, measured (done 2026-10-15).** `simulation-route` now measures,
 on the activity with the most trains (llvmpipe box, one core for the

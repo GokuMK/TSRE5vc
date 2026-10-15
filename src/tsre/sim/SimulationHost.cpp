@@ -95,13 +95,14 @@ void SimulationHost::setSpeed(double value, unsigned long long seq) {
     publish();
 }
 
-void SimulationHost::runTo(double time, unsigned long long seq) {
+void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun) {
     acknowledged = seq;
+    runOn = thenRun;
     if (core != nullptr && time > core->time()) {
         target = time;
         mode = RunMode::RunningTo;
     } else {
-        mode = RunMode::Paused;
+        mode = core != nullptr && thenRun ? RunMode::Running : RunMode::Paused;
     }
     schedule();
     publish();
@@ -159,7 +160,7 @@ void SimulationHost::tick() {
     } else if (mode == RunMode::RunningTo) {
         stepFor(target - core->time(), batch);
         if (core->time() >= target - 1e-6) {
-            mode = RunMode::Paused;
+            mode = runOn ? RunMode::Running : RunMode::Paused;
             schedule();
         }
     }

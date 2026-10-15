@@ -116,6 +116,7 @@
 #include <tsre/tdb/TRnode.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/environment/WorldClock.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
@@ -138,7 +139,6 @@ tools(std::make_unique<ToolRegistry>()) {
     connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
-    timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
     // Undo replaces activity data: a selected loose consist, speed zone or
     // failed signal is gone.
     connect(ActivityNotifier::instance(), &ActivityNotifier::restoring, this, [this] {
@@ -162,8 +162,6 @@ tools(std::make_unique<ToolRegistry>()) {
                 environmentChanged = true;
             if (key == "core.rendering.lampsByDay")
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
-            if (key == "core.rendering.timeOfDay.running")
-                timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 timer.start(renderTimerStep(), this);
@@ -292,30 +290,9 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
 
     if (!simulationPaused)
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
-    // The clock: the time of day, and with it the weather and the clouds,
-    // run on. Set elsewhere (the panel), it goes on from there; the settings
-    // hear of it only past midnight. While a simulation exists it is the
-    // simulation's (task simulation 01).
-    QString simulatedDate;
-    double simulatedHours = 0.0;
-    simulationClock = Sim::SimulationController::instance()->worldClock(simulatedHours, simulatedDate,
-                                                                        simulationClockRate);
-    if (simulationClock) {
-        clockHours = simulatedHours;
-        Game::timeOfDayHours = float(simulatedHours);
-        if (!simulatedDate.isEmpty() && simulatedDate != Game::timeOfDayDate)
-            SettingsManager::instance().setSessionValue("core.rendering.timeOfDay.date", simulatedDate);
-    } else if (!simulationPaused && timeRuns) {
-        if (float(clockHours) != Game::timeOfDayHours)
-            clockHours = Game::timeOfDayHours;
-        QString date = Game::timeOfDayDate;
-        if (advanceClock((timeNow - lastTime) / 1000.0, timeSpeed, clockHours, date)) {
-            SettingsManager &settings = SettingsManager::instance();
-            settings.setSessionValue("core.rendering.timeOfDay.date", date);
-            settings.setSessionValue("core.rendering.timeOfDay.time", clockHours);
-        }
-        Game::timeOfDayHours = float(clockHours);
-    }
+    // The clock: the time of day, and with it the weather, the clouds and
+    // the fog, run on (WorldClock: the main thread's, or a simulation's).
+    WorldClock::instance()->tick(simulationPaused ? 0.0 : (timeNow - lastTime) / 1000.0);
 
     lastTime = timeNow;
 
@@ -1347,8 +1324,7 @@ void RouteEditorGLWidget::applyClouds() {
     // A fast timelapse refreshes the clouds faster (the user: from 2 min a
     // second twice, at 4 min four times; static scenes, a lower frame rate
     // is fine): the history cannot follow clouds that change that much.
-    const double clockRate = simulationClock ? simulationClockRate
-                                             : timeRuns && !simulationPaused ? timeSpeed : 0.0;
+    const double clockRate = simulationPaused ? 0.0 : WorldClock::instance()->rate();
     c.passes = clockRate >= 240.0 ? 4 : (clockRate >= 120.0 ? 2 : 1);
     const double west = std::floor((east - Size * Texel * 0.5) / Step) * Step;
     const double top = std::ceil((north + Size * Texel * 0.5) / Step) * Step;
@@ -3521,22 +3497,6 @@ void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
 
 void RouteEditorGLWidget::setSimulationPaused(bool paused) {
     simulationPaused = paused;
-}
-
-void RouteEditorGLWidget::setClockSpeed(double secondsPerSecond) {
-    timeSpeed = std::max(secondsPerSecond, 0.0);
-}
-
-bool RouteEditorGLWidget::advanceClock(double seconds, double speed, double &hours, QString &date) {
-    hours += std::clamp(seconds, 0.0, 1.0) * speed / 3600.0;
-    if (hours < 24.0)
-        return false;
-    hours -= 24.0;
-    QDate day = QDate::fromString(date.trimmed(), "yyyy-MM-dd");
-    if (!day.isValid())
-        day = QDate(2026, 6, 21);
-    date = day.addDays(1).toString("yyyy-MM-dd");
-    return true;
 }
 
 QVector<quint32> RouteEditorGLWidget::probeSelectionIds(

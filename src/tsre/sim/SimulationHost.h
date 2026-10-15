@@ -49,8 +49,8 @@ public:
     // Simulated seconds a second; 0 as fast as possible.
     void setSpeed(double speed, unsigned long long seq);
     // As fast as possible up to `time` (seconds after midnight), then
-    // paused there.
-    void runTo(double time, unsigned long long seq);
+    // paused there, or running on at the speed when `thenRun`.
+    void runTo(double time, unsigned long long seq, bool thenRun = false);
     // The core gone; the host is handed back to `owner`'s thread and its
     // own thread quits.
     void stop(unsigned long long seq, QThread *owner);
@@ -62,6 +62,7 @@ private:
     RunMode mode = RunMode::Paused;
     double speed = 1.0;
     double target = 0.0;
+    bool runOn = false;
     unsigned long long acknowledged = 0;
     // The rate reached: simulated seconds over wall time since `rateWall`.
     QElapsedTimer rateWall;

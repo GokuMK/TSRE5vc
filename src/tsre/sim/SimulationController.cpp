@@ -63,6 +63,7 @@ SimulationController *SimulationController::instance() {
 SimulationController::SimulationController() {
     pollTimer.setInterval(100);
     connect(&pollTimer, &QTimer::timeout, this, &SimulationController::poll);
+    connect(this, &SimulationController::stateChanged, WorldClock::instance(), &WorldClock::sourceChanged);
 }
 
 SimulationController::~SimulationController() {
@@ -106,14 +107,6 @@ void SimulationController::sendStart(std::shared_ptr<const SimulationInput> inpu
                               Qt::QueuedConnection);
 }
 
-void SimulationController::setWorldTime(int seconds) {
-    const double hours = std::fmod(seconds / 3600.0, 24.0);
-    QString error;
-    if (!SettingsManager::instance().setSessionValue("core.rendering.timeOfDay.time", hours, &error))
-        qWarning() << "Simulation:" << error;
-    Game::timeOfDayHours = float(hours);
-}
-
 bool SimulationController::start(Activity *activity, QString *error) {
     stop();
     std::shared_ptr<const SimulationInput> input = makeInput(activity, error);
@@ -132,10 +125,14 @@ bool SimulationController::start(Activity *activity, QString *error) {
     host = new SimulationHost();
     host->moveToThread(thread);
     thread->start();
+    // The world's clock is the simulation's, from the activity's start, at
+    // the clock's speed.
+    if (WorldClock::instance()->source() == nullptr)
+        pace = WorldClock::instance()->speed();
     sendStart(input);
     startDate = Game::timeOfDayDate;
     worldTime = input->startTime;
-    setWorldTime(input->startTime);
+    WorldClock::instance()->setSource(this);
     ActivityNotifier::instance()->setEditingLocked(true);
     pollTimer.start();
     emit stateChanged();
@@ -182,6 +179,12 @@ bool SimulationController::runTo(Activity *activity, int timeOfDay, QString *err
     // Before the start: the next day's.
     if (target < in->startTime)
         target += 86400.0;
+    return runToTime(target, false, error);
+}
+
+bool SimulationController::runToTime(double target, bool thenRun, QString *error) {
+    if (!exists())
+        return false;
     if (target < frame()->time) {
         // Back: from the start again (MSAE's way).
         std::shared_ptr<const SimulationInput> input = makeInput(current, error);
@@ -196,7 +199,8 @@ bool SimulationController::runTo(Activity *activity, int timeOfDay, QString *err
     asked = RunMode::RunningTo;
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, target, seq] { h->runTo(target, seq); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(host, [h, target, seq, thenRun] { h->runTo(target, seq, thenRun); },
+                              Qt::QueuedConnection);
     emit stateChanged();
     return true;
 }
@@ -229,14 +233,8 @@ void SimulationController::stop() {
     if (!exists())
         return;
     // The world's clock goes on from the simulation's time.
-    double hours = 0.0, rate = 0.0;
-    QString date;
-    if (worldClock(hours, date, rate)) {
-        SettingsManager &settings = SettingsManager::instance();
-        if (!date.isEmpty())
-            settings.setSessionValue("core.rendering.timeOfDay.date", date);
-        settings.setSessionValue("core.rendering.timeOfDay.time", hours);
-    }
+    if (WorldClock::instance()->source() == this)
+        WorldClock::instance()->setSource(nullptr);
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
     QThread *owner = QThread::currentThread();
@@ -318,10 +316,13 @@ bool SimulationController::waitFor(unsigned long long seq, int ms) {
     return false;
 }
 
-bool SimulationController::worldClock(double &hours, QString &date, double &rate) const {
-    if (!exists() || in == nullptr)
-        return false;
+void SimulationController::clockNow(double &hours, QString &date, double &rate) const {
     rate = 0.0;
+    if (!exists() || in == nullptr) {
+        hours = Game::timeOfDayHours;
+        date = Game::timeOfDayDate;
+        return;
+    }
     const std::shared_ptr<const SimulationFrame> now = frame();
     if (now->runId == in->runId) {
         const bool fastest = now->mode == RunMode::RunningTo
@@ -336,7 +337,37 @@ bool SimulationController::worldClock(double &hours, QString &date, double &rate
     hours = (worldTime - days * 86400.0) / 3600.0;
     QDate day = QDate::fromString(startDate.trimmed(), "yyyy-MM-dd");
     date = day.isValid() ? day.addDays(qint64(days)).toString("yyyy-MM-dd") : startDate;
-    return true;
+}
+
+void SimulationController::setClockRunning(bool on) {
+    if (on)
+        play(current);
+    else
+        pause();
+}
+
+void SimulationController::setClockTime(double hours) {
+    if (!exists())
+        return;
+    double shown = 0.0, rate = 0.0;
+    QString date;
+    clockNow(shown, date, rate);
+    double target = std::floor(worldTime / 86400.0) * 86400.0 + hours * 3600.0;
+    // Before the activity's start: the next day's.
+    if (target < in->startTime)
+        target += 86400.0;
+    QString error;
+    if (!runToTime(target, runs(), &error))
+        qWarning() << "Simulation: the clock not set:" << error;
+}
+
+void SimulationController::setClockDate(const QString &date) {
+    const QDate day = QDate::fromString(date.trimmed(), "yyyy-MM-dd");
+    if (!exists() || !day.isValid())
+        return;
+    // The date shown becomes it: the start's moves as much.
+    startDate = day.addDays(-qint64(std::floor(worldTime / 86400.0))).toString("yyyy-MM-dd");
+    emit stateChanged();
 }
 
 int SimulationController::trainOf(bool player, int traffic) const {

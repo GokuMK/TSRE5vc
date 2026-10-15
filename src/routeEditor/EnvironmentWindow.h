@@ -47,8 +47,6 @@ public slots:
 
 signals:
     void windowClosed();
-    // The clock's speed chosen: seconds of the day a real second.
-    void clockSpeedChanged(double secondsPerSecond);
 
 protected:
     void hideEvent(QHideEvent *e) override;
@@ -73,8 +71,8 @@ private:
     QCheckBox *sun = nullptr;
     QCheckBox *moon = nullptr;
     QDoubleSpinBox *sunSize = nullptr;
-    // The clock (its speed, and core.rendering.timeOfDay.running): the
-    // editor runs the time on; the panel shows it while it runs.
+    // The clock (WorldClock: its speed, running or not): the editor's or a
+    // simulation's; the panel shows its time a few times a second.
     QComboBox *clockSpeed = nullptr;
     QToolButton *clockButton = nullptr;
     QTimer *clockDisplay = nullptr;

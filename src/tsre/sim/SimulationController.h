@@ -4,6 +4,7 @@
 #include <QTimer>
 #include <memory>
 #include <vector>
+#include <tsre/environment/WorldClock.h>
 #include <tsre/sim/SimulationFrame.h>
 
 class Activity;
@@ -20,8 +21,9 @@ class SimulationHost;
 // sends the commands, takes the frames and events, and shows the trains
 // (3D, map, the Timetable window's states). While a simulation exists
 // (from start until Stop; Pause keeps it) the activity's data is not
-// edited (ActivityNotifier::editingLocked).
-class SimulationController : public QObject {
+// edited (ActivityNotifier::editingLocked), and the world's clock is the
+// simulation's (WorldClock's source).
+class SimulationController : public QObject, public WorldClock::Source {
     Q_OBJECT
 public:
     // Speeds offered, simulated seconds a second; 0 as fast as possible.
@@ -89,12 +91,19 @@ public:
     // the track.
     bool trainPlace(int train, int *tile, float *position, float *heading, float *length = nullptr) const;
 
-    // The world's clock while a simulation exists: the simulation's time
-    // of day and date (days from the world's date at start) and how fast it
-    // runs now (0 paused). A run as fast as possible leaves the world at
-    // the time it had until the run pauses. False without a simulation:
-    // the world's clock runs on its own.
-    bool worldClock(double &hours, QString &date, double &rate) const;
+    // The world's clock while a simulation exists (WorldClock::Source): the
+    // simulation's time of day and date (days from the world's date at
+    // start) and how fast it runs now (0 paused). A run as fast as possible
+    // leaves the world at the time it had until the run pauses. Setting the
+    // time runs to it on the day shown (from the start again when it is
+    // earlier), running on after when it ran.
+    void clockNow(double &hours, QString &date, double &rate) const override;
+    bool clockRunning() const override { return runs(); }
+    double clockSpeed() const override { return speed(); }
+    void setClockRunning(bool on) override;
+    void setClockSpeed(double secondsPerSecond) override { setSpeed(secondsPerSecond); }
+    void setClockTime(double hours) override;
+    void setClockDate(const QString &date) override;
 
     // What a train is doing ("running 72 km/h", "at Settle until 08:31"),
     // and an event as the Timetable window lists it.
@@ -143,7 +152,9 @@ private:
     // train.
     std::shared_ptr<const SimulationInput> makeInput(Activity *activity, QString *error);
     void sendStart(std::shared_ptr<const SimulationInput> input);
-    void setWorldTime(int seconds);
+    // To `target` seconds (after midnight of the start day) as fast as
+    // possible, from the start again when it is behind.
+    bool runToTime(double target, bool thenRun, QString *error);
 };
 
 }

@@ -34,6 +34,7 @@
 #include <tsre/trains/ActivityOverlay.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/environment/WorldClock.h>
 #include <QDialog>
 #include <QEvent>
 #include <QDialogButtonBox>
@@ -483,6 +484,7 @@ ActivityTools::ActivityTools(QString name)
         Sim::SimulationController *simulation = Sim::SimulationController::instance();
         QObject::connect(simulation, &Sim::SimulationController::stateChanged, this, &ActivityTools::showSimulation);
         QObject::connect(simulation, &Sim::SimulationController::frameUpdated, this, &ActivityTools::showSimulation);
+        QObject::connect(WorldClock::instance(), &WorldClock::changed, this, &ActivityTools::showSimulation);
         QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged,
                          this, &ActivityTools::lockEditing);
         showSimulation();
@@ -847,8 +849,10 @@ void ActivityTools::simRunToEnabled(){
         QMessageBox::warning(this, qtTrId("route.editor.activity.tools.simulation.title"), error);
 }
 
+// The world's clock's speed (WorldClock): the simulation's, or the speed the
+// next one starts at, as the environment window shows it.
 void ActivityTools::simSpeedSelected(int index){
-    Sim::SimulationController::instance()->setSpeed(simSpeed.itemData(index).toDouble());
+    WorldClock::instance()->setSpeed(simSpeed.itemData(index).toDouble());
 }
 
 // The controls as the simulation is: what can be done, its time, its
@@ -863,8 +867,19 @@ void ActivityTools::showSimulation(){
     simStop->setEnabled(exists);
     simReset->setEnabled(exists);
     simRunTo->setEnabled(chosen);
-    const int speed = simSpeed.findData(simulation->speed());
-    if(speed >= 0 && speed != simSpeed.currentIndex())
+    const double pace = WorldClock::instance()->speed();
+    int speed = simSpeed.findData(pace);
+    if(speed < 0){
+        // One the list lacks (the environment window's): in its place.
+        speed = 0;
+        while(speed < simSpeed.count() && simSpeed.itemData(speed).toDouble() > 0
+              && (pace <= 0 || simSpeed.itemData(speed).toDouble() < pace))
+            speed++;
+        simSpeed.insertItem(speed, pace > 0 ?
+            qtTrId("route.editor.activity.tools.simulation.speed").arg(pace) :
+            qtTrId("route.editor.activity.tools.simulation.speed.fastest"), pace);
+    }
+    if(speed != simSpeed.currentIndex())
         simSpeed.setCurrentIndex(speed);
     if(!exists){
         simTime.setText("--:--:--");

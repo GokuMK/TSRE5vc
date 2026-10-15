@@ -27,6 +27,7 @@
 #include <routeEditor/activity/ActivityTimetableWindow.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
+#include <tsre/environment/WorldClock.h>
 #include <tsre/map/MapFeatures.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sim/SimulationHost.h>
@@ -541,32 +542,59 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
 
     // The world's clock is the simulation's; a run as fast as possible
     // leaves it until it pauses; past midnight, the next day.
-    double worldHours = 0.0, worldRate = -1.0;
-    QString worldDate;
-    const bool clock = simulation->worldClock(worldHours, worldDate, worldRate);
-    check(clock && std::fabs(worldHours - (8 + 1.5 / 60)) < 1e-6
-              && worldDate == "2026-10-15" && worldRate == 0.0,
-          QString("the world's clock shows the simulation's time, paused (%1 %2)").arg(worldHours).arg(worldDate));
+    WorldClock *clock = WorldClock::instance();
+    clock->tick(0.0);
+    check(clock->source() == simulation && std::fabs(clock->hours() - (8 + 1.5 / 60)) < 1e-6
+              && clock->date() == "2026-10-15" && clock->rate() == 0.0 && !clock->running()
+              && std::fabs(Game::timeOfDayHours - (8 + 1.5 / 60)) < 1e-4,
+          QString("the world's clock is the simulation's, paused (%1 %2)").arg(clock->hours()).arg(clock->date()));
     play->click();
     f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.time > 8 * 3600 + 1800; }, 10000, pump);
-    simulation->worldClock(worldHours, worldDate, worldRate);
-    check(f && std::fabs(worldHours - (8 + 1.5 / 60)) < 1e-6 && worldRate == 0.0,
+    check(f && std::fabs(clock->hours() - (8 + 1.5 / 60)) < 1e-6 && clock->rate() == 0.0,
           "as fast as possible the world keeps its time");
     runToTime->setTime(QTime(7, 59, 0));
     runTo->click();
     f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
             return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 20000, pump);
     pump();
-    simulation->worldClock(worldHours, worldDate, worldRate);
-    check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-6 && std::fabs(worldHours - (7 + 59.0 / 60)) < 1e-6
-              && worldDate == "2026-10-16",
-          QString("Run to 07:59, before the start: the next day; the world's clock there (%1 %2)").arg(worldHours).arg(worldDate));
+    check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-6 && std::fabs(clock->hours() - (7 + 59.0 / 60)) < 1e-6
+              && clock->date() == "2026-10-16",
+          QString("Run to 07:59, before the start: the next day; the world's clock there (%1 %2)").arg(clock->hours()).arg(clock->date()));
+
+    // The clock's controls (the environment window's) drive the simulation.
+    clock->setSpeed(5.0);
+    pump();
+    check(simulation->speed() == 5.0 && clock->speed() == 5.0 && speed->currentData().toDouble() == 5.0,
+          "a speed set on the clock is the simulation's, shown in the panel");
+    clock->setRunning(true);
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+            return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Running; }, 5000, pump);
+    pump();
+    check(f && simulation->runs() && clock->running() && clock->rate() == 5.0, "Resume on the clock plays the simulation");
+    clock->setTime(9.0);
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+            return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Running
+                   && x.time >= 86400 + 9 * 3600; }, 20000, pump);
+    pump();
+    check(f && clock->running() && std::fabs(clock->hours() - 9.0) < 0.01 && clock->date() == "2026-10-16",
+          QString("the clock set to 09:00: the simulation runs there on the day shown and on after (%1 %2)")
+              .arg(clock->hours()).arg(clock->date()));
+    clock->setRunning(false);
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+            return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 5000, pump);
+    pump();
+    check(f && !simulation->runs() && !clock->running(), "Stop on the clock pauses the simulation");
+    const double lastHours = clock->hours();
 
     stop->click();
     pump();
     check(!simulation->exists() && !ActivityNotifier::editingLocked() && activities->isEnabled()
               && timetable.timetableProperties->isEnabled() && rows->isColumnHidden(2) && !follow->isChecked() && simulation->followed() == -1,
           "Stop: no simulation, editing on, the state column and Follow gone");
+    check(clock->source() == nullptr && std::fabs(Game::timeOfDayHours - lastHours) < 1e-3 && clock->speed() == 5.0
+              && Game::timeOfDayDate == "2026-10-16",
+          "after Stop the editor's clock goes on from the simulation's time, date and speed");
+    clock->setSpeed(1.0);
     check(Undo::UndoLast() && activity->header->name == "Simulated", "after Stop the activity's step undoes");
     Undo::Clear();
 
