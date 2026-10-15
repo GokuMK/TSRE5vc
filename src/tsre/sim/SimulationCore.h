@@ -105,6 +105,20 @@ public:
     const std::vector<int> &switches() const { return switchAt; }
     // Each signal of the network: the train it is cleared for, NoHolder.
     const std::vector<int> &cleared() const { return clearedFor; }
+    // Single-track stretches (task 02, section 4): track two trains' routes
+    // use in opposite directions, between the places where they part, as
+    // projected section ranges [from, to) of each one's part.
+    struct Stretch {
+        int train[2] = {-1, -1};
+        int part[2] = {0, 0};
+        size_t from[2] = {0, 0};
+        size_t to[2] = {0, 0};
+        // The route distance where each leaves it.
+        double leave[2] = {0.0, 0.0};
+    };
+    const std::vector<Stretch> &stretches() const { return single; }
+    // Each stretch's claimant (a train), NoHolder.
+    const std::vector<int> &claims() const { return claimedBy; }
     // Each head's aspect (SignalType::Aspect) and draw state, from the
     // built-in rule (no scripts, task 02).
     const std::vector<int> &aspects() const { return headAspect; }
@@ -136,6 +150,11 @@ private:
     std::vector<int> headAspect;
     std::vector<int> headDraw;
     bool aspectsDirty = true;
+    std::vector<Stretch> single;
+    std::vector<int> claimedBy;
+    // Per train and part: its stretches (stretch, its side) by where it
+    // enters them.
+    std::vector<std::vector<std::vector<std::pair<int, int>>>> stretchesOf;
     // Per train, what the frames need not see: the sections it holds in its
     // route's order (where it leaves each), and the next projected section
     // it would reserve on its part.
@@ -181,8 +200,20 @@ private:
     // How many stop signals from `first` on it may clear (Open Rails' legacy
     // and Open Rails modes of SignalNumClearAhead).
     size_t clearable(const Projection &way, size_t first) const;
+    // Where a reservation unit from projected section `from` ends (before
+    // `stop`): a track section with the junctions before it and the
+    // crossings on it.
+    size_t chunkEnd(const std::vector<ProjectedSection> &way, size_t from, size_t stop) const;
     // Every head's aspect and draw state (task 02, section 6).
     void evaluateAspects();
+    // The stretches of each pair of trains.
+    void findStretches();
+    // Whether the train may go on into projected sections [from, to): any
+    // stretch it enters there is claimed for it unless the other train is in
+    // it or has claimed it (then it waits for that train).
+    bool mayEnter(int train, size_t from, size_t to);
+    // The other train has left the stretch behind (or has gone).
+    bool passed(const Stretch &stretch, int side) const;
     // The speed a stop signal gives a train passing it: its least
     // restrictive NORMAL head's aspect's; negative none.
     float signalSpeedOf(int signal) const;

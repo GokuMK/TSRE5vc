@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <unordered_map>
 #include <tsre/trains/WaitingPoint.h>
 
 namespace Sim {
@@ -49,6 +50,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
     clearedFor.assign(network != nullptr ? network->signalGroups().size() : 0, NoHolder);
     headAspect.assign(network != nullptr ? network->heads().size() : 0, 0);
     headDraw.assign(headAspect.size(), 0);
+    findStretches();
     // Loose consists hold the track they stand on for the whole run.
     if (network != nullptr)
         for (const StaticConsist &consist : in->staticConsists) {
@@ -402,6 +404,9 @@ bool SimulationCore::occupy(int train) {
         reach = std::max(reach, way[k].leave);
         ++k;
     }
+    // A stretch it stands in is its own unless claimed already (the other
+    // train then waits for it, or they meet in a deadlock).
+    mayEnter(train, begin, k);
     take(train, begin, k);
     rt.next = k;
     // Signals under it and behind it are passed; the next to clear is the
@@ -464,7 +469,7 @@ void SimulationCore::extendAuthority(int train) {
             bool free = true;
             for (size_t k = rt.next; k < blockEnd && free; ++k)
                 free = !blockedAt(k);
-            if (!free) {
+            if (!free || !mayEnter(train, rt.next, blockEnd)) {
                 rt.endsAtSignal = true;
                 s.atSignal = signal.signal;
                 break;
@@ -483,20 +488,11 @@ void SimulationCore::extendAuthority(int train) {
         if (s.authority >= autoLimit - 1e-6)
             break;
         const size_t stop = rt.nextSignal < stopSignals.size() ? stopSignals[rt.nextSignal].section : way.size();
-        size_t end = rt.next;
-        bool track = false;
-        while (end < stop) {
-            if (sections[size_t(way[end].section)].kind == TrackSection::Track) {
-                if (track)
-                    break;
-                track = true;
-            }
-            ++end;
-        }
+        const size_t end = chunkEnd(way, rt.next, stop);
         bool free = true;
         for (size_t k = rt.next; k < end && free; ++k)
             free = !blockedAt(k);
-        if (!free)
+        if (!free || !mayEnter(train, rt.next, end))
             break;
         take(train, rt.next, end);
         if (end > rt.next)
@@ -647,6 +643,142 @@ void SimulationCore::evaluateAspects() {
         evaluate(int(h));
 }
 
+size_t SimulationCore::chunkEnd(const std::vector<ProjectedSection> &way, size_t from, size_t stop) const {
+    // The junctions before a track section, the section, and the crossings
+    // on it (not the junction at its far end: that goes with the next).
+    const std::vector<TrackSection> &sections = in->network->sections();
+    size_t end = from;
+    double trackLeave = -1.0;
+    while (end < stop) {
+        const TrackSection::Kind kind = sections[size_t(way[end].section)].kind;
+        if (trackLeave >= 0.0) {
+            if (kind != TrackSection::Crossing || way[end].enter >= trackLeave - 1e-6)
+                break;
+        } else if (kind == TrackSection::Track) {
+            trackLeave = way[end].leave;
+        }
+        ++end;
+    }
+    return end;
+}
+
+void SimulationCore::findStretches() {
+    if (in->network == nullptr)
+        return;
+    const std::vector<TrackSection> &sections = in->network->sections();
+    stretchesOf.assign(in->trains.size(), {});
+    for (size_t t = 0; t < in->trains.size(); ++t)
+        stretchesOf[t].resize(in->trains[t].projection.size());
+    for (size_t a = 0; a < in->trains.size(); ++a)
+        for (size_t b = a + 1; b < in->trains.size(); ++b)
+            for (size_t pa = 0; pa < in->trains[a].projection.size(); ++pa)
+                for (size_t pb = 0; pb < in->trains[b].projection.size(); ++pb) {
+                    const std::vector<ProjectedSection> &wayA = in->trains[a].projection[pa].sections;
+                    const std::vector<ProjectedSection> &wayB = in->trains[b].projection[pb].sections;
+                    // Where B passes each section first, and which way.
+                    std::unordered_map<int, size_t> onB;
+                    for (size_t k = 0; k < wayB.size(); ++k)
+                        onB.emplace(wayB[k].section, k);
+                    // A's sections B passes the other way (junctions and
+                    // crossings: at all), in maximal runs with track.
+                    auto shared = [&](size_t i) -> long {
+                        auto found = onB.find(wayA[i].section);
+                        if (found == onB.end())
+                            return -1;
+                        const ProjectedSection &other = wayB[found->second];
+                        if (sections[size_t(wayA[i].section)].kind == TrackSection::Track && other.forward == wayA[i].forward)
+                            return -1;
+                        return long(found->second);
+                    };
+                    size_t i = 0;
+                    while (i < wayA.size()) {
+                        if (shared(i) < 0) {
+                            ++i;
+                            continue;
+                        }
+                        size_t j = i;
+                        bool track = false;
+                        size_t low = wayB.size(), high = 0;
+                        while (j < wayA.size()) {
+                            const long k = shared(j);
+                            if (k < 0)
+                                break;
+                            track = track || sections[size_t(wayA[j].section)].kind == TrackSection::Track;
+                            low = std::min(low, size_t(k));
+                            high = std::max(high, size_t(k) + 1);
+                            ++j;
+                        }
+                        if (track) {
+                            Stretch stretch;
+                            stretch.train[0] = int(a);
+                            stretch.train[1] = int(b);
+                            stretch.part[0] = int(pa);
+                            stretch.part[1] = int(pb);
+                            stretch.from[0] = i;
+                            stretch.to[0] = j;
+                            stretch.from[1] = low;
+                            stretch.to[1] = high;
+                            stretch.leave[0] = wayA[j - 1].leave;
+                            stretch.leave[1] = wayB[high - 1].leave;
+                            const int id = int(single.size());
+                            single.push_back(stretch);
+                            stretchesOf[a][pa].push_back({id, 0});
+                            stretchesOf[b][pb].push_back({id, 1});
+                        }
+                        i = j;
+                    }
+                }
+    claimedBy.assign(single.size(), NoHolder);
+    for (auto &perTrain : stretchesOf)
+        for (auto &perPart : perTrain)
+            std::sort(perPart.begin(), perPart.end(), [this](const auto &x, const auto &y) {
+                return single[size_t(x.first)].from[x.second] < single[size_t(y.first)].from[y.second];
+            });
+}
+
+bool SimulationCore::passed(const Stretch &stretch, int side) const {
+    const int train = stretch.train[side];
+    const TrainState &s = states[size_t(train)];
+    if (s.status == TrainStatus::Finished)
+        return true;
+    if (s.part != stretch.part[side])
+        return s.part > stretch.part[side];
+    return s.status != TrainStatus::Waiting && s.front - in->trains[size_t(train)].length > stretch.leave[side] - 1e-6;
+}
+
+bool SimulationCore::mayEnter(int train, size_t from, size_t to) {
+    TrainState &s = states[size_t(train)];
+    if (size_t(train) >= stretchesOf.size() || size_t(s.part) >= stretchesOf[size_t(train)].size())
+        return true;
+    std::vector<int> claim;
+    for (const auto &[stretch, side] : stretchesOf[size_t(train)][size_t(s.part)]) {
+        const Stretch &st = single[size_t(stretch)];
+        // Only stretches it enters in this range (or is in).
+        if (st.from[side] >= to || st.to[side] <= from || claimedBy[size_t(stretch)] == train)
+            continue;
+        const int otherSide = 1 - side;
+        const int other = st.train[otherSide];
+        if (passed(st, otherSide))
+            continue;
+        bool inside = claimedBy[size_t(stretch)] == other;
+        if (!inside && size_t(st.part[otherSide]) < in->trains[size_t(other)].projection.size()) {
+            const std::vector<ProjectedSection> &way = in->trains[size_t(other)].projection[size_t(st.part[otherSide])].sections;
+            for (size_t k = st.from[otherSide]; k < st.to[otherSide] && !inside; ++k)
+                inside = holder[size_t(way[k].section)] == other;
+        }
+        if (inside) {
+            s.blockedBy = other;
+            s.waitSection = in->trains[size_t(train)].projection[size_t(s.part)].sections[st.from[side]].section;
+            return false;
+        }
+        claim.push_back(stretch);
+    }
+    // All or none.
+    for (int stretch : claim)
+        claimedBy[size_t(stretch)] = train;
+    return true;
+}
+
 void SimulationCore::take(int train, size_t from, size_t to) {
     const TrainPlan &plan = in->trains[size_t(train)];
     const std::vector<ProjectedSection> &way = plan.projection[size_t(states[size_t(train)].part)].sections;
@@ -715,6 +847,11 @@ void SimulationCore::releaseBehind(int train) {
         }
     }
     const double rear = s.front - plan.length;
+    // Stretches its rear has left are no longer its own.
+    if (size_t(train) < stretchesOf.size() && size_t(s.part) < stretchesOf[size_t(train)].size())
+        for (const auto &[stretch, side] : stretchesOf[size_t(train)][size_t(s.part)])
+            if (claimedBy[size_t(stretch)] == train && rear > single[size_t(stretch)].leave[side] - 1e-6)
+                claimedBy[size_t(stretch)] = NoHolder;
     while (!rt.held.empty() && rt.held.front().leave < rear - 1e-6) {
         const int section = rt.held.front().section;
         rt.held.pop_front();
@@ -742,6 +879,9 @@ void SimulationCore::releaseAll(int train) {
     for (int &cleared : clearedFor)
         if (cleared == train)
             cleared = NoHolder;
+    for (int &claim : claimedBy)
+        if (claim == train)
+            claim = NoHolder;
     rt.limit = 0;
     states[size_t(train)].authority = 0.0;
     states[size_t(train)].signalSpeed = -1.0f;

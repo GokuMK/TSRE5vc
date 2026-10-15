@@ -1,7 +1,7 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
-Status: phases 1 to 4 done (2026-10-16, branch `feature/simulation`);
-phase 5 next. Decisions taken are at the end.
+Status: phases 1 to 5 done (2026-10-16, branch `feature/simulation`);
+phase 6 next. Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -144,6 +144,32 @@ stops 326 s late (its approach aspects are 30 and 45 mph and it has 377
 speed posts, which MSAE's calculation may leave out; the Open Rails
 comparison in phase 7 will tell). USA1's trains all finish now; USA2 and
 BNSF_SCENIC still deadlock.
+
+**Phase 5, single track (done 2026-10-16).**
+- When a simulation starts, each pair of trains' route parts are compared:
+  every maximal run of track sections they pass in opposite directions
+  (with the junctions and crossings both pass) is a single-track stretch.
+- A train going on into a stretch (or standing in one at its start)
+  claims it, unless the other train is in it or has claimed it: then it
+  waits where their routes part. The claim lapses when its rear has left
+  the stretch; a stretch the other train has passed (or the other train
+  gone) is no matter. A train entering several at once claims all or
+  none.
+- A train reserves a track section with the junctions before it and the
+  crossings on it; the junction at its far end goes with the next one (it
+  took that junction too, so a train could not reach a loop's track while
+  the single line beyond was claimed, and stood in the stretch behind).
+- Deadlocks that remain are found as before (rings of waiting trains).
+
+Tests (`simulation-core`): opposing trains on a single line between two
+loops, one through the loops' main tracks and one through their others:
+three stretches, one train waits at a loop, both finish; both through the
+main tracks: one stretch end to end, a deadlock for both. On the local
+routes no train is in a deadlock any more except two in BNSF_SCENIC's
+CanadianImports (its paths have passing paths: phase 6); the trains still
+stuck wait behind loose consists on their paths (USA2's Cutbank_Grain is a
+player pick-up: no coupling yet), behind the player's train standing at
+its path's end, or behind those.
 
 ## Objective
 

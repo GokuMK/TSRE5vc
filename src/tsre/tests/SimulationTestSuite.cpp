@@ -1007,6 +1007,102 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
                   .arg(mainHead).arg(sideHead));
     }
 
+    // Single track (task 02, phase 5): a 1 km single line between two
+    // passing loops, signals every 250 m on it both ways clearing one
+    // ahead; opposing trains from the line's two ends.
+    {
+        QTemporaryDir folder;
+        const QString config = folder.path() + "/sigcfg.dat";
+        writeUtf16(config, testSigCfg);
+        const SigCfg signalConfig(config);
+        const int t0 = 8 * 3600;
+        TestTrack::Layout line;
+        line.end(1, 10);
+        line.track(10, 1, 2, 10);
+        line.junction(2, 10, 11, 12);
+        line.track(11, 2, 3, 20);
+        line.track(12, 2, 3, 22);
+        line.junction(3, 13, 11, 12);
+        line.track(13, 3, 4, 100);
+        line.junction(4, 13, 14, 15);
+        line.track(14, 4, 5, 20);
+        line.track(15, 4, 5, 22);
+        line.junction(5, 16, 14, 15);
+        line.track(16, 5, 6, 10);
+        line.end(6, 16);
+        for (int k = 1; k <= 3; ++k) {
+            TestTrack::signalHead(line, 13, 1100 + k, 250.0f * k, true, "Zero");
+            TestTrack::signalHead(line, 13, 1110 + k, 250.0f * k, false, "Zero");
+        }
+        TDB *db = &line.db;
+        const QScopedValueRollback<TDB *> live(Game::trackDB, db);
+        auto geometry = std::make_shared<const Sim::TrackGeometry>(db);
+        auto network = std::make_shared<const Sim::TrackNetwork>(db, *geometry, &signalConfig, false);
+        const auto routeOf = [&](QVector<PathTrack::TrackPoint> points) {
+            PathTrack::Result made = PathTrack::startAt(db, points.first());
+            for (int k = 1; k < points.size(); ++k)
+                made = PathTrack::endAt(db, made.nodes, points[k]);
+            return Sim::BuildRoute(db, made.nodes, PathTrack::legs(db, made.nodes), 0.0);
+        };
+        const auto trainOn = [&](const Sim::TrainRoute &route, int id) {
+            Sim::TrainPlan p;
+            p.id = id;
+            p.vehicles = {Sim::Vehicle{20.0f, false, 4}, Sim::Vehicle{20.0f, false, 1}};
+            p.length = 40.0f;
+            p.maxSpeed = 20.0f;
+            Sim::SetRates(p);
+            p.startTime = t0;
+            p.route = route;
+            p.startFront = 45.0;
+            for (const Sim::RouteTrack &part : route.parts) {
+                p.projection.push_back(network->project(part));
+                p.limits.push_back({});
+            }
+            return p;
+        };
+        const auto run = [&](const Sim::TrainRoute &east, const Sim::TrainRoute &west, std::vector<Sim::TrainEvent> &all,
+                             size_t *stretches) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->network = network;
+            made->trains = {trainOn(east, 0), trainOn(west, 1)};
+            Sim::SimulationCore core(made);
+            *stretches = core.stretches().size();
+            for (int i = 0; i < 3000 && !core.finished(); ++i) {
+                core.step(1.0);
+                for (const Sim::TrainEvent &e : core.takeEvents())
+                    all.push_back(e);
+            }
+            return core.finished();
+        };
+        const auto count = [](const std::vector<Sim::TrainEvent> &all, Sim::TrainEvent::Kind kind) {
+            int n = 0;
+            for (const Sim::TrainEvent &e : all)
+                n += e.kind == kind ? 1 : 0;
+            return n;
+        };
+        // East through the loops' main tracks, west through their others:
+        // they pass at a loop.
+        const Sim::TrainRoute east = routeOf({{10, 10.0f}, {16, 90.0f}});
+        const Sim::TrainRoute west = routeOf({{16, 90.0f}, {15, 100.0f}, {12, 100.0f}, {10, 10.0f}});
+        std::vector<Sim::TrainEvent> passing;
+        size_t stretches = 0;
+        const bool passed = run(east, west, passing, &stretches);
+        check(passed && stretches == 3 && count(passing, Sim::TrainEvent::Deadlock) == 0 && count(passing, Sim::TrainEvent::Blocked) >= 1,
+              QString("opposing trains on a single line between loops: %1 single-track stretches, one waits at a loop, "
+                      "both finish (%2 finished, %3 waits, %4 in deadlock)").arg(stretches).arg(passed ? "both" : "not")
+                  .arg(count(passing, Sim::TrainEvent::Blocked)).arg(count(passing, Sim::TrainEvent::Deadlock)));
+        // Both through the loops' main tracks: nowhere to pass, a deadlock
+        // for the user to see.
+        const Sim::TrainRoute westMain = routeOf({{16, 90.0f}, {10, 10.0f}});
+        std::vector<Sim::TrainEvent> stuck;
+        size_t whole = 0;
+        const bool through = run(east, westMain, stuck, &whole);
+        check(!through && whole == 1 && count(stuck, Sim::TrainEvent::Deadlock) == 2,
+              QString("both through the loops' main tracks: one stretch end to end (%1), a deadlock reported").arg(whole));
+    }
+
     qInfo().noquote() << QString("simulation-core: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }
