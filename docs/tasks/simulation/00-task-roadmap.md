@@ -31,7 +31,8 @@ model as the first operating policy, and threading.
   its messages, the immutable input, a route-based train traveller instead
   of `Ruch` for the simulation, trains running on their paths and
   timetables (stops, waits, reversals) with no signals: trains meet and
-  pass through each other. Designed, decisions taken.
+  pass through each other. Phases 1 to 3 done (input, driver, thread and
+  editor); phase 4 (measurements) next.
 - [ ] 02: track occupation and reservations, a basic block policy (the
   analysis's basic block timing preview): trains wait for each other.
 - [ ] 03: signals: `sigcfg.dat` and `sigscr.dat`, aspects, signals as

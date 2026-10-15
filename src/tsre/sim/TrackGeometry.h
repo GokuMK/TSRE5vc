@@ -13,7 +13,8 @@ namespace Sim {
 
 // A place on the track and the track's direction there, as
 // TDB::getDrawPositionOnTrNode gives it: position in its tile (x, y, z),
-// the direction (yaw) and slope (pitch), the tile.
+// the direction (yaw) and slope (pitch), the tile, and the superelevation
+// (roll, its sElev, looking along the node; the other way it is negated).
 struct TrackPose {
     float x = 0.0f;
     float y = 0.0f;
@@ -22,6 +23,7 @@ struct TrackPose {
     float pitch = 0.0f;
     int tileX = 0;
     int tileZ = 0;
+    float roll = 0.0f;
 };
 
 // The vector nodes of a track database as the simulation needs them: each
@@ -47,6 +49,8 @@ private:
         float length = 0.0f;
         float x = 0.0f, y = 0.0f, z = 0.0f;
         float ax = 0.0f, ay = 0.0f, az = 0.0f;
+        // The next section's az, 0 after the node's last.
+        float nextAz = 0.0f;
         int tileX = 0, tileZ = 0;
     };
     struct Node {

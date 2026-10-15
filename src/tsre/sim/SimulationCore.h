@@ -58,17 +58,20 @@ public:
     std::shared_ptr<const SimulationInput> inputPointer() const { return in; }
     // Seconds after midnight.
     double time() const { return now; }
+    // Steps taken since the activity's start (the pre-run not counted).
+    unsigned long long steps() const { return stepCount; }
     // Advances the simulation by `seconds`, in steps of at most MaxStep.
     void step(double seconds);
     const std::vector<TrainState> &trains() const { return states; }
     // The events since the last call.
     std::vector<TrainEvent> takeEvents();
     // The two ends of each of a train's vehicles, in the consist's order:
-    // the vehicle's front (as the consist lists it) and its rear. False for
-    // a train not on the track (not started, or an AI train gone at its
-    // path's end).
+    // the vehicle's front (as the consist lists it) and its rear, their
+    // roll looking from the rear to the front. False for a train not on the
+    // track (not started, or an AI train gone at its path's end).
     bool vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const;
-    // Where a route distance of a train's current part is.
+    // Where a route distance of a train's current part is, its roll
+    // looking along the route.
     bool pose(int train, double routeDistance, TrackPose &out) const;
     // Every train has finished its path.
     bool finished() const;
@@ -76,6 +79,7 @@ public:
 private:
     std::shared_ptr<const SimulationInput> in;
     double now = 0.0;
+    unsigned long long stepCount = 0;
     std::vector<TrainState> states;
     std::vector<TrainEvent> events;
 

@@ -57,6 +57,7 @@ void SimulationCore::step(double seconds) {
             advance(int(i), now, now + h);
         now += h;
         left -= h;
+        ++stepCount;
     }
 }
 
@@ -259,7 +260,11 @@ bool SimulationCore::pose(int train, double routeDistance, TrackPose &out) const
     if (state.part < 0 || size_t(state.part) >= plan.route.parts.size())
         return false;
     const RoutePoint point = plan.route.parts[size_t(state.part)].locate(routeDistance);
-    return in->geometry->pose(point.node, point.distance, out);
+    if (!in->geometry->pose(point.node, point.distance, out))
+        return false;
+    if (!point.forward)
+        out.roll = -out.roll;
+    return true;
 }
 
 bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const {
@@ -281,6 +286,10 @@ bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std:
         TrackPose front, rear;
         pose(train, frontAt, front);
         pose(train, rearAt, rear);
+        if (state.reversed) {
+            front.roll = -front.roll;
+            rear.roll = -rear.roll;
+        }
         fronts.push_back(front);
         rears.push_back(rear);
         before += vehicle.length;

@@ -17,6 +17,9 @@ struct Vehicle {
     bool flip = false;
     // Eng's wagonTypeId: 1 carriage, 2 freight, 3 tender, 4 to 6 engines.
     int type = 0;
+    // Its Eng in the editor's EngLib, which draws it (the core does not
+    // read it); -1 for one not found.
+    int eng = -1;
 };
 
 // A station stop on a train's route.
@@ -46,9 +49,11 @@ struct WaitPlan {
 struct TrainPlan {
     int id = 0;
     bool player = false;
-    // The editor's train: the player's, or an AI service and its start time.
+    // The editor's train: the player's, or an AI service and its start time
+    // and its place in the activity's traffic (Activity::aiTrainService).
     QString service;
     int serviceTime = -1;
+    int traffic = -1;
     // The consist file, for drawing the vehicles.
     QString consist;
     std::vector<Vehicle> vehicles;

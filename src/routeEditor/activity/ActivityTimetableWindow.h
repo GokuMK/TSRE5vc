@@ -22,7 +22,9 @@ class PreciseTileCoordinate;
 // The activity's trains (task editor 07, phase 7): the player's, its AI
 // trains and its traffic pattern's runs it does not have, by start time;
 // where the chosen train's times are saved; its timetable. The chosen AI
-// train, or all, are shown on the map and in 3D.
+// train, or all, are shown on the map and in 3D. While a simulation runs
+// the activity (task simulation 01): each train's state, the chosen
+// train's events, and Follow, the camera following it.
 class ActivityTimetableWindow : public QWidget {
     Q_OBJECT
 public:
@@ -55,6 +57,11 @@ private slots:
     void jumpToTrain();
     void showAllToggled(bool on);
     void timetableEdited();
+    void followToggled(bool on);
+    // The simulation started, stopped or changed what it does.
+    void simulationChanged();
+    void showStates();
+    void showEvents(int first);
     
 private:
     QTreeWidget trains;
@@ -62,6 +69,9 @@ private:
     QPushButton *bAdd = NULL;
     QPushButton *bRemove = NULL;
     QPushButton *bJump = NULL;
+    QPushButton *bFollow = NULL;
+    QWidget *simulationBox = NULL;
+    QListWidget events;
     QLabel savedIn;
     QPushButton *bCopy = NULL;
     Activity *activity = NULL;
@@ -73,6 +83,8 @@ private:
     void fillTrains();
     void choose(ActivityTrains::Kind kind, const QString &service, int time);
     void showChosen();
+    // The simulation's train of a row, or -1.
+    int simulated(const ActivityTrains::Train &train) const;
 };
 
 #endif	/* ACTIVITYTIMETABLEWINDOW_H */

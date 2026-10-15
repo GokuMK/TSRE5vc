@@ -121,6 +121,10 @@ public:
     // Selects an activity and a path by file name, as the activity tools
     // do; empty names leave them as they are.
     void setDiagnosticActivity(const QString &activity, const QString &path);
+    // The camera by a simulated train (task simulation 01): behind it and
+    // above, looking at it, or on the map centred on it; false when the
+    // train is not on the track.
+    bool viewTrain(int train);
     // The current activity's AI trains shown: "all", an AI train's place in
     // its traffic (the one chosen), or both ("all,3").
     void setDiagnosticAITrains(const QString &trains);
@@ -498,6 +502,14 @@ private:
     float mousex, mousey;
     QVector<QPoint> selectionProbePoints;
     bool simulationPaused = false;
+    // Follow (task simulation 01): the train the camera follows and where it
+    // was last frame (tile and place in the camera's space).
+    int followedTrain = -1;
+    int followedTile[2] = {0, 0};
+    float followedPlace[3] = {0, 0, 0};
+    void followTrain();
+    // Tools that change the activity, refused while a simulation exists.
+    static bool editsActivity(const QString &tool);
     // The first view, and the view after a camera jump, are shown with their
     // shapes loaded (loadWholeView()); after a jump the wait ends after
     // limitMs and the rest loads while the view is shown. The camera's

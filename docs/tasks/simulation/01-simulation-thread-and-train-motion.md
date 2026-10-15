@@ -1,7 +1,7 @@
 # Task 01 - The Simulation Thread and Trains in Motion
 
-Status: phases 1 and 2 done (2026-10-15, branch `feature/simulation`);
-decisions taken (at the end).
+Status: phases 1 to 3 done (2026-10-15, branch `feature/simulation`);
+phase 4 (measurements) next. Decisions taken (at the end).
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -75,6 +75,76 @@ timetables calculated in MSAE they arrive a little early (median 7 s on
 JAPAN1 to 150 s on EUROPE1): no speed posts or curve limits yet. Many
 timetables were never calculated (every stop booked at the train's start
 time); those stops behave as untimed ones.
+
+**Phase 3, thread and editor (done 2026-10-15).**
+- `SimulationHost` (a QObject on its own `QThread`) owns the core. Commands
+  (start, play, pause, speed, run to, stop) come as queued calls with
+  sequence numbers; each frame says the last one taken. A timer paces the
+  core: every 16 ms at a speed (wall time since the last tick × the speed,
+  in steps of at most 0.1 s, at most 0.25 s of wall time made up after a
+  stall), back to back as fast as possible; a tick steps for at most 20 ms,
+  so commands are taken between batches. Each tick publishes a
+  `SimulationFrame` (time, mode, speed and the speed reached, per train
+  its state and its vehicles' end poses) to a mailbox, the latest
+  replacing the one before, and the events to a bounded queue. Stop hands
+  the host back to the main thread and ends its thread.
+- `SimulationController` (main thread): makes the input from the editor's
+  data (`MakeInput`, the route's speed limit), starts the thread, sends
+  the commands, takes the frame and events about ten times a second for
+  the windows (the views read the latest frame each time they draw), keeps
+  the run's events, and answers the Timetable window (a train's state and
+  events as text, the train of a row) and Follow (a train's place).
+- Drawing: `Eng::pushRenderItemBetween` draws a vehicle between two track
+  poses (the editor's on-track draw now calls it too), with the poses'
+  roll (`TrackPose::roll`, the superelevation as
+  `getDrawPositionOnTrNode` gives it). While a simulation runs an
+  activity, its trains standing at their starts are not drawn (their
+  paths are); the simulated trains are drawn, all of them, with the 3D ids
+  of their trains (a click chooses the train in the Timetable window), the
+  train chosen there outlined. The map's activity layer draws them as a
+  small layer of its own, built again for each frame, the chosen train
+  with a halo.
+- Activity panel (F4): the Simulation section under Check and Save: Play,
+  Pause, Stop, Reset, the speed (1× to 128×, as fast as possible), the
+  time (with the speed reached when short of the speed asked), Run to a
+  time, and the trains waiting, running, standing and finished (and the
+  trains not simulated, with why). The old Play button is gone.
+- Timetable window: a State column while a simulation runs the activity
+  ("running 72 km/h", "at Settle until 08:31", "starts at 08:20"), the
+  chosen train's events under its information ("08:31:05 arrived at
+  Settle, booked 08:31:00"), Follow: the camera put behind the train and
+  above, looking at it (centred on the map), then moved as it moves, so
+  the user can still look around.
+- The world's time of day is set to the activity's start at start
+  (`core.rendering.timeOfDay.time`); nothing more.
+- Activity editing off (`ActivityNotifier::editingLocked`): the panel's
+  activity choice, settings, New Activity, player and traffic choices,
+  path, consist, speed zone and failed signal buttons; the Events,
+  Services and Traffic windows' editors and their New and Delete; the
+  Timetable window's times, Add, Remove and Make Own Copy; the properties
+  of activity objects, paths and activity consists; the activity tools in
+  the view (path, loose consist, speed zone, event and sound locations;
+  an active one gives way to Select); moving, turning and deleting loose
+  consists, speed zones and failed signals. Undo leaves a step that
+  changes activities, services, traffic or paths and says why. Saving
+  stays on.
+- Run to a time continues to it when it is ahead; a time before the
+  simulation's is reached again from the start (a new input). Reset makes
+  a new input and goes back to the start, running on when it ran.
+
+Tests: `simulation-host` (15 checks: start, run to a time, pause, play,
+speed and stop acknowledged; the latest frame kept; events in order and
+the same as the core run alone in 0.1 s steps; the live track edited, the
+copy unchanged; 1× and 64× kept to within a few per cent; stop with a
+thousand commands queued ends the thread) and `simulation-ui` (21 checks
+on a test route: Play, the world's time, editing off and undo leaving the
+activity's step, the Timetable window's states, events and Follow, the
+map's vehicles, Run to an earlier time, Stop and undo after it).
+`activity-ui`'s random test leaves Play and Run out. A capture case,
+`tests/renderer/simulation-trains.json` (EUROPE1's Local Service run to
+09:03, by the player's train and an AI train in 3D and on the map), whose
+options (`simulateTo`, `simulationChosen`, a view's `train`) the
+`renderer-capture` suite now takes.
 
 ## Objective
 
@@ -270,9 +340,11 @@ One kinematic driver per train, in the spirit of MSTS's:
   does not enlarge steps.
 - **Pause** stops advancing and is acknowledged. **Reset** builds a new
   input from the current editor data (so edits apply) and starts at the
-  activity's start. **Run to a time** resets and steps to it as fast as
-  possible (MSAE's way back). **Stop** ends the simulation. A run goes on
-  until Stop; when every train has finished, the panel says so.
+  activity's start, running on when it ran. **Run to a time** steps to it
+  as fast as possible and pauses there; a time before the simulation's is
+  reached from the start again (MSAE's way back). **Stop** ends the
+  simulation. A run goes on until Stop; when every train has finished, the
+  panel says so.
 - **The world's time of day is set to the activity's start time when a
   simulation starts** (the session's `core.rendering.timeOfDay.time`, as the
   environment panel sets it); after that the two clocks run on their own.
@@ -288,7 +360,9 @@ One kinematic driver per train, in the spirit of MSTS's:
   (with an input), play, pause, speed, run to, reset, stop. The host answers
   each with the step it took effect at.
 - **Frames** (simulation → main), the latest replacing earlier ones, at most
-  one per host tick (about 60 a second, so real-time motion stays smooth):
+  one per host tick (about 60 a second, so real-time motion stays smooth;
+  the views draw the latest, the windows take one about ten times a
+  second):
   `SimulationFrame` (run id, step,
   simulation time; per train its state, speed, route distance, next target
   and, per vehicle, the world pose of its two ends). Immutable, handed over
@@ -313,12 +387,12 @@ running simulation's picture.
   Stop, Reset, the speed, the simulation time, Run to a time, and a status
   line (trains waiting, running and finished; warnings; that the run shows
   the activity as it was when started).
-- **Drawing:** `SimulationPresenter` (main thread) keeps, per simulated
-  train, its vehicles' shapes (copies of the consist's `Eng`s, as the editor
-  makes them now) and places them from each frame (a pose-based draw next to
-  `pushRenderItemOnTrack`). While a simulation runs, the trains standing at
-  their starts are not drawn; the map's activity layer draws the frame's
-  vehicles.
+- **Drawing:** the controller draws each simulated vehicle with its
+  `Eng` from the editor's library (no copies: a vehicle's shape is all a
+  draw needs) between the two poses of the latest frame (a pose-based draw
+  that `pushRenderItemOnTrack` now uses too). While a simulation runs, the
+  trains standing at their starts are not drawn; the map's activity layer
+  draws the frame's vehicles.
 - **Timetable window:** a state per train from the frame (waiting until
   08:20, running 72 km/h, at Settle until 08:31, finished); **Follow**, the
   camera following the chosen train; the chosen train's events (arrived,

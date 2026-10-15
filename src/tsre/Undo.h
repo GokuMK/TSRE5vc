@@ -69,7 +69,13 @@ class Undo {
 
 public:
     static bool UndoEnabled;
-    static void UndoLast();
+    // Undoes the last step; false when there is none, or it changes
+    // activity data while activity editing is locked (a simulation
+    // exists, ActivityNotifier): it stays for later.
+    static bool UndoLast();
+    // The step undo takes next changes activities, services, traffic or
+    // paths.
+    static bool LastChangesActivity();
     static void Clear();
     static void StateBegin();
     static void StateBeginIfNotExist();

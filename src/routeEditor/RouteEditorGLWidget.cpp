@@ -115,6 +115,7 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/sim/SimulationController.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
@@ -145,6 +146,11 @@ tools(std::make_unique<ToolRegistry>()) {
             setSelectedObj(NULL);
         if (lastSelectedObj != NULL && lastSelectedObj->typeObj == GameObj::activityobj)
             lastSelectedObj = NULL;
+    });
+    // A simulation starting: a tool editing the activity gives way.
+    connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged, this, [this](bool locked) {
+        if (locked && editsActivity(toolEnabled))
+            enableTool("selectTool");
     });
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
@@ -306,6 +312,7 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     if (Game::objectLoadingTokens < Game::maxObjLag)
         Game::objectLoadingTokens += 2;
 
+    followTrain();
     camera->update(fps);
     
     update();
@@ -3268,9 +3275,67 @@ void RouteEditorGLWidget::sendFlexData() {
     emit flexData(tileX(), tileZ(), aktPointerPos);
 }
 
+bool RouteEditorGLWidget::editsActivity(const QString &tool) {
+    static const QStringList tools = {"trackPathTool", "actNewLooseConsistTool", "actNewSpeedZoneTool",
+                                      "pickNewEventLocationTool", "pickSoundLocationTool"};
+    return tools.contains(EditorTool::idOf(tool));
+}
+
+// The camera keeps its place by the train the Timetable window follows: put
+// behind it and above, looking at it (centred on the map), when it starts,
+// then moved as the train moves.
+void RouteEditorGLWidget::followTrain() {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int train = simulation->followed();
+    int tile[2];
+    float place[3], heading[3];
+    if (train < 0 || !simulation->trainPlace(train, tile, place, heading)) {
+        if (train < 0)
+            followedTrain = -1;
+        return;
+    }
+    if (train != followedTrain) {
+        followedTrain = train;
+        viewTrain(train);
+    } else {
+        const float *at = camera->getPos();
+        camera->setPos(at[0] + place[0] - followedPlace[0] + 2048.0f * (tile[0] - followedTile[0]),
+                       at[1] + place[1] - followedPlace[1],
+                       at[2] + place[2] - followedPlace[2] + 2048.0f * (tile[1] - followedTile[1]));
+        camera->check_coords();
+    }
+    followedTile[0] = tile[0];
+    followedTile[1] = tile[1];
+    std::copy(place, place + 3, followedPlace);
+}
+
+bool RouteEditorGLWidget::viewTrain(int train) {
+    int tile[2];
+    float place[3], heading[3], length = 0.0f;
+    if (!Sim::SimulationController::instance()->trainPlace(train, tile, place, heading, &length))
+        return false;
+    camera->setPozT(tile[0], tile[1]);
+    if (currentViewMode == ViewMode::Map) {
+        camera->setPos(place[0], 0.0f, place[2]);
+    } else {
+        // Behind its rear, the whole train ahead.
+        const float back = 0.5f * length + 35.0f, up = 15.0f + 0.05f * length;
+        const float eye[3] = {place[0] - back * heading[0], place[1] + up, place[2] - back * heading[2]};
+        camera->setPos(eye[0], eye[1], eye[2]);
+        const float look[3] = {place[0] - eye[0], place[1] - eye[1], place[2] - eye[2]};
+        const float distance = std::sqrt(look[0] * look[0] + look[1] * look[1] + look[2] * look[2]);
+        camera->setPlayerRot(std::atan2(look[0], look[2]), std::asin(look[1] / std::max(distance, 0.001f)));
+    }
+    camera->check_coords();
+    return true;
+}
+
 void RouteEditorGLWidget::enableTool(QString name) {
     // A tool the view mode cannot use stays off (map mode, task editor 04).
     if (!tools->allowed(name, currentViewMode))
+        return;
+    // Nor one changing the activity while a simulation exists.
+    if (ActivityNotifier::editingLocked() && editsActivity(name))
         return;
     EditorTool *previous = activeTool();
     EditorTool *next = tools->find(name);
@@ -4695,7 +4760,12 @@ void RouteEditorGLWidget::editUndo() {
         finishLiveTelepole(false);
         setSelectedObj(NULL);
     }
-    Undo::UndoLast();
+    if (!Undo::UndoLast() && ActivityNotifier::editingLocked() && Undo::LastChangesActivity())
+        QMessageBox::information(this,
+            //% "Undo"
+            qtTrId("route.editor.glwidget.undo.title"),
+            //% "The last change is to the activity: it can be undone when the simulation stops."
+            qtTrId("route.editor.glwidget.undo.activity.locked"));
     // Undone path edits show on the map's next draw.
     if (activityMap)
         activityMap->invalidate();

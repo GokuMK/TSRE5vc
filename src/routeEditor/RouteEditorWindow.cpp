@@ -80,6 +80,7 @@
 #include <tsre/geo/GeoPresetData.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Trk.h>
+#include <routeEditor/activity/ActivityEditLock.h>
 
 namespace {
 bool routeStartLatitudeLongitude(Route *route,
@@ -201,6 +202,9 @@ RouteEditorWindow::RouteEditorWindow() {
     objProperties["TrackItem"] = new PropertiesTrackItem;
     objProperties["ActivityPath"] = new PropertiesActivityPath;
     objProperties["ActivityConsist"] = new PropertiesConsist;
+    // Activity data shows but is not edited while a simulation exists.
+    ActivityEditLock::Follow(this, {objProperties["ActivityObject"], objProperties["ActivityPath"],
+                                    objProperties["ActivityConsist"]});
     // last 
     objProperties["Undefined"] = new PropertiesUndefined;
     

@@ -28,6 +28,7 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
+#include <tsre/sim/SimulationController.h>
 #include <algorithm>
 
 Activity::Activity() {
@@ -1047,10 +1048,14 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
         event[i]->pushRenderItem(queue, playerT, playerRot, renderMode);
     }
 
+    // While a simulation runs the activity, its trains are where the
+    // simulation has them (SimulationController), not at their starts.
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const bool atStart = !simulation->shows(this);
     if (Service *player = playerService()) {
         const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
                 ? SelectionIdCodec::activityService(0) : 0;
-        player->pushRenderItems(queue, playerT, selectionId);
+        player->pushRenderItems(queue, playerT, selectionId, 0, atStart);
     }
 
     for (int i : shownAITrains()) {
@@ -1058,8 +1063,10 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
         const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
                 ? SelectionIdCodec::activityService(i + 1) : 0;
         service->pushRenderItems(queue, playerT, selectionId,
-                                 i == shownAITrain ? Path::LineChosenTrain : Path::LineAITrain);
+                                 i == shownAITrain ? Path::LineChosenTrain : Path::LineAITrain, atStart);
     }
+    if (!atStart)
+        simulation->pushRenderItems(queue, playerT, renderMode);
 }
 
 QVector<int> Activity::shownAITrains(){

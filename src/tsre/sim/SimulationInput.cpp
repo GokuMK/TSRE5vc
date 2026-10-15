@@ -101,11 +101,13 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
         plan.player = player;
         plan.service = train.service;
         plan.serviceTime = player ? -1 : train.time;
+        plan.traffic = player ? -1 : train.index;
         plan.consist = service->trainConfig;
         float engineSpeed = 0.0f;
         for (const Consist::EngItem &item : consist->engItems) {
             Vehicle vehicle;
             vehicle.flip = item.flip;
+            vehicle.eng = item.eng;
             Eng *eng = nullptr;
             if (item.eng >= 0 && Game::currentEngLib != nullptr) {
                 auto e = Game::currentEngLib->eng.find(item.eng);

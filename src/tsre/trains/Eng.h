@@ -107,6 +107,15 @@ public:
     // What its sounds read (speed, throttle...); NULL without sound.
     const SoundValues *soundValues();
     void pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected = false);
+    // Drawn between two places on the track (as getDrawPositionOnTrNode
+    // gives them: x, y, z, angle, slope, tile x, tile z), its front and rear
+    // as the consist lists it, leaning by roll (superelevation), turned when
+    // flipped. Moving trains of the simulation (task simulation 01).
+    void pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
+                               const float *front, const float *rear, float roll, bool flipped);
+    // Its footprint for the map between two such places.
+    void getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
+                               const float *rear) const;
     void move(float m);
     float getCurrentElevation();
     float getTotalDistanceDownPath();

@@ -19,10 +19,12 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/Traffic.h>
+#include <routeEditor/activity/ActivityEditLock.h>
+#include <tsre/sim/SimulationController.h>
 
 namespace {
 
-enum Column { StartColumn, TrainColumn, PathColumn, ConsistColumn, FirstColumn, LastColumn, Columns };
+enum Column { StartColumn, TrainColumn, StateColumn, PathColumn, ConsistColumn, FirstColumn, LastColumn, Columns };
 
 QString clock(int seconds) {
     return QTime::fromMSecsSinceStartOfDay((seconds % 86400 + 86400) % 86400 * 1000).toString("HH:mm:ss");
@@ -44,6 +46,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         qtTrId("route.editor.activity.timetable.window.column.start"),
         //% "Train"
         qtTrId("route.editor.activity.timetable.window.column.train"),
+        //% "State"
+        qtTrId("route.editor.activity.timetable.window.column.state"),
         //% "Path"
         qtTrId("route.editor.activity.timetable.window.column.path"),
         //% "Consist"
@@ -57,6 +61,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     trains.setSelectionMode(QAbstractItemView::SingleSelection);
     trains.header()->resizeSection(StartColumn, 70);
     trains.header()->resizeSection(TrainColumn, 170);
+    trains.header()->resizeSection(StateColumn, 190);
+    trains.setColumnHidden(StateColumn, true);
     trains.header()->resizeSection(PathColumn, 130);
     trains.header()->resizeSection(ConsistColumn, 130);
     trains.header()->resizeSection(FirstColumn, 130);
@@ -76,6 +82,15 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     bJump = new QPushButton(
         //% "Jump To"
         qtTrId("route.editor.activity.timetable.window.button.jump"));
+    bFollow = new QPushButton(
+        //% "Follow"
+        qtTrId("route.editor.activity.timetable.window.button.follow"));
+    bFollow->setToolTip(
+        //% "The camera follows the chosen train while the simulation runs."
+        qtTrId("route.editor.activity.timetable.window.button.follow.tooltip"));
+    bFollow->setCheckable(true);
+    bFollow->setObjectName("timetableFollow");
+    events.setObjectName("timetableEvents");
     bCopy = new QPushButton(
         //% "Make Own Copy..."
         qtTrId("route.editor.activity.timetable.window.button.copy"));
@@ -99,6 +114,7 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     buttons->addWidget(bAdd);
     buttons->addWidget(bRemove);
     buttons->addWidget(bJump);
+    buttons->addWidget(bFollow);
     QWidget *top = new QWidget;
     QVBoxLayout *topLayout = new QVBoxLayout(top);
     topLayout->setContentsMargins(0, 0, 0, 0);
@@ -117,11 +133,25 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     savedLayout->addWidget(&savedIn);
     savedLayout->addWidget(bCopy, 0, Qt::AlignLeft);
     savedLayout->addSpacing(6);
-    savedLayout->addWidget(timetableProperties->info);
-    savedLayout->addStretch(1);
+    QWidget *info = ActivityEditLock::Box(timetableProperties->info);
+    savedLayout->addWidget(info);
+    // The chosen train's events while a simulation runs, taking the room
+    // left (a spacer does without a simulation).
+    simulationBox = new QWidget;
+    QVBoxLayout *simulationLayout = new QVBoxLayout(simulationBox);
+    simulationLayout->setContentsMargins(0, 6, 0, 0);
+    simulationLayout->setSpacing(2);
+    simulationLayout->addWidget(new QLabel(
+        //% "Events in the simulation:"
+        qtTrId("route.editor.activity.timetable.window.events")));
+    simulationLayout->addWidget(&events);
+    simulationBox->hide();
+    savedLayout->addWidget(simulationBox, 1);
+    savedLayout->addStretch(0);
+    QWidget *stops = ActivityEditLock::Box(timetableProperties);
     QSplitter *bottom = new QSplitter(Qt::Horizontal);
     bottom->addWidget(saved);
-    bottom->addWidget(timetableProperties);
+    bottom->addWidget(stops);
     bottom->setChildrenCollapsible(false);
     // The information about 40% of the width, the times the rest.
     bottom->setStretchFactor(0, 2);
@@ -152,6 +182,22 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     QObject::connect(bCopy, &QPushButton::released, this, &ActivityTimetableWindow::makeOwnCopy);
     QObject::connect(timetableProperties, &ActivityTimetableProperties::edited,
                      this, &ActivityTimetableWindow::timetableEdited);
+    QObject::connect(bFollow, &QPushButton::toggled, this, &ActivityTimetableWindow::followToggled);
+    // While a simulation exists its times show but are not edited.
+    ActivityEditLock::Follow(this, {info, stops});
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged,
+                     this, [this] { showChosen(); });
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    QObject::connect(simulation, &Sim::SimulationController::stateChanged,
+                     this, &ActivityTimetableWindow::simulationChanged);
+    QObject::connect(simulation, &Sim::SimulationController::frameUpdated,
+                     this, &ActivityTimetableWindow::showStates);
+    QObject::connect(simulation, &Sim::SimulationController::eventsAdded,
+                     this, &ActivityTimetableWindow::showEvents);
+    QObject::connect(simulation, &Sim::SimulationController::followChanged, this, [this](int train) {
+        QSignalBlocker blocker(bFollow);
+        bFollow->setChecked(train >= 0);
+    });
     showChosen();
 }
 
@@ -196,6 +242,8 @@ void ActivityTimetableWindow::fillTrains(){
     QSignalBlocker blocker(trains);
     trains.clear();
     list = ActivityTrains::List(activity);
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const bool simulating = simulation->shows(activity);
     for(int i = 0; i < list.size(); i++){
         const ActivityTrains::Train &train = list[i];
         QString name = train.service;
@@ -205,7 +253,9 @@ void ActivityTimetableWindow::fillTrains(){
         else if(train.kind == ActivityTrains::PatternOnly)
             //% "%1 (not in the activity)"
             name = qtTrId("route.editor.activity.timetable.window.not.in.activity").arg(train.service);
-        QTreeWidgetItem *item = new QTreeWidgetItem(&trains, {clock(train.time), name, train.path,
+        const int simulatedTrain = simulating ? simulated(train) : -1;
+        QTreeWidgetItem *item = new QTreeWidgetItem(&trains, {clock(train.time), name,
+            simulatedTrain >= 0 ? simulation->stateText(simulatedTrain) : QString(), train.path,
             train.consist, train.firstStop, train.lastStop}, i);
         for(int column = 0; column < Columns; column++)
             item->setToolTip(column, item->text(column));
@@ -256,10 +306,21 @@ void ActivityTimetableWindow::showChosen(){
     if(activity != NULL)
         activity->shownAITrain = train != NULL && train->kind == ActivityTrains::AI ? train->index : -1;
     showAll.setEnabled(activity != NULL);
-    bAdd->setEnabled(train != NULL && train->kind == ActivityTrains::PatternOnly);
-    bRemove->setEnabled(train != NULL && train->kind == ActivityTrains::AI);
+    const bool locked = ActivityNotifier::editingLocked();
+    bAdd->setEnabled(!locked && train != NULL && train->kind == ActivityTrains::PatternOnly);
+    bRemove->setEnabled(!locked && train != NULL && train->kind == ActivityTrains::AI);
+    bCopy->setEnabled(!locked);
     float start[4];
     bJump->setEnabled(train != NULL && ActivityTrains::StartPosition(activity, *train, start));
+    // The simulation's train: outlined, followed when Follow is on, its
+    // events listed.
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int simulatedTrain = train != NULL && simulation->shows(activity) ? simulated(*train) : -1;
+    simulation->choose(simulatedTrain);
+    bFollow->setEnabled(simulatedTrain >= 0);
+    if(simulation->followed() >= 0)
+        simulation->follow(simulatedTrain);
+    showEvents(0);
     bCopy->setVisible(false);
     savedIn.setStyleSheet(QString());
     if(train == NULL){
@@ -399,6 +460,63 @@ void ActivityTimetableWindow::jumpToTrain(){
     coordinate->TileZ = start[1];
     coordinate->setWxyz(start[2], 0, start[3]);
     emit jumpTo(coordinate);
+}
+
+int ActivityTimetableWindow::simulated(const ActivityTrains::Train &train) const {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if(train.kind == ActivityTrains::Player)
+        return simulation->trainOf(true, -1);
+    if(train.kind == ActivityTrains::AI)
+        return simulation->trainOf(false, train.index);
+    return -1;
+}
+
+void ActivityTimetableWindow::followToggled(bool on){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    simulation->follow(on ? simulation->chosen() : -1);
+}
+
+void ActivityTimetableWindow::simulationChanged(){
+    if(isHidden())
+        return;
+    const bool simulating = Sim::SimulationController::instance()->shows(activity);
+    trains.setColumnHidden(StateColumn, !simulating);
+    simulationBox->setVisible(simulating);
+    showChosen();
+    showStates();
+}
+
+// Each train's state in the simulation.
+void ActivityTimetableWindow::showStates(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if(isHidden() || !simulation->shows(activity))
+        return;
+    for(int i = 0; i < trains.topLevelItemCount() && i < list.size(); i++){
+        const int train = simulated(list[i]);
+        const QString state = train >= 0 ? simulation->stateText(train) : QString();
+        QTreeWidgetItem *item = trains.topLevelItem(i);
+        if(item->text(StateColumn) != state){
+            item->setText(StateColumn, state);
+            item->setToolTip(StateColumn, state);
+        }
+    }
+}
+
+// The chosen train's events from `first` on (all again from 0).
+void ActivityTimetableWindow::showEvents(int first){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if(first == 0)
+        events.clear();
+    const int train = simulation->chosen();
+    if(isHidden() || train < 0 || !simulation->shows(activity))
+        return;
+    const std::vector<Sim::TrainEvent> &all = simulation->events();
+    const bool atEnd = events.count() == 0 || events.verticalScrollBar()->value() == events.verticalScrollBar()->maximum();
+    for(size_t i = size_t(std::max(0, first)); i < all.size(); i++)
+        if(all[i].train == train)
+            events.addItem(clock(int(all[i].time)) + "  " + simulation->eventText(all[i]));
+    if(atEnd)
+        events.scrollToBottom();
 }
 
 void ActivityTimetableWindow::showAllToggled(bool on){

@@ -21,6 +21,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Vector2f.h>
 #include <tsre/tdb/TRitem.h>
+#include <tsre/trains/ActivityNotifier.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/objects/TelepoleObj.h>
 #include <tsre/world/objects/WorldObj.h>
@@ -36,6 +37,16 @@ void releasePrevious(ToolContext &ctx) {
     previous->unselect();
     if (ctx.autoAddToTrackDb() && previous->typeObj == GameObj::worldobj)
         ctx.currentRoute()->addToTDBIfNotExist(static_cast<WorldObj *>(previous));
+}
+
+// The selected object as the tools may change it: an activity's loose
+// consist, speed zone or failed signal not while a simulation exists
+// (task simulation 01).
+GameObj *editable(ToolContext &ctx) {
+    GameObj *object = ctx.selected();
+    if (object != nullptr && object->typeObj == GameObj::activityobj && ActivityNotifier::editingLocked())
+        return nullptr;
+    return object;
 }
 
 // Select and place: the selected object moves with the keys and the wheel,
@@ -92,7 +103,7 @@ protected:
 };
 
 bool ObjectEditTool::key(ToolContext &ctx, QKeyEvent *event) {
-    GameObj *object = ctx.selected();
+    GameObj *object = editable(ctx);
     const ToolContext::ObjectEdit edit = ctx.objectEdit();
     const bool resize = edit == ToolContext::ObjectEdit::Resize;
     const bool rotate = edit == ToolContext::ObjectEdit::Rotate;
@@ -301,7 +312,7 @@ public:
     }
 
     void drag(ToolContext &ctx, const ToolMouse &mouse) override {
-        GameObj *object = ctx.selected();
+        GameObj *object = editable(ctx);
         if (object == nullptr)
             return;
         if (ctx.viewMode() == ViewMode::Map) {

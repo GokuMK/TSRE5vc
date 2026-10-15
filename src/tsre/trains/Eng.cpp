@@ -18,6 +18,7 @@
 #include <tsre/shape/ComplexShape.h>
 #include <QDebug>
 #include <QFile>
+#include <algorithm>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <tsre/renderer/Renderer.h>
@@ -878,11 +879,22 @@ void Eng::getCameraPosition(float* out){
 void Eng::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
     if (loaded != 1 || ruch1 == NULL || ruch2 == NULL)
         return;
-    // Both ends, relative to the tile; positions are rebuilt by each call.
+    // Positions are rebuilt by each call: the front's copied first.
+    float front[7];
+    const float *first = ruch1->getCurrentPosition();
+    std::copy(first, first + 7, front);
+    getMapFeaturesBetween(features, tileX, tileZ, front, ruch2->getCurrentPosition());
+}
+
+void Eng::getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
+                                const float *rear) const {
+    if (loaded != 1)
+        return;
+    // Both ends, relative to the tile.
     float ends[2][2];
-    Ruch *ruch[2] = {ruch1, ruch2};
+    const float *end[2] = {front, rear};
     for (int i = 0; i < 2; i++) {
-        const float *p = ruch[i]->getCurrentPosition();
+        const float *p = end[i];
         ends[i][0] = (p[5] - tileX) * 2048 + p[0];
         ends[i][1] = (-p[6] - tileZ) * 2048 - p[2];
     }
@@ -905,12 +917,24 @@ void Eng::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
 void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
     if (loaded != 1) return;
 
+    float selev1, selev2;
+    float drawPosition1[7];
+    const float *first = ruch1->getCurrentPosition(&selev1);
+    std::copy(first, first + 7, drawPosition1);
+    float *drawPosition2 = ruch2->getCurrentPosition(&selev2);
+    pushRenderItemBetween(queue, playerT, selectionId, selected, drawPosition1, drawPosition2,
+                          (selev1 + selev2) / 2.0, flip);
+}
+
+void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
+                                const float *front, const float *rear, float roll, bool flipped) {
+    if (loaded != 1) return;
+
     const long long int shapeLibId = resolveShapeIds();
 
-    float selev1, selev2;
-    float *drawPosition1 = ruch1->getCurrentPosition(&selev1);
-    float *drawPosition2 = ruch2->getCurrentPosition(&selev2);
-    selev1 = (selev1 + selev2) / 2.0;
+    float drawPosition1[7], drawPosition2[7];
+    std::copy(front, front + 7, drawPosition1);
+    std::copy(rear, rear + 7, drawPosition2);
 
     float pos[5];
     pos[3] = drawPosition1[5];
@@ -930,8 +954,8 @@ void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 sele
     Mat4::translate(queue.transform(), queue.transform(), pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + 0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
     Mat4::rotateY(queue.transform(), queue.transform(), -rotY);
     Mat4::rotateX(queue.transform(), queue.transform(), rotX);
-    Mat4::rotate(queue.transform(), queue.transform(), -selev1, 0, 0, 1);
-    Mat4::rotateY(queue.transform(), queue.transform(), flip*M_PI);
+    Mat4::rotate(queue.transform(), queue.transform(), -roll, 0, 0, 1);
+    Mat4::rotateY(queue.transform(), queue.transform(), flipped ? M_PI : 0.0);
 
     // Activities submit their consists with the editor overlays; the
     // rolling stock itself is scene geometry, lit and shadowed.

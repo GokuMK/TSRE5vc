@@ -72,11 +72,19 @@ public:
     // and at least minimum long and wide. Public for tests.
     static void appendVehicle(std::vector<float> &out, const float *vehicle, float y, float margin,
                               float minimum);
+    // The vehicles' borders and fills (wagons and engines) at the map's
+    // scale, and halos around them.
+    static void appendVehicles(const MapFeatures &features, float metresPerPixel, std::vector<float> &border,
+                               std::vector<float> &vehicleFill, std::vector<float> &engineFill);
+    static void appendHalos(const MapFeatures &features, float metresPerPixel, std::vector<float> &out);
 
 private:
     void build(const MapView &view, const MapPalette &palette, Route *route, bool activity,
                bool paths);
     std::vector<const void *> sources(Route *route, bool activity, bool paths) const;
+    // The trains of a simulation of the activity (task simulation 01).
+    void pushSimulated(RenderQueue &queue, const MapView &view, const MapPalette &palette, Route *route,
+                       bool activity);
 
     bool valid = false;
     int builtTileX = 0;
@@ -91,6 +99,16 @@ private:
     std::unique_ptr<OglObj> borders;
     std::unique_ptr<OglObj> areas;
     std::unique_ptr<OglObj> fills[GroupCount];
+    // The simulated trains, built for this frame and view.
+    const void *simulatedFrame = nullptr;
+    int simulatedChosen = -1;
+    int simulatedTileX = 0;
+    int simulatedTileZ = 0;
+    float simulatedMetresPerPixel = 0.0f;
+    QString simulatedPalette;
+    std::unique_ptr<OglObj> simulatedHalos;
+    std::unique_ptr<OglObj> simulatedBorders;
+    std::unique_ptr<OglObj> simulatedFills[2];
 };
 
 #endif

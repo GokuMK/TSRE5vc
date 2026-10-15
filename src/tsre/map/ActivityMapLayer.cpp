@@ -23,6 +23,7 @@
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/sim/SimulationController.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityObject.h>
@@ -49,8 +50,11 @@ ActivityMapLayer::ActivityMapLayer()
     : pathBand(std::make_unique<OglObj>()), aiBand(std::make_unique<OglObj>()),
       chosenBand(std::make_unique<OglObj>()), halos(std::make_unique<OglObj>()),
       borders(std::make_unique<OglObj>()),
-      areas(std::make_unique<OglObj>()) {
+      areas(std::make_unique<OglObj>()), simulatedHalos(std::make_unique<OglObj>()),
+      simulatedBorders(std::make_unique<OglObj>()) {
     for (auto &fill : fills)
+        fill = std::make_unique<OglObj>();
+    for (auto &fill : simulatedFills)
         fill = std::make_unique<OglObj>();
 }
 
@@ -115,6 +119,7 @@ std::vector<const void *> ActivityMapLayer::sources(Route *route, bool activity,
         }
     list.push_back(current->playerService());
     count(current->shownAITrain);
+    count(Sim::SimulationController::instance()->shows(current) ? 1 : 0);
     for (int i : current->shownAITrains())
         list.push_back(current->aiTrainService(i));
     return list;
@@ -135,6 +140,9 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
                 shownPaths.push_back(selected);
     Activity *current = activity && route != nullptr ? route->getCurrentActivity() : nullptr;
     Service *player = current != nullptr ? current->playerService() : nullptr;
+    // A simulation draws the activity's trains where they are (simulated
+    // vehicles, built each frame).
+    const bool atStart = !Sim::SimulationController::instance()->shows(current);
     if (player != nullptr) {
         ::Path *playerPath = player->getPathPointer();
         if (playerPath != nullptr
@@ -161,7 +169,7 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
         collect(current->activityFailedSignal, failedSignals);
         for (ActivityEvent *event : current->event)
             event->getMapFeatures(events, tileX, tileZ);
-        if (player != nullptr) {
+        if (player != nullptr && atStart) {
             MapFeatures own;
             player->getMapFeatures(own, tileX, tileZ);
             consists.append(own);
@@ -175,6 +183,8 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
             ::Path *trainPath = service->getPathPointer();
             if (trainPath != nullptr)
                 trainPath->getMapFeatures(i == current->shownAITrain ? chosenPath : aiPaths, tileX, tileZ);
+            if (!atStart)
+                continue;
             MapFeatures own;
             service->getMapFeatures(own, tileX, tileZ);
             consists.append(own);
@@ -230,17 +240,7 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     }
     // Consists.
     const int vehicleCount = int(consists.vehicles.size()) / MapFeatures::VehicleFloats;
-    for (int i = 0; i < vehicleCount; ++i) {
-        const float *vehicle = consists.vehicles.data() + i * MapFeatures::VehicleFloats;
-        const int group = vehicle[6] > 0.5f ? Engines : Vehicles;
-        // Wagons a little shorter than they are, so the borders part them.
-        float shorter[MapFeatures::VehicleFloats];
-        std::copy(vehicle, vehicle + MapFeatures::VehicleFloats, shorter);
-        shorter[4] = std::max(0.0f, shorter[4] - 2.0f * border);
-        appendVehicle(borderVertices, shorter, BorderHeight, border, MinVehiclePixels * mpp);
-        appendVehicle(fillVertices[group], shorter, FillHeight + group, 0.0f,
-                      MinVehiclePixels * mpp);
-    }
+    appendVehicles(consists, mpp, borderVertices, fillVertices[Vehicles], fillVertices[Engines]);
     // Speed zones and failed failedSignals.
     lines(zones.lines, SpeedZone);
     circles(zones.points, SpeedZone);
@@ -274,10 +274,7 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     for (size_t i = 0; i + 2 < selected.points.size(); i += 3)
         TrackItemMapLayer::appendCircle(haloVertices, selected.points[i], HaloHeight,
                                         selected.points[i + 2], radius + halo);
-    for (size_t i = 0; i + MapFeatures::VehicleFloats <= selected.vehicles.size();
-         i += MapFeatures::VehicleFloats)
-        appendVehicle(haloVertices, selected.vehicles.data() + i, HaloHeight, halo,
-                      MinVehiclePixels * mpp);
+    appendHalos(selected, mpp, haloVertices);
 
     auto upload = [](OglObj &object, std::vector<float> &vertices, const QColor &colour) {
         object.setMaterial(float(colour.redF()), float(colour.greenF()), float(colour.blueF()));
@@ -325,6 +322,72 @@ void ActivityMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     areas->pushRenderItem(queue);
     borders->pushRenderItem(queue);
     for (auto &fill : fills)
+        fill->pushRenderItem(queue);
+    pushSimulated(queue, view, palette, route, activity);
+}
+
+void ActivityMapLayer::appendVehicles(const MapFeatures &features, float mpp, std::vector<float> &border,
+                                      std::vector<float> &vehicleFill, std::vector<float> &engineFill) {
+    const float margin = BorderPixels * mpp;
+    const int count = int(features.vehicles.size()) / MapFeatures::VehicleFloats;
+    for (int i = 0; i < count; ++i) {
+        const float *vehicle = features.vehicles.data() + i * MapFeatures::VehicleFloats;
+        const bool engine = vehicle[6] > 0.5f;
+        // Wagons a little shorter than they are, so the borders part them.
+        float shorter[MapFeatures::VehicleFloats];
+        std::copy(vehicle, vehicle + MapFeatures::VehicleFloats, shorter);
+        shorter[4] = std::max(0.0f, shorter[4] - 2.0f * margin);
+        appendVehicle(border, shorter, BorderHeight, margin, MinVehiclePixels * mpp);
+        appendVehicle(engine ? engineFill : vehicleFill, shorter, FillHeight + (engine ? Engines : Vehicles),
+                      0.0f, MinVehiclePixels * mpp);
+    }
+}
+
+void ActivityMapLayer::appendHalos(const MapFeatures &features, float mpp, std::vector<float> &out) {
+    const float halo = (BorderPixels + HaloPixels) * mpp;
+    for (size_t i = 0; i + MapFeatures::VehicleFloats <= features.vehicles.size();
+         i += MapFeatures::VehicleFloats)
+        appendVehicle(out, features.vehicles.data() + i, HaloHeight, halo, MinVehiclePixels * mpp);
+}
+
+// The simulated trains, built again for each frame of the simulation (and
+// when the view moved): few vertices, so it does not wait for the rest.
+void ActivityMapLayer::pushSimulated(RenderQueue &queue, const MapView &view, const MapPalette &palette,
+                                     Route *route, bool activity) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Activity *current = activity && route != nullptr ? route->getCurrentActivity() : nullptr;
+    if (!simulation->shows(current))
+        return;
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+    if (frame.get() != simulatedFrame || simulation->chosen() != simulatedChosen || view.tileX != simulatedTileX
+            || view.tileZ != simulatedTileZ || view.metresPerPixel != simulatedMetresPerPixel
+            || palette.name != simulatedPalette) {
+        simulatedFrame = frame.get();
+        simulatedChosen = simulation->chosen();
+        simulatedTileX = view.tileX;
+        simulatedTileZ = view.tileZ;
+        simulatedMetresPerPixel = view.metresPerPixel;
+        simulatedPalette = palette.name;
+        const float mpp = view.metresPerPixel;
+        MapFeatures vehicles, chosen;
+        simulation->getMapFeatures(vehicles, view.tileX, view.tileZ);
+        if (simulatedChosen >= 0)
+            simulation->getMapFeatures(chosen, view.tileX, view.tileZ, simulatedChosen);
+        std::vector<float> haloVertices, borderVertices, fillVertices[2];
+        appendHalos(chosen, mpp, haloVertices);
+        appendVehicles(vehicles, mpp, borderVertices, fillVertices[0], fillVertices[1]);
+        auto upload = [](OglObj &object, std::vector<float> &vertices, const QColor &colour) {
+            object.setMaterial(float(colour.redF()), float(colour.greenF()), float(colour.blueF()));
+            object.init(vertices.data(), int(vertices.size()), RenderItem::V, GL_TRIANGLES);
+        };
+        upload(*simulatedHalos, haloVertices, palette.selection);
+        upload(*simulatedBorders, borderVertices, palette.itemBorder);
+        upload(*simulatedFills[0], fillVertices[0], colour(palette, Vehicles));
+        upload(*simulatedFills[1], fillVertices[1], colour(palette, Engines));
+    }
+    simulatedHalos->pushRenderItem(queue);
+    simulatedBorders->pushRenderItem(queue);
+    for (auto &fill : simulatedFills)
         fill->pushRenderItem(queue);
 }
 
@@ -384,6 +447,18 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
         MapFeatures own;
         object->getMapFeatures(own, tileX, tileZ);
         points(own, id, false);
+    }
+    // Simulated trains where they are, with the ids of their trains.
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (simulation->shows(current)) {
+        for (int train = 0; train < int(simulation->frame()->trains.size()); ++train) {
+            if (!SelectionIdCodec::tryActivityService(simulation->serviceId(train), 0, id))
+                continue;
+            MapFeatures own;
+            simulation->getMapFeatures(own, tileX, tileZ, train);
+            vehicles(own, id);
+        }
+        return;
     }
     Service *player = current->playerService();
     if (player != nullptr && SelectionIdCodec::tryActivityService(0, 0, id)) {

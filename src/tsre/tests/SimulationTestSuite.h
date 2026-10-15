@@ -8,4 +8,12 @@ int runSimulationCoreSuite(bool verbose);
 // random places of the whole track database, every activity's input made
 // and run to its end.
 int runSimulationRouteSuite(bool verbose);
+// The simulation's thread (SimulationHost): commands acknowledged in order,
+// frames and events, its pace, the same events as the core run alone, stop
+// with commands queued.
+int runSimulationHostSuite(bool verbose);
+// The simulation in the editor: the activity panel's controls, activity
+// editing off while it exists, undo, the Timetable window's states, events
+// and Follow, Run to, Stop.
+int runSimulationUiSuite(bool verbose);
 }
