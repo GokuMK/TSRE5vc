@@ -87,6 +87,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/tdb/*.cpp"
     "./src/tsre/trains/*.h"
     "./src/tsre/trains/*.cpp"
+    "./src/tsre/sim/*.h"
+    "./src/tsre/sim/*.cpp"
     "./src/tsre/renderer/*.h"
     "./src/tsre/renderer/*.cpp"
     "./src/tsre/renderer/rhi/*.h"

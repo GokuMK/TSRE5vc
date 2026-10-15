@@ -1,6 +1,7 @@
 # Task 01 - The Simulation Thread and Trains in Motion
 
-Status: design (2026-10-15), decisions taken the same day (at the end).
+Status: phase 1 done (2026-10-15, branch `feature/simulation`); decisions
+taken (at the end).
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -10,6 +11,41 @@ Sources:
   `AITrain.cs` (rates), `Train.CalculateStationStop` (stop position),
   `AI.PrerunAI`.
 - TSRE on main at `17a5bf8` (activity editing merged).
+
+## Progress
+
+**Phase 1, input (done 2026-10-15).** In `src/tsre/sim/` (namespace `Sim`):
+- `TrackGeometry`: every vector node's placed sections copied with the
+  section shapes they use; `pose()` finds the section by binary search and
+  gives `getDrawPositionOnTrNode`'s answer exactly (the same section math;
+  `TSection`'s geometry methods are `const` now).
+- `TrainRoute`: the path's legs in order, split at reversal nodes, the first
+  part led in by the track behind the start (`PathTrack::follow`, new: the
+  track from a point for a length, main routes at facing junctions);
+  `RouteTrack::locate` maps a route distance to a node and distance, and
+  `TrainRoute::place` a path distance (`distanceDownPath`) to a part.
+- `SimulationInput` and `MakeInput`: per train (player and the activity's
+  AI trains) its vehicles, length, top speed (the consist's, else the
+  engines', else the route's limit), Open Rails' rates, efficiencies, start
+  time and front, its stops (from its timetable: each at its pass, centred
+  on the platform, booked times or none, boarding time) and waiting points;
+  trains it cannot make are warnings.
+- `SimulationCore` with trains at a constant 10 m/s (the driver is phase 2):
+  start times, reversals (the old rear leads), path ends, each vehicle's two
+  ends as poses.
+
+Tests: `simulation-core` (the geometry copy against the track database on
+straight and curved sections turned every way, missing sections; a route
+over the passing loop with a reversal, each pass on its own branch, the
+lead-in ending at a track end, path distances on parts; the core: start
+time within a step, cars 20 m apart and coupled, the reversal, the end) and
+`simulation-route` (`--game-root`, `--route`: 10,000 random poses equal on
+the route; every activity's input made and run to its end). On the local
+routes the poses are identical, all 245 trains of 64 activities are made
+and finish; USA1's Summer Express timetable (TRF) has stops its path does
+not pass (warned and left out, as Open Rails builds AI stops from the
+TRF's entries). The test track of path-edit moved to
+`tests/TrackLayoutSupport.h`.
 
 ## Objective
 

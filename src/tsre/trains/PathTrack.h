@@ -172,6 +172,13 @@ Result rebuild(TDB *tdb, const QVector<Node> &nodes, bool repair);
 // The output each facing junction of the path is left by, as Ruch takes
 // it: 0 for the junction's first output pin, 1 for the next.
 QMap<int, int> junctionChoices(TDB *tdb, const QVector<Node> &nodes, const QVector<Leg> &legs);
+// The track from distance `from` along vector node `track` in direction
+// `forward`, for up to `length` metres: the main route at facing junctions,
+// as `complete` goes. It stops short at a track end, where the track
+// database is broken, or before a track it already followed the same way.
+// The legs in the order travelled; `ended` tells whether a track end (or a
+// break) stopped it.
+QVector<Leg> follow(TDB *tdb, int track, float from, bool forward, float length, bool *ended = nullptr);
 // Removes halfway nodes that are not between two junction nodes.
 void dropStrayHalfways(QVector<Node> &nodes);
 // The number of vector nodes joining two junctions.

@@ -17,6 +17,7 @@
 #include <tsre/tests/ActivityEditTestSuite.h>
 #include <tsre/tests/ActivityCheckTestSuite.h>
 #include <tsre/tests/ActivityExportTestSuite.h>
+#include <tsre/tests/SimulationTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
@@ -4156,6 +4157,8 @@ QStringList TsreTests::listSuites() {
         "activity-check",
         "activity-check-route",
         "activity-export",
+        "simulation-core",
+        "simulation-route",
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
@@ -4330,6 +4333,12 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "activity-export")
         return runActivityExportSuite(opts.verbose);
+
+    if (suite == "simulation-core")
+        return runSimulationCoreSuite(opts.verbose);
+
+    if (suite == "simulation-route")
+        return runSimulationRouteSuite(opts.verbose);
 
     if (suite == "new-route")
         return runNewRouteSuite(opts.verbose);

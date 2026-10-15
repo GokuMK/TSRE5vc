@@ -725,6 +725,59 @@ Result otherExit(TDB *tdb, const QVector<Node> &nodes, int index) {
     return done(result, note == Note::None ? Note::RestReplaced : note);
 }
 
+QVector<Leg> follow(TDB *tdb, int track, float from, bool forward, float length, bool *ended) {
+    QVector<Leg> legs;
+    if (ended != nullptr)
+        *ended = false;
+    Track t{tdb, {}};
+    QSet<qint64> used;
+    auto key = [](int v, bool f) { return (qint64(v) << 1) | (f ? 1 : 0); };
+    float left = length;
+    float start = from;
+    for (;;) {
+        const TRnode *vector = trackNode(tdb, track);
+        if (!isVector(vector)) {
+            if (ended != nullptr)
+                *ended = true;
+            return legs;
+        }
+        used.insert(key(track, forward));
+        const float trackLength = t.length(track);
+        start = std::clamp(start, 0.0f, trackLength);
+        const float room = forward ? trackLength - start : start;
+        Leg leg;
+        leg.track = track;
+        leg.from = start;
+        leg.broken = false;
+        if (room >= left) {
+            leg.to = forward ? start + left : start - left;
+            legs.push_back(leg);
+            return legs;
+        }
+        leg.to = forward ? trackLength : 0.0f;
+        legs.push_back(leg);
+        left -= room;
+        const int far = forward ? 1 : 0;
+        const int atId = vector->pins[far].link;
+        const TRnode *at = trackNode(tdb, atId);
+        const int entry = isJunction(at) ? pinOf(at, track, far) : -1;
+        const int exit = entry < 0 ? -1 : entry < at->inputPinCount ? mainPin(tdb, at) : 0;
+        const int next = exit >= 0 ? at->pins[exit].link : -1;
+        const TRnode *nextVector = trackNode(tdb, next);
+        if (entry < 0 || exit == entry || !isVector(nextVector)) {
+            if (ended != nullptr)
+                *ended = true;
+            return legs;
+        }
+        const bool nextForward = endOfPin(at, atId, exit, nextVector) == 0;
+        if (used.contains(key(next, nextForward)))
+            return legs;
+        track = next;
+        forward = nextForward;
+        start = forward ? 0.0f : t.length(next);
+    }
+}
+
 QMap<int, int> junctionChoices(TDB *tdb, const QVector<Node> &nodes, const QVector<Leg> &legs) {
     QMap<int, int> choices;
     for (int k = 1; k + 1 < nodes.size(); ++k) {
