@@ -37,6 +37,19 @@ double waitUntil(const WaitPlan &wait, double time) {
 SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : in(std::move(input)) {
     states.resize(in->trains.size());
     runtime.resize(in->trains.size());
+    // Each train's own copy of its route: a part changes when it takes a
+    // passing path.
+    for (size_t i = 0; i < runtime.size(); ++i) {
+        const TrainPlan &plan = in->trains[i];
+        Runtime &rt = runtime[i];
+        rt.parts = plan.route.parts;
+        rt.ways = plan.projection;
+        rt.limits = plan.limits;
+        rt.stops = plan.stops;
+        rt.waits = plan.waits;
+        rt.passing = plan.passing;
+        rt.sides.resize(rt.passing.size());
+    }
     for (size_t i = 0; i < states.size(); ++i)
         states[i].front = in->trains[i].startFront;
     const TrackNetwork *network = in->network.get();
@@ -50,7 +63,6 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
     clearedFor.assign(network != nullptr ? network->signalGroups().size() : 0, NoHolder);
     headAspect.assign(network != nullptr ? network->heads().size() : 0, 0);
     headDraw.assign(headAspect.size(), 0);
-    findStretches();
     // Loose consists hold the track they stand on for the whole run.
     if (network != nullptr)
         for (const StaticConsist &consist : in->staticConsists) {
@@ -71,6 +83,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
                 previous = &interval;
             }
         }
+    findStretches();
     // The pre-run: all trains together from the first one's start up to the
     // activity's (Open Rails' pre-run of AI trains).
     now = in->startTime;
@@ -96,6 +109,30 @@ void SimulationCore::run(double seconds) {
     double left = seconds;
     while (left > 1e-9) {
         const double h = std::min(MaxStep, left);
+        // Trains due take their places first, in the order they are due, all
+        // before any reserves ahead: those an activity puts on the track at
+        // the same time are there together. One waits while a stretch it
+        // would stand in was claimed for another train before.
+        std::vector<int> due;
+        for (size_t i = 0; i < states.size(); ++i)
+            if (states[i].status == TrainStatus::Waiting && in->trains[i].startTime <= now + h)
+                due.push_back(int(i));
+        std::stable_sort(due.begin(), due.end(), [this](int a, int b) {
+            return in->trains[size_t(a)].startTime < in->trains[size_t(b)].startTime;
+        });
+        std::vector<int> free;
+        for (int i : due) {
+            int blocker = NoHolder;
+            if (startClaimed(i, &blocker)) {
+                TrainState &s = states[size_t(i)];
+                s.blockedBy = blocker;
+                blocked(i, std::max(now, double(in->trains[size_t(i)].startTime)));
+            } else {
+                free.push_back(i);
+            }
+        }
+        for (int i : free)
+            start(i, now, now + h);
         for (size_t i = 0; i < states.size(); ++i)
             advance(int(i), now, now + h);
         now += h;
@@ -129,39 +166,56 @@ bool SimulationCore::finished() const {
     return true;
 }
 
+void SimulationCore::start(int train, double from, double to) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    TrainState &s = states[size_t(train)];
+    if (s.status != TrainStatus::Waiting || to < plan.startTime)
+        return;
+    const double t = std::max(from, double(plan.startTime));
+    if (!occupy(train)) {
+        blocked(train, t);
+        return;
+    }
+    s.status = TrainStatus::Running;
+    s.speed = 0.0f;
+    s.blockedBy = NoHolder;
+    runtime[size_t(train)].reported = Unreported;
+    record(t, train, TrainEvent::Started);
+    // Starting at its first station (within a train's length of the stop):
+    // it stands there until its departure.
+    if (!runtime[size_t(train)].stops.empty() && runtime[size_t(train)].stops.front().part == s.part
+            && std::fabs(runtime[size_t(train)].stops.front().front - s.front) <= plan.length) {
+        const StopPlan &stop = runtime[size_t(train)].stops.front();
+        s.status = TrainStatus::Stopped;
+        s.stoppedAt = StopKind::Station;
+        s.until = stop.departure >= 0 ? std::max(t, double(stop.departure)) : t + stop.boarding;
+        s.nextStop = 1;
+        record(t, train, TrainEvent::Arrived, 0);
+    }
+}
+
+bool SimulationCore::startClaimed(int train, int *blocker) const {
+    const TrainState &s = states[size_t(train)];
+    if (in->network == nullptr || size_t(s.part) >= runtime[size_t(train)].ways.size())
+        return false;
+    const std::vector<ProjectedSection> &way = runtime[size_t(train)].ways[size_t(s.part)].sections;
+    const double rear = s.front - in->trains[size_t(train)].length;
+    size_t begin = 0;
+    while (begin < way.size() && way[begin].leave < rear - 1e-6)
+        ++begin;
+    size_t end = begin;
+    while (end < way.size() && way[end].enter <= s.front + 1e-6)
+        ++end;
+    return !enterable(train, begin, end, blocker);
+}
+
 void SimulationCore::advance(int train, double from, double to) {
     const TrainPlan &plan = in->trains[size_t(train)];
     TrainState &s = states[size_t(train)];
-    if (s.status == TrainStatus::Finished)
+    if (s.status == TrainStatus::Finished || s.status == TrainStatus::Waiting)
         return;
-    double t = from;
-    if (s.status == TrainStatus::Waiting) {
-        if (to < plan.startTime)
-            return;
-        t = std::max(from, double(plan.startTime));
-        // Its whole length on track no one else holds, else it waits.
-        if (!occupy(train)) {
-            blocked(train, t);
-            return;
-        }
-        s.status = TrainStatus::Running;
-        s.speed = 0.0f;
-        s.blockedBy = NoHolder;
-        runtime[size_t(train)].reported = Unreported;
-        record(t, train, TrainEvent::Started);
-        // Starting at its first station (within a train's length of the
-        // stop): it stands there until its departure.
-        if (!plan.stops.empty() && plan.stops.front().part == s.part
-                && std::fabs(plan.stops.front().front - s.front) <= plan.length) {
-            const StopPlan &stop = plan.stops.front();
-            s.status = TrainStatus::Stopped;
-            s.stoppedAt = StopKind::Station;
-            s.until = stop.departure >= 0 ? std::max(t, double(stop.departure)) : t + stop.boarding;
-            s.nextStop = 1;
-            record(t, train, TrainEvent::Arrived, 0);
-        }
-    }
-    const std::vector<RouteTrack> &parts = plan.route.parts;
+    double t = std::max(from, double(plan.startTime));
+    const std::vector<RouteTrack> &parts = runtime[size_t(train)].parts;
     while (t < to - 1e-9) {
         if (s.status == TrainStatus::Stopped) {
             if (s.stoppedAt == StopKind::End)
@@ -213,14 +267,14 @@ void SimulationCore::advance(int train, double from, double to) {
         // that stops the train, else the part's end (a reversal or the path's
         // end), or the end of its authority short of that. Stops and points
         // left behind were passed.
-        while (s.nextStop < int(plan.stops.size())) {
-            const StopPlan &stop = plan.stops[size_t(s.nextStop)];
+        while (s.nextStop < int(runtime[size_t(train)].stops.size())) {
+            const StopPlan &stop = runtime[size_t(train)].stops[size_t(s.nextStop)];
             if (stop.part > s.part || (stop.part == s.part && stop.front >= s.front - Passed))
                 break;
             ++s.nextStop;
         }
-        while (s.nextWait < int(plan.waits.size())) {
-            const WaitPlan &wait = plan.waits[size_t(s.nextWait)];
+        while (s.nextWait < int(runtime[size_t(train)].waits.size())) {
+            const WaitPlan &wait = runtime[size_t(train)].waits[size_t(s.nextWait)];
             if (wait.part > s.part || (wait.part == s.part && wait.front >= s.front - Passed))
                 break;
             ++s.nextWait;
@@ -228,16 +282,16 @@ void SimulationCore::advance(int train, double from, double to) {
         double target = parts[size_t(s.part)].length();
         StopKind kind = s.part + 1 < int(parts.size()) ? StopKind::Reversal : StopKind::End;
         int index = -1;
-        if (s.nextStop < int(plan.stops.size())) {
-            const StopPlan &stop = plan.stops[size_t(s.nextStop)];
+        if (s.nextStop < int(runtime[size_t(train)].stops.size())) {
+            const StopPlan &stop = runtime[size_t(train)].stops[size_t(s.nextStop)];
             if (stop.part == s.part && stop.front < target) {
                 target = stop.front;
                 kind = StopKind::Station;
                 index = s.nextStop;
             }
         }
-        for (int w = s.nextWait; w < int(plan.waits.size()); ++w) {
-            const WaitPlan &wait = plan.waits[size_t(w)];
+        for (int w = s.nextWait; w < int(runtime[size_t(train)].waits.size()); ++w) {
+            const WaitPlan &wait = runtime[size_t(train)].waits[size_t(w)];
             if (wait.part != s.part)
                 break;
             if (!stops(wait))
@@ -269,8 +323,8 @@ void SimulationCore::advance(int train, double from, double to) {
             // length, the last signal's speed), braking at constant
             // deceleration to stand at the target and to be down to each
             // lower limit ahead where it begins.
-            const float efficiency = s.nextStop < int(plan.stops.size())
-                    ? plan.stops[size_t(s.nextStop)].efficiency : plan.efficiency;
+            const float efficiency = s.nextStop < int(runtime[size_t(train)].stops.size())
+                    ? runtime[size_t(train)].stops[size_t(s.nextStop)].efficiency : plan.efficiency;
             double limit = std::min(double(in->routeSpeedLimit), double(plan.maxSpeed * efficiency));
             if (s.signalSpeed > 0.0f)
                 limit = std::min(limit, double(s.signalSpeed));
@@ -280,8 +334,8 @@ void SimulationCore::advance(int train, double from, double to) {
             const double rear = s.front - plan.length;
             const double reach = v * v / (2.0 * d) + 2.0 * v * dt + 50.0;
             double ahead = 1e9;
-            if (size_t(s.part) < plan.limits.size()) {
-                const std::vector<SpeedLimit> &limits = plan.limits[size_t(s.part)];
+            if (size_t(s.part) < runtime[size_t(train)].limits.size()) {
+                const std::vector<SpeedLimit> &limits = runtime[size_t(train)].limits[size_t(s.part)];
                 Runtime &rt = runtime[size_t(train)];
                 while (rt.limit < limits.size() && limits[rt.limit].to <= rear)
                     ++rt.limit;
@@ -293,8 +347,8 @@ void SimulationCore::advance(int train, double from, double to) {
                 }
             }
             // The next stop signal's speed, where its aspect has one.
-            if (size_t(s.part) < plan.projection.size()) {
-                const std::vector<ProjectedSignal> &stops = plan.projection[size_t(s.part)].stopSignals;
+            if (size_t(s.part) < runtime[size_t(train)].ways.size()) {
+                const std::vector<ProjectedSignal> &stops = runtime[size_t(train)].ways[size_t(s.part)].stopSignals;
                 const size_t next = runtime[size_t(train)].passed;
                 if (next < stops.size() && stops[next].at < s.front + reach) {
                     const float speed = signalSpeedOf(stops[next].signal);
@@ -320,8 +374,8 @@ void SimulationCore::advance(int train, double from, double to) {
         }
         // Horn waiting points passed: the horn sounds; the train runs on.
         const double reached = arrival >= 0.0 ? target : s.front;
-        while (s.nextWait < int(plan.waits.size())) {
-            const WaitPlan &wait = plan.waits[size_t(s.nextWait)];
+        while (s.nextWait < int(runtime[size_t(train)].waits.size())) {
+            const WaitPlan &wait = runtime[size_t(train)].waits[size_t(s.nextWait)];
             if (wait.part != s.part || wait.front > reached + 1e-6 || stops(wait))
                 break;
             record(arrival >= 0.0 ? arrival : t, train, TrainEvent::Horn, s.nextWait);
@@ -339,7 +393,7 @@ void SimulationCore::advance(int train, double from, double to) {
         s.stoppedAt = kind;
         switch (kind) {
         case StopKind::Station: {
-            const StopPlan &stop = plan.stops[size_t(index)];
+            const StopPlan &stop = runtime[size_t(train)].stops[size_t(index)];
             // It stands at least its boarding time, and leaves at the booked
             // departure when that is later (Open Rails).
             s.until = t + stop.boarding;
@@ -350,7 +404,7 @@ void SimulationCore::advance(int train, double from, double to) {
             break;
         }
         case StopKind::Wait:
-            s.until = waitUntil(plan.waits[size_t(index)], t);
+            s.until = waitUntil(runtime[size_t(train)].waits[size_t(index)], t);
             s.nextWait = index + 1;
             record(t, train, TrainEvent::Waiting, index);
             break;
@@ -382,12 +436,12 @@ bool SimulationCore::occupy(int train) {
     const TrainPlan &plan = in->trains[size_t(train)];
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
-    const double partLength = plan.route.parts[size_t(s.part)].length();
-    if (in->network == nullptr || size_t(s.part) >= plan.projection.size()) {
+    const double partLength = runtime[size_t(train)].parts[size_t(s.part)].length();
+    if (in->network == nullptr || size_t(s.part) >= runtime[size_t(train)].ways.size()) {
         s.authority = partLength;
         return true;
     }
-    const std::vector<ProjectedSection> &way = plan.projection[size_t(s.part)].sections;
+    const std::vector<ProjectedSection> &way = runtime[size_t(train)].ways[size_t(s.part)].sections;
     const double rear = s.front - plan.length;
     size_t k = 0;
     while (k < way.size() && way[k].leave < rear - 1e-6)
@@ -411,7 +465,7 @@ bool SimulationCore::occupy(int train) {
     rt.next = k;
     // Signals under it and behind it are passed; the next to clear is the
     // first whose block it has not taken.
-    const std::vector<ProjectedSignal> &stopSignals = plan.projection[size_t(s.part)].stopSignals;
+    const std::vector<ProjectedSignal> &stopSignals = runtime[size_t(train)].ways[size_t(s.part)].stopSignals;
     rt.passed = 0;
     while (rt.passed < stopSignals.size() && stopSignals[rt.passed].at < s.front)
         ++rt.passed;
@@ -428,12 +482,12 @@ void SimulationCore::extendAuthority(int train) {
     const TrainPlan &plan = in->trains[size_t(train)];
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
-    const double partLength = plan.route.parts[size_t(s.part)].length();
-    if (in->network == nullptr || size_t(s.part) >= plan.projection.size()) {
+    const double partLength = runtime[size_t(train)].parts[size_t(s.part)].length();
+    if (in->network == nullptr || size_t(s.part) >= runtime[size_t(train)].ways.size()) {
         s.authority = partLength;
         return;
     }
-    const Projection &projection = plan.projection[size_t(s.part)];
+    const Projection &projection = runtime[size_t(train)].ways[size_t(s.part)];
     const std::vector<ProjectedSection> &way = projection.sections;
     const std::vector<ProjectedSignal> &stopSignals = projection.stopSignals;
     const std::vector<TrackSection> &sections = in->network->sections();
@@ -464,8 +518,18 @@ void SimulationCore::extendAuthority(int train) {
                 rt.endsAtSignal = true;
                 break;
             }
-            const size_t blockEnd = rt.nextSignal + 1 < stopSignals.size()
+            size_t blockEnd = rt.nextSignal + 1 < stopSignals.size()
                     ? std::max(stopSignals[rt.nextSignal + 1].section, rt.next) : way.size();
+            const Passing choice = choosePassing(train, rt.next, blockEnd);
+            if (choice == Passing::Taken) {
+                extendAuthority(train);
+                return;
+            }
+            if (choice == Passing::Wait) {
+                rt.endsAtSignal = true;
+                s.atSignal = signal.signal;
+                break;
+            }
             bool free = true;
             for (size_t k = rt.next; k < blockEnd && free; ++k)
                 free = !blockedAt(k);
@@ -489,6 +553,13 @@ void SimulationCore::extendAuthority(int train) {
             break;
         const size_t stop = rt.nextSignal < stopSignals.size() ? stopSignals[rt.nextSignal].section : way.size();
         const size_t end = chunkEnd(way, rt.next, stop);
+        const Passing choice = choosePassing(train, rt.next, end);
+        if (choice == Passing::Taken) {
+            extendAuthority(train);
+            return;
+        }
+        if (choice == Passing::Wait)
+            break;
         bool free = true;
         for (size_t k = rt.next; k < end && free; ++k)
             free = !blockedAt(k);
@@ -665,75 +736,149 @@ size_t SimulationCore::chunkEnd(const std::vector<ProjectedSection> &way, size_t
 void SimulationCore::findStretches() {
     if (in->network == nullptr)
         return;
-    const std::vector<TrackSection> &sections = in->network->sections();
     stretchesOf.assign(in->trains.size(), {});
     for (size_t t = 0; t < in->trains.size(); ++t)
-        stretchesOf[t].resize(in->trains[t].projection.size());
+        stretchesOf[t].resize(runtime[t].ways.size());
     for (size_t a = 0; a < in->trains.size(); ++a)
         for (size_t b = a + 1; b < in->trains.size(); ++b)
-            for (size_t pa = 0; pa < in->trains[a].projection.size(); ++pa)
-                for (size_t pb = 0; pb < in->trains[b].projection.size(); ++pb) {
-                    const std::vector<ProjectedSection> &wayA = in->trains[a].projection[pa].sections;
-                    const std::vector<ProjectedSection> &wayB = in->trains[b].projection[pb].sections;
-                    // Where B passes each section first, and which way.
-                    std::unordered_map<int, size_t> onB;
-                    for (size_t k = 0; k < wayB.size(); ++k)
-                        onB.emplace(wayB[k].section, k);
-                    // A's sections B passes the other way (junctions and
-                    // crossings: at all), in maximal runs with track.
-                    auto shared = [&](size_t i) -> long {
-                        auto found = onB.find(wayA[i].section);
-                        if (found == onB.end())
-                            return -1;
-                        const ProjectedSection &other = wayB[found->second];
-                        if (sections[size_t(wayA[i].section)].kind == TrackSection::Track && other.forward == wayA[i].forward)
-                            return -1;
-                        return long(found->second);
-                    };
-                    size_t i = 0;
-                    while (i < wayA.size()) {
-                        if (shared(i) < 0) {
-                            ++i;
-                            continue;
-                        }
-                        size_t j = i;
-                        bool track = false;
-                        size_t low = wayB.size(), high = 0;
-                        while (j < wayA.size()) {
-                            const long k = shared(j);
-                            if (k < 0)
-                                break;
-                            track = track || sections[size_t(wayA[j].section)].kind == TrackSection::Track;
-                            low = std::min(low, size_t(k));
-                            high = std::max(high, size_t(k) + 1);
-                            ++j;
-                        }
-                        if (track) {
-                            Stretch stretch;
-                            stretch.train[0] = int(a);
-                            stretch.train[1] = int(b);
-                            stretch.part[0] = int(pa);
-                            stretch.part[1] = int(pb);
-                            stretch.from[0] = i;
-                            stretch.to[0] = j;
-                            stretch.from[1] = low;
-                            stretch.to[1] = high;
-                            stretch.leave[0] = wayA[j - 1].leave;
-                            stretch.leave[1] = wayB[high - 1].leave;
-                            const int id = int(single.size());
-                            single.push_back(stretch);
-                            stretchesOf[a][pa].push_back({id, 0});
-                            stretchesOf[b][pb].push_back({id, 1});
-                        }
-                        i = j;
-                    }
-                }
+            for (size_t pa = 0; pa < runtime[a].ways.size(); ++pa)
+                for (size_t pb = 0; pb < runtime[b].ways.size(); ++pb)
+                    addStretches(int(a), int(pa), int(b), int(pb));
     claimedBy.assign(single.size(), NoHolder);
-    for (auto &perTrain : stretchesOf)
-        for (auto &perPart : perTrain)
-            std::sort(perPart.begin(), perPart.end(), [this](const auto &x, const auto &y) {
+}
+
+void SimulationCore::addStretches(int a, int pa, int b, int pb) {
+    const std::vector<TrackSection> &sections = in->network->sections();
+    const std::vector<ProjectedSection> &wayA = runtime[size_t(a)].ways[size_t(pa)].sections;
+    const std::vector<ProjectedSection> &wayB = runtime[size_t(b)].ways[size_t(pb)].sections;
+    // Where B passes each section first, and which way.
+    std::unordered_map<int, size_t> onB;
+    for (size_t k = 0; k < wayB.size(); ++k)
+        onB.emplace(wayB[k].section, k);
+    // A's sections B passes the other way (junctions and crossings: at all),
+    // in maximal runs with track.
+    auto shared = [&](size_t i) -> long {
+        auto found = onB.find(wayA[i].section);
+        if (found == onB.end())
+            return -1;
+        const ProjectedSection &other = wayB[found->second];
+        if (sections[size_t(wayA[i].section)].kind == TrackSection::Track && other.forward == wayA[i].forward)
+            return -1;
+        return long(found->second);
+    };
+    struct Run {
+        size_t from, to, low, high;
+        bool track;
+    };
+    std::vector<Run> runs;
+    size_t i = 0;
+    while (i < wayA.size()) {
+        if (shared(i) < 0) {
+            ++i;
+            continue;
+        }
+        Run run{i, i, wayB.size(), 0, false};
+        while (run.to < wayA.size()) {
+            const long k = shared(run.to);
+            if (k < 0)
+                break;
+            run.track = run.track || sections[size_t(wayA[run.to].section)].kind == TrackSection::Track;
+            run.low = std::min(run.low, size_t(k));
+            run.high = std::max(run.high, size_t(k) + 1);
+            ++run.to;
+        }
+        // Where they part between two runs is no place to pass unless one
+        // of them fits there clear of both (stopped short of the next), and
+        // no standing consist is on either one's track there.
+        if (!runs.empty()) {
+            Run &last = runs.back();
+            const bool apart = run.high <= last.low;
+            const double gapA = wayA[run.from].enter - wayA[last.to - 1].leave;
+            const double gapB = apart ? wayB[last.low].enter - wayB[run.high - 1].leave : 0.0;
+            bool open = apart;
+            for (size_t k = last.to; k < run.from && open; ++k)
+                open = holder[size_t(wayA[k].section)] != StandingConsist;
+            for (size_t k = run.high; apart && k < last.low && open; ++k)
+                open = holder[size_t(wayB[k].section)] != StandingConsist;
+            if (!open || (gapA < in->trains[size_t(a)].length + SignalMargin
+                          && gapB < in->trains[size_t(b)].length + SignalMargin)) {
+                last.to = run.to;
+                last.low = std::min(last.low, run.low);
+                last.high = std::max(last.high, run.high);
+                last.track = last.track || run.track;
+                i = run.to;
+                continue;
+            }
+        }
+        runs.push_back(run);
+        i = run.to;
+    }
+    for (const Run &run : runs) {
+        if (!run.track)
+            continue;
+        Stretch stretch;
+        stretch.train[0] = a;
+        stretch.train[1] = b;
+        stretch.part[0] = pa;
+        stretch.part[1] = pb;
+        stretch.from[0] = run.from;
+        stretch.to[0] = run.to;
+        stretch.from[1] = run.low;
+        stretch.to[1] = run.high;
+        stretch.leave[0] = wayA[run.to - 1].leave;
+        stretch.leave[1] = wayB[run.high - 1].leave;
+        const int id = int(single.size());
+        single.push_back(stretch);
+        claimedBy.push_back(NoHolder);
+        auto insert = [this, id](std::vector<std::pair<int, int>> &list, int side) {
+            list.push_back({id, side});
+            std::sort(list.begin(), list.end(), [this](const auto &x, const auto &y) {
                 return single[size_t(x.first)].from[x.second] < single[size_t(y.first)].from[y.second];
             });
+        };
+        insert(stretchesOf[size_t(a)][size_t(pa)], 0);
+        insert(stretchesOf[size_t(b)][size_t(pb)], 1);
+    }
+}
+
+void SimulationCore::refreshStretches(int train) {
+    const int part = states[size_t(train)].part;
+    // Its stretches on this part go (kept aside for their claims).
+    std::vector<Stretch> old;
+    std::vector<int> oldClaims;
+    for (const auto &[id, side] : stretchesOf[size_t(train)][size_t(part)]) {
+        Stretch stretch = single[size_t(id)];
+        // Seen from the other train: side 1 is the other's.
+        if (side == 0) {
+            std::swap(stretch.train[0], stretch.train[1]);
+            std::swap(stretch.part[0], stretch.part[1]);
+            std::swap(stretch.from[0], stretch.from[1]);
+            std::swap(stretch.to[0], stretch.to[1]);
+        }
+        old.push_back(stretch);
+        oldClaims.push_back(claimedBy[size_t(id)]);
+        const int other = single[size_t(id)].train[1 - side];
+        auto &theirs = stretchesOf[size_t(other)][size_t(single[size_t(id)].part[1 - side])];
+        theirs.erase(std::remove_if(theirs.begin(), theirs.end(), [id](const auto &x) { return x.first == id; }),
+                     theirs.end());
+        claimedBy[size_t(id)] = NoHolder;
+        single[size_t(id)].train[0] = single[size_t(id)].train[1] = -1;
+    }
+    stretchesOf[size_t(train)][size_t(part)].clear();
+    for (size_t other = 0; other < in->trains.size(); ++other) {
+        if (int(other) == train)
+            continue;
+        for (size_t po = 0; po < runtime[other].ways.size(); ++po) {
+            const size_t first = single.size();
+            addStretches(train, part, int(other), int(po));
+            // A claim stays on the other train's track it covered.
+            for (size_t id = first; id < single.size(); ++id)
+                for (size_t k = 0; k < old.size(); ++k)
+                    if (oldClaims[k] != NoHolder && old[k].train[1] == int(other) && old[k].part[1] == int(po)
+                            && single[id].from[1] < old[k].to[1] && single[id].to[1] > old[k].from[1])
+                        claimedBy[id] = oldClaims[k];
+        }
+    }
 }
 
 bool SimulationCore::passed(const Stretch &stretch, int side) const {
@@ -754,21 +899,21 @@ bool SimulationCore::mayEnter(int train, size_t from, size_t to) {
     for (const auto &[stretch, side] : stretchesOf[size_t(train)][size_t(s.part)]) {
         const Stretch &st = single[size_t(stretch)];
         // Only stretches it enters in this range (or is in).
-        if (st.from[side] >= to || st.to[side] <= from || claimedBy[size_t(stretch)] == train)
+        if (st.train[0] < 0 || st.from[side] >= to || st.to[side] <= from || claimedBy[size_t(stretch)] == train)
             continue;
         const int otherSide = 1 - side;
         const int other = st.train[otherSide];
         if (passed(st, otherSide))
             continue;
         bool inside = claimedBy[size_t(stretch)] == other;
-        if (!inside && size_t(st.part[otherSide]) < in->trains[size_t(other)].projection.size()) {
-            const std::vector<ProjectedSection> &way = in->trains[size_t(other)].projection[size_t(st.part[otherSide])].sections;
+        if (!inside && size_t(st.part[otherSide]) < runtime[size_t(other)].ways.size()) {
+            const std::vector<ProjectedSection> &way = runtime[size_t(other)].ways[size_t(st.part[otherSide])].sections;
             for (size_t k = st.from[otherSide]; k < st.to[otherSide] && !inside; ++k)
                 inside = holder[size_t(way[k].section)] == other;
         }
         if (inside) {
             s.blockedBy = other;
-            s.waitSection = in->trains[size_t(train)].projection[size_t(s.part)].sections[st.from[side]].section;
+            s.waitSection = runtime[size_t(train)].ways[size_t(s.part)].sections[st.from[side]].section;
             return false;
         }
         claim.push_back(stretch);
@@ -779,9 +924,168 @@ bool SimulationCore::mayEnter(int train, size_t from, size_t to) {
     return true;
 }
 
+bool SimulationCore::enterable(int train, size_t from, size_t to, int *blocker) const {
+    const TrainState &s = states[size_t(train)];
+    if (size_t(train) >= stretchesOf.size() || size_t(s.part) >= stretchesOf[size_t(train)].size())
+        return true;
+    for (const auto &[stretch, side] : stretchesOf[size_t(train)][size_t(s.part)]) {
+        const Stretch &st = single[size_t(stretch)];
+        if (st.train[0] < 0 || st.from[side] >= to || st.to[side] <= from || claimedBy[size_t(stretch)] == train)
+            continue;
+        const int otherSide = 1 - side;
+        const int other = st.train[otherSide];
+        if (passed(st, otherSide))
+            continue;
+        bool inside = claimedBy[size_t(stretch)] == other;
+        const std::vector<ProjectedSection> &way = runtime[size_t(other)].ways[size_t(st.part[otherSide])].sections;
+        for (size_t k = st.from[otherSide]; k < st.to[otherSide] && !inside; ++k)
+            inside = holder[size_t(way[k].section)] == other;
+        if (inside) {
+            *blocker = other;
+            return false;
+        }
+    }
+    return true;
+}
+
+namespace {
+
+// A route part with `side` in place of its track between route distances
+// `from` and `to`.
+RouteTrack splice(const RouteTrack &route, double from, double to, const RouteTrack &side) {
+    RouteTrack out;
+    auto piece = [&out](const RouteInterval &interval, double begin, double end) {
+        const double sign = interval.forward() ? 1.0 : -1.0;
+        out.append(interval.node, float(interval.from + sign * (begin - interval.start)),
+                   float(interval.from + sign * (end - interval.start)));
+    };
+    for (const RouteInterval &interval : route.intervals())
+        if (interval.start < from - 1e-6)
+            piece(interval, interval.start, std::min(interval.start + interval.length(), from));
+    for (const RouteInterval &interval : side.intervals())
+        out.append(interval.node, interval.from, interval.to);
+    for (const RouteInterval &interval : route.intervals())
+        if (interval.start + interval.length() > to + 1e-6)
+            piece(interval, std::max(interval.start, to), interval.start + interval.length());
+    return out;
+}
+
+}
+
+SimulationCore::Passing SimulationCore::choosePassing(int train, size_t from, size_t to) {
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    if (in->network == nullptr)
+        return Passing::None;
+    const std::vector<TrackSection> &sections = in->network->sections();
+    for (size_t k = 0; k < rt.passing.size(); ++k) {
+        const PassingPlan &passing = rt.passing[k];
+        if (passing.part != s.part)
+            continue;
+        const std::vector<ProjectedSection> &way = rt.ways[size_t(s.part)].sections;
+        // Only where the unit reaches the junction it leaves the route by.
+        if (from >= to || to > way.size() || passing.from < way[from].enter - 1.0
+                || passing.from > way[to - 1].leave + 1.0)
+            continue;
+        // The junctions where it leaves the route and rejoins it.
+        auto junctionAt = [&](double at, size_t start) {
+            auto first = std::lower_bound(way.begin() + long(start), way.end(), at - 1.0,
+                                          [](const ProjectedSection &p, double d) { return p.enter < d; });
+            for (auto i = first; i != way.end() && i->enter <= at + 1.0; ++i)
+                if (sections[size_t(i->section)].kind == TrackSection::Junction)
+                    return size_t(i - way.begin());
+            return way.size();
+        };
+        const size_t leaves = junctionAt(passing.from, from);
+        if (leaves < from || leaves >= to)
+            continue;
+        const size_t rejoins = junctionAt(passing.to, leaves);
+        if (rejoins >= way.size())
+            continue;
+        // The main route through the loop is free of opposing claims and of
+        // other trains and consists (Open Rails: its block not reservable).
+        int blocker = NoHolder;
+        bool mainFree = enterable(train, leaves, rejoins + 1, &blocker);
+        for (size_t m = leaves; m <= rejoins && mainFree; ++m) {
+            const int h = holder[size_t(way[m].section)];
+            mainFree = h == NoHolder || h == train;
+        }
+        if (mainFree)
+            continue;
+        // The passing path, if free: taken; else it waits short of it.
+        Runtime::Side &made = rt.sides[k];
+        if (!made.made) {
+            made.route = splice(rt.parts[size_t(s.part)], passing.from, passing.to, passing.track);
+            made.way = in->network->project(made.route);
+            made.made = true;
+        }
+        const double end = passing.from + passing.track.length();
+        for (const ProjectedSection &pass : made.way.sections) {
+            if (pass.enter < passing.from - 1e-6 || pass.enter > end + 1e-6)
+                continue;
+            const int h = holder[size_t(pass.section)];
+            if (h != NoHolder && h != train) {
+                s.blockedBy = h;
+                s.waitSection = pass.section;
+                return Passing::Wait;
+            }
+        }
+        takePassing(train, k);
+        return Passing::Taken;
+    }
+    return Passing::None;
+}
+
+void SimulationCore::takePassing(int train, size_t index) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    const PassingPlan passing = rt.passing[index];
+    const size_t part = size_t(passing.part);
+    const double mainLength = passing.to - passing.from;
+    const double sideLength = passing.track.length();
+    // Route distances further on move by the difference; those along the
+    // loop's main track go to the same share of the passing path.
+    auto moved = [&](double at) {
+        if (at >= passing.to)
+            return at + sideLength - mainLength;
+        if (at > passing.from)
+            return passing.from + (at - passing.from) * sideLength / mainLength;
+        return at;
+    };
+    Runtime::Side &made = rt.sides[index];
+    if (!made.made) {
+        made.route = splice(rt.parts[part], passing.from, passing.to, passing.track);
+        made.way = in->network->project(made.route);
+    }
+    rt.parts[part] = std::move(made.route);
+    rt.ways[part] = std::move(made.way);
+    // Its limits from the speed posts on it (the activity's speed zones on
+    // this part are not kept).
+    rt.limits[part] = SpeedLimits(rt.ways[part], *in->network, plan.passenger, {}, 0.0f, rt.parts[part].length());
+    rt.limit = 0;
+    for (StopPlan &stop : rt.stops)
+        if (size_t(stop.part) == part)
+            stop.front = moved(stop.front);
+    for (WaitPlan &wait : rt.waits)
+        if (size_t(wait.part) == part)
+            wait.front = moved(wait.front);
+    rt.passing.erase(rt.passing.begin() + long(index));
+    rt.sides.erase(rt.sides.begin() + long(index));
+    // The others' routes were made on the route before.
+    for (Runtime::Side &other : rt.sides)
+        other.made = false;
+    for (PassingPlan &other : rt.passing)
+        if (size_t(other.part) == part) {
+            other.from = moved(other.from);
+            other.to = moved(other.to);
+        }
+    refreshStretches(train);
+    aspectsDirty = true;
+}
+
 void SimulationCore::take(int train, size_t from, size_t to) {
     const TrainPlan &plan = in->trains[size_t(train)];
-    const std::vector<ProjectedSection> &way = plan.projection[size_t(states[size_t(train)].part)].sections;
+    const std::vector<ProjectedSection> &way = runtime[size_t(train)].ways[size_t(states[size_t(train)].part)].sections;
     const std::vector<TrackSection> &sections = in->network->sections();
     Runtime &rt = runtime[size_t(train)];
     if (to > from)
@@ -833,8 +1137,8 @@ void SimulationCore::releaseBehind(int train) {
     const TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
     // Signals its front has passed are no longer cleared for it.
-    if (size_t(s.part) < plan.projection.size()) {
-        const std::vector<ProjectedSignal> &stopSignals = plan.projection[size_t(s.part)].stopSignals;
+    if (size_t(s.part) < runtime[size_t(train)].ways.size()) {
+        const std::vector<ProjectedSignal> &stopSignals = runtime[size_t(train)].ways[size_t(s.part)].stopSignals;
         while (rt.passed < stopSignals.size() && stopSignals[rt.passed].at < s.front) {
             // It takes the signal's speed until the next one.
             TrainState &passing = states[size_t(train)];
@@ -928,9 +1232,9 @@ bool SimulationCore::pose(int train, double routeDistance, TrackPose &out) const
         return false;
     const TrainPlan &plan = in->trains[size_t(train)];
     const TrainState &state = states[size_t(train)];
-    if (state.part < 0 || size_t(state.part) >= plan.route.parts.size())
+    if (state.part < 0 || size_t(state.part) >= runtime[size_t(train)].parts.size())
         return false;
-    const RoutePoint point = plan.route.parts[size_t(state.part)].locate(routeDistance);
+    const RoutePoint point = runtime[size_t(train)].parts[size_t(state.part)].locate(routeDistance);
     if (!in->geometry->pose(point.node, point.distance, out))
         return false;
     if (!point.forward)

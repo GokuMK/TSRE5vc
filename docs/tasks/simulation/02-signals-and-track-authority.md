@@ -1,7 +1,7 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
-Status: phases 1 to 5 done (2026-10-16, branch `feature/simulation`);
-phase 6 next. Decisions taken are at the end.
+Status: phases 1 to 6 done (2026-10-16, branch `feature/simulation`);
+phase 7 next. Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -171,6 +171,50 @@ stuck wait behind loose consists on their paths (USA2's Cutbank_Grain is a
 player pick-up: no coupling yet), behind the player's train standing at
 its path's end, or behind those.
 
+**Phase 6, passing paths (done 2026-10-16).**
+- The input carries each path's passing paths (`Path::passingPaths`): the
+  part they lie on, the route distances where they leave and rejoin the
+  main path, and their own track. Each train runs on its own copy of its
+  route parts, projections, limits, stops and waits.
+- Open Rails' path-based rule: reserving the unit that holds the junction
+  where a passing path leaves, the train takes the passing path when the
+  main route through the loop is claimed for an opposing train or held (a
+  train, a standing consist: Open Rails takes it when the main block is
+  not reservable), and the passing path is free; when it is not, the
+  train waits short of the loop. The train's route part is spliced; its
+  stops, waits and later passing paths on that part move by the
+  difference in length (those along the loop to the same share of the
+  passing track); its speed limits are made again from the speed posts
+  (the activity's speed zones on that part are dropped); its single-track
+  stretches are found again, keeping the claims on the same track.
+- Stretches: where two trains' routes part between two runs of shared
+  track is a place to pass only when one of them fits there clear of both
+  runs (its length and the 30 m signal margin) and no standing consist is
+  on either one's track there; otherwise the runs are one stretch. This
+  was the last deadlock on the local routes (CanadianImports' 1.2 and
+  1.3 km trains met at a loop neither fits) and what made
+  5_wb_empirebuilder's intermodal wait for the player in a loop whose
+  other track a loose consist holds.
+- Starting: the trains due in a step take their places first, all of them
+  before any reserves ahead (trains the activity puts on the track at the
+  same time are there together; on one stretch they deadlock, as before);
+  a train whose start lies in a stretch claimed earlier for another train
+  (or with the other in it) waits to start.
+- The player's train takes its passing paths as an AI train would (it is
+  driven as one). Not done: the train's length against the passing track
+  (Open Rails' path-based rule does not check it either; where it does not
+  fit, the stretches join across it).
+
+Tests (`simulation-core`): the westbound train with passing paths takes
+the east loop's other track and both finish; 300 m trains on a line
+between a short loop and a long one: two stretches (three for 40 m trains),
+they pass at the long loop; a consist on the long loop's main track: the
+eastbound train takes its passing path round it and both finish. Local
+routes: no deadlocks. BNSF_SCENIC 15 of 16 trains finish (8 before), the
+other waits behind the player's train at its path's end; EUROPE1 48/48,
+EUROPE2 21/21, JAPAN1 49/50, JAPAN2 16/16, USA1 46/46, USA2 46/48 (the
+rest behind loose consists).
+
 ## Objective
 
 Trains wait for each other: the track they occupy and the track reserved
@@ -335,8 +379,10 @@ it does not rescan its route each step.
 Two trains whose routes use the same sections in opposite directions meet
 on a **single-track stretch**: each maximal run of shared sections between
 the places where their routes part. A loop where both routes use the same
-track is no passing place for them, so it lies inside the stretch. The
-stretches are found per pair of trains when the input is made.
+track is no passing place for them, so it lies inside the stretch; so does
+a place where they part that neither train fits in, or where a standing
+consist is on one's track. The stretches are found per pair of trains when
+the input is made, and again for a train that takes a passing path.
 
 A train about to reserve into such a stretch, while the opposing train
 still has it ahead on its route, **claims the whole stretch**; the
@@ -357,13 +403,12 @@ never finish are reported at the end too.
 A path's passing paths are alternative branches beside its main path.
 Each becomes an alternative in the train's route between its start and end
 nodes. When the train sets its route to the start of a passing path and
-an opposing train claims the single track beyond its end, the train takes
-the passing path if it is free (and long enough for it), leaving the main
-path to the other; otherwise it waits short of the start. Where only one
-of two meeting trains has a passing path there, that train always takes
-it. Both trains' main paths must be the same through the area. Stops on
-the main path keep their places (Open Rails' location-linked option moves
-them to a platform on the passing track; not in this task).
+the main route through to its end is claimed for an opposing train or
+held (a train, a standing consist), the train takes the passing path if it
+is free, leaving the main path to the other; otherwise it waits short of
+the start. Stops along the loop's main track move to the same share of
+the passing track (Open Rails' location-linked option moves them to a
+platform on the passing track; not in this task).
 
 ### 6. Aspects without scripts
 

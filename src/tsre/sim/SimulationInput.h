@@ -46,6 +46,17 @@ struct SpeedLimit {
     float speed = 0.0f;
 };
 
+// A passing path beside a train's route (Open Rails' path-based rule, task
+// 02): on route part `part` the main route leaves it at route distance
+// `from` and rejoins it at `to` (its junctions); `track` is the passing
+// path between those junctions (route distances from 0).
+struct PassingPlan {
+    int part = 0;
+    double from = 0.0;
+    double to = 0.0;
+    RouteTrack track;
+};
+
 // A waiting point on a train's route, with its value (WaitingPoint).
 struct WaitPlan {
     int part = 0;
@@ -86,6 +97,8 @@ struct TrainPlan {
     // Each route part's speed limits from speed posts facing it (for its
     // kind of train) and the activity's speed zones, in order, apart.
     std::vector<std::vector<SpeedLimit>> limits;
+    // Its path's passing paths, in the order passed.
+    std::vector<PassingPlan> passing;
 };
 
 // A consist of the activity standing on the track for the whole run (a loose

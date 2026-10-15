@@ -106,8 +106,9 @@ public:
     // Each signal of the network: the train it is cleared for, NoHolder.
     const std::vector<int> &cleared() const { return clearedFor; }
     // Single-track stretches (task 02, section 4): track two trains' routes
-    // use in opposite directions, between the places where they part, as
-    // projected section ranges [from, to) of each one's part.
+    // use in opposite directions, between the places where they part and
+    // one of them fits clear, as projected section ranges [from, to) of each
+    // one's part.
     struct Stretch {
         int train[2] = {-1, -1};
         int part[2] = {0, 0};
@@ -165,6 +166,22 @@ private:
     // Not yet reported waiting.
     static constexpr int Unreported = -100;
     struct Runtime {
+        // Its route as it runs it: the plan's, a part changed where it took
+        // a passing path (stops, waits and passing paths further on moved
+        // with it).
+        std::vector<RouteTrack> parts;
+        std::vector<Projection> ways;
+        std::vector<std::vector<SpeedLimit>> limits;
+        std::vector<StopPlan> stops;
+        std::vector<WaitPlan> waits;
+        std::vector<PassingPlan> passing;
+        // Each passing path's route part made once (until one is taken).
+        struct Side {
+            bool made = false;
+            RouteTrack route;
+            Projection way;
+        };
+        std::vector<Side> sides;
         std::deque<Held> held;
         size_t next = 0;
         // On its part's stop signals: the next whose block it has not
@@ -183,8 +200,14 @@ private:
     // All trains from `now` on by `seconds`, in steps of at most MaxStep.
     void run(double seconds);
     // One train from `from` to `to` (seconds after midnight, at most
-    // MaxStep apart).
+    // MaxStep apart), once it has started.
     void advance(int train, double from, double to);
+    // A train due by `to` takes its place: its whole length on track no one
+    // else holds, else it waits.
+    void start(int train, double from, double to);
+    // A single-track stretch it would stand in at its start is claimed for
+    // another train, or the other is in it: who.
+    bool startClaimed(int train, int *blocker) const;
     void record(double time, int train, TrainEvent::Kind kind, int index = -1);
     // Reservation (task 02): the sections under a train standing at its
     // start, all or nothing; the track ahead up to its lookahead, a section
@@ -206,8 +229,23 @@ private:
     size_t chunkEnd(const std::vector<ProjectedSection> &way, size_t from, size_t stop) const;
     // Every head's aspect and draw state (task 02, section 6).
     void evaluateAspects();
-    // The stretches of each pair of trains.
+    // The stretches of each pair of trains; those of two trains' parts.
     void findStretches();
+    void addStretches(int a, int pa, int b, int pb);
+    // A train's stretches on its current part again (its route changed),
+    // keeping claims on the same track.
+    void refreshStretches(int train);
+    // Whether the train may go on into projected sections [from, to), as
+    // mayEnter, without claiming; who it would wait for.
+    bool enterable(int train, size_t from, size_t to, int *blocker) const;
+    // Open Rails' path-based passing paths (task 02, section 5): where the
+    // unit about to be reserved holds the junction a passing path leaves the
+    // route by and the main route through to where it rejoins is claimed for
+    // an opposing train or held (a train, a standing consist), the passing
+    // path is taken when it is free.
+    enum class Passing { None, Taken, Wait };
+    Passing choosePassing(int train, size_t from, size_t to);
+    void takePassing(int train, size_t index);
     // Whether the train may go on into projected sections [from, to): any
     // stretch it enters there is claimed for it unless the other train is in
     // it or has claimed it (then it waits for that train).

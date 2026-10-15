@@ -374,6 +374,36 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
             plan.limits.push_back(SpeedLimits(plan.projection.back(), *input->network, plan.passenger, passed,
                                               input->restrictedSpeed, part.length()));
         }
+        // Passing paths: each where the main route leaves it and rejoins
+        // it, and its own track between.
+        {
+            QVector<double> nodeDown(nodes.size(), 0.0);
+            for (int k = 1; k < nodes.size() && k - 1 < legs.size(); ++k)
+                nodeDown[k] = nodeDown[k - 1] + std::fabs(double(legs[k - 1].to) - double(legs[k - 1].from));
+            for (const PathSnapshot::Passing &side : path->passingPaths()) {
+                if (side.from < 0 || side.to >= nodes.size() || side.from >= side.to)
+                    continue;
+                QVector<PathTrack::Node> around;
+                around << nodes[side.from] << side.nodes << nodes[side.to];
+                const QVector<PathTrack::Leg> sideLegs = PathTrack::legs(tdb, around);
+                bool broken = sideLegs.isEmpty();
+                for (const PathTrack::Leg &leg : sideLegs)
+                    broken = broken || leg.broken;
+                PassingPlan passing;
+                int partTo = -1;
+                if (broken || !plan.route.place(nodeDown[side.from], passing.part, passing.from)
+                        || !plan.route.place(nodeDown[side.to], partTo, passing.to) || partTo != passing.part
+                        || passing.to <= passing.from)
+                    continue;
+                for (const PathTrack::Leg &leg : sideLegs)
+                    passing.track.append(leg.track, leg.from, leg.to);
+                if (passing.track.length() > 0.0)
+                    plan.passing.push_back(passing);
+            }
+            std::sort(plan.passing.begin(), plan.passing.end(), [](const PassingPlan &a, const PassingPlan &b) {
+                return a.part != b.part ? a.part < b.part : a.from < b.from;
+            });
+        }
         input->trains.push_back(std::move(plan));
     }
     input->staticConsists = StaticConsists(activity, tdb);

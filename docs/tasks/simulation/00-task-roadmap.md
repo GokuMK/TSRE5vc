@@ -46,7 +46,8 @@ model as the first operating policy, and threading.
   modes), junctions set and locked, aspects from a built-in rule with
   their speeds, speed posts and speed zones, single-track claims and
   deadlocks reported to the user, path-based passing paths. Designed
-  2026-10-15, decisions taken.
+  2026-10-15, decisions taken; phases 1 to 6 done 2026-10-16 (the core),
+  phase 7 (the editor, measures) next.
 - [ ] 03: `sigscr.dat` read and run in place of the built-in aspect rule.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
