@@ -770,8 +770,9 @@ private:
         QRhiComputePipeline *inject = nullptr;
         QRhiComputePipeline *integrate = nullptr;
         // The maps the injection's bindings hold (shadow maps, the cloud
-        // shadow map, the terrain's shade and the lamps' grid come and go).
-        const QRhiTexture *boundMaps[8] = {};
+        // shadow map, the terrain's shade, the lamps' and the signals' grids
+        // come and go).
+        const QRhiTexture *boundMaps[11] = {};
         int current = 0;
         bool historyValid = false;
         float previousForward[16] = {};
@@ -866,6 +867,18 @@ private:
     QRhiTexture *lightData = nullptr;
     QRhiTexture *lightCells = nullptr;
     QRhiTexture *lightIndices = nullptr;
+    // A grid's lights, cells and indices into textures (grown to its needs)
+    // in a batch; false when they cannot be made.
+    bool uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRhiTexture *&cells, QRhiTexture *&indices,
+                         QRhiResourceUpdateBatch *batch);
+    // The signals' lights for the fog (task 33): their emitters (the glow
+    // splats'), binned as the lamps are; the lit shaders do not read them.
+    LightGrid signalGrid;
+    quint64 signalHash = 0;
+    QRhiTexture *signalData = nullptr;
+    QRhiTexture *signalCells = nullptr;
+    QRhiTexture *signalIndices = nullptr;
+    void prepareSignalGrid(QRhiResourceUpdateBatch *batch);
     // Reads a texture back now: ends the current pass and waits for the
     // GPU. Rows come top first unless the backend's framebuffer has y up.
     QByteArray readNow(QRhiTexture *texture, QSize *size = nullptr);

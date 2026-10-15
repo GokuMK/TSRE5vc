@@ -2747,6 +2747,12 @@ void RhiRenderer::prepareLights() {
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();
     if (batch == nullptr)
         return;
+    if (!uploadLightGrid(lightGrid, lightData, lightCells, lightIndices, batch))
+        lightGrid = LightGrid();
+}
+
+bool RhiRenderer::uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRhiTexture *&cells,
+                                  QRhiTexture *&indices, QRhiResourceUpdateBatch *batch) {
     // Textures grow to the frame's needs and are written from the top.
     auto ensure = [this](QRhiTexture *&texture, QRhiTexture::Format format, int width, int rows) {
         if (texture != nullptr && texture->pixelSize().height() >= rows)
@@ -2770,17 +2776,16 @@ void RhiRenderer::prepareLights() {
         description.setSourceSize(QSize(width, rows));
         batch->uploadTexture(texture, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, description)));
     };
-    const int lights = lightGrid.lightCount();
-    const int indexRows = int(lightGrid.indexTexels.size() / LightGrid::IndexWidth);
-    if (!ensure(lightData, QRhiTexture::RGBA32F, 4, lights)
-            || !ensure(lightCells, QRhiTexture::RGBA32F, LightGrid::CellsWidth, LightGrid::CellsY)
-            || !ensure(lightIndices, QRhiTexture::R32F, LightGrid::IndexWidth, indexRows)) {
-        lightGrid = LightGrid();
-        return;
-    }
-    upload(lightData, lightGrid.lightTexels, 4, 4);
-    upload(lightCells, lightGrid.cellTexels, LightGrid::CellsWidth, 4);
-    upload(lightIndices, lightGrid.indexTexels, LightGrid::IndexWidth, 1);
+    const int lights = grid.lightCount();
+    const int indexRows = int(grid.indexTexels.size() / LightGrid::IndexWidth);
+    if (!ensure(data, QRhiTexture::RGBA32F, 4, lights)
+            || !ensure(cells, QRhiTexture::RGBA32F, LightGrid::CellsWidth, LightGrid::CellsY)
+            || !ensure(indices, QRhiTexture::R32F, LightGrid::IndexWidth, indexRows))
+        return false;
+    upload(data, grid.lightTexels, 4, 4);
+    upload(cells, grid.cellTexels, LightGrid::CellsWidth, 4);
+    upload(indices, grid.indexTexels, LightGrid::IndexWidth, 1);
+    return true;
 }
 
 void RhiRenderer::releaseLights() {
@@ -2790,4 +2795,10 @@ void RhiRenderer::releaseLights() {
     lightData = lightCells = lightIndices = nullptr;
     lightGrid = LightGrid();
     lightsHash = 0;
+    delete signalData;
+    delete signalCells;
+    delete signalIndices;
+    signalData = signalCells = signalIndices = nullptr;
+    signalGrid = LightGrid();
+    signalHash = 0;
 }

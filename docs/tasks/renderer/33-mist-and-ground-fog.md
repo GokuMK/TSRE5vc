@@ -556,6 +556,17 @@ the terrain cannot explain.
   their spread (about 1 ms) on the Steam Deck.
 - Capture files can hide the editor's helpers (`hideAll`, as 3D View >
   Unselect All).
+- **Signals light the fog too** (a try the user may take back; their glow
+  splats are as they were): their emitters (the splats', task 26) binned
+  into a grid of their own, read by the injection as the lamps' are; the lit
+  shaders do not see it. Each reaches a lamp's usual 30 m. As the splat's
+  even emitter of the lens's brightness a signal's halo did not show
+  (colour about 0.0025, as a dim lamp's); a lens gathers its light into a
+  beam along the track, many times brighter along it: at 50 times a soft
+  halo of its colour, the fog about the signals tinted (at most 66 of 255 at
+  the user's camera). Reaching as far as they show with the exposure, as
+  lamps do, bright halos lowered the exposure, shortened the reach, and the
+  halos went.
 
 ## Verification
 
