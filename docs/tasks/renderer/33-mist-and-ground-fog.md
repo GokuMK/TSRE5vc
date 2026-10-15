@@ -688,7 +688,9 @@ the terrain cannot explain.
 - **What changes at CMK:** valley fog pools there now. It is 120 to 130 m
   deep at night, more than CMK's relief: it fills the land, the lamps' spot
   in thick fog, the hill of the 3:30 view under it, and seen from above it
-  is a flat sea of fog. Ground mist keeps the old look.
+  is a flat sea of fog. Ground mist keeps the old look. Kept so (user):
+  too deep for a flat route, but other presets suit those; later the
+  weather generator could let the depth be set.
 
 ## Verification
 
