@@ -1,7 +1,7 @@
 # Task 01 - The Simulation Thread and Trains in Motion
 
-Status: phase 1 done (2026-10-15, branch `feature/simulation`); decisions
-taken (at the end).
+Status: phases 1 and 2 done (2026-10-15, branch `feature/simulation`);
+decisions taken (at the end).
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -46,6 +46,35 @@ and finish; USA1's Summer Express timetable (TRF) has stops its path does
 not pass (warned and left out, as Open Rails builds AI stops from the
 TRF's entries). The test track of path-edit moved to
 `tests/TrackLayoutSupport.h`.
+
+**Phase 2, driver (done 2026-10-15).** `SimulationCore` drives each train
+(`advance`, steps of at most 0.1 s however long the call):
+- the next target on its part: a station stop, a waiting point that stops
+  it, or the part's end (a reversal, or the path's end); stops and points
+  left behind are passed;
+- up to the route's limit and its top speed × the efficiency of the run to
+  its next stop, at its rate, braking on the exact constant-deceleration
+  curve to stand at the target (the speed at a step's end is the fastest
+  from which it still stops there);
+- at a station it stands its boarding time and leaves at the booked
+  departure when later; a train starting within its length of its first
+  stop stands there until its departure; waiting points by kind (seconds,
+  until a time, the uncoupling kinds' seconds; horn kinds an event, no
+  stop); at a reversal the old rear leads; at its path's end an AI train
+  leaves, the player's stays;
+- the pre-run moves trains started before the activity up to its start;
+- events: started, arrived, departed, waiting, reversed, horn, finished.
+
+Tests (`simulation-core`): a free run's time is the formula's (within a
+step); an untimed stop, a later booked departure, a late arrival; 5 s
+steps give the same events as 0.1 s steps; the same input the same events;
+each waiting point kind; the pre-run; a start at a station. On the local
+routes (`simulation-route`) all 245 trains of 64 activities run to their
+ends (EUROPE1's 48 trains, 13.7 simulated hours, in 0.24 s). Against
+timetables calculated in MSAE they arrive a little early (median 7 s on
+JAPAN1 to 150 s on EUROPE1): no speed posts or curve limits yet. Many
+timetables were never calculated (every stop booked at the train's start
+time); those stops behave as untimed ones.
 
 ## Objective
 
