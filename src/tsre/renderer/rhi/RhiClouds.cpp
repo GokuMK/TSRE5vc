@@ -125,7 +125,7 @@ struct MarchParameters {
     float noiseLow[4];     // shape and detail offsets of the low layer (m), mod their periods
     float noiseMid[4];
     float lighting[4];     // light steps, still, buffer texel w, h
-    float high[4];         // high layer altitude (km)
+    float high[4];         // high layer altitude (km), haze, extra samples a ray may take in deep layers
     float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), the low layer's centre east and north of the camera (km)
     float night[4];        // the night sky's floor (display colour); the scene's scale (auto exposure, task 29)
     float light[4];        // towards the clouds' light: the sun, or the moon at night (task 31)
@@ -570,6 +570,122 @@ layout(location = 1) out vec4 cloudDepth;
 )";
 
 const char *MarchMain = R"(
+// The march's state along the ray: its light, what it lets through; where
+// the cloud starts (2 % of the light taken), the mean distance by the light
+// each sample takes, the layer by it (mid 1, high 2).
+vec3 marchLight;
+float marchThrough;
+float marchFront, marchDistance, marchWeights, marchLayers;
+// Along the ray: the shell's radius, towards the clouds' light, the angle's
+// cosine to it, the sky's light from above.
+float marchRadius;
+vec3 marchLightDir;
+float marchCos;
+vec3 marchSky;
+
+// The low and mid layers' extinction at a point (1/km), the mid's apart.
+float cloudDensity(vec3 p, out float mid) {
+    float altitude = length(p) - marchRadius;
+    vec2 offset = vec2(p.x, -p.z);
+    mid = layerDensity(offset, altitude, true, 1);
+    return layerDensity(offset, altitude, true, 0) + mid;
+}
+
+// The light a cloud of extinction sigma at a point scatters towards the
+// camera.
+vec3 cloudLight(vec3 p, float sigma) {
+    float R = marchRadius;
+    vec3 lightDir = marchLightDir;
+    float cosAngle = marchCos;
+    vec3 skyAbove = marchSky;
+    float phaseScale[3] = float[3](1.0, 0.5, 0.25);
+    float altitude = length(p) - R;
+    vec2 offset = vec2(p.x, -p.z);
+    // Towards the sun in growing steps spread in a cone, which
+    // smooths the banding and gathers the neighbours' density, then
+    // one far sample for the shadows of distant clouds (Schneider
+    // 2015).
+    float opticalDepth = 0.0;
+    float stepLength = 0.05;
+    float along = 0.0;
+    for (int k = 0; k < int(lighting.x); ++k) {
+        along += stepLength;
+        vec3 q = p + lightDir * along + Cone[k] * (stepLength * 0.6);
+        opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * stepLength;
+        stepLength *= 1.8;
+    }
+    {
+        vec3 q = p + lightDir * (along + 2.0);
+        opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * 0.8;
+    }
+    // The sun's light as on the Earth at this height and place: the
+    // smaller shell would tilt a far cloud's sky away from the sun
+    // and set it early.
+    vec3 earthPoint = vec3(p.x, BottomRadius + altitude, p.z);
+    float earthRadius = length(earthPoint);
+    vec3 up = earthPoint / earthRadius;
+    float sunCos = dot(up, lightDir);
+    vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(earthRadius, sunCos), 0.0).rgb
+            * lightColour.rgb;
+    vec2 ground = sphereHits(earthPoint, lightDir, BottomRadius);
+    if (ground.x > 0.0)
+        sunLight = vec3(0.0);
+    // The cloud above it and its column (cloudAbove).
+    vec2 column = cloudAbove(offset, altitude);
+    // Multiple scattering in octaves (Wrenninge 2013).
+    float scattered = 0.0;
+    for (int o = 0; o < 3; ++o) {
+        float a = phaseScale[o];
+        float phase = mix(henyeyGreenstein(cosAngle, 0.6 * a), henyeyGreenstein(cosAngle, -0.3 * a), 0.3);
+        scattered += a * exp(-opticalDepth * a) * phase;
+    }
+    // Beer-powder (Schneider 2015): cloud gathers light, so its
+    // edges facing the light are darker than its depths; seen only
+    // looking away from the sun.
+    float powder = 1.0 - exp(-2.0 * (opticalDepth + sigma * 0.05));
+    scattered *= mix(1.0, 2.0 * powder, clamp(0.5 - 0.5 * cosAngle, 0.0, 1.0) * 0.8);
+    float h = clamp((altitude - slab.x) / max(slab.y - slab.x, 0.1), 0.0, 1.0);
+    // The sky's light reaches less far in: less at the bottom of
+    // the layer and where the sun's path is dense (tuned on
+    // cumulus); under more cloud than a cumulus has above that
+    // height, less by what the cloud above lets through
+    // (two-stream): a storm's base and its lower sides dark.
+    float deeper = min(1.0, (1.0 + 0.11 * 20.0 * (1.0 - h)) / (1.0 + 0.11 * column.x));
+    float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05)) * deeper;
+    // The ground's light from below, where the sun reaches the
+    // ground (not under a covered sky); under a cloud many times a
+    // cumulus's depth (a storm, wide as it is deep) the ground
+    // below lies in its shadow.
+    float sunnyGround = (1.0 - 0.9 * max(weatherAt(offset, 0).x, weatherAt(offset, 1).x))
+            * (1.0 - smoothstep(20.0, 150.0, column.y));
+    // Through a deep cloud, the sky's light is the cloud's own,
+    // scattered many times: grey, not the sky's blue.
+    vec3 skyThrough = mix(vec3(dot(skyAbove, vec3(0.2126, 0.7152, 0.0722))), skyAbove, deeper);
+    vec3 ambient = skyThrough * open * 0.7
+            + vec3(0.11, 0.11, 0.09) * sunLight * max(sunCos, 0.0) * (1.0 - h) * sunnyGround / Pi;
+    // Light diffused through a thick layer, which the octaves miss
+    // (two-stream: 1 / (1 + 0.75 (1 - g) depth), g about 0.85): what
+    // lights an overcast's base; nothing near the surface.
+    // (the sun's path marched only a few km: at least the cloud
+    // above, for a storm's tower)
+    float diffused = (1.0 - exp(-opticalDepth / 6.0)) / (1.0 + 0.11 * max(opticalDepth, column.x));
+    return sunLight * (scattered * Pi + max(sunCos, 0.0) * diffused * 0.14) + ambient;
+}
+
+// A sample of extinction sigma (the mid layer's sigmaMid), dt long at t along
+// the ray: what it lets through, where it is (its light added by the march).
+void addSample(float sigma, float sigmaMid, float t, float dt) {
+    if (sigma <= 0.0)
+        return;
+    float before = marchThrough;
+    marchThrough *= exp(-sigma * dt);
+    marchDistance += t * (before - marchThrough);
+    marchWeights += before - marchThrough;
+    marchLayers += (before - marchThrough) * sigmaMid / sigma;
+    if (marchFront < 0.0 && marchThrough < 0.98)
+        marchFront = t;
+}
+
 void main() {
     // This march texel is one pixel of its block of the cloud image: the
     // one this pass updates.
@@ -629,19 +745,91 @@ void main() {
     // (by the image's pixel: the pixels of a block are marched by different
     // passes on the same march texel)
     float jitter = fract(52.9829189 * fract(dot(pixel + 0.5, vec2(0.06711056, 0.00583715))) + camera.w);
-    float phaseScale[3] = float[3](1.0, 0.5, 0.25);
-    vec3 luminance = vec3(0.0);
-    float transmittance = 1.0;
-    // Where the cloud starts (2 % of the light taken), the mean distance
-    // by the light each sample takes, the layer by it (mid 1, high 2).
-    float front = -1.0;
-    float weightedDistance = 0.0, weights = 0.0, layers = 0.0;
+    marchRadius = R;
+    marchLightDir = lightDir;
+    marchCos = cosAngle;
+    marchLight = vec3(0.0);
+    marchThrough = 1.0;
+    marchFront = -1.0;
+    marchDistance = 0.0;
+    marchWeights = 0.0;
+    marchLayers = 0.0;
     // Light of the sky from above and of the ground from below.
     vec3 skyAbove = skyLight(vec3(0.0, 1.0, 0.0)) * 0.6 + skyLight(normalize(vec3(sun.x, 0.0, sun.z) + vec3(0.0, 0.3, 0.0))) * 0.4;
+    marchSky = skyAbove;
     if (start >= 0.0 && end > start) {
         int steps = int(slab.w);
         float segment = end - start;
         float previousT = start;
+#ifdef DEEP_SPLIT
+        // Steps longer than the clouds' shapes show at their distance in a
+        // deep layer (a storm's slab 10 km tall: the steps spread over some
+        // 30 km of ray, 400 m and more each, left its towers grainy and
+        // hatched by each pixel's start) take a sample at their middle too,
+        // lit on its own (a lit cloud is far brighter at its surface than a
+        // few hundred metres in), while the ray's budget lasts (high.z: High
+        // and Ultra, the main view; only then this variant). A probe without
+        // the detail first (it only erodes), so empty steps cost as before;
+        // other steps (thin layers: their long steps lie far off, where they
+        // do not show) are marched as they were.
+        int extra = int(high.z);
+        bool wasCloud = false;
+        // One sample an iteration (the lighting's code once in the shader;
+        // twice, it ran slower): a split step takes two, its second half
+        // pending.
+        int s = 0;
+        float pendingT = -1.0, pendingDt = 0.0;
+        for (int n = 0; n < steps + int(high.z); ++n) {
+            float t, dt;
+            bool coarse = pendingT < 0.0;
+            if (!coarse) {
+                t = pendingT;
+                dt = pendingDt;
+                pendingT = -1.0;
+            } else {
+                if (s >= steps)
+                    break;
+                float f = (float(s) + jitter) / float(steps);
+                t = start + segment * f * f;
+                dt = max(t - previousT, 0.0);
+                if (s == 0)
+                    dt = segment * (1.0 / float(steps)) * (1.0 / float(steps));
+                previousT = t;
+                ++s;
+                if (extra > 0 && dt > max(0.12, t * 0.01)) {
+                    vec3 p = p0 + d * t;
+                    vec2 offset = vec2(p.x, -p.z);
+                    vec4 low = weatherAt(offset, 0), mid = weatherAt(offset, 1);
+                    if (max(low.x > 0.0 ? low.w - low.z : 0.0, mid.x > 0.0 ? mid.w - mid.z : 0.0) >= 3.0) {
+                        bool cloud = density(p, offset, length(p) - R, false) > 0.0;
+                        // (into the step after a cloud too: its trailing edge)
+                        bool skip = !cloud && !wasCloud;
+                        wasCloud = cloud;
+                        if (skip)
+                            continue;
+                        --extra;
+                        dt *= 0.5;
+                        pendingT = t;
+                        pendingDt = dt;
+                        t -= dt;
+                        coarse = false;
+                    }
+                }
+            }
+            vec3 q = p0 + d * t;
+            float mid;
+            float sigma = cloudDensity(q, mid);
+            if (coarse)
+                wasCloud = sigma > 0.0;
+            if (sigma > 0.0) {
+                float through = marchThrough;
+                addSample(sigma, mid, t, dt);
+                marchLight += cloudLight(q, sigma) * (through - marchThrough);
+            }
+            if (marchThrough < 0.01)
+                break;
+        }
+#else
         for (int s = 0; s < steps; ++s) {
             float f = (float(s) + jitter) / float(steps);
             float t = start + segment * f * f;
@@ -650,100 +838,22 @@ void main() {
                 dt = segment * (1.0 / float(steps)) * (1.0 / float(steps));
             previousT = t;
             vec3 p = p0 + d * t;
-            float r = length(p);
-            float altitude = r - R;
-            vec2 offset = vec2(p.x, -p.z);
-            float sigma = 0.0, sigmaMid = 0.0;
-            for (int layer = 0; layer < 2; ++layer) {
-                float s = layerDensity(offset, altitude, true, layer);
-                sigma += s;
-                if (layer == 1)
-                    sigmaMid = s;
-            }
+            float mid;
+            float sigma = cloudDensity(p, mid);
             if (sigma <= 0.0)
                 continue;
-            // Towards the sun in growing steps spread in a cone, which
-            // smooths the banding and gathers the neighbours' density, then
-            // one far sample for the shadows of distant clouds (Schneider
-            // 2015).
-            float opticalDepth = 0.0;
-            float stepLength = 0.05;
-            float along = 0.0;
-            for (int k = 0; k < int(lighting.x); ++k) {
-                along += stepLength;
-                vec3 q = p + lightDir * along + Cone[k] * (stepLength * 0.6);
-                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * stepLength;
-                stepLength *= 1.8;
-            }
-            {
-                vec3 q = p + lightDir * (along + 2.0);
-                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * 0.8;
-            }
-            // The sun's light as on the Earth at this height and place: the
-            // smaller shell would tilt a far cloud's sky away from the sun
-            // and set it early.
-            vec3 earthPoint = vec3(p.x, BottomRadius + altitude, p.z);
-            float earthRadius = length(earthPoint);
-            vec3 up = earthPoint / earthRadius;
-            float sunCos = dot(up, lightDir);
-            vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(earthRadius, sunCos), 0.0).rgb
-                    * lightColour.rgb;
-            vec2 ground = sphereHits(earthPoint, lightDir, BottomRadius);
-            if (ground.x > 0.0)
-                sunLight = vec3(0.0);
-            // The cloud above it and its column (cloudAbove).
-            vec2 column = cloudAbove(offset, altitude);
-            // Multiple scattering in octaves (Wrenninge 2013).
-            float scattered = 0.0;
-            for (int o = 0; o < 3; ++o) {
-                float a = phaseScale[o];
-                float phase = mix(henyeyGreenstein(cosAngle, 0.6 * a), henyeyGreenstein(cosAngle, -0.3 * a), 0.3);
-                scattered += a * exp(-opticalDepth * a) * phase;
-            }
-            // Beer-powder (Schneider 2015): cloud gathers light, so its
-            // edges facing the light are darker than its depths; seen only
-            // looking away from the sun.
-            float powder = 1.0 - exp(-2.0 * (opticalDepth + sigma * 0.05));
-            scattered *= mix(1.0, 2.0 * powder, clamp(0.5 - 0.5 * cosAngle, 0.0, 1.0) * 0.8);
-            float h = clamp((altitude - slab.x) / max(slab.y - slab.x, 0.1), 0.0, 1.0);
-            // The sky's light reaches less far in: less at the bottom of
-            // the layer and where the sun's path is dense (tuned on
-            // cumulus); under more cloud than a cumulus has above that
-            // height, less by what the cloud above lets through
-            // (two-stream): a storm's base and its lower sides dark.
-            float deeper = min(1.0, (1.0 + 0.11 * 20.0 * (1.0 - h)) / (1.0 + 0.11 * column.x));
-            float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05)) * deeper;
-            // The ground's light from below, where the sun reaches the
-            // ground (not under a covered sky); under a cloud many times a
-            // cumulus's depth (a storm, wide as it is deep) the ground
-            // below lies in its shadow.
-            float sunnyGround = (1.0 - 0.9 * max(weatherAt(offset, 0).x, weatherAt(offset, 1).x))
-                    * (1.0 - smoothstep(20.0, 150.0, column.y));
-            // Through a deep cloud, the sky's light is the cloud's own,
-            // scattered many times: grey, not the sky's blue.
-            vec3 skyThrough = mix(vec3(dot(skyAbove, vec3(0.2126, 0.7152, 0.0722))), skyAbove, deeper);
-            vec3 ambient = skyThrough * open * 0.7
-                    + vec3(0.11, 0.11, 0.09) * sunLight * max(sunCos, 0.0) * (1.0 - h) * sunnyGround / Pi;
-            // Light diffused through a thick layer, which the octaves miss
-            // (two-stream: 1 / (1 + 0.75 (1 - g) depth), g about 0.85): what
-            // lights an overcast's base; nothing near the surface.
-            // (the sun's path marched only a few km: at least the cloud
-            // above, for a storm's tower)
-            float diffused = (1.0 - exp(-opticalDepth / 6.0)) / (1.0 + 0.11 * max(opticalDepth, column.x));
-            vec3 lit = sunLight * (scattered * Pi + max(sunCos, 0.0) * diffused * 0.14) + ambient;
-            float sampleT = exp(-sigma * dt);
-            luminance += transmittance * lit * (1.0 - sampleT);
-            float before = transmittance;
-            transmittance *= sampleT;
-            weightedDistance += t * (before - transmittance);
-            weights += before - transmittance;
-            layers += (before - transmittance) * sigmaMid / sigma;
-            if (front < 0.0 && transmittance < 0.98)
-                front = t;
-            if (transmittance < 0.01)
+            float through = marchThrough;
+            addSample(sigma, mid, t, dt);
+            marchLight += cloudLight(p, sigma) * (through - marchThrough);
+            if (marchThrough < 0.01)
                 break;
         }
+#endif
     }
+    vec3 luminance = marchLight;
+    float transmittance = marchThrough;
+    float front = marchFront;
+    float weightedDistance = marchDistance, weights = marchWeights, layers = marchLayers;
     float highShare = 0.0, highDistance = 0.0;
     // The flat high layer, behind the others.
     if (high.x > 0.0 && pr < R + high.x) {
@@ -1128,6 +1238,11 @@ static QByteArray marchSource() {
     return cloudSource(MarchFragment, true) + CloudField + SceneDistance + SkyAir + MarchMain;
 }
 
+// The march sampling long steps in deep layers twice (CloudView::deep).
+static QByteArray deepVariant(QByteArray source) {
+    return source.replace("#version 440\n", "#version 440\n#define DEEP_SPLIT\n");
+}
+
 static QByteArray shadowSource() {
     return cloudSource(ShadowFragment, true) + CloudField + ShadowMain;
 }
@@ -1141,14 +1256,15 @@ static QByteArray compositeSource() {
 }
 
 QList<QByteArray> RhiRenderer::cloudShaders() {
-    return {cloudSource(CoverFragment, true), marchSource(), shadowSource(), cloudSource(TemporalFragment, false),
+    return {cloudSource(CoverFragment, true), marchSource(), deepVariant(marchSource()), shadowSource(),
+            cloudSource(TemporalFragment, false),
             compositeSource(), glowVariant(compositeSource()), skyLightSource(), SkyMeanFragment};
 }
 
 namespace {
 
 struct CloudShaderSet {
-    QShader vertex, cover, march, shadow, skyLight, skyMean, temporal, composite, glowComposite;
+    QShader vertex, cover, march, marchDeep, shadow, skyLight, skyMean, temporal, composite, glowComposite;
 };
 
 const CloudShaderSet &cloudShaderSet(QRhi *rhi) {
@@ -1157,6 +1273,7 @@ const CloudShaderSet &cloudShaderSet(QRhi *rhi) {
         s.vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
         s.cover = bakeInline(cloudSource(CoverFragment, true).constData(), QShader::FragmentStage, rhi);
         s.march = bakeInline(marchSource().constData(), QShader::FragmentStage, rhi);
+        s.marchDeep = bakeInline(deepVariant(marchSource()).constData(), QShader::FragmentStage, rhi);
         s.shadow = bakeInline(shadowSource().constData(), QShader::FragmentStage, rhi);
         s.skyLight = bakeInline(skyLightSource().constData(), QShader::FragmentStage, rhi);
         s.skyMean = bakeInline(SkyMeanFragment, QShader::FragmentStage, rhi);
@@ -1473,18 +1590,21 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
     if (share != nullptr && share->marchPipeline != nullptr) {
         // Targets of the same formats, resource sets of the same layout.
         v.marchPipeline = share->marchPipeline;
+        v.marchDeepPipeline = share->marchDeepPipeline;
         v.temporalPipeline = share->temporalPipeline;
         v.compositePipeline = share->compositePipeline;
         v.ownsPipelines = false;
     } else {
         const CloudShaderSet &shaders = cloudShaderSet(rhi);
         v.marchPipeline = cloudPipeline(rhi, shaders.march, v.marchBindings, v.marchPass, 2, false);
+        v.marchDeepPipeline = cloudPipeline(rhi, shaders.marchDeep, v.marchBindings, v.marchPass, 2, false);
         v.temporalPipeline = cloudPipeline(rhi, shaders.temporal, v.temporalBindings[0], v.historyPasses[0], 4, false);
         v.compositePipeline = glow != nullptr
                 ? cloudPipeline(rhi, shaders.glowComposite, v.compositeBindings[0], v.compositePass, 2, true)
                 : cloudPipeline(rhi, shaders.composite, v.compositeBindings[0], v.compositePass, 1, true);
     }
-    if (v.marchPipeline == nullptr || v.temporalPipeline == nullptr || v.compositePipeline == nullptr) {
+    if (v.marchPipeline == nullptr || v.marchDeepPipeline == nullptr || v.temporalPipeline == nullptr
+            || v.compositePipeline == nullptr) {
         releaseCloudView(v);
         return false;
     }
@@ -1772,6 +1892,11 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         parameters.high[0] = (*clouds.layers)[centre] > 0.0f ? (*clouds.layers)[centre + 2] : 0.0f;
     }
     parameters.high[1] = std::clamp(sky.haze, 0.0f, 0.02f) * 1000.0f;
+    // Long steps in deep layers (3 km and more) sampled twice, for a sixth of
+    // the steps at most (the march's loop): High and Ultra, when a layer is
+    // that deep somewhere.
+    parameters.high[2] = quality >= 3 && clouds.deepest >= 3.0f ? float(preset.steps / 6) : 0.0f;
+    c.deep = parameters.high[2] > 0.0f;
     float plane = 0.0f;
     cloudShadowPlane(plane);
     // The shadow map is drawn for the clouds' maps, its plane and the light's
@@ -1909,7 +2034,7 @@ void RhiRenderer::runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize 
     int write = v.current;
     for (int p = 0; p < passes; ++p) {
         const int pass = (first + p) % UpdatePasses;
-        fullScreen(v.marchTarget, v.marchPipeline, v.marchBindings, v.size, pass);
+        fullScreen(v.marchTarget, v.deep ? v.marchDeepPipeline : v.marchPipeline, v.marchBindings, v.size, pass);
         write = v.current = 1 - v.current;
         fullScreen(v.historyTargets[write], v.temporalPipeline, v.temporalBindings[write], v.imageSize, pass);
     }
@@ -1984,6 +2109,8 @@ void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &a
     parameters.projection[1] = bandScale[target][1];
     parameters.slab[3] = float(steps);
     parameters.lighting[0] = float(lightSteps);
+    parameters.high[2] = 0.0f;
+    v.deep = false;
     if (std::hypot(clouds.cameraEast - v.lastEast, clouds.cameraNorth - v.lastNorth) > 300.0)
         v.historyValid = false;
     v.lastEast = clouds.cameraEast;
@@ -2035,6 +2162,7 @@ void RhiRenderer::releaseEnvironmentClouds() {
 void RhiRenderer::releaseCloudView(CloudView &v) {
     if (v.ownsPipelines) {
         dropLater(v.marchPipeline);
+        dropLater(v.marchDeepPipeline);
         dropLater(v.temporalPipeline);
         dropLater(v.compositePipeline);
     }

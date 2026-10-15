@@ -535,6 +535,11 @@ private:
         QRhiRenderPassDescriptor *marchPass = nullptr;
         QRhiShaderResourceBindings *marchBindings = nullptr;
         QRhiGraphicsPipeline *marchPipeline = nullptr;
+        // The march sampling long steps in deep layers twice (storms), used
+        // while deep is set (High and Ultra, the main view, such layers in
+        // the weather): its larger loop slows every view a little.
+        QRhiGraphicsPipeline *marchDeepPipeline = nullptr;
+        bool deep = false;
         QRhiTexture *history[2] = {};
         QRhiTextureRenderTarget *historyTargets[2] = {};
         QRhiRenderPassDescriptor *historyPasses[2] = {};

@@ -1128,6 +1128,45 @@ tower's base was lit as a 1 km cumulus's.
   scene (the composite takes the clouds only over the sky and the distant
   band): a step of its own, with the anvils.
 
+### The storms' hatching (user, 2026-10-16)
+
+The user: a moiré clearly visible on storm clouds (CMK,
+`core.startup.camera=-5354,14854,-931.35,325.05,-355.80,-81.23,22.41`).
+
+- **Cause: the march's steps.** Its steps (96 at High) spread with the
+  square of the distance along the ray through the layers: through a
+  cumulus layer some 3 km of ray, steps of 85 m at most; through a storm's
+  slab, 10 km tall, some 27 km at 22 degrees up, 400 to 800 m. Too coarse
+  for its edges and its lit surface (far brighter than a few hundred metres
+  in): where each pixel's samples fell (its start, interleaved gradient
+  noise, of diagonal structure) showed as hatching on the bases and the
+  towers, in motion too. Averaging more frames (a new sample a quarter, not
+  half) kept it: it is the coarse steps' error, not noise. Ultra (128
+  steps, more pixels) mostly removed it.
+- **Fix:** in a layer 3 km deep or more, a step longer than 120 m or 1 % of
+  its distance that meets cloud takes a sample at its middle too, lit on
+  its own; a probe without the detail first (it only erodes), so empty
+  steps cost as before; a sixth of the steps at most a ray (`high.z`).
+  Tried on the way: up to four samples a step (the same look within 0.15
+  of 255, 6 ms in a storm); lit once a step, at its end or where it meets
+  cloud (the hatching stayed on lit towers).
+- **A variant of the march** (`DEEP_SPLIT`, `CloudView::marchDeepPipeline`):
+  its larger loop slowed every view by 0.7 to 1 ms even where nothing was
+  split, so it is compiled apart and used only at High and Ultra in the
+  main view while a layer of the weather is 3 km deep somewhere
+  (`Renderer::Clouds::deepest`). Medium, Low, the reflection and the cube
+  march as before (storms there keep some hatching).
+- **Captures** (as in use, frames averaged; `build/moire`): the user's view
+  (`your-view-towers.png`, `your-view-base.png`) and a lit tower at 17:00
+  (`lit-tower.png`), the hatching gone; fair cumulus as before (0.04 of
+  255).
+- **Cost on the Steam Deck** (High, median frame, three rounds, old against
+  new): thunderstorm 42.8 against 45.5 ms, looking up 31.7 against 34.0;
+  fair cumulus 37.8 against 38.3 and overcast 35.6 against 35.4, within the
+  runs' noise.
+- The towers' vertical streaks (pillars of billows) stay: their shape, with
+  the anvils.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

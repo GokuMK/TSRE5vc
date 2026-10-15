@@ -178,9 +178,11 @@ public:
         // built instead of drawing them again each frame.
         float built[3][2] = {};
         quint32 seed = 0;
-        // The low and mid layers' extent (km): bottom and top.
+        // The low and mid layers' extent (km): bottom and top; the deepest
+        // of them anywhere (km, its top above its base).
         float bottom = 0.0f;
         float top = 0.0f;
+        float deepest = 0.0f;
         // The camera.
         double cameraEast = 0.0;
         double cameraNorth = 0.0;
