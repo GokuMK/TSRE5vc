@@ -75,6 +75,7 @@
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
+#include <set>
 #include <routeEditor/RouteEditorClient.h>
 #include "tools/EditorTool.h"
 #include "tools/ToolRegistry.h"
@@ -2900,6 +2901,14 @@ void RouteEditorGLWidget::updateFog() {
             ++fogFloorBuilds;
             if (fogMap)
                 fogMap->invalidate();
+            // Tiles whose terrain is far off their neighbours' are left out
+            // of the fog's floor: once a tile, a warning (MSTS tile numbers).
+            static std::set<std::pair<int, int>> warned;
+            for (const auto &tile : fogFloorSampler.rejectedTiles)
+                if (warned.insert(tile).second)
+                    qWarning().noquote() << QString("Terrain tile %1, %2 lies far off its neighbours' at their "
+                                                    "edges; the fog's floor leaves it out")
+                                            .arg(tile.first).arg(-tile.second);
             // Diagnostics: TSRE_FOG_LOG=1 logs each floor map built.
             static const bool log = qEnvironmentVariableIsSet("TSRE_FOG_LOG");
             if (log) {
@@ -2919,12 +2928,13 @@ void RouteEditorGLWidget::updateFog() {
                     }
                 qInfo().noquote() << QString("[fog] floor map: %1 of %2 cells known, ground %3-%4 m, floor %5-%6 m, "
                                              "%7 under %8 m of fog, %9 wet; world tiles %10 detailed, %11 distant, "
-                                             "%12 without terrain")
+                                             "%12 without terrain, %13 left out as wrong")
                                      .arg(FogFloor::Size * FogFloor::Size - fogFloor.unknownCells())
                                      .arg(FogFloor::Size * FogFloor::Size).arg(groundLow, 0, 'f', 0).arg(groundHigh, 0, 'f', 0)
                                      .arg(floorLow, 0, 'f', 0).arg(floorHigh, 0, 'f', 0).arg(fogged)
                                      .arg(fogNow.depth, 0, 'f', 0).arg(wet).arg(fogFloorSampler.detailedTiles)
-                                     .arg(fogFloorSampler.distantTiles).arg(fogFloorSampler.missingTiles);
+                                     .arg(fogFloorSampler.distantTiles).arg(fogFloorSampler.missingTiles)
+                                     .arg(fogFloorSampler.rejectedTiles.size());
                 qInfo().noquote() << QString("[fog] floor map sampled in %1 ms over %2 frames, at most %3 ms in one")
                                      .arg(fogFloorSamplingNs / 1e6, 0, 'f', 1).arg(fogFloorSamplingSteps)
                                      .arg(fogFloorSamplingPeakNs / 1e6, 0, 'f', 2);

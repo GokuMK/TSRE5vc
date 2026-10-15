@@ -132,7 +132,8 @@ that cold air drains to.
 - **Size:** 256 x 256 cells of 64 m (16 km, 8 km each way). Sampled from
   the detailed and distant terrain a few tiles a frame on the main thread
   (the terrain is not safe to read elsewhere), again when the camera has
-  moved 1 km, swapped in when complete (see step 2).
+  moved 1 km, swapped in when complete (see step 2). Tiles whose edges lie
+  far off their neighbours' are left out (wrong terrain tiles, below).
 - **Floor:** the lowest ground within about 1.5 km, then smoothed over a few
   hundred metres. The fog's top is the floor plus the fog's depth: it fills
   valleys to a level top, while slopes and hills above that stay clear.
@@ -652,14 +653,42 @@ the terrain cannot explain.
   floor map's log take it.
 - **Ground mist** (preset): valley fog's night with pooling 0: the look of
   valley fog at CMK while the bad tiles kept it from pooling there, which
-  the user liked, now anywhere. Valley fog where the tiles do not interfere
-  pools as before (same foreground at CMK; the bank over the low ground far
-  off is valley fog's alone).
+  the user liked, now anywhere. Valley fog pools as before (at CMK too,
+  once the tiles were left out: below).
 - **None deep in the ground:** the fog goes from 15 m under the floor map's
   ground, gone at 25 m (the map's cells are 64 m: a cutting narrower than
   that lies under it and keeps its fog). Tunnels under hills and deep
   stations stay clear, shallow ones keep a little; in the volume and in
   High's per-pixel fog alike.
+
+### Wrong terrain tiles (user, 2026-10-15)
+
+- **The tiles:** north-west of CMK's lamps, -5352, 14857 lies flat at 1 m
+  (a blank tile) and -5351, 14857 slopes from it down to -35 m and up to
+  40 m, among ground at 200 to 350 m. The floor map took them for the
+  region's lowest ground: everything for 5 km around stood high above its
+  region, and valley fog pooled nowhere there. They are the route's to
+  fix; the fog now leaves them out meanwhile, warning once a tile:
+  `Terrain tile -5352, 14857 lies far off its neighbours' at their edges;
+  the fog's floor leaves it out`.
+- **The check** (`FogFloorSampler::outlierTiles`), once all tiles are
+  sampled, before the map is built: terrain is continuous across tile
+  edges, so two tiles agree if their cells either side of the edge (64 m
+  apart) differ by 80 m or less on average. Tiles that agree make pieces of
+  terrain; the largest is trusted, and a piece apart from a larger one at
+  any edge is wrong (a blank tile, a pair sunk together, a blank tile whose
+  only loaded neighbour is the sloping one), unless that larger one is
+  wrong itself. A seam between two tiles joined around it drops nothing;
+  nor does a tile with no known neighbour, or two tiles apart and alone.
+  A slope of 37 degrees along a whole edge stays (unit-tested); a steeper
+  cliff the whole way round a piece would be taken for wrong.
+- **Left out:** the wrong tiles' cells count as without terrain for the
+  fog's floor and the terrain's shade only; drawing and the terrain are
+  untouched. `TSRE_FOG_LOG` adds how many were left out to each map's log.
+- **What changes at CMK:** valley fog pools there now. It is 120 to 130 m
+  deep at night, more than CMK's relief: it fills the land, the lamps' spot
+  in thick fog, the hill of the 3:30 view under it, and seen from above it
+  is a flat sea of fog. Ground mist keeps the old look.
 
 ## Verification
 

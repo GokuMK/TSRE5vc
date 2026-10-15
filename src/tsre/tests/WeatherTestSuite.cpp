@@ -8,6 +8,7 @@
 #include <tsre/environment/WeatherPresets.h>
 #include <tsre/environment/WeatherImport.h>
 #include <tsre/environment/WeatherGenerator.h>
+#include <tsre/world/FogFloorSampler.h>
 
 #include <QJsonArray>
 #include <QUrl>
@@ -19,6 +20,7 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <limits>
@@ -735,6 +737,59 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
         c.check(halfFloor.valid() && halfFloor.unknownCells() == FogFloor::Size * FogFloor::Size / 2
                 && !halfFloor.at(3000.0, 0.0).known && thickness(halfFloor, -3000.0, 0.0, 40.0f) > 35.0f,
                 "fog-floor-without-terrain");
+
+        // Wrong terrain tiles (FogFloorSampler::outlierTiles): 8 by 8 world
+        // tiles of 32 cells over gently rising ground, a scarp 300 m high
+        // along the edge between two columns of them (at 37 degrees there,
+        // but whole across it); one tile flat at 1 m, two side by side sunk
+        // 200 m, a corner one 300 m up.
+        {
+            const int N = FogFloor::Size, PerTile = N / 8;
+            std::vector<float> ground(size_t(N) * N);
+            for (int row = 0; row < N; ++row)
+                for (int column = 0; column < N; ++column) {
+                    const double x = (column + 0.5) * FogFloor::CellSize, y = (row + 0.5) * FogFloor::CellSize;
+                    const double across = std::clamp((x - 4 * 2048.0 + 300.0) / 600.0, 0.0, 1.0);
+                    float h = float(250.0 + 0.01 * x + 300.0 * across * across * (3.0 - 2.0 * across));
+                    const int tx = column / PerTile, tz = row / PerTile;
+                    if (tx == 2 && tz == 2)
+                        h = 1.0f;
+                    else if ((tx == 5 || tx == 6) && tz == 1)
+                        h -= 200.0f;
+                    else if (tx == 0 && tz == 7)
+                        h += 300.0f;
+                    ground[size_t(row) * N + column] = h;
+                }
+            std::vector<FogFloorSampler::TileCells> tiles;
+            for (int tz = 0; tz < 8; ++tz)
+                for (int tx = 0; tx < 8; ++tx)
+                    tiles.push_back({tx, tz, tx * PerTile, tx * PerTile + PerTile - 1, tz * PerTile,
+                                     tz * PerTile + PerTile - 1});
+            auto wrongOf = [](const std::vector<float> &heights, const std::vector<FogFloorSampler::TileCells> &of) {
+                QStringList names;
+                for (int i : FogFloorSampler::outlierTiles(heights, of))
+                    names << QString("%1,%2").arg(of[size_t(i)].x).arg(of[size_t(i)].z);
+                names.sort();
+                return names.join(' ');
+            };
+            const QString found = wrongOf(ground, tiles);
+            c.check(found == "0,7 2,2 5,1 6,1", QString("fog-floor-wrong-tiles (%1)").arg(found));
+            // As at CMK: a blank tile whose one neighbour loaded is wrong too,
+            // sloping to it; both go.
+            std::vector<float> blank = ground;
+            for (int row = 4 * PerTile; row < 5 * PerTile; ++row)
+                for (int column = 6 * PerTile; column < N; ++column)
+                    blank[size_t(row) * N + column] = column < 7 * PerTile ? 1.0f + (7 * PerTile - column) * 0.1f : 1.0f;
+            std::vector<FogFloorSampler::TileCells> loaded;
+            for (const auto &t : tiles)
+                if (!(t.x == 7 && (t.z == 3 || t.z == 5)))
+                    loaded.push_back(t);
+            const QString blankFound = wrongOf(blank, loaded);
+            c.check(blankFound == "0,7 2,2 5,1 6,1 6,4 7,4", QString("fog-floor-wrong-tiles-blank (%1)").arg(blankFound));
+            // Two tiles apart and alone: which is wrong cannot be told.
+            const std::vector<FogFloorSampler::TileCells> two(tiles.begin() + 2 * 8 + 1, tiles.begin() + 2 * 8 + 3);
+            c.check(wrongOf(ground, two).isEmpty(), "fog-floor-wrong-tiles-two-alone");
+        }
 
         // The terrain's shade of a low sun (TerrainShade): towards the sun
         // at an elevation and a bearing (x east, y up, z south).
