@@ -165,6 +165,10 @@ public:
         double north = 0.0;
         float texel = 0.0f;
         std::shared_ptr<const std::vector<float>> layers;
+        // On the same texels, RGBA: the low and mid layers' density (1 their
+        // type's usual), precipitation (mm/h, the area's) and its snow share.
+        // None: densities 1, dry.
+        std::shared_ptr<const std::vector<float>> extra;
         // Changes whenever the layers do.
         quint64 revision = 0;
         // How far each layer has drifted with its wind (east, north).

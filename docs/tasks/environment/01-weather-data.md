@@ -166,6 +166,8 @@ tsre_weather (
                                                   // then pooling 0-1 if not 1 (0: lying evenly on all ground)
         tsre_weather_variation ( 0.25 30000 )     // coverage varied by noise: amount, scale (m)
         tsre_weather_layer ( low cumulus 0.35 900 2200 1.0 )  // type, coverage, base, top, density
+                                                  // (density: 1 the type's usual; the 3D clouds' extinction
+                                                  // times it, low and mid layers)
         tsre_weather_layer ( mid altocumulus 0.10 3500 4200 0.6 )
         tsre_weather_layer ( high cirrus 0.20 9000 9500 0.3 )
     )

@@ -20,7 +20,8 @@
 //    shell around the planet: density from the cover, a height profile by
 //    cloud type and 3D Perlin-Worley noise eroded by Worley detail; light
 //    from a short march towards the sun (multiple scattering in octaves,
-//    two-lobe phase) and from the sky; the flat high layer behind them;
+//    two-lobe phase) and from the sky, less under a deep cloud above (a
+//    storm's base dark); the flat high layer behind them;
 //    haze over the distance from the sky-view table;
 // 3. the result blended with the last frames' where the clouds were in the
 //    same direction (the march starts at a different jitter each frame),
@@ -278,7 +279,7 @@ void main() {
     float size = float(textureSize(weatherTexture, 0).y);
     for (int l = 0; l < 3; ++l) {
         vec2 w = clamp(weather, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
-        layers[l] = textureLod(weatherTexture, vec2((float(l) + w.x) / 3.0, w.y), 0.0);
+        layers[l] = textureLod(weatherTexture, vec2((float(l) + w.x) / 4.0, w.y), 0.0);
     }
     vec3 c;
     for (int l = 0; l < 3; ++l) {
@@ -378,14 +379,26 @@ vec2 layerShift(int layer) {
     return layer == 0 ? shiftLowMid.xy : (layer == 1 ? shiftLowMid.zw : shiftHigh.xy);
 }
 
-// The weather's values (coverage, type, base, top km) of a layer, at a
-// point given by its offset from the camera (km east, north).
-vec4 weatherAt(vec2 offset, int layer) {
+// A layer's place in the weather texture's columns, at a point given by its
+// offset from the camera (km east, north).
+vec2 weatherUv(vec2 offset, int layer) {
     offset -= layerShift(layer);
     vec2 w = (weatherMap.xy + vec2(offset.x, -offset.y) * 1000.0) / weatherMap.z;
     float size = weatherMap.w;
-    w = clamp(w, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
-    return textureLod(weatherTexture, vec2((float(layer) + w.x) / 3.0, w.y), 0.0);
+    return clamp(w, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
+}
+
+// The weather's values (coverage, type, base, top km) of a layer at a point.
+vec4 weatherAt(vec2 offset, int layer) {
+    vec2 w = weatherUv(offset, layer);
+    return textureLod(weatherTexture, vec2((float(layer) + w.x) / 4.0, w.y), 0.0);
+}
+
+// The density of a layer (0 low, 1 mid) at a point, against its type's
+// usual (the weather's extras, moving with the layer).
+float layerScale(vec2 offset, int layer) {
+    vec2 w = weatherUv(offset, layer);
+    return textureLod(weatherTexture, vec2((3.0 + w.x) / 4.0, w.y), 0.0)[layer];
 }
 
 // The cover maps' value of a layer (0 low, 1 mid, 2 high): the near map
@@ -456,7 +469,7 @@ float layerDensity(vec2 offset, float altitude, bool detail, int layer) {
         float erosion = mix(dfbm, 1.0 - dfbm, clamp(h * 5.0, 0.0, 1.0));
         v = clamp(remap(v, erosion * mix(0.3, 0.55, convective), 1.0, 0.0, 1.0), 0.0, 1.0);
     }
-    return v * mix(35.0, 70.0, convective);
+    return v * mix(35.0, 70.0, convective) * layerScale(offset, layer);
 }
 
 // Extinction (1/km) of the low and mid layers at a point.
@@ -465,6 +478,38 @@ float density(vec3 p, vec2 offset, float altitude, bool detail) {
     for (int layer = 0; layer < 2; ++layer)
         sum += layerDensity(offset, altitude, detail, layer);
     return sum;
+}
+
+// The cloud in the low and mid layers' columns at a point, as optical
+// depth: above the altitude (x) and the whole column (y). Estimated from the
+// weather and the cover as layerDensity makes them, the billows' noise at its
+// mean, by its profile at three heights: a storm's tower some ten times a
+// cumulus's (about 20).
+vec2 cloudAbove(vec2 offset, float altitude) {
+    vec2 depth = vec2(0.0);
+    for (int layer = 0; layer < 2; ++layer) {
+        vec4 w = weatherAt(offset, layer);
+        if (w.x <= 0.0 || altitude >= w.w)
+            continue;
+        float convective = clamp((w.y - 0.3) / 0.4, 0.0, 1.0);
+        float coverage = clamp(0.5 + (coverAt(offset, layer) - (1.0 - w.x)) * mix(2.5, 1.8, convective), 0.0, 1.0);
+        if (coverage <= 0.0)
+            continue;
+        float from = clamp((altitude - w.z) / max(w.w - w.z, 0.05), 0.0, 1.0);
+        vec2 sums = vec2(0.0);
+        for (int k = 0; k < 3; ++k) {
+            float f = (float(k) + 0.5) / 3.0;
+            vec2 h = vec2(mix(from, 1.0, f), f);
+            vec2 hs = h / 0.75;
+            vec2 stratus = smoothstep(0.0, 0.25, hs) * (1.0 - smoothstep(0.55, 1.0, hs));
+            vec2 cumulus = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.15, 1.0, h));
+            vec2 base = 0.6 * mix(stratus, cumulus, convective);
+            sums += clamp((base - (1.0 - coverage)) / max(coverage, 0.01), 0.0, 1.0) * coverage;
+        }
+        float column = mix(35.0, 70.0, convective) * layerScale(offset, layer) * max(w.w - w.z, 0.05) / 3.0;
+        depth += sums * column * vec2(1.0 - from, 1.0);
+    }
+    return depth;
 }
 )";
 
@@ -646,6 +691,8 @@ void main() {
             vec2 ground = sphereHits(earthPoint, lightDir, BottomRadius);
             if (ground.x > 0.0)
                 sunLight = vec3(0.0);
+            // The cloud above it and its column (cloudAbove).
+            vec2 column = cloudAbove(offset, altitude);
             // Multiple scattering in octaves (Wrenninge 2013).
             float scattered = 0.0;
             for (int o = 0; o < 3; ++o) {
@@ -660,17 +707,29 @@ void main() {
             scattered *= mix(1.0, 2.0 * powder, clamp(0.5 - 0.5 * cosAngle, 0.0, 1.0) * 0.8);
             float h = clamp((altitude - slab.x) / max(slab.y - slab.x, 0.1), 0.0, 1.0);
             // The sky's light reaches less far in: less at the bottom of
-            // the layer and where the sun's path is dense.
-            float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05));
+            // the layer and where the sun's path is dense (tuned on
+            // cumulus); under more cloud than a cumulus has above that
+            // height, less by what the cloud above lets through
+            // (two-stream): a storm's base and its lower sides dark.
+            float deeper = min(1.0, (1.0 + 0.11 * 20.0 * (1.0 - h)) / (1.0 + 0.11 * column.x));
+            float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05)) * deeper;
             // The ground's light from below, where the sun reaches the
-            // ground (not under a covered sky).
-            float sunnyGround = 1.0 - 0.9 * max(weatherAt(offset, 0).x, weatherAt(offset, 1).x);
-            vec3 ambient = skyAbove * open * 0.7
+            // ground (not under a covered sky); under a cloud many times a
+            // cumulus's depth (a storm, wide as it is deep) the ground
+            // below lies in its shadow.
+            float sunnyGround = (1.0 - 0.9 * max(weatherAt(offset, 0).x, weatherAt(offset, 1).x))
+                    * (1.0 - smoothstep(20.0, 150.0, column.y));
+            // Through a deep cloud, the sky's light is the cloud's own,
+            // scattered many times: grey, not the sky's blue.
+            vec3 skyThrough = mix(vec3(dot(skyAbove, vec3(0.2126, 0.7152, 0.0722))), skyAbove, deeper);
+            vec3 ambient = skyThrough * open * 0.7
                     + vec3(0.11, 0.11, 0.09) * sunLight * max(sunCos, 0.0) * (1.0 - h) * sunnyGround / Pi;
             // Light diffused through a thick layer, which the octaves miss
             // (two-stream: 1 / (1 + 0.75 (1 - g) depth), g about 0.85): what
             // lights an overcast's base; nothing near the surface.
-            float diffused = (1.0 - exp(-opticalDepth / 6.0)) / (1.0 + 0.11 * opticalDepth);
+            // (the sun's path marched only a few km: at least the cloud
+            // above, for a storm's tower)
+            float diffused = (1.0 - exp(-opticalDepth / 6.0)) / (1.0 + 0.11 * max(opticalDepth, column.x));
             vec3 lit = sunLight * (scattered * Pi + max(sunCos, 0.0) * diffused * 0.14) + ambient;
             float sampleT = exp(-sigma * dt);
             luminance += transmittance * lit * (1.0 - sampleT);
@@ -1286,7 +1345,7 @@ bool RhiRenderer::createSharedCloudMaps() {
     c.coverUniforms[0]->create();
     c.coverUniforms[1]->create();
     if (c.weather == nullptr) {
-        c.weather = rhi->newTexture(QRhiTexture::RGBA16F, QSize(3 * clouds.size, clouds.size));
+        c.weather = rhi->newTexture(QRhiTexture::RGBA16F, QSize(4 * clouds.size, clouds.size));
         c.weather->create();
         c.weatherRevision = ~0ull;
     }
@@ -1561,7 +1620,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     cloudsPrepared = true;
     const int quality = std::clamp(clouds.quality, 1, 4);
     CloudResources &c = cloudResources;
-    if (c.weather != nullptr && c.weather->pixelSize() != QSize(3 * clouds.size, clouds.size)) {
+    if (c.weather != nullptr && c.weather->pixelSize() != QSize(4 * clouds.size, clouds.size)) {
         releaseCloudBuffers();
         dropLater(c.weather);
         c.weather = nullptr;
@@ -1584,17 +1643,25 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     if (c.weatherRevision != clouds.revision) {
         c.weatherRevision = clouds.revision;
         const std::vector<float> &layers = *clouds.layers;
-        std::vector<qfloat16> half(layers.size());
-        // Side by side: low, mid, high.
+        const std::vector<float> *extra = clouds.extra.get();
+        // Side by side: low, mid, high; the extras (densities, rain).
         const int n = clouds.size;
-        for (int l = 0; l < 3; ++l)
+        std::vector<qfloat16> half(size_t(4) * n * n * 4);
+        for (int l = 0; l < 4; ++l)
             for (int j = 0; j < n; ++j)
                 for (int i = 0; i < n; ++i)
-                    for (int k = 0; k < 4; ++k)
-                        half[(size_t(j) * 3 * n + size_t(l) * n + i) * 4 + k] =
-                                qfloat16(layers[((size_t(l) * n + j) * n + i) * 4 + k]);
+                    for (int k = 0; k < 4; ++k) {
+                        float value;
+                        if (l < 3)
+                            value = layers[((size_t(l) * n + j) * n + i) * 4 + k];
+                        else if (extra != nullptr && extra->size() == size_t(n) * n * 4)
+                            value = (*extra)[(size_t(j) * n + i) * 4 + k];
+                        else
+                            value = k < 2 ? 1.0f : 0.0f;
+                        half[(size_t(j) * 4 * n + size_t(l) * n + i) * 4 + k] = qfloat16(value);
+                    }
         QRhiTextureSubresourceUploadDescription data(half.data(), quint32(half.size() * sizeof(qfloat16)));
-        data.setSourceSize(QSize(3 * n, n));
+        data.setSourceSize(QSize(4 * n, n));
         updates->uploadTexture(c.weather, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, data)));
         c.coverKey.clear();
     }

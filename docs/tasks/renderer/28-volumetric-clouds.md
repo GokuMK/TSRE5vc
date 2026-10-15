@@ -1064,6 +1064,70 @@ far shadow map (700 m about the camera) every point counted lit. The march
 now also takes the terrain's shade over 16 km (`TerrainShade`, task 33),
 as do the lit shaders and the fog.
 
+## Still open (2026-10-15)
+
+What remains of the "Still open" lists above, checked against the code:
+
+- **Volumetric light shafts too weak** (user, 2026-10-15): since the third
+  pass and the haze's changes they are fainter than wanted; to look at on
+  their own. They are still marched at half resolution, 24 steps, a new
+  jitter each frame and no frames averaged (`RhiLightShafts.cpp`); in fog
+  the beams are the fog volume's (task 33), which averages frames.
+- **Storms:** dark by their density and the cloud above (done, below);
+  rain under the clouds and cumulonimbus anvils next. The towers stand as
+  tall pillars of billows with vertical streaks, not as one solid tower;
+  their shape goes with the anvils.
+- **OpenGL renderer:** step 9 (a flat cloud layer from the weather).
+- **Settings in `Game.h`** (sky model, cloud quality, shafts, enclosure,
+  enclosed ambient): to their classes at the next forced full rebuild.
+- Done since those lists: the cover maps follow the clock's drift instead
+  of being redrawn each frame ("Clouds that move with the clock"); lamps
+  reach at most 30 m and have a "Lamps by day" setting (task 27); the
+  shafts' blocky cloud outlines ("Light shafts, third pass").
+
+## Storms dark by their density (2026-10-16)
+
+The user: heavy storm clouds should look dark. They were lit as cumulus:
+the weather's layer density never reached the march (the extinction was
+the type's alone), and the sky's light inside a cloud fell only with the
+height in the layer and the sun's path, marched a few km, so an 11 km
+tower's base was lit as a 1 km cumulus's.
+
+- **Density:** the weather texture has a fourth column beside the three
+  layers' (`Renderer::Clouds::extra`): the low and mid layers' density (1
+  the type's usual), the area's precipitation (mm/h) and its snow share
+  (for rain under the clouds, next). The extinction is the type's times
+  the density, in the march, the cloud shadow map and the sky's light
+  through the clouds alike. Presets: thunderstorm 1.2, rain 1.0, overcast
+  0.8 (its low sheet a little thinner: 2 of 255 brighter at noon over
+  CMK); imported weather 1.
+- **The cloud above** (`cloudAbove`): for each sample in a cloud, the
+  optical depth of the low and mid layers above it and of its whole
+  column, estimated from the weather and the cover as `layerDensity` makes
+  them, the billows' noise at its mean, by the type's profile at three
+  heights. No pass and no reach: far towers as near ones. A fair cumulus's
+  column comes to about 20, a storm's tower about 250.
+- **What it darkens:** the sky's light inside falls by what the cloud
+  above lets through (two-stream), as far as that is less than a
+  cumulus's at the same height (the shares were tuned on cumulus: thinner
+  clouds stay as they were); through a deep cloud it is the cloud's own
+  light, grey, not the sky's blue. The ground's light from below goes
+  under columns of 20 to 150 (a storm is as wide as it is deep: the ground
+  under its base lies in its shadow). The sun's light diffused through
+  takes at least the cloud above (its path was marched only a few km).
+- **Captures** (`build/storms`, CMK from the hill 130 m up, still): a storm
+  against the sun at 17:00 has a dark grey base under its sunlit edges
+  (mean 93 to 87 of 255, up to 46 darker); with the sun behind, towers lit
+  cream-white over a dark base band; looking up, the base overhead dark
+  grey. Broken 0.4 of 255 on average, rain 1.6 darker.
+- **Cost on the Steam Deck** (High, median frame, two rounds each, old
+  against new): fair cumulus 38.4 / 37.2 against 39.1 / 39.3 ms,
+  thunderstorm 43.4 / 42.5 against 43.4 / 42.8, overcast 34.9 / 35.0
+  against 35.3 / 35.6: about half a millisecond, within the runs' noise.
+- Rain under the clouds needs the march below their base, in front of the
+  scene (the composite takes the clouds only over the sky and the distant
+  band): a step of its own, with the anvils.
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

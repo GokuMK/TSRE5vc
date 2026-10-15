@@ -112,6 +112,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <QFileInfo>
 #include <tsre/environment/WeatherPresets.h>
+#include <tsre/environment/WeatherDetail.h>
 #include <tsre/environment/Atmosphere.h>
 #include <tsre/world/Trk.h>
 #include <tsre/tdb/TDB.h>
@@ -1360,6 +1361,7 @@ void RouteEditorGLWidget::applyClouds() {
             c.built[l][1] = float(frame.drift[l][1]);
         }
         auto layers = std::make_shared<std::vector<float>>(size_t(3) * Size * Size * 4);
+        auto extra = std::make_shared<std::vector<float>>(size_t(Size) * Size * 4, 0.0f);
         float bottom = 1e9f, highest = -1e9f;
         for (int l = 0; l < 3; ++l)
             for (int j = 0; j < Size; ++j)
@@ -1371,6 +1373,8 @@ void RouteEditorGLWidget::applyClouds() {
                     out[1] = v.type;
                     out[2] = v.base / 1000.0f;
                     out[3] = v.top / 1000.0f;
+                    if (l < 2)
+                        (*extra)[(size_t(j) * Size + i) * 4 + l] = v.density;
                     if (l < 2 && v.coverage > 0.0f) {
                         bottom = std::min(bottom, out[2]);
                         highest = std::max(highest, out[3]);
@@ -1378,9 +1382,20 @@ void RouteEditorGLWidget::applyClouds() {
                 }
         if (bottom > highest)
             bottom = highest = 0.0f;
+        // Rain and snow: the area's (texels of 2 km are coarser than the
+        // showers' cells; the renderer puts them under its clouds).
+        for (int j = 0; j < Size; ++j)
+            for (int i = 0; i < Size; ++i) {
+                const WeatherSurface s = WeatherDetail::precipitation(*weather, frame, west + (i + 0.5) * Texel,
+                                                                      top - (j + 0.5) * Texel, 0.0);
+                float *out = &(*extra)[(size_t(j) * Size + i) * 4];
+                out[2] = s.precipitationRate;
+                out[3] = s.snowShare;
+            }
         c.bottom = bottom;
         c.top = highest;
         c.layers = layers;
+        c.extra = extra;
         ++c.revision;
         // Overcast: the low and mid layers' cover within 10 km of the
         // camera, the two combined as independent.
