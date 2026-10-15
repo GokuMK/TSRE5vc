@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QThread>
+#include <QDate>
 #include <QTime>
 #include <algorithm>
 #include <cmath>
@@ -132,6 +133,8 @@ bool SimulationController::start(Activity *activity, QString *error) {
     host->moveToThread(thread);
     thread->start();
     sendStart(input);
+    startDate = Game::timeOfDayDate;
+    worldTime = input->startTime;
     setWorldTime(input->startTime);
     ActivityNotifier::instance()->setEditingLocked(true);
     pollTimer.start();
@@ -179,7 +182,7 @@ bool SimulationController::runTo(Activity *activity, int timeOfDay, QString *err
     // Before the start: the next day's.
     if (target < in->startTime)
         target += 86400.0;
-    if (latest != nullptr && target < latest->time) {
+    if (target < frame()->time) {
         // Back: from the start again (MSAE's way).
         std::shared_ptr<const SimulationInput> input = makeInput(current, error);
         if (input == nullptr)
@@ -225,6 +228,15 @@ void SimulationController::reset() {
 void SimulationController::stop() {
     if (!exists())
         return;
+    // The world's clock goes on from the simulation's time.
+    double hours = 0.0, rate = 0.0;
+    QString date;
+    if (worldClock(hours, date, rate)) {
+        SettingsManager &settings = SettingsManager::instance();
+        if (!date.isEmpty())
+            settings.setSessionValue("core.rendering.timeOfDay.date", date);
+        settings.setSessionValue("core.rendering.timeOfDay.time", hours);
+    }
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
     QThread *owner = QThread::currentThread();
@@ -254,6 +266,12 @@ void SimulationController::stop() {
 
 std::shared_ptr<const SimulationFrame> SimulationController::frame() const {
     static const std::shared_ptr<const SimulationFrame> none = std::make_shared<const SimulationFrame>();
+    if (host != nullptr && in != nullptr) {
+        std::shared_ptr<const SimulationFrame> now = host->frame();
+        // Not yet of the run started last: the one taken before.
+        if (now != nullptr && now->runId == in->runId)
+            return now;
+    }
     return latest != nullptr ? latest : none;
 }
 
@@ -298,6 +316,27 @@ bool SimulationController::waitFor(unsigned long long seq, int ms) {
         QThread::msleep(1);
     }
     return false;
+}
+
+bool SimulationController::worldClock(double &hours, QString &date, double &rate) const {
+    if (!exists() || in == nullptr)
+        return false;
+    rate = 0.0;
+    const std::shared_ptr<const SimulationFrame> now = frame();
+    if (now->runId == in->runId) {
+        const bool fastest = now->mode == RunMode::RunningTo
+                || (now->mode == RunMode::Running && now->speed <= 0.0);
+        if (!fastest) {
+            // A frame is at most a host tick old.
+            worldTime = now->time;
+            rate = now->mode == RunMode::Running ? now->speed : 0.0;
+        }
+    }
+    const double days = std::floor(worldTime / 86400.0);
+    hours = (worldTime - days * 86400.0) / 3600.0;
+    QDate day = QDate::fromString(startDate.trimmed(), "yyyy-MM-dd");
+    date = day.isValid() ? day.addDays(qint64(days)).toString("yyyy-MM-dd") : startDate;
+    return true;
 }
 
 int SimulationController::trainOf(bool player, int traffic) const {

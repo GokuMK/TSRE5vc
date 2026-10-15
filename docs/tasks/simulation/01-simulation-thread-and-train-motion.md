@@ -116,7 +116,8 @@ time); those stops behave as untimed ones.
   above, looking at it (centred on the map), then moved as it moves, so
   the user can still look around.
 - The world's time of day is set to the activity's start at start
-  (`core.rendering.timeOfDay.time`); nothing more.
+  (`core.rendering.timeOfDay.time`) and then follows the simulation (the
+  follow-up below).
 - Activity editing off (`ActivityNotifier::editingLocked`): the panel's
   activity choice, settings, New Activity, player and traffic choices,
   path, consist, speed zone and failed signal buttons; the Events,
@@ -145,6 +146,27 @@ map's vehicles, Run to an earlier time, Stop and undo after it).
 09:03, by the player's train and an AI train in 3D and on the map), whose
 options (`simulateTo`, `simulationChosen`, a view's `train`) the
 `renderer-capture` suite now takes.
+
+**Follow-up: the world's clock follows the simulation (2026-10-15, the
+user).** The world's state that depends on time (sun, sky, lights,
+weather, clouds) all reads the time of day (`Game::timeOfDayHours` and
+the date); `Route::updateSim` only animates objects by wall time. So the
+simulation is the clock and the world reads it: while a simulation exists
+the view's frame loop takes the time of day and the date from the
+simulation's latest frame (`SimulationController::worldClock`) instead of
+running its own clock. Paused, the sky stops; at 64× it runs at 64× (the
+clouds refresh as the clock's speed asks); Run to back in time sets it
+back. A run as fast as possible leaves the world at its time until the
+run pauses, then the world jumps there (the clouds could not follow, and
+it saves the work). Past midnight the date moves on a day from the
+world's date at start. On Stop the clock goes on from the simulation's
+time on its own (the session's time and date are set to it). The other way
+round, the view's frames stepping the simulation, would tie the
+simulation to the frame rate and the main thread; the world only reads
+the time, so one direction is enough. The views also draw the host's
+latest frame now, not the one the windows take ten times a second (trains
+moved in steps before). `simulation-ui` checks the clock (24 checks). The
+Environment window's time shows the clock only while its own clock runs.
 
 **Phase 4, measured (done 2026-10-15).** `simulation-route` now measures,
 on the activity with the most trains (llvmpipe box, one core for the
@@ -369,12 +391,11 @@ One kinematic driver per train, in the spirit of MSTS's:
   panel says so.
 - **The world's time of day is set to the activity's start time when a
   simulation starts** (the session's `core.rendering.timeOfDay.time`, as the
-  environment panel sets it); after that the two clocks run on their own.
-  No further link between the simulation and the world's time or weather
-  in this task: that feature is being reworked on another branch, so this
-  one keeps clear of it. Later, fast runs may set the weather's time and its
-  timelapse speed, and runs as fast as possible may leave the world's
-  simulation out.
+  environment panel sets it), and **follows the simulation's** while it
+  exists: paused with it, at its speed, back with a run back in time; a run
+  as fast as possible leaves the world's time until it pauses. The weather
+  is a function of that time, so it follows too; nothing else is linked
+  (the weather is being reworked on another branch).
 
 ### 6. Messages
 
@@ -499,10 +520,9 @@ running simulation's picture.
    undo refuses activity steps; route and world editing stay on.
 6. **A run goes on until Stop.**
 7. **The world's time is set to the activity's start time at start,**
-   then both clocks go their own way; no weather or time sync in this task
-   (reworked on another branch). Later: fast runs may set the weather's
-   time and timelapse speed; runs as fast as possible may leave the world's
-   simulation out.
+   and follows the simulation's (changed by the user the same day: the
+   world reads its time, so the sync is small); runs as fast as possible
+   leave the world's time until they pause.
 8. **Follow:** the camera can follow the train chosen in the Timetable
    window.
 9. Work on `feature/simulation` in `../TSRE5vc-simulation`.

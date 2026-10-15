@@ -22,8 +22,9 @@ model as the first operating policy, and threading.
   stay on); the player's train runs its timetable in task 01; Play runs the
   simulation in real time with steps of at most 0.1 s; stops last Open
   Rails' boarding time; a run goes on until Stop; the world's time is set to
-  the activity's start time at start, with no further time or weather sync
-  for now (reworked on another branch); the controls are in the activity panel below Play's
+  the activity's start time at start and then follows the simulation's
+  (paused with it, at its speed; runs as fast as possible leave it until
+  they pause); the controls are in the activity panel below Play's
   new place, the trains' states and Follow in the Timetable window.
 
 ## Execution Order

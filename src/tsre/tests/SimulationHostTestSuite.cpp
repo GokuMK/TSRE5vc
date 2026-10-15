@@ -399,6 +399,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     const QScopedValueRollback<QString> routeName(Game::route, "R");
     const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &layout.db);
     const QScopedValueRollback<float> hours(Game::timeOfDayHours, 12.0f);
+    const QScopedValueRollback<QString> day(Game::timeOfDayDate, "2026-10-15");
     EngLib engines;
     const QScopedValueRollback<EngLib *> engineLibrary(Game::currentEngLib, &engines);
     const int firstAct = ActLib::jestact, firstService = ActLib::jestservice;
@@ -537,6 +538,29 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     pump();
     check(f && std::fabs(f->time - (8 * 3600 + 90)) < 1e-6 && f->trains[1].state.status == Sim::TrainStatus::Running,
           QString("Run to 08:01:30, before the time shown: reached from the start (%1)").arg(f ? f->time : -1));
+
+    // The world's clock is the simulation's; a run as fast as possible
+    // leaves it until it pauses; past midnight, the next day.
+    double worldHours = 0.0, worldRate = -1.0;
+    QString worldDate;
+    const bool clock = simulation->worldClock(worldHours, worldDate, worldRate);
+    check(clock && std::fabs(worldHours - (8 + 1.5 / 60)) < 1e-6
+              && worldDate == "2026-10-15" && worldRate == 0.0,
+          QString("the world's clock shows the simulation's time, paused (%1 %2)").arg(worldHours).arg(worldDate));
+    play->click();
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.time > 8 * 3600 + 1800; }, 10000, pump);
+    simulation->worldClock(worldHours, worldDate, worldRate);
+    check(f && std::fabs(worldHours - (8 + 1.5 / 60)) < 1e-6 && worldRate == 0.0,
+          "as fast as possible the world keeps its time");
+    runToTime->setTime(QTime(7, 59, 0));
+    runTo->click();
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+            return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 20000, pump);
+    pump();
+    simulation->worldClock(worldHours, worldDate, worldRate);
+    check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-6 && std::fabs(worldHours - (7 + 59.0 / 60)) < 1e-6
+              && worldDate == "2026-10-16",
+          QString("Run to 07:59, before the start: the next day; the world's clock there (%1 %2)").arg(worldHours).arg(worldDate));
 
     stop->click();
     pump();

@@ -528,6 +528,10 @@ private:
     bool timeRuns = true;
     double timeSpeed = 1.0;
     double clockHours = 0.0;
+    // The clock follows a simulation (SimulationController::worldClock),
+    // running this fast.
+    bool simulationClock = false;
+    double simulationClockRate = 0.0;
     // Auto exposure (task 29): this frame's control, set by applyTimeOfDay
     // and handed over once camera jumps are known.
     Renderer::ExposureControl exposure;

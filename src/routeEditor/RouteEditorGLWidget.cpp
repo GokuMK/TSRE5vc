@@ -294,8 +294,18 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
     // The clock: the time of day, and with it the weather and the clouds,
     // run on. Set elsewhere (the panel), it goes on from there; the settings
-    // hear of it only past midnight.
-    if (!simulationPaused && timeRuns) {
+    // hear of it only past midnight. While a simulation exists it is the
+    // simulation's (task simulation 01).
+    QString simulatedDate;
+    double simulatedHours = 0.0;
+    simulationClock = Sim::SimulationController::instance()->worldClock(simulatedHours, simulatedDate,
+                                                                        simulationClockRate);
+    if (simulationClock) {
+        clockHours = simulatedHours;
+        Game::timeOfDayHours = float(simulatedHours);
+        if (!simulatedDate.isEmpty() && simulatedDate != Game::timeOfDayDate)
+            SettingsManager::instance().setSessionValue("core.rendering.timeOfDay.date", simulatedDate);
+    } else if (!simulationPaused && timeRuns) {
         if (float(clockHours) != Game::timeOfDayHours)
             clockHours = Game::timeOfDayHours;
         QString date = Game::timeOfDayDate;
@@ -1337,8 +1347,9 @@ void RouteEditorGLWidget::applyClouds() {
     // A fast timelapse refreshes the clouds faster (the user: from 2 min a
     // second twice, at 4 min four times; static scenes, a lower frame rate
     // is fine): the history cannot follow clouds that change that much.
-    const bool fast = timeRuns && !simulationPaused;
-    c.passes = fast && timeSpeed >= 240.0 ? 4 : (fast && timeSpeed >= 120.0 ? 2 : 1);
+    const double clockRate = simulationClock ? simulationClockRate
+                                             : timeRuns && !simulationPaused ? timeSpeed : 0.0;
+    c.passes = clockRate >= 240.0 ? 4 : (clockRate >= 120.0 ? 2 : 1);
     const double west = std::floor((east - Size * Texel * 0.5) / Step) * Step;
     const double top = std::ceil((north + Size * Texel * 0.5) / Step) * Step;
     // The fields move with their layers' wind, which the renderer follows

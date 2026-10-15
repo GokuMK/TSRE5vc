@@ -59,7 +59,8 @@ public:
     void stop();
 
     std::shared_ptr<const SimulationInput> input() const { return in; }
-    // The latest frame (an empty one when none exists).
+    // The latest frame, from the host's mailbox (the views draw it each
+    // time); an empty one when none exists.
     std::shared_ptr<const SimulationFrame> frame() const;
     // The run's events so far, in order.
     const std::vector<TrainEvent> &events() const { return history; }
@@ -87,6 +88,13 @@ public:
     // tile x, tile z (the camera's), x, y, z; its length; false when not on
     // the track.
     bool trainPlace(int train, int *tile, float *position, float *heading, float *length = nullptr) const;
+
+    // The world's clock while a simulation exists: the simulation's time
+    // of day and date (days from the world's date at start) and how fast it
+    // runs now (0 paused). A run as fast as possible leaves the world at
+    // the time it had until the run pauses. False without a simulation:
+    // the world's clock runs on its own.
+    bool worldClock(double &hours, QString &date, double &rate) const;
 
     // What a train is doing ("running 72 km/h", "at Settle until 08:31"),
     // and an event as the Timetable window lists it.
@@ -126,6 +134,10 @@ private:
     int chosenTrain = -1;
     int followedTrain = -1;
     qint64 inputMs = 0;
+    // The world's date at start, and the simulation's time it shows (kept
+    // while a run as fast as possible goes on).
+    QString startDate;
+    mutable double worldTime = 0.0;
 
     // A new input for the current activity; null with why when it has no
     // train.
