@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include <tsre/sim/TrackGeometry.h>
+#include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
 
 class Activity;
@@ -64,6 +65,8 @@ struct TrainPlan {
     float efficiency = 1.0f;
     float acceleration = 1.0f;
     float deceleration = 1.0f;
+    // It has a carriage: passenger speed limits apply, else freight ones.
+    bool passenger = false;
     // Seconds after midnight.
     int startTime = 0;
     TrainRoute route;
@@ -71,6 +74,18 @@ struct TrainPlan {
     double startFront = 0.0;
     std::vector<StopPlan> stops;
     std::vector<WaitPlan> waits;
+    // Each route part's way through the track network.
+    std::vector<Projection> projection;
+};
+
+// A consist of the activity standing on the track for the whole run (a loose
+// consist): the track it covers.
+struct StaticConsist {
+    QString name;
+    // Its place among the activity's objects.
+    int object = -1;
+    float length = 0.0f;
+    std::vector<RouteInterval> track;
 };
 
 // Everything a simulation reads, copied from the editor's data when it
@@ -82,7 +97,9 @@ struct SimulationInput {
     float routeSpeedLimit = 44.4444f;
     unsigned int runId = 0;
     std::shared_ptr<const TrackGeometry> geometry;
+    std::shared_ptr<const TrackNetwork> network;
     std::vector<TrainPlan> trains;
+    std::vector<StaticConsist> staticConsists;
     // Trains not made, and why.
     QStringList warnings;
 
@@ -96,9 +113,10 @@ void SetRates(TrainPlan &train);
 
 // The input for an activity, made on the main thread from the editor's data
 // (the activity's player and AI trains, their services, paths, consists and
-// timetables) and `tdb`, which must be Game::trackDB. `geometry` may be one
-// copied earlier from the same database.
+// timetables, loose consists) and `tdb`, which must be Game::trackDB.
+// `geometry` and `network` may be ones made earlier from the same database.
 std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
-                                                 std::shared_ptr<const TrackGeometry> geometry = nullptr);
+                                                 std::shared_ptr<const TrackGeometry> geometry = nullptr,
+                                                 std::shared_ptr<const TrackNetwork> network = nullptr);
 
 }

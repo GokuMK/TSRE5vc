@@ -501,6 +501,18 @@ void place(TDB *tdb, Node &node) {
     node.position[2] = -n->uid.z;
 }
 
+int junctionPin(const TRnode *junction, int track, int end) {
+    return junction != nullptr ? pinOf(junction, track, end) : -1;
+}
+
+int endOfJunctionPin(const TRnode *junction, int junctionId, int pin, const TRnode *vector) {
+    return junction != nullptr && vector != nullptr ? endOfPin(junction, junctionId, pin, vector) : -1;
+}
+
+int junctionMainPin(TDB *tdb, const TRnode *junction) {
+    return junction != nullptr ? mainPin(tdb, junction) : -1;
+}
+
 int tracksBetween(TDB *tdb, int junctionA, int junctionB) {
     const TRnode *a = trackNode(tdb, junctionA);
     if (a == nullptr)

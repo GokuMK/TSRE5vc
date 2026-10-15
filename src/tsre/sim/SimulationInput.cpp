@@ -7,9 +7,11 @@
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tdb/TDB.h>
+#include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/ConLib.h>
@@ -48,6 +50,56 @@ bool sameName(const QString &a, const QString &b) {
     return a.compare(b, Qt::CaseInsensitive) == 0;
 }
 
+float vehicleLength(int engId) {
+    if (engId < 0 || Game::currentEngLib == nullptr)
+        return 0.0f;
+    auto e = Game::currentEngLib->eng.find(engId);
+    return e != Game::currentEngLib->eng.end() && e->second != nullptr ? e->second->getFullWidth() : 0.0f;
+}
+
+// The activity's loose consists on the track, placed as the editor places
+// them (Consist::initOnTrack): the first vehicle's middle at the object's
+// place, the rest behind it.
+std::vector<StaticConsist> StaticConsists(Activity *activity, TDB *tdb) {
+    std::vector<StaticConsist> consists;
+    for (int i = 0; i < activity->activityObjects.size(); ++i) {
+        ActivityObject *object = activity->activityObjects[i];
+        if (object == nullptr || object->objectTypeId != ActivityObject::WAGONLIST || object->con == nullptr
+                || object->con->engItems.isEmpty())
+            continue;
+        StaticConsist consist;
+        consist.name = object->con->showName;
+        consist.object = i;
+        float first = 0.0f;
+        for (int v = 0; v < object->con->engItems.size(); ++v) {
+            const float length = vehicleLength(object->con->engItems[v].eng);
+            if (v == 0)
+                first = length;
+            consist.length += length;
+        }
+        float posT[2] = {object->tile[0], -object->tile[1]};
+        float pos[3] = {object->tile[2], 0.0f, -object->tile[3]};
+        float tpos[3] = {0.0f, 0.0f, 0.0f};
+        if (consist.length <= 0.0f || tdb->findNearestPositionOnTDB(posT, pos, nullptr, tpos, false) < 0)
+            continue;
+        const bool forward = object->direction == 0;
+        // To the first vehicle's front, then back along the whole consist.
+        const QVector<PathTrack::Leg> ahead = PathTrack::follow(tdb, int(tpos[0]), tpos[1], forward, first * 0.5f);
+        if (ahead.isEmpty())
+            continue;
+        const PathTrack::Leg &front = ahead.last();
+        for (const PathTrack::Leg &leg : PathTrack::follow(tdb, front.track, front.to, !forward, consist.length)) {
+            RouteInterval interval;
+            interval.node = leg.track;
+            interval.from = leg.from;
+            interval.to = leg.to;
+            consist.track.push_back(interval);
+        }
+        consists.push_back(consist);
+    }
+    return consists;
+}
+
 }
 
 size_t SimulationInput::memory(bool withGeometry) const {
@@ -68,6 +120,7 @@ void SetRates(TrainPlan &train) {
     bool passenger = false;
     for (const Vehicle &vehicle : train.vehicles)
         passenger = passenger || vehicle.type == 1;
+    train.passenger = passenger;
     if (!passenger) {
         train.acceleration = 0.5f;
         train.deceleration = 0.5f;
@@ -78,11 +131,18 @@ void SetRates(TrainPlan &train) {
 }
 
 std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
-                                                 std::shared_ptr<const TrackGeometry> geometry) {
+                                                 std::shared_ptr<const TrackGeometry> geometry,
+                                                 std::shared_ptr<const TrackNetwork> network) {
     auto input = std::make_shared<SimulationInput>();
     input->runId = nextRun++;
     input->routeSpeedLimit = routeSpeedLimit > 0.0f ? routeSpeedLimit : 44.4444f;
     input->geometry = geometry != nullptr ? geometry : std::make_shared<const TrackGeometry>(tdb);
+    if (network == nullptr) {
+        bool openRails = false;
+        const std::shared_ptr<const SigCfg> config = SimulationSigCfg(tdb, &openRails);
+        network = std::make_shared<const TrackNetwork>(tdb, *input->geometry, config.get(), openRails);
+    }
+    input->network = network;
     if (activity == nullptr || tdb == nullptr)
         return input;
     if (activity->header != nullptr) {
@@ -230,8 +290,11 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
             if (plan.route.place(down, wait.part, wait.front))
                 plan.waits.push_back(wait);
         }
+        for (const RouteTrack &part : plan.route.parts)
+            plan.projection.push_back(input->network->project(part));
         input->trains.push_back(std::move(plan));
     }
+    input->staticConsists = StaticConsists(activity, tdb);
     return input;
 }
 

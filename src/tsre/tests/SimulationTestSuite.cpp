@@ -3,6 +3,8 @@
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QTemporaryDir>
 #include <QFileInfo>
 #include <QRandomGenerator>
 #include <QScopedValueRollback>
@@ -13,13 +15,17 @@
 #include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TrackGeometry.h>
+#include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
+#include <tsre/tdb/TRitem.h>
 #include <tsre/tdb/TSection.h>
+#include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
+#include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/PathTrack.h>
@@ -29,6 +35,68 @@
 namespace {
 
 using PathTrack::Node;
+
+bool writeUtf16(const QString &path, const QString &text) {
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+    QString crlf = text;
+    crlf.replace("\n", "\r\n");
+    file.write("\xff\xfe", 2);
+    file.write(reinterpret_cast<const char *>(crlf.utf16()), crlf.size() * 2);
+    return true;
+}
+
+// Two signal types: a NORMAL home signal of three aspects clearing two heads
+// ahead, and a distant one (MSTS's DISTANCE).
+const char *testSigCfg = R"(SIMISA@@@@@@@@@@JINX0G0t______
+
+LightTextures ( 1
+	LightTex ( "ltex" "SigLight.ace" 0 0 1 1 )
+)
+LightsTab ( 2
+	LightsTabEntry ( "Red Light" colour ( 255 255 40 40 ) )
+	LightsTabEntry ( "Green Light" colour ( 255 40 255 40 ) )
+)
+SignalTypes ( 2
+	SignalType ( "Home"
+		SignalFnType ( NORMAL )
+		SignalLightTex ( "ltex" )
+		SignalLights ( 2
+			SignalLight ( 0 "Red Light" Position ( 0 0 0 ) Radius ( 0.1 ) )
+			SignalLight ( 1 "Green Light" Position ( 0 0.3 0 ) Radius ( 0.1 ) )
+		)
+		SignalDrawStates ( 3
+			SignalDrawState ( 0 "Red" DrawLights ( 1 DrawLight ( 0 ) ) )
+			SignalDrawState ( 1 "Yellow" DrawLights ( 1 DrawLight ( 0 ) ) )
+			SignalDrawState ( 2 "Green" DrawLights ( 1 DrawLight ( 1 ) ) )
+		)
+		SignalAspects ( 3
+			SignalAspect ( STOP "Red" )
+			SignalAspect ( APPROACH_1 "Yellow" SpeedKPH ( 40 ) )
+			SignalAspect ( CLEAR_2 "Green" )
+		)
+		SignalNumClearAhead ( 2 )
+	)
+	SignalType ( "Dist"
+		SignalFnType ( DISTANCE )
+		SignalLightTex ( "ltex" )
+		SignalLights ( 1
+			SignalLight ( 0 "Green Light" Position ( 0 0 0 ) Radius ( 0.1 ) )
+		)
+		SignalDrawStates ( 2
+			SignalDrawState ( 0 "Yellow" DrawLights ( 1 DrawLight ( 0 ) ) )
+			SignalDrawState ( 1 "Green" DrawLights ( 1 DrawLight ( 0 ) ) )
+		)
+		SignalAspects ( 2
+			SignalAspect ( APPROACH_1 "Yellow" )
+			SignalAspect ( CLEAR_2 "Green" )
+		)
+		SignalNumClearAhead ( 1 )
+	)
+)
+SignalShapes ( 0 )
+)";
 using PathTrack::NodeType;
 
 // The geometry copy and the track database give the same pose; both or
@@ -353,6 +421,119 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
               "a train starting at its first station stands there until its departure");
     }
 
+    // The track network (task 02, phase 1): a passing loop with signals, a
+    // distant signal, speed posts and a diamond crossing.
+    {
+        QTemporaryDir folder;
+        const QString config = folder.path() + "/sigcfg.dat";
+        check(writeUtf16(config, testSigCfg), "write a sigcfg.dat");
+        const SigCfg signalConfig(config);
+        TestTrack::Layout loop;
+        TestTrack::passingLoop(loop);
+        loop.end(21, 20);
+        loop.track(20, 21, 22, 3);
+        loop.end(22, 20);
+        TestTrack::signalHead(loop, 10, 501, 80.0f, true, "Home", 2, 1);
+        TestTrack::signalHead(loop, 10, 502, 80.0f, true, "Home", 2, 2);
+        TestTrack::signalHead(loop, 13, 503, 20.0f, false, "Home");
+        TestTrack::signalHead(loop, 11, 504, 100.0f, true, "Dist");
+        TestTrack::speedLimit(loop, 11, 601, 50.0f, true, 40.0f);
+        TestTrack::speedLimit(loop, 11, 602, 150.0f, false, 60.0f);
+        TestTrack::crossing(loop, 11, 701, 120.0f, 20, 702, 5.0f);
+        TDB *net = &loop.db;
+        const QScopedValueRollback<TDB *> live(Game::trackDB, net);
+        const Sim::TrackGeometry loopGeometry(net);
+        const Sim::TrackNetwork network(net, loopGeometry, &signalConfig, false);
+        const auto &kinds = network.kinds();
+        int home = -1, dist = -1;
+        for (size_t k = 0; k < kinds.size(); ++k) {
+            if (kinds[k].name == "home") home = int(k);
+            if (kinds[k].name == "dist") dist = int(k);
+        }
+        check(home >= 0 && dist >= 0 && kinds[size_t(home)].function == Sim::SignalFunction::Normal
+                  && kinds[size_t(home)].clearAhead == 2 && !kinds[size_t(home)].countsSignals
+                  && kinds[size_t(dist)].function == Sim::SignalFunction::Distant
+                  && kinds[size_t(home)].aspects.size() == 3 && kinds[size_t(home)].aspects[0].aspect == 0
+                  && std::fabs(kinds[size_t(home)].aspects[1].speed - 40.0f / 3.6f) < 0.01f,
+              "signal types: functions (DISTANCE is distant), clearing ahead in heads, aspects with speeds");
+        const Sim::TrackNetwork openRails(net, loopGeometry, &signalConfig, true);
+        check(openRails.kinds()[size_t(home)].countsSignals, "OpenRails/sigcfg.dat counts signals");
+        const auto [first10, count10] = network.nodeSections(10);
+        const auto [first11, count11] = network.nodeSections(11);
+        const auto [first13, count13] = network.nodeSections(13);
+        const auto &sections = network.sections();
+        check(count10 == 2 && std::fabs(sections[size_t(first10)].to - 80.0f) < 0.01f && count11 == 1 && count13 == 2
+                  && std::fabs(sections[size_t(first13)].to - 20.0f) < 0.01f,
+              "tracks cut at NORMAL heads either way, not at the distant one");
+        const int j2 = network.junctionSection(2), j3 = network.junctionSection(3);
+        const auto [first12, count12] = network.nodeSections(12);
+        check(j2 >= 0 && j3 >= 0 && sections[size_t(j2)].kind == Sim::TrackSection::Junction
+                  && sections[size_t(j2)].link[0] == first10 + 1 && sections[size_t(j2)].link[1] == first11
+                  && sections[size_t(j2)].link[2] == first12 + count12 - 1 && sections[size_t(j2)].mainPin == 1
+                  && sections[size_t(first10 + 1)].link[1] == j2 && sections[size_t(first10)].link[0] == -1
+                  && sections[size_t(first12)].link[0] == j3,
+              "junctions linked to the sections at their pins, the main route known");
+        const int a = network.headOfItem(501), b = network.headOfItem(502), c = network.headOfItem(503);
+        const auto &heads = network.heads();
+        check(a >= 0 && b >= 0 && c >= 0 && heads[size_t(a)].signal == heads[size_t(b)].signal
+                  && heads[size_t(a)].signal != heads[size_t(c)].signal && heads[size_t(a)].junction == 2
+                  && heads[size_t(a)].junctionPin == 1 && heads[size_t(b)].junctionPin == 2 && !heads[size_t(c)].forward
+                  && network.signalGroups()[size_t(heads[size_t(a)].signal)].normal,
+              "heads at one place one way are one signal; junction links and directions");
+        const auto &posts = network.speedPosts();
+        check(posts.size() == 2 && posts[0].forward != posts[1].forward
+                  && std::fabs((posts[0].item == 601 ? posts[0] : posts[1]).speed - 40.0f / 3.6f) < 0.01f
+                  && (posts[0].item == 601 ? posts[0] : posts[1]).forward,
+              "speed posts face the way their angle says");
+        // Through the loop's main track and back.
+        const PathTrack::Result there = PathTrack::endAt(net, PathTrack::startAt(net, {10, 10.0f}).nodes, {13, 80.0f});
+        const Sim::TrainRoute out = Sim::BuildRoute(net, there.nodes, PathTrack::legs(net, there.nodes), 0.0);
+        const Sim::Projection go = out.parts.empty() ? Sim::Projection() : network.project(out.parts[0]);
+        QStringList passed;
+        bool joined = true;
+        double reached = 0.0;
+        for (size_t i = 0; i < go.sections.size(); ++i) {
+            const Sim::ProjectedSection &p = go.sections[i];
+            const Sim::TrackSection &section = sections[size_t(p.section)];
+            passed << (section.kind == Sim::TrackSection::Junction ? QString("J%1:%2>%3").arg(section.node).arg(p.pinIn).arg(p.pinOut)
+                       : section.kind == Sim::TrackSection::Crossing ? QString("X")
+                       : QString("%1:%2-%3").arg(section.node).arg(section.from).arg(section.to));
+            // Track and junctions follow on; a crossing lies within a track.
+            if (section.kind == Sim::TrackSection::Crossing)
+                continue;
+            if (std::fabs(p.enter - reached) > 0.01)
+                joined = false;
+            reached = p.leave;
+        }
+        const QString way = passed.join(" ");
+        check(way == "10:0-80 10:80-100 J2:0>1 11:0-200 X J3:1>0 13:0-20 13:20-100" && joined
+                  && std::fabs(go.sections.front().enter) < 0.01 && std::fabs(go.sections.back().leave - out.parts[0].length()) < 0.01,
+              "a route projected: sections in order, junction pins, the crossing, distances joined: " + way);
+        QStringList facing;
+        for (const Sim::ProjectedItem &h : go.heads)
+            facing << QString::number(heads[size_t(h.index)].item);
+        QStringList limits;
+        for (const Sim::ProjectedItem &p : go.speedPosts)
+            limits << QString::number(posts[size_t(p.index)].item);
+        check(facing.join(",") == "501,502,504" && limits.join(",") == "601"
+                  && std::fabs(go.heads.front().at - 70.0) < 0.01,
+              "the heads and speed posts facing it, at their route distances: " + facing.join(",") + " / " + limits.join(","));
+        const PathTrack::Result back = PathTrack::endAt(net, PathTrack::startAt(net, {13, 80.0f}).nodes, {10, 10.0f});
+        const Sim::TrainRoute home2 = Sim::BuildRoute(net, back.nodes, PathTrack::legs(net, back.nodes), 0.0);
+        const Sim::Projection come = home2.parts.empty() ? Sim::Projection() : network.project(home2.parts[0]);
+        facing.clear();
+        for (const Sim::ProjectedItem &h : come.heads)
+            facing << QString::number(heads[size_t(h.index)].item);
+        limits.clear();
+        for (const Sim::ProjectedItem &p : come.speedPosts)
+            limits << QString::number(posts[size_t(p.index)].item);
+        check(facing.join(",") == "503" && limits.join(",") == "602",
+              "the other way the other heads and posts: " + facing.join(",") + " / " + limits.join(","));
+        check(network.sectionAt(10, 80.0f, true) == first10 + 1 && network.sectionAt(10, 80.0f, false) == first10
+                  && network.sectionAt(10, 30.0f, true) == first10,
+              "the section at a boundary is the one a train going that way enters");
+    }
+
     qInfo().noquote() << QString("simulation-core: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }
@@ -402,6 +583,130 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
     check(same, QString("%1 vector nodes copied in %2 ms (%3 KiB); 10000 random poses the same (worst %4)")
           .arg(geometry->nodeCount()).arg(copyMs).arg(geometry->memory() / 1024).arg(worst));
 
+    // The track network (task 02): sections covering every vector node once,
+    // NORMAL heads on section boundaries, heads facing the junction they are
+    // linked to, speed posts along the track.
+    bool openRailsConfig = false;
+    const std::shared_ptr<const SigCfg> signalConfig = Sim::SimulationSigCfg(&database, &openRailsConfig);
+    timer.restart();
+    auto network = std::make_shared<const Sim::TrackNetwork>(&database, *geometry, signalConfig.get(), openRailsConfig);
+    const qint64 networkMs = timer.elapsed();
+    {
+        int covered = 0, nodesWithTrack = 0;
+        for (int node : vectors) {
+            const auto [first, count] = network->nodeSections(node);
+            if (geometry->length(node) <= 0.0f)
+                continue;
+            ++nodesWithTrack;
+            bool whole = count > 0 && std::fabs(network->sections()[size_t(first)].from) < 1e-3f
+                    && std::fabs(network->sections()[size_t(first + count - 1)].to - geometry->length(node)) < 1e-3f;
+            for (int k = 1; k < count && whole; ++k)
+                whole = network->sections()[size_t(first + k)].from == network->sections()[size_t(first + k - 1)].to;
+            covered += whole ? 1 : 0;
+        }
+        int normal = 0, onBoundary = 0, linked = 0, linkedAhead = 0, linkedBehind = 0;
+        for (const Sim::SignalHead &head : network->heads()) {
+            const bool isNormal = head.kind >= 0
+                    && network->kinds()[size_t(head.kind)].function == Sim::SignalFunction::Normal;
+            if (isNormal) {
+                ++normal;
+                const auto [first, count] = network->nodeSections(head.node);
+                bool boundary = head.distance <= 0.05f || head.distance >= geometry->length(head.node) - 0.05f;
+                for (int k = 0; k < count && !boundary; ++k)
+                    boundary = std::fabs(network->sections()[size_t(first + k)].to - head.distance) < 0.06f;
+                onBoundary += boundary ? 1 : 0;
+            }
+            if (head.junction > 0) {
+                ++linked;
+                const int junction = network->junctionSection(head.junction);
+                // Within a few junctions the way the head faces (any branch),
+                // or the other way.
+                auto within = [&](bool forward) {
+                    std::vector<std::pair<int, int>> reach = {{network->endSection(head.node, forward ? 1 : 0), 0}};
+                    for (size_t r = 0; r < reach.size(); ++r) {
+                        const auto [at, depth] = reach[r];
+                        if (at < 0)
+                            continue;
+                        if (at == junction)
+                            return true;
+                        const Sim::TrackSection &j = network->sections()[size_t(at)];
+                        if (j.kind != Sim::TrackSection::Junction || depth >= 3)
+                            continue;
+                        for (int pin = 0; pin < 3; ++pin) {
+                            const int track = j.link[pin];
+                            if (track < 0)
+                                continue;
+                            const Sim::TrackSection &t = network->sections()[size_t(track)];
+                            // The track's far end from this junction.
+                            const auto [first, count] = network->nodeSections(t.node);
+                            const int far = network->endSection(t.node, 0) == at && track == first ? 1 : 0;
+                            reach.push_back({network->endSection(t.node, far), depth + 1});
+                        }
+                    }
+                    return false;
+                };
+                linkedAhead += within(head.forward) ? 1 : 0;
+                linkedBehind += network->endSection(head.node, head.forward ? 0 : 1) == junction ? 1 : 0;
+            }
+        }
+        int posts = 0, along = 0;
+        for (const auto &entry : database.trackNodes) {
+            const TRnode *n = entry.second;
+            if (n == nullptr || n->typ != 1)
+                continue;
+            for (int i = 0; i < n->iTri; ++i) {
+                auto found = database.trackItems.find(n->trItemRef[i]);
+                TRitem *item = found != database.trackItems.end() ? found->second : nullptr;
+                if (item == nullptr || item->type != "speedpostitem" || item->speedpostTrItemData == nullptr
+                        || item->getSpeedpostType() == TRitem::MILEPOST)
+                    continue;
+                Sim::TrackPose pose;
+                if (!geometry->pose(entry.first, item->getTrackPosition(), pose))
+                    continue;
+                ++posts;
+                double d = std::fmod(std::fabs(double(item->getSpeedpostRot()) - (pose.yaw - M_PI / 2.0)), 2.0 * M_PI);
+                d = std::min(d, 2.0 * M_PI - d);
+                along += std::min(d, M_PI - d) < 0.35 ? 1 : 0;
+            }
+        }
+        check(covered == nodesWithTrack && onBoundary == normal && linkedAhead == linked,
+              QString("track network in %1 ms (%2 KiB, %3 sigcfg.dat): %4 sections cover %5 of %6 nodes; %7 heads "
+                      "(%8 NORMAL, %9 on section boundaries) in %10 signals; %11 linked to junctions, %12 ahead of them "
+                      "(%13 behind); %14 types, %15 warnings")
+                  .arg(networkMs).arg(network->memory() / 1024).arg(openRailsConfig ? "OpenRails" : "root")
+                  .arg(network->sections().size()).arg(covered).arg(nodesWithTrack).arg(network->heads().size())
+                  .arg(normal).arg(onBoundary).arg(network->signalGroups().size()).arg(linked).arg(linkedAhead)
+                  .arg(linkedBehind).arg(network->kinds().size()).arg(network->warnings.size()));
+        check(posts == 0 || along * 10 >= posts * 9,
+              QString("%1 speed posts, %2 at the track's angle or against it").arg(posts).arg(along));
+        // The way posts face: a warning comes before the limit of its speed,
+        // in the direction both face (same node, within 3 km).
+        int warningsAhead = 0, warningsBehind = 0;
+        for (const Sim::SpeedPost &warning : network->speedPosts()) {
+            if (warning.kind != Sim::SpeedPost::Warning)
+                continue;
+            double nearAhead = 1e9, nearBehind = 1e9;
+            for (const Sim::SpeedPost &limit : network->speedPosts()) {
+                if (limit.kind != Sim::SpeedPost::Limit || limit.node != warning.node
+                        || std::fabs(limit.speed - warning.speed) > 0.1f || limit.forward != warning.forward)
+                    continue;
+                const double along = (limit.distance - warning.distance) * (warning.forward ? 1.0 : -1.0);
+                if (along > 0.0 && along < nearAhead)
+                    nearAhead = along;
+                if (along < 0.0 && -along < nearBehind)
+                    nearBehind = -along;
+            }
+            if (nearAhead < 3000.0 || nearBehind < 3000.0)
+                (nearAhead <= nearBehind ? warningsAhead : warningsBehind) += 1;
+        }
+        check(warningsAhead >= warningsBehind,
+              QString("speed posts face their way: %1 warnings before their limit, %2 after it")
+                  .arg(warningsAhead).arg(warningsBehind));
+        if (verbose)
+            for (const QString &warning : network->warnings.mid(0, 20))
+                qInfo().noquote() << "[tests:simulation-route] network:" << warning;
+    }
+
     // Every activity: its input, run to its end.
     Route *content = new Route();
     content->loadServices();
@@ -410,6 +715,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
     content->loadActivities();
     const float speedLimit = content->trk != nullptr ? content->trk->speedLimit : 44.4444f;
     int activities = 0, trains = 0, finished = 0, warnings = 0, stopsMade = 0;
+    int projectedParts = 0, projectedWhole = 0, looseConsists = 0, placedConsists = 0;
     Activity *busiest = nullptr;
     size_t busiestTrains = 0;
     std::vector<double> lateness;
@@ -421,8 +727,31 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
             continue;
         ++activities;
         timer.restart();
-        auto input = Sim::MakeInput(activity, &database, speedLimit, geometry);
+        auto input = Sim::MakeInput(activity, &database, speedLimit, geometry, network);
         inputMs += timer.elapsed();
+        // Each route part projected onto the network, end to end.
+        for (const Sim::TrainPlan &plan : input->trains)
+            for (size_t part = 0; part < plan.projection.size(); ++part) {
+                const Sim::Projection &way = plan.projection[part];
+                double reached = 0.0;
+                bool whole = !way.sections.empty();
+                for (const Sim::ProjectedSection &pass : way.sections) {
+                    if (network->sections()[size_t(pass.section)].kind == Sim::TrackSection::Crossing)
+                        continue;
+                    whole = whole && std::fabs(pass.enter - reached) < 0.01;
+                    reached = pass.leave;
+                }
+                whole = whole && std::fabs(reached - plan.route.parts[part].length()) < 0.01;
+                ++projectedParts;
+                projectedWhole += whole ? 1 : 0;
+                if (!whole && verbose)
+                    qInfo().noquote() << "[tests:simulation-route] not projected whole:" << activity->name << plan.service
+                                      << "part" << part;
+            }
+        for (const ActivityObject *object : activity->activityObjects)
+            looseConsists += object != nullptr && object->objectTypeId == ActivityObject::WAGONLIST
+                    && object->con != nullptr ? 1 : 0;
+        placedConsists += int(input->staticConsists.size());
         trains += int(input->trains.size());
         warnings += input->warnings.size();
         if (input->trains.size() > busiestTrains) {
@@ -468,6 +797,9 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                   "%7 h simulated in %8 ms")
           .arg(activities).arg(trains).arg(warnings).arg(inputMs).arg(finished).arg(stopsMade)
           .arg(simulated / 3600.0, 0, 'f', 1).arg(runMs));
+    check(projectedWhole == projectedParts && placedConsists == looseConsists,
+          QString("%1 route parts projected onto the network end to end: %2; loose consists on the track: %3 of %4")
+              .arg(projectedParts).arg(projectedWhole).arg(placedConsists).arg(looseConsists));
     if (!lateness.empty()) {
         std::sort(lateness.begin(), lateness.end());
         double sum = 0.0;

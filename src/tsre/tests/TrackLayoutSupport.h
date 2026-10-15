@@ -91,25 +91,64 @@ inline void passingLoop(Layout &l) {
     l.end(4, 13);
 }
 
-// A platform's two items on the track, `from` and `to` metres along it.
-inline void platform(Layout &l, int track, int first, float from, float to, const QString &name) {
+// An item on a track: in the database and in the track's item list.
+inline void addItem(Layout &l, int track, TRitem *item) {
     TRnode *node = l.db.trackNodes[track];
     QVector<int> refs;
     for (int i = 0; i < node->iTri; ++i)
         refs.push_back(node->trItemRef[i]);
-    for (int k = 0; k < 2; ++k) {
-        TRitem *item = TRitem::newPlatformItem(first + k, k == 0 ? from : to);
-        item->platformTrItemData[1] = first + 1 - k;
-        item->platformName = name;
-        item->stationName = name;
-        l.db.trackItems[first + k] = item;
-        refs.push_back(first + k);
-    }
+    l.db.trackItems[int(item->trItemId)] = item;
+    refs.push_back(int(item->trItemId));
     delete[] node->trItemRef;
     node->iTri = refs.size();
     node->trItemRef = new int[refs.size()];
     for (int i = 0; i < refs.size(); ++i)
         node->trItemRef[i] = refs[i];
+}
+
+// A platform's two items on the track, `from` and `to` metres along it.
+inline void platform(Layout &l, int track, int first, float from, float to, const QString &name) {
+    for (int k = 0; k < 2; ++k) {
+        TRitem *item = TRitem::newPlatformItem(first + k, k == 0 ? from : to);
+        item->platformTrItemData[1] = first + 1 - k;
+        item->platformName = name;
+        item->stationName = name;
+        addItem(l, track, item);
+    }
+}
+
+// A signal head on a track, facing trains going the track's way when
+// `forward`, of a sigcfg.dat type; linked to a junction's output pin (1 or
+// 2) when given.
+inline TRitem *signalHead(Layout &l, int track, int id, float distance, bool forward, const QString &type,
+                          int junction = -1, int pin = -1) {
+    TRitem *item = TRitem::newSignalItem(id, distance, forward ? 0 : 1, junction >= 0 ? 1 : 0, type);
+    if (junction >= 0) {
+        item->trSignalDirs = 1;
+        item->trSignalDir = new int[4]{junction, 1, pin - 1, 0};
+    }
+    addItem(l, track, item);
+    return item;
+}
+
+// A speed limit post (km/h, passenger and freight) facing trains going the
+// track's way when `forward` (TSRE places a new post at the track's angle
+// less a quarter turn, facing trains going the other way).
+inline TRitem *speedLimit(Layout &l, int track, int id, float distance, bool forward, float kmh) {
+    TRitem *item = TRitem::newSpeedPostItem(id, distance, TRitem::SIGN);
+    item->speedpostTrItemData[0] = 0b10000010;
+    item->speedpostTrItemData[1] = kmh;
+    float place[7];
+    l.db.getDrawPositionOnTrNode(place, track, distance);
+    item->setSpeedpostRot(place[3] - float(M_PI) / 2.0f + (forward ? float(M_PI) : 0.0f));
+    addItem(l, track, item);
+    return item;
+}
+
+// A diamond crossing: an item on each of two tracks naming the other.
+inline void crossing(Layout &l, int trackA, int idA, float distanceA, int trackB, int idB, float distanceB) {
+    addItem(l, trackA, TRitem::newCrossOverItem(idA, distanceA, idB, 0));
+    addItem(l, trackB, TRitem::newCrossOverItem(idB, distanceB, idA, 0));
 }
 
 }

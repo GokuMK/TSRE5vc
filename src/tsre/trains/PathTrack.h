@@ -15,6 +15,7 @@
 #include <QVector>
 
 class TDB;
+class TRnode;
 
 // Activity paths on the track database (task editor 06): the nodes of a
 // path as its file lists them, the track between them, and the edits of
@@ -183,6 +184,15 @@ QVector<Leg> follow(TDB *tdb, int track, float from, bool forward, float length,
 void dropStrayHalfways(QVector<Node> &nodes);
 // The number of vector nodes joining two junctions.
 int tracksBetween(TDB *tdb, int junctionA, int junctionB);
+
+// Junctions as the path code takes them (the simulation's track network uses
+// them too): the pin of a junction that links vector node `track` at the
+// vector's end `end` (a vector joining it at both ends has its end 0 at the
+// first such pin), -1 none; the end of a vector node at a junction's pin;
+// the output pin of a junction's main route (tsection.dat's MainRoute).
+int junctionPin(const TRnode *junction, int track, int end);
+int endOfJunctionPin(const TRnode *junction, int junctionId, int pin, const TRnode *vector);
+int junctionMainPin(TDB *tdb, const TRnode *junction);
 
 }
 

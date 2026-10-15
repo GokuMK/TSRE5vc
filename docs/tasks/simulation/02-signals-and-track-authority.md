@@ -1,7 +1,7 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
-Status: design (2026-10-15), for review. Decisions taken so far are at the
-end; nothing is implemented yet.
+Status: phase 1 done (2026-10-16, branch `feature/simulation`); phase 2
+next. Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -18,6 +18,40 @@ Sources:
   routes, the thread), `SigCfg`/`SignalType` (all of `sigcfg.dat` read),
   `TRitem` (signal, speed post and crossover items), `SignalObj` (signal
   lights drawn in their default aspect, task renderer 26).
+
+## Progress
+
+**Phase 1, the track in the input (done 2026-10-16).** `TrackNetwork`
+(`src/tsre/sim`), made with the input from the TDB and `sigcfg.dat`:
+- signal types with their function (MSTS's `DISTANCE` is distant; Open
+  Rails' functions by the MSTS function they declare), aspects with their
+  draw states and speeds, clearing ahead (heads, or signals in Open Rails
+  mode);
+- heads: place, the way they face (TDB direction 0: trains going the
+  node's way), type, feature flags, junction link (node, output pin);
+  signals: heads within 0.1 m facing one way;
+- speed posts (limits, warnings, resumes; passenger, freight; m/s), the
+  way they face from their angle as Open Rails takes it (a post at the
+  track's angle less a quarter turn faces trains going against the node:
+  warnings come before their limits that way on USA1 45 to 3, USA2 47 to
+  4, BNSF_SCENIC 10 to 1);
+- sections: each vector node cut at its NORMAL heads (either way);
+  junctions, each a section linked to the sections at its pins, its main
+  route known; diamond crossings, each one point resource on its two
+  tracks (they do not cut the tracks);
+- each train's route parts projected: sections in order with junction
+  pins, the heads and speed posts facing it, route distances; a train
+  knows whether it is a passenger train;
+- the activity's loose consists on the track (as the editor places them);
+- `sigcfg.dat` from the route's `OpenRails` folder when there is one.
+
+Tests: `simulation-core` (a passing loop with signals both ways, a
+distant signal, speed posts, a crossing: sections, links, grouping,
+facing, a route projected both ways), `simulation-route` (every node
+covered once, every NORMAL head on a section boundary, every junction
+link ahead of its head, speed posts along the track and facing their way,
+every route part projected end to end, every loose consist placed). The
+network takes 1 to 4 ms and 69 to 239 KiB on the local routes.
 
 ## Objective
 
@@ -109,10 +143,10 @@ driving.
 The input gains the track's topology, derived from the TDB when a
 simulation starts and immutable after (as the geometry):
 - **Sections:** intervals of vector nodes (node, from, to), split at every
-  NORMAL head (by its type's function, in either direction), at the
-  node's ends, and where a diamond crossing lies on it; each **junction**
-  is a section of its own (its pins, its main route); each **diamond** is
-  one resource the two crossing intervals share. Sections are numbered in
+  NORMAL head (by its type's function, in either direction) and at the
+  node's ends; each **junction** is a section of its own (its pins, its
+  main route); each **diamond** is one point resource on the two crossing
+  tracks. Sections are numbered in
   the input and keep their node and distances, so the editor can show
   them.
 - **Signal heads:** TDB item id, section boundary (node, distance), the
