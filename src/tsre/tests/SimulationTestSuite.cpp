@@ -10,6 +10,7 @@
 #include <cmath>
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
+#include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrainRoute.h>
@@ -409,6 +410,8 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
     content->loadActivities();
     const float speedLimit = content->trk != nullptr ? content->trk->speedLimit : 44.4444f;
     int activities = 0, trains = 0, finished = 0, warnings = 0, stopsMade = 0;
+    Activity *busiest = nullptr;
+    size_t busiestTrains = 0;
     std::vector<double> lateness;
     double simulated = 0.0;
     qint64 inputMs = 0, runMs = 0;
@@ -422,6 +425,10 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         inputMs += timer.elapsed();
         trains += int(input->trains.size());
         warnings += input->warnings.size();
+        if (input->trains.size() > busiestTrains) {
+            busiestTrains = input->trains.size();
+            busiest = activity;
+        }
         if (verbose)
             for (const QString &warning : input->warnings)
                 qInfo().noquote() << "[tests:simulation-route]" << activity->name << warning;
@@ -471,6 +478,75 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                              .arg(lateness.size()).arg(sum / lateness.size(), 0, 'f', 0)
                              .arg(lateness[lateness.size() / 2], 0, 'f', 0)
                              .arg(lateness.front(), 0, 'f', 0).arg(lateness.back(), 0, 'f', 0);
+    }
+
+    // Measured (phase 4) on the activity with the most trains: its input
+    // made as Play makes it (its own geometry copy) and its memory; the
+    // core's cost in 0.1 s steps per train on the track; a frame where most
+    // trains are on the track; a hundred trains at once.
+    if (busiest != nullptr) {
+        timer.restart();
+        const std::shared_ptr<const Sim::SimulationInput> own = Sim::MakeInput(busiest, &database, speedLimit);
+        const qint64 ownMs = timer.elapsed();
+        Sim::SimulationCore core(own);
+        QElapsedTimer stepping;
+        qint64 steppingNs = 0, framesNs = 0;
+        long long trainSteps = 0;
+        int frames = 0, mostOnTrack = 0, mostVehicles = 0;
+        while (!core.finished() && core.time() < own->startTime + 24 * 3600) {
+            int onTrack = 0;
+            for (const Sim::TrainState &state : core.trains())
+                onTrack += state.status == Sim::TrainStatus::Running || state.status == Sim::TrainStatus::Stopped ? 1 : 0;
+            stepping.start();
+            core.step(Sim::SimulationCore::MaxStep);
+            steppingNs += stepping.nsecsElapsed();
+            trainSteps += onTrack;
+            core.takeEvents();
+            if (onTrack > mostOnTrack) {
+                mostOnTrack = onTrack;
+                stepping.start();
+                const std::shared_ptr<Sim::SimulationFrame> frame = Sim::MakeFrame(core);
+                framesNs = stepping.nsecsElapsed();
+                frames = 1;
+                mostVehicles = 0;
+                for (const Sim::TrainFrame &train : frame->trains)
+                    mostVehicles += int(train.fronts.size());
+            }
+        }
+        qInfo().noquote() << QString("[tests:simulation-route] measured on %1 (%2 trains): input %3 ms with its "
+                                     "geometry copy, %4 KiB (plans %5 KiB); a 0.1 s step %6 µs, %7 ns per train on the "
+                                     "track; a frame with %8 trains on the track (%9 vehicles) %10 µs")
+                             .arg(busiest->name).arg(own->trains.size()).arg(ownMs).arg(own->memory() / 1024)
+                             .arg(own->memory(false) / 1024)
+                             .arg(core.steps() > 0 ? steppingNs / 1000.0 / double(core.steps()) : 0.0, 0, 'f', 1)
+                             .arg(trainSteps > 0 ? double(steppingNs) / double(trainSteps) : 0.0, 0, 'f', 0)
+                             .arg(mostOnTrack).arg(mostVehicles).arg(frames > 0 ? framesNs / 1000.0 : 0.0, 0, 'f', 0);
+        // A hundred trains running at once: the activity's, started together
+        // and repeated.
+        auto hundred = std::make_shared<Sim::SimulationInput>(*own);
+        hundred->trains.clear();
+        for (size_t i = 0; hundred->trains.size() < 100 && !own->trains.empty(); ++i) {
+            Sim::TrainPlan plan = own->trains[i % own->trains.size()];
+            plan.id = int(hundred->trains.size());
+            plan.startTime = own->startTime;
+            hundred->trains.push_back(plan);
+        }
+        Sim::SimulationCore many(hundred);
+        timer.restart();
+        many.step(600.0);
+        const double rate = 600.0 / std::max(1e-6, timer.nsecsElapsed() * 1e-9);
+        many.takeEvents();
+        stepping.start();
+        const std::shared_ptr<Sim::SimulationFrame> frame = Sim::MakeFrame(many);
+        const qint64 frameNs = stepping.nsecsElapsed();
+        int running = 0, vehicles = 0;
+        for (const Sim::TrainFrame &train : frame->trains) {
+            running += train.state.status == Sim::TrainStatus::Running ? 1 : 0;
+            vehicles += int(train.fronts.size());
+        }
+        check(rate > 60.0, QString("100 trains at once: %1 simulated seconds a second in 0.1 s steps; a frame of %2 "
+                                   "vehicles (%3 trains running) %4 µs")
+                               .arg(rate, 0, 'f', 0).arg(vehicles).arg(running).arg(frameNs / 1000.0, 0, 'f', 0));
     }
     qInfo().noquote() << QString("simulation-route: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;

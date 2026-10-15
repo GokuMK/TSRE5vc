@@ -27,12 +27,12 @@ model as the first operating policy, and threading.
   new place, the trains' states and Follow in the Timetable window.
 
 ## Execution Order
-- [ ] `01-simulation-thread-and-train-motion.md`: the simulation thread and
+- [x] `01-simulation-thread-and-train-motion.md`: the simulation thread and
   its messages, the immutable input, a route-based train traveller instead
   of `Ruch` for the simulation, trains running on their paths and
   timetables (stops, waits, reversals) with no signals: trains meet and
-  pass through each other. Phases 1 to 3 done (input, driver, thread and
-  editor); phase 4 (measurements) next.
+  pass through each other. Done 2026-10-15 (input, driver, thread and
+  editor, measured).
 - [ ] 02: track occupation and reservations, a basic block policy (the
   analysis's basic block timing preview): trains wait for each other.
 - [ ] 03: signals: `sigcfg.dat` and `sigscr.dat`, aspects, signals as

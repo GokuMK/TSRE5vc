@@ -1,7 +1,7 @@
 # Task 01 - The Simulation Thread and Trains in Motion
 
-Status: phases 1 to 3 done (2026-10-15, branch `feature/simulation`);
-phase 4 (measurements) next. Decisions taken (at the end).
+Status: done (phases 1 to 4, 2026-10-15, branch `feature/simulation`).
+Decisions taken (at the end).
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -145,6 +145,28 @@ map's vehicles, Run to an earlier time, Stop and undo after it).
 09:03, by the player's train and an AI train in 3D and on the map), whose
 options (`simulateTo`, `simulationChosen`, a view's `train`) the
 `renderer-capture` suite now takes.
+
+**Phase 4, measured (done 2026-10-15).** `simulation-route` now measures,
+on the activity with the most trains (llvmpipe box, one core for the
+simulation):
+
+| Route | Activity, trains | Input (with its track copy) | Memory (plans) | 0.1 s step | Per train on the track | A frame |
+|---|---|---|---|---|---|---|
+| USA1 | smmrex, 10 | 4 ms | 362 KiB (37) | 0.8 µs | 180 ns | 47 vehicles 67 µs |
+| USA2 | itr_e1_s1_w1_t1, 9 | 4 ms | 362 KiB (35) | 0.6 µs | 227 ns | 195 vehicles 201 µs |
+| JAPAN1 | itr_e1_s1_w1_t1, 21 | 9 ms | 321 KiB (102) | 1.2 µs | 211 ns | 84 vehicles 94 µs |
+| EUROPE1 | lclsrvce, 13 | 4 ms | 156 KiB (27) | 0.7 µs | 224 ns | 54 vehicles 64 µs |
+| BNSF_SCENIC | 3_CanadianImports, 6 | 2 ms | 268 KiB (19) | 0.4 µs | 157 ns | 164 vehicles 168 µs |
+
+A hundred trains running at once (the activity's trains, started together
+and repeated) run 6,000 to 10,500 simulated seconds a second in 0.1 s
+steps. A frame costs about 1 µs a vehicle: 1 ms for a hundred trains of
+eight to ten cars, 6 ms for BNSF_SCENIC's hundred freight trains (5,588
+vehicles), which at a frame every 16 ms takes a third of the thread; when
+it matters, frames can carry poses only for trains near the camera, or
+fewer frames in fast runs. Making the input (the track copied, the
+activity read) is a few milliseconds, so Play, Reset and Run back to a
+time start at once.
 
 ## Objective
 

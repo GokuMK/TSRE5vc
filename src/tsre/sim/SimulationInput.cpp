@@ -50,6 +50,20 @@ bool sameName(const QString &a, const QString &b) {
 
 }
 
+size_t SimulationInput::memory(bool withGeometry) const {
+    size_t bytes = sizeof(SimulationInput) + trains.capacity() * sizeof(TrainPlan);
+    for (const TrainPlan &train : trains) {
+        bytes += train.vehicles.capacity() * sizeof(Vehicle) + train.stops.capacity() * sizeof(StopPlan)
+                + train.waits.capacity() * sizeof(WaitPlan)
+                + train.route.parts.capacity() * sizeof(RouteTrack) + train.route.partPathStart.capacity() * sizeof(double);
+        for (const RouteTrack &part : train.route.parts)
+            bytes += part.intervals().capacity() * sizeof(RouteInterval);
+    }
+    if (withGeometry && geometry != nullptr)
+        bytes += geometry->memory();
+    return bytes;
+}
+
 void SetRates(TrainPlan &train) {
     bool passenger = false;
     for (const Vehicle &vehicle : train.vehicles)

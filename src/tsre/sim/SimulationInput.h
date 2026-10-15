@@ -85,6 +85,9 @@ struct SimulationInput {
     std::vector<TrainPlan> trains;
     // Trains not made, and why.
     QStringList warnings;
+
+    // Bytes held: the trains' plans, and the geometry's when asked.
+    size_t memory(bool withGeometry = true) const;
 };
 
 // Open Rails' AI rates (m/s²): passenger trains 1.0, braking 1.5 above
