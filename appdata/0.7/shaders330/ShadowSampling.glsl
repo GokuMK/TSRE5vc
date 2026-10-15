@@ -66,9 +66,10 @@ uniform vec4 fogDrift;
 
 // Patches (step 5): fog thinning into holes and its top rising and falling,
 // a sum of value noise at 600, 240 and 90 m in world metres (east, north,
-// wrapped every 36 km, which each scale repeats over exactly), each drifting
-// with the wind near the ground at its own pace, so the patches change as
-// they move. 0-1, about 0.5.
+// wrapped every 36 km, which each scale repeats over exactly), drifting
+// together with the wind near the ground, so that the fog's history can
+// follow them (each at its own pace, they smeared in it with the clock
+// running fast, unlike newly seen fog). 0-1, about 0.5.
 float fogHash(vec2 i) {
     vec3 p3 = fract(vec3(i.xyx) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
@@ -85,9 +86,24 @@ float fogNoise(vec2 p, float period) {
 }
 
 float fogPatches(vec2 q, vec2 drift) {
-    return fogNoise((q - drift) / 600.0, 60.0) * 0.55
-            + fogNoise((q - drift * 0.6) / 240.0 + 17.0, 150.0) * 0.3
-            + fogNoise((q - drift * 1.4) / 90.0 + 41.0, 400.0) * 0.15;
+    vec2 p = q - drift;
+    return fogNoise(p / 600.0, 60.0) * 0.55 + fogNoise(p / 240.0 + 17.0, 150.0) * 0.3
+            + fogNoise(p / 90.0 + 41.0, 400.0) * 0.15;
+}
+
+// The patches' noise at a fragment's place, kept for the fog's other uses
+// there (Haze.glsl).
+vec3 fogNoisePosition;
+float fogNoiseValue;
+bool fogNoiseKept = false;
+
+float fogPatchesAt(vec3 position) {
+    if (!fogNoiseKept || fogNoisePosition != position) {
+        fogNoiseValue = fogPatches(vec2(position.x - fogPlace.x, fogPlace.y - position.z) + fogPatchPlace.xy, fogDrift.xy);
+        fogNoisePosition = position;
+        fogNoiseKept = true;
+    }
+    return fogNoiseValue;
 }
 
 float fogSunThrough(vec3 position) {
@@ -100,7 +116,7 @@ float fogSunThrough(vec3 position) {
     float height = position.y - fogPlace.w;
     float top = max(cell.x + fogShape.y * cell.y, cell.z + fogShape.y * 0.5 * cell.w);
     // The fog's patches, as the fog's volume has them.
-    float n = fogPatches(vec2(position.x - fogPlace.x, fogPlace.y - position.z) + fogPatchPlace.xy, fogDrift.xy);
+    float n = fogPatchesAt(position);
     top += (n - 0.5) * fogShape.y * (0.15 + 0.45 * fogPatchPlace.z);
     float holes = mix(1.0, smoothstep(0.3, 0.6, n), fogPatchPlace.z);
     float above = max(top - max(height, cell.x + fogShape.z), 0.0);

@@ -779,6 +779,8 @@ private:
         float previousCamera[3] = {};
         // The scale of the light in the cells last frame (0: none yet).
         float cellScale = 0.0f;
+        // How far the fog had drifted last frame (world metres east, north).
+        double previousDrift[2] = {0.0, 0.0};
         unsigned frame = 0;
         // The sky and the clouds behind the fog.
         QRhiBuffer *skyUniforms = nullptr;

@@ -53,21 +53,21 @@ uniform vec4 fogParams;
 // The volume's light to the scene's (it is kept scaled into the half
 // floats' even range).
 uniform float fogLightScale;
+// High quality: on (1), the fog top's soft edge (m), 0, 0. A surface seen
+// from above the fog takes the fog over its own place per pixel (fogAt).
+uniform vec4 fogFilm;
 
-vec4 fogAt(vec3 position) {
-    if (fogParams.x < 0.5)
-        return vec4(0.0, 0.0, 0.0, 1.0);
-    vec3 ray = position - cameraPosition;
-    vec4 clip = fogForward * vec4(ray, 0.0);
-    if (clip.w <= 0.0)
-        return vec4(0.0, 0.0, 0.0, 1.0);
-    vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
+vec3 hazeLight(vec3 position);
+
+// The volume's sums along a ray to uv at a distance: the light added (in its
+// scale) and the share let through.
+vec4 fogVolumeAt(vec2 uv, float reach) {
     // Slice i holds the sums up to its far end (continuous slice i + 1):
     // the sums at the ends of the slice the point lies in, between them the
     // share let through falling exponentially, the light added as it falls
     // (blended evenly, in a thick fog's slice of one or two optical depths
     // it was out by up to a third in the slice's middle).
-    float slice = clamp(log(max(length(ray), fogParams.y) / fogParams.y) / fogParams.z * fogParams.w,
+    float slice = clamp(log(max(reach, fogParams.y) / fogParams.y) / fogParams.z * fogParams.w,
                         0.0, fogParams.w);
     float first = floor(slice - 1.0);
     float along = slice - 1.0 - first;
@@ -77,8 +77,93 @@ vec4 fogAt(vec3 position) {
     float throughA = clamp(a.a, 1e-6, 1.0), throughB = clamp(b.a, 0.0, 1.0);
     float through = throughA * pow(max(throughB / throughA, 1e-6), along);
     float share = throughA - throughB > 1e-5 ? (throughA - through) / (throughA - throughB) : along;
-    vec3 light = a.rgb + (b.rgb - a.rgb) * share;
-    return vec4(max(light * fogLightScale, vec3(0.0)), clamp(through, 0.0, 1.0));
+    return vec4(a.rgb + (b.rgb - a.rgb) * share, through);
+}
+
+// The fog's extinction (1/m) at a height (m above sea level) over a place of
+// the floor map, its patches' noise n there: as RhiFog.cpp's injection.
+float fogBandDensity(vec4 cell, float n, float height) {
+    float top = max(cell.x + fogShape.y * cell.y, cell.z + fogShape.y * 0.5 * cell.w)
+            + (n - 0.5) * fogShape.y * (0.15 + 0.45 * fogPatchPlace.z);
+    float inside = 1.0 - smoothstep(top - fogFilm.y, top + fogFilm.y, height);
+    if (fogShape.z > 0.0)
+        inside *= smoothstep(cell.x + fogShape.z - fogFilm.y, cell.x + fogShape.z + fogFilm.y, height);
+    float holes = mix(1.0, smoothstep(0.3, 0.6, n), fogPatchPlace.z);
+    return fogShape.x * (1.0 + 0.5 * cell.w) * holes * inside;
+}
+
+// A fragment asks for its fog two or three times (its colour, its ambient
+// share, its glow): the last answer kept.
+vec3 fogAtPosition;
+vec4 fogAtResult;
+bool fogAtKept = false;
+
+vec4 fogAtCompute(vec3 position);
+
+vec4 fogAt(vec3 position) {
+    if (!fogAtKept || fogAtPosition != position) {
+        fogAtResult = fogAtCompute(position);
+        fogAtPosition = position;
+        fogAtKept = true;
+    }
+    return fogAtResult;
+}
+
+vec4 fogAtCompute(vec3 position) {
+    if (fogParams.x < 0.5)
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    vec3 ray = position - cameraPosition;
+    vec4 clip = fogForward * vec4(ray, 0.0);
+    if (clip.w <= 0.0)
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
+    float reach = length(ray);
+    vec4 f = fogVolumeAt(uv, reach);
+    // High: a surface seen from above the fog takes the fog its ray crosses
+    // from the fog's top over the surface's place down to it per pixel, by
+    // height from the floor map there, before it the volume's. The volume's
+    // slices (50 m deep a few hundred metres off) cannot follow a thin fog
+    // lying on the ground seen from above: each pixel's share of it depends
+    // on where its ray meets the ground, and the slices showed as rings about
+    // the camera (the user, 2026-10-15). Its light is the fog's in front of
+    // the surface in the volume, on average: smooth where the amounts step.
+    // Near the ground's level (looking along the fog) the volume's alone.
+    float down = -ray.y / max(reach, 1e-3);
+    vec2 m = (position.xz - fogPlace.xy) / fogPlace.z;
+    if (fogFilm.x > 0.5 && down > 0.03 && all(greaterThan(m, vec2(0.0))) && all(lessThan(m, vec2(1.0)))) {
+        vec4 cell = textureLod(fogFloorMap, m, 0.0);
+        float n = fogPatchesAt(position);
+        float bandTop = max(cell.x + fogShape.y * cell.y, cell.z + fogShape.y * 0.5 * cell.w)
+                + (n - 0.5) * fogShape.y * (0.15 + 0.45 * fogPatchPlace.z) + fogFilm.y;
+        float height = position.y - fogPlace.w;
+        float weight = smoothstep(0.03, 0.08, down)
+                * smoothstep(bandTop + 5.0, bandTop + 30.0, cameraPosition.y - fogPlace.w);
+        if (weight > 0.0 && height < bandTop) {
+            // In four steps from a slice before where the ray meets the
+            // fog's top over the surface (the volume's column there may hold
+            // the fog already: its slices showed through, and in the history,
+            // following the drift, they lagged), each over its own place of
+            // the floor map (a shallow ray crosses a few hundred metres of
+            // ground on its way down through a thin fog), the patches as at
+            // the surface (they change over 90 m and more).
+            float enter = max(reach - (bandTop - height) / down, 0.0) / exp(fogParams.z / fogParams.w);
+            vec4 before = fogVolumeAt(uv, enter);
+            vec3 along = ray / max(reach, 1e-3);
+            float depth = 0.0;
+            for (int k = 0; k < 4; ++k) {
+                vec3 q = cameraPosition + along * mix(enter, reach, (float(k) + 0.5) / 4.0);
+                vec2 mq = clamp((q.xz - fogPlace.xy) / fogPlace.z, vec2(0.0), vec2(1.0));
+                depth += fogBandDensity(textureLod(fogFloorMap, mq, 0.0), n, q.y - fogPlace.w);
+            }
+            depth *= (reach - enter) / 4.0;
+            float fogged = 1.0 - f.a;
+            vec3 light = fogged > 1e-3 ? f.rgb / fogged
+                                       : pow(max(hazeLight(position), vec3(0.0)), vec3(2.2)) / max(fogLightScale, 1e-12);
+            float band = exp(-depth);
+            f = mix(f, vec4(before.rgb + light * before.a * (1.0 - band), before.a * band), weight);
+        }
+    }
+    return vec4(max(f.rgb * fogLightScale, vec3(0.0)), clamp(f.a, 0.0, 1.0));
 }
 
 // What the air and the fog let through of a surface's light (its glow too).

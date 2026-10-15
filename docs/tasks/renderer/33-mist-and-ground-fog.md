@@ -597,6 +597,49 @@ the terrain cannot explain.
 - Lifting into stratus stays as step 1 has it: burning off, the fog lifts
   off the ground and thins from its top, its patchiness the burn.
 
+### Rings looking down on a thin fog; High per pixel (user, 2026-10-15)
+
+- CMK at 3:30, valley fog, from a hill 130 m up looking down: rings about
+  the camera over the fog, like waves; and a turn brought fog of another
+  brightness into view.
+- **The thin fog:** the fog's top is the higher of the pooled top and the
+  ground (plus up to half the depth on wet ground), and its soft edge
+  (15 % of the depth, here 18 m) lies across it: wherever the weather has
+  fog, a film up to 18 m deep, half the fog's density at the ground, lies
+  on the ground (there the only fog: bad tiles to the north-west, flat at
+  1 m and down to -35 m, made the place stand high above its region, and
+  nothing pools). It looks good and stays, now on purpose.
+- **The rings:** seen from above, each pixel's share of the film depends on
+  where its ray meets the ground; the volume's columns (8 pixels) and
+  slices (50 to 70 m a few hundred metres off) cannot follow that, and its
+  slices showed (as finer, weaker rings with 128 slices). Not the
+  density's sampling (16 points the same), the light's fall into the fog,
+  the jitter or the history: found by drawing the volume's light and
+  share let through alone, and a surface's place in its slice. The noise's
+  swell made them waves.
+- **High (Mist and fog):** a surface seen from above the fog takes the fog
+  its ray crosses from a slice before the fog's top over its place down to
+  it per pixel, in four steps, each over its own place of the floor map,
+  the patches as at the surface; before it the volume's; its light the
+  volume's fog's in front of the surface on average (smooth where the
+  amounts step). Off near the ground's level (rays descending under 2
+  degrees, or the camera within 5 to 30 m of the fog's top there), where
+  the volume works. **Low** keeps the volume alone, with the rings.
+- **Cost on the Steam Deck,** looking down on the film over the whole view:
+  first 6 ms (the fog asked for two or three times a fragment, eight
+  steps, the noise twice); now about 1 ms (the answer kept for the
+  fragment, four steps, the noise shared with the sun under the fog).
+  Nothing at the ground's level.
+- **The turn:** with the clock stopped a turn's new part is within 2 of
+  255. Running at ten times, the patches' drift smeared the history (the
+  three scales drifted at their own paces); now they drift together and
+  the history follows them, the fog's state from the volume up to a slice
+  before the film: the new part and the rest within 1 to 3 of a fresh
+  view's.
+- On the way: within a slice a surface's fog falls exponentially (it was
+  blended evenly, up to a third out in a thick fog's slice); the patches'
+  noise is continuous along each ray (blended between the slice's ends).
+
 ## Verification
 
 - **Captures** on hilly routes with valleys and rivers (POLAND, BNSF_SCENIC,

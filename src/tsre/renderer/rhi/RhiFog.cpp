@@ -60,7 +60,7 @@ struct FogParameters {
     float signalGrid[4];       // the signals' grid, as the lamps'
     float signalLayers[4];
     float patches[4];          // the floor map's corner in world metres (east, north, wrapped), patchiness, 0
-    float drift[4];            // how far the fog has drifted (east, north, wrapped), 0, 0
+    float drift[4];            // how far the fog has drifted (east, north, wrapped); since last frame (east, north)
 };
 
 const char *FogBlock = R"(#version 440
@@ -126,9 +126,10 @@ layout(binding = 14) uniform sampler2D signalLightIndices;
 // fog over the point (m) and its extinction there, for the light reaching it.
 // Patches (step 5): fog thinning into holes and its top rising and falling,
 // a sum of value noise at 600, 240 and 90 m in world metres (east, north,
-// wrapped every 36 km, which each scale repeats over exactly), each drifting
-// with the wind near the ground at its own pace, so the patches change as
-// they move. 0-1, about 0.5.
+// wrapped every 36 km, which each scale repeats over exactly), drifting
+// together with the wind near the ground, so that the fog's history can
+// follow them (each at its own pace, they smeared in it with the clock
+// running fast, unlike newly seen fog). 0-1, about 0.5.
 float fogHash(vec2 i) {
     vec3 p3 = fract(vec3(i.xyx) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
@@ -145,9 +146,9 @@ float fogNoise(vec2 p, float period) {
 }
 
 float fogPatches(vec2 q, vec2 drift) {
-    return fogNoise((q - drift) / 600.0, 60.0) * 0.55
-            + fogNoise((q - drift * 0.6) / 240.0 + 17.0, 150.0) * 0.3
-            + fogNoise((q - drift * 1.4) / 90.0 + 41.0, 400.0) * 0.15;
+    vec2 p = q - drift;
+    return fogNoise(p / 600.0, 60.0) * 0.55 + fogNoise(p / 240.0 + 17.0, 150.0) * 0.3
+            + fogNoise(p / 90.0 + 41.0, 400.0) * 0.15;
 }
 
 // n: the patches' noise there (fogPatches).
@@ -381,9 +382,10 @@ void main() {
     // Scaled into the half floats' even range (RhiRenderer::prepareFog);
     // next to a lamp at night past it (white anyway).
     vec4 current = vec4(min(scattered * scale.x, vec3(60000.0)), sigma);
-    // Last frame's cell at this cell's middle, where it was in view.
+    // Last frame's cell at this cell's middle, where it was in view, the fog
+    // having drifted since.
     if (previousCamera.w > 0.0) {
-        vec3 r = camera.xyz + d * sliceDistance(float(id.z) + 0.5) - previousCamera.xyz;
+        vec3 r = camera.xyz + d * sliceDistance(float(id.z) + 0.5) - previousCamera.xyz - vec3(drift.z, 0.0, -drift.w);
         vec4 clip = previous * vec4(r, 0.0);
         if (clip.w > 0.0) {
             vec2 before = clip.xy / clip.w * 0.5 + 0.5;
@@ -826,6 +828,15 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     // of its colour, at 100 the fog about the signals tinted).
     p.signalLayers[2] = SignalFogGain;
     fogPatchPlace(p.patches, p.drift);
+    // The fog's drift since last frame (none after a jump in the clock).
+    {
+        const double east = fog.driftEast - f.previousDrift[0], north = fog.driftNorth - f.previousDrift[1];
+        const bool follows = f.historyValid && std::hypot(east, north) < 200.0;
+        p.drift[2] = follows ? float(east) : 0.0f;
+        p.drift[3] = follows ? float(north) : 0.0f;
+        f.previousDrift[0] = fog.driftEast;
+        f.previousDrift[1] = fog.driftNorth;
+    }
     terrainShadePlace(p.shadePlace, p.shadeParams);
     if (f.boundMaps[4] == dummy2D)
         p.shadeParams[0] = 0.0f;
@@ -922,6 +933,10 @@ void RhiRenderer::writeFogUniforms(RhiProgram *program) {
     program->setVec("fogParams", on ? 1.0f : 0.0f, FogNear, std::log(FogFar / FogNear),
                     float(std::max(fogResources.slices, 1)));
     program->setFloat("fogLightScale", fogLightScale());
+    // High: surfaces seen from above the fog take the fog over their place
+    // per pixel (Haze.glsl); Low the volume's alone.
+    program->setVec("fogFilm", on && fog.quality >= 2 ? 1.0f : 0.0f, std::clamp(fog.depth * 0.15f, 3.0f, 20.0f),
+                    0.0f, 0.0f);
     // The sun under the fog (ShadowSampling.glsl), in every view.
     const bool shading = fogResources.filled && fogWanted();
     const float *l = Game::sunLightDirection;
