@@ -162,7 +162,8 @@ tsre_weather (
         tsre_weather_precipitation ( none 0 )     // none, rain, snow; mm/h
         tsre_weather_visibility ( 30000 )
         tsre_weather_air ( 14 8 )                 // 2 m above the ground: temperature, dew point (°C)
-        tsre_weather_fog ( auto )                 // auto, off, or amount 0-1, visibility (m), depth (m)
+        tsre_weather_fog ( auto )                 // auto, off, or amount 0-1, visibility (m), depth (m);
+                                                  // then pooling 0-1 if not 1 (0: lying evenly on all ground)
         tsre_weather_variation ( 0.25 30000 )     // coverage varied by noise: amount, scale (m)
         tsre_weather_layer ( low cumulus 0.35 900 2200 1.0 )  // type, coverage, base, top, density
         tsre_weather_layer ( mid altocumulus 0.10 3500 4200 0.6 )

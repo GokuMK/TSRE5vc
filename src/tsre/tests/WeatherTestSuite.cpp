@@ -664,6 +664,23 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
                 && near(read.keyframes[1].fog.depth, 70.0, 1e-3) && read.keyframes[2].fog.mode == WeatherFogSetting::Off
                 && near(read.air(3.0).temperature, (11.5 + 16.0) / 2.0, 1e-4),
                 "fog-air-and-setting-round-trip " + fileWarnings.join("; "));
+        // The pooling: kept after the mode or the numbers, left out when 1.
+        Weather pooled = file;
+        pooled.keyframes[0].fog.pooling = 0.0f;
+        pooled.keyframes[1].fog.pooling = 0.25f;
+        QStringList pooledWarnings;
+        const Weather pooledRead = Weather::fromNode(pooled.toNode(), pooledWarnings);
+        const Weather plainRead = Weather::fromNode(file.toNode(), pooledWarnings);
+        c.check(pooledWarnings.isEmpty() && near(pooledRead.keyframes[0].fog.pooling, 0.0, 1e-6)
+                && pooledRead.keyframes[0].fog.mode == WeatherFogSetting::Auto
+                && near(pooledRead.keyframes[1].fog.pooling, 0.25, 1e-6) && near(pooledRead.keyframes[1].fog.depth, 70.0, 1e-3)
+                && near(plainRead.keyframes[0].fog.pooling, 1.0, 1e-6), "fog-pooling-round-trip");
+        // Ground mist: valley fog's night, its fog not pooling.
+        const Weather groundMist = WeatherPresets::weather("ground_mist");
+        const WeatherFog::State mistNow = WeatherFog::at(groundMist, 4.5, 0.0, 0.0, summer);
+        const WeatherFog::State valleyNow = WeatherFog::at(valley, 4.5, 0.0, 0.0, summer);
+        c.check(WeatherPresets::exists("ground_mist") && mistNow.amount > 0.5f && near(mistNow.depth, valleyNow.depth, 1e-3)
+                && near(mistNow.pooling, 0.0, 1e-6) && near(valleyNow.pooling, 1.0, 1e-6), "fog-ground-mist-preset");
         // Where the fog lies: the floor map on made-up terrain (x, y in metres
         // from the map's centre, y north).
         auto floorOf = [](const std::function<float(double, double)> &ground,
@@ -696,6 +713,9 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
         c.check(valleyFloor.valid() && valleyFloor.unknownCells() == 0 && inValley > 50.0f && inValley < 70.0f
                 && onSlope <= 0.0f && onRidge <= 0.0f,
                 QString("fog-floor-fills-the-valley (%1 %2 %3)").arg(inValley).arg(onSlope).arg(onRidge));
+        // Not pooling, nothing above the ground in the valley either.
+        const FogFloor::Sample valleyMiddle = valleyFloor.at(0.0, 0.0);
+        c.check(near(FogFloor::top(valleyMiddle, 60.0f, 0.0f), valleyMiddle.ground, 1e-3), "fog-floor-without-pooling");
         // A plateau 300 m above a plain, 4 km across, a pond in its middle.
         const FogFloor plateauFloor = floorOf(
                 [](double x, double y) {

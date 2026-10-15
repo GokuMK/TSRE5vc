@@ -101,6 +101,14 @@ QVector<WeatherKeyframe> make(const QString &name) {
         return {air(frame(0, {None, None, L{0.5f, 0.05f, 9000, 9400, 0.2f}}, 250, 2.5f, P, 0, 25000), 14, 8)};
     if (name == "valley_fog")
         return {air(frame(0, {None, None, L{0.5f, 0.05f, 9000, 9400, 0.2f}}, 250, 2, P, 0, 25000), 12, 9)};
+    // Valley fog's night, its fog lying evenly on all ground as a film
+    // instead of pooling in the valleys (as it lay at CMK while bad terrain
+    // tiles kept it from pooling there; the user liked it, 2026-10-15).
+    if (name == "ground_mist") {
+        WeatherKeyframe k = air(frame(0, {None, None, L{0.5f, 0.05f, 9000, 9400, 0.2f}}, 250, 2, P, 0, 25000), 12, 9);
+        k.fog.pooling = 0.0f;
+        return {k};
+    }
     return {};
 }
 
@@ -108,7 +116,7 @@ QVector<WeatherKeyframe> make(const QString &name) {
 
 QStringList WeatherPresets::names() {
     return {"clear", "fair_cumulus", "scattered", "broken", "overcast", "rain", "snow",
-            "thunderstorm", "front", "morning_mist", "valley_fog"};
+            "thunderstorm", "front", "morning_mist", "valley_fog", "ground_mist"};
 }
 
 bool WeatherPresets::exists(const QString &name) {

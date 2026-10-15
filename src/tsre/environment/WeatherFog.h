@@ -26,6 +26,7 @@ struct State {
     float depth = 0.0f;           // m, its top above the valley floor
     float base = 0.0f;            // m above the floor it has lifted to (0: on the ground)
     float patchiness = 0.0f;      // 0-1
+    float pooling = 1.0f;         // 1 pooling in valleys, 0 lying evenly on all ground (WeatherFogSetting)
 };
 
 // The sun's elevation (degrees) at a weather time (hours).

@@ -83,9 +83,10 @@ vec4 fogVolumeAt(vec2 uv, float reach) {
 // The fog's extinction (1/m) at a height (m above sea level) over a place of
 // the floor map, its patches' noise n there: as RhiFog.cpp's injection.
 float fogBandDensity(vec4 cell, float n, float height) {
-    float top = max(cell.x + fogShape.y * cell.y, cell.z + fogShape.y * 0.5 * cell.w)
+    float top = max(cell.x + fogShape.y * cell.y * fogPatchPlace.w, cell.z + fogShape.y * 0.5 * cell.w)
             + (n - 0.5) * fogShape.y * (0.15 + 0.45 * fogPatchPlace.z);
     float inside = 1.0 - smoothstep(top - fogFilm.y, top + fogFilm.y, height);
+    inside *= smoothstep(cell.z - 25.0, cell.z - 15.0, height);
     if (fogShape.z > 0.0)
         inside *= smoothstep(cell.x + fogShape.z - fogFilm.y, cell.x + fogShape.z + fogFilm.y, height);
     float holes = mix(1.0, smoothstep(0.3, 0.6, n), fogPatchPlace.z);
@@ -133,7 +134,7 @@ vec4 fogAtCompute(vec3 position) {
     if (fogFilm.x > 0.5 && down > 0.03 && all(greaterThan(m, vec2(0.0))) && all(lessThan(m, vec2(1.0)))) {
         vec4 cell = textureLod(fogFloorMap, m, 0.0);
         float n = fogPatchesAt(position);
-        float bandTop = max(cell.x + fogShape.y * cell.y, cell.z + fogShape.y * 0.5 * cell.w)
+        float bandTop = max(cell.x + fogShape.y * cell.y * fogPatchPlace.w, cell.z + fogShape.y * 0.5 * cell.w)
                 + (n - 0.5) * fogShape.y * (0.15 + 0.45 * fogPatchPlace.z) + fogFilm.y;
         float height = position.y - fogPlace.w;
         float weight = smoothstep(0.03, 0.08, down)

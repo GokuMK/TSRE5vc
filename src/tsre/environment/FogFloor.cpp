@@ -154,8 +154,8 @@ float FogFloor::share(const Sample &s) {
     return s.known ? 1.0f - smooth(30.0f, 250.0f, s.aboveRegion) : 0.0f;
 }
 
-float FogFloor::top(const Sample &s, float depth) {
+float FogFloor::top(const Sample &s, float depth, float pooling) {
     // Pooled from the floor, or lying on water and wet ground wherever they
     // are (a pond on a hill), up to half the depth.
-    return std::max(s.floor + depth * share(s), s.ground + depth * 0.5f * s.moisture);
+    return std::max(s.floor + depth * share(s) * pooling, s.ground + depth * 0.5f * s.moisture);
 }

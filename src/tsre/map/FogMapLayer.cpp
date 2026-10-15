@@ -49,7 +49,7 @@ void FogMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view, const
                 const FogFloor::Sample s = floor.cell(column, row);
                 float alpha = 0.0f;
                 if (s.known && fog.amount > 0.0f) {
-                    const float thickness = FogFloor::top(s, fog.depth) - std::max(s.ground, s.floor + fog.base);
+                    const float thickness = FogFloor::top(s, fog.depth, fog.pooling) - std::max(s.ground, s.floor + fog.base);
                     alpha = fog.amount * std::clamp(thickness / 30.0f, 0.0f, 1.0f) * 0.8f;
                 }
                 const int a = int(alpha * 255.0f + 0.5f);

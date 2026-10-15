@@ -78,6 +78,7 @@ WeatherFog::State mix(const WeatherFog::State &a, const WeatherFog::State &b, fl
     s.depth = m(a.depth, b.depth);
     s.base = m(a.base, b.base);
     s.patchiness = m(a.patchiness, b.patchiness);
+    s.pooling = m(a.pooling, b.pooling);
     return s;
 }
 
@@ -180,14 +181,16 @@ WeatherFog::State WeatherFog::at(const Weather &weather, double hours, double ea
         if (f.mode == WeatherFogSetting::Off)
             return State();
         if (f.mode == WeatherFogSetting::Set)
-            return State{f.amount, f.visibility, f.depth, 0.0f, 0.3f};
+            return State{f.amount, f.visibility, f.depth, 0.0f, 0.3f, f.pooling};
         if (!automaticDone) {
             const State fog = radiation(weather, hours, east, north, sun);
             const State mist = rainMist(weather, hours, east, north);
             automatic = mist.amount > fog.amount ? mist : fog;
             automaticDone = true;
         }
-        return automatic;
+        State s = automatic;
+        s.pooling = f.pooling;
+        return s;
     };
     const Weather::Blend b = weather.blend(hours);
     const State a = side(b.a);

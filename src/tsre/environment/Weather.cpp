@@ -193,8 +193,10 @@ Weather Weather::fromNode(const EnvNode &block, QStringList &warnings) {
                         warnings << "Invalid tsre_weather_air";
                 } else if (f == "tsre_weather_fog") {
                     const QString mode = fv.value(0).toLower();
+                    // After the mode or the numbers, the pooling (1 if left out).
                     if (mode == "auto") {
                         k.fog.mode = WeatherFogSetting::Auto;
+                        if (field.numberAt(1, v[1])) k.fog.pooling = float(std::clamp(v[1], 0.0, 1.0));
                     } else if (mode == "off") {
                         k.fog.mode = WeatherFogSetting::Off;
                     } else if (field.numberAt(0, v[0])) {
@@ -202,6 +204,7 @@ Weather Weather::fromNode(const EnvNode &block, QStringList &warnings) {
                         k.fog.amount = float(std::clamp(v[0], 0.0, 1.0));
                         if (field.numberAt(1, v[1])) k.fog.visibility = float(std::max(v[1], 10.0));
                         if (field.numberAt(2, v[2])) k.fog.depth = float(std::max(v[2], 1.0));
+                        if (field.numberAt(3, v[3])) k.fog.pooling = float(std::clamp(v[3], 0.0, 1.0));
                     } else {
                         warnings << "Invalid tsre_weather_fog " + mode;
                     }
@@ -271,13 +274,17 @@ EnvNode Weather::toNode() const {
         frame.items << EnvNode::blockOf("tsre_weather_visibility", {EnvNode::number(k.visibility)});
         frame.items << EnvNode::blockOf("tsre_weather_air",
                                         {EnvNode::number(k.air.temperature), EnvNode::number(k.air.dewPoint)});
-        if (k.fog.mode == WeatherFogSetting::Set)
-            frame.items << EnvNode::blockOf("tsre_weather_fog",
-                                            {EnvNode::number(k.fog.amount), EnvNode::number(k.fog.visibility),
-                                             EnvNode::number(k.fog.depth)});
-        else
-            frame.items << EnvNode::blockOf("tsre_weather_fog",
-                                            {EnvNode::value(k.fog.mode == WeatherFogSetting::Off ? "off" : "auto")});
+        {
+            QVector<EnvNode> fog;
+            if (k.fog.mode == WeatherFogSetting::Set)
+                fog = {EnvNode::number(k.fog.amount), EnvNode::number(k.fog.visibility), EnvNode::number(k.fog.depth)};
+            else
+                fog = {EnvNode::value(k.fog.mode == WeatherFogSetting::Off ? "off" : "auto")};
+            // The pooling only where it is not the usual.
+            if (k.fog.mode != WeatherFogSetting::Off && k.fog.pooling != 1.0f)
+                fog << EnvNode::number(k.fog.pooling);
+            frame.items << EnvNode::blockOf("tsre_weather_fog", fog);
+        }
         frame.items << EnvNode::blockOf("tsre_weather_variation",
                                         {EnvNode::number(k.variationAmount), EnvNode::number(k.variationScale)});
         for (int l = 0; l < WeatherLayer::Count; ++l) {

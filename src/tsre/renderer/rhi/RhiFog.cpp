@@ -59,7 +59,7 @@ struct FogParameters {
     float lightLayers[4];      // its vertical cell (m), lamps (0: none), their strength in open air, 0
     float signalGrid[4];       // the signals' grid, as the lamps'
     float signalLayers[4];
-    float patches[4];          // the floor map's corner in world metres (east, north, wrapped), patchiness, 0
+    float patches[4];          // the floor map's corner in world metres (east, north, wrapped), patchiness, pooling
     float drift[4];            // how far the fog has drifted (east, north, wrapped); since last frame (east, north)
 };
 
@@ -162,7 +162,7 @@ float density(vec3 p, float n, out float above, out float sigmaAbove) {
         return 0.0;
     vec4 cell = textureLod(floorMap, m, 0.0);
     float height = p.y - range.y;
-    float top = max(cell.x + fog.y * cell.y, cell.z + fog.y * 0.5 * cell.w);
+    float top = max(cell.x + fog.y * cell.y * patches.w, cell.z + fog.y * 0.5 * cell.w);
     // Its top swells up and down (a deep fog's by about 13 % of its depth,
     // a patchy one's by up to 30 %); a patchy fog (thin, burning off) thins
     // into holes where the noise is low.
@@ -173,6 +173,10 @@ float density(vec3 p, float n, out float above, out float sigmaAbove) {
         inside *= smoothstep(cell.x + fog.z - fog.w, cell.x + fog.z + fog.w, height);
     vec2 edge = min(m, 1.0 - m);
     inside *= smoothstep(0.0, 0.05, min(edge.x, edge.y));
+    // None deep in the ground: tunnels and stations under it stay clear. The
+    // map's ground is its cells' (64 m): a cutting narrower than that lies
+    // below it, so the fog goes from 15 m under it, gone at 25 m.
+    inside *= smoothstep(cell.z - 25.0, cell.z - 15.0, height);
     // Thicker over water; a hole goes through the fog above too.
     sigmaAbove = fog.x * (1.0 + 0.5 * cell.w) * holes;
     above = max(top - max(height, cell.x + fog.z), 0.0);
@@ -722,15 +726,16 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     p.range[1] = viewPosition[1] - sky.cameraHeight;
     // The highest fog top on the map (with its soft edge), when the map or
     // the fog's depth changed.
-    if (f.topRevision != fog.revision || f.topDepth != fog.depth) {
+    if (f.topRevision != fog.revision || f.topDepth != fog.depth || f.topPooling != fog.pooling) {
         float highest = -1e9f;
         for (size_t i = 0; i + 3 < fog.map->size(); i += 4) {
             const float *c = &(*fog.map)[i];
-            highest = std::max(highest, std::max(c[0] + fog.depth * c[1], c[2] + fog.depth * 0.5f * c[3]));
+            highest = std::max(highest, std::max(c[0] + fog.depth * c[1] * fog.pooling, c[2] + fog.depth * 0.5f * c[3]));
         }
         f.highestTop = highest + std::clamp(fog.depth * 0.15f, 3.0f, 20.0f);
         f.topRevision = fog.revision;
         f.topDepth = fog.depth;
+        f.topPooling = fog.pooling;
     }
     // The patches' swell raises the top (as the injection's density).
     p.range[2] = f.highestTop + 0.5f * fog.depth * (0.15f + 0.45f * std::clamp(fog.patchiness, 0.0f, 1.0f));
@@ -919,7 +924,7 @@ void RhiRenderer::fogPatchPlace(float patches[4], float drift[4]) const {
     patches[0] = wrap(fog.west);
     patches[1] = wrap(fog.north);
     patches[2] = std::clamp(fog.patchiness, 0.0f, 1.0f);
-    patches[3] = 0.0f;
+    patches[3] = std::clamp(fog.pooling, 0.0f, 1.0f);
     drift[0] = wrap(fog.driftEast);
     drift[1] = wrap(fog.driftNorth);
     drift[2] = drift[3] = 0.0f;

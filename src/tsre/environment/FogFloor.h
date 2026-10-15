@@ -62,8 +62,9 @@ public:
     // high above the region.
     static float share(const Sample &s);
     // The fog's top at a place (m above sea level) for a fog of a depth: the
-    // pooled fog, or up to half the depth lying on water and wet ground.
-    static float top(const Sample &s, float depth);
+    // pooled fog (as much of the depth as pools, WeatherFog::State), or up
+    // to half the depth lying on water and wet ground.
+    static float top(const Sample &s, float depth, float pooling = 1.0f);
 
 private:
     bool isValid = false;

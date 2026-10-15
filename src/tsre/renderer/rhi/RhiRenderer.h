@@ -763,6 +763,7 @@ private:
         float highestTop = 0.0f;
         quint64 topRevision = ~0ull;
         float topDepth = -1.0f;
+        float topPooling = -1.0f;
         QRhiBuffer *uniforms = nullptr;
         QRhiSampler *linear = nullptr;
         QRhiShaderResourceBindings *injectBindings[2] = {};

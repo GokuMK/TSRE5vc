@@ -60,7 +60,7 @@ uniform vec4 fogShape;
 // The map's north-west corner (x, z), its size (m), the view's y less heights.
 uniform vec4 fogPlace;
 // The patches (RhiFog.cpp): the map's corner in world metres (east, north,
-// wrapped), the weather's patchiness; how far they have drifted.
+// wrapped), the weather's patchiness, its pooling; how far they have drifted.
 uniform vec4 fogPatchPlace;
 uniform vec4 fogDrift;
 
@@ -114,7 +114,7 @@ float fogSunThrough(vec3 position) {
         return 1.0;
     vec4 cell = textureLod(fogFloorMap, m, 0.0);
     float height = position.y - fogPlace.w;
-    float top = max(cell.x + fogShape.y * cell.y, cell.z + fogShape.y * 0.5 * cell.w);
+    float top = max(cell.x + fogShape.y * cell.y * fogPatchPlace.w, cell.z + fogShape.y * 0.5 * cell.w);
     // The fog's patches, as the fog's volume has them.
     float n = fogPatchesAt(position);
     top += (n - 0.5) * fogShape.y * (0.15 + 0.45 * fogPatchPlace.z);

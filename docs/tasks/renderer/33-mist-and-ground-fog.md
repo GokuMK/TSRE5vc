@@ -220,6 +220,8 @@ aerial haze stays as it is: it is the dry air. The fog adds to it.
   tsre_weather_air ( 12.5 9.0 )             // temperature, dew point (°C)
   tsre_weather_fog ( auto )                 // or: off, or amount visibility depth
   tsre_weather_fog ( 1.0 150 80 )           // forced: amount 0-1, visibility in it (m), depth above the floor (m)
+  tsre_weather_fog ( auto 0 )               // after either, the pooling 0-1 (1 if left out): 0 lies evenly
+                                            // on all ground as a film, its top's soft edge deep
   ```
 
 - **Presets:** each gets typical values. New presets `morning_mist` and
@@ -639,6 +641,25 @@ the terrain cannot explain.
 - On the way: within a slice a surface's fog falls exponentially (it was
   blended evenly, up to a third out in a thick fog's slice); the patches'
   noise is continuous along each ray (blended between the slice's ends).
+
+### Ground mist; none deep in the ground (user, 2026-10-15)
+
+- **Pooling:** the fog setting of a keyframe has a pooling, 0 to 1 (1 if
+  left out of the file): how much of the depth pools in valleys. At 0 the
+  fog lies evenly on all ground as the film its top's soft edge makes
+  (15 % of the depth, up to 20 m), whatever the terrain. Carried by the fog
+  state, blended between keyframes; the renderer, the map view and the
+  floor map's log take it.
+- **Ground mist** (preset): valley fog's night with pooling 0: the look of
+  valley fog at CMK while the bad tiles kept it from pooling there, which
+  the user liked, now anywhere. Valley fog where the tiles do not interfere
+  pools as before (same foreground at CMK; the bank over the low ground far
+  off is valley fog's alone).
+- **None deep in the ground:** the fog goes from 15 m under the floor map's
+  ground, gone at 25 m (the map's cells are 64 m: a cutting narrower than
+  that lies under it and keeps its fog). Tunnels under hills and deep
+  stations stay clear, shallow ones keep a little; in the volume and in
+  High's per-pixel fog alike.
 
 ## Verification
 

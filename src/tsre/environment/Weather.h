@@ -68,6 +68,9 @@ struct WeatherFogSetting {
     float amount = 1.0f;        // 0-1
     float visibility = 200.0f;  // m, in the fog at the valley floor
     float depth = 60.0f;        // m, its top above the valley floor
+    // How much of its depth pools in valleys: 1 as valley fog, 0 lying
+    // evenly on all ground as a film (as deep as its top's soft edge).
+    float pooling = 1.0f;
 };
 
 struct WeatherKeyframe {

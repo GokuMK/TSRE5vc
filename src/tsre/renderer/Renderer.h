@@ -195,6 +195,7 @@ public:
         float depth = 0.0f;           // m, its top above the floor
         float base = 0.0f;            // m above the floor it has lifted to
         float patchiness = 0.0f;
+        float pooling = 1.0f;           // 1 pooling in valleys, 0 lying evenly on all ground
         // The floor map: size x size cells, RGBA (floor, the share of the
         // depth pooled above it, ground, moisture; heights in the view's
         // y), row 0 at the north edge; its north-west corner (world metres

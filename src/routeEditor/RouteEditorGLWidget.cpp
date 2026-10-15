@@ -2760,6 +2760,7 @@ void RouteEditorGLWidget::applyFog() {
         f.depth = fogNow.depth;
         f.base = fogNow.base;
         f.patchiness = fogNow.patchiness;
+        f.pooling = fogNow.pooling;
         f.map = &fogMapCells;
         f.size = N;
         f.west = fogFloor.west();
@@ -2862,7 +2863,8 @@ void RouteEditorGLWidget::updateFog() {
         fogNowRevision = weatherRevision;
         fogNowEast = east;
         fogNowNorth = north;
-        if (fogMap && (fogNow.amount != before.amount || fogNow.depth != before.depth || fogNow.base != before.base))
+        if (fogMap && (fogNow.amount != before.amount || fogNow.depth != before.depth || fogNow.base != before.base
+                       || fogNow.pooling != before.pooling))
             fogMap->invalidate();
     }
     // The floor map: for the fog, and for the terrain's shade.
@@ -2912,7 +2914,7 @@ void RouteEditorGLWidget::updateFog() {
                         groundHigh = std::max(groundHigh, s.ground);
                         floorLow = std::min(floorLow, s.floor);
                         floorHigh = std::max(floorHigh, s.floor);
-                        fogged += FogFloor::top(s, fogNow.depth) > s.ground ? 1 : 0;
+                        fogged += FogFloor::top(s, fogNow.depth, fogNow.pooling) > s.ground ? 1 : 0;
                         wet += s.moisture > 0.5f ? 1 : 0;
                     }
                 qInfo().noquote() << QString("[fog] floor map: %1 of %2 cells known, ground %3-%4 m, floor %5-%6 m, "

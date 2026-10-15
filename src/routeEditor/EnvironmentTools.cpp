@@ -67,6 +67,9 @@ QString presetTitle(const QString &name) {
     if (name == "valley_fog")
         //% "Valley fog"
         return qtTrId("route.editor.environment.tools.preset.valley.fog");
+    if (name == "ground_mist")
+        //% "Ground mist"
+        return qtTrId("route.editor.environment.tools.preset.ground.mist");
     return name;
 }
 
