@@ -170,6 +170,13 @@ public:
     int endPin(int node, int end) const;
     // A route part's way through the network.
     Projection project(const RouteTrack &route) const;
+    // The next stop signal facing a train going from a place on a vector
+    // node, along the switches as set (`switches` by section; the main route
+    // where empty), within `reach` metres; -1 none.
+    int nextStopSignal(int node, float distance, bool forward, const std::vector<int> &switches, double reach) const;
+    bool isNormal(const SignalHead &head) const {
+        return head.kind >= 0 && types[size_t(head.kind)].function == SignalFunction::Normal;
+    }
     QStringList warnings;
     size_t memory() const;
 

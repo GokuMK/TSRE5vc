@@ -33,6 +33,19 @@ double RouteTrack::length() const {
     return parts.empty() ? 0.0 : parts.back().start + parts.back().length();
 }
 
+bool RouteTrack::find(int node, float distance, double &at) const {
+    for (const RouteInterval &interval : parts) {
+        if (interval.node != node)
+            continue;
+        const float low = std::min(interval.from, interval.to), high = std::max(interval.from, interval.to);
+        if (distance >= low - 1e-3f && distance <= high + 1e-3f) {
+            at = interval.start + std::fabs(double(distance) - interval.from);
+            return true;
+        }
+    }
+    return false;
+}
+
 RoutePoint RouteTrack::locate(double distance) const {
     RoutePoint point;
     if (parts.empty())

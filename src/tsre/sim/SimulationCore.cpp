@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <tsre/trains/WaitingPoint.h>
 
 namespace Sim {
@@ -46,6 +47,8 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
             if (network->sections()[k].kind == TrackSection::Junction)
                 switchAt[k] = network->sections()[k].mainPin;
     clearedFor.assign(network != nullptr ? network->signalGroups().size() : 0, NoHolder);
+    headAspect.assign(network != nullptr ? network->heads().size() : 0, 0);
+    headDraw.assign(headAspect.size(), 0);
     // Loose consists hold the track they stand on for the whole run.
     if (network != nullptr)
         for (const StaticConsist &consist : in->staticConsists) {
@@ -78,6 +81,8 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         run(start - first);
         now = start;
     }
+    if (aspectsDirty)
+        evaluateAspects();
     stepCount = 0;
 }
 
@@ -95,6 +100,8 @@ void SimulationCore::run(double seconds) {
         left -= h;
         ++stepCount;
         findDeadlocks(now);
+        if (aspectsDirty)
+            evaluateAspects();
     }
 }
 
@@ -255,24 +262,50 @@ void SimulationCore::advance(int train, double from, double to) {
         if (distance < AtTarget) {
             arrival = t;
         } else {
-            // Up to the speed limit (the route's, and the train's top speed ×
-            // its efficiency on this run), braking at constant deceleration
-            // to stand at the target.
+            // Up to the speed limit (the route's, the train's top speed × its
+            // efficiency on this run, the line's limits along its whole
+            // length, the last signal's speed), braking at constant
+            // deceleration to stand at the target and to be down to each
+            // lower limit ahead where it begins.
             const float efficiency = s.nextStop < int(plan.stops.size())
                     ? plan.stops[size_t(s.nextStop)].efficiency : plan.efficiency;
-            const double limit = std::min(double(in->routeSpeedLimit), double(plan.maxSpeed * efficiency));
+            double limit = std::min(double(in->routeSpeedLimit), double(plan.maxSpeed * efficiency));
+            if (s.signalSpeed > 0.0f)
+                limit = std::min(limit, double(s.signalSpeed));
             const double dt = to - t;
             const double v = s.speed;
+            const double d = plan.deceleration;
+            const double rear = s.front - plan.length;
+            const double reach = v * v / (2.0 * d) + 2.0 * v * dt + 50.0;
+            double ahead = 1e9;
+            if (size_t(s.part) < plan.limits.size()) {
+                const std::vector<SpeedLimit> &limits = plan.limits[size_t(s.part)];
+                Runtime &rt = runtime[size_t(train)];
+                while (rt.limit < limits.size() && limits[rt.limit].to <= rear)
+                    ++rt.limit;
+                for (size_t k = rt.limit; k < limits.size() && limits[k].from < s.front + reach; ++k) {
+                    if (limits[k].from <= s.front)
+                        limit = std::min(limit, double(limits[k].speed));
+                    else
+                        ahead = std::min(ahead, brakingSpeed(v, dt, d, limits[k].from - s.front, limits[k].speed));
+                }
+            }
+            // The next stop signal's speed, where its aspect has one.
+            if (size_t(s.part) < plan.projection.size()) {
+                const std::vector<ProjectedSignal> &stops = plan.projection[size_t(s.part)].stopSignals;
+                const size_t next = runtime[size_t(train)].passed;
+                if (next < stops.size() && stops[next].at < s.front + reach) {
+                    const float speed = signalSpeedOf(stops[next].signal);
+                    if (speed > 0.0f)
+                        ahead = std::min(ahead, brakingSpeed(v, dt, d, stops[next].at - s.front, speed));
+                }
+            }
             double next = v > limit ? std::max(v - plan.deceleration * dt, limit)
                                     : std::min(v + plan.acceleration * dt, limit);
+            next = std::min(next, ahead);
             // The fastest speed at the step's end from which it still stops
-            // at the target: v'^2 = 2 d (distance - (v + v') dt / 2), so the
-            // train follows the braking curve exactly.
-            const double d = plan.deceleration;
-            const double b = d * dt;
-            const double c = d * dt * v - 2.0 * d * distance;
-            const double disc = b * b - 4.0 * c;
-            next = std::min(next, disc > 0.0 ? std::max(0.0, 0.5 * (-b + std::sqrt(disc))) : 0.0);
+            // at the target, so the train follows the braking curve exactly.
+            next = std::min(next, brakingSpeed(v, dt, d, distance, 0.0));
             const double moved = 0.5 * (v + next) * dt;
             if (moved >= distance - AtTarget) {
                 arrival = t + (moved > 0.0 ? dt * std::min(1.0, distance / moved) : dt);
@@ -441,6 +474,7 @@ void SimulationCore::extendAuthority(int train) {
                 s.authority = std::max(s.authority, way[blockEnd - 1].leave);
             rt.next = blockEnd;
             clearedFor[size_t(signal.signal)] = train;
+            aspectsDirty = true;
             ++rt.nextSignal;
             continue;
         }
@@ -475,11 +509,151 @@ void SimulationCore::extendAuthority(int train) {
     }
 }
 
+double SimulationCore::brakingSpeed(double v, double dt, double d, double distance, double target) {
+    // v'^2 = target^2 + 2 d (distance - (v + v') dt / 2).
+    const double b = d * dt;
+    const double disc = b * b + 4.0 * (target * target + 2.0 * d * distance - d * dt * v);
+    return disc > 0.0 ? std::max(0.0, 0.5 * (-b + std::sqrt(disc))) : 0.0;
+}
+
+float SimulationCore::signalSpeedOf(int signal) const {
+    if (in->network == nullptr || signal < 0)
+        return -1.0f;
+    const TrackNetwork &network = *in->network;
+    int best = -1;
+    float speed = -1.0f;
+    for (int head : network.signalGroups()[size_t(signal)].heads) {
+        const SignalHead &h = network.heads()[size_t(head)];
+        if (!network.isNormal(h) || headAspect[size_t(head)] <= best)
+            continue;
+        best = headAspect[size_t(head)];
+        speed = -1.0f;
+        for (const SignalKind::Aspect &aspect : network.kinds()[size_t(h.kind)].aspects)
+            if (aspect.aspect == best)
+                speed = aspect.speed;
+    }
+    return speed;
+}
+
+void SimulationCore::evaluateAspects() {
+    aspectsDirty = false;
+    if (in->network == nullptr)
+        return;
+    const TrackNetwork &network = *in->network;
+    const std::vector<SignalHead> &heads = network.heads();
+    const std::vector<SignalGroup> &groups = network.signalGroups();
+    const std::vector<SignalKind> &kinds = network.kinds();
+    enum { Stop = 0, StopAndProceed = 1, Restricting = 2, Approach1 = 3, Approach2 = 4, Approach3 = 5, Clear2 = 7 };
+    constexpr double Reach = 20000.0;
+    std::vector<char> done(heads.size(), 0);
+    std::vector<int> nextOf(groups.size(), -2);
+    // The type's aspect for the one wanted: the most restrictive for stop;
+    // otherwise the least restrictive it has no less restrictive than wanted
+    // among its proceed aspects (approach on), else the nearest above.
+    auto pick = [&](const SignalKind &kind, int wanted, int &aspect, int &draw) {
+        if (kind.aspects.empty()) {
+            aspect = Stop;
+            draw = kind.defaultDrawState;
+            return;
+        }
+        const SignalKind::Aspect *chosen = nullptr;
+        if (wanted <= Stop) {
+            chosen = &kind.aspects.front();
+        } else {
+            for (const SignalKind::Aspect &a : kind.aspects)
+                if (a.aspect >= Approach1 && a.aspect <= wanted)
+                    chosen = &a;
+            if (chosen == nullptr)
+                for (const SignalKind::Aspect &a : kind.aspects)
+                    if (a.aspect >= Approach1) {
+                        chosen = &a;
+                        break;
+                    }
+            if (chosen == nullptr)
+                chosen = &kind.aspects.back();
+        }
+        aspect = chosen->aspect;
+        draw = chosen->drawState;
+    };
+    auto progression = [](int next) {
+        return next <= Restricting ? Approach1 : next == Approach1 ? Approach2 : next == Approach2 ? Approach3 : Clear2;
+    };
+    std::function<int(int)> evaluate;
+    // A signal's least restrictive NORMAL head (next_sig_lr), STOP for none.
+    auto leastRestrictive = [&](int signal) {
+        int best = Stop;
+        if (signal < 0)
+            return best;
+        for (int head : groups[size_t(signal)].heads)
+            if (network.isNormal(heads[size_t(head)]))
+                best = std::max(best, evaluate(head));
+        return best;
+    };
+    auto nextSignal = [&](int node, float distance, bool forward) {
+        return network.nextStopSignal(node, distance, forward, switchAt, Reach);
+    };
+    evaluate = [&](int h) -> int {
+        if (done[size_t(h)] == 2)
+            return headAspect[size_t(h)];
+        if (done[size_t(h)] == 1)
+            return Stop;
+        done[size_t(h)] = 1;
+        const SignalHead &head = heads[size_t(h)];
+        int aspect = Stop, draw = 0;
+        if (head.kind >= 0) {
+            const SignalKind &kind = kinds[size_t(head.kind)];
+            int wanted = -1;
+            switch (kind.function) {
+            case SignalFunction::Normal: {
+                const bool cleared = clearedFor[size_t(head.signal)] != NoHolder;
+                const int junction = network.junctionSection(head.junction);
+                const bool routeSet = head.junction < 0 || junction < 0 || switchAt[size_t(junction)] == head.junctionPin;
+                if (!cleared || !routeSet) {
+                    wanted = Stop;
+                } else {
+                    int &next = nextOf[size_t(head.signal)];
+                    if (next == -2) {
+                        const SignalGroup &group = groups[size_t(head.signal)];
+                        next = nextSignal(group.node, group.distance, group.forward);
+                    }
+                    wanted = progression(leastRestrictive(next));
+                }
+                break;
+            }
+            case SignalFunction::Distant: {
+                const int next = leastRestrictive(nextSignal(head.node, head.distance, head.forward));
+                wanted = next <= Stop ? Stop : progression(next);
+                break;
+            }
+            case SignalFunction::Repeater:
+                wanted = leastRestrictive(nextSignal(head.node, head.distance, head.forward));
+                break;
+            default:
+                break;
+            }
+            if (wanted >= 0) {
+                pick(kind, wanted, aspect, draw);
+            } else {
+                aspect = kind.aspects.empty() ? Stop : kind.aspects.front().aspect;
+                draw = kind.defaultDrawState;
+            }
+        }
+        headAspect[size_t(h)] = aspect;
+        headDraw[size_t(h)] = draw;
+        done[size_t(h)] = 2;
+        return aspect;
+    };
+    for (size_t h = 0; h < heads.size(); ++h)
+        evaluate(int(h));
+}
+
 void SimulationCore::take(int train, size_t from, size_t to) {
     const TrainPlan &plan = in->trains[size_t(train)];
     const std::vector<ProjectedSection> &way = plan.projection[size_t(states[size_t(train)].part)].sections;
     const std::vector<TrackSection> &sections = in->network->sections();
     Runtime &rt = runtime[size_t(train)];
+    if (to > from)
+        aspectsDirty = true;
     for (size_t k = from; k < to; ++k) {
         const ProjectedSection &pass = way[k];
         holder[size_t(pass.section)] = train;
@@ -530,10 +704,14 @@ void SimulationCore::releaseBehind(int train) {
     if (size_t(s.part) < plan.projection.size()) {
         const std::vector<ProjectedSignal> &stopSignals = plan.projection[size_t(s.part)].stopSignals;
         while (rt.passed < stopSignals.size() && stopSignals[rt.passed].at < s.front) {
+            // It takes the signal's speed until the next one.
+            TrainState &passing = states[size_t(train)];
+            passing.signalSpeed = signalSpeedOf(stopSignals[rt.passed].signal);
             int &cleared = clearedFor[size_t(stopSignals[rt.passed].signal)];
             if (cleared == train)
                 cleared = NoHolder;
             ++rt.passed;
+            aspectsDirty = true;
         }
     }
     const double rear = s.front - plan.length;
@@ -544,8 +722,10 @@ void SimulationCore::releaseBehind(int train) {
         bool again = false;
         for (const Held &other : rt.held)
             again = again || other.section == section;
-        if (!again && holder[size_t(section)] == train)
+        if (!again && holder[size_t(section)] == train) {
             holder[size_t(section)] = NoHolder;
+            aspectsDirty = true;
+        }
     }
 }
 
@@ -562,7 +742,10 @@ void SimulationCore::releaseAll(int train) {
     for (int &cleared : clearedFor)
         if (cleared == train)
             cleared = NoHolder;
+    rt.limit = 0;
     states[size_t(train)].authority = 0.0;
+    states[size_t(train)].signalSpeed = -1.0f;
+    aspectsDirty = true;
 }
 
 void SimulationCore::blocked(int train, double time) {

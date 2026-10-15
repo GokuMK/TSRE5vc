@@ -39,6 +39,13 @@ struct StopPlan {
     QString platform;
 };
 
+// A speed limit along a route part (route distances), m/s.
+struct SpeedLimit {
+    double from = 0.0;
+    double to = 0.0;
+    float speed = 0.0f;
+};
+
 // A waiting point on a train's route, with its value (WaitingPoint).
 struct WaitPlan {
     int part = 0;
@@ -76,6 +83,9 @@ struct TrainPlan {
     std::vector<WaitPlan> waits;
     // Each route part's way through the track network.
     std::vector<Projection> projection;
+    // Each route part's speed limits from speed posts facing it (for its
+    // kind of train) and the activity's speed zones, in order, apart.
+    std::vector<std::vector<SpeedLimit>> limits;
 };
 
 // A consist of the activity standing on the track for the whole run (a loose
@@ -95,6 +105,9 @@ struct SimulationInput {
     // Seconds after midnight.
     int startTime = 0;
     float routeSpeedLimit = 44.4444f;
+    // The speed in the activity's restricted speed zones (the route's
+    // TempRestrictedSpeed; Open Rails takes 25 km/h without one).
+    float restrictedSpeed = 25.0f / 3.6f;
     unsigned int runId = 0;
     std::shared_ptr<const TrackGeometry> geometry;
     std::shared_ptr<const TrackNetwork> network;
@@ -117,6 +130,15 @@ void SetRates(TrainPlan &train);
 // `geometry` and `network` may be ones made earlier from the same database.
 std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
                                                  std::shared_ptr<const TrackGeometry> geometry = nullptr,
-                                                 std::shared_ptr<const TrackNetwork> network = nullptr);
+                                                 std::shared_ptr<const TrackNetwork> network = nullptr,
+                                                 float restrictedSpeed = -1.0f);
+
+// A route part's speed limits: the speed posts facing it that apply to its
+// kind of train (a limit from its post to the next limit or resume post),
+// and zones (route distances from, to) at `zoneSpeed`; the lowest where
+// they overlap.
+std::vector<SpeedLimit> SpeedLimits(const Projection &way, const TrackNetwork &network, bool passenger,
+                                    const std::vector<std::pair<double, double>> &zones, float zoneSpeed,
+                                    double partLength);
 
 }

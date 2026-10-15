@@ -44,6 +44,9 @@ struct TrainState {
     int waitSection = -1;
     // The stop signal it waits at (a signal of the network), -1 none.
     int atSignal = -1;
+    // The speed the last stop signal it passed gave it (its aspect's), m/s;
+    // negative none.
+    float signalSpeed = -1.0f;
     // It is in a deadlock (reported once).
     bool deadlocked = false;
 };
@@ -102,6 +105,10 @@ public:
     const std::vector<int> &switches() const { return switchAt; }
     // Each signal of the network: the train it is cleared for, NoHolder.
     const std::vector<int> &cleared() const { return clearedFor; }
+    // Each head's aspect (SignalType::Aspect) and draw state, from the
+    // built-in rule (no scripts, task 02).
+    const std::vector<int> &aspects() const { return headAspect; }
+    const std::vector<int> &drawStates() const { return headDraw; }
     // The two ends of each of a train's vehicles, in the consist's order:
     // the vehicle's front (as the consist lists it) and its rear, their
     // roll looking from the rear to the front. False for a train not on the
@@ -124,6 +131,11 @@ private:
     std::vector<int> switchAt;
     // Per signal of the network.
     std::vector<int> clearedFor;
+    // Per head; evaluated again after a step that changed reservations or
+    // switches.
+    std::vector<int> headAspect;
+    std::vector<int> headDraw;
+    bool aspectsDirty = true;
     // Per train, what the frames need not see: the sections it holds in its
     // route's order (where it leaves each), and the next projected section
     // it would reserve on its part.
@@ -142,6 +154,8 @@ private:
         size_t passed = 0;
         // Its authority ends at a stop signal not cleared for it.
         bool endsAtSignal = false;
+        // On its part's speed limits: the first its rear has not left.
+        size_t limit = 0;
         // Whom it was last reported waiting for.
         int reported = Unreported;
     };
@@ -167,6 +181,15 @@ private:
     // How many stop signals from `first` on it may clear (Open Rails' legacy
     // and Open Rails modes of SignalNumClearAhead).
     size_t clearable(const Projection &way, size_t first) const;
+    // Every head's aspect and draw state (task 02, section 6).
+    void evaluateAspects();
+    // The speed a stop signal gives a train passing it: its least
+    // restrictive NORMAL head's aspect's; negative none.
+    float signalSpeedOf(int signal) const;
+    // The speed a train may have at the end of a step from `v` over `dt` to
+    // come down to `target` within `distance` at deceleration `d` (exact on
+    // the braking curve).
+    static double brakingSpeed(double v, double dt, double d, double distance, double target);
     // A Blocked event, once for each holder it waits for.
     void blocked(int train, double time);
     // Rings of trains each waiting for track the next one holds.

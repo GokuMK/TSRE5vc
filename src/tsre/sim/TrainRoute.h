@@ -38,6 +38,9 @@ public:
     double length() const;
     // The point at a route distance, kept within the track.
     RoutePoint locate(double distance) const;
+    // The route distance of a place on a vector node, the first time the
+    // track passes it; false when it does not.
+    bool find(int node, float distance, double &at) const;
     const std::vector<RouteInterval> &intervals() const { return parts; }
 
 private:

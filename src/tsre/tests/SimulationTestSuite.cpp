@@ -22,6 +22,7 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/tdb/TSection.h>
 #include <tsre/tdb/SigCfg.h>
+#include <tsre/tdb/SignalType.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
@@ -869,6 +870,143 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
               "a train reserving a junction sets it its way (the loop's side) and holds it; the next sets it back for its own");
     }
 
+    // Aspects and speeds (task 02, phase 4).
+    {
+        QTemporaryDir folder;
+        const QString config = folder.path() + "/sigcfg.dat";
+        writeUtf16(config, testSigCfg);
+        const SigCfg signalConfig(config);
+        const int t0 = 8 * 3600;
+        const auto routeOf = [](TDB *tdb, QVector<PathTrack::TrackPoint> points, double leadIn) {
+            PathTrack::Result made = PathTrack::startAt(tdb, points.first());
+            for (int k = 1; k < points.size(); ++k)
+                made = PathTrack::endAt(tdb, made.nodes, points[k]);
+            return Sim::BuildRoute(tdb, made.nodes, PathTrack::legs(tdb, made.nodes), leadIn);
+        };
+        const auto trainOn = [](const Sim::TrainRoute &route, const Sim::TrackNetwork &network, int start) {
+            Sim::TrainPlan p;
+            p.vehicles = {Sim::Vehicle{20.0f, false, 4}, Sim::Vehicle{20.0f, false, 1}};
+            p.length = 40.0f;
+            p.maxSpeed = 30.0f;
+            Sim::SetRates(p);
+            p.startTime = start;
+            p.route = route;
+            p.startFront = route.pathStart + 10.0;
+            for (const Sim::RouteTrack &part : route.parts) {
+                p.projection.push_back(network.project(part));
+                p.limits.push_back(Sim::SpeedLimits(p.projection.back(), network, p.passenger, {}, 0.0f, part.length()));
+            }
+            return p;
+        };
+        const auto inputOf = [&](std::shared_ptr<const Sim::TrackGeometry> geometry,
+                                 std::shared_ptr<const Sim::TrackNetwork> network, std::vector<Sim::TrainPlan> plans) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->network = network;
+            for (size_t i = 0; i < plans.size(); ++i) {
+                plans[i].id = int(i);
+                made->trains.push_back(plans[i]);
+            }
+            return made;
+        };
+        // A line with home signals at 500, 1000 and 1500 m clearing two
+        // ahead, a distant at 1400 m.
+        TestTrack::Layout line;
+        line.end(1, 10);
+        line.track(10, 1, 2, 200);
+        line.end(2, 10);
+        for (int k = 1; k <= 3; ++k)
+            TestTrack::signalHead(line, 10, 970 + k, 500.0f * k, true, "Home");
+        TestTrack::signalHead(line, 10, 974, 1400.0f, true, "Dist");
+        TDB *db = &line.db;
+        const QScopedValueRollback<TDB *> live(Game::trackDB, db);
+        auto geometry = std::make_shared<const Sim::TrackGeometry>(db);
+        auto network = std::make_shared<const Sim::TrackNetwork>(db, *geometry, &signalConfig, false);
+        const Sim::TrainRoute east = routeOf(db, {{10, 100.0f}, {10, 1990.0f}}, 31.0);
+        Sim::SimulationCore core(inputOf(geometry, network, {trainOn(east, *network, t0)}));
+        core.step(0.1);
+        const auto aspectOf = [&](const Sim::SimulationCore &c, int item) {
+            return c.aspects()[size_t(network->headOfItem(item))];
+        };
+        check(aspectOf(core, 971) == SignalType::APPROACH_1 && aspectOf(core, 972) == SignalType::APPROACH_1
+                  && aspectOf(core, 973) == SignalType::STOP && aspectOf(core, 974) == SignalType::APPROACH_1
+                  && core.drawStates()[size_t(network->headOfItem(972))] == 1
+                  && core.drawStates()[size_t(network->headOfItem(973))] == 0,
+              QString("aspects without scripts: the two cleared signals at caution before the one at stop (the type has "
+                      "no second caution), the distant before it at caution: %1 %2 %3 %4")
+                  .arg(aspectOf(core, 971)).arg(aspectOf(core, 972)).arg(aspectOf(core, 973)).arg(aspectOf(core, 974)));
+        // Through the signal at 500 m at its caution's 40 km/h.
+        double atSignal = -1.0;
+        for (int i = 0; i < 2000 && atSignal < 0.0; ++i) {
+            core.step(0.1);
+            if (core.trains()[0].front + 69.0 >= 500.0)
+                atSignal = core.trains()[0].speed;
+        }
+        check(atSignal > 0.0 && atSignal <= 40.0 / 3.6 + 0.05,
+              QString("a train passes a signal at caution at its aspect's speed (%1 km/h)").arg(atSignal * 3.6));
+
+        // A speed post's limit from the post, until the train's rear is past
+        // the resume post.
+        TestTrack::Layout posts;
+        posts.end(1, 10);
+        posts.track(10, 1, 2, 200);
+        posts.end(2, 10);
+        TestTrack::speedLimit(posts, 10, 980, 1000.0f, true, 40.0f);
+        TestTrack::speedLimit(posts, 10, 981, 1400.0f, true, 0.0f)->speedpostTrItemData[0] = 0b10000011;
+        TDB *postDb = &posts.db;
+        const QScopedValueRollback<TDB *> livePosts(Game::trackDB, postDb);
+        auto postGeometry = std::make_shared<const Sim::TrackGeometry>(postDb);
+        auto postNetwork = std::make_shared<const Sim::TrackNetwork>(postDb, *postGeometry, &signalConfig, false);
+        const Sim::TrainRoute postRoute = routeOf(postDb, {{10, 100.0f}, {10, 1990.0f}}, 31.0);
+        const Sim::TrainPlan postTrain = trainOn(postRoute, *postNetwork, t0);
+        check(postTrain.limits.size() == 1 && postTrain.limits[0].size() == 1
+                  && std::fabs(postTrain.limits[0][0].from - 931.0) < 0.1 && std::fabs(postTrain.limits[0][0].to - 1331.0) < 0.1
+                  && std::fabs(postTrain.limits[0][0].speed - 40.0f / 3.6f) < 0.01f,
+              "a route's limits: the post's speed from it to the resume post");
+        Sim::SimulationCore limited(inputOf(postGeometry, postNetwork, {postTrain}));
+        double fastestIn = 0.0, fastestAfter = 0.0, atPost = -1.0;
+        for (int i = 0; i < 4000 && !limited.finished(); ++i) {
+            limited.step(0.1);
+            const Sim::TrainState &st = limited.trains()[0];
+            const double at = st.front + 69.0;
+            if (at >= 1000.0 && atPost < 0.0)
+                atPost = st.speed;
+            if (at > 1000.0 && at - 40.0 < 1400.0)
+                fastestIn = std::max(fastestIn, double(st.speed));
+            if (at - 40.0 > 1450.0)
+                fastestAfter = std::max(fastestAfter, double(st.speed));
+        }
+        check(atPost > 0.0 && atPost <= 40.0 / 3.6 + 0.05 && fastestIn <= 40.0 / 3.6 + 0.05 && fastestAfter > 12.0,
+              QString("a speed limit is met at its post (%1 km/h), kept until the rear is past the resume post (at most "
+                      "%2 km/h), left after (%3 km/h)").arg(atPost * 3.6).arg(fastestIn * 3.6).arg(fastestAfter * 3.6));
+        // A speed zone over the limit.
+        const std::vector<Sim::SpeedLimit> zoned = Sim::SpeedLimits(postTrain.projection[0], *postNetwork, true,
+                                                                    {{1100.0, 1200.0}}, 25.0f / 3.6f, postRoute.parts[0].length());
+        check(zoned.size() == 3 && std::fabs(zoned[1].from - 1100.0) < 0.1 && std::fabs(zoned[1].speed - 25.0f / 3.6f) < 0.01f
+                  && std::fabs(zoned[2].speed - 40.0f / 3.6f) < 0.01f,
+              "a speed zone lowers the limit where it lies");
+
+        // Route signals at a junction: the head for the route set shows
+        // proceed, the other stop.
+        TestTrack::Layout loop;
+        TestTrack::passingLoop(loop);
+        TestTrack::signalHead(loop, 10, 991, 80.0f, true, "Home", 2, 1);
+        TestTrack::signalHead(loop, 10, 992, 80.0f, true, "Home", 2, 2);
+        TDB *loopDb = &loop.db;
+        const QScopedValueRollback<TDB *> liveLoop(Game::trackDB, loopDb);
+        auto loopGeometry = std::make_shared<const Sim::TrackGeometry>(loopDb);
+        auto loopNetwork = std::make_shared<const Sim::TrackNetwork>(loopDb, *loopGeometry, &signalConfig, false);
+        const Sim::TrainRoute mainRoute = routeOf(loopDb, {{10, 20.0f}, {13, 80.0f}}, 0.0);
+        Sim::SimulationCore routed(inputOf(loopGeometry, loopNetwork, {trainOn(mainRoute, *loopNetwork, t0)}));
+        routed.step(0.1);
+        const int mainHead = routed.aspects()[size_t(loopNetwork->headOfItem(991))];
+        const int sideHead = routed.aspects()[size_t(loopNetwork->headOfItem(992))];
+        check(mainHead >= SignalType::APPROACH_1 && sideHead == SignalType::STOP,
+              QString("route signals: the head for the main route proceeds (%1), the one for the loop shows stop (%2)")
+                  .arg(mainHead).arg(sideHead));
+    }
+
     qInfo().noquote() << QString("simulation-core: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }
@@ -1063,7 +1201,8 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
             continue;
         ++activities;
         timer.restart();
-        auto input = Sim::MakeInput(activity, &database, speedLimit, geometry, network);
+        auto input = Sim::MakeInput(activity, &database, speedLimit, geometry, network,
+                                    content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f);
         inputMs += timer.elapsed();
         // Each route part projected onto the network, end to end.
         for (const Sim::TrainPlan &plan : input->trains)

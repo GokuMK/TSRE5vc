@@ -439,6 +439,48 @@ Projection TrackNetwork::project(const RouteTrack &route) const {
     return projection;
 }
 
+int TrackNetwork::nextStopSignal(int node, float distance, bool forward, const std::vector<int> &switches,
+                                 double reach) const {
+    double travelled = 0.0;
+    float from = distance;
+    for (int hops = 0; hops < 256 && travelled <= reach; ++hops) {
+        if (node <= 0 || size_t(node) >= nodes.size() || nodes[size_t(node)].length < 0.0f)
+            return -1;
+        const std::vector<OnNode> &on = headsOnNode[size_t(node)];
+        if (forward) {
+            for (const OnNode &o : on)
+                if (o.distance > from + Same && signalHeads[size_t(o.index)].forward && isNormal(signalHeads[size_t(o.index)]))
+                    return signalHeads[size_t(o.index)].signal;
+        } else {
+            for (auto o = on.rbegin(); o != on.rend(); ++o)
+                if (o->distance < from - Same && !signalHeads[size_t(o->index)].forward
+                        && isNormal(signalHeads[size_t(o->index)]))
+                    return signalHeads[size_t(o->index)].signal;
+        }
+        const float length = nodes[size_t(node)].length;
+        travelled += forward ? length - std::max(0.0f, from) : std::min(length, from);
+        // Through the junction at the node's end, as it is set (a facing
+        // junction by its switch, a trailing one to its input).
+        const int end = forward ? 1 : 0;
+        const int junction = nodes[size_t(node)].end[end];
+        if (junction < 0)
+            return -1;
+        const int in = nodes[size_t(node)].pin[end];
+        const TrackSection &j = all[size_t(junction)];
+        const int out = in == 0 ? (size_t(junction) < switches.size() && switches[size_t(junction)] > 0
+                                       ? switches[size_t(junction)] : j.mainPin)
+                                : 0;
+        const int track = out >= 0 && out <= 2 ? j.link[out] : -1;
+        if (track < 0)
+            return -1;
+        const TrackSection &next = all[size_t(track)];
+        node = next.node;
+        forward = next.link[0] == junction && track == nodes[size_t(node)].first;
+        from = forward ? -1.0f : nodes[size_t(node)].length + 1.0f;
+    }
+    return -1;
+}
+
 size_t TrackNetwork::memory() const {
     size_t bytes = nodes.capacity() * sizeof(Node) + all.capacity() * sizeof(TrackSection)
             + junctions.capacity() * sizeof(int) + signalHeads.capacity() * sizeof(SignalHead)

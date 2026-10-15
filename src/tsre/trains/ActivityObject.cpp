@@ -166,6 +166,14 @@ QString ActivityObject::getSpeedZoneName(){
     return n;
 }
 
+bool ActivityObject::getSpeedZoneEnds(float *start, float *end) const {
+    if (objectTypeId != ActivityObject::RESTRICTEDSPEEDZONE || speedZoneData == NULL)
+        return false;
+    std::copy(speedZoneData->start, speedZoneData->start + 4, start);
+    std::copy(speedZoneData->end, speedZoneData->end + 4, end);
+    return true;
+}
+
 int ActivityObject::getFailedSignalId(){
     if(failedSignalData == NULL)
         return -1;

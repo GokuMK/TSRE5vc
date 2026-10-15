@@ -1,7 +1,7 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
-Status: phases 1 to 3 done (2026-10-16, branch `feature/simulation`);
-phase 4 next. Decisions taken are at the end.
+Status: phases 1 to 4 done (2026-10-16, branch `feature/simulation`);
+phase 5 next. Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -113,6 +113,37 @@ loop's side track, then set back for a train from the main track. The
 local activities run with signals: EUROPE1, EUROPE2, JAPAN2 finish,
 JAPAN1 as before; single-track USA1, USA2 and BNSF_SCENIC still deadlock
 (phase 5).
+
+**Phase 4, aspects and speeds (done 2026-10-16).**
+- Every head's aspect and draw state from the built-in rule, evaluated
+  again after a step that changed reservations, switches or cleared
+  signals: NORMAL heads at stop unless cleared and their junction link set
+  (`route_set`), else the caution/clear progression from the next stop
+  signal along the switches as set (its least restrictive head); distant
+  heads at their most restrictive before a stop signal at stop, else the
+  progression; repeaters as the next stop signal; others their default
+  draw state. A type's aspect for the one wanted: its most restrictive for
+  stop, else its least restrictive proceed aspect no less restrictive than
+  wanted (a two-aspect home signal clears).
+- Speeds: each route part has its limits (speed posts facing it for its
+  kind of train, from a limit post to the next limit or resume post; the
+  activity's speed zones at the route's TempRestrictedSpeed, 25 km/h
+  without one, both ways); a train keeps a limit until its rear has left
+  it and brakes on the exact curve to be down to a lower one where it
+  begins; passing a stop signal it takes its aspect's speed until the next
+  one, and brakes for the next signal's aspect speed.
+
+Tests (`simulation-core`): cleared signals at caution before one at stop,
+a distant before it at caution; a train passing a signal at caution at
+its speed; a speed post's limit met at the post, kept until the rear is
+past the resume post; a speed zone over a limit; route heads at a
+junction (the set route's proceeds, the other stops). On the local routes
+arrivals against MSAE's calculated timetables: JAPAN1 median 5 s early,
+EUROPE2 58 s early, EUROPE1 142 s early (few posts); USA1's 15 timed
+stops 326 s late (its approach aspects are 30 and 45 mph and it has 377
+speed posts, which MSAE's calculation may leave out; the Open Rails
+comparison in phase 7 will tell). USA1's trains all finish now; USA2 and
+BNSF_SCENIC still deadlock.
 
 ## Objective
 

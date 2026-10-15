@@ -82,7 +82,8 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     timer.start();
     Route *route = Game::currentRoute;
     const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
-    std::shared_ptr<const SimulationInput> input = MakeInput(activity, Game::trackDB, limit);
+    const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;
+    std::shared_ptr<const SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted);
     inputMs = timer.elapsed();
     if (input->trains.empty()) {
         if (error != nullptr) {

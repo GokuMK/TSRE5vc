@@ -57,6 +57,19 @@ float vehicleLength(int engId) {
     return e != Game::currentEngLib->eng.end() && e->second != nullptr ? e->second->getFullWidth() : 0.0f;
 }
 
+// A place of the activity (tile x, tile z, x, z as its files have them) on
+// the nearest track, as the editor finds it.
+bool placeOnTrack(TDB *tdb, const float *tile, int &node, float &distance) {
+    float posT[2] = {tile[0], -tile[1]};
+    float pos[3] = {tile[2], 0.0f, -tile[3]};
+    float tpos[3] = {0.0f, 0.0f, 0.0f};
+    if (tdb->findNearestPositionOnTDB(posT, pos, nullptr, tpos, false) < 0 || tpos[0] < 1.0f)
+        return false;
+    node = int(tpos[0]);
+    distance = tpos[1];
+    return true;
+}
+
 // The activity's loose consists on the track, placed as the editor places
 // them (Consist::initOnTrack): the first vehicle's middle at the object's
 // place, the rest behind it.
@@ -77,14 +90,13 @@ std::vector<StaticConsist> StaticConsists(Activity *activity, TDB *tdb) {
                 first = length;
             consist.length += length;
         }
-        float posT[2] = {object->tile[0], -object->tile[1]};
-        float pos[3] = {object->tile[2], 0.0f, -object->tile[3]};
-        float tpos[3] = {0.0f, 0.0f, 0.0f};
-        if (consist.length <= 0.0f || tdb->findNearestPositionOnTDB(posT, pos, nullptr, tpos, false) < 0)
+        int node = -1;
+        float distance = 0.0f;
+        if (consist.length <= 0.0f || !placeOnTrack(tdb, object->tile, node, distance))
             continue;
         const bool forward = object->direction == 0;
         // To the first vehicle's front, then back along the whole consist.
-        const QVector<PathTrack::Leg> ahead = PathTrack::follow(tdb, int(tpos[0]), tpos[1], forward, first * 0.5f);
+        const QVector<PathTrack::Leg> ahead = PathTrack::follow(tdb, node, distance, forward, first * 0.5f);
         if (ahead.isEmpty())
             continue;
         const PathTrack::Leg &front = ahead.last();
@@ -116,6 +128,49 @@ size_t SimulationInput::memory(bool withGeometry) const {
     return bytes;
 }
 
+std::vector<SpeedLimit> SpeedLimits(const Projection &way, const TrackNetwork &network, bool passenger,
+                                    const std::vector<std::pair<double, double>> &zones, float zoneSpeed,
+                                    double partLength) {
+    // Where the posts' limit changes (a negative speed: none).
+    std::vector<std::pair<double, float>> changes;
+    for (const ProjectedItem &item : way.speedPosts) {
+        const SpeedPost &post = network.speedPosts()[size_t(item.index)];
+        if (post.kind == SpeedPost::Resume)
+            changes.push_back({item.at, -1.0f});
+        else if (post.kind == SpeedPost::Limit && (passenger ? post.passenger : post.freight) && post.speed > 0.0f)
+            changes.push_back({item.at, post.speed});
+    }
+    std::vector<double> cuts = {0.0, partLength};
+    for (const auto &change : changes)
+        cuts.push_back(change.first);
+    for (const auto &zone : zones) {
+        cuts.push_back(zone.first);
+        cuts.push_back(zone.second);
+    }
+    std::sort(cuts.begin(), cuts.end());
+    std::vector<SpeedLimit> limits;
+    size_t change = 0;
+    float post = -1.0f;
+    for (size_t k = 0; k + 1 < cuts.size(); ++k) {
+        const double from = std::max(0.0, cuts[k]), to = std::min(partLength, cuts[k + 1]);
+        while (change < changes.size() && changes[change].first <= from + 1e-6)
+            post = changes[change++].second;
+        if (to - from < 1e-3)
+            continue;
+        float speed = post;
+        for (const auto &zone : zones)
+            if (zone.first < to - 1e-6 && zone.second > from + 1e-6)
+                speed = speed > 0.0f ? std::min(speed, zoneSpeed) : zoneSpeed;
+        if (speed <= 0.0f)
+            continue;
+        if (!limits.empty() && std::fabs(limits.back().to - from) < 1e-6 && limits.back().speed == speed)
+            limits.back().to = to;
+        else
+            limits.push_back({from, to, speed});
+    }
+    return limits;
+}
+
 void SetRates(TrainPlan &train) {
     bool passenger = false;
     for (const Vehicle &vehicle : train.vehicles)
@@ -132,10 +187,12 @@ void SetRates(TrainPlan &train) {
 
 std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
                                                  std::shared_ptr<const TrackGeometry> geometry,
-                                                 std::shared_ptr<const TrackNetwork> network) {
+                                                 std::shared_ptr<const TrackNetwork> network, float restrictedSpeed) {
     auto input = std::make_shared<SimulationInput>();
     input->runId = nextRun++;
     input->routeSpeedLimit = routeSpeedLimit > 0.0f ? routeSpeedLimit : 44.4444f;
+    if (restrictedSpeed > 0.0f)
+        input->restrictedSpeed = restrictedSpeed;
     input->geometry = geometry != nullptr ? geometry : std::make_shared<const TrackGeometry>(tdb);
     if (network == nullptr) {
         bool openRails = false;
@@ -151,6 +208,21 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
                 + activity->header->startTime[2];
     }
     const QString routePath = ContentPath::parentDirectory(activity->path);
+    // The activity's restricted speed zones: their two ends on the track.
+    struct Zone {
+        int node[2];
+        float distance[2];
+    };
+    std::vector<Zone> zones;
+    for (ActivityObject *object : activity->restrictedSpeedZone) {
+        float start[4], end[4];
+        if (object == nullptr || !object->getSpeedZoneEnds(start, end))
+            continue;
+        Zone zone;
+        if (placeOnTrack(tdb, start, zone.node[0], zone.distance[0])
+                && placeOnTrack(tdb, end, zone.node[1], zone.distance[1]))
+            zones.push_back(zone);
+    }
     for (const ActivityTrains::Train &train : ActivityTrains::List(activity)) {
         if (train.kind == ActivityTrains::PatternOnly)
             continue;
@@ -290,8 +362,18 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
             if (plan.route.place(down, wait.part, wait.front))
                 plan.waits.push_back(wait);
         }
-        for (const RouteTrack &part : plan.route.parts)
+        for (const RouteTrack &part : plan.route.parts) {
             plan.projection.push_back(input->network->project(part));
+            // The zones whose both ends this part passes.
+            std::vector<std::pair<double, double>> passed;
+            for (const Zone &zone : zones) {
+                double a = 0.0, b = 0.0;
+                if (part.find(zone.node[0], zone.distance[0], a) && part.find(zone.node[1], zone.distance[1], b))
+                    passed.push_back({std::min(a, b), std::max(a, b)});
+            }
+            plan.limits.push_back(SpeedLimits(plan.projection.back(), *input->network, plan.passenger, passed,
+                                              input->restrictedSpeed, part.length()));
+        }
         input->trains.push_back(std::move(plan));
     }
     input->staticConsists = StaticConsists(activity, tdb);
