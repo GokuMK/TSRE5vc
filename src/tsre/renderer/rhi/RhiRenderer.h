@@ -770,8 +770,8 @@ private:
         QRhiComputePipeline *inject = nullptr;
         QRhiComputePipeline *integrate = nullptr;
         // The maps the injection's bindings hold (shadow maps, the cloud
-        // shadow map and the terrain's shade come and go).
-        const QRhiTexture *boundMaps[5] = {};
+        // shadow map, the terrain's shade and the lamps' grid come and go).
+        const QRhiTexture *boundMaps[8] = {};
         int current = 0;
         bool historyValid = false;
         float previousForward[16] = {};

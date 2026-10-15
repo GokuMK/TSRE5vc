@@ -530,6 +530,33 @@ the terrain cannot explain.
 - Left: rays thinner than a cell (8 pixels) blur; streaks along the lines
   to the sun (as the screen-space shafts) would sharpen them.
 
+## Step 4: lamps in fog (2026-10-15)
+
+- **The lamps light the fog:** the injection reads task 21's grid of lamps
+  (the lit shaders' `LocalLights.glsl`: the same lamps, strengths, ranges
+  and spot cones; signals are not in it), as strong as the lit shaders have
+  them in the open (`localLightDay`), with the sun's phase towards each
+  lamp: halos about lamps, light pooled in the fog under them.
+- **Summed along each cell's slice exactly:** a lamp's inverse square from
+  the slice's start to its end has a closed form (the arc tangent of the
+  ends over the ray's distance from the lamp, softened by the emitter's
+  size); its fade to the range, cone and phase are taken at the slice's
+  point nearest to it. Taken at one point of the slice, as the sun is, a
+  slice 30 m deep missed the few bright metres by a lamp (CMK, 200 m off:
+  at a thousand times the lamps' strength the halos showed as they should).
+- **The grid's cells at the slice's two ends,** the second's lamps not
+  counted twice: at one point of the slice, lamps the slice passed in the
+  next cell were left out, the halos cut straight along the cells' edges.
+- The cells' light is kept under the half floats' largest (next to a lamp
+  at night, with the cells' scale, it went past them).
+- **CMK at 3:00, valley fog** (the user's camera with signals and two glTF
+  lamps 200 m off): soft halos about the lamps, the platform's fog lit
+  under them; at most 104 of 255. The halos are a few cells wide there (8
+  pixels each): blocky up close at four times. Frame times the same within
+  their spread (about 1 ms) on the Steam Deck.
+- Capture files can hide the editor's helpers (`hideAll`, as 3D View >
+  Unselect All).
+
 ## Verification
 
 - **Captures** on hilly routes with valleys and rivers (POLAND, BNSF_SCENIC,

@@ -195,6 +195,10 @@ struct Options {
     // Editor view toggles that have no profile setting.
     bool pivotPoints = false;
     bool snapable = false;
+    // The editor's helpers all off, as 3D View > Unselect All (TrackDB and
+    // section lines, track items, interactives, grids, markers, the pointer)
+    // and the compass: the scene alone.
+    bool hideAll = false;
     Thresholds thresholds;
     // Map mode layers: an activity and a path to select, by file name.
     QString activity;
@@ -271,6 +275,9 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         options.shadows = root.value("shadows").toBool() ? 1 : 0;
     options.pivotPoints = root.value("pivotPoints").toBool(options.pivotPoints);
     options.snapable = root.value("snapable").toBool(options.snapable);
+    options.hideAll = root.value("hideAll").toBool(options.hideAll);
+    if (options.hideAll)
+        options.compass = options.pointer = options.pivotPoints = options.snapable = false;
 
     const QJsonObject settle = root.value("settle").toObject();
     options.settle.minFrames = settle.value("minFrames").toInt(options.settle.minFrames);
@@ -543,6 +550,13 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         Game::shadowsEnabled = options.shadows > 0 ? std::max(1, Game::shadowsEnabled) : 0;
     QScopedValueRollback<bool> restorePivots(Game::showWorldObjPivotPoints, options.pivotPoints);
     QScopedValueRollback<bool> restoreSnapable(Game::viewSnapable, options.snapable);
+    QScopedValueRollback<bool> restoreTrackDb(Game::viewTrackDbLines, Game::viewTrackDbLines && !options.hideAll);
+    QScopedValueRollback<bool> restoreTsection(Game::viewTsectionLines, Game::viewTsectionLines && !options.hideAll);
+    QScopedValueRollback<bool> restoreTrackItems(Game::renderTrItems, Game::renderTrItems && !options.hideAll);
+    QScopedValueRollback<bool> restoreInteractives(Game::viewInteractives, Game::viewInteractives && !options.hideAll);
+    QScopedValueRollback<bool> restoreWorldGrid(Game::viewWorldGrid, Game::viewWorldGrid && !options.hideAll);
+    QScopedValueRollback<bool> restoreTileGrid(Game::viewTileGrid, Game::viewTileGrid && !options.hideAll);
+    QScopedValueRollback<bool> restoreTerrainGrid(Game::viewTerrainGrid, Game::viewTerrainGrid && !options.hideAll);
     RenderStats::setEnabled(true);
 
     RouteEditorGLWidget widget;
@@ -645,7 +659,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             Game::check_coords(groundX, groundZ, ground);
             pos[1] = Game::terrainLib->getHeight(groundX, groundZ, ground[0], ground[2]) + spec.aboveGround;
         }
-        Game::viewMarkers = spec.viewMarkers;
+        Game::viewMarkers = spec.viewMarkers && !options.hideAll;
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,

@@ -107,7 +107,9 @@ The script uses `xvfb-run` when no display is available. Cases files:
   gather shadow pass until it exists. Output `build/renderer-parity-shadows/`.
 
 Cases file keys: `width`, `height`, `output`, `pickGrid`, `timingFrames`,
-`diffTolerance`, `hud`, `compass`, `pointer`, `shadows`, `settle`
+`diffTolerance`, `hud`, `compass`, `pointer`, `shadows`, `hideAll` (the
+editor's helpers off: TrackDB and section lines, track items, interactives,
+grids, markers, compass, pointer), `settle`
 (`minFrames`, `stableFrames`, `maxFrames`, `maxSeconds`), `thresholds`, and
 `views`. A view uses the route start position unless it gives `tile` and `pos`;
 `offset` moves the start position and `rot` is `[yaw, pitch]` in radians, with
