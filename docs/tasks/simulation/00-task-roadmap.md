@@ -9,6 +9,12 @@ and 2026-10-15): MSTS, MSAE and Open Rails signalling and AI, a basic block
 model as the first operating policy, and threading.
 
 ## Decisions (user)
+- 2026-10-15 (task 02): all signal data but scripts; Open Rails additions
+  needing world files wait (their data to be stored in the TDB by the
+  editor); single-track stretches claimed by one train, deadlocks reported
+  to the user; path-based passing paths; clearing ahead in Open Rails'
+  legacy mode, then Open Rails mode; speed posts and zones; the player's
+  train as an AI train.
 - 2026-10-15: TSRE's own C++ simulation core, Open Rails as a behavioural
   reference (from the analysis).
 - 2026-10-15: the simulation runs on its own thread on an immutable copy of
@@ -34,9 +40,15 @@ model as the first operating policy, and threading.
   timetables (stops, waits, reversals) with no signals: trains meet and
   pass through each other. Done 2026-10-15 (input, driver, thread and
   editor, measured).
-- [ ] 02: track occupation and reservations, a basic block policy (the
-  analysis's basic block timing preview): trains wait for each other.
-- [ ] 03: signals: `sigcfg.dat` and `sigscr.dat`, aspects, signals as
-  authority.
-- [ ] Later: activity events, the player driving, speed posts, the Play mode
-  and sounds on the simulation, comparison with Open Rails timings.
+- [ ] `02-signals-and-track-authority.md`: everything the TDB and
+  `sigcfg.dat` say about signals, no scripts: sections, occupation and
+  reservations, signals clearing ahead (Open Rails' legacy and Open Rails
+  modes), junctions set and locked, aspects from a built-in rule with
+  their speeds, speed posts and speed zones, single-track claims and
+  deadlocks reported to the user, path-based passing paths. Designed
+  2026-10-15, decisions taken.
+- [ ] 03: `sigscr.dat` read and run in place of the built-in aspect rule.
+- [ ] Later: the Open Rails additions that need world data (stored in the
+  TDB, `tdb-signal-extension.md`), approach control, location-linked
+  passing paths, curves and gradients, activity events, the player
+  driving, the Play mode and sounds on the simulation.
