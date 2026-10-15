@@ -2767,6 +2767,14 @@ void RouteEditorGLWidget::applyFog() {
         f.cell = float(FogFloor::CellSize);
         f.revision = fogMapRevision;
         cameraWorldPosition(f.cameraEast, f.cameraNorth);
+        // Its patches drift with the low clouds' wind (about 100 m up),
+        // weaker near the ground.
+        if (const Weather *weather = currentWeather()) {
+            double east = 0.0, north = 0.0;
+            weather->drift(weatherHours(), WeatherLayer::Low, east, north);
+            f.driftEast = east * 0.4;
+            f.driftNorth = north * 0.4;
+        }
     }
     renderer->setFog(f);
 }

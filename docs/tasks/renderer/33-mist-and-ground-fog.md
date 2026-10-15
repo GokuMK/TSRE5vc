@@ -261,8 +261,9 @@ aerial haze stays as it is: it is the dry air. The fog adds to it.
    First look: ground fog around the camera and on the line ahead, valley
    fog from hills.
 4. **Lamps and signals in fog:** the light grid in the volume; the signals'
-   glow.
+   glow. (Done, below.)
 5. **Patches and motion:** noise drift, edges, burn-off lifting into stratus.
+   (Done, below.)
 6. **Setting, preset, panel control, docs;** timing on the Steam Deck at
    each quality.
 
@@ -567,6 +568,34 @@ the terrain cannot explain.
   the user's camera). Reaching as far as they show with the exposure, as
   lamps do, bright halos lowered the exposure, shortened the reach, and the
   halos went.
+
+## Step 5: patches and motion (2026-10-15)
+
+- **Patches:** value noise at 600, 240 and 90 m (weights 0.55, 0.3, 0.15)
+  in world metres, wrapped every 36 km (each scale repeats over it exactly,
+  hashed modulo its period, so the floats keep a centimetre and the wrap
+  does not show). The fog's top swells by it, a deep fog's by about 13 % of
+  its depth, a patchy one's by up to 30 %; a patchy fog thins into holes
+  where the noise is low (`smoothstep(0.3, 0.6)`, as much as the
+  weather's patchiness: 0.25 for a fog saturated well past the dew point,
+  1 for a marginal one or one burning off). A hole goes through the fog
+  above too, so the sun reaches the ground under it.
+- The lit shaders' sun under the fog (`fogSunThrough`) takes the same noise,
+  the highest-top skip the swell's margin.
+- **Motion:** the patches drift with the weather's low layer (its drift,
+  about 100 m up, by 0.4 for the wind near the ground), the three scales
+  at 1, 0.6 and 1.4 times it, so the patches change as they move; with the
+  weather's clock (a timelapse faster, a stopped clock still).
+- **Cost:** the noise once per cell, at its slice's middle (at each of the
+  four density points about 1 ms on the Steam Deck; now within the frames'
+  spread).
+- **PeakRail, valley fog** (from 150 m up): at dawn (patchiness 0.25) the
+  sea of fog's top gently uneven (a mean of 1.6 of 255 against a flat one);
+  at 7:00 and 8:00, burning off, the remnants lie in patches with gaps
+  between (5 to 6). Forced to patchiness 1 at dawn the top dips to the
+  trees in places, at 7:00 a hole opens onto the sunlit valley.
+- Lifting into stratus stays as step 1 has it: burning off, the fog lifts
+  off the ground and thins from its top, its patchiness the burn.
 
 ## Verification
 

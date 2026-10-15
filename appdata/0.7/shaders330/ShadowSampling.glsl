@@ -59,6 +59,36 @@ uniform sampler2D fogFloorMap;
 uniform vec4 fogShape;
 // The map's north-west corner (x, z), its size (m), the view's y less heights.
 uniform vec4 fogPlace;
+// The patches (RhiFog.cpp): the map's corner in world metres (east, north,
+// wrapped), the weather's patchiness; how far they have drifted.
+uniform vec4 fogPatchPlace;
+uniform vec4 fogDrift;
+
+// Patches (step 5): fog thinning into holes and its top rising and falling,
+// a sum of value noise at 600, 240 and 90 m in world metres (east, north,
+// wrapped every 36 km, which each scale repeats over exactly), each drifting
+// with the wind near the ground at its own pace, so the patches change as
+// they move. 0-1, about 0.5.
+float fogHash(vec2 i) {
+    vec3 p3 = fract(vec3(i.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float fogNoise(vec2 p, float period) {
+    vec2 i = floor(p);
+    vec2 f = p - i;
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = fogHash(mod(i, period)), b = fogHash(mod(i + vec2(1.0, 0.0), period));
+    float c = fogHash(mod(i + vec2(0.0, 1.0), period)), d = fogHash(mod(i + vec2(1.0, 1.0), period));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fogPatches(vec2 q, vec2 drift) {
+    return fogNoise((q - drift) / 600.0, 60.0) * 0.55
+            + fogNoise((q - drift * 0.6) / 240.0 + 17.0, 150.0) * 0.3
+            + fogNoise((q - drift * 1.4) / 90.0 + 41.0, 400.0) * 0.15;
+}
 
 float fogSunThrough(vec3 position) {
     if (fogShape.x <= 0.0)
@@ -69,8 +99,12 @@ float fogSunThrough(vec3 position) {
     vec4 cell = textureLod(fogFloorMap, m, 0.0);
     float height = position.y - fogPlace.w;
     float top = max(cell.x + fogShape.y * cell.y, cell.z + fogShape.y * 0.5 * cell.w);
+    // The fog's patches, as the fog's volume has them.
+    float n = fogPatches(vec2(position.x - fogPlace.x, fogPlace.y - position.z) + fogPatchPlace.xy, fogDrift.xy);
+    top += (n - 0.5) * fogShape.y * (0.15 + 0.45 * fogPatchPlace.z);
+    float holes = mix(1.0, smoothstep(0.3, 0.6, n), fogPatchPlace.z);
     float above = max(top - max(height, cell.x + fogShape.z), 0.0);
-    return exp(-fogShape.x * (1.0 + 0.5 * cell.w) * min(above * fogShape.w, 3000.0));
+    return exp(-fogShape.x * (1.0 + 0.5 * cell.w) * holes * min(above * fogShape.w, 3000.0));
 }
 
 // The terrain's shade of a low sun or moon past the shadow maps' 700 m

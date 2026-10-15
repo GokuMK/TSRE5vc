@@ -59,6 +59,8 @@ struct FogParameters {
     float lightLayers[4];      // its vertical cell (m), lamps (0: none), their strength in open air, 0
     float signalGrid[4];       // the signals' grid, as the lamps'
     float signalLayers[4];
+    float patches[4];          // the floor map's corner in world metres (east, north, wrapped), patchiness, 0
+    float drift[4];            // how far the fog has drifted (east, north, wrapped), 0, 0
 };
 
 const char *FogBlock = R"(#version 440
@@ -90,6 +92,8 @@ layout(std140, binding = 0) uniform Fog {
     vec4 lightLayers;
     vec4 signalGrid;
     vec4 signalLayers;
+    vec4 patches;
+    vec4 drift;
 };
 
 // The distance (m) a slice coordinate stands for.
@@ -120,7 +124,34 @@ layout(binding = 14) uniform sampler2D signalLightIndices;
 // Extinction (1/m): the weather's fog from the floor up to its top, where the
 // floor map pools it (FogFloor), softly edged; none past the map. above: the
 // fog over the point (m) and its extinction there, for the light reaching it.
-float density(vec3 p, out float above, out float sigmaAbove) {
+// Patches (step 5): fog thinning into holes and its top rising and falling,
+// a sum of value noise at 600, 240 and 90 m in world metres (east, north,
+// wrapped every 36 km, which each scale repeats over exactly), each drifting
+// with the wind near the ground at its own pace, so the patches change as
+// they move. 0-1, about 0.5.
+float fogHash(vec2 i) {
+    vec3 p3 = fract(vec3(i.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float fogNoise(vec2 p, float period) {
+    vec2 i = floor(p);
+    vec2 f = p - i;
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = fogHash(mod(i, period)), b = fogHash(mod(i + vec2(1.0, 0.0), period));
+    float c = fogHash(mod(i + vec2(0.0, 1.0), period)), d = fogHash(mod(i + vec2(1.0, 1.0), period));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fogPatches(vec2 q, vec2 drift) {
+    return fogNoise((q - drift) / 600.0, 60.0) * 0.55
+            + fogNoise((q - drift * 0.6) / 240.0 + 17.0, 150.0) * 0.3
+            + fogNoise((q - drift * 1.4) / 90.0 + 41.0, 400.0) * 0.15;
+}
+
+// n: the patches' noise there (fogPatches).
+float density(vec3 p, float n, out float above, out float sigmaAbove) {
     above = 0.0;
     sigmaAbove = 0.0;
     if (map.w < 0.5)
@@ -131,13 +162,18 @@ float density(vec3 p, out float above, out float sigmaAbove) {
     vec4 cell = textureLod(floorMap, m, 0.0);
     float height = p.y - range.y;
     float top = max(cell.x + fog.y * cell.y, cell.z + fog.y * 0.5 * cell.w);
+    // Its top swells up and down (a deep fog's by about 13 % of its depth,
+    // a patchy one's by up to 30 %); a patchy fog (thin, burning off) thins
+    // into holes where the noise is low.
+    top += (n - 0.5) * fog.y * (0.15 + 0.45 * patches.z);
+    float holes = mix(1.0, smoothstep(0.3, 0.6, n), patches.z);
     float inside = 1.0 - smoothstep(top - fog.w, top + fog.w, height);
     if (fog.z > 0.0)
         inside *= smoothstep(cell.x + fog.z - fog.w, cell.x + fog.z + fog.w, height);
     vec2 edge = min(m, 1.0 - m);
     inside *= smoothstep(0.0, 0.05, min(edge.x, edge.y));
-    // Thicker over water.
-    sigmaAbove = fog.x * (1.0 + 0.5 * cell.w);
+    // Thicker over water; a hole goes through the fog above too.
+    sigmaAbove = fog.x * (1.0 + 0.5 * cell.w) * holes;
     above = max(top - max(height, cell.x + fog.z), 0.0);
     return sigmaAbove * inside;
 }
@@ -297,9 +333,17 @@ void main() {
     // A slice above the highest fog top on the map has none (most cells
     // look at the sky or over the fog).
     float low = min(d.y * sliceDistance(float(id.z)), d.y * sliceDistance(float(id.z) + 1.0)) + camera.y - range.y;
+    // The patches' noise once for the cell, at its slice's middle: it
+    // changes over 90 m and more (at each of the four points it cost about
+    // 1 ms on the Steam Deck).
+    float n = 0.5;
+    if (low < range.z && map.w > 0.5) {
+        vec3 middle = camera.xyz + d * sliceDistance(float(id.z) + 0.5);
+        n = fogPatches(vec2(middle.x - map.x, map.y - middle.z) + patches.xy, drift.xy);
+    }
     for (int k = 0; k < Points && low < range.z; ++k) {
         float a, sa;
-        float s = density(camera.xyz + d * sliceDistance(float(id.z) + (float(k) + jitter.z) / float(Points)), a, sa);
+        float s = density(camera.xyz + d * sliceDistance(float(id.z) + (float(k) + jitter.z) / float(Points)), n, a, sa);
         sigma += s;
         above += a * s;
         sigmaAbove += sa * s;
@@ -681,7 +725,8 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
         f.topRevision = fog.revision;
         f.topDepth = fog.depth;
     }
-    p.range[2] = f.highestTop;
+    // The patches' swell raises the top (as the injection's density).
+    p.range[2] = f.highestTop + 0.5f * fog.depth * (0.15f + 0.45f * std::clamp(fog.patchiness, 0.0f, 1.0f));
     // Still (captures): the cells' middles, so frames repeat.
     if (clouds.still) {
         p.jitter[0] = p.jitter[1] = p.jitter[2] = 0.5f;
@@ -775,6 +820,7 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     // gives (as that, its halo in fog did not show; at 50 times a soft halo
     // of its colour, at 100 the fog about the signals tinted).
     p.signalLayers[2] = SignalFogGain;
+    fogPatchPlace(p.patches, p.drift);
     terrainShadePlace(p.shadePlace, p.shadeParams);
     if (f.boundMaps[4] == dummy2D)
         p.shadeParams[0] = 0.0f;
@@ -848,6 +894,21 @@ void RhiRenderer::prepareSignalGrid(QRhiResourceUpdateBatch *batch) {
         signalGrid = LightGrid();
 }
 
+void RhiRenderer::fogPatchPlace(float patches[4], float drift[4]) const {
+    // World metres wrapped every 36 km, which the patches' noise repeats
+    // over: the floats keep a centimetre there, as the map's corner moves
+    // and the fog drifts on.
+    constexpr double Period = 36000.0;
+    auto wrap = [](double metres) { return float(metres - std::floor(metres / Period) * Period); };
+    patches[0] = wrap(fog.west);
+    patches[1] = wrap(fog.north);
+    patches[2] = std::clamp(fog.patchiness, 0.0f, 1.0f);
+    patches[3] = 0.0f;
+    drift[0] = wrap(fog.driftEast);
+    drift[1] = wrap(fog.driftNorth);
+    drift[2] = drift[3] = 0.0f;
+}
+
 void RhiRenderer::writeFogUniforms(RhiProgram *program) {
     const bool on = fogResources.filled && fogWanted() && !secondaryView && currentTarget == TARGET_VIEW;
     float forward[16];
@@ -863,6 +924,10 @@ void RhiRenderer::writeFogUniforms(RhiProgram *program) {
     const float rise = length > 0.0f ? l[1] / length : 1.0f;
     program->setVec("fogShape", shading ? fog.amount * 3.912f / std::max(fog.visibility, 10.0f) : 0.0f, fog.depth,
                     fog.base, 1.0f / std::max(rise, 0.05f));
+    float patches[4], drift[4];
+    fogPatchPlace(patches, drift);
+    program->setVec("fogPatchPlace", patches[0], patches[1], patches[2], patches[3]);
+    program->setVec("fogDrift", drift[0], drift[1], drift[2], drift[3]);
     program->setVec("fogPlace", viewPosition[0] + float(fog.west - fog.cameraEast),
                     viewPosition[2] - float(fog.north - fog.cameraNorth), float(fog.size) * fog.cell,
                     viewPosition[1] - sky.cameraHeight);

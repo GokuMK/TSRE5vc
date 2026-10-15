@@ -208,6 +208,10 @@ public:
         // The camera (world metres east, north).
         double cameraEast = 0.0;
         double cameraNorth = 0.0;
+        // How far the fog has drifted with the wind near the ground (world
+        // metres east, north): its patches move.
+        double driftEast = 0.0;
+        double driftNorth = 0.0;
     };
     virtual void setFog(const Fog &fog) {}
 

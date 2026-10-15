@@ -810,6 +810,9 @@ private:
     float fogLightScale() const;
     // The view's directions to the volume's x and y (0-1, its y sign in).
     void fogForward(float *out) const;
+    // The patches' place (the floor map's corner in world metres, wrapped;
+    // patchiness) and drift (wrapped), for the shaders' noise.
+    void fogPatchPlace(float patches[4], float drift[4]) const;
     // The volume's slices: nearest and farthest distance (m).
     static constexpr float FogNear = 1.0f;
     static constexpr float FogFar = 10000.0f;
