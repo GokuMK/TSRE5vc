@@ -42,6 +42,8 @@ struct TrainState {
     // section; NoHolder when it does not wait.
     int blockedBy = NoHolder;
     int waitSection = -1;
+    // The stop signal it waits at (a signal of the network), -1 none.
+    int atSignal = -1;
     // It is in a deadlock (reported once).
     bool deadlocked = false;
 };
@@ -67,8 +69,11 @@ class SimulationCore {
 public:
     // The longest step taken at once: longer steps are cut into these.
     static constexpr double MaxStep = 0.1;
-    // A train stops this far short of the end of its authority.
+    // A train stops this far short of the end of its authority, and this
+    // far short of a stop signal not cleared for it (Open Rails' AI keeps
+    // 30 m to the stopping point).
     static constexpr double AuthorityMargin = 10.0;
+    static constexpr double SignalMargin = 30.0;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
@@ -92,6 +97,11 @@ public:
     // Who holds each section of the network (a train, StandingConsist,
     // NoHolder).
     const std::vector<int> &holders() const { return holder; }
+    // Each junction section's switch position (output pin 1 or 2); 0 for
+    // other sections.
+    const std::vector<int> &switches() const { return switchAt; }
+    // Each signal of the network: the train it is cleared for, NoHolder.
+    const std::vector<int> &cleared() const { return clearedFor; }
     // The two ends of each of a train's vehicles, in the consist's order:
     // the vehicle's front (as the consist lists it) and its rear, their
     // roll looking from the rear to the front. False for a train not on the
@@ -111,6 +121,9 @@ private:
     std::vector<TrainEvent> events;
     // Per network section.
     std::vector<int> holder;
+    std::vector<int> switchAt;
+    // Per signal of the network.
+    std::vector<int> clearedFor;
     // Per train, what the frames need not see: the sections it holds in its
     // route's order (where it leaves each), and the next projected section
     // it would reserve on its part.
@@ -123,6 +136,12 @@ private:
     struct Runtime {
         std::deque<Held> held;
         size_t next = 0;
+        // On its part's stop signals: the next whose block it has not
+        // reserved, and the first its front has not passed.
+        size_t nextSignal = 0;
+        size_t passed = 0;
+        // Its authority ends at a stop signal not cleared for it.
+        bool endsAtSignal = false;
         // Whom it was last reported waiting for.
         int reported = Unreported;
     };
@@ -142,6 +161,12 @@ private:
     void extendAuthority(int train);
     void releaseBehind(int train);
     void releaseAll(int train);
+    // Reserves projected sections [from, to) for the train: holds them,
+    // sets their junctions its way.
+    void take(int train, size_t from, size_t to);
+    // How many stop signals from `first` on it may clear (Open Rails' legacy
+    // and Open Rails modes of SignalNumClearAhead).
+    size_t clearable(const Projection &way, size_t first) const;
     // A Blocked event, once for each holder it waits for.
     void blocked(int train, double time);
     // Rings of trains each waiting for track the next one holds.

@@ -413,6 +413,29 @@ Projection TrackNetwork::project(const RouteTrack &route) const {
     auto byAt = [](const ProjectedItem &a, const ProjectedItem &b) { return a.at < b.at; };
     std::stable_sort(projection.heads.begin(), projection.heads.end(), byAt);
     std::stable_sort(projection.speedPosts.begin(), projection.speedPosts.end(), byAt);
+    // Stop signals: the facing heads' signals with NORMAL heads, each with
+    // the first section of its block.
+    for (const ProjectedItem &item : projection.heads) {
+        const SignalHead &head = signalHeads[size_t(item.index)];
+        if (head.kind < 0 || types[size_t(head.kind)].function != SignalFunction::Normal)
+            continue;
+        if (!projection.stopSignals.empty() && projection.stopSignals.back().signal == head.signal) {
+            ++projection.stopSignals.back().normalHeads;
+            continue;
+        }
+        ProjectedSignal signal;
+        signal.signal = head.signal;
+        signal.at = item.at;
+        signal.normalHeads = 1;
+        signal.kind = head.kind;
+        signal.section = projection.sections.size();
+        for (size_t k = 0; k < projection.sections.size(); ++k)
+            if (projection.sections[k].enter >= item.at - Same) {
+                signal.section = k;
+                break;
+            }
+        projection.stopSignals.push_back(signal);
+    }
     return projection;
 }
 

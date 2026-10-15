@@ -47,8 +47,9 @@ bool writeUtf16(const QString &path, const QString &text) {
     return true;
 }
 
-// Two signal types: a NORMAL home signal of three aspects clearing two heads
-// ahead, and a distant one (MSTS's DISTANCE).
+// Signal types: a NORMAL home signal of three aspects clearing two ahead, a
+// distant one (MSTS's DISTANCE), and two NORMAL ones clearing 0 and -1
+// ahead (Open Rails' own values).
 const char *testSigCfg = R"(SIMISA@@@@@@@@@@JINX0G0t______
 
 LightTextures ( 1
@@ -58,7 +59,7 @@ LightsTab ( 2
 	LightsTabEntry ( "Red Light" colour ( 255 255 40 40 ) )
 	LightsTabEntry ( "Green Light" colour ( 255 40 255 40 ) )
 )
-SignalTypes ( 2
+SignalTypes ( 4
 	SignalType ( "Home"
 		SignalFnType ( NORMAL )
 		SignalLightTex ( "ltex" )
@@ -93,6 +94,38 @@ SignalTypes ( 2
 			SignalAspect ( CLEAR_2 "Green" )
 		)
 		SignalNumClearAhead ( 1 )
+	)
+	SignalType ( "Zero"
+		SignalFnType ( NORMAL )
+		SignalLightTex ( "ltex" )
+		SignalLights ( 1
+			SignalLight ( 0 "Red Light" Position ( 0 0 0 ) Radius ( 0.1 ) )
+		)
+		SignalDrawStates ( 2
+			SignalDrawState ( 0 "Red" DrawLights ( 1 DrawLight ( 0 ) ) )
+			SignalDrawState ( 1 "Green" DrawLights ( 1 DrawLight ( 0 ) ) )
+		)
+		SignalAspects ( 2
+			SignalAspect ( STOP "Red" )
+			SignalAspect ( CLEAR_2 "Green" )
+		)
+		SignalNumClearAhead ( 0 )
+	)
+	SignalType ( "Skip"
+		SignalFnType ( NORMAL )
+		SignalLightTex ( "ltex" )
+		SignalLights ( 1
+			SignalLight ( 0 "Red Light" Position ( 0 0 0 ) Radius ( 0.1 ) )
+		)
+		SignalDrawStates ( 2
+			SignalDrawState ( 0 "Red" DrawLights ( 1 DrawLight ( 0 ) ) )
+			SignalDrawState ( 1 "Green" DrawLights ( 1 DrawLight ( 0 ) ) )
+		)
+		SignalAspects ( 2
+			SignalAspect ( STOP "Red" )
+			SignalAspect ( CLEAR_2 "Green" )
+		)
+		SignalNumClearAhead ( -1 )
 	)
 )
 SignalShapes ( 0 )
@@ -703,6 +736,137 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
               "two routes into one junction take turns: the second waits for the first");
         check(firstEvent(merged, 2, Sim::TrainEvent::Finished) != nullptr && firstEvent(merged, 2, Sim::TrainEvent::Blocked) == nullptr,
               "a route clear of theirs runs without waiting");
+    }
+
+    // Signals as authority (task 02, phase 3).
+    {
+        QTemporaryDir folder;
+        const QString config = folder.path() + "/sigcfg.dat";
+        writeUtf16(config, testSigCfg);
+        const SigCfg signalConfig(config);
+        const int t0 = 8 * 3600;
+        const auto routeOf = [](TDB *tdb, QVector<PathTrack::TrackPoint> points, double leadIn) {
+            PathTrack::Result made = PathTrack::startAt(tdb, points.first());
+            for (int k = 1; k < points.size(); ++k)
+                made = PathTrack::endAt(tdb, made.nodes, points[k]);
+            return Sim::BuildRoute(tdb, made.nodes, PathTrack::legs(tdb, made.nodes), leadIn);
+        };
+        const auto trainOn = [](const Sim::TrainRoute &route, const Sim::TrackNetwork &network, int start) {
+            Sim::TrainPlan p;
+            p.vehicles = {Sim::Vehicle{20.0f, false, 4}, Sim::Vehicle{20.0f, false, 1}};
+            p.length = 40.0f;
+            p.maxSpeed = 20.0f;
+            Sim::SetRates(p);
+            p.startTime = start;
+            p.route = route;
+            p.startFront = route.pathStart + 10.0;
+            for (const Sim::RouteTrack &part : route.parts)
+                p.projection.push_back(network.project(part));
+            return p;
+        };
+        const auto inputOf = [&](std::shared_ptr<const Sim::TrackGeometry> geometry,
+                                 std::shared_ptr<const Sim::TrackNetwork> network, std::vector<Sim::TrainPlan> plans) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->network = network;
+            for (size_t i = 0; i < plans.size(); ++i) {
+                plans[i].id = int(i);
+                made->trains.push_back(plans[i]);
+            }
+            return made;
+        };
+        // A 2 km line with signals at 500, 1000 and 1500 m of the given
+        // types (two heads at 500 m when asked); how far a train starting
+        // at 100 m has its track reserved, in the line's metres.
+        const auto reservedTo = [&](const QStringList &types, bool doubleFirst, bool openRails) {
+            TestTrack::Layout line;
+            line.end(1, 10);
+            line.track(10, 1, 2, 200);
+            line.end(2, 10);
+            for (int k = 0; k < 3; ++k)
+                TestTrack::signalHead(line, 10, 950 + k, 500.0f * (k + 1), true, types[k]);
+            if (doubleFirst)
+                TestTrack::signalHead(line, 10, 949, 500.0f, true, types[0]);
+            TDB *db = &line.db;
+            const QScopedValueRollback<TDB *> live(Game::trackDB, db);
+            auto geometry = std::make_shared<const Sim::TrackGeometry>(db);
+            auto network = std::make_shared<const Sim::TrackNetwork>(db, *geometry, &signalConfig, openRails);
+            const Sim::TrainRoute east = routeOf(db, {{10, 100.0f}, {10, 1990.0f}}, 31.0);
+            Sim::SimulationCore core(inputOf(geometry, network, {trainOn(east, *network, t0)}));
+            core.step(0.1);
+            return core.trains()[0].authority + 69.0;
+        };
+        const double legacy = reservedTo({"Home", "Home", "Home"}, true, false);
+        const double openRails = reservedTo({"Home", "Home", "Home"}, true, true);
+        check(std::fabs(legacy - 1000.0) < 0.5 && std::fabs(openRails - 1500.0) < 0.5,
+              QString("clearing two ahead: legacy counts the first signal's two heads (to %1 m), Open Rails mode two "
+                      "signals (to %2 m)").arg(legacy).arg(openRails));
+        const double zero = reservedTo({"Zero", "Home", "Home"}, false, true);
+        const double skip = reservedTo({"Home", "Skip", "Home"}, false, true);
+        check(std::fabs(zero - 1000.0) < 0.5 && skip > 1980.0,
+              QString("Open Rails' 0 clears nothing beyond its signal (to %1 m); -1 does not count (to %2 m)")
+                  .arg(zero).arg(skip));
+
+        // A train held at a red signal stops 30 m short of it: the one ahead
+        // waits 10 minutes in the block past the 1000 m signal.
+        TestTrack::Layout line;
+        line.end(1, 10);
+        line.track(10, 1, 2, 200);
+        line.end(2, 10);
+        for (int k = 1; k <= 3; ++k)
+            TestTrack::signalHead(line, 10, 960 + k, 500.0f * k, true, "Home");
+        TDB *db = &line.db;
+        const QScopedValueRollback<TDB *> live(Game::trackDB, db);
+        auto lineGeometry = std::make_shared<const Sim::TrackGeometry>(db);
+        auto lineNetwork = std::make_shared<const Sim::TrackNetwork>(db, *lineGeometry, &signalConfig, false);
+        const Sim::TrainRoute east = routeOf(db, {{10, 100.0f}, {10, 1990.0f}}, 31.0);
+        Sim::TrainPlan waiting = trainOn(east, *lineNetwork, t0);
+        Sim::WaitPlan wait;
+        wait.front = 1200.0 - 69.0;
+        wait.value = 600;
+        waiting.waits.push_back(wait);
+        Sim::SimulationCore held(inputOf(lineGeometry, lineNetwork, {waiting, trainOn(east, *lineNetwork, t0 + 120)}));
+        held.step(400.0);
+        const Sim::TrainState &behind = held.trains()[1];
+        const int signal1000 = lineNetwork->heads()[size_t(lineNetwork->headOfItem(962))].signal;
+        check(behind.status == Sim::TrainStatus::Stopped && behind.stoppedAt == Sim::StopKind::Blocked
+                  && std::fabs(behind.front - (1000.0 - 69.0 - Sim::SimulationCore::SignalMargin)) < 0.5
+                  && behind.atSignal == signal1000 && behind.blockedBy == 0
+                  && held.cleared()[size_t(signal1000)] == Sim::NoHolder,
+              QString("a train at a red signal stands 30 m short of it (front at %1 m), waiting for the train in its block")
+                  .arg(behind.front + 69.0));
+        held.step(900.0);
+        check(held.trains()[1].front > 1000.0 - 69.0, "it goes on when the block is clear");
+
+        // The passing loop: the train through the loop's other track sets the
+        // junction its way and holds it; the one from the main track waits.
+        TestTrack::Layout loop;
+        TestTrack::passingLoop(loop);
+        TDB *loopDb = &loop.db;
+        const QScopedValueRollback<TDB *> liveLoop(Game::trackDB, loopDb);
+        auto loopGeometry = std::make_shared<const Sim::TrackGeometry>(loopDb);
+        auto loopNetwork = std::make_shared<const Sim::TrackNetwork>(loopDb, *loopGeometry, &signalConfig, false);
+        const Sim::TrainRoute through = routeOf(loopDb, {{10, 20.0f}, {12, 100.0f}, {13, 80.0f}}, 0.0);
+        PathTrack::Result fromMain = PathTrack::turnStart(loopDb, PathTrack::startAt(loopDb, {11, 150.0f}).nodes);
+        fromMain = PathTrack::endAt(loopDb, fromMain.nodes, {10, 10.0f});
+        const Sim::TrainRoute merge = Sim::BuildRoute(loopDb, fromMain.nodes, PathTrack::legs(loopDb, fromMain.nodes), 0.0);
+        Sim::SimulationCore setting(inputOf(loopGeometry, loopNetwork, {trainOn(through, *loopNetwork, t0),
+                                                                        trainOn(merge, *loopNetwork, t0 + 1)}));
+        const int j2 = loopNetwork->junctionSection(2);
+        setting.step(2.0);
+        const bool setSide = setting.switches()[size_t(j2)] == 2 && setting.holders()[size_t(j2)] == 0;
+        int later = -1, laterHolder = -2;
+        for (int i = 0; i < 600; ++i) {
+            setting.step(1.0);
+            if (setting.holders()[size_t(j2)] == 1) {
+                later = setting.switches()[size_t(j2)];
+                laterHolder = 1;
+                break;
+            }
+        }
+        check(setSide && later == 1 && laterHolder == 1,
+              "a train reserving a junction sets it its way (the loop's side) and holds it; the next sets it back for its own");
     }
 
     qInfo().noquote() << QString("simulation-core: %1 passed, %2 failed").arg(passed).arg(failed);

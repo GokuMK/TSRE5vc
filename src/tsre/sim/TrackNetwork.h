@@ -123,10 +123,23 @@ struct ProjectedItem {
     int index = -1;
     double at = 0.0;
 };
+// A stop signal facing the route: a signal with NORMAL heads facing it.
+struct ProjectedSignal {
+    int signal = -1;
+    double at = 0.0;
+    // Its NORMAL heads facing the train (legacy clearing ahead counts them).
+    int normalHeads = 0;
+    // The kind of its first NORMAL head (how far to clear ahead).
+    int kind = -1;
+    // The first projected section of its block (past it).
+    size_t section = 0;
+};
 struct Projection {
     std::vector<ProjectedSection> sections;
     std::vector<ProjectedItem> heads;
     std::vector<ProjectedItem> speedPosts;
+    // In the order passed.
+    std::vector<ProjectedSignal> stopSignals;
 };
 
 // The track's topology and its signal data, made from the TDB and

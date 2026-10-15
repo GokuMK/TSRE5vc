@@ -1,7 +1,7 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
-Status: phases 1 and 2 done (2026-10-16, branch `feature/simulation`);
-phase 3 next. Decisions taken are at the end.
+Status: phases 1 to 3 done (2026-10-16, branch `feature/simulation`);
+phase 4 next. Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -86,6 +86,33 @@ train's path runs through a loose consist); single-track USA1 (41 of 46),
 USA2 (39 of 48) and BNSF_SCENIC (5 of 16) deadlock without signals and
 stretch claims (phases 3 and 5). `simulation-ui`'s AI train has its own
 line now.
+
+**Phase 3, signals (done 2026-10-16).**
+- Each projected route part lists the stop signals facing it (signals
+  with NORMAL heads): where each stands, its NORMAL heads, its type, the
+  first section of its block.
+- Past the first stop signal ahead a train reserves block by block: a
+  signal is cleared for it when its whole block (to the next stop signal
+  on the route, or the part's end) is free and taken at once; it clears as
+  many as the first signal ahead's type says: NORMAL heads, the first
+  signal's own included (Open Rails' legacy mode), or signals (Open Rails
+  mode), where a type of 0 clears none beyond it and one of -1 is not
+  counted. Short of the first signal (or where there is none) it reserves
+  as Auto Node does.
+- A train stops 30 m short of a stop signal not cleared for it (10 m short
+  of other ends of authority); a passed signal is no longer cleared.
+- Junctions: a train taking a junction sets it its way (the output it
+  leaves by, or the one it comes in by trailing) and holds it; switches
+  start in their main position and stay where the last train left them.
+
+Tests (`simulation-core`): clearing two ahead counts a signal's two heads
+in legacy mode and two signals in Open Rails mode; 0 and -1; a train
+behind one waiting in the next block stands 30 m short of the red signal
+and goes on when the block is clear; a junction set and held for the
+loop's side track, then set back for a train from the main track. The
+local activities run with signals: EUROPE1, EUROPE2, JAPAN2 finish,
+JAPAN1 as before; single-track USA1, USA2 and BNSF_SCENIC still deadlock
+(phase 5).
 
 ## Objective
 

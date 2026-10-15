@@ -39,6 +39,13 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         states[i].front = in->trains[i].startFront;
     const TrackNetwork *network = in->network.get();
     holder.assign(network != nullptr ? network->sections().size() : 0, NoHolder);
+    // Switches in their main position until a train sets them.
+    switchAt.assign(holder.size(), 0);
+    if (network != nullptr)
+        for (size_t k = 0; k < holder.size(); ++k)
+            if (network->sections()[k].kind == TrackSection::Junction)
+                switchAt[k] = network->sections()[k].mainPin;
+    clearedFor.assign(network != nullptr ? network->signalGroups().size() : 0, NoHolder);
     // Loose consists hold the track they stand on for the whole run.
     if (network != nullptr)
         for (const StaticConsist &consist : in->staticConsists) {
@@ -153,8 +160,9 @@ void SimulationCore::advance(int train, double from, double to) {
             if (s.stoppedAt == StopKind::Blocked) {
                 // Goes on when the track ahead is its own again.
                 extendAuthority(train);
+                const double margin = runtime[size_t(train)].endsAtSignal ? SignalMargin : AuthorityMargin;
                 if (s.authority < parts[size_t(s.part)].length() - 1e-6
-                        && s.authority - AuthorityMargin <= s.front + AtTarget) {
+                        && s.authority - margin <= s.front + AtTarget) {
                     blocked(train, t);
                     break;
                 }
@@ -233,7 +241,8 @@ void SimulationCore::advance(int train, double from, double to) {
             break;
         }
         if (s.authority < parts[size_t(s.part)].length() - 1e-6) {
-            const double limit = std::max(s.front, s.authority - AuthorityMargin);
+            const double margin = runtime[size_t(train)].endsAtSignal ? SignalMargin : AuthorityMargin;
+            const double limit = std::max(s.front, s.authority - margin);
             if (limit < target) {
                 target = limit;
                 kind = StopKind::Blocked;
@@ -360,11 +369,17 @@ bool SimulationCore::occupy(int train) {
         reach = std::max(reach, way[k].leave);
         ++k;
     }
-    for (size_t i = begin; i < k; ++i) {
-        holder[size_t(way[i].section)] = train;
-        rt.held.push_back({way[i].section, way[i].leave});
-    }
+    take(train, begin, k);
     rt.next = k;
+    // Signals under it and behind it are passed; the next to clear is the
+    // first whose block it has not taken.
+    const std::vector<ProjectedSignal> &stopSignals = plan.projection[size_t(s.part)].stopSignals;
+    rt.passed = 0;
+    while (rt.passed < stopSignals.size() && stopSignals[rt.passed].at < s.front)
+        ++rt.passed;
+    rt.nextSignal = 0;
+    while (rt.nextSignal < stopSignals.size() && stopSignals[rt.nextSignal].section < k)
+        ++rt.nextSignal;
     s.authority = k >= way.size() ? partLength : reach;
     s.blockedBy = NoHolder;
     s.waitSection = -1;
@@ -380,51 +395,147 @@ void SimulationCore::extendAuthority(int train) {
         s.authority = partLength;
         return;
     }
-    const std::vector<ProjectedSection> &way = plan.projection[size_t(s.part)].sections;
+    const Projection &projection = plan.projection[size_t(s.part)];
+    const std::vector<ProjectedSection> &way = projection.sections;
+    const std::vector<ProjectedSignal> &stopSignals = projection.stopSignals;
     const std::vector<TrackSection> &sections = in->network->sections();
-    const double lookahead = std::max(AutoNodeDistance,
-                                      AutoNodeTime * std::min(double(plan.maxSpeed), double(in->routeSpeedLimit)));
-    const double want = std::min(s.front + lookahead, partLength);
     s.blockedBy = NoHolder;
     s.waitSection = -1;
-    while (s.authority < want - 1e-6 && rt.next < way.size()) {
-        // A track section with the junctions before it and the crossings on
-        // it, all or nothing.
+    s.atSignal = -1;
+    rt.endsAtSignal = false;
+    // Short of the first stop signal ahead (or where there is none), it
+    // reserves as Open Rails' Auto Node does; past it, the blocks of the
+    // signals it may clear.
+    const double lookahead = std::max(AutoNodeDistance,
+                                      AutoNodeTime * std::min(double(plan.maxSpeed), double(in->routeSpeedLimit)));
+    const double autoLimit = std::min(s.front + lookahead, partLength);
+    const size_t allowed = rt.passed + clearable(projection, rt.passed);
+    auto blockedAt = [&](size_t k) {
+        const int h = holder[size_t(way[k].section)];
+        if (h == NoHolder || h == train)
+            return false;
+        s.blockedBy = h;
+        s.waitSection = way[k].section;
+        return true;
+    };
+    while (rt.next < way.size()) {
+        if (rt.nextSignal < stopSignals.size() && stopSignals[rt.nextSignal].section <= rt.next) {
+            // A stop signal: cleared with its whole block, or not passed.
+            const ProjectedSignal &signal = stopSignals[rt.nextSignal];
+            if (rt.nextSignal >= allowed) {
+                rt.endsAtSignal = true;
+                break;
+            }
+            const size_t blockEnd = rt.nextSignal + 1 < stopSignals.size()
+                    ? std::max(stopSignals[rt.nextSignal + 1].section, rt.next) : way.size();
+            bool free = true;
+            for (size_t k = rt.next; k < blockEnd && free; ++k)
+                free = !blockedAt(k);
+            if (!free) {
+                rt.endsAtSignal = true;
+                s.atSignal = signal.signal;
+                break;
+            }
+            take(train, rt.next, blockEnd);
+            if (blockEnd > rt.next)
+                s.authority = std::max(s.authority, way[blockEnd - 1].leave);
+            rt.next = blockEnd;
+            clearedFor[size_t(signal.signal)] = train;
+            ++rt.nextSignal;
+            continue;
+        }
+        // No signal here: a track section at a time (with the junctions
+        // before it and the crossings on it), as far as Auto Node reaches.
+        if (s.authority >= autoLimit - 1e-6)
+            break;
+        const size_t stop = rt.nextSignal < stopSignals.size() ? stopSignals[rt.nextSignal].section : way.size();
         size_t end = rt.next;
         bool track = false;
-        double reach = s.authority;
-        while (end < way.size()) {
+        while (end < stop) {
             if (sections[size_t(way[end].section)].kind == TrackSection::Track) {
                 if (track)
                     break;
                 track = true;
             }
-            reach = std::max(reach, way[end].leave);
             ++end;
         }
-        for (size_t k = rt.next; k < end; ++k) {
-            const int h = holder[size_t(way[k].section)];
-            if (h != NoHolder && h != train) {
-                s.blockedBy = h;
-                s.waitSection = way[k].section;
-                return;
-            }
-        }
-        for (size_t k = rt.next; k < end; ++k) {
-            holder[size_t(way[k].section)] = train;
-            rt.held.push_back({way[k].section, way[k].leave});
-        }
-        s.authority = std::max(s.authority, reach);
+        bool free = true;
+        for (size_t k = rt.next; k < end && free; ++k)
+            free = !blockedAt(k);
+        if (!free)
+            break;
+        take(train, rt.next, end);
+        if (end > rt.next)
+            s.authority = std::max(s.authority, way[end - 1].leave);
         rt.next = end;
     }
-    if (rt.next >= way.size())
+    if (rt.next >= way.size()) {
         s.authority = partLength;
+        rt.endsAtSignal = false;
+    }
+}
+
+void SimulationCore::take(int train, size_t from, size_t to) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    const std::vector<ProjectedSection> &way = plan.projection[size_t(states[size_t(train)].part)].sections;
+    const std::vector<TrackSection> &sections = in->network->sections();
+    Runtime &rt = runtime[size_t(train)];
+    for (size_t k = from; k < to; ++k) {
+        const ProjectedSection &pass = way[k];
+        holder[size_t(pass.section)] = train;
+        rt.held.push_back({pass.section, pass.leave});
+        // A junction set the train's way: its output where it goes out by
+        // one, the output it comes in by trailing.
+        if (sections[size_t(pass.section)].kind == TrackSection::Junction) {
+            const int pin = pass.pinIn == 0 ? pass.pinOut : pass.pinIn;
+            if (pin == 1 || pin == 2)
+                switchAt[size_t(pass.section)] = pin;
+        }
+    }
+}
+
+size_t SimulationCore::clearable(const Projection &way, size_t first) const {
+    const std::vector<ProjectedSignal> &stopSignals = way.stopSignals;
+    if (first >= stopSignals.size() || stopSignals[first].kind < 0)
+        return 1;
+    const std::vector<SignalKind> &kinds = in->network->kinds();
+    const SignalKind &leading = kinds[size_t(stopSignals[first].kind)];
+    const int wanted = leading.clearAhead;
+    // Legacy: NORMAL heads, the first signal's included. Open Rails mode:
+    // signals; a type of 0 clears none beyond it, one of -1 is not counted.
+    size_t allowed = 0;
+    int counted = 0;
+    for (size_t k = first; k < stopSignals.size(); ++k) {
+        if (k > first && counted >= wanted)
+            break;
+        ++allowed;
+        if (!leading.countsSignals) {
+            counted += stopSignals[k].normalHeads;
+            continue;
+        }
+        const int ahead = stopSignals[k].kind >= 0 ? kinds[size_t(stopSignals[k].kind)].clearAhead : 1;
+        if (ahead != -1)
+            ++counted;
+        if (ahead == 0)
+            break;
+    }
+    return std::max<size_t>(allowed, 1);
 }
 
 void SimulationCore::releaseBehind(int train) {
     const TrainPlan &plan = in->trains[size_t(train)];
     const TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
+    // Signals its front has passed are no longer cleared for it.
+    if (size_t(s.part) < plan.projection.size()) {
+        const std::vector<ProjectedSignal> &stopSignals = plan.projection[size_t(s.part)].stopSignals;
+        while (rt.passed < stopSignals.size() && stopSignals[rt.passed].at < s.front) {
+            int &cleared = clearedFor[size_t(stopSignals[rt.passed].signal)];
+            if (cleared == train)
+                cleared = NoHolder;
+            ++rt.passed;
+        }
+    }
     const double rear = s.front - plan.length;
     while (!rt.held.empty() && rt.held.front().leave < rear - 1e-6) {
         const int section = rt.held.front().section;
@@ -445,6 +556,12 @@ void SimulationCore::releaseAll(int train) {
             holder[size_t(held.section)] = NoHolder;
     rt.held.clear();
     rt.next = 0;
+    rt.nextSignal = 0;
+    rt.passed = 0;
+    rt.endsAtSignal = false;
+    for (int &cleared : clearedFor)
+        if (cleared == train)
+            cleared = NoHolder;
     states[size_t(train)].authority = 0.0;
 }
 
