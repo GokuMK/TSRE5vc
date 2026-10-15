@@ -6,6 +6,7 @@
 #include <vector>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/sim/SimulationFrame.h>
+#include <tsre/world/objects/SignalLights.h>
 
 class Activity;
 class QThread;
@@ -21,9 +22,9 @@ class SimulationHost;
 // sends the commands, takes the frames and events, and shows the trains
 // (3D, map, the Timetable window's states). While a simulation exists
 // (from start until Stop; Pause keeps it) the activity's data is not
-// edited (ActivityNotifier::editingLocked), and the world's clock is the
-// simulation's (WorldClock's source).
-class SimulationController : public QObject, public WorldClock::Source {
+// edited (ActivityNotifier::editingLocked), the world's clock is the
+// simulation's (WorldClock's source), and so are the signals' lights.
+class SimulationController : public QObject, public WorldClock::Source, public SignalLights::StateSource {
     Q_OBJECT
 public:
     // Speeds offered, simulated seconds a second; 0 as fast as possible.
@@ -104,6 +105,9 @@ public:
     void setClockSpeed(double secondsPerSecond) override { setSpeed(secondsPerSecond); }
     void setClockTime(double hours) override;
     void setClockDate(const QString &date) override;
+    // The heads' draw states for their lights, from the frame taken last.
+    unsigned long long stateSerial() const override;
+    QString drawStateOf(int item) const override;
 
     // What a train is doing ("running 72 km/h", "at Settle until 08:31"),
     // and an event as the Timetable window lists it.
@@ -113,6 +117,10 @@ public:
     // holder (a train, a standing consist).
     QString trainName(int train) const;
     QString holderName(int holder) const;
+    // A signal of the network as the editor names it (its TDB item); why a
+    // train waits ("at signal 1234: the track beyond is held by ...").
+    QString signalName(int signal) const;
+    QString waitText(WaitFor waitFor, int signal, int holder) const;
     QString statusText() const;
 
     // The simulated trains in 3D, with the ids of the trains at their starts

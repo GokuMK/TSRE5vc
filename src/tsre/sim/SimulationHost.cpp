@@ -6,7 +6,7 @@
 
 namespace Sim {
 
-std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core) {
+std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const SimulationFrame *before) {
     auto frame = std::make_shared<SimulationFrame>();
     frame->runId = core.input().runId;
     frame->steps = core.steps();
@@ -19,6 +19,25 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core) {
         train.state = states[i];
         core.vehicleEnds(int(i), train.fronts, train.rears);
     }
+    if (before != nullptr && before->runId != frame->runId)
+        before = nullptr;
+    frame->drawSerial = core.drawSerial();
+    if (before != nullptr && before->drawStates != nullptr && before->drawSerial == frame->drawSerial) {
+        frame->aspects = before->aspects;
+        frame->drawStates = before->drawStates;
+    } else {
+        frame->aspects = std::make_shared<const std::vector<int>>(core.aspects());
+        frame->drawStates = std::make_shared<const std::vector<int>>(core.drawStates());
+    }
+    frame->holdSerial = core.holdSerial();
+    frame->standsOn.resize(states.size());
+    for (size_t i = 0; i < states.size(); ++i)
+        frame->standsOn[i] = core.standsOn(int(i));
+    if (before != nullptr && before->sectionUses != nullptr && before->holdSerial == frame->holdSerial
+            && before->standsOn == frame->standsOn)
+        frame->sectionUses = before->sectionUses;
+    else
+        frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
     return frame;
 }
 
@@ -175,7 +194,8 @@ void SimulationHost::tick() {
 }
 
 void SimulationHost::publish() {
-    std::shared_ptr<SimulationFrame> frame = core != nullptr ? MakeFrame(*core)
+    // Only this thread sets the latest frame: read without the lock.
+    std::shared_ptr<SimulationFrame> frame = core != nullptr ? MakeFrame(*core, latest.get())
                                                              : std::make_shared<SimulationFrame>();
     frame->acknowledged = acknowledged;
     frame->mode = mode;

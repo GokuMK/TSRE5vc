@@ -705,18 +705,22 @@ void SignalObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
         queue.popTransform();
     }
 
-    // Lights of the shown heads in their default aspect (task 26).
+    // Lights of the shown heads in their default aspect (task 26), or as a
+    // running simulation shows them.
     if(shapePointer != NULL && signalShape != NULL){
         unsigned int heads = 0;
-        for(int i = 0; i < 32; i++)
+        int items[32];
+        for(int i = 0; i < 32; i++){
+            items[i] = signalUnit[i].tdbId == 0 ? signalUnit[i].itemId : -1;
             if(signalUnit[i].enabled && signalUnit[i].head && ((signalSubObj >> i) & 1))
                 heads |= 1u << i;
+        }
         if(heads != 0){
             if(!lights)
                 lights.reset(new SignalLights());
             queue.pushTransform();
             Mat4::multiply(queue.transform(), queue.transform(), matrix);
-            lights->push(queue, shapePointer, signalShape, heads, selectionId);
+            lights->push(queue, shapePointer, signalShape, heads, items, selectionId);
             queue.popTransform();
         }
     }

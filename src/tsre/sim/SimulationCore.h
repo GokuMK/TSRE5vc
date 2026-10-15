@@ -11,6 +11,11 @@ enum class TrainStatus { Waiting, Running, Stopped, Finished };
 // held by another train or a standing consist.
 enum class StopKind { None, Station, Wait, Reversal, End, Blocked };
 
+// What a waiting train waits for: track held by another train (or a
+// consist), the single track ahead claimed for an opposing train (task 02,
+// section 4), the passing track it would take held.
+enum class WaitFor { Track, SingleTrack, PassingTrack };
+
 // Who holds a section: a train's id, or these.
 constexpr int NoHolder = -1;
 constexpr int StandingConsist = -2;
@@ -42,6 +47,7 @@ struct TrainState {
     // section; NoHolder when it does not wait.
     int blockedBy = NoHolder;
     int waitSection = -1;
+    WaitFor waitFor = WaitFor::Track;
     // The stop signal it waits at (a signal of the network), -1 none.
     int atSignal = -1;
     // The speed the last stop signal it passed gave it (its aspect's), m/s;
@@ -54,15 +60,17 @@ struct TrainState {
 // Something that happened to a train, for the editor (task simulation 01,
 // section 6).
 struct TrainEvent {
-    // Blocked: waiting for track held by `index` (a train, StandingConsist);
-    // Deadlock: in a ring of trains waiting for each other, waiting for
-    // train `index`.
+    // Blocked: waiting for `index` (a train, StandingConsist) as `waitFor`
+    // says, at `signal` (a signal of the network, -1 none); Deadlock: in a
+    // ring of trains waiting for each other, waiting for train `index`.
     enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
     // The station stop or waiting point (index in the train's plan), or -1.
     int index = -1;
+    WaitFor waitFor = WaitFor::Track;
+    int signal = -1;
 };
 
 // The simulation's state and its stepping: plain C++, no QObject, nothing
@@ -124,6 +132,20 @@ public:
     // built-in rule (no scripts, task 02).
     const std::vector<int> &aspects() const { return headAspect; }
     const std::vector<int> &drawStates() const { return headDraw; }
+    // Changes whenever a head's aspect or draw state does.
+    unsigned long long drawSerial() const { return drawChanges; }
+    // For the map: each section's holder (a train, a standing consist,
+    // NoHolder) and whether it is stood on (under a train or a consist).
+    struct SectionUse {
+        int holder = NoHolder;
+        bool occupied = false;
+    };
+    std::vector<SectionUse> sectionUses() const;
+    // Changes whenever a holder does.
+    unsigned long long holdSerial() const { return holdChanges; }
+    // How many of the sections a train holds it stands on (they change as
+    // its front passes into the next).
+    size_t standsOn(int train) const;
     // The two ends of each of a train's vehicles, in the consist's order:
     // the vehicle's front (as the consist lists it) and its rear, their
     // roll looking from the rear to the front. False for a train not on the
@@ -150,6 +172,8 @@ private:
     // switches.
     std::vector<int> headAspect;
     std::vector<int> headDraw;
+    unsigned long long drawChanges = 0;
+    unsigned long long holdChanges = 0;
     bool aspectsDirty = true;
     std::vector<Stretch> single;
     std::vector<int> claimedBy;
@@ -161,6 +185,7 @@ private:
     // it would reserve on its part.
     struct Held {
         int section = -1;
+        double enter = 0.0;
         double leave = 0.0;
     };
     // Not yet reported waiting.

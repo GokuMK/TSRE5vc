@@ -1,0 +1,68 @@
+{
+  "notes": "Signals and track under simulation (docs/tasks/simulation/02-signals-and-track-authority.md, phase 7) on JAPAN1's shrtpass, run to 09:03 (it starts at 09:00). ai-signal: the jp4light head (TDB item 597) 89 m ahead of the AI train (Short Passenger Run (Traffic)), cleared at caution: one yellow light. player-signal: the jp4light head (item 600) 128 m ahead of the player's train, cleared: green. Without a simulation (the same views, no activity) both show their default red. ai-map and player-map: the track each train stands on in red (whole sections between signals), the track reserved ahead in amber, the signals as arrowheads pointing the way the trains they face go: red at stop, yellow at caution, green clear.",
+  "output": "build/renderer-simulation-signals",
+  "activity": "shrtpass.act",
+  "aiTrains": "all",
+  "simulateTo": "09:03:00",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 60,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "ai-signal",
+      "tile": [
+        -145,
+        -14086
+      ],
+      "pos": [
+        764.0,
+        37.0,
+        150.0
+      ],
+      "rot": [
+        3.14159,
+        -0.05
+      ]
+    },
+    {
+      "name": "player-signal",
+      "tile": [
+        -144,
+        -14085
+      ],
+      "pos": [
+        -545.0,
+        37.0,
+        -610.0
+      ],
+      "rot": [
+        0.37,
+        -0.05
+      ]
+    },
+    {
+      "name": "ai-map",
+      "mode": "map",
+      "train": 0,
+      "metresPerPixel": 1.5
+    },
+    {
+      "name": "player-map",
+      "mode": "map",
+      "train": 1,
+      "metresPerPixel": 1.5
+    }
+  ]
+}

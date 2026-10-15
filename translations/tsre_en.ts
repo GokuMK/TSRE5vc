@@ -1418,13 +1418,13 @@ Consist with this file name already exist. Overwrite?
     </message>
     <message id="route.editor.activity.tools.simulation.speed">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="449"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="879"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="880"/>
         <source>%1×</source>
         <translation>%1×</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.speed.fastest">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="451"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="880"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="881"/>
         <source>As fast as possible</source>
         <translation>As fast as possible</translation>
     </message>
@@ -1444,265 +1444,271 @@ Consist with this file name already exist. Overwrite?
         <translation>Run to:</translation>
     </message>
     <message id="route.editor.activity.tools.label.file.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="501"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="502"/>
         <source>File Name:</source>
         <translation>File Name:</translation>
     </message>
     <message id="route.editor.activity.tools.label.display.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="506"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="507"/>
         <source>Display Name:</source>
         <translation>Display Name:</translation>
     </message>
     <message id="route.editor.activity.tools.label.difficulty">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="511"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="512"/>
         <source>Difficulty:</source>
         <translation>Difficulty:</translation>
     </message>
     <message id="route.editor.activity.tools.label.duration">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="516"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="517"/>
         <source>Duration:</source>
         <translation>Duration:</translation>
     </message>
     <message id="route.editor.activity.tools.label.start.time">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="522"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="523"/>
         <source>Start Time:</source>
         <translation>Start Time:</translation>
     </message>
     <message id="route.editor.activity.tools.label.season">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="528"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="529"/>
         <source>Season:</source>
         <translation>Season:</translation>
     </message>
     <message id="route.editor.activity.tools.label.weather">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="533"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="534"/>
         <source>Weather:</source>
         <translation>Weather:</translation>
     </message>
     <message id="route.editor.activity.tools.label.horn.at.crossings">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="538"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="539"/>
         <source>Horn At Crossings: </source>
         <translation>Horn At Crossings: </translation>
     </message>
     <message id="route.editor.activity.tools.label.horn.pattern">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="546"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="547"/>
         <source>Horn Pattern:</source>
         <translation>Horn Pattern:</translation>
     </message>
     <message id="route.editor.activity.tools.item.not.set">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="549"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="561"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="550"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="562"/>
         <source>Not set</source>
         <translation>Not set</translation>
     </message>
     <message id="route.editor.activity.tools.item.horn.us">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="552"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="553"/>
         <source>US (long, long, short, long)</source>
         <translation>US (long, long, short, long)</translation>
     </message>
     <message id="route.editor.activity.tools.item.horn.single">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="555"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="556"/>
         <source>Single blast</source>
         <translation>Single blast</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.wood">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="565"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="566"/>
         <source>Fuel Wood:</source>
         <translation>Fuel Wood:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.sand">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="570"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="571"/>
         <source>Fuel Sand:</source>
         <translation>Fuel Sand:</translation>
     </message>
     <message id="route.editor.activity.tools.label.load.stations">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="575"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="576"/>
         <source>Station Loads:</source>
         <translation>Station Loads:</translation>
     </message>
     <message id="route.editor.activity.tools.tooltip.load.stations">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="578"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="579"/>
         <source>Open Rails: ACTIVITIES/OPENRAILS/&lt;name&gt;.load-stations-loads-or</source>
         <translation>Open Rails: ACTIVITIES/OPENRAILS/&lt;name&gt;.load-stations-loads-or</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.coal">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="590"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="591"/>
         <source>Fuel Coal:</source>
         <translation>Fuel Coal:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.diesel">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="599"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="600"/>
         <source>Fuel Diesel:</source>
         <translation>Fuel Diesel:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.water">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="608"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="609"/>
         <source>Fuel Water:</source>
         <translation>Fuel Water:</translation>
     </message>
     <message id="route.editor.activity.tools.label.hazard.animal">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="617"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="618"/>
         <source>Hazard Animal:</source>
         <translation>Hazard Animal:</translation>
     </message>
     <message id="route.editor.activity.tools.label.hazard.people">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="626"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="627"/>
         <source>Hazard People:</source>
         <translation>Hazard People:</translation>
     </message>
     <message id="route.editor.activity.tools.label.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="643"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="644"/>
         <source>Description:</source>
         <translation>Description:</translation>
     </message>
     <message id="route.editor.activity.tools.label.briefing">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="649"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="650"/>
         <source>Briefing:</source>
         <translation>Briefing:</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.settings">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="659"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="660"/>
         <source>Activity Settings.</source>
         <translation>Activity Settings.</translation>
     </message>
     <message id="route.editor.activity.tools.item.undefined">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="776"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="777"/>
         <source>UNDEFINED</source>
         <translation>UNDEFINED</translation>
     </message>
     <message id="route.editor.activity.tools.item.undefined.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="792"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="793"/>
         <source>UNDEFINED</source>
         <translation>UNDEFINED</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="830"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="849"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="831"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="850"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="927"/>
         <source>Simulation</source>
         <translation>Simulation</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.time.rate">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="897"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="898"/>
         <source>%1 (%2×)</source>
         <translation>%1 (%2×)</translation>
     </message>
+    <message id="route.editor.activity.tools.simulation.deadlock">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="933"/>
+        <source>These trains wait for each other and will not move again (a deadlock): %1. The simulation goes on. Change their times or paths so they meet where one can pass the other, then reset the simulation.</source>
+        <translation>These trains wait for each other and will not move again (a deadlock): %1. The simulation goes on. Change their times or paths so they meet where one can pass the other, then reset the simulation.</translation>
+    </message>
     <message id="route.editor.activity.tools.overlay.merged">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="931"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="965"/>
         <source>The overlay %1 is merged; it is renamed when the activity is saved.</source>
         <translation>The overlay %1 is merged; it is renamed when the activity is saved.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.present">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="933"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="967"/>
         <source>Open Rails adds the overlay %1 to this activity.</source>
         <translation>Open Rails adds the overlay %1 to this activity.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="945"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="979"/>
         <source>Merge the Overlay</source>
         <translation>Merge the Overlay</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.intro">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="949"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="983"/>
         <source>These additions go into the activity as edits (one undo step). Saving the activity renames %1 to %2.</source>
         <translation>These additions go into the activity as edits (one undo step). Saving the activity renames %1 to %2.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.unreadable">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="951"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="985"/>
         <source>The overlay %1 cannot be read.</source>
         <translation>The overlay %1 cannot be read.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.left.out">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="960"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="994"/>
         <source>Left out: %1</source>
         <translation>Left out: %1</translation>
     </message>
     <message id="route.editor.activity.tools.title.save.changes">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1050"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1084"/>
         <source>Save changes?</source>
         <translation>Save changes?</translation>
     </message>
     <message id="route.editor.activity.tools.message.save.changes.in.activities">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1053"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1087"/>
         <source>Save changes in activities?</source>
         <translation>Save changes in activities?</translation>
     </message>
     <message id="route.editor.activity.tools.save.check.errors">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1067"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1101"/>
         <source>%1: %2 errors (Check Activity lists them)</source>
         <translation>%1: %2 errors (Check Activity lists them)</translation>
     </message>
     <message id="activity.failed.signal.id">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1219"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1253"/>
         <source>Signal ID: %1</source>
         <translation>Signal ID: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1261"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1290"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1295"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1324"/>
         <source>Path</source>
         <translation>Path</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.file">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1267"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1301"/>
         <source>File name</source>
         <translation>File name</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1270"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1304"/>
         <source>Display name</source>
         <translation>Display name</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.taken">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1293"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1327"/>
         <source>A path named %1 exists already.</source>
         <translation>A path named %1 exists already.</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.invalid">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1295"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1329"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1349"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1383"/>
         <source>Delete Path</source>
         <translation>Delete Path</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.read.only">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1353"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1387"/>
         <source>The route is read-only.</source>
         <translation>The route is read-only.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.question">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1358"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1392"/>
         <source>Delete the path %1 and its file? This cannot be undone.</source>
         <translation>Delete the path %1 and its file? This cannot be undone.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.users">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1363"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1397"/>
         <source>These services and activities name it: %1</source>
         <translation>These services and activities name it: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.failed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1369"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1403"/>
         <source>The file %1 could not be deleted.</source>
         <translation>The file %1 could not be deleted.</translation>
     </message>
     <message id="route.editor.activity.tools.title.signal.not.disabled">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1581"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1615"/>
         <source>Signal not disabled!</source>
         <translation>Signal not disabled!</translation>
     </message>
     <message id="route.editor.activity.tools.text.select.signal.before.using.this.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1584"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1618"/>
         <source>Select signal before using this button.</source>
         <translation>Select signal before using this button.</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1944"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1978"/>
         <source>Activity Description</source>
         <translation>Activity Description</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1964"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1998"/>
         <source>Activity Description</source>
         <translation>Activity Description</translation>
     </message>
@@ -11955,12 +11961,12 @@ Now TSRE will download app data.</translation>
         <translation>Cancel</translation>
     </message>
     <message id="tsre.trains.activity.object.action.toggle.direction">
-        <location filename="../src/tsre/trains/ActivityObject.cpp" line="569"/>
+        <location filename="../src/tsre/trains/ActivityObject.cpp" line="577"/>
         <source>&amp;Toggle Direction</source>
         <translation>&amp;Toggle Direction</translation>
     </message>
     <message id="tsre.trains.activity.object.action.reverse.selected">
-        <location filename="../src/tsre/trains/ActivityObject.cpp" line="575"/>
+        <location filename="../src/tsre/trains/ActivityObject.cpp" line="583"/>
         <source>&amp;Reverse Selected</source>
         <translation>&amp;Reverse Selected</translation>
     </message>
@@ -13726,147 +13732,177 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>Choose an activity first.</translation>
     </message>
     <message id="simulation.error.no.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="91"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="92"/>
         <source>The activity has no train the simulation can run.</source>
         <translation>The activity has no train the simulation can run.</translation>
     </message>
+    <message id="simulation.state.waiting.single">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="469"/>
+        <source>to start: the single track is claimed by %1</source>
+        <translation>to start: the single track is claimed by %1</translation>
+    </message>
     <message id="simulation.state.waiting.track">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="448"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="471"/>
         <source>to start: its track is held by %1</source>
         <translation>to start: its track is held by %1</translation>
     </message>
     <message id="simulation.state.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="450"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="474"/>
         <source>starts at %1</source>
         <translation>starts at %1</translation>
     </message>
     <message id="simulation.state.running">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="453"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="477"/>
         <source>running %1 km/h</source>
         <translation>running %1 km/h</translation>
     </message>
     <message id="simulation.state.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="456"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="480"/>
         <source>finished</source>
         <translation>finished</translation>
     </message>
     <message id="simulation.state.station">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="466"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="490"/>
         <source>at %1 until %2</source>
         <translation>at %1 until %2</translation>
     </message>
     <message id="simulation.state.wait">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="470"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="494"/>
         <source>at a waiting point until %1</source>
         <translation>at a waiting point until %1</translation>
     </message>
     <message id="simulation.state.reversal">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="473"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="497"/>
         <source>reversing</source>
         <translation>reversing</translation>
     </message>
     <message id="simulation.state.end">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="476"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="500"/>
         <source>at its path&apos;s end</source>
         <translation>at its path&apos;s end</translation>
     </message>
     <message id="simulation.state.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="480"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="504"/>
         <source>deadlocked: waiting for %1</source>
         <translation>deadlocked: waiting for %1</translation>
     </message>
+    <message id="simulation.state.signal">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="509"/>
+        <source>at signal %1, not cleared</source>
+        <translation>at signal %1, not cleared</translation>
+    </message>
+    <message id="simulation.wait.single">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="540"/>
+        <source>waiting for the single track ahead, claimed by %1</source>
+        <translation>waiting for the single track ahead, claimed by %1</translation>
+    </message>
+    <message id="simulation.wait.single.signal">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="542"/>
+        <source>at signal %1: the single track beyond is claimed by %2</source>
+        <translation>at signal %1: the single track beyond is claimed by %2</translation>
+    </message>
+    <message id="simulation.wait.passing">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="546"/>
+        <source>waiting for the passing track, held by %1</source>
+        <translation>waiting for the passing track, held by %1</translation>
+    </message>
+    <message id="simulation.wait.passing.signal">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="548"/>
+        <source>at signal %1: the passing track is held by %2</source>
+        <translation>at signal %1: the passing track is held by %2</translation>
+    </message>
     <message id="simulation.state.blocked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="482"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="554"/>
         <source>waiting for track held by %1</source>
         <translation>waiting for track held by %1</translation>
     </message>
+    <message id="simulation.wait.track.signal">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="556"/>
+        <source>at signal %1: the track beyond is held by %2</source>
+        <translation>at signal %1: the track beyond is held by %2</translation>
+    </message>
     <message id="simulation.train.player">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="495"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="565"/>
         <source>%1 (player)</source>
         <translation>%1 (player)</translation>
     </message>
     <message id="simulation.train.ai">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="497"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="567"/>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
     </message>
     <message id="simulation.holder.consist">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="503"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="573"/>
         <source>a standing consist</source>
         <translation>a standing consist</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="515"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="585"/>
         <source>started</source>
         <translation>started</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="519"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="589"/>
         <source>arrived at %1, booked %2</source>
         <translation>arrived at %1, booked %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="521"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="591"/>
         <source>arrived at %1</source>
         <translation>arrived at %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="525"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="595"/>
         <source>departed from %1, booked %2</source>
         <translation>departed from %1, booked %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="527"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="597"/>
         <source>departed from %1</source>
         <translation>departed from %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="532"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="602"/>
         <source>at a waiting point: %1</source>
         <translation>at a waiting point: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="536"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="606"/>
         <source>reversed</source>
         <translation>reversed</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="539"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="609"/>
         <source>sounded the horn</source>
         <translation>sounded the horn</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="542"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="612"/>
         <source>reached its path&apos;s end</source>
         <translation>reached its path&apos;s end</translation>
     </message>
-    <message id="simulation.event.blocked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="545"/>
-        <source>waits for track held by %1</source>
-        <translation>waits for track held by %1</translation>
-    </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="548"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="617"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>deadlocked: waits for %1, which waits for it in turn</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="568"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="637"/>
         <source>Every train has finished its path.</source>
         <translation>Every train has finished its path.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="570"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="639"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="579"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="648"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Deadlock: %1 wait for each other.</translation>
     </message>
     <message id="simulation.status.warnings">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="582"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="651"/>
         <source>Not simulated: %1.</source>
         <translation>Not simulated: %1.</translation>
     </message>

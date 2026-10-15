@@ -8,6 +8,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QScopedValueRollback>
 #include <QTemporaryDir>
@@ -39,6 +40,7 @@
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/PathTrack.h>
+#include <tsre/trains/Traffic.h>
 
 namespace {
 
@@ -402,6 +404,14 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     layout.end(3, 30);
     layout.track(30, 3, 4, 200);
     layout.end(4, 30);
+    // A line through a junction, for a deadlock at the end.
+    layout.end(5, 50);
+    layout.track(50, 5, 6, 100);
+    layout.junction(6, 50, 51, 52);
+    layout.track(51, 6, 7, 100);
+    layout.end(7, 51);
+    layout.track(52, 6, 8, 100);
+    layout.end(8, 52);
     TestTrack::platform(layout, 10, 101, 1000.0f, 1200.0f, "Middle");
     TestTrack::platform(layout, 30, 201, 1000.0f, 1200.0f, "Middle 2");
     const QScopedValueRollback<QString> root(Game::root, temp.path());
@@ -606,6 +616,40 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
           "after Stop the editor's clock goes on from the simulation's time, date and speed");
     clock->setSpeed(1.0);
     check(Undo::UndoLast() && activity->header->name == "Simulated", "after Stop the activity's step undoes");
+    Undo::Clear();
+
+    // A deadlock: the two trains either side of a junction, each for the
+    // other's side, both on the track from 08:00. The user is told which
+    // trains; the run goes on.
+    if (main != nullptr && second != nullptr) {
+        PathTrack::Result made = PathTrack::startAt(&layout.db, {50, 100.0f});
+        main->apply(PathTrack::endAt(&layout.db, made.nodes, {51, 900.0f}).nodes);
+        made = PathTrack::turnStart(&layout.db, PathTrack::startAt(&layout.db, {51, 900.0f}).nodes);
+        second->apply(PathTrack::endAt(&layout.db, made.nodes, {50, 100.0f}).nodes);
+    }
+    for (int id = firstTraffic; id < ActLib::jesttraffic; ++id)
+        if (Traffic *traffic = ActLib::Traffics.value(id))
+            traffic->setInstanceTime(traffic->getInstance("S2", 28860), 28800);
+    clock->setSpeed(0.0);
+    play->click();
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+            return x.trains.size() == 2 && x.trains[0].state.deadlocked && x.trains[1].state.deadlocked; }, 20000, pump);
+    pump();
+    QMessageBox *told = tools.findChild<QMessageBox *>();
+    QLabel *status = tools.findChild<QLabel *>("simulationStatus");
+    check(f && told != nullptr && told->isVisible() && !told->isModal()
+              && told->text().contains(simulation->trainName(0)) && told->text().contains(simulation->trainName(1))
+              && simulation->runs() && status != nullptr && status->text().contains(simulation->trainName(1)),
+          QString("a deadlock: a message names both trains, the status line too, the run goes on (%1)")
+              .arg(told != nullptr ? told->text() : QString("no message")));
+    check(f && simulation->stateText(0).contains(simulation->trainName(1))
+              && simulation->stateText(1).contains(simulation->trainName(0)),
+          QString("each waits for the other: \"%1\", \"%2\"").arg(simulation->stateText(0), simulation->stateText(1)));
+    stop->click();
+    pump();
+    QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    check(tools.findChild<QMessageBox *>() == nullptr, "Stop closes the message");
+    clock->setSpeed(1.0);
     Undo::Clear();
 
     for (QWidget *window : QList<QWidget *>{&tools, &events, &timetable})

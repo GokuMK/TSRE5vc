@@ -126,6 +126,7 @@ void SimulationCore::run(double seconds) {
             if (startClaimed(i, &blocker)) {
                 TrainState &s = states[size_t(i)];
                 s.blockedBy = blocker;
+                s.waitFor = WaitFor::SingleTrack;
                 blocked(i, std::max(now, double(in->trains[size_t(i)].startTime)));
             } else {
                 free.push_back(i);
@@ -453,6 +454,7 @@ bool SimulationCore::occupy(int train) {
         if (h != NoHolder && h != train) {
             s.blockedBy = h;
             s.waitSection = way[k].section;
+            s.waitFor = WaitFor::Track;
             return false;
         }
         reach = std::max(reach, way[k].leave);
@@ -508,6 +510,7 @@ void SimulationCore::extendAuthority(int train) {
             return false;
         s.blockedBy = h;
         s.waitSection = way[k].section;
+        s.waitFor = WaitFor::Track;
         return true;
     };
     while (rt.next < way.size()) {
@@ -612,6 +615,8 @@ void SimulationCore::evaluateAspects() {
     const std::vector<SignalKind> &kinds = network.kinds();
     enum { Stop = 0, StopAndProceed = 1, Restricting = 2, Approach1 = 3, Approach2 = 4, Approach3 = 5, Clear2 = 7 };
     constexpr double Reach = 20000.0;
+    const std::vector<int> drawnBefore = headDraw;
+    const std::vector<int> aspectsBefore = headAspect;
     std::vector<char> done(heads.size(), 0);
     std::vector<int> nextOf(groups.size(), -2);
     // The type's aspect for the one wanted: the most restrictive for stop;
@@ -712,6 +717,8 @@ void SimulationCore::evaluateAspects() {
     };
     for (size_t h = 0; h < heads.size(); ++h)
         evaluate(int(h));
+    if (headDraw != drawnBefore || headAspect != aspectsBefore)
+        ++drawChanges;
 }
 
 size_t SimulationCore::chunkEnd(const std::vector<ProjectedSection> &way, size_t from, size_t stop) const {
@@ -914,6 +921,7 @@ bool SimulationCore::mayEnter(int train, size_t from, size_t to) {
         if (inside) {
             s.blockedBy = other;
             s.waitSection = runtime[size_t(train)].ways[size_t(s.part)].sections[st.from[side]].section;
+            s.waitFor = WaitFor::SingleTrack;
             return false;
         }
         claim.push_back(stretch);
@@ -1027,6 +1035,7 @@ SimulationCore::Passing SimulationCore::choosePassing(int train, size_t from, si
             if (h != NoHolder && h != train) {
                 s.blockedBy = h;
                 s.waitSection = pass.section;
+                s.waitFor = WaitFor::PassingTrack;
                 return Passing::Wait;
             }
         }
@@ -1088,12 +1097,14 @@ void SimulationCore::take(int train, size_t from, size_t to) {
     const std::vector<ProjectedSection> &way = runtime[size_t(train)].ways[size_t(states[size_t(train)].part)].sections;
     const std::vector<TrackSection> &sections = in->network->sections();
     Runtime &rt = runtime[size_t(train)];
-    if (to > from)
+    if (to > from) {
         aspectsDirty = true;
+        ++holdChanges;
+    }
     for (size_t k = from; k < to; ++k) {
         const ProjectedSection &pass = way[k];
         holder[size_t(pass.section)] = train;
-        rt.held.push_back({pass.section, pass.leave});
+        rt.held.push_back({pass.section, pass.enter, pass.leave});
         // A junction set the train's way: its output where it goes out by
         // one, the output it comes in by trailing.
         if (sections[size_t(pass.section)].kind == TrackSection::Junction) {
@@ -1166,6 +1177,7 @@ void SimulationCore::releaseBehind(int train) {
         if (!again && holder[size_t(section)] == train) {
             holder[size_t(section)] = NoHolder;
             aspectsDirty = true;
+            ++holdChanges;
         }
     }
 }
@@ -1175,6 +1187,8 @@ void SimulationCore::releaseAll(int train) {
     for (const Held &held : rt.held)
         if (holder[size_t(held.section)] == train)
             holder[size_t(held.section)] = NoHolder;
+    if (!rt.held.empty())
+        ++holdChanges;
     rt.held.clear();
     rt.next = 0;
     rt.nextSignal = 0;
@@ -1199,6 +1213,8 @@ void SimulationCore::blocked(int train, double time) {
         return;
     rt.reported = s.blockedBy;
     record(time, train, TrainEvent::Blocked, s.blockedBy);
+    events.back().waitFor = s.waitFor;
+    events.back().signal = s.status == TrainStatus::Waiting ? -1 : s.atSignal;
 }
 
 void SimulationCore::findDeadlocks(double time) {
@@ -1225,6 +1241,30 @@ void SimulationCore::findDeadlocks(double time) {
             record(time, member, TrainEvent::Deadlock, states[size_t(member)].blockedBy);
         }
     }
+}
+
+size_t SimulationCore::standsOn(int train) const {
+    const TrainState &s = states[size_t(train)];
+    const std::deque<Held> &held = runtime[size_t(train)].held;
+    size_t count = 0;
+    while (count < held.size() && held[count].enter < s.front - 1e-6)
+        ++count;
+    return count;
+}
+
+std::vector<SimulationCore::SectionUse> SimulationCore::sectionUses() const {
+    std::vector<SectionUse> uses(holder.size());
+    for (size_t k = 0; k < holder.size(); ++k) {
+        uses[k].holder = holder[k];
+        uses[k].occupied = holder[k] == StandingConsist;
+    }
+    for (size_t t = 0; t < runtime.size(); ++t) {
+        const std::deque<Held> &held = runtime[t].held;
+        const size_t under = standsOn(int(t));
+        for (size_t k = 0; k < under; ++k)
+            uses[size_t(held[k].section)].occupied = true;
+    }
+    return uses;
 }
 
 bool SimulationCore::pose(int train, double routeDistance, TrackPose &out) const {

@@ -215,6 +215,34 @@ other waits behind the player's train at its path's end; EUROPE1 48/48,
 EUROPE2 21/21, JAPAN1 49/50, JAPAN2 16/16, USA1 46/46, USA2 46/48 (the
 rest behind loose consists).
 
+**Phase 7, the editor and measures (in progress, 2026-10-16).**
+- 3D: each frame carries the heads' aspects and draw states (shared with
+  the frame before until they change); the signals' lights
+  (`SignalLights`) ask the simulation for each head's draw state by its
+  TDB item, by name (the simulation may read `OpenRails/sigcfg.dat`, the
+  lights the route's), and show its lights; without a simulation, the
+  default. Flashing lights are drawn steady; semaphore arms do not move.
+- Map: the track a train (or a consist) stands on in red, whole sections;
+  track reserved ahead in amber; each signal as an arrowhead pointing the
+  way the trains it faces go, red at stop, yellow at caution, green clear
+  (the palette's `occupied`, `reserved`, `aspectStop`, `aspectCaution`,
+  `aspectClear`). The frame shares the sections' use until a holder
+  changes or a train's front passes into the next section.
+- Timetable window: why a train waits ("at signal 597: the track beyond
+  is held by ...", "the single track beyond is claimed by ...", "the
+  passing track is held by ...", "to start: the single track is claimed
+  by ..."); its Blocked events say the same.
+- Activity panel: a deadlock opens a message (not modal) naming the
+  trains, to change their times or paths; the status line names them
+  too; the run goes on.
+
+Tests: `simulation-core` (the frame's draw states by name), `simulation-ui`
+(a deadlock at a junction: the message, the status line and each train's
+state name the trains; Stop closes the message); capture case
+`tests/renderer/simulation-signals.json` (JAPAN1's shrtpass at 09:03: a
+head at caution ahead of the AI train shows yellow, one ahead of the
+player's train green, both red without a simulation; the two maps).
+
 ## Objective
 
 Trains wait for each other: the track they occupy and the track reserved

@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QString>
 #include <QStringList>
 #include <memory>
@@ -30,6 +31,8 @@ struct SignalKind {
     };
     std::vector<Aspect> aspects;
     int defaultDrawState = 0;
+    // Its draw states' names (lower case) by index, for the lights.
+    QHash<int, QString> drawStateNames;
     // How far ahead a train clears from a signal of this type: so many NORMAL
     // heads (Open Rails' legacy mode), or so many signals (Open Rails mode:
     // OpenRails/sigcfg.dat, or the first of two values), where 0 clears

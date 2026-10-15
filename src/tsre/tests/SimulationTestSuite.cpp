@@ -936,6 +936,17 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
               QString("aspects without scripts: the two cleared signals at caution before the one at stop (the type has "
                       "no second caution), the distant before it at caution: %1 %2 %3 %4")
                   .arg(aspectOf(core, 971)).arg(aspectOf(core, 972)).arg(aspectOf(core, 973)).arg(aspectOf(core, 974)));
+        // The lights' draw states by name, in the frame with the serial.
+        const auto drawNameOf = [&](const Sim::SimulationFrame &f, int item) {
+            const int head = network->headOfItem(item);
+            const Sim::SignalKind &kind = network->kinds()[size_t(network->heads()[size_t(head)].kind)];
+            return kind.drawStateNames.value((*f.drawStates)[size_t(head)]);
+        };
+        const std::shared_ptr<Sim::SimulationFrame> lit = Sim::MakeFrame(core);
+        check(*lit->drawStates == core.drawStates() && lit->drawSerial > 0 && drawNameOf(*lit, 972) == "yellow"
+                  && drawNameOf(*lit, 973) == "red",
+              QString("the frame carries the draw states (serial %1): %2 and %3 by name")
+                  .arg(lit->drawSerial).arg(drawNameOf(*lit, 972), drawNameOf(*lit, 973)));
         // Through the signal at 500 m at its caution's 40 km/h.
         double atSignal = -1.0;
         for (int i = 0; i < 2000 && atSignal < 0.0; ++i) {

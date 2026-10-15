@@ -37,9 +37,19 @@ struct SimulationFrame {
     bool finished = false;
     // By train id (the input's order).
     std::vector<TrainFrame> trains;
+    // Each signal head's aspect and draw state (SimulationCore::aspects,
+    // drawStates) and each section's use (sectionUses), shared with the
+    // frame before while they have not changed; what tells they have.
+    std::shared_ptr<const std::vector<int>> aspects;
+    std::shared_ptr<const std::vector<int>> drawStates;
+    unsigned long long drawSerial = 0;
+    std::shared_ptr<const std::vector<SimulationCore::SectionUse>> sectionUses;
+    unsigned long long holdSerial = 0;
+    std::vector<size_t> standsOn;
 };
 
-// The core's state now, with its vehicles' poses.
-std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core);
+// The core's state now, with its vehicles' poses; what has not changed
+// since `before` (of the same run) shared with it.
+std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const SimulationFrame *before = nullptr);
 
 }

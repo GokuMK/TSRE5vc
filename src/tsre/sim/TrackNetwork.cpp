@@ -60,6 +60,9 @@ SignalKind kindOf(const SignalType &type, const SigCfg *config, bool openRailsCo
     }
     std::stable_sort(kind.aspects.begin(), kind.aspects.end(),
                      [](const SignalKind::Aspect &a, const SignalKind::Aspect &b) { return a.aspect < b.aspect; });
+    for (const SignalType::DrawState &state : type.drawStates)
+        if (!kind.drawStateNames.contains(state.index))
+            kind.drawStateNames.insert(state.index, state.name);
     const SignalType::DrawState *fallback = type.defaultDrawState();
     kind.defaultDrawState = fallback != nullptr ? fallback->index : 0;
     // Open Rails: one value in the route root's file counts NORMAL heads; in

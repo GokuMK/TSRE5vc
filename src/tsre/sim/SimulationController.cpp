@@ -134,6 +134,7 @@ bool SimulationController::start(Activity *activity, QString *error) {
     startDate = Game::timeOfDayDate;
     worldTime = input->startTime;
     WorldClock::instance()->setSource(this);
+    SignalLights::setStateSource(this);
     ActivityNotifier::instance()->setEditingLocked(true);
     pollTimer.start();
     emit stateChanged();
@@ -236,6 +237,7 @@ void SimulationController::stop() {
     // The world's clock goes on from the simulation's time.
     if (WorldClock::instance()->source() == this)
         WorldClock::instance()->setSource(nullptr);
+    SignalLights::setStateSource(nullptr);
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
     QThread *owner = QThread::currentThread();
@@ -371,6 +373,23 @@ void SimulationController::setClockDate(const QString &date) {
     emit stateChanged();
 }
 
+unsigned long long SimulationController::stateSerial() const {
+    return latest != nullptr ? (static_cast<unsigned long long>(latest->runId) << 32) ^ latest->drawSerial : 0;
+}
+
+QString SimulationController::drawStateOf(int item) const {
+    if (latest == nullptr || in == nullptr || in->network == nullptr)
+        return QString();
+    const TrackNetwork &network = *in->network;
+    const int head = network.headOfItem(item);
+    if (head < 0 || latest->drawStates == nullptr || size_t(head) >= latest->drawStates->size())
+        return QString();
+    const int kind = network.heads()[size_t(head)].kind;
+    if (kind < 0)
+        return QString();
+    return network.kinds()[size_t(kind)].drawStateNames.value((*latest->drawStates)[size_t(head)]);
+}
+
 int SimulationController::trainOf(bool player, int traffic) const {
     if (!exists() || in == nullptr)
         return -1;
@@ -444,9 +463,13 @@ QString SimulationController::stateText(int train) const {
     const TrainState &s = now->trains[size_t(train)].state;
     switch (s.status) {
     case TrainStatus::Waiting:
-        if (s.blockedBy != NoHolder && now->time >= plan.startTime)
+        if (s.blockedBy != NoHolder && now->time >= plan.startTime) {
+            if (s.waitFor == WaitFor::SingleTrack)
+                //% "to start: the single track is claimed by %1"
+                return qtTrId("simulation.state.waiting.single").arg(holderName(s.blockedBy));
             //% "to start: its track is held by %1"
             return qtTrId("simulation.state.waiting.track").arg(holderName(s.blockedBy));
+        }
         //% "starts at %1"
         return qtTrId("simulation.state.waiting").arg(clock(plan.startTime));
     case TrainStatus::Running:
@@ -479,12 +502,58 @@ QString SimulationController::stateText(int train) const {
         if (s.deadlocked)
             //% "deadlocked: waiting for %1"
             return qtTrId("simulation.state.deadlock").arg(holderName(s.blockedBy));
-        //% "waiting for track held by %1"
-        return qtTrId("simulation.state.blocked").arg(holderName(s.blockedBy));
+        if (s.blockedBy == NoHolder) {
+            if (s.atSignal < 0)
+                break;
+            //% "at signal %1, not cleared"
+            return qtTrId("simulation.state.signal").arg(signalName(s.atSignal));
+        }
+        return waitText(s.waitFor, s.atSignal, s.blockedBy);
     case StopKind::None:
         break;
     }
     return QString();
+}
+
+QString SimulationController::signalName(int signal) const {
+    if (in == nullptr || in->network == nullptr || signal < 0
+            || size_t(signal) >= in->network->signalGroups().size())
+        return QString();
+    const SignalGroup &group = in->network->signalGroups()[size_t(signal)];
+    // Its first NORMAL head's TDB item, as the editor shows signals.
+    int head = group.heads.empty() ? -1 : group.heads.front();
+    for (int h : group.heads)
+        if (in->network->isNormal(in->network->heads()[size_t(h)])) {
+            head = h;
+            break;
+        }
+    return head < 0 ? QString() : QString::number(in->network->heads()[size_t(head)].item);
+}
+
+QString SimulationController::waitText(WaitFor waitFor, int signal, int holder) const {
+    const QString who = holderName(holder);
+    const QString at = signalName(signal);
+    switch (waitFor) {
+    case WaitFor::SingleTrack:
+        return at.isEmpty() ?
+            //% "waiting for the single track ahead, claimed by %1"
+            qtTrId("simulation.wait.single").arg(who) :
+            //% "at signal %1: the single track beyond is claimed by %2"
+            qtTrId("simulation.wait.single.signal").arg(at, who);
+    case WaitFor::PassingTrack:
+        return at.isEmpty() ?
+            //% "waiting for the passing track, held by %1"
+            qtTrId("simulation.wait.passing").arg(who) :
+            //% "at signal %1: the passing track is held by %2"
+            qtTrId("simulation.wait.passing.signal").arg(at, who);
+    case WaitFor::Track:
+        break;
+    }
+    return at.isEmpty() ?
+        //% "waiting for track held by %1"
+        qtTrId("simulation.state.blocked").arg(who) :
+        //% "at signal %1: the track beyond is held by %2"
+        qtTrId("simulation.wait.track.signal").arg(at, who);
 }
 
 QString SimulationController::trainName(int train) const {
@@ -542,8 +611,7 @@ QString SimulationController::eventText(const TrainEvent &event) const {
         //% "reached its path's end"
         return qtTrId("simulation.event.finished");
     case TrainEvent::Blocked:
-        //% "waits for track held by %1"
-        return qtTrId("simulation.event.blocked").arg(holderName(event.index));
+        return waitText(event.waitFor, event.signal, event.index);
     case TrainEvent::Deadlock:
         //% "deadlocked: waits for %1, which waits for it in turn"
         return qtTrId("simulation.event.deadlock").arg(holderName(event.index));

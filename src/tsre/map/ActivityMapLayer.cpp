@@ -24,6 +24,9 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/tdb/TDB.h>
+#include <tsre/tdb/SignalType.h>
+#include <tsre/Game.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityObject.h>
@@ -51,10 +54,14 @@ ActivityMapLayer::ActivityMapLayer()
       chosenBand(std::make_unique<OglObj>()), halos(std::make_unique<OglObj>()),
       borders(std::make_unique<OglObj>()),
       areas(std::make_unique<OglObj>()), simulatedHalos(std::make_unique<OglObj>()),
-      simulatedBorders(std::make_unique<OglObj>()) {
+      simulatedBorders(std::make_unique<OglObj>()), aspectBorders(std::make_unique<OglObj>()) {
     for (auto &fill : fills)
         fill = std::make_unique<OglObj>();
     for (auto &fill : simulatedFills)
+        fill = std::make_unique<OglObj>();
+    for (auto &track : simulatedTrack)
+        track = std::make_unique<OglObj>();
+    for (auto &fill : aspectFills)
         fill = std::make_unique<OglObj>();
 }
 
@@ -385,10 +392,129 @@ void ActivityMapLayer::pushSimulated(RenderQueue &queue, const MapView &view, co
         upload(*simulatedFills[0], fillVertices[0], colour(palette, Vehicles));
         upload(*simulatedFills[1], fillVertices[1], colour(palette, Engines));
     }
+    if (frame->sectionUses.get() != trackUses || frame->aspects.get() != trackAspects || view.tileX != trackTileX
+            || view.tileZ != trackTileZ || view.metresPerPixel != trackMetresPerPixel || palette.name != trackPalette) {
+        trackUses = frame->sectionUses.get();
+        trackAspects = frame->aspects.get();
+        trackTileX = view.tileX;
+        trackTileZ = view.tileZ;
+        trackMetresPerPixel = view.metresPerPixel;
+        trackPalette = palette.name;
+        buildSimulatedTrack(view, palette);
+    }
+    for (auto &track : simulatedTrack)
+        track->pushRenderItem(queue);
     simulatedHalos->pushRenderItem(queue);
     simulatedBorders->pushRenderItem(queue);
     for (auto &fill : simulatedFills)
         fill->pushRenderItem(queue);
+    aspectBorders->pushRenderItem(queue);
+    for (auto &fill : aspectFills)
+        fill->pushRenderItem(queue);
+}
+
+void ActivityMapLayer::buildSimulatedTrack(const MapView &view, const MapPalette &palette) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const std::shared_ptr<const Sim::SimulationInput> input = simulation->input();
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+    TDB *tdb = Game::trackDB;
+    const float mpp = view.metresPerPixel;
+    std::vector<float> trackVertices[2], borderVertices, fillVertices[3];
+    if (input != nullptr && input->network != nullptr && tdb != nullptr) {
+        const Sim::TrackNetwork &network = *input->network;
+        // Occupied and reserved track sections (junctions and crossings are
+        // points: the track either side shows them).
+        if (frame->sectionUses != nullptr) {
+            const std::vector<Sim::SimulationCore::SectionUse> &uses = *frame->sectionUses;
+            std::vector<float> segments[2];
+            for (size_t k = 0; k < uses.size() && k < network.sections().size(); ++k) {
+                const Sim::TrackSection &section = network.sections()[k];
+                if (uses[k].holder == Sim::NoHolder || section.kind != Sim::TrackSection::Track)
+                    continue;
+                tdb->getTrackSegments(segments[uses[k].occupied ? 0 : 1], section.node, section.from, section.to,
+                                      view.tileX, view.tileZ);
+            }
+            for (int i = 0; i < 2; ++i) {
+                setHeight(segments[i], SimulatedTrackHeight + i);
+                TrackMapLayer::appendRibbons(trackVertices[i], segments[i].data(), int(segments[i].size() / 6),
+                                             1.5f * LinePixels * mpp);
+            }
+        }
+        // Each signal by its least restrictive head (NORMAL heads where it
+        // has them): stop, caution, clear.
+        if (placesRun != input->runId || signalPlaces.size() != network.signalGroups().size()) {
+            placesRun = input->runId;
+            signalPlaces.assign(network.signalGroups().size(), Place());
+            for (size_t g = 0; g < network.signalGroups().size(); ++g) {
+                const Sim::SignalGroup &group = network.signalGroups()[g];
+                // Its place and one a metre further the node's way (or back
+                // at the node's end).
+                float at[8], next[8];
+                const float step = group.distance >= 1.0f ? -1.0f : 1.0f;
+                if (!tdb->getDrawPositionOnTrNode(at, group.node, group.distance)
+                        || !tdb->getDrawPositionOnTrNode(next, group.node, group.distance + step))
+                    continue;
+                Place &place = signalPlaces[g];
+                place.known = true;
+                place.tileX = int(at[5]);
+                place.tileZ = int(at[6]);
+                place.x = at[0];
+                place.z = at[2];
+                // On the map (the item layer's tile convention).
+                float dx = float(int(next[5]) - place.tileX) * 2048.0f + next[0] - place.x;
+                float dz = -float(int(next[6]) - place.tileZ) * 2048.0f - (next[2] - place.z);
+                const float length = std::hypot(dx, dz);
+                if (length > 1e-4f) {
+                    const float sign = (step > 0.0f) == group.forward ? 1.0f : -1.0f;
+                    place.dx = sign * dx / length;
+                    place.dz = sign * dz / length;
+                }
+            }
+        }
+        if (frame->aspects != nullptr) {
+            const std::vector<int> &aspects = *frame->aspects;
+            const float size = 1.6f * MarkerPixels * mpp;
+            const float border = 2.0f * BorderPixels * mpp;
+            // An arrowhead about its centre, pointing (dx, dz), grown by `grow`.
+            auto arrow = [](std::vector<float> &out, float x, float y, float z, float dx, float dz, float length,
+                            float grow) {
+                const float tip = 0.55f * length + grow, back = 0.45f * length + grow, half = 0.42f * length + grow;
+                const float px = -dz, pz = dx;
+                // Wound as the map's other shapes (appendCircle).
+                const float triangle[9] = {x + dx * tip, y, z + dz * tip,
+                                           x - dx * back - px * half, y, z - dz * back - pz * half,
+                                           x - dx * back + px * half, y, z - dz * back + pz * half};
+                out.insert(out.end(), triangle, triangle + 9);
+            };
+            for (size_t g = 0; g < network.signalGroups().size() && g < signalPlaces.size(); ++g) {
+                const Sim::SignalGroup &group = network.signalGroups()[g];
+                if (!signalPlaces[g].known)
+                    continue;
+                int best = -1;
+                for (int head : group.heads)
+                    if (size_t(head) < aspects.size() && (!group.normal || network.isNormal(network.heads()[size_t(head)])))
+                        best = std::max(best, aspects[size_t(head)]);
+                if (best < 0)
+                    continue;
+                const int kind = best <= SignalType::STOP ? 0 : best < SignalType::CLEAR_1 ? 1 : 2;
+                const Place &place = signalPlaces[g];
+                const float x = float(place.tileX - view.tileX) * 2048.0f + place.x;
+                const float z = float(-place.tileZ - view.tileZ) * 2048.0f - place.z;
+                arrow(borderVertices, x, AspectBorderHeight, z, place.dx, place.dz, size, border);
+                arrow(fillVertices[kind], x, AspectHeight + kind, z, place.dx, place.dz, size, 0.0f);
+            }
+        }
+    }
+    auto upload = [](OglObj &object, std::vector<float> &vertices, const QColor &colour) {
+        object.setMaterial(float(colour.redF()), float(colour.greenF()), float(colour.blueF()));
+        object.init(vertices.data(), int(vertices.size()), RenderItem::V, GL_TRIANGLES);
+    };
+    upload(*simulatedTrack[0], trackVertices[0], palette.occupied);
+    upload(*simulatedTrack[1], trackVertices[1], palette.reserved);
+    upload(*aspectBorders, borderVertices, palette.itemBorder);
+    upload(*aspectFills[0], fillVertices[0], palette.aspectStop);
+    upload(*aspectFills[1], fillVertices[1], palette.aspectCaution);
+    upload(*aspectFills[2], fillVertices[2], palette.aspectClear);
 }
 
 void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &view, Route *route,

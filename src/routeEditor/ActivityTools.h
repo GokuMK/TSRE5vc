@@ -97,6 +97,7 @@ public slots:
     void simRunToEnabled();
     void simSpeedSelected(int index);
     void showSimulation();
+    void simulationEvents(int first);
     void lockEditing(bool locked);
     void actSaveEnabled();
     // Check Activity: the activity chosen, its findings in their window.
@@ -199,6 +200,9 @@ private:
     QTimeEdit simRunToTime;
     QLabel simTime;
     QLabel simStatus;
+    // Tells of deadlocks as they happen; the run goes on.
+    QPointer<QMessageBox> deadlockBox;
+    QStringList deadlocked;
     // A line under Activity Info while the activity has an Open Rails
     // overlay: Merge... puts it in.
     QWidget overlayLine;

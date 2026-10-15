@@ -484,6 +484,7 @@ ActivityTools::ActivityTools(QString name)
         Sim::SimulationController *simulation = Sim::SimulationController::instance();
         QObject::connect(simulation, &Sim::SimulationController::stateChanged, this, &ActivityTools::showSimulation);
         QObject::connect(simulation, &Sim::SimulationController::frameUpdated, this, &ActivityTools::showSimulation);
+        QObject::connect(simulation, &Sim::SimulationController::eventsAdded, this, &ActivityTools::simulationEvents);
         QObject::connect(WorldClock::instance(), &WorldClock::changed, this, &ActivityTools::showSimulation);
         QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged,
                          this, &ActivityTools::lockEditing);
@@ -898,6 +899,39 @@ void ActivityTools::showSimulation(){
     simTime.setText(time);
     simStatus.setText(simulation->statusText());
     simStatus.show();
+}
+
+// Trains in a deadlock wait for good: the user is told which (once a ring),
+// to change their times or paths; the simulation goes on.
+void ActivityTools::simulationEvents(int first){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const std::vector<Sim::TrainEvent> &events = simulation->events();
+    if(first == 0){
+        // A new run: what was told is of the one before.
+        deadlocked.clear();
+        if(deadlockBox)
+            deadlockBox->close();
+    }
+    QStringList fresh;
+    for(size_t i = size_t(std::max(0, first)); i < events.size(); i++){
+        if(events[i].kind != Sim::TrainEvent::Deadlock)
+            continue;
+        const QString name = simulation->trainName(events[i].train);
+        if(!deadlocked.contains(name) && !fresh.contains(name))
+            fresh << name;
+    }
+    if(fresh.isEmpty())
+        return;
+    deadlocked << fresh;
+    if(!deadlockBox){
+        deadlockBox = new QMessageBox(QMessageBox::Warning, qtTrId("route.editor.activity.tools.simulation.title"),
+                                      QString(), QMessageBox::Ok, this);
+        deadlockBox->setAttribute(Qt::WA_DeleteOnClose);
+        deadlockBox->setModal(false);
+    }
+    //% "These trains wait for each other and will not move again (a deadlock): %1. The simulation goes on. Change their times or paths so they meet where one can pass the other, then reset the simulation."
+    deadlockBox->setText(qtTrId("route.editor.activity.tools.simulation.deadlock").arg(deadlocked.join(", ")));
+    deadlockBox->show();
 }
 
 // While a simulation exists the activity is shown, not edited: its choice,
