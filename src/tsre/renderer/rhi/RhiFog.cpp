@@ -333,17 +333,22 @@ void main() {
     // A slice above the highest fog top on the map has none (most cells
     // look at the sky or over the fog).
     float low = min(d.y * sliceDistance(float(id.z)), d.y * sliceDistance(float(id.z) + 1.0)) + camera.y - range.y;
-    // The patches' noise once for the cell, at its slice's middle: it
-    // changes over 90 m and more (at each of the four points it cost about
-    // 1 ms on the Steam Deck).
-    float n = 0.5;
+    // The patches' noise at the slice's two ends, the points between them
+    // blended: it changes over 90 m and more (at each of the four points it
+    // cost about 1 ms on the Steam Deck); neighbouring slices meet at the
+    // same value (taken once at the slice's middle it stepped from slice to
+    // slice).
+    vec2 ends = vec2(0.5);
     if (low < range.z && map.w > 0.5) {
-        vec3 middle = camera.xyz + d * sliceDistance(float(id.z) + 0.5);
-        n = fogPatches(vec2(middle.x - map.x, map.y - middle.z) + patches.xy, drift.xy);
+        vec3 near = camera.xyz + d * sliceDistance(float(id.z));
+        vec3 far = camera.xyz + d * sliceDistance(float(id.z) + 1.0);
+        ends = vec2(fogPatches(vec2(near.x - map.x, map.y - near.z) + patches.xy, drift.xy),
+                    fogPatches(vec2(far.x - map.x, map.y - far.z) + patches.xy, drift.xy));
     }
     for (int k = 0; k < Points && low < range.z; ++k) {
         float a, sa;
-        float s = density(camera.xyz + d * sliceDistance(float(id.z) + (float(k) + jitter.z) / float(Points)), n, a, sa);
+        float along = (float(k) + jitter.z) / float(Points);
+        float s = density(camera.xyz + d * sliceDistance(float(id.z) + along), mix(ends.x, ends.y, along), a, sa);
         sigma += s;
         above += a * s;
         sigmaAbove += sa * s;

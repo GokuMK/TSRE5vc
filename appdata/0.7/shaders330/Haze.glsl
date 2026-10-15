@@ -62,10 +62,23 @@ vec4 fogAt(vec3 position) {
     if (clip.w <= 0.0)
         return vec4(0.0, 0.0, 0.0, 1.0);
     vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
-    // Slice i holds the sums up to its far end (continuous slice i + 1).
-    float slice = log(max(length(ray), fogParams.y) / fogParams.y) / fogParams.z * fogParams.w;
-    vec4 f = textureLod(fogVolume, vec3(uv, (slice - 0.5) / fogParams.w), 0.0);
-    return vec4(max(f.rgb * fogLightScale, vec3(0.0)), clamp(f.a, 0.0, 1.0));
+    // Slice i holds the sums up to its far end (continuous slice i + 1):
+    // the sums at the ends of the slice the point lies in, between them the
+    // share let through falling exponentially, the light added as it falls
+    // (blended evenly, in a thick fog's slice of one or two optical depths
+    // it was out by up to a third in the slice's middle).
+    float slice = clamp(log(max(length(ray), fogParams.y) / fogParams.y) / fogParams.z * fogParams.w,
+                        0.0, fogParams.w);
+    float first = floor(slice - 1.0);
+    float along = slice - 1.0 - first;
+    vec4 a = first < 0.0 ? vec4(0.0, 0.0, 0.0, 1.0)
+                         : textureLod(fogVolume, vec3(uv, (first + 0.5) / fogParams.w), 0.0);
+    vec4 b = textureLod(fogVolume, vec3(uv, min(first + 1.5, fogParams.w - 0.5) / fogParams.w), 0.0);
+    float throughA = clamp(a.a, 1e-6, 1.0), throughB = clamp(b.a, 0.0, 1.0);
+    float through = throughA * pow(max(throughB / throughA, 1e-6), along);
+    float share = throughA - throughB > 1e-5 ? (throughA - through) / (throughA - throughB) : along;
+    vec3 light = a.rgb + (b.rgb - a.rgb) * share;
+    return vec4(max(light * fogLightScale, vec3(0.0)), clamp(through, 0.0, 1.0));
 }
 
 // What the air and the fog let through of a surface's light (its glow too).
