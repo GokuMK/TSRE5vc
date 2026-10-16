@@ -200,6 +200,8 @@ int run(int argc, char **argv) {
                 report += "| " + cell(f["path"].toString()) +
                           " | Reference edit withheld: " + cell(f["reason"].toString()) + " |\n";
             }
+            for (const auto &v : result["verificationErrors"].toArray())
+                report += "| Final verification | " + cell(v.toString()) + " |\n";
             report += "\n## Withheld operations\n\n| Operation | Source | Reason |\n| --- | --- | "
                       "--- |\n";
             for (const auto &v : result["skippedOperations"].toArray()) {

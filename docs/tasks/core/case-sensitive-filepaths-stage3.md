@@ -132,8 +132,14 @@ until it is recovered. Successful execution clears the marker. Keep editors and
 other content writers closed during conversion; the checks do not make a whole
 multi-file game root atomic against arbitrary concurrent writers.
 
-On an ordinary execution/verification failure, the converter attempts rollback
-and reports its outcome and journal path. After interruption, explicitly invoke
+An execution failure before all actions finish still attempts rollback and reports
+its outcome and journal path: an unfinished case-only rename pair or partially
+updated reference set is not a valid content state. Once every action has finished,
+however, a final scan or verification problem is recorded as an iterative `partial`
+result. Completed repairs remain in place, the active marker is cleared, and a new
+invocation rescans that state instead of spending another full pass undoing it.
+Non-writable edit sources are withheld during preparation and reported as writer
+errors before the transaction begins. After interruption, explicitly invoke
 `--rollback`. Recovery infers whether an intent-only move happened by checking
 exact paths and hashes. A torn final log record can be discarded. Rollback is
 idempotent and itself recoverable; original edited bytes come from checked backups.
@@ -144,6 +150,12 @@ finish, keep the journal and backups and resolve the reported obstruction.
 Power-loss behavior still depends on filesystem/platform guarantees; tests cover
 process-interruption states, not physical power loss. Backups are retained after
 success and rollback; there is no automatic backup cleanup command.
+
+Execution selection also preserves implicit S/SD companion stems and exact
+seasonal-only texture spellings when another blocked operation removes the edit
+which originally coordinated them. Final reference verification retains every
+equivalent edge sharing a lookup key; a later duplicate edge cannot hide an exact
+edge to the same physical target.
 
 ## Validation
 

@@ -357,6 +357,21 @@ Selection select(const QJsonObject &plan, const QSet<int> &extra) {
         if (!renameBlocks.contains(id))
             result.leaves[id] = leaf(op["to"].toString());
     }
+    QMap<QString, QString> plannedFieldSpellings;
+    for (const auto &v : plan["operations"].toArray()) {
+        const auto op = v.toObject();
+        if (op["operation"] != "edit-reference" ||
+            op["readiness"].toString().startsWith("blocked"))
+            continue;
+        const int edgeId = op["edgeId"].toInt(-1);
+        if (edgeId < 0 || edgeId >= refs.size())
+            continue;
+        const auto edge = refs[edgeId].toObject();
+        const QString key = QString::number(edge["sourceFileId"].toInt(-1)) + '|' +
+                            QString::number(edge["fieldIndex"].toInt(-1)) + '|' +
+                            QString::number(edge["scalarIndex"].toInt());
+        plannedFieldSpellings[key] = op["proposedLogicalReference"].toString();
+    }
     // Inventory is parent-before-child; map ancestors even when a parent rename
     // was withheld, so independent leaf repairs use the actual selected paths.
     QMap<QString, int> spellings;
@@ -378,8 +393,11 @@ Selection select(const QJsonObject &plan, const QSet<int> &extra) {
     for (int i = 0; i < files.size(); ++i)
         fileIds[files[i].toObject()["path"].toString()] = i;
     // A noneditable scalar constrains only components explicitly named by that
-    // reference. Default lookup directories may still adopt their runtime case.
-    // Removing a rename can affect other constraints, so repeat to a fixed point.
+    // reference. Implicit companions and seasonal-only candidates have no
+    // independent scalar which execution can rewrite, so they also constrain
+    // their target leaf. Default lookup directories may still adopt their
+    // runtime case. Removing a rename can affect other constraints, so repeat
+    // to a fixed point.
     bool changed;
     do {
         mapPaths();
@@ -387,7 +405,13 @@ Selection select(const QJsonObject &plan, const QSet<int> &extra) {
         for (const auto &v : refs) {
             const auto r = v.toObject();
             const int s = r["sourceFileId"].toInt(-1), t = r["targetFileId"].toInt(-1);
-            if (s < 0 || t < 0 || !result.blocked.contains(s) || r["implicit"].toBool())
+            const bool companion = r["implicit"].toBool() &&
+                                   r["kind"] == "shape-companion" &&
+                                   r["status"] == "exact";
+            const bool seasonalOnly = r["kind"] == "seasonal-texture-candidate" &&
+                                      r["status"] == "exact";
+            const bool fixedSource = result.blocked.contains(s) && !r["implicit"].toBool();
+            if (s < 0 || t < 0 || (!fixedSource && !companion && !seasonalOnly))
                 continue;
             const auto bases = r["searchBases"].toArray();
             const int priority = r["selectedSearchBase"].toInt(-1);
@@ -395,23 +419,52 @@ Selection select(const QJsonObject &plan, const QSet<int> &extra) {
                 continue;
             const QString targetPath = files[t].toObject()["path"].toString();
             const auto actual = mapped(result.paths, targetPath).split('/');
+            QString spelling = r["spelling"].toString();
+            if (companion) {
+                QString sourceName = leaf(mapped(result.paths,
+                                                 files[s].toObject()["path"].toString()));
+                const int suffix = sourceName.lastIndexOf('.');
+                if (suffix > 0)
+                    sourceName.truncate(suffix);
+                spelling = sourceName + ".sd";
+            } else if (seasonalOnly && !result.blocked.contains(s)) {
+                const QString key = QString::number(s) + '|' +
+                                    QString::number(r["fieldIndex"].toInt(-1)) + '|' +
+                                    QString::number(r["scalarIndex"].toInt());
+                spelling = plannedFieldSpellings.value(key, spelling);
+            }
             const auto requested = clean(mapped(result.paths, bases[priority].toString()) + '/' +
-                                         r["spelling"].toString()).split('/');
+                                         spelling).split('/');
             // Planned repairs are case-only; unresolved pre-existing mismatches
             // remain reported. Withhold only renames introducing a mismatching
             // component, without propagating protection through unrelated edges.
-            QString at = targetPath;
-            for (int component = actual.size() - 1; component >= 0 && !at.isEmpty(); --component) {
-                const int id = fileIds.value(at, -1);
-                if (id >= 0 && result.leaves.contains(id) &&
-                    (component >= requested.size() || actual[component] != requested[component])) {
-                    result.leaves.remove(id);
-                    renameBlocks[id] = "Name required by noneditable reference: " +
-                                       files[s].toObject()["path"].toString() + " / " +
-                                       r["location"].toString();
-                    changed = true;
+            const QString reason = (companion ? "Name required by implicit companion: "
+                                              : seasonalOnly
+                                                    ? "Name required by seasonal-only reference: "
+                                                    : "Name required by noneditable reference: ") +
+                                   files[s].toObject()["path"].toString() + " / " +
+                                   r["location"].toString();
+            auto withhold = [&](QString at, const QStringList &selected,
+                                const QStringList &required) {
+                for (int component = selected.size() - 1;
+                     component >= 0 && !at.isEmpty(); --component) {
+                    const int id = fileIds.value(at, -1);
+                    if (id >= 0 && result.leaves.contains(id) &&
+                        (component >= required.size() || selected[component] != required[component])) {
+                        result.leaves.remove(id);
+                        renameBlocks[id] = reason;
+                        changed = true;
+                    }
+                    at = parent(at);
                 }
-                at = parent(at);
+            };
+            withhold(targetPath, actual, requested);
+            // If the target itself is fixed, the source side of a companion pair
+            // must not move to a different stem either.
+            if (companion && actual != requested && result.leaves.contains(s)) {
+                result.leaves.remove(s);
+                renameBlocks[s] = reason;
+                changed = true;
             }
         }
     } while (changed);
@@ -483,11 +536,11 @@ Selection select(const QJsonObject &plan, const QSet<int> &extra) {
 bool verifyReferences(const QJsonObject &before, const QJsonObject &after,
                       const QMap<QString, QString> &paths, QString &error) {
     const auto oldFiles = before["files"].toArray(), newFiles = after["files"].toArray();
-    QMap<QString, QJsonObject> refs;
+    QMap<QString, QVector<QJsonObject>> refs;
     for (const auto &v : after["references"].toArray()) {
         const auto r = v.toObject();
         const int s = r["sourceFileId"].toInt();
-        refs[refKey(r, newFiles[s].toObject()["path"].toString(), {})] = r;
+        refs[refKey(r, newFiles[s].toObject()["path"].toString(), {})].push_back(r);
     }
     for (const auto &v : before["references"].toArray()) {
         const auto r = v.toObject();
@@ -496,16 +549,21 @@ bool verifyReferences(const QJsonObject &before, const QJsonObject &after,
             continue;
         const QString source =
             mapped(paths, oldFiles[r["sourceFileId"].toInt()].toObject()["path"].toString());
-        const auto actual = refs.value(refKey(r, source, paths));
-        const int actualTarget = actual["targetFileId"].toInt(-1);
         const QString expected = mapped(paths, oldFiles[target].toObject()["path"].toString());
-        if (actual.isEmpty() || actualTarget < 0 ||
-            newFiles[actualTarget].toObject()["path"] != expected) {
+        bool targetPreserved = false, exactPreserved = false;
+        for (const auto &actual : refs.value(refKey(r, source, paths))) {
+            const int actualTarget = actual["targetFileId"].toInt(-1);
+            if (actualTarget < 0 || newFiles[actualTarget].toObject()["path"] != expected)
+                continue;
+            targetPreserved = true;
+            exactPreserved |= actual["status"] == "exact";
+        }
+        if (!targetPreserved) {
             error = "Verification changed a reference target: " + source + " / " +
                     r["location"].toString() + " expected " + expected;
             return false;
         }
-        if (r["status"] == "exact" && actual["status"] != "exact") {
+        if (r["status"] == "exact" && !exactPreserved) {
             error = "Previously exact reference no longer has exact spelling: " + source;
             return false;
         }
@@ -724,7 +782,9 @@ QJsonObject execute(const QString &rootInput, const QJsonObject &savedPlan,
             QString detail;
             QByteArray output;
             QString family = families.value(it.key(), QFileInfo(path).suffix().toLower());
-            if (!input.open(QIODevice::ReadOnly)) {
+            if (!QFileInfo(input).isWritable()) {
+                detail = "Edit source is not writable";
+            } else if (!input.open(QIODevice::ReadOnly)) {
                 detail = "Cannot read edit source";
             } else {
                 const auto bytes = input.readAll();
@@ -909,48 +969,85 @@ QJsonObject execute(const QString &rootInput, const QJsonObject &savedPlan,
         }
     }
     const auto after = scan(root, error, progress);
-    if (after.isEmpty() || !verifyReferences(before, after, selection.paths, error))
-        return abort(error);
-    QMap<QString, QJsonObject> actualFiles;
-    for (const auto &v : after["files"].toArray())
-        actualFiles[v.toObject()["path"].toString()] = v.toObject();
-    if (actualFiles.size() != files.size())
-        return abort("Directory inventory changed during execution");
-    for (int i = 0; i < files.size(); ++i) {
-        const auto original = files[i].toObject();
-        const QString path = mapped(selection.paths, original["path"].toString());
-        const auto actual = actualFiles.value(path);
-        if (actual.isEmpty() || actual["directory"] != original["directory"] ||
-            actual["link"] != original["link"])
-            return abort("Unexpected final inventory entry: " + path);
-        if (!original["directory"].toBool() && !original["link"].toBool()) {
-            const QString expected = replacements.contains(i) ? hash(replacements.value(i))
-                                                              : original["sha256"].toString();
-            if (!expected.isEmpty() && fileHash(root + '/' + path, error) != expected)
-                return abort("File bytes changed unexpectedly: " + path);
-            if (!replacements.contains(i) && (actual["size"] != original["size"] ||
-                                              actual["modifiedMs"] != original["modifiedMs"]))
-                return abort("File metadata changed unexpectedly: " + path);
+    QString verificationError;
+    if (after.isEmpty()) {
+        verificationError = error.isEmpty() ? "Post-repair scan failed" : error;
+    } else if (!verifyReferences(before, after, selection.paths, error)) {
+        verificationError = error;
+    }
+    if (verificationError.isEmpty()) {
+        QMap<QString, QJsonObject> actualFiles;
+        for (const auto &v : after["files"].toArray())
+            actualFiles[v.toObject()["path"].toString()] = v.toObject();
+        if (actualFiles.size() != files.size()) {
+            verificationError = "Directory inventory changed during execution";
+        } else {
+            for (int i = 0; i < files.size(); ++i) {
+                const auto original = files[i].toObject();
+                const QString path = mapped(selection.paths, original["path"].toString());
+                const auto actual = actualFiles.value(path);
+                if (actual.isEmpty() || actual["directory"] != original["directory"] ||
+                    actual["link"] != original["link"]) {
+                    verificationError = "Unexpected final inventory entry: " + path;
+                    break;
+                }
+                if (!original["directory"].toBool() && !original["link"].toBool()) {
+                    const QString expected = replacements.contains(i)
+                                                 ? hash(replacements.value(i))
+                                                 : original["sha256"].toString();
+                    QString hashError;
+                    if (!expected.isEmpty() && fileHash(root + '/' + path, hashError) != expected) {
+                        verificationError = hashError.isEmpty()
+                                                ? "File bytes changed unexpectedly: " + path
+                                                : hashError;
+                        break;
+                    }
+                    if (!replacements.contains(i) &&
+                        (actual["size"] != original["size"] ||
+                         actual["modifiedMs"] != original["modifiedMs"])) {
+                        verificationError = "File metadata changed unexpectedly: " + path;
+                        break;
+                    }
+                }
+            }
         }
     }
-    result["status"] = selection.skipped.isEmpty() && writerErrors.isEmpty() &&
+    const bool verificationPassed = verificationError.isEmpty();
+    result["status"] = verificationPassed && selection.skipped.isEmpty() &&
+                               writerErrors.isEmpty() &&
                                after["summary"].toObject()["failedCases"].toInt() == 0 &&
                                after["operations"].toArray().isEmpty()
                            ? "complete"
                            : "partial";
     result["actionsApplied"] = actions.size();
-    result["summary"] = after["summary"];
-    result["errors"] = after["failures"];
-    result["missingTargets"] = after["missingTargets"];
-    result["remainingOperations"] = after["operations"].toArray().size();
-    if (!append(directory, {{"phase", "verified"}, {"status", result["status"]}}, error))
-        return abort(error);
+    if (!after.isEmpty()) {
+        result["summary"] = after["summary"];
+        result["errors"] = after["failures"];
+        result["missingTargets"] = after["missingTargets"];
+        result["remainingOperations"] = after["operations"].toArray().size();
+    }
+    if (!verificationPassed)
+        result["verificationErrors"] = QJsonArray{verificationError};
+    QJsonObject completion{{"phase", "verified"}, {"status", result["status"]}};
+    if (!verificationPassed)
+        completion["error"] = verificationError;
+    if (!append(directory, completion, error)) {
+        result["status"] = "interrupted";
+        error = "All repair actions completed, but the final journal event failed: " + error +
+                "; recover using " + directory + "/journal.json";
+        return result;
+    }
     if (!writeNew(directory + "/result.json", QJsonDocument(result).toJson(QJsonDocument::Indented),
-                  error))
-        return abort(error);
+                  error)) {
+        result["status"] = "interrupted";
+        error = "All repair actions completed, but the result could not be stored: " + error +
+                "; recover using " + directory + "/journal.json";
+        return result;
+    }
     if (!QFile::remove(activePath))
-        return fail("Repair verified, but active journal marker could not be cleared: " +
+        return fail("Repair completed, but active journal marker could not be cleared: " +
                     activePath);
+    error.clear();
     return result;
 }
 } // namespace ContentCase

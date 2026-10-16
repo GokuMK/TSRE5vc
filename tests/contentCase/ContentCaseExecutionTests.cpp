@@ -226,6 +226,19 @@ void runExecutionTests() {
               "lost companion target still fails verification: " + ref["suffix"].toString());
     }
     check(companionCount == 4, "all four route companion suffixes covered");
+    auto duplicateCompanionPlan = companionPlan;
+    auto duplicateCompanionRefs = duplicateCompanionPlan["references"].toArray();
+    for (const auto &value : companionRefs) {
+        auto ref = value.toObject();
+        if (ref["targetFileId"].toInt(-1) < 0 || ref["status"] != "exact")
+            continue;
+        ref["status"] = "case-mismatch";
+        duplicateCompanionRefs.append(ref);
+        break;
+    }
+    duplicateCompanionPlan["references"] = duplicateCompanionRefs;
+    check(ContentCase::verifyReferences(companionPlan, duplicateCompanionPlan, {}, error),
+          "one duplicate mismatched edge does not hide an equivalent exact edge: " + error);
     const auto companionResult = ContentCase::execute(
         companionRoot, {}, tmp.path() + "/CompanionJournal", error);
     check(!companionResult.isEmpty() && companionResult["status"] == "complete",
@@ -242,6 +255,51 @@ void runExecutionTests() {
     check(ContentCase::rollback(companionRoot, companionResult["journal"].toString(), error),
           "route companion rollback: " + error);
     check(snapshot(companionRoot) == companionInitial, "route companion rollback exact");
+
+    const auto blockedCompanionRoot = tmp.path() + "/BlockedCompanion";
+    const auto blockedCompanionBase = blockedCompanionRoot + "/ROUTES/R";
+    put(blockedCompanionBase + "/R.trk", "Tr_RouteFile ( Name ( R ) )");
+    put(blockedCompanionBase + "/R.ref",
+        "Static ( FileName ( PTR_bi2.s ) ) Static ( FileName ( ptr_bi2.s ) ) )");
+    put(blockedCompanionBase + "/SHAPES/PTR_bi2.s", shape);
+    put(blockedCompanionBase + "/SHAPES/PTR_bi2.sd", "Shape ( PTR_bi2.s )");
+    const auto blockedCompanion = ContentCase::execute(
+        blockedCompanionRoot, {}, tmp.path() + "/BlockedCompanionJournal", error);
+    check(!blockedCompanion.isEmpty() &&
+              blockedCompanion["verificationErrors"].toArray().isEmpty(),
+          "blocked shape rename keeps its implicit companion exact: " + error +
+              QString::fromUtf8(QJsonDocument(blockedCompanion).toJson()));
+    check(QFileInfo::exists(blockedCompanionRoot + "/ROUTES/R/SHAPES/PTR_bi2.s") &&
+              QFileInfo::exists(blockedCompanionRoot + "/ROUTES/R/SHAPES/PTR_bi2.sd"),
+          "blocked shape and SD companion retain one matching stem");
+
+    const auto seasonalOnlyRoot = tmp.path() + "/SeasonalOnly";
+    put(seasonalOnlyRoot + "/ROUTES/R/R.trk", "Tr_RouteFile ( Name ( R ) )");
+    put(seasonalOnlyRoot + "/ROUTES/R/SHAPES/Season.s",
+        "shape ( images ( 1 image ( seasonal.ace ) ) )");
+    put(seasonalOnlyRoot + "/ROUTES/R/SHAPES/Vote1.s",
+        "shape ( images ( 1 image ( WINTER/Seasonal.ace ) ) )");
+    put(seasonalOnlyRoot + "/ROUTES/R/SHAPES/Vote2.s",
+        "shape ( images ( 1 image ( WINTER/Seasonal.ace ) ) )");
+    put(seasonalOnlyRoot + "/ROUTES/R/TEXTURES/WINTER/seasonal.ace", "winter R");
+    const auto seasonalOnlyPlan = ContentCase::scan(seasonalOnlyRoot, error);
+    bool seasonalRenamePlanned = false;
+    for (const auto &value : seasonalOnlyPlan["operations"].toArray()) {
+        const auto op = value.toObject();
+        seasonalRenamePlanned |=
+            op["from"] == "ROUTES/R/TEXTURES/WINTER/seasonal.ace" &&
+            op["to"].toString().endsWith("/Seasonal.ace");
+    }
+    check(seasonalRenamePlanned,
+          "cross-route naming vote exercises an exact seasonal-only target rename");
+    const auto seasonalOnly = ContentCase::execute(
+        seasonalOnlyRoot, {}, tmp.path() + "/SeasonalOnlyJournal", error);
+    check(!seasonalOnly.isEmpty() && seasonalOnly["verificationErrors"].toArray().isEmpty(),
+          "seasonal-only exact spelling survives execution selection: " + error +
+              QString::fromUtf8(QJsonDocument(seasonalOnly).toJson()));
+    check(QFileInfo::exists(
+              seasonalOnlyRoot + "/ROUTES/R/TEXTURES/WINTER/seasonal.ace"),
+          "seasonal-only target rename is withheld when its primary texture is missing");
     const auto root = tmp.path() + "/Pure";
     fixture(root);
     const auto initial = snapshot(root);
@@ -372,6 +430,51 @@ void runExecutionTests() {
     check(racing.isEmpty(), "concurrent change aborts conversion");
     check(snapshot(racingRoot) == racingExpected,
           "automatic rollback preserves concurrent change to an unstarted file");
+
+    // Once every journal action has completed, a final verification problem is
+    // an iterative partial result. Keep the completed repairs and the external
+    // change so a fresh run can rescan them instead of undoing the whole root.
+    const auto iterativeRoot = tmp.path() + "/Iterative";
+    fixture(iterativeRoot);
+    const auto iterativeWorld = iterativeRoot + "/routes/RouteOne/world/test.w";
+    put(iterativeWorld, "Tr_WorldFile ( Static ( FileName ( TREE.s ) ) )\r\n");
+    const auto iterative = ContentCase::execute(
+        iterativeRoot, {}, tmp.path() + "/IterativeJournal", error, {}, [&](int step) {
+            if (step == 1)
+                put(iterativeWorld, "user change after completed replacement");
+            return true;
+        });
+    check(!iterative.isEmpty() && iterative["status"] == "partial" &&
+              !iterative["verificationErrors"].toArray().isEmpty(),
+          "postverification failure keeps an iterative partial result: " + error);
+    check(get(iterativeRoot + "/ROUTES/ROUTEONE/WORLD/test.w") ==
+              "user change after completed replacement",
+          "postverification failure keeps completed repairs and concurrent content");
+    check(QDir(tmp.path())
+              .entryList(QStringList{".tsre-case-*.json"}, QDir::Files | QDir::Hidden)
+              .isEmpty(),
+          "iterative partial result clears the active transaction marker");
+
+    const auto readOnlyRoot = tmp.path() + "/ReadOnly";
+    fixture(readOnlyRoot);
+    const auto readOnlySource = readOnlyRoot + "/routes/RouteOne/shapes/TREE.sd";
+    put(readOnlySource,
+        "SIMISA@@@@@@@@@@JINX0t1t______\nShape ( tReE.s ESD_Detail_Level ( 0 ) )\n");
+    check(QFile::setPermissions(readOnlySource, QFileDevice::ReadOwner | QFileDevice::ReadGroup |
+                                                   QFileDevice::ReadOther),
+          "make reference source read-only");
+    const auto readOnly =
+        ContentCase::execute(readOnlyRoot, {}, tmp.path() + "/ReadOnlyJournal", error);
+    check(!readOnly.isEmpty() && readOnly["status"] == "partial" &&
+              !readOnly["writerErrors"].toArray().isEmpty(),
+          "read-only reference source is withheld before execution: " + error);
+    const QString readOnlyFinalSource =
+        readOnlyRoot + "/ROUTES/ROUTEONE/SHAPES/" +
+        (QFileInfo::exists(readOnlyRoot + "/ROUTES/ROUTEONE/SHAPES/Tree.sd") ? "Tree.sd"
+                                                                            : "TREE.sd");
+    check(QFile::setPermissions(readOnlyFinalSource,
+                                QFileDevice::ReadOwner | QFileDevice::WriteOwner),
+          "restore fixture write permission");
     const auto sharedRoot = tmp.path() + "/Shared";
     put(sharedRoot + "/global/shapes/GLOBALTREE.s", shape);
     for (const auto &route : {QString("A"), QString("B")}) {
