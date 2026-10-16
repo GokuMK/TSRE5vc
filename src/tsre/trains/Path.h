@@ -74,6 +74,9 @@ public:
     const QVector<PathObject> &previousPasses() const { return previousObjects; }
     // Passing paths the last edit dropped.
     int droppedByLastEdit() const { return lastDroppedPassing; }
+    // The passing paths beside the main path, resolved: the nodes between
+    // main node `from` and main node `to`.
+    const QVector<PathSnapshot::Passing> &passingPaths();
 
     QString displayName;
     QString name;

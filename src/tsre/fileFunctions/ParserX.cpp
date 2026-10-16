@@ -272,6 +272,27 @@ QString ParserX::GetString(FileBuffer* bufor){
 //-----------------------------------
 // Parsowanie stringa
 //-----------------------------------
+QString ParserX::GetToken(FileBuffer* bufor){
+    QString token;
+    unsigned short int b = ' ';
+    while (b <= 32 && bufor->off + 2 <= bufor->length)
+        b = bufor->getShort();
+    if (b <= 32 || b == ')') {
+        if (b == ')')
+            bufor->off -= 2;
+        return token;
+    }
+    while (b > 32 && b != ')') {
+        token += QChar(b);
+        if (bufor->off + 2 > bufor->length)
+            return token;
+        b = bufor->getShort();
+    }
+    if (b == ')')
+        bufor->off -= 2;
+    return token;
+}
+
 QString ParserX::GetStringInside(FileBuffer* bufor){
     QString sciezka = "";
     unsigned short int b = 0;

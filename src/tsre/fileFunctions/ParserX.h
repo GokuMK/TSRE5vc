@@ -30,6 +30,9 @@ public:
     static QString GetAlternativeTokenName(FileBuffer* bufor);
     static QString GetString(FileBuffer* bufor);
     static QString GetStringInside(FileBuffer* bufor);
+    // The next value inside a block as written (a number with its unit,
+    // "-1mph"), up to a space or the block's end; empty at the end.
+    static QString GetToken(FileBuffer* bufor);
     static float GetNumber(FileBuffer* bufor);
     static float GetNumberInside(FileBuffer* bufor, bool *ok = NULL);
     static unsigned int GetUInt(FileBuffer* bufor);

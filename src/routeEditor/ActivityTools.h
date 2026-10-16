@@ -89,7 +89,16 @@ public slots:
     void actTrafficOpenEnabled();
     void actTimetableOpenEnabled();
     void actSettingsOpenEnabled();
+    // The simulation's controls (task simulation 01).
     void actPlayEnabled();
+    void simPauseEnabled();
+    void simStopEnabled();
+    void simResetEnabled();
+    void simRunToEnabled();
+    void simSpeedSelected(int index);
+    void showSimulation();
+    void simulationEvents(int first);
+    void lockEditing(bool locked);
     void actSaveEnabled();
     // Check Activity: the activity chosen, its findings in their window.
     void actCheckEnabled();
@@ -180,6 +189,20 @@ private:
     
     PreciseTileCoordinate* coordinate = NULL;
     ActivityCheckWindow *checkWindow = NULL;
+    // What edits the activity, off while a simulation exists.
+    QList<QWidget*> editing;
+    QPushButton *simPlay = NULL;
+    QPushButton *simPause = NULL;
+    QPushButton *simStop = NULL;
+    QPushButton *simReset = NULL;
+    QPushButton *simRunTo = NULL;
+    QComboBox simSpeed;
+    QTimeEdit simRunToTime;
+    QLabel simTime;
+    QLabel simStatus;
+    // Tells of deadlocks as they happen; the run goes on.
+    QPointer<QMessageBox> deadlockBox;
+    QStringList deadlocked;
     // A line under Activity Info while the activity has an Open Rails
     // overlay: Merge... puts it in.
     QWidget overlayLine;

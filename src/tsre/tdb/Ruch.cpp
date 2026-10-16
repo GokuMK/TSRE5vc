@@ -43,6 +43,18 @@ void Ruch::set(int nid, int m, int tdirection, QMap<int, int>* jDirections) {
     }
 }
 
+void Ruch::place(int nid, float distance, int tdirection) {
+    if (nid != nodeIdx)
+        nodeLength = Game::trackDB->getVectorSectionLength(nid);
+    nodeIdx = nid;
+    nodeDist = distance;
+    lastNodeDist = distance;
+    kierunek = tdirection;
+    direction = -(kierunek - 0.5)*2;
+    if (junctionDirections == NULL)
+        junctionDirections = &placedJunctions;
+}
+
 void Ruch::next(float m) {
     lastNodeDist = nodeDist;
     if(m < 0){

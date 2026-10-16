@@ -783,6 +783,28 @@ longer side, as for track objects):
     resources (reduced ID maps, smaller layers), which is when custom
     resizing would make sense.
 
+### Track objects and activity objects by kind (done, 2026-10-17)
+
+The user (2026-10-17): with only all or nothing of the track database's
+objects and of the activity, one kind often covers another. The Map menu
+now has Track Database (the layer's switch, before Track Objects) with a
+Track Objects submenu, and Activity with an Activity Objects submenu, each
+kind checked on its own (a submenu is off while its layer is):
+
+- Track Objects: signals, speed posts, platforms, sidings, car spawners,
+  level crossings, hazards, pickups, sound regions
+  (`TrackItemMapLayer::Kind`).
+- Activity Objects: the player's path, the AI trains' paths, the trains
+  (at their starts, or where a simulation has them), loose consists,
+  speed zones, failed signals, events, and a simulation's track use and
+  signal aspects (`MapActivityKind`).
+
+The kinds drawn are bits in `MapLayers` (`trackObjectKinds`,
+`activityKinds`), all set at first and not saved, as the layers' switches.
+A kind hidden is left out of the layers' builds (so of their picking too)
+and of the labels (platforms with their stations, sidings, events). A
+capture view takes `trackObjectKinds` and `activityKinds` (the same bits).
+
 ## Phases
 
 0. **Tool structure**:

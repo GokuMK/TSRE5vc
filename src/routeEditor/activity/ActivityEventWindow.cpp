@@ -9,6 +9,7 @@
  */
 
 #include "ActivityEventWindow.h"
+#include <routeEditor/activity/ActivityEditLock.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <routeEditor/activity/ActivityEdit.h>
 #include "ActivityEventProperties.h"
@@ -101,8 +102,11 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     v->setSpacing(2);
     v->setContentsMargins(1,1,1,1);
     v->addWidget(tabWidget);
-    v->addWidget(eventProperties);
+    QWidget *editor = ActivityEditLock::Box(eventProperties);
+    v->addWidget(editor);
     this->setLayout(v);
+    ActivityEditLock::Follow(this, {editor, bNewActionEvent, bDeleteActionEvent, bNewLocationEvent,
+                                    bDeleteLocationEvent, bNewTimeEvent, bDeleteTimeEvent});
     
     QObject::connect(&actionList, SIGNAL(itemClicked(QListWidgetItem*)),
                       this, SLOT(eventListSelected(QListWidgetItem*)));

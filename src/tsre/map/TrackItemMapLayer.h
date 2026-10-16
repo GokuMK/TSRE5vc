@@ -56,8 +56,9 @@ public:
 
     TrackItemMapLayer();
     ~TrackItemMapLayer();
+    // `kinds`: the kinds drawn (bits by Kind; the Map menu's Track Objects).
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
-                         Route *route, TDB *track, TDB *road);
+                         Route *route, TDB *track, TDB *road, unsigned kinds = ~0u);
     // The markers last drawn, with the 3D view's selection IDs: database
     // items zoomed out, world objects (and their parts) zoomed in.
     void pushSelection(MapSelection &selection, const MapView &view) const;
@@ -129,6 +130,10 @@ private:
     int builtTiles[4] = {0, 0, 0, 0};
     int builtObjects = 0;
     QString builtPalette;
+    // The kinds drawn, and those the last build drew.
+    unsigned shownKinds = ~0u;
+    unsigned builtKinds = ~0u;
+    bool shows(int kind) const { return kind >= 0 && ((shownKinds >> kind) & 1u); }
     std::vector<Position> builtMarkers;
     std::unique_ptr<OglObj> halos;
     std::unique_ptr<OglObj> borders;

@@ -108,6 +108,10 @@ void Camera::setCameraObject(GameObj* o){
     playerPos[2] = 0;
 }
 
+void Camera::releaseObject(){
+    cameraObject = NULL;
+}
+
 void Camera::moveForward(float fps) {
 }
 

@@ -447,9 +447,10 @@ public:
     QRandomGenerator random;
     bool trace = false;
     int actions = 0;
-    // Play puts the player's train on the terrain, which the test route
-    // has none of.
-    const QStringList skipped = {qtTrId("route.editor.activity.tools.button.act.play.button")};
+    // The simulation's Play and Run start a thread of their own (suite
+    // simulation-ui).
+    const QStringList skipped = {qtTrId("route.editor.activity.tools.button.simulation.play"),
+                                 qtTrId("route.editor.activity.tools.button.simulation.run.to")};
 
     explicit Monkey(quint32 seed) : random(seed) {}
 

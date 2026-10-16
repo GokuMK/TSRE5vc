@@ -600,6 +600,7 @@ SigCfg::SigCfg(const QString &path) {
 }
 
 void SigCfg::load(const QString &path) {
+    this->path = path;
     qDebug() << path;
     QFile file(path);
     sourceFileExists = file.exists();

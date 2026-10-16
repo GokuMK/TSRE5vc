@@ -82,7 +82,10 @@ public:
     void updateSim(float *playerT, float deltaTime);
     // Its path (in the path's line style) and its consist at the path's
     // start.
-    void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, int pathStyle = 0);
+    // Its path, and its consist at the path's start unless `consist` is
+    // false (a simulation draws the train where it is).
+    void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, int pathStyle = 0,
+                         bool consist = true);
     // The service's consist for the map mode, and its path.
     void getMapFeatures(MapFeatures &consist, int tileX, int tileZ);
     Path *getPathPointer();

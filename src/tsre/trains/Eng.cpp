@@ -13,11 +13,13 @@
 #include <tsre/map/MapFeatures.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/fileFunctions/MstsUnits.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/ComplexShape.h>
 #include <QDebug>
 #include <QFile>
+#include <algorithm>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <tsre/renderer/Renderer.h>
@@ -69,6 +71,15 @@ Eng::Eng(Eng *o) {
     maxForce = o->maxForce;
     maxPower = o->maxPower;
     maxCurrent = o->maxCurrent;
+    massKg = o->massKg;
+    forceN = o->forceN;
+    powerW = o->powerW;
+    maxSpeedMps = o->maxSpeedMps;
+    std::copy(o->davis, o->davis + 3, davis);
+    hasDavis = o->hasDavis;
+    std::copy(o->friction, o->friction + 5, friction);
+    hasFriction = o->hasFriction;
+    passengerCapacity = o->passengerCapacity;
     flip = o->flip;
     loaded = o->loaded;
     kierunek = o->kierunek;
@@ -81,6 +92,8 @@ Eng::Eng(Eng *o) {
 }
 
 Eng::~Eng() {
+    delete ruch1;
+    delete ruch2;
     delete cabSound;
     delete outsideSound;
     delete trackSound;
@@ -195,6 +208,17 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         trackSound = new TrackSound(this, lead);
     trackSound->setType(trackType);
     trackSound->update(values, cutoff, tileX, -tileZ, position);
+}
+
+void Eng::silenceSounds() {
+    delete cabSound;
+    cabSound = NULL;
+    cabSoundTried = false;
+    delete outsideSound;
+    outsideSound = NULL;
+    outsideSoundTried = false;
+    delete trackSound;
+    trackSound = NULL;
 }
 
 const SoundValues *Eng::soundValues() {
@@ -343,7 +367,39 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("mass")) {
+                    const int at = data->off;
                     mass = ParserX::GetNumberInside(data);
+                    data->off = at;
+                    massKg = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Mass);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("ortsdavis_a") || sh == ("ortsdavis_b") || sh == ("ortsdavis_c")) {
+                    const int k = sh.back().toLatin1() - 'a';
+                    const MstsUnits::Kind kinds[3] = {MstsUnits::Kind::Force, MstsUnits::Kind::Resistance,
+                                                      MstsUnits::Kind::ResistanceSquared};
+                    bool ok = false;
+                    davis[k] = MstsUnits::value(ParserX::GetToken(data), kinds[k], &ok);
+                    hasDavis = hasDavis || ok;
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("friction")) {
+                    const MstsUnits::Kind kinds[5] = {MstsUnits::Kind::Resistance, MstsUnits::Kind::None,
+                                                      MstsUnits::Kind::Speed, MstsUnits::Kind::Resistance,
+                                                      MstsUnits::Kind::None};
+                    bool all = true;
+                    for (int k = 0; k < 5; ++k) {
+                        bool ok = false;
+                        friction[k] = MstsUnits::value(ParserX::GetToken(data), kinds[k], &ok);
+                        all = all && ok;
+                    }
+                    hasFriction = all;
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("passengercapacity")) {
+                    passengerCapacity = true;
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -495,12 +551,18 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("maxvelocity")) {
+                    const int at = data->off;
                     maxSpeed = ParserX::GetNumberInside(data);
+                    data->off = at;
+                    maxSpeedMps = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Speed);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("maxpower")) {
+                    const int at = data->off;
                     maxPower = ParserX::GetNumberInside(data);
+                    data->off = at;
+                    powerW = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Power);
                     //qDebug() << "maxPower "<<maxPower;
                     ParserX::SkipToken(data);
                     continue;
@@ -512,7 +574,10 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("maxforce")) {
+                    const int at = data->off;
                     maxForce = ParserX::GetNumberInside(data);
+                    data->off = at;
+                    forceN = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Force);
                     //qDebug() << "maxForce "<<maxForce / 1000;
                     ParserX::SkipToken(data);
                     continue;
@@ -878,11 +943,22 @@ void Eng::getCameraPosition(float* out){
 void Eng::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
     if (loaded != 1 || ruch1 == NULL || ruch2 == NULL)
         return;
-    // Both ends, relative to the tile; positions are rebuilt by each call.
+    // Positions are rebuilt by each call: the front's copied first.
+    float front[7];
+    const float *first = ruch1->getCurrentPosition();
+    std::copy(first, first + 7, front);
+    getMapFeaturesBetween(features, tileX, tileZ, front, ruch2->getCurrentPosition());
+}
+
+void Eng::getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
+                                const float *rear) const {
+    if (loaded != 1)
+        return;
+    // Both ends, relative to the tile.
     float ends[2][2];
-    Ruch *ruch[2] = {ruch1, ruch2};
+    const float *end[2] = {front, rear};
     for (int i = 0; i < 2; i++) {
-        const float *p = ruch[i]->getCurrentPosition();
+        const float *p = end[i];
         ends[i][0] = (p[5] - tileX) * 2048 + p[0];
         ends[i][1] = (-p[6] - tileZ) * 2048 - p[2];
     }
@@ -903,14 +979,26 @@ void Eng::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
 }
 
 void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
+    if (loaded != 1 || ruch1 == NULL || ruch2 == NULL) return;
+
+    float selev1, selev2;
+    float drawPosition1[7];
+    const float *first = ruch1->getCurrentPosition(&selev1);
+    std::copy(first, first + 7, drawPosition1);
+    float *drawPosition2 = ruch2->getCurrentPosition(&selev2);
+    pushRenderItemBetween(queue, playerT, selectionId, selected, drawPosition1, drawPosition2,
+                          (selev1 + selev2) / 2.0, flip);
+}
+
+void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
+                                const float *front, const float *rear, float roll, bool flipped) {
     if (loaded != 1) return;
 
     const long long int shapeLibId = resolveShapeIds();
 
-    float selev1, selev2;
-    float *drawPosition1 = ruch1->getCurrentPosition(&selev1);
-    float *drawPosition2 = ruch2->getCurrentPosition(&selev2);
-    selev1 = (selev1 + selev2) / 2.0;
+    float drawPosition1[7], drawPosition2[7];
+    std::copy(front, front + 7, drawPosition1);
+    std::copy(rear, rear + 7, drawPosition2);
 
     float pos[5];
     pos[3] = drawPosition1[5];
@@ -930,8 +1018,8 @@ void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 sele
     Mat4::translate(queue.transform(), queue.transform(), pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + 0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
     Mat4::rotateY(queue.transform(), queue.transform(), -rotY);
     Mat4::rotateX(queue.transform(), queue.transform(), rotX);
-    Mat4::rotate(queue.transform(), queue.transform(), -selev1, 0, 0, 1);
-    Mat4::rotateY(queue.transform(), queue.transform(), flip*M_PI);
+    Mat4::rotate(queue.transform(), queue.transform(), -roll, 0, 0, 1);
+    Mat4::rotateY(queue.transform(), queue.transform(), flipped ? M_PI : 0.0);
 
     // Activities submit their consists with the editor overlays; the
     // rolling stock itself is scene geometry, lit and shadowed.
@@ -959,6 +1047,16 @@ void Eng::move(float m){
         ruch1->next(m);
     if(ruch2 != NULL)
         ruch2->next(m);
+}
+
+void Eng::placeOnTrack(int frontNode, float frontDistance, int frontDirection,
+                       int rearNode, float rearDistance, int rearDirection){
+    if(ruch1 == NULL)
+        ruch1 = new Ruch();
+    if(ruch2 == NULL)
+        ruch2 = new Ruch();
+    ruch1->place(frontNode, frontDistance, frontDirection);
+    ruch2->place(rearNode, rearDistance, rearDirection);
 }
 
 float Eng::getCurrentElevation(){

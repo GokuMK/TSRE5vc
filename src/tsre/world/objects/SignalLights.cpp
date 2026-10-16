@@ -36,6 +36,21 @@ float toLinear(float c) {
     return std::pow(std::clamp(c, 0.0f, 1.0f), 2.2f);
 }
 
+const SignalLights::StateSource *stateSource = nullptr;
+// Bumped when the source changes: serials of two sources never match.
+unsigned long long sourceGeneration = 0;
+
+unsigned long long currentSerial() {
+    return stateSource != nullptr ? (sourceGeneration << 40) ^ stateSource->stateSerial() : sourceGeneration << 40;
+}
+
+}
+
+void SignalLights::setStateSource(const StateSource *source) {
+    if (source == stateSource)
+        return;
+    stateSource = source;
+    ++sourceGeneration;
 }
 
 SignalLights::~SignalLights() {
@@ -66,7 +81,11 @@ void SignalLights::build(ComplexShape *shape, const SignalShape *signalShape, un
         if (((heads >> i) & 1) == 0 || sub.sigSubTypeId != SignalShape::SIGNAL_HEAD)
             continue;
         const SignalType *type = cfg->findSignalType(sub.sigSubSType);
-        const SignalType::DrawState *state = type != nullptr ? type->defaultDrawState() : nullptr;
+        const SignalType::DrawState *state = nullptr;
+        if (type != nullptr && i < states.size() && !states[i].isEmpty())
+            state = type->drawState(states[i]);
+        if (type != nullptr && state == nullptr)
+            state = type->defaultDrawState();
         if (state == nullptr)
             continue;
         // The head's matrix; a shape without it places the lights from its root.
@@ -158,7 +177,7 @@ void SignalLights::makePackets() {
 }
 
 void SignalLights::push(RenderQueue &queue, ComplexShape *shape, const SignalShape *signalShape,
-                        unsigned int heads, quint32 selectionId) {
+                        unsigned int heads, const int *items, quint32 selectionId) {
     if (shape == nullptr || signalShape == nullptr || !shape->isLoaded()) {
         // A reloading shape may come back with other matrices.
         if (built)
@@ -167,6 +186,19 @@ void SignalLights::push(RenderQueue &queue, ComplexShape *shape, const SignalSha
     }
     if (built && heads != builtHeads)
         invalidate();
+    // The simulation's draw states, asked again when they may have changed.
+    const unsigned long long serial = currentSerial();
+    if (serial != statesSerial || states.size() != 32) {
+        statesSerial = serial;
+        QVector<QString> now(32);
+        for (int i = 0; i < 32 && stateSource != nullptr; ++i)
+            if (((heads >> i) & 1) != 0 && items[i] >= 0)
+                now[i] = stateSource->drawStateOf(items[i]);
+        if (now != states) {
+            states = now;
+            invalidate();
+        }
+    }
     if (!built)
         build(shape, signalShape, heads);
     if (lights.isEmpty())

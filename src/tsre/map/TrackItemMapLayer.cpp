@@ -175,7 +175,7 @@ void TrackItemMapLayer::collectDatabaseMarkers(std::vector<Position> &markers, c
         for (const Position &position : index->items)
             // Database tiles are not negated; the view's are.
             if (position.tileX >= tiles[0] && position.tileX <= tiles[1]
-                    && -position.tileZ >= tiles[2] && -position.tileZ <= tiles[3])
+                    && -position.tileZ >= tiles[2] && -position.tileZ <= tiles[3] && shows(position.kind))
                 markers.push_back(position);
 }
 
@@ -209,7 +209,7 @@ void TrackItemMapLayer::collectObjectMarkers(std::vector<Position> &markers,
                 if (object == nullptr || !object->loaded || !object->isTrackItem())
                     continue;
                 const int kind = kindOfObjectType(object->typeID);
-                if (kind < 0)
+                if (kind < 0 || !shows(kind))
                     continue;
                 object->getMapLine(lines[kind], view.tileX, view.tileZ);
                 if (object->isSelected())
@@ -310,7 +310,8 @@ void TrackItemMapLayer::build(const MapView &view, const MapPalette &palette, Ro
 
 void TrackItemMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
                                         const MapPalette &palette, Route *route, TDB *track,
-                                        TDB *road) {
+                                        TDB *road, unsigned kinds) {
+    shownKinds = kinds;
     if (!trackIndex.built)
         buildIndex(trackIndex, track, 0);
     if (!roadIndex.built)
@@ -323,7 +324,7 @@ void TrackItemMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     const float scale = view.metresPerPixel / std::max(builtMetresPerPixel, 1e-6f);
     bool rebuild = !valid || view.tileX != builtTileX || view.tileZ != builtTileZ
             || scale > RebuildScale || scale < 1.0f / RebuildScale
-            || worldObjects != builtWorldObjects || palette.name != builtPalette;
+            || worldObjects != builtWorldObjects || palette.name != builtPalette || kinds != builtKinds;
     int objects = 0;
     if (worldObjects) {
         rebuild = rebuild || !std::equal(tiles, tiles + 4, builtTiles);
@@ -339,6 +340,7 @@ void TrackItemMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     if (rebuild) {
         build(view, palette, route, tiles, worldObjects);
         builtObjects = objects;
+        builtKinds = kinds;
     }
     halos->pushRenderItem(queue);
     borders->pushRenderItem(queue);

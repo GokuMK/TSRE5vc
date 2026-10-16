@@ -118,6 +118,8 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/sim/SimulationController.h>
+#include <tsre/environment/WorldClock.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
@@ -141,7 +143,6 @@ tools(std::make_unique<ToolRegistry>()) {
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
-    timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
     // Undo replaces activity data: a selected loose consist, speed zone or
     // failed signal is gone.
     connect(ActivityNotifier::instance(), &ActivityNotifier::restoring, this, [this] {
@@ -149,6 +150,21 @@ tools(std::make_unique<ToolRegistry>()) {
             setSelectedObj(NULL);
         if (lastSelectedObj != NULL && lastSelectedObj->typeObj == GameObj::activityobj)
             lastSelectedObj = NULL;
+    });
+    // The simulated trains' consists going (Stop, a reset): the camera and
+    // the selection let go of them.
+    connect(Sim::SimulationController::instance(), &Sim::SimulationController::trainsRemoving, this, [this] {
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        stopRiding();
+        if (selectedObj != NULL && simulation->trainOfObject(selectedObj) >= 0)
+            setSelectedObj(NULL);
+        if (lastSelectedObj != NULL && simulation->trainOfObject(lastSelectedObj) >= 0)
+            lastSelectedObj = NULL;
+    });
+    // A simulation starting: a tool editing the activity gives way.
+    connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged, this, [this](bool locked) {
+        if (locked && editsActivity(toolEnabled))
+            enableTool("selectTool");
     });
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
@@ -162,8 +178,6 @@ tools(std::make_unique<ToolRegistry>()) {
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
             if (key == "core.rendering.mist")
                 mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
-            if (key == "core.rendering.timeOfDay.running")
-                timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 timer.start(renderTimerStep(), this);
@@ -246,6 +260,10 @@ void RouteEditorGLWidget::cleanup() {
 
 void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     Game::currentShapeLib = currentShapeLib;
+    // The simulation's trains as one frame has them, from here (sounds,
+    // Follow, the camera riding a train) to the next tick: the paints draw
+    // them where the camera was placed by them.
+    Sim::SimulationController::instance()->pinViewFrame();
     timeNow = QDateTime::currentMSecsSinceEpoch();
     unsigned long long frameTimeMs = timeNow - lastTime;
     if(frameTimeMs < 1)
@@ -292,26 +310,16 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
 
     if (!simulationPaused)
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
-    // The clock: the time of day, and with it the weather and the clouds,
-    // run on. Set elsewhere (the panel), it goes on from there; the settings
-    // hear of it only past midnight.
-    if (!simulationPaused && timeRuns) {
-        if (float(clockHours) != Game::timeOfDayHours)
-            clockHours = Game::timeOfDayHours;
-        QString date = Game::timeOfDayDate;
-        if (advanceClock((timeNow - lastTime) / 1000.0, timeSpeed, clockHours, date)) {
-            SettingsManager &settings = SettingsManager::instance();
-            settings.setSessionValue("core.rendering.timeOfDay.date", date);
-            settings.setSessionValue("core.rendering.timeOfDay.time", clockHours);
-        }
-        Game::timeOfDayHours = float(clockHours);
-    }
+    // The clock: the time of day, and with it the weather, the clouds and
+    // the fog, run on (WorldClock: the main thread's, or a simulation's).
+    WorldClock::instance()->tick(simulationPaused ? 0.0 : (timeNow - lastTime) / 1000.0);
 
     lastTime = timeNow;
 
     if (Game::objectLoadingTokens < Game::maxObjLag)
         Game::objectLoadingTokens += 2;
 
+    followTrain();
     camera->update(fps);
     
     update();
@@ -487,8 +495,9 @@ QString RouteEditorGLWidget::cameraSetting() const {
             .arg(rotX * 180.0 / M_PI, 0, 'f', 2).arg(rotY * 180.0 / M_PI, 0, 'f', 2);
 }
 
-// The camera is the listener; riding a consist (play mode) it hears the
-// train as playSoundView says: from outside, or in the lead engine's cab.
+// The camera is the listener; riding a consist (play mode, or a simulated
+// train followed) it hears the train as playSoundView says: from outside,
+// or in the lead engine's cab.
 void RouteEditorGLWidget::updateSound(float seconds) {
     SoundListener listener;
     listener.tileX = (int)camera->pozT[0];
@@ -511,6 +520,9 @@ void RouteEditorGLWidget::updateSound(float seconds) {
         listener.attachedValues = lead->soundValues();
     }
     SoundSystem::setListener(listener);
+    // The simulated trains near the camera.
+    Sim::SimulationController::instance()->updateSounds(seconds, listener.tileX, listener.tileZ,
+                                                        listener.position);
     SoundSystem::update(seconds);
 }
 
@@ -645,8 +657,29 @@ void RouteEditorGLWidget::refreshMarkerList() {
     if (route != NULL) emit mkrList(route->getMkrList());
 }
 
+// Riding a consist: a simulated train's is followed (the Timetable window's
+// Follow, its cab view); another ends Follow.
 void RouteEditorGLWidget::setCameraObject(GameObj* obj){
-    camera->setCameraObject(obj);
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int train = simulation->trainOfObject(obj);
+    if (train >= 0) {
+        simulation->choose(train);
+        simulation->follow(train);
+        followedTrain = -1;
+        return;
+    }
+    if (simulation->followed() >= 0)
+        simulation->follow(-1);
+    stopRiding();
+    cameraFree->setCameraObject(obj);
+}
+
+void RouteEditorGLWidget::releaseCameraObject(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (simulation->followed() >= 0)
+        simulation->follow(-1);
+    if (cameraFree != NULL)
+        cameraFree->releaseObject();
 }
 
 void RouteEditorGLWidget::setMoveStep(float val){
@@ -1339,8 +1372,8 @@ void RouteEditorGLWidget::applyClouds() {
     // A fast timelapse refreshes the clouds faster (the user: from 2 min a
     // second twice, at 4 min four times; static scenes, a lower frame rate
     // is fine): the history cannot follow clouds that change that much.
-    const bool fast = timeRuns && !simulationPaused;
-    c.passes = fast && timeSpeed >= 240.0 ? 4 : (fast && timeSpeed >= 120.0 ? 2 : 1);
+    const double clockRate = simulationPaused ? 0.0 : WorldClock::instance()->rate();
+    c.passes = clockRate >= 240.0 ? 4 : (clockRate >= 120.0 ? 2 : 1);
     const double west = std::floor((east - Size * Texel * 0.5) / Step) * Step;
     const double top = std::ceil((north + Size * Texel * 0.5) / Step) * Step;
     // The fields move with their layers' wind, which the renderer follows
@@ -1956,7 +1989,12 @@ void RouteEditorGLWidget::applySelection(quint32 selectionId,
         const int CID = static_cast<int>(decoded.primaryId);
         const int EID = decoded.part;
         qDebug() << CID << EID;
-        setSelectedObj((GameObj*)route->getActivityConsist(CID));
+        // While a simulation runs the activity: its train's own consist.
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        if (simulation->shows(route->getCurrentActivity()))
+            setSelectedObj((GameObj*)simulation->consistOf(simulation->trainOfService(CID)));
+        else
+            setSelectedObj((GameObj*)route->getActivityConsist(CID));
         if (selectedObj == NULL) {
             qDebug() << "brak obiektu";
         } else {
@@ -2126,6 +2164,22 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
                 if(independentUndo)
                     Undo::StateEndIndependent();
             }
+            update();
+        }
+        event->accept();
+        return;
+    }
+
+    // Following a train in 3D (the Timetable window's Follow): 1 at its
+    // cab's window, 2 ahead of its front, 3 behind its back, the camera
+    // riding it (the keypad's digits stay the object tools').
+    if ((event->key() == Qt::Key_1 || event->key() == Qt::Key_2 || event->key() == Qt::Key_3)
+            && followedTrain >= 0 && Sim::SimulationController::instance()->followed() == followedTrain
+            && !(event->modifiers() & (Qt::KeypadModifier | Qt::ControlModifier | Qt::AltModifier))) {
+        if (!event->isAutoRepeat()) {
+            followedView = event->key() == Qt::Key_1 ? RideView::Cab
+                         : event->key() == Qt::Key_2 ? RideView::Front : RideView::Back;
+            rideTrain(followedTrain, followedView);
             update();
         }
         event->accept();
@@ -2585,6 +2639,18 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
 
 void RouteEditorGLWidget::setMapLayerVisible(MapLayer layer, bool visible) {
     mapLayers.set(layer, visible);
+    update();
+}
+
+void RouteEditorGLWidget::setMapTrackObjectKind(int kind, bool visible) {
+    MapLayers::set(mapLayers.trackObjectKinds, kind, visible);
+    mapLabelsInvalid = true;
+    update();
+}
+
+void RouteEditorGLWidget::setMapActivityKind(MapActivityKind kind, bool visible) {
+    MapLayers::set(mapLayers.activityKinds, int(kind), visible);
+    mapLabelsInvalid = true;
     update();
 }
 
@@ -3178,7 +3244,9 @@ bool RouteEditorGLWidget::mapLayersBusy() const {
 void RouteEditorGLWidget::updateMapLabels() {
     Coords *markers = mapLayers.shows(MapLayer::Markers) && route != NULL ? route->currentMkr() : NULL;
     TDB *track = mapLayers.shows(MapLayer::TrackObjects) ? Game::trackDB : NULL;
-    Activity *activity = mapLayers.shows(MapLayer::Activity) && route != NULL ? route->getCurrentActivity() : NULL;
+    Activity *activity = mapLayers.shows(MapLayer::Activity)
+            && MapLayers::has(mapLayers.activityKinds, int(MapActivityKind::Events)) && route != NULL
+            ? route->getCurrentActivity() : NULL;
     const OsmMapLayer *osm = mapLayers.shows(MapLayer::OsmData) ? osmMap.get() : NULL;
     // What is labelled, and how much of it: a change rebuilds the labels.
     const std::vector<const void *> sources = {
@@ -3193,7 +3261,9 @@ void RouteEditorGLWidget::updateMapLabels() {
     if (mapMeasure->shown())
         labels.push_back(mapMeasure->label(Game::GeoCoordConverter));
     MapLabelSources::appendActivity(labels, activity);
-    MapLabelSources::appendTrackDatabase(labels, track);
+    MapLabelSources::appendTrackDatabase(labels, track,
+                                         MapLayers::has(mapLayers.trackObjectKinds, TrackItemMapLayer::Platform),
+                                         MapLayers::has(mapLayers.trackObjectKinds, TrackItemMapLayer::Siding));
     MapLabelSources::appendMarkers(labels, markers);
     if (osm != NULL)
         labels.insert(labels.end(), osm->labels().begin(), osm->labels().end());
@@ -3270,9 +3340,10 @@ void RouteEditorGLWidget::paintMap() {
     }
     trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB, mapLayers);
     if (mapLayers.shows(MapLayer::TrackObjects))
-        trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
+        trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB,
+                                      mapLayers.trackObjectKinds);
     activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
-                                 mapLayers.shows(MapLayer::Paths));
+                                 mapLayers.shows(MapLayer::Paths), mapLayers.activityKinds);
     // The weather over the route's data, as a weather app shows it.
     if (mapLayers.shows(MapLayer::Weather) && weatherMap && currentWeather())
         weatherMap->pushRenderItems(queue, view, palette, *currentWeather(), weatherHours(), true);
@@ -3374,7 +3445,8 @@ void RouteEditorGLWidget::paintMapSelection(int width, int height) {
     mapSelection->clear();
     if (mapLayers.shows(MapLayer::TrackObjects))
         trackItemMap->pushSelection(*mapSelection, view);
-    activityMap->pushSelection(*mapSelection, view, route, mapLayers.shows(MapLayer::Activity));
+    activityMap->pushSelection(*mapSelection, view, route, mapLayers.shows(MapLayer::Activity),
+                               mapLayers.activityKinds);
     mapSelection->pushRenderItems(queue);
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     renderer->setShadowCasting(true);
@@ -3564,9 +3636,157 @@ void RouteEditorGLWidget::sendFlexData() {
     emit flexData(tileX(), tileZ(), aktPointerPos);
 }
 
+bool RouteEditorGLWidget::editsActivity(const QString &tool) {
+    static const QStringList tools = {"trackPathTool", "actNewLooseConsistTool", "actNewSpeedZoneTool",
+                                      "pickNewEventLocationTool", "pickSoundLocationTool"};
+    return tools.contains(EditorTool::idOf(tool));
+}
+
+// The camera follows the train the Timetable window follows: in 3D it rides
+// the train's consist as Play mode rides one (at its cab's window at first,
+// keys 1 to 3 there, ahead of its front, behind its back), the user's own
+// moves kept; on the map it is centred on the train and moved as it moves.
+void RouteEditorGLWidget::followTrain() {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int train = simulation->followed();
+    if (train != followedTrain) {
+        stopRiding();
+        followedTrain = train;
+        followedView = RideView::Cab;
+        followedKnown = false;
+    }
+    int tile[2];
+    float place[3], heading[3];
+    if (train < 0 || !simulation->trainPlace(train, tile, place, heading))
+        return;
+    if (currentViewMode == ViewMode::Map && !followedKnown) {
+        // Where it is first known (it may come on the track later): centred
+        // on it, then moved as it moves.
+        viewTrain(train);
+    } else if (currentViewMode == ViewMode::Map) {
+        const float *at = camera->getPos();
+        camera->setPos(at[0] + place[0] - followedPlace[0] + 2048.0f * (tile[0] - followedTile[0]),
+                       at[1] + place[1] - followedPlace[1],
+                       at[2] + place[2] - followedPlace[2] + 2048.0f * (tile[1] - followedTile[1]));
+        camera->check_coords();
+    } else if (cameraFree->getCameraObject() != simulation->consistOf(train)) {
+        // Not riding it yet: it has just come on the track, or the view
+        // has come back from the map.
+        rideTrain(train, followedView);
+    }
+    // Where it is first known: its consist selected, its properties shown.
+    if (!followedKnown) {
+        Consist *consist = simulation->consistOf(train);
+        if (consist != NULL && selectedObj != consist) {
+            if (selectedObj != NULL)
+                selectedObj->unselect();
+            setSelectedObj(consist);
+        }
+    }
+    followedTile[0] = tile[0];
+    followedTile[1] = tile[1];
+    std::copy(place, place + 3, followedPlace);
+    followedKnown = true;
+}
+
+void RouteEditorGLWidget::stopRiding() {
+    GameObj *ridden = cameraFree != NULL ? cameraFree->getCameraObject() : NULL;
+    if (ridden != NULL && Sim::SimulationController::instance()->trainOfObject(ridden) >= 0)
+        cameraFree->releaseObject();
+}
+
+bool RouteEditorGLWidget::viewTrain(int train) {
+    int tile[2];
+    float place[3], heading[3], length = 0.0f;
+    if (!Sim::SimulationController::instance()->trainPlace(train, tile, place, heading, &length))
+        return false;
+    stopRiding();
+    camera->setPozT(tile[0], tile[1]);
+    if (currentViewMode == ViewMode::Map) {
+        camera->setPos(place[0], 0.0f, place[2]);
+    } else {
+        // Behind its rear, the whole train ahead.
+        const float back = 0.5f * length + 35.0f, up = 15.0f + 0.05f * length;
+        const float eye[3] = {place[0] - back * heading[0], place[1] + up, place[2] - back * heading[2]};
+        camera->setPos(eye[0], eye[1], eye[2]);
+        const float look[3] = {place[0] - eye[0], place[1] - eye[1], place[2] - eye[2]};
+        const float distance = std::sqrt(look[0] * look[0] + look[1] * look[1] + look[2] * look[2]);
+        camera->setPlayerRot(std::atan2(look[0], look[2]), std::asin(look[1] / std::max(distance, 0.001f)));
+    }
+    camera->check_coords();
+    return true;
+}
+
+bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Consist *consist = simulation->consistOf(train);
+    const std::shared_ptr<const Sim::SimulationInput> input = simulation->input();
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->viewFrame();
+    if (consist == NULL || !consist->isOnTrack || consist->engItems.isEmpty() || input == nullptr
+            || train < 0 || size_t(train) >= input->trains.size() || size_t(train) >= frame->trains.size())
+        return false;
+    const Sim::TrainPlan &plan = input->trains[size_t(train)];
+    const bool reversed = frame->trains[size_t(train)].state.reversed;
+    // It rides the leading vehicle (cab, front) or the trailing one (back)
+    // as the train runs, the first or the last as the consist lists them; at
+    // that vehicle's front (as listed), which faces the way the train runs
+    // unless it runs reversed.
+    const bool front = view != RideView::Back;
+    const int last = consist->engItems.size() - 1;
+    const int vehicle = front != reversed ? 0 : last;
+    const float length = size_t(vehicle) < plan.vehicles.size() ? plan.vehicles[size_t(vehicle)].length : 0.0f;
+    consist->cameraVehicle = vehicle;
+    // The consist camera's own place: at the first vehicle's cab window,
+    // looking ahead.
+    cameraFree->setCameraObject(consist);
+    if (view == RideView::Cab && !reversed)
+        return true;
+    // In the vehicle's own frame (CameraFree's, riding it): its front at the
+    // origin, along it towards its front -z; `ahead` the way the train runs.
+    const float ahead = reversed ? 1.0f : -1.0f;
+    float eye[3], at[3];
+    if (view == RideView::Cab) {
+        // Reversed: at the cab window of its leading end (the last
+        // vehicle's rear as listed), looking the way it runs.
+        const float lead = reversed ? length : 0.0f;
+        eye[0] = 0.0f;
+        eye[1] = 3.0f;
+        eye[2] = ahead * lead;
+        at[0] = 0.0f;
+        at[1] = 3.0f;
+        at[2] = ahead * (lead + 100.0f);
+    } else if (front) {
+        // Ahead of its leading end and to its side, looking back at it.
+        const float lead = reversed ? length : 0.0f;
+        eye[0] = 8.0f;
+        eye[1] = 4.0f;
+        eye[2] = ahead * (lead + 18.0f);
+        at[0] = 0.0f;
+        at[1] = 2.0f;
+        at[2] = ahead * (lead - 8.0f);
+    } else {
+        // Behind its trailing end and above, the whole train ahead.
+        const float trail = reversed ? 0.0f : length;
+        eye[0] = 0.0f;
+        eye[1] = 15.0f + 0.05f * plan.length;
+        eye[2] = -ahead * (trail + 35.0f);
+        at[0] = 0.0f;
+        at[1] = 0.0f;
+        at[2] = -ahead * trail + ahead * 0.5f * plan.length;
+    }
+    const float look[3] = {at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]};
+    const float distance = std::sqrt(look[0] * look[0] + look[1] * look[1] + look[2] * look[2]);
+    cameraFree->setPos(eye[0], eye[1], eye[2]);
+    cameraFree->setPlayerRot(std::atan2(look[0], look[2]), std::asin(look[1] / std::max(distance, 0.001f)));
+    return true;
+}
+
 void RouteEditorGLWidget::enableTool(QString name) {
     // A tool the view mode cannot use stays off (map mode, task editor 04).
     if (!tools->allowed(name, currentViewMode))
+        return;
+    // Nor one changing the activity while a simulation exists.
+    if (ActivityNotifier::editingLocked() && editsActivity(name))
         return;
     EditorTool *previous = activeTool();
     EditorTool *next = tools->find(name);
@@ -3640,6 +3860,8 @@ void RouteEditorGLWidget::jumpTo(float *posT, float *pos) {
 
 void RouteEditorGLWidget::jumpTo(int X, int Z, float x, float y, float z) {
     qDebug() << "jump: " << X << " " << Z;
+    // Off a train it rides, or the place would be relative to the train.
+    releaseCameraObject();
     Game::terrainLib->load(X, Z);
     float h = Game::terrainLib->getHeight(X, Z, x, z);
     //if(h == -1)
@@ -3741,22 +3963,6 @@ void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
 
 void RouteEditorGLWidget::setSimulationPaused(bool paused) {
     simulationPaused = paused;
-}
-
-void RouteEditorGLWidget::setClockSpeed(double secondsPerSecond) {
-    timeSpeed = std::max(secondsPerSecond, 0.0);
-}
-
-bool RouteEditorGLWidget::advanceClock(double seconds, double speed, double &hours, QString &date) {
-    hours += std::clamp(seconds, 0.0, 1.0) * speed / 3600.0;
-    if (hours < 24.0)
-        return false;
-    hours -= 24.0;
-    QDate day = QDate::fromString(date.trimmed(), "yyyy-MM-dd");
-    if (!day.isValid())
-        day = QDate(2026, 6, 21);
-    date = day.addDays(1).toString("yyyy-MM-dd");
-    return true;
 }
 
 QVector<quint32> RouteEditorGLWidget::probeSelectionIds(
@@ -4991,7 +5197,12 @@ void RouteEditorGLWidget::editUndo() {
         finishLiveTelepole(false);
         setSelectedObj(NULL);
     }
-    Undo::UndoLast();
+    if (!Undo::UndoLast() && ActivityNotifier::editingLocked() && Undo::LastChangesActivity())
+        QMessageBox::information(this,
+            //% "Undo"
+            qtTrId("route.editor.glwidget.undo.title"),
+            //% "The last change is to the activity: it can be undone when the simulation stops."
+            qtTrId("route.editor.glwidget.undo.activity.locked"));
     // Undone path edits show on the map's next draw.
     if (activityMap)
         activityMap->invalidate();

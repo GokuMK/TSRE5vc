@@ -49,6 +49,10 @@
 #include <tsre/world/TerrainLib.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <settings/SettingsManager.h>
+#include <tsre/sim/SimulationController.h>
+#include <tsre/trains/Activity.h>
+#include <QThread>
+#include <QTime>
 #include <tsre/math3d/GLMatrix.h>
 
 namespace {
@@ -77,6 +81,11 @@ struct ViewSpec {
     int tileZ = 0;
     bool hasPos = false;
     float pos[3] = {0, 0, 0};
+    // The camera by a simulated train (RouteEditorGLWidget::viewTrain), by
+    // its back, or riding it with "trainView": "cab", "front" or "back"
+    // (rideTrain, Follow's keys 1 to 3).
+    int train = -1;
+    QString trainView;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -122,6 +131,10 @@ struct ViewSpec {
     // Centred on a latitude and longitude through the route's projection, instead of
     // tile and pos (map views of OSM data).
     bool markers = false;  // Map > Markers
+    // Map > Track Objects and Activity Objects: the kinds drawn (bits by
+    // TrackItemMapLayer::Kind and MapActivityKind), all by default.
+    unsigned trackObjectKinds = ~0u;
+    unsigned activityKinds = ~0u;
     bool viewMarkers = false;  // 3D View > Markers
     bool hasLatLon = false;
     double lat = 0.0, lon = 0.0;
@@ -212,6 +225,12 @@ struct Options {
     // "all", an AI train's place in the activity's traffic (the one
     // chosen), or both ("all,3").
     QString aiTrains;
+    // A simulation of the activity run to this time of day ("08:10:00"),
+    // or "start" (started, paused at its start, as Start does) before the
+    // views (task simulation 01); the train outlined, and the one followed.
+    QString simulateTo;
+    int simulationChosen = -1;
+    int simulationFollowed = -1;
     QVector<ViewSpec> views;
 };
 
@@ -305,6 +324,9 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.markerSet = root.value("markerSet").toString();
     options.path = root.value("path").toString();
     options.aiTrains = root.value("aiTrains").toVariant().toString();
+    options.simulateTo = root.value("simulateTo").toString();
+    options.simulationChosen = root.value("simulationChosen").toInt(-1);
+    options.simulationFollowed = root.value("simulationFollowed").toInt(-1);
 
     const QJsonArray objects = root.value("objects").toArray();
     for (const QJsonValue &value : objects) {
@@ -341,6 +363,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.hasOffset = readFloatArray(object.value("offset"), view.offset, 3);
         view.hasRot = readFloatArray(object.value("rot"), view.rot, 2);
         view.map = object.value("mode").toString() == "map";
+        view.train = object.value("train").toInt(-1);
+        view.trainView = object.value("trainView").toString();
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
         view.bearing = float(object.value("bearing").toDouble(0.0));
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
@@ -370,6 +394,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         for (int i = 0; i < 4 && view.hasMeasure; ++i)
             view.measure[i] = float(measure[i].toDouble());
         view.markers = object.value("markers").toBool(false);
+        view.trackObjectKinds = unsigned(object.value("trackObjectKinds").toInteger(-1));
+        view.activityKinds = unsigned(object.value("activityKinds").toInteger(-1));
         view.viewMarkers = object.value("viewMarkers").toBool(false);
         const QJsonArray latLon = object.value("latLon").toArray();
         view.hasLatLon = latLon.size() == 2;
@@ -615,6 +641,37 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
 
     widget.setDiagnosticActivity(options.activity, options.path);
     widget.setDiagnosticAITrains(options.aiTrains);
+    if (!options.simulateTo.isEmpty()) {
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        const QTime time = QTime::fromString(options.simulateTo, "HH:mm:ss");
+        QString error;
+        Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
+        const bool started = options.simulateTo == "start" ? simulation->start(activity, &error)
+                : time.isValid() && simulation->runTo(activity, time.msecsSinceStartOfDay() / 1000, &error);
+        if (!started) {
+            qWarning() << CaptureLog << "no simulation:" << error;
+        } else {
+            QElapsedTimer waited;
+            waited.start();
+            while (waited.elapsed() < 300000) {
+                QCoreApplication::processEvents();
+                simulation->poll();
+                const auto frame = simulation->frame();
+                if (frame->acknowledged >= simulation->lastCommand() && frame->mode == Sim::RunMode::Paused)
+                    break;
+                QThread::msleep(2);
+            }
+            simulation->choose(options.simulationChosen);
+            simulation->follow(options.simulationFollowed);
+            qInfo().noquote() << CaptureLog << "simulated to" << simulation->frame()->time << "in" << waited.elapsed()
+                              << "ms, input" << simulation->inputMilliseconds() << "ms:" << simulation->statusText();
+            // The trains by number, as the views name them.
+            for (const Sim::TrainPlan &plan : simulation->input()->trains)
+                qInfo().noquote() << CaptureLog << "train" << plan.id << (plan.player ? "player" : "AI") << plan.service
+                                  << QTime::fromMSecsSinceStartOfDay(plan.startTime % 86400 * 1000).toString("HH:mm:ss")
+                                  << simulation->stateText(plan.id);
+        }
+    }
     if (!options.countryPlaces.isEmpty() && widget.currentRoute() != nullptr) {
         GeoPlacePresetIndex places;
         QString placesError;
@@ -691,6 +748,13 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setDiagnosticMapMeasurement(spec.hasMeasure ? &measureFrom : nullptr,
                                                spec.hasMeasure ? &measureTo : nullptr);
             widget.setMapLayerVisible(MapLayer::Markers, spec.markers);
+            for (int kind = 0; kind < 32; ++kind) {
+                widget.setMapTrackObjectKind(kind, MapLayers::has(spec.trackObjectKinds, kind));
+                if (kind < int(MapActivityKind::Count))
+                    widget.setMapActivityKind(MapActivityKind(kind), MapLayers::has(spec.activityKinds, kind));
+            }
+            if (spec.train >= 0)
+                widget.viewTrain(spec.train);
             if (spec.editDistant)
                 Game::terrainLib->setDistantAsCurrent();
             else
@@ -699,6 +763,11 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             // The weather of a 3D view (the clouds).
             applyViewWeather(widget, spec);
         }
+        const RouteEditorGLWidget::RideView ride = spec.trainView == "front" ? RouteEditorGLWidget::RideView::Front
+                : spec.trainView == "back" ? RouteEditorGLWidget::RideView::Back : RouteEditorGLWidget::RideView::Cab;
+        if (!spec.map && spec.train >= 0
+                && !(spec.trainView.isEmpty() ? widget.viewTrain(spec.train) : widget.rideTrain(spec.train, ride)))
+            qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
         if (!spec.settings.isEmpty()) {
             SettingsManager &settings = SettingsManager::instance();
             QJsonObject document = settings.document();

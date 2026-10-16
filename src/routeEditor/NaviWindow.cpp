@@ -231,9 +231,10 @@ void NaviWindow::posInfo(PreciseTileCoordinate* coords){
         this->zBox.setText(QString::number(-lastZ, 10));
         igh = Game::GeoCoordConverter->ConvertToInternal(coords);
         
-        latlon = Game::GeoCoordConverter->ConvertToLatLon(igh);
-        this->latBox.setText(QString::number(latlon->Latitude));
-        this->lonBox.setText(QString::number(latlon->Longitude));
+        latlon = igh != NULL ? Game::GeoCoordConverter->ConvertToLatLon(igh) : NULL;
+        // A place the converter cannot take (far off the route): none.
+        this->latBox.setText(latlon != NULL ? QString::number(latlon->Latitude) : QString());
+        this->lonBox.setText(latlon != NULL ? QString::number(latlon->Longitude) : QString());
     }
 }
 

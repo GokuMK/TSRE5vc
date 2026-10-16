@@ -74,6 +74,20 @@ public:
     float maxForce = 0;
     float maxPower = 0;
     float maxCurrent = 0;
+    // For the simulation's driving (task simulation 03), in SI units: the
+    // mass (kg), the engine's force (N), power (W) and top speed (m/s);
+    // the resistance as Open Rails' Davis A, B, C (N, N/(m/s), N/(m/s)²)
+    // where given, else MSTS's Friction (C1, E1, V2, C2, E2); a passenger
+    // capacity (an EMU's power car).
+    double massKg = 0.0;
+    double forceN = 0.0;
+    double powerW = 0.0;
+    double maxSpeedMps = 0.0;
+    double davis[3] = {0.0, 0.0, 0.0};
+    bool hasDavis = false;
+    double friction[5] = {0.0, 0.0, -1.0, 0.0, 0.0};
+    bool hasFriction = false;
+    bool passengerCapacity = false;
     QString souncCabFile;
     // The outside .sms ("Sound" of the Wagon section) and the wheels' radii
     // (the Engine section's are the driving wheels), in metres.
@@ -103,6 +117,11 @@ public:
     // On the track at the position (node, distance), moved by offset
     // metres along it (behind when negative) in one go.
     void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections, float offset = 0);
+    // Placed by the simulation (task simulation 01): its front and rear (as
+    // the consist lists it) at those distances along those vector nodes,
+    // each facing the node's way (direction 0) or the other (1).
+    void placeOnTrack(int frontNode, float frontDistance, int frontDirection,
+                      int rearNode, float rearDistance, int rearDirection);
     void getCameraPosition(float *out = NULL);
     // What its sounds read (speed, throttle...); NULL without sound.
     const SoundValues *soundValues();
@@ -129,8 +148,19 @@ public:
     // The stand-in driver's throttle and brake (the leading car's).
     float soundThrottle() const;
     float soundBrake() const;
+    // Its sounds stopped, made again by the next updateSounds (a train
+    // gone out of hearing).
+    void silenceSounds();
 private:
     long long int resolveShapeIds();
+    // Drawn between two places on the track (as getDrawPositionOnTrNode
+    // gives them: x, y, z, angle, slope, tile x, tile z), its front and rear
+    // as the consist lists it, leaning by roll (superelevation), turned when
+    // flipped; its footprint for the map between two such places.
+    void pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
+                               const float *front, const float *rear, float roll, bool flipped);
+    void getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
+                               const float *rear) const;
     void initBorder();
     bool selected = false;
     OglObj *borderObj = NULL;

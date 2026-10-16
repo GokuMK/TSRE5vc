@@ -78,8 +78,8 @@ void appendMarkers(std::vector<MapLabel> &out, const Coords *markers) {
     }
 }
 
-void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database) {
-    if (database == nullptr || !database->loaded)
+void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database, bool platforms, bool sidings) {
+    if (database == nullptr || !database->loaded || (!platforms && !sidings))
         return;
     const QHash<int, TrackItemMapLayer::ItemPlace> places = TrackItemMapLayer::itemPlaces(database);
     // Database positions to the view's convention: tile z and z negated.
@@ -95,8 +95,8 @@ void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database) {
         const TRitem *item = entry.second;
         if (item == nullptr)
             continue;
-        const bool platform = item->type == QLatin1String("platformitem");
-        const bool siding = item->type == QLatin1String("sidingitem");
+        const bool platform = platforms && item->type == QLatin1String("platformitem");
+        const bool siding = sidings && item->type == QLatin1String("sidingitem");
         if (!platform && !siding)
             continue;
         if (platform && !item->stationName.isEmpty()) {

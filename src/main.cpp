@@ -21,6 +21,7 @@
 #include <QStringList>
 #include <iostream>
 #include <tsre/Game.h>
+#include <tsre/gui/TsreStyle.h>
 #include <routeEditor/RouteEditorWindow.h>
 #include <routeEditor/LoadWindow.h>
 #include <routeEditor/TrkWindow.h>
@@ -622,7 +623,7 @@ int main(int argc, char *argv[]){
     //app.set
     Game::PixelRatio = app.devicePixelRatio();
     qDebug() << "devicePixelRatio"<< app.devicePixelRatio();
-    app.setStyle(QStyleFactory::create("Fusion"));
+    app.setStyle(new TsreStyle);
     if(!Game::systemTheme){
         //app.setStyle(QStyleFactory::create("Fusion"));
         QPalette darkPalette;

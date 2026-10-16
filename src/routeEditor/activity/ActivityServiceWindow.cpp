@@ -9,6 +9,7 @@
  */
 
 #include "ActivityServiceWindow.h"
+#include <routeEditor/activity/ActivityEditLock.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <routeEditor/activity/ActivityServiceProperties.h>
 #include <tsre/Game.h>
@@ -66,8 +67,10 @@ ActivityServiceWindow::ActivityServiceWindow(QWidget* parent) : QWidget(parent) 
     v->setSpacing(2);
     v->setContentsMargins(1,1,1,1);
     v->addItem(actionListLayout);
-    v->addWidget(serviceProperties);
+    QWidget *editor = ActivityEditLock::Box(serviceProperties);
+    v->addWidget(editor);
     this->setLayout(v);
+    ActivityEditLock::Follow(this, {editor, bNewActionEvent, bDeleteActionEvent});
     
     QObject::connect(&serviceList, SIGNAL(itemClicked(QTreeWidgetItem*, int)),
                       this, SLOT(serviceListSelected(QTreeWidgetItem*, int)));

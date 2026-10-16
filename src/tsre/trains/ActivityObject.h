@@ -69,6 +69,9 @@ public:
     int getId();
     int getSelectedElementId();
     int getFailedSignalId();
+    // A restricted speed zone's two ends (tile x, tile z, x, z as the
+    // activity file has them); false for other objects.
+    bool getSpeedZoneEnds(float *start, float *end) const;
     bool getElementPosition(int id, float *posTW);
     void pushContextMenuActions(QMenu *menu);
     QString getParentName();

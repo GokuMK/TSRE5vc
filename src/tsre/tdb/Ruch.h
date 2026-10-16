@@ -37,6 +37,10 @@ public:
     void back(float m);
     void toNext(float m);
     void set(int nid, int m, int tdirection, QMap<int, int>* jDirections = NULL);
+    // At `distance` along vector node `nid` (not rounded), facing the node's
+    // way (tdirection 0) or the other (1): where the simulation has a
+    // vehicle's end (task simulation 01).
+    void place(int nid, float distance, int tdirection);
     float *getCurrentPosition(float *sElev = NULL);
     float getDistanceDownPath();
     int getVectorDirection();
@@ -55,12 +59,14 @@ private:
     void checkPassingItems();
     float kierunek = 1;
     float direction = 1;
-    int nodeIdx;
-    float nodeDist;
-    float nodeLength;
+    int nodeIdx = -1;
+    float nodeDist = 0;
+    float nodeLength = 0;
     float drawPosition[8];
     float distanceDownPath = 0;
     QMap<int, int>* junctionDirections = NULL;
+    // A placed traveller's junction choices: none.
+    QMap<int, int> placedJunctions;
     
     bool trackItems = false;
     float lastNodeDist = 0;

@@ -18,6 +18,14 @@ enum class MapLayer {
     OsmData, OsmTransparentAreas, Markers, Imagery, ScaleBar, Weather, Count
 };
 
+// What of the activity the Activity layer draws (the Map menu's Activity
+// Objects): the player's path, the AI trains' paths, the trains (at their
+// starts, or where a simulation has them), the loose consists, speed zones,
+// failed signals, events, and a simulation's track use and signal aspects.
+enum class MapActivityKind {
+    PlayerPath, AIPaths, Trains, LooseConsists, SpeedZones, FailedSignals, Events, SimulatedTrack, Count
+};
+
 struct MapLayers {
     // Faded Overlay is off: painting needs the true colours. OSM data is off: it needs
     // an OSM directory and may ask to convert files. Markers are off, as in 3D: a marker
@@ -27,6 +35,14 @@ struct MapLayers {
                                           true, false, false, false, false, true, false};
     bool shows(MapLayer layer) const { return visible[int(layer)]; }
     void set(MapLayer layer, bool show) { visible[int(layer)] = show; }
+    // Within Track Objects and Activity, the kinds drawn: bits by
+    // TrackItemMapLayer::Kind and MapActivityKind, all at first.
+    unsigned trackObjectKinds = ~0u;
+    unsigned activityKinds = ~0u;
+    static bool has(unsigned kinds, int kind) { return (kinds >> kind) & 1u; }
+    static void set(unsigned &kinds, int kind, bool show) {
+        kinds = show ? kinds | (1u << kind) : kinds & ~(1u << kind);
+    }
 };
 
 #endif

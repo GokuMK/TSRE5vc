@@ -32,8 +32,10 @@ constexpr float SidingMetresPerPixel = 4.0f;
 // the sets made from the track database ("Route: Stations", "Route: Sidings").
 void appendMarkers(std::vector<MapLabel> &out, const Coords *markers);
 // Station names once each, among their platforms; platform names (when not the
-// station's) and siding names between their two ends.
-void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database);
+// station's) and siding names between their two ends; those of the kinds the map
+// draws (platforms with their stations, sidings).
+void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database, bool platforms = true,
+                         bool sidings = true);
 // Location events' names at their place.
 void appendActivity(std::vector<MapLabel> &out, Activity *activity);
 
