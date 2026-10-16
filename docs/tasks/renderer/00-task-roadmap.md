@@ -36,6 +36,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [ ] `31-moonlight.md` (the moon lights the night by its phase and height and casts shadows; in every mode)
 - [ ] `32-aerial-haze.md` (distant terrain through the air: per colour, the horizon's light by direction, the weather's haze; dark blue far mountains with any time and weather)
 - [ ] `33-mist-and-ground-fog.md` (fog from the weather and the terrain: radiation and valley fog on calm clear mornings, pooled by a floor map around the camera; a froxel volume near the camera, High's per-pixel fog over it, lamps and signals lighting it, patches drifting with the wind, the terrain's shade of a low sun; pooling and a Ground mist preset; wrong terrain tiles left out of the floor map; merged from `feature/mist` with `feature/storms`; open: step 6 (panel control, docs, timing))
+- [ ] `34-train-lights.md` (lamps and headlight beams of rolling stock from the ENG/WAG `Lights` block, lit by the train's state as Open Rails does; emissive lenses with glow, beams in the light grid; design on `feature/train-lights`, questions open)
 
 Renderer work continues on Windows hardware; software rendering (llvmpipe,
 lavapipe) no longer shows the remaining problems. Measurement and
