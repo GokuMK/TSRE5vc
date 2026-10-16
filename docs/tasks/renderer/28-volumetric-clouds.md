@@ -1377,56 +1377,34 @@ The storm clouds stood as pillars of billows streaked straight up.
 
 ### Falling drops near the camera (2026-10-16)
 
-- **A full-screen pass** before the UI (`RhiRain.cpp`), while it rains or
-  snows at the camera (`Renderer::Fog::rainHere`: the weather's rate there
-  under a shower's cell or not, `WeatherDetail::precipitation` with its
-  cells), under the low clouds' base: four shells about the camera (1.2,
-  2.4, 4.8, 9.6 m), each a grid of cells fixed in the world (a moving train
-  passes through the drops), one drop at a random place in each cell (all
-  cells' at 2 mm/h, half at drizzle; snow all at 1 mm/h), falling (8 m/s,
-  snow 1, swaying) and drifting with half the low wind
-  (`rainWindEast`, `rainWindNorth`). A drop is drawn where the pixel's ray
-  passes its streak (its fall over 1/30 s, a flake's over 1/120), as wide
-  as a pixel or the drop (1.5 mm, a flake 1 cm), a thinner one fainter;
-  behind the scene's depth not; only within its shell, fading at its edges.
-  Light: the horizon's (the sky about them), the scene's scale, 0.35 (a
-  flake 1.6 times).
-- **Cost:** two cells a shell (for streaks crossing into the next) and five
-  shells cost 2.5 ms on the Steam Deck in the rain preset; one cell, four
-  shells and cells five times taller than wide for rain (streaks of 0.3 m
-  within them): about 1 to 2 ms (the timings noisy at the time); nothing in
-  dry weather.
-- **Captures** (`build/drops`, CMK low over the fields at the user's dawn
-  spot): fine slanted streaks over the trees and fields in the rain preset,
-  a scatter of flakes in the snow preset; still frames (in motion they
-  fall).
+- **Particles, as games draw them** (`RhiRain.cpp`): before the view's UI,
+  while it rains or snows at the camera (`Renderer::Fog::rainHere`: the
+  weather's rate there under a shower's cell or not,
+  `WeatherDetail::precipitation` with its cells), under the low clouds'
+  base. 8000 drops and more with the rate (snow more flakes for its water;
+  30000 at most) in a box of 24 m across and 14 m up about the camera, each
+  drop's place in the world from its index (the box wraps as the camera
+  moves: a moving train passes through them), falling (8 m/s, snow 1,
+  swaying) and drifting with half the low wind (`rainWindEast`,
+  `rainWindNorth`). The vertex shader makes each a thin quad from where it
+  is back along its fall over 1/30 s (a flake's 1/120), a pixel wide at
+  least or the drop's size (1.5 mm, a flake 1 cm), thinner fainter (half
+  at least); no buffers (`draw(6, drops)`, no vertex input). The fragment
+  shader leaves out what lies behind the scene's depth. Light: the
+  horizon's (the sky about them), the scene's scale, 0.6 (a flake 0.9).
+- **Before:** drops found per pixel in four shells about the camera (a
+  grid fixed in the world, one drop a cell): 1 to 2.5 ms for few drops,
+  and looking down they stood in rings (the shells; user, CMK
+  `-5354,14855,645.37,270.02,-140.14,-412.68,-89.95`); in a box of 50 m
+  most particles lay far off, thinner than a pixel.
+- **Captures** (`build/drops/part2.png`): fine slanted streaks over the
+  fields; looking down, streaks falling away towards the view's middle,
+  no rings; snow a dense scatter of flakes.
+- **Cost on the Steam Deck** (rain preset, seven rounds, the best frames):
+  about 0.4 ms (35.5 against 35.9 ms); nothing in dry weather.
 - Not yet: none under roofs and in tunnels (the drops fall there too; the
   sky enclosure, task 27, could tell); lamps do not light them; none in the
   reflection and the cube.
-
-### Blue noise for the march's start (2026-10-16)
-
-- Where each pixel's march starts was interleaved gradient noise (cheap,
-  no texture), whose diagonal structure the remaining error took: ripples
-  on storms with the camera still. It is now blue noise
-  (`CloudNoise::blue`: void and cluster, 64 x 64, 16-bit ranks, made at
-  start with the other noise; binding 11), moved on each frame by the
-  golden ratio as before: the error is fine grain, without a pattern.
-- Captures at the user's CMK view at High (`build/blue`): with a fixed
-  start (still) the old ripples across the towers become even grain; as
-  in use both smooth; fair cumulus as before. Unit: each rank once, every
-  8 x 8 window averages within 0.04 of a half (`cloud-blue-noise`).
-- Cost: one texture read a marched pixel; on the Steam Deck within the
-  runs' noise (thunderstorm 44.1 against 44.0 ms, rain 40.2 against 40.1).
-- Compared without the split too (`build/bluecase`, Low and High, still
-  and as in use): the old noise alone hatched diagonally, blue noise alone
-  left even grain; with the split the old noise kept curved bands on the
-  towers, blue noise fine grain. As in use, blue noise is the cleanest.
-- Observation (user): the old noise's curved bands, still, looked like air
-  rising. They are its samples' bands of equal depth through the towers
-  (as with the rain off), moving with each frame and the camera, not the
-  clouds' own. That look, if wanted, would be streaks along the updraft in
-  the towers' noise (storms' fine tuning, later).
 
 ## Verification
 

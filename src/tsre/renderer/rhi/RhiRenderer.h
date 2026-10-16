@@ -759,8 +759,8 @@ public:
     // The fog's passes (RhiFog.cpp), for tests: the injection and the
     // integration (compute), the sky's (fragment).
     static QList<QByteArray> fogShaders();
-    // The falling drops' pass (RhiRain.cpp), for tests.
-    static QByteArray rainShader();
+    // The falling drops' vertex and fragment shaders (RhiRain.cpp), for tests.
+    static QList<QByteArray> rainShaders();
     void setFog(const Fog &fog) override;
 private:
     // Fog lying on the ground (task 33, RhiFog.cpp). A volume of cells over

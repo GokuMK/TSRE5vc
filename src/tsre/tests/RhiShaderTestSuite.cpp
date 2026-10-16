@@ -120,9 +120,22 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
             qWarning().noquote() << baker.errorMessage();
         check(shader.isValid(), QString("fog compute pass %1 bakes").arg(i));
     }
+    // The falling drops' vertex shader (no vertex input: the drops from the
+    // instance index).
+    {
+        QShaderBaker baker;
+        baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
+                                   {QShader::GlslShader, QShaderVersion(330)}});
+        baker.setGeneratedShaderVariants({QShader::StandardShader});
+        baker.setSourceString(RhiRenderer::rainShaders()[0], QShader::VertexStage);
+        const QShader shader = baker.bake();
+        if (!shader.isValid())
+            qWarning().noquote() << baker.errorMessage();
+        check(shader.isValid(), "falling drops' vertex shader bakes");
+    }
     const QList<QByteArray> occlusion = RhiRenderer::ambientOcclusionShaders() + RhiRenderer::imageShaders()
             + RhiRenderer::skyShaders() + RhiRenderer::cloudShaders() + RhiRenderer::lightShaftShaders()
-            + QList<QByteArray>{fog[2], RhiRenderer::rainShader()};
+            + QList<QByteArray>{fog[2], RhiRenderer::rainShaders()[1]};
     for (int i = 0; i < occlusion.size(); ++i) {
         QShaderBaker baker;
         baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
