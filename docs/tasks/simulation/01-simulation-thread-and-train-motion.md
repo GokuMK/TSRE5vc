@@ -114,7 +114,11 @@ time); those stops behave as untimed ones.
   chosen train's events under its information ("08:31:05 arrived at
   Settle, booked 08:31:00"), Follow: the camera put behind the train and
   above, looking at it (centred on the map), then moved as it moves, so
-  the user can still look around.
+  the user can still look around. Since 2026-10-16 (the user) in 3D keys 1
+  and 2 put it ahead of the train's front looking back at it, or behind
+  its back; it rides that end, turning with the train (the keypad's 1 and
+  2 stay the object tools'); Follow in the Timetable window, or Stop, ends
+  it. A capture view's `"trainEnd": "front"` puts it by the front.
 - The world's time of day is set to the activity's start at start and
   then is the simulation's (`WorldClock`, the follow-up below).
 - Activity editing off (`ActivityNotifier::editingLocked`): the panel's

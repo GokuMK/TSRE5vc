@@ -416,7 +416,8 @@ void SimulationController::follow(int train) {
     emit followChanged(train);
 }
 
-bool SimulationController::trainPlace(int train, int *tile, float *position, float *heading, float *length) const {
+bool SimulationController::trainPlace(int train, int *tile, float *position, float *heading, float *length,
+                                      float *front, float *back) const {
     const std::shared_ptr<const SimulationFrame> now = frame();
     if (train < 0 || size_t(train) >= now->trains.size())
         return false;
@@ -434,6 +435,16 @@ bool SimulationController::trainPlace(int train, int *tile, float *position, flo
     position[0] = 0.5f * (ax + bx);
     position[1] = 0.5f * (a.y + b.y);
     position[2] = 0.5f * (az + bz);
+    // Its front and back as it runs: the consist's first and last ends, the
+    // other way round when reversed.
+    const float ends[2][3] = {{ax, a.y, az}, {bx, b.y, bz}};
+    const int lead = t.state.reversed ? 1 : 0;
+    for (int i = 0; i < 3; ++i) {
+        if (front != nullptr)
+            front[i] = ends[lead][i];
+        if (back != nullptr)
+            back[i] = ends[1 - lead][i];
+    }
     // It heads the consist's way, or the other way when reversed.
     float dx = ax - bx, dy = a.y - b.y, dz = az - bz;
     if (t.state.reversed) {

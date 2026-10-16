@@ -81,8 +81,10 @@ struct ViewSpec {
     int tileZ = 0;
     bool hasPos = false;
     float pos[3] = {0, 0, 0};
-    // The camera by a simulated train (RouteEditorGLWidget::viewTrain).
+    // The camera by a simulated train (RouteEditorGLWidget::viewTrain), by
+    // its back, or its front with "trainEnd": "front" (key 1 when following).
     int train = -1;
+    bool trainFront = false;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -345,6 +347,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.hasRot = readFloatArray(object.value("rot"), view.rot, 2);
         view.map = object.value("mode").toString() == "map";
         view.train = object.value("train").toInt(-1);
+        view.trainFront = object.value("trainEnd").toString() == "front";
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
         view.bearing = float(object.value("bearing").toDouble(0.0));
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
@@ -724,7 +727,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             // The weather of a 3D view (the clouds).
             applyViewWeather(widget, spec);
         }
-        if (!spec.map && spec.train >= 0 && !widget.viewTrain(spec.train))
+        if (!spec.map && spec.train >= 0
+                && !widget.viewTrainEnd(spec.train, spec.trainFront ? TrainView::End::Front : TrainView::End::Back))
             qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
         if (!spec.settings.isEmpty()) {
             SettingsManager &settings = SettingsManager::instance();

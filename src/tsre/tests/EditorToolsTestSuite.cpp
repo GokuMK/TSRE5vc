@@ -7,6 +7,8 @@
 #include <QStyleFactory>
 #include <QWheelEvent>
 #include <tsre/gui/TsreStyle.h>
+#include <tsre/camera/TrainView.h>
+#include <cmath>
 #include <QDebug>
 #include <QKeyEvent>
 #include <QMenu>
@@ -413,6 +415,33 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
         QApplication::sendEvent(&sheeted, &wheel);
         check(sheeted.currentIndex() == 1, "TSRE's style as the application's: a box with its own style sheet too");
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+    }
+
+    // Following a train (keys 1 and 2): a train of 100 m heading +z, its
+    // front at z 100, its back at 0.
+    {
+        const float front[3] = {0.0f, 0.0f, 100.0f}, back[3] = {0.0f, 0.0f, 0.0f}, heading[3] = {0.0f, 0.0f, 1.0f};
+        const TrainView::Pose behind = TrainView::Place(TrainView::End::Back, front, back, heading, 100.0f);
+        const TrainView::Pose ahead = TrainView::Place(TrainView::End::Front, front, back, heading, 100.0f);
+        const auto near = [](float a, float b) { return std::fabs(a - b) < 1e-3f; };
+        // Back: 35 m behind its rear, 20 m up, looking at its middle (as the
+        // camera was put before the keys).
+        const bool back_ = near(behind.eye[0], 0.0f) && near(behind.eye[1], 20.0f) && near(behind.eye[2], -35.0f)
+                && near(behind.yaw, 0.0f) && behind.pitch < 0.0f;
+        // Front: ahead of the front, to its side, looking back at it.
+        const bool front_ = ahead.eye[2] > 100.0f && std::fabs(ahead.eye[0]) > 1.0f && ahead.eye[1] > 0.0f
+                && std::cos(ahead.yaw) < -0.5f;
+        // Carried round a quarter turn: the train's back now at (100, 0, 100)
+        // heading +x, the camera behind it again, looking its way.
+        float eye[3] = {behind.eye[0], behind.eye[1], behind.eye[2]};
+        float yaw = behind.yaw;
+        const float now[3] = {100.0f, 0.0f, 100.0f};
+        TrainView::Carry(eye, yaw, back, now, float(M_PI) / 2.0f);
+        const bool carried = near(eye[0], 100.0f - 35.0f) && near(eye[1], 20.0f) && near(eye[2], 100.0f)
+                && near(std::sin(yaw), 1.0f);
+        check(back_ && front_ && carried && near(TrainView::Yaw(heading), 0.0f),
+              "a followed train: 2 behind its back, 1 ahead of its front looking back, the camera carried round "
+              "its turns");
     }
 
     qInfo().noquote() << "[tests:editor-tools] cases=" << passed + failed << "passed=" << passed

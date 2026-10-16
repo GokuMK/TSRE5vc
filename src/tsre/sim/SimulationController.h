@@ -88,9 +88,10 @@ public:
     int followed() const { return followedTrain; }
     void follow(int train);
     // A train's centre and the way it heads (unit, in the camera's space):
-    // tile x, tile z (the camera's), x, y, z; its length; false when not on
-    // the track.
-    bool trainPlace(int train, int *tile, float *position, float *heading, float *length = nullptr) const;
+    // tile x, tile z (the camera's), x, y, z; its length; its front and back
+    // as it runs (relative to the same tile); false when not on the track.
+    bool trainPlace(int train, int *tile, float *position, float *heading, float *length = nullptr,
+                    float *front = nullptr, float *back = nullptr) const;
 
     // The world's clock while a simulation exists (WorldClock::Source): the
     // simulation's time of day and date (days from the world's date at

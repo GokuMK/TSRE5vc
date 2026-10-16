@@ -13,6 +13,7 @@
 
 #include <QVector3D>
 #include <QWidget>
+#include <tsre/camera/TrainView.h>
 #include <tsre/renderer/RenderSurface.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/world/SkySatellites.h>
@@ -125,6 +126,9 @@ public:
     // above, looking at it, or on the map centred on it; false when the
     // train is not on the track.
     bool viewTrain(int train);
+    // The camera by an end of a train (Follow's keys 1 and 2), riding it
+    // from now on when the train is followed.
+    bool viewTrainEnd(int train, TrainView::End end);
     // The current activity's AI trains shown: "all", an AI train's place in
     // its traffic (the one chosen), or both ("all,3").
     void setDiagnosticAITrains(const QString &trains);
@@ -494,11 +498,14 @@ private:
     float mousex, mousey;
     QVector<QPoint> selectionProbePoints;
     bool simulationPaused = false;
-    // Follow (task simulation 01): the train the camera follows and where it
-    // was last frame (tile and place in the camera's space).
+    // Follow (task simulation 01): the train the camera follows, the end it
+    // rides (keys 1 and 2 in 3D: front, back), and where that end was last
+    // frame (tile and place in the camera's space) and the train's heading.
     int followedTrain = -1;
+    TrainView::End followedEnd = TrainView::End::Back;
     int followedTile[2] = {0, 0};
     float followedPlace[3] = {0, 0, 0};
+    float followedYaw = 0.0f;
     void followTrain();
     // Tools that change the activity, refused while a simulation exists.
     static bool editsActivity(const QString &tool);
