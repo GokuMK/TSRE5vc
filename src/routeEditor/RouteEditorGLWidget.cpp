@@ -1386,6 +1386,7 @@ void RouteEditorGLWidget::applyClouds() {
             bottom = highest = 0.0f;
         // Rain and snow: the area's (texels of 2 km are coarser than the
         // showers' cells; the renderer puts them under its clouds).
+        float rainiest = 0.0f;
         for (int j = 0; j < Size; ++j)
             for (int i = 0; i < Size; ++i) {
                 const WeatherSurface s = WeatherDetail::precipitation(*weather, frame, west + (i + 0.5) * Texel,
@@ -1393,11 +1394,13 @@ void RouteEditorGLWidget::applyClouds() {
                 float *out = &(*extra)[(size_t(j) * Size + i) * 4];
                 out[2] = s.precipitationRate;
                 out[3] = s.snowShare;
+                rainiest = std::max(rainiest, s.precipitationRate);
             }
         c.bottom = bottom;
         c.top = highest;
         c.deepest = deepest;
         c.stormiest = stormiest;
+        c.rainiest = rainiest;
         c.layers = layers;
         c.extra = extra;
         ++c.revision;

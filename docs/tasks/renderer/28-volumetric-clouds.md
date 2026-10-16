@@ -1073,10 +1073,9 @@ What remains of the "Still open" lists above, checked against the code:
   their own. They are still marched at half resolution, 24 steps, a new
   jitter each frame and no frames averaged (`RhiLightShafts.cpp`); in fog
   the beams are the fog volume's (task 33), which averages frames.
-- **Storms:** dark by their density and the cloud above (done, below);
-  rain under the clouds and cumulonimbus anvils next. The towers stand as
-  tall pillars of billows with vertical streaks, not as one solid tower;
-  their shape goes with the anvils.
+- **Storms:** dark by their density and the cloud above, towers and anvils,
+  rain under the clouds (done, below). Still: rain near the camera and
+  from above, the rain's streaks.
 - **OpenGL renderer:** step 9 (a flat cloud layer from the weather).
 - **Settings in `Game.h`** (sky model, cloud quality, shafts, enclosure,
   enclosed ambient): to their classes at the next forced full rebuild.
@@ -1218,6 +1217,41 @@ The storm clouds stood as pillars of billows streaked straight up.
   rounds): thunderstorm 46.1 against 45.5 ms (the solid towers end rays
   sooner), looking up 33.8 against 35.2 (more cloud overhead); fair
   cumulus and overcast as before.
+
+### Rain under the clouds (2026-10-16)
+
+- **Where:** the march, before the clouds, marches the rain from under the
+  low clouds' base (camera below it): 16 samples, closer near, from the
+  near scene's end (the scene's far plane along the ray: the composite
+  draws the clouds over the sky and the distant scene only; begun at
+  300 m, rain covered distant terrain and not near terrain, with a seam
+  between them) to the base, the ground, distant terrain or 60 km (storms
+  on the horizon stand 30 to 60 km off).
+- **How much:** the weather's rain (column 4 of the weather texture, the
+  area's rate), under the cells' cores for showers (as
+  `WeatherDetail::precipitation`, hard edged as the towers), everywhere
+  for a deck's rain; extinction 0.35 rate^0.63 per km (8 mm/h about
+  1.3), half for a deck's; streaked along the fall (noise 2.5 km across,
+  25 km tall), lighter near the ground; slanted by the low wind (half a km
+  aside a km of fall: `sun.w`, `lightColour.w`).
+- **Its light:** the sky's and the sun's through the cloud above
+  (two-stream, the column as `cloudAbove`'s, a storm's as solid as its
+  tower): dark under a storm, grey under a deck; snow lighter.
+- **In the heavy-weather variant** (`RAIN` with `STORMS` and `DEEP_SPLIT`),
+  used while the weather has rain (`Renderer::Clouds::rainiest`).
+- **Captures** (`build/rain`, CMK from the hill, as in use): under a storm
+  cell 5 to 15 km off (`sweep2`, `sweep3` against `sweep-old`) a grey
+  curtain hangs under the dark base, hiding the bright horizon and the far
+  towers behind it; a deck's rain thickens the grey to the horizon. Storms
+  30 to 60 km off show little: their rain is a strip a degree or two high
+  in the haze. The streaks do not show: seen through kilometres of rain
+  they average out (and the cloud image is coarse).
+- **Cost on the Steam Deck** (High, median frame, four rounds, noisy):
+  rain 40.1 against 41.2 ms; thunderstorm, fair cumulus and overcast as
+  before within the noise.
+- Not yet: rain near the camera (within the near scene: the weather's haze
+  stands for it; drops later), rain seen from above the base (flying),
+  rain in front of near terrain.
 
 ## Verification
 

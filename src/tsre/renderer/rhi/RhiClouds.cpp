@@ -114,7 +114,7 @@ struct CoverParameters {
 struct MarchParameters {
     float inverse[16];
     float previous[16];
-    float sun[4];
+    float sun[4];          // towards the sun; w: the rain's slant east (km a km of fall)
     float camera[4];       // height (km), y sign, exposure, jitter (0-1)
     float weatherMap[4];   // camera in the weather texture (m from its NW corner), extent (m), texels per side
     float nearMap[4];      // camera in the near cover map (m), extent (m)
@@ -129,7 +129,7 @@ struct MarchParameters {
     float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), the low layer's centre east and north of the camera (km)
     float night[4];        // the night sky's floor (display colour); the scene's scale (auto exposure, task 29)
     float light[4];        // towards the clouds' light: the sun, or the moon at night (task 31)
-    float lightColour[4];  // its light relative to the sun's
+    float lightColour[4];  // its light relative to the sun's; w: the rain's slant north
     // How far the layers' weather and cover maps have moved with their wind
     // since they were drawn (km east, north): low, mid; high.
     float shiftLowMid[4];
@@ -746,6 +746,75 @@ void addSample(float sigma, float sigmaMid, float t, float dt) {
         marchFront = t;
 }
 
+#ifdef RAIN
+// Rain falling from the low clouds, seen from under their base: grey
+// curtains where the weather's rain falls (its rate, column 4 of the
+// weather), under the cells for showers (as WeatherDetail::precipitation),
+// streaked along the fall, slanted by the wind (sun.w, lightColour.w: km
+// aside a km of fall), lit by what the cloud above lets through: dark under
+// a storm, grey under a deck. From the near scene's end (near, km: the
+// composite draws the clouds over the sky and the distant scene only; begun
+// nearer, the rain covered distant terrain and not near terrain, with a
+// seam between them) to the base, the ground or the march's limit (the
+// storms on the horizon stand 30 to 60 km off), its samples closer near.
+void marchRain(vec3 p0, vec3 d, float R, float near, float limit, float jitter) {
+    vec2 baseHits = sphereHits(p0, d, R + slab.x);
+    vec2 groundHits = sphereHits(p0, d, R);
+    float far = baseHits.y > 0.0 ? baseHits.y : limit;
+    if (groundHits.x > 0.0)
+        far = min(far, groundHits.x);
+    far = min(far, limit);
+    float Near = max(near, 0.3);
+    if (far <= Near)
+        return;
+    vec3 earthPoint = vec3(0.0, BottomRadius + camera.x, 0.0);
+    float sunCos = marchLightDir.y;
+    vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(length(earthPoint), sunCos), 0.0).rgb
+            * lightColour.rgb;
+    vec3 grey = vec3(dot(marchSky, vec3(0.2126, 0.7152, 0.0722)));
+    const int Steps = 16;
+    float span = far - Near;
+    for (int i = 0; i < Steps; ++i) {
+        float f = (float(i) + jitter) / float(Steps);
+        float t = Near + span * f * f;
+        float dt = span * (2.0 * f + 1.0 / float(Steps)) / float(Steps);
+        vec3 p = p0 + d * t;
+        float altitude = length(p) - R;
+        vec2 offset = vec2(p.x, -p.z);
+        vec4 w = weatherAt(offset, 0);
+        if (w.x <= 0.0 || altitude >= w.z)
+            continue;
+        vec2 at = weatherUv(offset, 0);
+        vec4 extra = textureLod(weatherTexture, vec2((3.0 + at.x) / 4.0, at.y), 0.0);
+        if (extra.z <= 0.0)
+            continue;
+        // Fallen from the cloud upwind.
+        vec2 from = offset - vec2(sun.w, lightColour.w) * (w.z - altitude);
+        float convective = clamp((w.y - 0.45) / 0.35, 0.0, 1.0);
+        // Showers from their cells' cores (hard edged as the towers).
+        float cell = clamp(0.5 + (coverAt(from, 0) - (1.0 - w.x) - 0.05) * 4.0, 0.0, 1.0);
+        float rate = extra.z * mix(1.0, min(cell / max(w.x, 0.1), 3.0), convective);
+        if (rate <= 0.0)
+            continue;
+        // Streaks along the fall, lighter near the ground; snow even.
+        vec3 metres = vec3(from.x * 1000.0, altitude * 1000.0, -from.y * 1000.0);
+        float streak = smoothstep(0.25, 0.75, textureLod(shapeNoise, metres / vec3(2500.0, 25000.0, 2500.0), 0.0).r);
+        float sigma = 0.35 * pow(rate, 0.63) * mix(0.5, 1.0, convective)
+                * mix(mix(0.15, 1.85, streak), 1.0, extra.w) * mix(0.7, 1.0, altitude / max(w.z, 0.1));
+        // Lit through the cloud above (two-stream; its column as cloudAbove's
+        // estimate, at the cell's cover).
+        float column = mix(35.0, 70.0, clamp((w.y - 0.3) / 0.4, 0.0, 1.0)) * extra.x * max(w.w - w.z, 0.05)
+                * mix(0.35, 0.7, smoothstep(0.8, 1.0, w.y)) * max(cell, 1.0 - convective);
+        float through = 1.0 / (1.0 + 0.11 * column);
+        vec3 lit = (mix(grey, marchSky, through) * 0.7 + sunLight * max(sunCos, 0.0) * 0.25) * through
+                * mix(1.0, 1.8, extra.w);
+        float before = marchThrough;
+        addSample(sigma, 0.0, t, dt);
+        marchLight += lit * (before - marchThrough);
+    }
+}
+#endif
+
 void main() {
     // This march texel is one pixel of its block of the cloud image: the
     // one this pass updates.
@@ -817,6 +886,11 @@ void main() {
     // Light of the sky from above and of the ground from below.
     vec3 skyAbove = skyLight(vec3(0.0, 1.0, 0.0)) * 0.6 + skyLight(normalize(vec3(sun.x, 0.0, sun.z) + vec3(0.0, 0.3, 0.0))) * 0.4;
     marchSky = skyAbove;
+#ifdef RAIN
+    if (pr < R + slab.x)
+        marchRain(p0, d, R, projection.w * length(vec3(ndc.x / projection.x, ndc.y / projection.y, 1.0)) / 1000.0,
+                  limit, jitter);
+#endif
     if (start >= 0.0 && end > start) {
         int steps = int(slab.w);
         float segment = end - start;
@@ -1303,10 +1377,10 @@ static QByteArray marchSource() {
     return cloudSource(MarchFragment, true) + CloudField + SceneDistance + SkyAir + MarchMain;
 }
 
-// The march for storms (CloudView::deep): long steps in deep layers split,
-// storm clouds' towers and anvils.
+// The march for heavy weather (CloudView::deep): long steps in deep layers
+// split, storm clouds' towers and anvils, rain under the clouds.
 static QByteArray deepVariant(QByteArray source) {
-    return source.replace("#version 440\n", "#version 440\n#define DEEP_SPLIT\n#define STORMS\n");
+    return source.replace("#version 440\n", "#version 440\n#define DEEP_SPLIT\n#define STORMS\n#define RAIN\n");
 }
 
 // The shadow map and the sky's light always take storms' shapes (drawn
@@ -1977,7 +2051,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     // little, user).
     parameters.high[2] = deepSamples(preset.steps);
     parameters.high[3] = quality == 2 ? 3.0f : 2.0f;
-    c.deep = parameters.high[2] > 0.0f || clouds.stormiest >= 0.8f;
+    c.deep = parameters.high[2] > 0.0f || clouds.stormiest >= 0.8f || clouds.rainiest > 0.05f;
     float plane = 0.0f;
     cloudShadowPlane(plane);
     // The shadow map is drawn for the clouds' maps, its plane and the light's
@@ -2009,6 +2083,11 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     cloudShadowOffset(1, shadowEast, shadowNorth);
     parameters.shadowMid[0] = float(shadowEast / 1000.0);
     parameters.shadowMid[1] = float(shadowNorth / 1000.0);
+    // Rain slants with the low wind (the low layer's drift so far), half a
+    // km aside a km of fall.
+    const float lowDrift = std::hypot(clouds.drift[0][0], clouds.drift[0][1]);
+    parameters.sun[3] = lowDrift > 1.0f ? 0.5f * clouds.drift[0][0] / lowDrift : 0.0f;
+    parameters.lightColour[3] = lowDrift > 1.0f ? 0.5f * clouds.drift[0][1] / lowDrift : 0.0f;
     // Downwind at the clouds' top (the high layer's drift so far): storms'
     // anvils stream that way.
     const float topDrift = std::hypot(clouds.drift[2][0], clouds.drift[2][1]);
@@ -2198,7 +2277,7 @@ void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &a
     // Long steps in deep layers not split: the reflection is blurred by the
     // waves, the cube read blurred (user). Storm clouds keep their shapes.
     parameters.high[2] = 0.0f;
-    v.deep = clouds.stormiest >= 0.8f;
+    v.deep = clouds.stormiest >= 0.8f || clouds.rainiest > 0.05f;
     if (std::hypot(clouds.cameraEast - v.lastEast, clouds.cameraNorth - v.lastNorth) > 300.0)
         v.historyValid = false;
     v.lastEast = clouds.cameraEast;

@@ -180,11 +180,12 @@ public:
         quint32 seed = 0;
         // The low and mid layers' extent (km): bottom and top; the deepest
         // of them anywhere (km, its top above its base); their highest type
-        // anywhere (storm clouds from 0.8).
+        // anywhere (storm clouds from 0.8); the heaviest rain or snow (mm/h).
         float bottom = 0.0f;
         float top = 0.0f;
         float deepest = 0.0f;
         float stormiest = 0.0f;
+        float rainiest = 0.0f;
         // The camera.
         double cameraEast = 0.0;
         double cameraNorth = 0.0;
