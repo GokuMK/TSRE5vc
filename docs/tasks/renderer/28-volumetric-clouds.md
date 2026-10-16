@@ -1069,8 +1069,12 @@ as do the lit shaders and the fog.
 What remains of the "Still open" lists above, checked against the code:
 
 - **Volumetric light shafts too weak** (user, 2026-10-15): done (below,
-  "Rays from the volumetric shafts"). Still without frames averaged: a
-  fine shimmer by the sun.
+  "Rays from the volumetric shafts"), kept as they are (user, 2026-10-16:
+  still not fully liked; fine tuning later, it took too long now). Open:
+  frames not averaged (a fine shimmer by the sun); the rays' look; a
+  shadow lookup blurred by the distance the shadow travels (real cloud
+  shadows wash out far from the cloud) as a cleaner cure for the stripes
+  than the rule on the rays' run.
 - **Storms:** dark by their density and the cloud above, towers and anvils,
   rain under the clouds (done, below). Still: rain near the camera and
   from above, the rain's streaks.
