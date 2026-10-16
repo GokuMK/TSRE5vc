@@ -385,7 +385,7 @@ Trains wait for each other: the track they occupy and the track reserved
 for them are theirs alone, signals give and withhold authority, junctions
 are set for the train that has them, and speeds follow the line's limits.
 Everything the TDB and `sigcfg.dat` say about signals is used; signal
-scripts (`sigscr.dat`) are not (task 04). Where trains cannot pass each
+scripts (`sigscr.dat`) are not (task 05). Where trains cannot pass each
 other, the editor says so.
 
 In scope:
@@ -406,7 +406,7 @@ In scope:
 - the editor: aspects on the signals in 3D, occupied and reserved track on
   the map, why each train waits.
 
-Not in scope: `sigscr.dat` and other scripts (task 04); Open Rails
+Not in scope: `sigscr.dat` and other scripts (task 05); Open Rails
 additions that need data from the world files (`HASHEAD`, exact signal
 grouping: they wait for the TDB fields proposed in
 `tdb-signal-extension.md`); location-linked passing paths; permissive
@@ -603,7 +603,7 @@ the stock scripts:
   draw state.
 
 The draw state is the aspect's draw state in the type. Each head notes
-that the built-in rule chose it, so task 04 can report where a route's
+that the built-in rule chose it, so task 05 can report where a route's
 script would decide differently. A head's aspect is evaluated again when
 its reservation, its track, its junction or the next head's aspect
 changes (a change runs back along the line, bounded).
@@ -644,7 +644,7 @@ task 01 (no speed posts).
 
 ### 9. Later
 
-Task 04: `sigscr.dat` read and run (the 14 native functions, `mr`/`lr`
+Task 05: `sigscr.dat` read and run (the 14 native functions, `mr`/`lr`
 aggregation, `sig_feature`, grouping on one signal), replacing the
 built-in rule where a route has a script. Then the Open Rails additions
 that need world data, stored in the TDB as `tdb-signal-extension.md`
@@ -715,7 +715,7 @@ blocks of aspects and section use, if country-scale routes need it.
 ## Decisions (user, 2026-10-15)
 
 1. **All but scripts:** the TDB's and `sigcfg.dat`'s signal data are used;
-   `sigscr.dat` waits for task 04. Open Rails additions that need world
+   `sigscr.dat` waits for task 05. Open Rails additions that need world
    files wait: the simulation does not read the W files; the editor can
    store what they need in the TDB (`tdb-signal-extension.md`).
 2. **Single track:** a train claims the whole single-track stretch; a

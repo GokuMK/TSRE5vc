@@ -59,10 +59,17 @@ model as the first operating policy, and threading.
   Rails' where they differed by up to 20 minutes, but for trains in Open
   Rails' slower pre-run). The player's own driving is a later, separate
   system.
-- [ ] 04: `sigscr.dat` read and run in place of the built-in aspect rule
+- [ ] `04-timetable-from-simulation.md`: a Simulate button in the
+  Timetable window runs the activity as fast as possible and writes the
+  timetables (departures rounded to 30 s by default); the user sets later
+  departures and simulates again, the window showing what changed; with a
+  shared traffic pattern only the player's times are written. Designed
+  2026-10-16.
+- [ ] 05: `sigscr.dat` read and run in place of the built-in aspect rule
   (the rule is a stand-in: each route's scripts define its own aspect
   sequences, plates and features).
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
-  passing paths, curves and gradients, activity events, the player
-  driving, the Play mode and sounds on the simulation.
+  passing paths, curve resistance, activity events, the player driving,
+  the Play mode and sounds on the simulation; Open Rails' slower AI
+  pre-run as a compatibility setting.

@@ -223,4 +223,4 @@ separate and more advanced system.
 3. **Braking:** a per-train deceleration calibrated to Open Rails (its
    planned curve at 0.22 × its deceleration, its creep speeds), not brake
    systems.
-4. **Order:** this task before `sigscr.dat` (task 04).
+4. **Order:** this task before `sigscr.dat` (task 04 then; now 05, the timetable task coming first).
