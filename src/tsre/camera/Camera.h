@@ -57,6 +57,8 @@ public:
     virtual void update(float fps);
     virtual void pushRenderHud(RenderQueue &queue);
     virtual void setCameraObject(GameObj* o);
+    // Off the object it rides, staying where it is and looking the same way.
+    virtual void releaseObject();
     // What the camera rides (a consist in play mode), or NULL.
     GameObj* getCameraObject() const { return cameraObject; }
     virtual PreciseTileCoordinate* getCurrentPos();

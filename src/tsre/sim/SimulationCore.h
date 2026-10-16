@@ -27,8 +27,9 @@ struct TrainState {
     // The part of its route it is on, and its front's route distance there.
     int part = 0;
     double front = 0.0;
-    // m/s.
+    // m/s; its acceleration over its last step (m/s², negative braking).
     float speed = 0.0f;
+    float acceleration = 0.0f;
     // The train runs the other way from how its consist lists its vehicles
     // (after an odd number of reversals): the last vehicle leads.
     bool reversed = false;

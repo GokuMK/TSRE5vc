@@ -92,6 +92,8 @@ Eng::Eng(Eng *o) {
 }
 
 Eng::~Eng() {
+    delete ruch1;
+    delete ruch2;
     delete cabSound;
     delete outsideSound;
     delete trackSound;
@@ -206,6 +208,17 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         trackSound = new TrackSound(this, lead);
     trackSound->setType(trackType);
     trackSound->update(values, cutoff, tileX, -tileZ, position);
+}
+
+void Eng::silenceSounds() {
+    delete cabSound;
+    cabSound = NULL;
+    cabSoundTried = false;
+    delete outsideSound;
+    outsideSound = NULL;
+    outsideSoundTried = false;
+    delete trackSound;
+    trackSound = NULL;
 }
 
 const SoundValues *Eng::soundValues() {
@@ -966,7 +979,7 @@ void Eng::getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, con
 }
 
 void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
-    if (loaded != 1) return;
+    if (loaded != 1 || ruch1 == NULL || ruch2 == NULL) return;
 
     float selev1, selev2;
     float drawPosition1[7];
@@ -1034,6 +1047,16 @@ void Eng::move(float m){
         ruch1->next(m);
     if(ruch2 != NULL)
         ruch2->next(m);
+}
+
+void Eng::placeOnTrack(int frontNode, float frontDistance, int frontDirection,
+                       int rearNode, float rearDistance, int rearDirection){
+    if(ruch1 == NULL)
+        ruch1 = new Ruch();
+    if(ruch2 == NULL)
+        ruch2 = new Ruch();
+    ruch1->place(frontNode, frontDistance, frontDirection);
+    ruch2->place(rearNode, rearDistance, rearDirection);
 }
 
 float Eng::getCurrentElevation(){

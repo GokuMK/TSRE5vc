@@ -34,6 +34,9 @@ signals:
 private:
     Consist *conObj = NULL;
     QLineEdit eSpeed;
+    // A simulated train's state ("running 72 km/h"), shown for one alone.
+    QLabel state;
+    void showSimulated();
     //QLineEdit eName;
 
 };

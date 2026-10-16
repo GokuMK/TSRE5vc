@@ -705,8 +705,34 @@ void Consist::updateSim(float deltaTime){
         updateSounds(deltaMove, deltaTime);
 }
 
+void Consist::setSimulated(float speed, float distance, float throttle, float brake){
+    simulated = true;
+    isOnTrack = true;
+    trainSpeed = speed;
+    trainTotalDistance = distance;
+    simulatedThrottle = throttle;
+    simulatedBrake = brake;
+}
+
+void Consist::updateSimulatedSounds(float seconds){
+    if(!simulated || !isOnTrack || engItems.isEmpty() || engItems[0].engPointer == NULL)
+        return;
+    const float move = soundsHeardAt >= 0 ? trainTotalDistance - soundsHeardAt : 0.0f;
+    soundsHeardAt = trainTotalDistance;
+    updateSounds(move, seconds);
+}
+
+void Consist::silenceSounds(){
+    for(int i = 0; i < engItems.size(); i++)
+        if(engItems[i].engPointer != NULL)
+            engItems[i].engPointer->silenceSounds();
+    soundsHeardAt = -1.0f;
+}
+
 void Consist::updateSounds(float move, float seconds){
     Eng *lead = engItems[0].engPointer;
+    const float throttle = simulated ? simulatedThrottle : lead->soundThrottle();
+    const float brake = simulated ? simulatedBrake : lead->soundBrake();
     const float distance = trainTotalDistance;
     const float since = distance - soundRegionSearchedAt;
     if(soundRegionSearchedAt < 0 || since > (soundRegionAhead >= 0 ? soundRegionAhead : 50.0f) || since > 200.0f){
@@ -740,7 +766,7 @@ void Consist::updateSounds(float move, float seconds){
         for(const auto &change : soundRegionChanges)
             if(change.first <= carDistance)
                 type = change.second;
-        car->updateSounds(i == 0, type, trainSpeed, move, lead->soundThrottle(), lead->soundBrake(),
+        car->updateSounds(i == 0, type, trainSpeed, move, throttle, brake,
                           length + 50.0f, seconds);
     }
 }
@@ -795,7 +821,9 @@ void Consist::getCameraPosition(float *out){
     if (!isOnTrack) 
         return;
     
-    engItems[0].engPointer->getCameraPosition(out);
+    const int vehicle = cameraVehicle >= 0 && cameraVehicle < engItems.size() ? cameraVehicle : 0;
+    if (engItems[vehicle].engPointer != NULL)
+        engItems[vehicle].engPointer->getCameraPosition(out);
 }
 
 void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
@@ -805,7 +833,7 @@ void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
             engItems[i].engPointer->getMapFeatures(features, tileX, tileZ);
 }
 
-void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId) {
+void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool outlined) {
     if (loaded != 1) return;
 
     quint32 scolor = 0;
@@ -814,7 +842,8 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
         if (selectionId != 0) {
             scolor = SelectionIdCodec::withPart(selectionId, i);
         }
-        engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor, selectedIdx == i);
+        if (engItems[i].engPointer != NULL)
+            engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor, outlined || selectedIdx == i);
         queue.popTransform();
     }
 }

@@ -164,7 +164,7 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         //% "Follow"
         qtTrId("route.editor.activity.timetable.window.button.follow"));
     bFollow->setToolTip(
-        //% "The camera follows the chosen train while the simulation runs. In 3D, key 1 views its front and key 2 its back."
+        //% "The camera follows the chosen train while the simulation runs, at its cab's window. In 3D, key 1 views from its cab, key 2 its front and key 3 its back."
         qtTrId("route.editor.activity.timetable.window.button.follow.tooltip"));
     bFollow->setCheckable(true);
     bFollow->setObjectName("timetableFollow");

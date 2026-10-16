@@ -147,6 +147,16 @@ tools(std::make_unique<ToolRegistry>()) {
         if (lastSelectedObj != NULL && lastSelectedObj->typeObj == GameObj::activityobj)
             lastSelectedObj = NULL;
     });
+    // The simulated trains' consists going (Stop, a reset): the camera and
+    // the selection let go of them.
+    connect(Sim::SimulationController::instance(), &Sim::SimulationController::trainsRemoving, this, [this] {
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        stopRiding();
+        if (selectedObj != NULL && simulation->trainOfObject(selectedObj) >= 0)
+            setSelectedObj(NULL);
+        if (lastSelectedObj != NULL && simulation->trainOfObject(lastSelectedObj) >= 0)
+            lastSelectedObj = NULL;
+    });
     // A simulation starting: a tool editing the activity gives way.
     connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged, this, [this](bool locked) {
         if (locked && editsActivity(toolEnabled))
@@ -475,8 +485,9 @@ QString RouteEditorGLWidget::cameraSetting() const {
             .arg(rotX * 180.0 / M_PI, 0, 'f', 2).arg(rotY * 180.0 / M_PI, 0, 'f', 2);
 }
 
-// The camera is the listener; riding a consist (play mode) it hears the
-// train as playSoundView says: from outside, or in the lead engine's cab.
+// The camera is the listener; riding a consist (play mode, or a simulated
+// train followed) it hears the train as playSoundView says: from outside,
+// or in the lead engine's cab.
 void RouteEditorGLWidget::updateSound(float seconds) {
     SoundListener listener;
     listener.tileX = (int)camera->pozT[0];
@@ -499,6 +510,9 @@ void RouteEditorGLWidget::updateSound(float seconds) {
         listener.attachedValues = lead->soundValues();
     }
     SoundSystem::setListener(listener);
+    // The simulated trains near the camera.
+    Sim::SimulationController::instance()->updateSounds(seconds, listener.tileX, listener.tileZ,
+                                                        listener.position);
     SoundSystem::update(seconds);
 }
 
@@ -1920,7 +1934,12 @@ void RouteEditorGLWidget::applySelection(quint32 selectionId,
         const int CID = static_cast<int>(decoded.primaryId);
         const int EID = decoded.part;
         qDebug() << CID << EID;
-        setSelectedObj((GameObj*)route->getActivityConsist(CID));
+        // While a simulation runs the activity: its train's own consist.
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        if (simulation->shows(route->getCurrentActivity()))
+            setSelectedObj((GameObj*)simulation->consistOf(simulation->trainOfService(CID)));
+        else
+            setSelectedObj((GameObj*)route->getActivityConsist(CID));
         if (selectedObj == NULL) {
             qDebug() << "brak obiektu";
         } else {
@@ -2096,15 +2115,16 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         return;
     }
 
-    // Following a train in 3D (the Timetable window's Follow): 1 views its
-    // front, 2 its back, the camera riding that end (the keypad's 1 and 2
-    // stay the object tools').
-    if ((event->key() == Qt::Key_1 || event->key() == Qt::Key_2) && followedTrain >= 0
-            && Sim::SimulationController::instance()->followed() == followedTrain
+    // Following a train in 3D (the Timetable window's Follow): 1 at its
+    // cab's window, 2 ahead of its front, 3 behind its back, the camera
+    // riding it (the keypad's digits stay the object tools').
+    if ((event->key() == Qt::Key_1 || event->key() == Qt::Key_2 || event->key() == Qt::Key_3)
+            && followedTrain >= 0 && Sim::SimulationController::instance()->followed() == followedTrain
             && !(event->modifiers() & (Qt::KeypadModifier | Qt::ControlModifier | Qt::AltModifier))) {
         if (!event->isAutoRepeat()) {
-            followedEnd = event->key() == Qt::Key_1 ? TrainView::End::Front : TrainView::End::Back;
-            viewTrainEnd(followedTrain, followedEnd);
+            followedView = event->key() == Qt::Key_1 ? RideView::Cab
+                         : event->key() == Qt::Key_2 ? RideView::Front : RideView::Back;
+            rideTrain(followedTrain, followedView);
             update();
         }
         event->accept();
@@ -3283,75 +3303,129 @@ bool RouteEditorGLWidget::editsActivity(const QString &tool) {
     return tools.contains(EditorTool::idOf(tool));
 }
 
-// The camera keeps its place by the train the Timetable window follows: put
-// behind it and above, looking at it (centred on the map), when it starts,
-// then carried with the end it rides as the train moves and turns (on the
-// map moved alone).
+// The camera follows the train the Timetable window follows: in 3D it rides
+// the train's consist as Play mode rides one (at its cab's window at first,
+// keys 1 to 3 there, ahead of its front, behind its back), the user's own
+// moves kept; on the map it is centred on the train and moved as it moves.
 void RouteEditorGLWidget::followTrain() {
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const int train = simulation->followed();
-    int tile[2];
-    float place[3], heading[3], front[3], back[3];
-    if (train < 0 || !simulation->trainPlace(train, tile, place, heading, nullptr, front, back)) {
-        if (train < 0)
-            followedTrain = -1;
-        return;
-    }
     if (train != followedTrain) {
+        stopRiding();
         followedTrain = train;
-        followedEnd = TrainView::End::Back;
-        viewTrainEnd(train, followedEnd);
+        followedView = RideView::Cab;
+        if (train >= 0 && currentViewMode == ViewMode::Map)
+            viewTrain(train);
+    }
+    int tile[2];
+    float place[3], heading[3];
+    if (train < 0 || !simulation->trainPlace(train, tile, place, heading))
         return;
+    if (currentViewMode == ViewMode::Map) {
+        const float *at = camera->getPos();
+        camera->setPos(at[0] + place[0] - followedPlace[0] + 2048.0f * (tile[0] - followedTile[0]),
+                       at[1] + place[1] - followedPlace[1],
+                       at[2] + place[2] - followedPlace[2] + 2048.0f * (tile[1] - followedTile[1]));
+        camera->check_coords();
+    } else if (cameraFree->getCameraObject() != simulation->consistOf(train)) {
+        // Not riding it yet: it has just come on the track, or the view
+        // has come back from the map.
+        rideTrain(train, followedView);
     }
-    const float *end = followedEnd == TrainView::End::Front ? front : back;
-    // Where the end was and is, in the camera's tile.
-    const float *at = camera->getPos();
-    const float dx = 2048.0f * (tile[0] - camera->pozT[0]), dz = 2048.0f * (tile[1] - camera->pozT[1]);
-    const float was[3] = {followedPlace[0] + 2048.0f * (followedTile[0] - camera->pozT[0]), followedPlace[1],
-                          followedPlace[2] + 2048.0f * (followedTile[1] - camera->pozT[1])};
-    const float now[3] = {end[0] + dx, end[1], end[2] + dz};
-    float eye[3] = {at[0], at[1], at[2]};
-    float yaw = camera->getRotX();
-    float turned = 0.0f;
-    if (currentViewMode != ViewMode::Map) {
-        turned = TrainView::Yaw(heading) - followedYaw;
-        turned = std::remainder(turned, 2.0f * float(M_PI));
-    }
-    TrainView::Carry(eye, yaw, was, now, turned);
-    camera->setPos(eye[0], eye[1], eye[2]);
-    if (turned != 0.0f)
-        camera->setPlayerRot(yaw, camera->getRotY());
-    camera->check_coords();
     followedTile[0] = tile[0];
     followedTile[1] = tile[1];
-    std::copy(end, end + 3, followedPlace);
-    followedYaw = TrainView::Yaw(heading);
+    std::copy(place, place + 3, followedPlace);
+}
+
+void RouteEditorGLWidget::stopRiding() {
+    GameObj *ridden = cameraFree != NULL ? cameraFree->getCameraObject() : NULL;
+    if (ridden != NULL && Sim::SimulationController::instance()->trainOfObject(ridden) >= 0)
+        cameraFree->releaseObject();
 }
 
 bool RouteEditorGLWidget::viewTrain(int train) {
-    return viewTrainEnd(train, TrainView::End::Back);
-}
-
-bool RouteEditorGLWidget::viewTrainEnd(int train, TrainView::End end) {
     int tile[2];
-    float place[3], heading[3], front[3], back[3], length = 0.0f;
-    if (!Sim::SimulationController::instance()->trainPlace(train, tile, place, heading, &length, front, back))
+    float place[3], heading[3], length = 0.0f;
+    if (!Sim::SimulationController::instance()->trainPlace(train, tile, place, heading, &length))
         return false;
+    stopRiding();
     camera->setPozT(tile[0], tile[1]);
     if (currentViewMode == ViewMode::Map) {
         camera->setPos(place[0], 0.0f, place[2]);
     } else {
-        const TrainView::Pose pose = TrainView::Place(end, front, back, heading, length);
-        camera->setPos(pose.eye[0], pose.eye[1], pose.eye[2]);
-        camera->setPlayerRot(pose.yaw, pose.pitch);
+        // Behind its rear, the whole train ahead.
+        const float back = 0.5f * length + 35.0f, up = 15.0f + 0.05f * length;
+        const float eye[3] = {place[0] - back * heading[0], place[1] + up, place[2] - back * heading[2]};
+        camera->setPos(eye[0], eye[1], eye[2]);
+        const float look[3] = {place[0] - eye[0], place[1] - eye[1], place[2] - eye[2]};
+        const float distance = std::sqrt(look[0] * look[0] + look[1] * look[1] + look[2] * look[2]);
+        camera->setPlayerRot(std::atan2(look[0], look[2]), std::asin(look[1] / std::max(distance, 0.001f)));
     }
-    // Where the end is now, for following it.
-    const float *at = end == TrainView::End::Front ? front : back;
-    followedTile[0] = tile[0];
-    followedTile[1] = tile[1];
-    std::copy(at, at + 3, followedPlace);
-    followedYaw = TrainView::Yaw(heading);
     camera->check_coords();
+    return true;
+}
+
+bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Consist *consist = simulation->consistOf(train);
+    const std::shared_ptr<const Sim::SimulationInput> input = simulation->input();
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+    if (consist == NULL || !consist->isOnTrack || consist->engItems.isEmpty() || input == nullptr
+            || train < 0 || size_t(train) >= input->trains.size() || size_t(train) >= frame->trains.size())
+        return false;
+    const Sim::TrainPlan &plan = input->trains[size_t(train)];
+    const bool reversed = frame->trains[size_t(train)].state.reversed;
+    // It rides the leading vehicle (cab, front) or the trailing one (back)
+    // as the train runs, the first or the last as the consist lists them; at
+    // that vehicle's front (as listed), which faces the way the train runs
+    // unless it runs reversed.
+    const bool front = view != RideView::Back;
+    const int last = consist->engItems.size() - 1;
+    const int vehicle = front != reversed ? 0 : last;
+    const float length = size_t(vehicle) < plan.vehicles.size() ? plan.vehicles[size_t(vehicle)].length : 0.0f;
+    consist->cameraVehicle = vehicle;
+    // The consist camera's own place: at the first vehicle's cab window,
+    // looking ahead.
+    cameraFree->setCameraObject(consist);
+    if (view == RideView::Cab && !reversed)
+        return true;
+    // In the vehicle's own frame (CameraFree's, riding it): its front at the
+    // origin, along it towards its front -z; `ahead` the way the train runs.
+    const float ahead = reversed ? 1.0f : -1.0f;
+    float eye[3], at[3];
+    if (view == RideView::Cab) {
+        // Reversed: at the cab window of its leading end (the last
+        // vehicle's rear as listed), looking the way it runs.
+        const float lead = reversed ? length : 0.0f;
+        eye[0] = 0.0f;
+        eye[1] = 3.0f;
+        eye[2] = ahead * lead;
+        at[0] = 0.0f;
+        at[1] = 3.0f;
+        at[2] = ahead * (lead + 100.0f);
+    } else if (front) {
+        // Ahead of its leading end and to its side, looking back at it.
+        const float lead = reversed ? length : 0.0f;
+        eye[0] = 8.0f;
+        eye[1] = 4.0f;
+        eye[2] = ahead * (lead + 18.0f);
+        at[0] = 0.0f;
+        at[1] = 2.0f;
+        at[2] = ahead * (lead - 8.0f);
+    } else {
+        // Behind its trailing end and above, the whole train ahead.
+        const float trail = reversed ? 0.0f : length;
+        eye[0] = 0.0f;
+        eye[1] = 15.0f + 0.05f * plan.length;
+        eye[2] = -ahead * (trail + 35.0f);
+        at[0] = 0.0f;
+        at[1] = 0.0f;
+        at[2] = -ahead * trail + ahead * 0.5f * plan.length;
+    }
+    const float look[3] = {at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]};
+    const float distance = std::sqrt(look[0] * look[0] + look[1] * look[1] + look[2] * look[2]);
+    cameraFree->setPos(eye[0], eye[1], eye[2]);
+    cameraFree->setPlayerRot(std::atan2(look[0], look[2]), std::asin(look[1] / std::max(distance, 0.001f)));
     return true;
 }
 

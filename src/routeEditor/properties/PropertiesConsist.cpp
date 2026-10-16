@@ -11,6 +11,7 @@
 #include "PropertiesConsist.h"
 #include <tsre/Game.h>
 #include <tsre/trains/Consist.h>
+#include <tsre/sim/SimulationController.h>
 
 PropertiesConsist::PropertiesConsist() {
     QVBoxLayout *vbox = new QVBoxLayout;
@@ -37,6 +38,11 @@ PropertiesConsist::PropertiesConsist() {
     //eId.setDisabled(true);
     //eEid.setDisabled(true);
     vbox->addItem(vlist);
+    state.setWordWrap(true);
+    state.setContentsMargins(3, 0, 3, 0);
+    state.setObjectName("consistSimulationState");
+    state.hide();
+    vbox->addWidget(&state);
     
     QPushButton *bCam = new QPushButton(
         //% "Get Camera View"
@@ -64,7 +70,23 @@ void PropertiesConsist::showObj(GameObj* obj){
     infoLabel->setText(
         //% "Object: Activity Consist"
         qtTrId("route.editor.properties.consist.text.object.activity.consist"));
-    eSpeed.setText(QString::number(conObj->getTrainSpeed()));
+    eSpeed.setText(QString::number(floor(conObj->getTrainSpeed()*3.6)));
+    showSimulated();
+}
+
+// A train of the simulation: named, its speed the simulation's (not set
+// here), what it is doing.
+void PropertiesConsist::showSimulated(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int train = conObj != NULL ? simulation->trainOfObject(conObj) : -1;
+    eSpeed.setReadOnly(train >= 0);
+    state.setVisible(train >= 0);
+    if(train < 0)
+        return;
+    infoLabel->setText(
+        //% "Simulated train: %1"
+        qtTrId("route.editor.properties.consist.text.simulated.train").arg(simulation->trainName(train)));
+    state.setText(simulation->stateText(train));
 }
 
 void PropertiesConsist::updateObj(GameObj* obj){
@@ -74,6 +96,7 @@ void PropertiesConsist::updateObj(GameObj* obj){
     conObj = (Consist*)obj;
     if(!eSpeed.hasFocus())
         eSpeed.setText(QString::number(floor(conObj->getTrainSpeed()*3.6)));
+    showSimulated();
     //conObj = (Consist*)obj;
 }
 

@@ -15,7 +15,10 @@
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationTexts.h>
+#include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/ConLib.h>
+#include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/WaitingPoint.h>
@@ -31,16 +34,30 @@ QString clock(double seconds) {
     return QTime::fromMSecsSinceStartOfDay(s * 1000).toString("HH:mm:ss");
 }
 
-// A pose as getDrawPositionOnTrNode gives it.
-void drawPosition(const TrackPose &pose, float *out) {
-    out[0] = pose.x;
-    out[1] = pose.y;
-    out[2] = pose.z;
-    out[3] = pose.yaw;
-    out[4] = pose.pitch;
-    out[5] = float(pose.tileX);
-    out[6] = float(pose.tileZ);
+// A copy of a train's consist for the editor (SimulationController::
+// consistOf), each vehicle its own Eng as a consist placed on the track has.
+std::unique_ptr<Consist> copyConsist(const TrainPlan &plan) {
+    if (Game::currentEngLib == nullptr || plan.consist.isEmpty())
+        return nullptr;
+    const int id = ConLib::addCon(Game::root + "/TRAINS/CONSISTS/", plan.consist + ".con");
+    auto found = ConLib::con.find(id);
+    if (found == ConLib::con.end() || found->second == nullptr || found->second->loaded != 1)
+        return nullptr;
+    std::unique_ptr<Consist> copy = std::make_unique<Consist>(found->second, true);
+    for (Consist::EngItem &item : copy->engItems) {
+        auto eng = Game::currentEngLib->eng.find(item.eng);
+        if (eng == Game::currentEngLib->eng.end() || eng->second == nullptr)
+            continue;
+        item.engPointer = new Eng(eng->second);
+        item.engPointer->flip = item.flip;
+    }
+    copy->isOnTrack = false;
+    return copy;
 }
+
+// How far a train is heard, and how far it goes before it is silenced.
+constexpr float HeardWithin = 1500.0f;
+constexpr float SilencedBeyond = 2000.0f;
 
 }
 
@@ -117,6 +134,7 @@ bool SimulationController::start(Activity *activity, QString *error) {
     // An edit still open (a field typed in) closes as its own step.
     Undo::StateEnd();
     current = activity;
+    dropTrains();
     in = input;
     latest.reset();
     history.clear();
@@ -193,6 +211,7 @@ bool SimulationController::runToTime(double target, bool thenRun, QString *error
         std::shared_ptr<const SimulationInput> input = makeInput(current, error);
         if (input == nullptr)
             return false;
+        dropTrains();
         in = input;
         latest.reset();
         history.clear();
@@ -217,6 +236,7 @@ void SimulationController::reset() {
         qWarning() << "Simulation reset:" << error;
         return;
     }
+    dropTrains();
     in = input;
     latest.reset();
     history.clear();
@@ -251,6 +271,7 @@ void SimulationController::stop() {
     thread = nullptr;
     pollTimer.stop();
     current = nullptr;
+    dropTrains();
     in.reset();
     latest.reset();
     history.clear();
@@ -416,8 +437,7 @@ void SimulationController::follow(int train) {
     emit followChanged(train);
 }
 
-bool SimulationController::trainPlace(int train, int *tile, float *position, float *heading, float *length,
-                                      float *front, float *back) const {
+bool SimulationController::trainPlace(int train, int *tile, float *position, float *heading, float *length) const {
     const std::shared_ptr<const SimulationFrame> now = frame();
     if (train < 0 || size_t(train) >= now->trains.size())
         return false;
@@ -435,16 +455,6 @@ bool SimulationController::trainPlace(int train, int *tile, float *position, flo
     position[0] = 0.5f * (ax + bx);
     position[1] = 0.5f * (a.y + b.y);
     position[2] = 0.5f * (az + bz);
-    // Its front and back as it runs: the consist's first and last ends, the
-    // other way round when reversed.
-    const float ends[2][3] = {{ax, a.y, az}, {bx, b.y, bz}};
-    const int lead = t.state.reversed ? 1 : 0;
-    for (int i = 0; i < 3; ++i) {
-        if (front != nullptr)
-            front[i] = ends[lead][i];
-        if (back != nullptr)
-            back[i] = ends[1 - lead][i];
-    }
     // It heads the consist's way, or the other way when reversed.
     float dx = ax - bx, dy = a.y - b.y, dz = az - bz;
     if (t.state.reversed) {
@@ -569,54 +579,163 @@ QString SimulationController::statusText() const {
 }
 
 void SimulationController::pushRenderItems(RenderQueue &queue, float *playerT, int renderMode) {
-    if (!exists() || in == nullptr || Game::currentEngLib == nullptr)
+    if (!exists() || in == nullptr)
         return;
-    const std::shared_ptr<const SimulationFrame> now = frame();
+    placeTrains();
     // Beyond the objects' distance, not drawn (tiles, with one to spare).
     const float reach = Game::objectLod / 2048.0f + 1.0f;
-    const std::unordered_map<int, Eng *> &engs = Game::currentEngLib->eng;
-    for (size_t t = 0; t < now->trains.size() && t < in->trains.size(); ++t) {
-        const TrainFrame &train = now->trains[t];
-        const TrainPlan &plan = in->trains[t];
-        const int service = serviceId(int(t));
-        for (size_t v = 0; v < plan.vehicles.size() && v < train.fronts.size() && v < train.rears.size(); ++v) {
-            const TrackPose &a = train.fronts[v];
-            if (std::fabs(a.tileX - playerT[0]) > reach || std::fabs(-a.tileZ - playerT[1]) > reach)
-                continue;
-            auto found = engs.find(plan.vehicles[v].eng);
-            if (found == engs.end() || found->second == nullptr)
-                continue;
-            float front[7], rear[7];
-            drawPosition(a, front);
-            drawPosition(train.rears[v], rear);
-            const quint32 id = renderMode == RenderQueue::RENDER_SELECTION
-                    ? SelectionIdCodec::activityService(service, int(v)) : 0;
-            const float roll = Game::useSuperelevation ? 0.5f * (a.roll + train.rears[v].roll) : 0.0f;
-            found->second->pushRenderItemBetween(queue, playerT, id, int(t) == chosenTrain, front, rear, roll,
-                                                 plan.vehicles[v].flip);
-        }
+    for (size_t t = 0; t < consists.size() && t < placedFrame->trains.size(); ++t) {
+        Consist *consist = consists[t].get();
+        const TrainFrame &train = placedFrame->trains[t];
+        if (consist == nullptr || !consist->isOnTrack || train.fronts.empty())
+            continue;
+        const TrackPose &a = train.fronts.front();
+        if (std::fabs(a.tileX - playerT[0]) > reach || std::fabs(-a.tileZ - playerT[1]) > reach)
+            continue;
+        const quint32 id = renderMode == RenderQueue::RENDER_SELECTION
+                ? SelectionIdCodec::activityService(serviceId(int(t))) : 0;
+        consist->pushRenderItemsOnTrack(queue, playerT, id, int(t) == chosenTrain);
     }
 }
 
 void SimulationController::getMapFeatures(MapFeatures &vehicles, int tileX, int tileZ, int only) const {
-    if (!exists() || in == nullptr || Game::currentEngLib == nullptr)
+    if (!exists() || in == nullptr)
         return;
-    const std::shared_ptr<const SimulationFrame> now = frame();
-    const std::unordered_map<int, Eng *> &engs = Game::currentEngLib->eng;
-    for (size_t t = 0; t < now->trains.size() && t < in->trains.size(); ++t) {
+    placeTrains();
+    for (size_t t = 0; t < consists.size(); ++t) {
         if (only >= 0 && int(t) != only)
             continue;
-        const TrainFrame &train = now->trains[t];
-        const TrainPlan &plan = in->trains[t];
-        for (size_t v = 0; v < plan.vehicles.size() && v < train.fronts.size() && v < train.rears.size(); ++v) {
-            auto found = engs.find(plan.vehicles[v].eng);
-            if (found == engs.end() || found->second == nullptr)
-                continue;
-            float front[7], rear[7];
-            drawPosition(train.fronts[v], front);
-            drawPosition(train.rears[v], rear);
-            found->second->getMapFeaturesBetween(vehicles, tileX, tileZ, front, rear);
+        Consist *consist = consists[t].get();
+        if (consist != nullptr && consist->isOnTrack)
+            consist->getMapFeatures(vehicles, tileX, tileZ);
+    }
+}
+
+Consist *SimulationController::consistOf(int train) const {
+    placeTrains();
+    if (train < 0 || size_t(train) >= consists.size())
+        return nullptr;
+    return consists[size_t(train)].get();
+}
+
+int SimulationController::trainOfObject(const GameObj *object) const {
+    for (size_t t = 0; t < consists.size(); ++t)
+        if (object != nullptr && consists[t].get() == object)
+            return int(t);
+    return -1;
+}
+
+int SimulationController::trainOfService(int service) const {
+    for (size_t t = 0; in != nullptr && t < in->trains.size(); ++t)
+        if (serviceId(int(t)) == service)
+            return int(t);
+    return -1;
+}
+
+void SimulationController::placeTrains() const {
+    if (!exists() || in == nullptr)
+        return;
+    const std::shared_ptr<const SimulationFrame> now = frame();
+    if (now == placedFrame)
+        return;
+    placedFrame = now;
+    if (consists.size() != in->trains.size())
+        consists.resize(in->trains.size());
+    for (size_t t = 0; t < in->trains.size(); ++t) {
+        const TrainFrame *train = t < now->trains.size() ? &now->trains[t] : nullptr;
+        if (train == nullptr || train->fronts.empty() || train->rears.size() != train->fronts.size()) {
+            if (consists[t] != nullptr)
+                consists[t]->isOnTrack = false;
+            continue;
         }
+        const TrainPlan &plan = in->trains[t];
+        if (consists[t] == nullptr)
+            consists[t] = copyConsist(plan);
+        Consist *consist = consists[t].get();
+        if (consist == nullptr)
+            continue;
+        // Each vehicle's two ends where the simulation has them, facing the
+        // node's way where its front (as the consist lists it) does: the
+        // way the train runs there, the other when it runs reversed.
+        const bool reversed = train->state.reversed;
+        for (int v = 0; v < consist->engItems.size() && size_t(v) < train->fronts.size(); ++v) {
+            Eng *eng = consist->engItems[v].engPointer;
+            const TrackPose &front = train->fronts[size_t(v)];
+            const TrackPose &rear = train->rears[size_t(v)];
+            if (eng == nullptr || front.node < 0 || rear.node < 0)
+                continue;
+            eng->placeOnTrack(front.node, front.distance, front.forward != reversed ? 0 : 1,
+                              rear.node, rear.distance, rear.forward != reversed ? 0 : 1);
+        }
+        float throttle = 0.0f, brake = 1.0f;
+        SoundControls(train->state.speed, train->state.acceleration, plan.acceleration, plan.deceleration,
+                      throttle, brake);
+        consist->setSimulated(train->state.speed, float(train->state.travelled), throttle, brake);
+    }
+}
+
+void SimulationController::dropTrains() {
+    if (consists.empty())
+        return;
+    emit trainsRemoving();
+    for (std::unique_ptr<Consist> &consist : consists) {
+        if (consist == nullptr)
+            continue;
+        for (Consist::EngItem &item : consist->engItems) {
+            delete item.engPointer;
+            item.engPointer = nullptr;
+        }
+    }
+    consists.clear();
+    placedFrame.reset();
+    heard.clear();
+}
+
+void SimulationController::updateSounds(float seconds, int tileX, int tileZ, const float *position) {
+    if (!exists() || in == nullptr || !Game::soundEnabled || !SoundSystem::running())
+        return;
+    placeTrains();
+    heard.resize(consists.size(), false);
+    for (size_t t = 0; t < consists.size(); ++t) {
+        Consist *consist = consists[t].get();
+        if (consist == nullptr)
+            continue;
+        bool near = false;
+        if (consist->isOnTrack && t < placedFrame->trains.size() && !placedFrame->trains[t].fronts.empty()) {
+            // Its nearer end (the camera's space: tile z and z the other way).
+            const TrainFrame &train = placedFrame->trains[t];
+            float closest = 1e9f;
+            for (const TrackPose *end : {&train.fronts.front(), &train.rears.back()}) {
+                const float dx = 2048.0f * float(end->tileX - tileX) + end->x - position[0];
+                const float dz = 2048.0f * float(-end->tileZ - tileZ) - end->z - position[2];
+                closest = std::min(closest, std::sqrt(dx * dx + dz * dz));
+            }
+            near = closest < (heard[t] ? SilencedBeyond : HeardWithin);
+        }
+        if (near)
+            consist->updateSimulatedSounds(seconds);
+        else if (heard[t])
+            consist->silenceSounds();
+        heard[t] = near;
+    }
+}
+
+void SimulationController::SoundControls(float speed, float acceleration, float maxAcceleration,
+                                         float maxDeceleration, float &throttle, float &brake) {
+    // As the stand-in driver: a third of the throttle to hold the speed,
+    // more by the share of its acceleration it gains; braking by the share
+    // of its deceleration; standing braked.
+    const float gaining = maxAcceleration > 0.0f ? acceleration / maxAcceleration : 0.0f;
+    const float losing = maxDeceleration > 0.0f ? -acceleration / maxDeceleration : 0.0f;
+    if (std::fabs(speed) < 0.05f) {
+        throttle = gaining > 0.02f ? std::clamp(0.3f + 0.7f * gaining, 0.0f, 1.0f) : 0.0f;
+        brake = throttle > 0.0f ? 0.0f : 1.0f;
+    } else if (losing <= 0.02f) {
+        throttle = std::clamp(0.3f + 0.7f * std::max(gaining, 0.0f), 0.0f, 1.0f);
+        brake = 0.0f;
+    } else {
+        throttle = 0.0f;
+        brake = std::clamp(losing, 0.0f, 1.0f);
     }
 }
 

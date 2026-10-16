@@ -34,6 +34,8 @@
 #include <tsre/Undo.h>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/map/MapFeatures.h>
+#include <tsre/trains/Consist.h>
+#include <tsre/trains/Eng.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationInput.h>
@@ -557,6 +559,41 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(simulation->frame()->trains[1].state.status == Sim::TrainStatus::Finished
               && features.vehicles.size() == size_t(2 * MapFeatures::VehicleFloats),
           QString("the map has the vehicles of the train on the track (%1)").arg(features.vehicles.size() / MapFeatures::VehicleFloats));
+    // The trains as the editor's consists (copies placed from the frames):
+    // the player's on the track where the frame has it, the simulation's
+    // speed, its ids; the AI train, gone at its path's end, off the track.
+    {
+        const int player = simulation->trainOf(true, -1);
+        Consist *consist = simulation->consistOf(player);
+        const Sim::TrainFrame &placed = simulation->frame()->trains[size_t(player)];
+        bool where = consist != nullptr && consist->isOnTrack && consist->isSimulated()
+                && consist->engItems.size() == int(placed.fronts.size()) && consist->engItems[0].engPointer != nullptr;
+        if (where) {
+            const float *at = consist->engItems[0].engPointer->getCurrentPositionOnTrack();
+            const Sim::TrackPose &a = placed.fronts[0];
+            where = at != nullptr && std::fabs(at[0] - a.x) < 0.01f && std::fabs(at[1] - a.y) < 0.01f
+                    && std::fabs(at[2] - a.z) < 0.01f && int(at[5]) == a.tileX && int(at[6]) == a.tileZ;
+        }
+        Consist *gone = simulation->consistOf(1);
+        check(where && std::fabs(consist->getTrainSpeed() - placed.state.speed) < 1e-6
+                  && simulation->trainOfObject(consist) == player
+                  && simulation->trainOfService(simulation->serviceId(player)) == player
+                  && (gone == nullptr || !gone->isOnTrack),
+              "the trains as consists: the player's placed where the frame has it, at its speed, picked by its id; "
+              "the AI train off the track");
+        float throttle = -1.0f, brake = -1.0f;
+        bool controls = true;
+        const auto controlled = [&](float speed, float acceleration, float wantThrottle, float wantBrake) {
+            Sim::SimulationController::SoundControls(speed, acceleration, 0.5f, 1.0f, throttle, brake);
+            controls = controls && std::fabs(throttle - wantThrottle) < 1e-4f && std::fabs(brake - wantBrake) < 1e-4f;
+        };
+        controlled(0.0f, 0.0f, 0.0f, 1.0f);      // standing, braked
+        controlled(0.0f, 0.25f, 0.65f, 0.0f);    // starting at half its acceleration
+        controlled(20.0f, 0.0f, 0.3f, 0.0f);     // holding its speed
+        controlled(20.0f, 0.5f, 1.0f, 0.0f);     // full acceleration
+        controlled(20.0f, -0.5f, 0.0f, 0.5f);    // braking at half its deceleration
+        check(controls, "a train's sounds: throttle and brake from its speed and acceleration");
+    }
 
     // Run to an earlier time: from the start again.
     runToTime->setTime(QTime(8, 1, 30));
@@ -613,8 +650,17 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(f && !simulation->runs() && !clock->running(), "Stop on the clock pauses the simulation");
     const double lastHours = clock->hours();
 
+    // The consists as a view drawing the trains has them.
+    const int ridden = simulation->trainOf(true, -1);
+    const bool made = simulation->consistOf(ridden) != nullptr;
+    int removing = 0;
+    const QMetaObject::Connection removal = QObject::connect(simulation, &Sim::SimulationController::trainsRemoving,
+                                                          [&] { removing += simulation->consistOf(ridden) != nullptr ? 1 : 0; });
     stop->click();
     pump();
+    QObject::disconnect(removal);
+    check(made && removing == 1 && simulation->consistOf(ridden) == nullptr,
+          "Stop: the trains' consists go, the editor told while they are there");
     check(!simulation->exists() && !ActivityNotifier::editingLocked() && activities->isEnabled()
               && timetable.timetableProperties->isEnabled() && rows->isColumnHidden(2) && !follow->isChecked() && simulation->followed() == -1,
           "Stop: no simulation, editing on, the state column and Follow gone");

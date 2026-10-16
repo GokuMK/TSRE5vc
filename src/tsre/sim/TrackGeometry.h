@@ -24,6 +24,11 @@ struct TrackPose {
     int tileX = 0;
     int tileZ = 0;
     float roll = 0.0f;
+    // Where it is on the track: its vector node, the distance along it, and
+    // whether the train's way runs the node's way there (-1: not known).
+    int node = -1;
+    float distance = 0.0f;
+    bool forward = true;
 };
 
 // The vector nodes of a track database as the simulation needs them: each

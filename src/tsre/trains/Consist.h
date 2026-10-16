@@ -127,8 +127,22 @@ public:
     bool getWagonWorldPosition(int id, float *posTW);
     void updateSim(float deltaTime);
     void pushRenderHud(RenderQueue &queue);
+    // Where a camera riding the consist is: on vehicle cameraVehicle (the
+    // first by default).
     void getCameraPosition(float *out);
-    void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId);
+    int cameraVehicle = 0;
+    // Every vehicle outlined when `outlined` (the simulation's chosen train).
+    void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId, bool outlined = false);
+    // A train of the simulation (task simulation 01), its vehicles placed by
+    // the simulation's frames (Eng::placeOnTrack): its speed, the distance
+    // it has travelled and its driver's throttle and brake (0 to 1) as the
+    // frame has them; its sounds follow them (updateSimulatedSounds).
+    void setSimulated(float speed, float distance, float throttle, float brake);
+    void updateSimulatedSounds(float seconds);
+    // Its vehicles' sounds stopped (out of hearing), made again by the next
+    // update.
+    void silenceSounds();
+    bool isSimulated() const { return simulated; }
     void pushRenderItems(RenderQueue &queue, quint32 selectionId = 0, bool renderText = false);
     void initPos();
     void setMaxVelocityFixed(bool val);
@@ -149,6 +163,12 @@ private:
     bool maxVelocityFixed = false;
     float trainSpeed = 0.0;
     float trainTotalDistance = 0.0;
+    // Set by the simulation (setSimulated); the distance its sounds last
+    // heard.
+    bool simulated = false;
+    float simulatedThrottle = 0.0f;
+    float simulatedBrake = 1.0f;
+    float soundsHeardAt = -1.0f;
     SimpleHud *hud = NULL;
     // Track sounds: the type the leading car is in, from the sound regions
     // around it (searched again once it passes the next one), and the

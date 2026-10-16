@@ -94,10 +94,9 @@ time); those stops behave as untimed ones.
   the windows (the views read the latest frame each time they draw), keeps
   the run's events, and answers the Timetable window (a train's state and
   events as text, the train of a row) and Follow (a train's place).
-- Drawing: `Eng::pushRenderItemBetween` draws a vehicle between two track
-  poses (the editor's on-track draw now calls it too), with the poses'
-  roll (`TrackPose::roll`, the superelevation as
-  `getDrawPositionOnTrNode` gives it). While a simulation runs an
+- Drawing: the simulated trains are the editor's consists (since the
+  follow-up below; first each vehicle was drawn alone between two track
+  poses). While a simulation runs an
   activity, its trains standing at their starts are not drawn (their
   paths are); the simulated trains are drawn, all of them, with the 3D ids
   of their trains (a click chooses the train in the Timetable window), the
@@ -112,13 +111,9 @@ time); those stops behave as untimed ones.
 - Timetable window: a State column while a simulation runs the activity
   ("running 72 km/h", "at Settle until 08:31", "starts at 08:20"), the
   chosen train's events under its information ("08:31:05 arrived at
-  Settle, booked 08:31:00"), Follow: the camera put behind the train and
-  above, looking at it (centred on the map), then moved as it moves, so
-  the user can still look around. Since 2026-10-16 (the user) in 3D keys 1
-  and 2 put it ahead of the train's front looking back at it, or behind
-  its back; it rides that end, turning with the train (the keypad's 1 and
-  2 stay the object tools'); Follow in the Timetable window, or Stop, ends
-  it. A capture view's `"trainEnd": "front"` puts it by the front.
+  Settle, booked 08:31:00"), Follow: the camera riding the train's
+  consist (the follow-up below; centred on the map and moved as the train
+  moves), so the user can still look around.
 - The world's time of day is set to the activity's start at start and
   then is the simulation's (`WorldClock`, the follow-up below).
 - Activity editing off (`ActivityNotifier::editingLocked`): the panel's
@@ -149,6 +144,33 @@ map's vehicles, Run to an earlier time, Stop and undo after it).
 09:03, by the player's train and an AI train in 3D and on the map), whose
 options (`simulateTo`, `simulationChosen`, a view's `train`) the
 `renderer-capture` suite now takes.
+
+**Follow-up: the trains as consists (2026-10-16, the user).** The
+simulated trains were drawn vehicle by vehicle with the engine library's
+shared `Eng` between two track poses, so nothing of the editor's consist
+system applied to them (the riding camera, the Consist properties,
+sounds). Now each train is a `Consist`, as loose consists are: the
+controller (main thread) keeps a copy of each train's consist, each
+vehicle its own `Eng`, and places them where the latest frame has them
+(the simulation only sends frames; the frame's poses carry their track
+position, node, distance and direction, and each train its acceleration):
+each vehicle's two track travellers (`Ruch::place`, `Eng::placeOnTrack`)
+at its ends, so drawing, picking, the map's footprints, the camera's place
+and sounds are the consist's own. Clicking a train selects its consist:
+the properties show "Simulated train", its speed (the simulation's, not
+edited) and what it is doing; "Get Camera View" rides it. Follow rides the
+consist with the consist camera (`Camera::setCameraObject`): at its cab's
+window at first (the camera's own place), keys 1 to 3 in 3D at the cab,
+ahead of its front looking back at it, behind its back, as the train runs
+(reversed too; the keypad's digits stay the object tools'); the user's
+own moves kept. Ending Follow, Stop or a reset lets the camera go where it
+is (`Camera::releaseObject`, new: nothing let go of a consist before) and
+the selection go (the controller tells, `trainsRemoving`, before the
+copies go). Sounds: the trains within 1.5 km of the camera play their
+consists' sounds (silenced beyond 2 km), their throttle and brake from
+their acceleration as TSRE's stand-in driver gives them (a third of the
+throttle holding the speed). A capture view's `"trainView"` (`cab`,
+`front`, `back`) rides the train.
 
 **Follow-up: one world clock (2026-10-15, the user).** The world's state
 that depends on time (sun, sky, lights, weather, clouds, and the fog on

@@ -236,6 +236,7 @@ void SimulationCore::start(int train, double from, double to) {
     }
     s.status = TrainStatus::Running;
     s.speed = 0.0f;
+    s.acceleration = 0.0f;
     s.blockedBy = NoHolder;
     runtime[size_t(train)].reported = Unreported;
     record(t, train, TrainEvent::Started);
@@ -516,6 +517,7 @@ void SimulationCore::advance(int train, double from, double to) {
             } else {
                 s.front += moved;
                 s.travelled += moved;
+                s.acceleration = dt > 0.0 ? float((next - v) / dt) : 0.0f;
                 s.speed = float(next);
                 t = to;
             }
@@ -535,6 +537,7 @@ void SimulationCore::advance(int train, double from, double to) {
         // At the target.
         s.travelled += target - s.front;
         s.front = target;
+        s.acceleration = arrival > t ? float(-s.speed / (arrival - t)) : 0.0f;
         s.speed = 0.0f;
         t = arrival;
         s.status = TrainStatus::Stopped;
@@ -1953,6 +1956,9 @@ bool SimulationCore::pose(int train, double routeDistance, TrackPose &out) const
     const RoutePoint point = runtime[size_t(train)].parts[size_t(state.part)].locate(routeDistance);
     if (!in->geometry->pose(point.node, point.distance, out))
         return false;
+    out.node = point.node;
+    out.distance = point.distance;
+    out.forward = point.forward;
     if (!point.forward)
         out.roll = -out.roll;
     return true;

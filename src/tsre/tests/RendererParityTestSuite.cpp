@@ -82,9 +82,10 @@ struct ViewSpec {
     bool hasPos = false;
     float pos[3] = {0, 0, 0};
     // The camera by a simulated train (RouteEditorGLWidget::viewTrain), by
-    // its back, or its front with "trainEnd": "front" (key 1 when following).
+    // its back, or riding it with "trainView": "cab", "front" or "back"
+    // (rideTrain, Follow's keys 1 to 3).
     int train = -1;
-    bool trainFront = false;
+    QString trainView;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -347,7 +348,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.hasRot = readFloatArray(object.value("rot"), view.rot, 2);
         view.map = object.value("mode").toString() == "map";
         view.train = object.value("train").toInt(-1);
-        view.trainFront = object.value("trainEnd").toString() == "front";
+        view.trainView = object.value("trainView").toString();
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
         view.bearing = float(object.value("bearing").toDouble(0.0));
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
@@ -727,8 +728,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             // The weather of a 3D view (the clouds).
             applyViewWeather(widget, spec);
         }
+        const RouteEditorGLWidget::RideView ride = spec.trainView == "front" ? RouteEditorGLWidget::RideView::Front
+                : spec.trainView == "back" ? RouteEditorGLWidget::RideView::Back : RouteEditorGLWidget::RideView::Cab;
         if (!spec.map && spec.train >= 0
-                && !widget.viewTrainEnd(spec.train, spec.trainFront ? TrainView::End::Front : TrainView::End::Back))
+                && !(spec.trainView.isEmpty() ? widget.viewTrain(spec.train) : widget.rideTrain(spec.train, ride)))
             qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
         if (!spec.settings.isEmpty()) {
             SettingsManager &settings = SettingsManager::instance();

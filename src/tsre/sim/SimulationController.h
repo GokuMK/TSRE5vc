@@ -9,6 +9,8 @@
 #include <tsre/world/objects/SignalLights.h>
 
 class Activity;
+class Consist;
+class GameObj;
 class QThread;
 class RenderQueue;
 struct MapFeatures;
@@ -88,10 +90,9 @@ public:
     int followed() const { return followedTrain; }
     void follow(int train);
     // A train's centre and the way it heads (unit, in the camera's space):
-    // tile x, tile z (the camera's), x, y, z; its length; its front and back
-    // as it runs (relative to the same tile); false when not on the track.
-    bool trainPlace(int train, int *tile, float *position, float *heading, float *length = nullptr,
-                    float *front = nullptr, float *back = nullptr) const;
+    // tile x, tile z (the camera's), x, y, z; its length; false when not on
+    // the track.
+    bool trainPlace(int train, int *tile, float *position, float *heading, float *length = nullptr) const;
 
     // The world's clock while a simulation exists (WorldClock::Source): the
     // simulation's time of day and date (days from the world's date at
@@ -129,8 +130,27 @@ public:
     // trains' for -1).
     void pushRenderItems(RenderQueue &queue, float *playerT, int renderMode);
     void getMapFeatures(MapFeatures &vehicles, int tileX, int tileZ, int train = -1) const;
-    // The 3D and map id of a train: SelectionIdCodec::activityService's.
+    // The 3D and map id of a train: SelectionIdCodec::activityService's;
+    // the train with an id, -1 none.
     int serviceId(int train) const;
+    int trainOfService(int serviceId) const;
+
+    // The trains as the editor's consists: a copy of each train's consist,
+    // its vehicles placed where the latest frame has them (the simulation
+    // only sends frames; the copies are made and placed here, on the main
+    // thread); null for a train not yet on the track. Drawn, picked,
+    // shown in the properties and ridden by the camera as consists are;
+    // gone at Stop, a reset or a new start (trainsRemoving first).
+    Consist *consistOf(int train) const;
+    // The train whose consist it is, -1 none.
+    int trainOfObject(const GameObj *object) const;
+    // The trains' sounds near the listener (its tile and place, in the
+    // camera's space) for `seconds` passed; those further away silenced.
+    void updateSounds(float seconds, int tileX, int tileZ, const float *position);
+    // A train's throttle and brake (0 to 1) for its sounds, from its speed
+    // and acceleration, as TSRE's stand-in driver gives them (PlayDriver).
+    static void SoundControls(float speed, float acceleration, float maxAcceleration, float maxDeceleration,
+                              float &throttle, float &brake);
 
 signals:
     // Started, paused, running, stopped.
@@ -140,6 +160,9 @@ signals:
     void eventsAdded(int first);
     void choiceChanged(int train);
     void followChanged(int train);
+    // The trains' consists are about to go: the camera, selection and
+    // properties let go of them.
+    void trainsRemoving();
 
 private:
     SimulationController();
@@ -168,6 +191,16 @@ private:
     // To `target` seconds (after midnight of the start day) as fast as
     // possible, from the start again when it is behind.
     bool runToTime(double target, bool thenRun, QString *error);
+
+    // The trains' consists (consistOf), placed from `placedFrame`; whether
+    // each was heard last time.
+    mutable std::vector<std::unique_ptr<Consist>> consists;
+    mutable std::shared_ptr<const SimulationFrame> placedFrame;
+    std::vector<bool> heard;
+    // The consists placed where the latest frame has them (once a frame).
+    void placeTrains() const;
+    // The consists gone (trainsRemoving first).
+    void dropTrains();
 };
 
 }
