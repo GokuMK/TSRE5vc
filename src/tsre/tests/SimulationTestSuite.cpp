@@ -222,7 +222,7 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
         check(units && !unknown, "MSTS units: masses, forces, powers, speeds and resistances in SI; comments and quotes "
                                  "dropped; an unknown unit refused");
     }
-    // Signal scripts (task 05): read and run as Open Rails runs them.
+    // Signal scripts (task 05): read and run as MSTS's grammar defines them.
     {
         const QString text = R"(// heading comment
 SCRIPT First
@@ -232,7 +232,7 @@ SCRIPT First
 	extern float	next_sig_lr ();
 	extern float	state, draw_state, enabled;
 	float			a, b;
-	a = b = 2 + 3 * 4;			// left to right: 20
+	a = b = 2 + 3 * 4;			// C's precedence: 14
 	if (!enabled || block_state() !=# BLOCK_CLEAR)
 		state = SIGASP_STOP;
 	else if (next_sig_lr (SIGFN_NORMAL) ==# SIGASP_STOP)
@@ -241,9 +241,11 @@ SCRIPT First
 	}
 	else
 		state = SIGASP_CLEAR_2;
-	draw_state = a / 3 + 7 / 0;		// 20 / 3 = 6, then + 7 = 13, then / 0 = 0
-	if (1 || 0 && 0) draw_state = draw_state + 100;	// (1 || 0) && 0: no
-	if (! b ==# 5) draw_state = draw_state + 10;		// !(b == 5): yes
+	draw_state = a / 4 + 7 / 0;			// 3.5 + 0: 3 kept
+	if (a / 4 == 3.5) draw_state = draw_state + 100;	// floating point: yes
+	if (1 || 0 && 0) draw_state = draw_state + 10;		// 1 || (0 && 0): yes
+	if (! b ==# 5) draw_state = draw_state + 1000;		// (!b) == 5: no
+	if (a /# 4 ==# 3 && #3.7 == 3) draw_state += 1;		// integer parts: yes
 REM SCRIPT Skipped
 	for (a = 0; a < 3; a++) b = b + 1;
 SCRIPT Second
@@ -253,10 +255,24 @@ SCRIPT Second
 	state = state + kept;
 	return;
 	state = 99;
+SCRIPT Third
+	extern float state, draw_state;
+	float i, n;
+	for (i = 0; i < 10; i++)
+	{
+		if (i ==# 2) continue;
+		if (i >= 5) break;
+		n += i;					// 0 + 1 + 3 + 4 = 8
+	}
+	do n++; while (n < 10);			// 10
+	state = n > 9 ? n * 10 + i : -1;	// 105
+	draw_state = 0;
+	while (1) draw_state++;			// stopped
 SCRIPT Broken
 	extern float approach_control_speed ();
 	state = approach_control_speed (100, 200) + nothing_known + mystery (1);
-	for (state = 0; state < 2; state++) state = 1;
+	goto done;
+	break;
 	enabled = 1;
 	state = next_sig_lr ()
 )";
@@ -268,14 +284,17 @@ SCRIPT Broken
                     return &script;
             return nullptr;
         };
-        const Sim::SignalScript *first = byName("first"), *second = byName("second"), *broken = byName("broken");
-        check(scripts.size() == 3 && first && second && broken && byName("skipped") == nullptr && fileProblems.isEmpty()
-                  && first->usable() && second->usable() && first->locals == 2,
+        const Sim::SignalScript *first = byName("first"), *second = byName("second"), *third = byName("third");
+        const Sim::SignalScript *broken = byName("broken");
+        check(scripts.size() == 4 && first && second && third && broken && byName("skipped") == nullptr
+                  && fileProblems.isEmpty() && first->usable() && second->usable() && third->usable()
+                  && first->locals == 2,
               "signal scripts read: sections, REM SCRIPT skipped, comments, declarations");
         const QString brokenText = broken != nullptr ? broken->problems.join(" | ") : QString();
         check(broken && !broken->usable() && broken->openRails == QStringList{"approach_control_speed"}
                   && brokenText.contains("unknown name nothing_known") && brokenText.contains("unknown function mystery")
-                  && brokenText.contains("for is not in the language") && brokenText.contains("enabled cannot be set")
+                  && brokenText.contains("goto is not in the language") && brokenText.contains("break outside a loop")
+                  && brokenText.contains("enabled cannot be set")
                   && brokenText.contains("next_sig_lr takes 1 arguments") && brokenText.contains("; expected")
                   && brokenText.contains("test.dat line "),
               QString("signal script problems with their lines: %1").arg(brokenText));
@@ -301,9 +320,10 @@ SCRIPT Broken
         if (first != nullptr)
             Sim::RunSignalScript(*first, host, state, draw);
         const int occupied = state;
-        check(clearState == 3 && clearDraw == 10 && occupied == 0,
+        check(clearState == 3 && clearDraw == 114 && occupied == 0,
               QString("signal scripts run: APPROACH_1 before a signal at STOP (%1), STOP with the block occupied (%2); "
-                      "left to right arithmetic and conditions, division by zero 0, a negated comparison (draw %3)")
+                      "C's precedence, floating point, division by zero 0, integer parts, a negation of its operand "
+                      "(draw %3)")
                   .arg(clearState).arg(occupied).arg(clearDraw));
         host.block = Sim::BlockClear;
         host.next = 7;
@@ -321,6 +341,12 @@ SCRIPT Broken
             Sim::RunSignalScript(*second, host, kept, unused);
         }
         check(kept == 7, QString("locals cleared for each run, state kept between runs, return stops (%1)").arg(kept));
+        int loopState = 0, loopDraw = 0;
+        if (third != nullptr)
+            Sim::RunSignalScript(*third, host, loopState, loopDraw);
+        check(loopState == 105 && loopDraw > Sim::MaxScriptSteps / 2 && loopDraw <= Sim::MaxScriptSteps + 1,
+              QString("for, continue, break, +=, do while, ++, ?: (%1); an endless loop stopped (%2 rounds)")
+                  .arg(loopState).arg(loopDraw));
     }
 
     // An engine's file: mass, force, power, speed, resistance, passengers.

@@ -6,13 +6,19 @@
 namespace Sim {
 
 // The legacy signal script language of `sigscr.dat` (task simulation 05),
-// read and run as Open Rails runs it: case-insensitive; `SCRIPT name`
-// sections (`REM SCRIPT` ones skipped); `extern float` and `float`
-// declarations; assignments, `if`/`else`, blocks, calls, `return`;
-// integers throughout (division truncates, by zero gives zero); `&&` and
-// `||` (`AND`, `OR`) of equal precedence and arithmetic operators of
-// equal precedence, each taken left to right as Open Rails takes them; a
-// comparison with `#` (`==#`) as the plain one.
+// read and run as MSTS's own parser defines it (its Bison grammar, token and
+// rule names in train.exe): C's expressions and statements on floating point
+// values. Case-insensitive; `SCRIPT name` sections (`REM SCRIPT` ones
+// skipped); `extern float` and `float` declarations; expressions with C's
+// precedence (`||`, `&&`, equality, relational, `#`, additive,
+// multiplicative, unary, postfix), `?:`, assignments (`=`, `+=`, `-=`, `*=`,
+// `/=`, `%=`), `++`, `--`; `if`/`else`, `for`, `while`, `do`, `break`,
+// `continue`, `return`, blocks. `#` takes a value's integer part (`#x`), and
+// comparisons and division written with it (`==#`, `<#`, `/#`) compare and
+// divide integer parts. Open Rails' spellings `AND`, `OR`, `NOT` read too.
+// Not recovered from MSTS, chosen: `&&` and `||` evaluate their right side
+// only when needed (as C), division or remainder by zero gives zero, a value
+// written to `state` or `draw_state` keeps its integer part.
 
 // The functions a script may call. Open Rails' additions are read and
 // reported (the script is then not used): OpenRails.
@@ -30,24 +36,32 @@ enum ScriptBlock { BlockClear = 0, BlockOccupied = 1, BlockJunctionObstructed = 
 
 struct ScriptNode {
     enum Kind : unsigned char {
-        Number, Local, Variable, Call, Not, Negate, Arithmetic, Compare, Logic,
-        Assign, If, Block, Return, Nothing
+        Number, Local, Variable, Call, Not, Negate, Integer, Arithmetic, Compare, Logic, Conditional,
+        Assign, Step, If, Loop, Block, Return, Break, Continue, Nothing
     };
     enum Operator : unsigned char {
-        Add, Subtract, Multiply, Divide, Modulo,
+        Add, Subtract, Multiply, Divide, IntegerDivide, Modulo,
         Equal, NotEqual, Less, LessEqual, Greater, GreaterEqual,
-        And, Or
+        And, Or, Set
     };
     Kind kind = Nothing;
     unsigned char op = 0;
-    // Number: its value; Local: its slot; Variable: ScriptVariable; Call:
-    // ScriptFunction; Assign: the target's kind (Local or Variable).
+    // Compare: on the values' integer parts (`==#`).
+    bool integer = false;
+    // Step: the value before it (x++); Loop: the condition after the body
+    // (do).
+    bool after = false;
+    // Local: its slot; Variable: ScriptVariable; Call: ScriptFunction;
+    // Assign, Step: the target's kind (Local or Variable).
     int value = 0;
-    // Children: Not, Negate: a; Arithmetic, Compare, Logic: a, b; Assign:
-    // a (the value), the target in `target`; If: a (condition), b (then),
-    // c (else, or -1); Call, Block: `first`, `count` in the script's
-    // `children`.
-    int a = -1, b = -1, c = -1;
+    // Number: its value.
+    double number = 0.0;
+    // Children: Not, Negate, Integer, Return: a; Arithmetic, Compare, Logic:
+    // a, b; Conditional: a ? b : c; Assign: a (the value), the target in
+    // `target`; Step: the target in `target`; If: a (condition), b (then), c
+    // (else, or -1); Loop: d (start), a (condition, -1 none), b (body), c
+    // (step); Call, Block: `first`, `count` in the script's `children`.
+    int a = -1, b = -1, c = -1, d = -1;
     int target = 0;
     int first = 0, count = 0;
     int line = 0;
@@ -94,7 +108,9 @@ public:
 };
 
 // Runs a usable script: `state` and `drawState` in and out (a head keeps
-// them between runs), its locals cleared.
+// them between runs), its locals cleared; a run stops after MaxScriptSteps
+// loop rounds.
+constexpr int MaxScriptSteps = 100000;
 void RunSignalScript(const SignalScript &script, SignalScriptHost &host, int &state, int &drawState);
 
 }

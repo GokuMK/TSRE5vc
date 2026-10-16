@@ -22,15 +22,16 @@ Sources:
 (`src/tsre/sim`): the text without comments, sections from each line
 beginning `SCRIPT` (`REM SCRIPT` skipped), a lexer, a recursive-descent
 parser into a flat tree (names bound: locals, externals, functions,
-constants), problems with file and line; a loop (`for`, `while`) reported
-and passed over. `TrackNetwork` reads the files `sigcfg.dat` lists
+constants), problems with file and line. Since 2026-10-16 the grammar is
+MSTS's own (below, decision 5): loops read and run. `TrackNetwork` reads the files `sigcfg.dat` lists
 (`SigCfg::path` kept: beside it, else in the route) and gives each type
 its rule. Every local script reads without a problem.
 
-**Phase 2, evaluating (done 2026-10-16).** The interpreter (integers,
-truncating division, by zero zero, locals cleared, `state` and
-`draw_state` kept, `&&`/`||` and arithmetic left to right of equal
-precedence, both sides of a condition evaluated) and the functions on the
+**Phase 2, evaluating (done 2026-10-16).** The interpreter (first as Open
+Rails': integers, `&&`/`||` and arithmetic left to right of equal
+precedence; since decision 5 MSTS's: floating point, C's precedence; by
+zero zero, locals cleared, `state` and `draw_state` kept) and the
+functions on the
 network: `enabled` (cleared), `block_state` (clear while cleared, else
 obstructed), `route_set`, `next_sig_lr`/`mr` (the n-th: `next_nsig_lr`,
 stopping at STOP), `this_sig_lr`/`mr` (none of NORMAL: CLEAR_2),
@@ -111,6 +112,29 @@ the approach signals before at their 40 mph as Open Rails' trains do
 7 min 12 s); the trains were already some 30 s behind Open Rails' before
 that, which the missing holds had made up.
 
+**MSTS's grammar (decision 5, 2026-10-16).** `train.exe` holds the
+script parser's Bison tables with their names (token names `LEX_IEQ`,
+`LEX_IDIV`, `LEX_FLOATVAL`, `LEX_FOR` ...; rules `logical_or_expression`,
+`logical_and_expression`, `exclusive_or_expression`,
+`equality_expression`, `relational_expression`, `hash_expression`,
+`additive_expression`, `multiplicative_expression`, `unary_expression`,
+`postfix_expression`, `conditional_expression`, `assignment_expression`,
+`iteration_statement`, `jump_statement` ...) and a self-test program
+(`for (i=0; i<#24; i++)`, `x-=1000+24`, `5*2-(4+5)-(1>0? 1 : 0)`,
+`return (#1+0.6 == #2.3/2+1.15)`). So MSTS's language is C's: its
+expression levels and precedence, `?:`, assignment operators, `++`,
+`--`, `for`/`while`/`do`, `break`/`continue`/`return`, floating point
+values (the evaluator returns floats, `msts-analysis`), and `#` its own
+level between relational and additive: an integer part (`#x`), with
+integer comparisons and division (`==#`, `/#`). Open Rails' integers and
+flat left to right order are its own simplifications. Ours now reads and
+runs MSTS's language; not recovered (chosen and noted in
+`SignalScript.h`): the spelling of the exclusive or (not read), whether
+`&&`/`||` skip their right side (as C), division by zero (zero),
+`switch`/`goto` (not read; MSTS has `goto` and labels). No local script
+mixes operators of one level or divides: the aspects against Open Rails
+are as before.
+
 ## Left
 
 - **Clearing ahead:** Open Rails often shows a signal one step more
@@ -122,14 +146,19 @@ that, which the missing holds had made up.
   within the train's route, from a signal's update. Not a distance limit:
   Open Rails asks for the next signal at any distance once the previous
   one is passed, as ours clears without one. To follow.
-- **Station stops:** JAPAN1's Isehara and Kakio exits show STOP in Open
-  Rails for its 200 m trains, which the rule above (on the platform alone)
-  does not hold; probably Open Rails' stop counting other platforms of the
-  same name along the route (a longer platform, the train stopping
-  further back), not checked. Open Rails stops a short train 15 m short of
-  a held signal, ours 31 m (our driver stops SignalMargin short of any
-  signal at stop). Open Rails' check of a platform near a reversal reads
-  the train's first reversal (its own quirk), not taken.
+- **Station stops:** Open Rails gives every AI train of an activity the
+  short clearing distance, 15 m (its own TODO in `AITrain`'s constructor:
+  the car count is still 0 there; the 10-car rule applies only after
+  coupling). That holds JAPAN1's Isehara and Kakio exits for its 200 m
+  trains, which ours (by the rule's intent) does not. Open Rails' AI stops
+  20 m short of a signal at stop (5 m with fewer than 10 cars:
+  `signalApproachDistanceM`), and a station stop just short of a signal
+  takes priority over it; ours stops SignalMargin (30 m) short of any
+  signal at stop, so a held exit's stop stays 31 m short of it (at 16 m
+  the driver stopped at 30 m, short of the stop, and the hold was never
+  released). To do together: the stopping margins as Open Rails'. Open
+  Rails' check of a platform near a reversal reads the train's first
+  reversal (its own quirk), not taken.
 - **Open Rails' additions** (approach control, call-on, timing triggers,
   stored values, clear-ahead control, subtypes): read and reported, run
   in a later task (decision 3). `block_state` OCCUPIED (a train asking a
@@ -175,10 +204,8 @@ route has scripts.
 
 Our own lexer and recursive-descent parser for the language
 (`src/tsre/sim/SignalScript*`): case-insensitive; `//` and `/* */`
-comments; `SCRIPT` sections, `REM SCRIPT` skipped; declarations; the
-statements and expressions above with C's precedence (`!`, `* / %`,
-`+ -`, comparisons, `&&`, `||`); a `#` comparison as the plain one (Open
-Rails' integers make them the same). Each script becomes a small tree,
+comments; `SCRIPT` sections, `REM SCRIPT` skipped; declarations; MSTS's
+statements and expressions (decision 5: C's, with `#`). Each script becomes a small tree,
 names bound once: externals, functions, constants, local slots.
 Problems with file and line ("`sigscr.dat` line 47: unknown function
 `approach_control_speed`"). The files are those `sigcfg.dat` lists, read
@@ -187,8 +214,8 @@ beside it (the route's, or its `OpenRails` folder's as task 02 takes
 
 ### 2. Evaluating
 
-As Open Rails' interpreter: integers, truncating division, by zero zero;
-locals cleared each time; `state` and `draw_state` written by the script
+As MSTS's language (decision 5): floating point, `#` integer parts, by
+zero zero; locals cleared each time; `state` and `draw_state` written by the script
 and kept between evaluations; a `draw_state` the script leaves unset
 follows `def_draw_state(state)`. Functions, on the network task 02 made:
 - `enabled`: the signal is cleared for a train;
@@ -249,3 +276,6 @@ No script editor in this task.
 2. A script with problems is not run and the problem is reported.
 3. Open Rails' additions: read, implemented later.
 4. This task now.
+5. (2026-10-16) The language as MSTS defines it, where cheap to support,
+   not Open Rails' shortcuts: C's precedence and statements, floating
+   point, `#` (above).

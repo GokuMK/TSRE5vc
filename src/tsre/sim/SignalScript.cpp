@@ -4,6 +4,7 @@
 #include <QHash>
 #include <array>
 #include <cmath>
+#include <tuple>
 
 namespace Sim {
 
@@ -82,7 +83,7 @@ int arity(ScriptFunction function) {
 struct Token {
     enum Kind { Name, Number, Symbol, End } kind = End;
     QString text;
-    int value = 0;
+    double number = 0.0;
     int line = 0;
 };
 
@@ -118,8 +119,10 @@ QString withoutComments(const QString &text) {
 }
 
 std::vector<Token> tokens(const std::vector<Line> &lines, const QString &file, QStringList &problems) {
-    static const char *symbols[] = {"==#", "!=#", ">=#", "<=#", "==", "!=", ">=", "<=", ">#", "<#", "&&", "||",
-                                    "!", "=", "<", ">", "+", "-", "*", "/", "%", "(", ")", "{", "}", ";", ","};
+    // Longest first.
+    static const char *symbols[] = {"/#=", "==#", "!=#", ">=#", "<=#", "++", "--", "+=", "-=", "*=", "/=", "%=",
+                                    "/#", "==", "!=", ">=", "<=", ">#", "<#", "&&", "||", "!", "=", "<", ">", "+",
+                                    "-", "*", "/", "%", "(", ")", "{", "}", ";", ",", "?", ":", "#"};
     std::vector<Token> out;
     for (const Line &line : lines) {
         const QString &t = line.text;
@@ -145,8 +148,7 @@ std::vector<Token> tokens(const std::vector<Line> &lines, const QString &file, Q
                     ++end;
                 token.kind = Token::Number;
                 token.text = t.mid(i, end - i);
-                // Open Rails' integers: truncated.
-                token.value = int(std::trunc(token.text.toDouble()));
+                token.number = token.text.toDouble();
                 i = end;
             } else {
                 bool found = false;
@@ -197,6 +199,8 @@ private:
     SignalScript &s;
     size_t pos = 0;
     QHash<QString, int> locals;
+    // Loops around the statement being read.
+    int loops = 0;
 
     const Token &peek(size_t ahead = 0) const { return t[std::min(pos + ahead, t.size() - 1)]; }
     bool at(Token::Kind kind) const { return peek().kind == kind; }
@@ -235,6 +239,13 @@ private:
         n.count = int(statements.size());
         n.line = line;
         s.children.insert(s.children.end(), statements.begin(), statements.end());
+        return node(n);
+    }
+    int number(double value, int line) {
+        ScriptNode n;
+        n.kind = ScriptNode::Number;
+        n.number = value;
+        n.line = line;
         return node(n);
     }
 
@@ -276,6 +287,15 @@ private:
         return statement();
     }
 
+    // An expression in parentheses (if, while).
+    int condition() {
+        if (!expect("("))
+            return number(0.0, peek().line);
+        const int inside = expression();
+        expect(")");
+        return inside;
+    }
+
     int statement() {
         const int line = peek().line;
         if (atSymbol(";")) {
@@ -301,12 +321,7 @@ private:
             ScriptNode n;
             n.kind = ScriptNode::If;
             n.line = line;
-            if (!expect("(")) {
-                recover();
-                return -1;
-            }
-            n.a = logic();
-            expect(")");
+            n.a = condition();
             n.b = statement();
             if (atName("else")) {
                 ++pos;
@@ -314,190 +329,261 @@ private:
             }
             return node(n);
         }
+        if (atName("while") || atName("do") || atName("for")) {
+            ScriptNode n;
+            n.kind = ScriptNode::Loop;
+            n.line = line;
+            const QString word = peek().text;
+            ++pos;
+            ++loops;
+            if (word == "while") {
+                n.a = condition();
+                n.b = statement();
+            } else if (word == "do") {
+                n.after = true;
+                n.b = statement();
+                if (atName("while")) {
+                    ++pos;
+                    n.a = condition();
+                } else {
+                    problem("while expected");
+                }
+                expect(";");
+            } else {
+                expect("(");
+                n.d = atSymbol(";") ? -1 : expression();
+                expect(";");
+                n.a = atSymbol(";") ? -1 : expression();
+                expect(";");
+                n.c = atSymbol(")") ? -1 : expression();
+                expect(")");
+                n.b = statement();
+            }
+            --loops;
+            return node(n);
+        }
+        if (atName("break") || atName("continue")) {
+            ScriptNode n;
+            n.kind = atName("break") ? ScriptNode::Break : ScriptNode::Continue;
+            n.line = line;
+            if (loops == 0)
+                problem(QString("%1 outside a loop").arg(peek().text));
+            ++pos;
+            expect(";");
+            return node(n);
+        }
         if (atName("return")) {
             ++pos;
-            if (atSymbol("(")) {
-                ++pos;
-                expect(")");
-            }
-            expect(";");
             ScriptNode n;
             n.kind = ScriptNode::Return;
             n.line = line;
+            if (!atSymbol(";"))
+                n.a = expression();
+            expect(";");
             return node(n);
         }
-        if (atName("for") || atName("while") || atName("do") || atName("switch")) {
-            // Not in the language: reported, the loop passed over (its
-            // parentheses and the statement after them).
+        if (atName("switch") || atName("case") || atName("default") || atName("goto")) {
             problem(QString("%1 is not in the language").arg(peek().text));
             ++pos;
-            if (atSymbol("(")) {
-                int depth = 0;
-                do {
-                    depth += atSymbol("(") ? 1 : atSymbol(")") ? -1 : 0;
-                    ++pos;
-                } while (depth > 0 && !at(Token::End));
-            }
-            const size_t problems = size_t(s.problems.size());
-            statement();
-            while (size_t(s.problems.size()) > problems)
-                s.problems.removeLast();
+            recover();
             return -1;
         }
-        if (at(Token::Name) && atSymbol("=", 1)) {
-            // Assignments, chained (a = b = 1): from the right.
-            std::vector<std::pair<int, int>> targets;
-            while (at(Token::Name) && atSymbol("=", 1)) {
-                const QString name = peek().text;
-                std::pair<int, int> target{-1, 0};
-                if (locals.contains(name)) {
-                    target = {ScriptNode::Local, locals.value(name)};
-                } else if (variables().contains(name) && variables().value(name) != ScriptVariable::Enabled) {
-                    target = {ScriptNode::Variable, int(variables().value(name))};
-                } else {
-                    problem(QString("%1 cannot be set").arg(name));
-                }
-                targets.push_back(target);
-                pos += 2;
-            }
-            int value = logic();
-            for (auto it = targets.rbegin(); it != targets.rend(); ++it) {
-                if (it->first < 0)
-                    continue;
-                ScriptNode n;
-                n.kind = ScriptNode::Assign;
-                n.value = it->first;
-                n.target = it->second;
-                n.a = value;
-                n.line = line;
-                value = node(n);
-            }
-            if (!expect(";"))
-                recover();
-            return value;
-        }
-        if (at(Token::Name) && atSymbol("(", 1)) {
-            const int call = primary();
-            if (!expect(";"))
-                recover();
-            return call;
-        }
-        problem(QString("unexpected %1").arg(peek().kind == Token::End ? QString("end") : peek().text));
-        recover();
-        return -1;
+        const int value = expression();
+        if (!expect(";"))
+            recover();
+        return value;
     }
 
-    // && and || (AND, OR) of equal precedence, left to right.
-    int logic() {
-        int left = comparison();
-        while (atSymbol("&&") || atSymbol("||") || atName("and") || atName("or")) {
-            ScriptNode n;
-            n.kind = ScriptNode::Logic;
-            n.op = atSymbol("&&") || atName("and") ? ScriptNode::And : ScriptNode::Or;
-            n.line = peek().line;
-            ++pos;
-            n.a = left;
-            n.b = comparison();
-            left = node(n);
+    int expression() { return assignment(); }
+
+    // The target of an assignment, ++ or --: a local, state or draw_state.
+    bool target(int index, ScriptNode &n) {
+        const ScriptNode &target = s.nodes[size_t(index)];
+        if (target.kind == ScriptNode::Local
+                || (target.kind == ScriptNode::Variable && (ScriptVariable(target.value) == ScriptVariable::State
+                                                            || ScriptVariable(target.value) == ScriptVariable::DrawState))) {
+            n.value = target.kind;
+            n.target = target.value;
+            return true;
         }
-        return left;
+        const QString name = target.kind != ScriptNode::Variable ? QString("the expression")
+                : ScriptVariable(target.value) == ScriptVariable::Enabled ? QString("enabled") : QString("block_state");
+        problem(QString("%1 cannot be set").arg(name), target.line);
+        return false;
     }
 
-    // A negation takes the comparison after it (as Open Rails negates a
-    // condition).
-    int comparison() {
-        if (atSymbol("!") || atName("not")) {
-            ScriptNode n;
-            n.kind = ScriptNode::Not;
-            n.line = peek().line;
-            ++pos;
-            n.a = comparison();
-            return node(n);
-        }
-        int left = arithmetic();
-        static const std::array<std::pair<const char *, ScriptNode::Operator>, 12> operators = {{
-            {"==#", ScriptNode::Equal}, {"!=#", ScriptNode::NotEqual}, {">=#", ScriptNode::GreaterEqual},
-            {"<=#", ScriptNode::LessEqual}, {">#", ScriptNode::Greater}, {"<#", ScriptNode::Less},
-            {"==", ScriptNode::Equal}, {"!=", ScriptNode::NotEqual}, {">=", ScriptNode::GreaterEqual},
-            {"<=", ScriptNode::LessEqual}, {">", ScriptNode::Greater}, {"<", ScriptNode::Less},
+    // From the right: a = b = 1.
+    int assignment() {
+        const int left = conditional();
+        static const std::array<std::pair<const char *, ScriptNode::Operator>, 7> operators = {{
+            {"=", ScriptNode::Set}, {"+=", ScriptNode::Add}, {"-=", ScriptNode::Subtract},
+            {"*=", ScriptNode::Multiply}, {"/=", ScriptNode::Divide}, {"/#=", ScriptNode::IntegerDivide},
+            {"%=", ScriptNode::Modulo},
         }};
         for (const auto &[symbol, op] : operators)
             if (atSymbol(symbol)) {
                 ScriptNode n;
-                n.kind = ScriptNode::Compare;
+                n.kind = ScriptNode::Assign;
                 n.op = op;
                 n.line = peek().line;
                 ++pos;
-                n.a = left;
-                n.b = arithmetic();
-                return node(n);
+                const bool settable = target(left, n);
+                n.a = assignment();
+                return settable ? node(n) : n.a;
             }
         return left;
     }
 
-    // + - * / % of equal precedence, left to right.
-    int arithmetic() {
-        int left = unary();
-        while (atSymbol("+") || atSymbol("-") || atSymbol("*") || atSymbol("/") || atSymbol("%")) {
+    int conditional() {
+        const int condition = logicalOr();
+        if (!atSymbol("?"))
+            return condition;
+        ScriptNode n;
+        n.kind = ScriptNode::Conditional;
+        n.line = peek().line;
+        ++pos;
+        n.a = condition;
+        n.b = expression();
+        expect(":");
+        n.c = conditional();
+        return node(n);
+    }
+
+    int logical(int (Parser::*next)(), ScriptNode::Operator op, const char *symbol, const char *word) {
+        int left = (this->*next)();
+        while (atSymbol(symbol) || atName(word)) {
             ScriptNode n;
-            n.kind = ScriptNode::Arithmetic;
-            const QString &op = peek().text;
-            n.op = op == "+" ? ScriptNode::Add : op == "-" ? ScriptNode::Subtract : op == "*" ? ScriptNode::Multiply
-                 : op == "/" ? ScriptNode::Divide : ScriptNode::Modulo;
+            n.kind = ScriptNode::Logic;
+            n.op = op;
             n.line = peek().line;
             ++pos;
             n.a = left;
-            n.b = unary();
+            n.b = (this->*next)();
             left = node(n);
         }
         return left;
     }
+    int logicalOr() { return logical(&Parser::logicalAnd, ScriptNode::Or, "||", "or"); }
+    int logicalAnd() { return logical(&Parser::equality, ScriptNode::And, "&&", "and"); }
 
-    int unary() {
-        if (atSymbol("-")) {
-            ScriptNode n;
-            n.kind = ScriptNode::Negate;
-            n.line = peek().line;
-            ++pos;
-            n.a = unary();
-            return node(n);
+    template <size_t N>
+    int binary(int (Parser::*next)(), ScriptNode::Kind kind,
+               const std::array<std::tuple<const char *, ScriptNode::Operator, bool>, N> &operators) {
+        int left = (this->*next)();
+        for (bool more = true; more;) {
+            more = false;
+            for (const auto &[symbol, op, integer] : operators)
+                if (atSymbol(symbol)) {
+                    ScriptNode n;
+                    n.kind = kind;
+                    n.op = op;
+                    n.integer = integer;
+                    n.line = peek().line;
+                    ++pos;
+                    n.a = left;
+                    n.b = (this->*next)();
+                    left = node(n);
+                    more = true;
+                    break;
+                }
         }
-        if (atSymbol("!") || atName("not")) {
-            ScriptNode n;
-            n.kind = ScriptNode::Not;
-            n.line = peek().line;
-            ++pos;
-            n.a = unary();
-            return node(n);
-        }
-        return primary();
+        return left;
+    }
+    int equality() {
+        static const std::array<std::tuple<const char *, ScriptNode::Operator, bool>, 4> operators = {{
+            {"==#", ScriptNode::Equal, true}, {"!=#", ScriptNode::NotEqual, true},
+            {"==", ScriptNode::Equal, false}, {"!=", ScriptNode::NotEqual, false},
+        }};
+        return binary(&Parser::relational, ScriptNode::Compare, operators);
+    }
+    int relational() {
+        static const std::array<std::tuple<const char *, ScriptNode::Operator, bool>, 8> operators = {{
+            {">=#", ScriptNode::GreaterEqual, true}, {"<=#", ScriptNode::LessEqual, true},
+            {">#", ScriptNode::Greater, true}, {"<#", ScriptNode::Less, true},
+            {">=", ScriptNode::GreaterEqual, false}, {"<=", ScriptNode::LessEqual, false},
+            {">", ScriptNode::Greater, false}, {"<", ScriptNode::Less, false},
+        }};
+        return binary(&Parser::hash, ScriptNode::Compare, operators);
+    }
+    // #x: x's integer part.
+    int hash() {
+        if (!atSymbol("#"))
+            return additive();
+        ScriptNode n;
+        n.kind = ScriptNode::Integer;
+        n.line = peek().line;
+        ++pos;
+        n.a = hash();
+        return node(n);
+    }
+    int additive() {
+        static const std::array<std::tuple<const char *, ScriptNode::Operator, bool>, 2> operators = {{
+            {"+", ScriptNode::Add, false}, {"-", ScriptNode::Subtract, false},
+        }};
+        return binary(&Parser::multiplicative, ScriptNode::Arithmetic, operators);
+    }
+    int multiplicative() {
+        static const std::array<std::tuple<const char *, ScriptNode::Operator, bool>, 4> operators = {{
+            {"*", ScriptNode::Multiply, false}, {"/#", ScriptNode::IntegerDivide, false},
+            {"/", ScriptNode::Divide, false}, {"%", ScriptNode::Modulo, false},
+        }};
+        return binary(&Parser::unary, ScriptNode::Arithmetic, operators);
     }
 
-    int number(int value, int line) {
+    int step(int target, bool increment, bool after, int line) {
         ScriptNode n;
-        n.kind = ScriptNode::Number;
-        n.value = value;
+        n.kind = ScriptNode::Step;
+        n.op = increment ? ScriptNode::Add : ScriptNode::Subtract;
+        n.after = after;
         n.line = line;
-        return node(n);
+        return this->target(target, n) ? node(n) : target;
+    }
+
+    int unary() {
+        const int line = peek().line;
+        if (atSymbol("-") || atSymbol("!") || atName("not")) {
+            ScriptNode n;
+            n.kind = atSymbol("-") ? ScriptNode::Negate : ScriptNode::Not;
+            n.line = line;
+            ++pos;
+            n.a = unary();
+            return node(n);
+        }
+        if (atSymbol("+")) {
+            ++pos;
+            return unary();
+        }
+        if (atSymbol("++") || atSymbol("--")) {
+            const bool increment = atSymbol("++");
+            ++pos;
+            return step(unary(), increment, false, line);
+        }
+        int value = primary();
+        while (atSymbol("++") || atSymbol("--")) {
+            const bool increment = atSymbol("++");
+            ++pos;
+            value = step(value, increment, true, line);
+        }
+        return value;
     }
 
     int primary() {
         const Token token = peek();
         if (atSymbol("(")) {
             ++pos;
-            const int inner = logic();
+            const int inner = expression();
             expect(")");
             return inner;
         }
         if (token.kind == Token::Number) {
             ++pos;
-            return number(token.value, token.line);
+            return number(token.number, token.line);
         }
         if (token.kind != Token::Name) {
             problem(QString("unexpected %1").arg(token.kind == Token::End ? QString("end") : token.text));
-            if (!at(Token::End))
+            if (!at(Token::End) && !atSymbol(";"))
                 ++pos;
-            return number(0, token.line);
+            return number(0.0, token.line);
         }
         ++pos;
         const QString &name = token.text;
@@ -505,7 +591,7 @@ private:
             ++pos;
             std::vector<int> arguments;
             while (!at(Token::End) && !atSymbol(")")) {
-                arguments.push_back(logic());
+                arguments.push_back(assignment());
                 if (!atSymbol(","))
                     break;
                 ++pos;
@@ -522,7 +608,7 @@ private:
                     s.openRails << name;
             } else {
                 problem(QString("unknown function %1").arg(name), token.line);
-                return number(0, token.line);
+                return number(0.0, token.line);
             }
             const int wanted = arity(ScriptFunction(n.value));
             if (wanted >= 0 && int(arguments.size()) != wanted)
@@ -540,17 +626,10 @@ private:
             n.line = token.line;
             return node(n);
         }
-        if (variables().contains(name)) {
+        if (variables().contains(name) || name == "block_state") {
             ScriptNode n;
             n.kind = ScriptNode::Variable;
-            n.value = int(variables().value(name));
-            n.line = token.line;
-            return node(n);
-        }
-        if (name == "block_state") {
-            ScriptNode n;
-            n.kind = ScriptNode::Variable;
-            n.value = int(ScriptVariable::BlockState);
+            n.value = int(name == "block_state" ? ScriptVariable::BlockState : variables().value(name));
             n.line = token.line;
             return node(n);
         }
@@ -559,10 +638,10 @@ private:
         if (openRailsNames().contains(name)) {
             if (!s.openRails.contains(name))
                 s.openRails << name;
-            return number(0, token.line);
+            return number(0.0, token.line);
         }
         problem(QString("unknown name %1").arg(name), token.line);
-        return number(0, token.line);
+        return number(0.0, token.line);
     }
 };
 
@@ -571,42 +650,77 @@ public:
     Runner(const SignalScript &script, SignalScriptHost &host, int &state, int &drawState)
         : s(script), h(host), state(state), draw(drawState) {
         if (s.locals <= int(small.size())) {
-            small.fill(0);
+            small.fill(0.0);
             locals = small.data();
         } else {
-            large.assign(size_t(s.locals), 0);
+            large.assign(size_t(s.locals), 0.0);
             locals = large.data();
         }
     }
     void run() { execute(s.root); }
 
 private:
+    enum class Flow { Next, Break, Continue, Return };
     const SignalScript &s;
     SignalScriptHost &h;
     int &state;
     int &draw;
-    std::array<int, 32> small{};
-    std::vector<int> large;
-    int *locals = nullptr;
-    bool stopped = false;
+    std::array<double, 32> small{};
+    std::vector<double> large;
+    double *locals = nullptr;
+    Flow flow = Flow::Next;
+    int steps = 0;
+
+    static bool truth(double v) { return v != 0.0; }
 
     void execute(int index) {
-        if (index < 0 || stopped)
+        if (index < 0 || flow != Flow::Next)
             return;
         const ScriptNode &n = s.nodes[size_t(index)];
         switch (n.kind) {
         case ScriptNode::Block:
-            for (int i = 0; i < n.count && !stopped; ++i)
+            for (int i = 0; i < n.count && flow == Flow::Next; ++i)
                 execute(s.children[size_t(n.first + i)]);
             break;
         case ScriptNode::If:
-            if (value(n.a) != 0)
+            if (truth(value(n.a)))
                 execute(n.b);
             else
                 execute(n.c);
             break;
+        case ScriptNode::Loop:
+            if (n.d >= 0)
+                value(n.d);
+            for (;;) {
+                if (!n.after && n.a >= 0 && !truth(value(n.a)))
+                    break;
+                execute(n.b);
+                if (flow == Flow::Return)
+                    return;
+                const bool broken = flow == Flow::Break;
+                flow = Flow::Next;
+                if (broken)
+                    break;
+                if (n.c >= 0)
+                    value(n.c);
+                if (n.after && n.a >= 0 && !truth(value(n.a)))
+                    break;
+                if (++steps > MaxScriptSteps) {
+                    flow = Flow::Return;
+                    return;
+                }
+            }
+            break;
         case ScriptNode::Return:
-            stopped = true;
+            if (n.a >= 0)
+                value(n.a);
+            flow = Flow::Return;
+            break;
+        case ScriptNode::Break:
+            flow = Flow::Break;
+            break;
+        case ScriptNode::Continue:
+            flow = Flow::Continue;
             break;
         default:
             value(index);
@@ -614,17 +728,46 @@ private:
         }
     }
 
-    int argument(const ScriptNode &n, int i) {
-        return i < n.count ? value(s.children[size_t(n.first + i)]) : 0;
+    double argument(const ScriptNode &n, int i) {
+        return i < n.count ? value(s.children[size_t(n.first + i)]) : 0.0;
+    }
+    int whole(const ScriptNode &n, int i) { return int(std::trunc(argument(n, i))); }
+
+    double read(const ScriptNode &n) {
+        if (n.value == ScriptNode::Local)
+            return locals[n.target];
+        return ScriptVariable(n.target) == ScriptVariable::State ? state : draw;
+    }
+    double write(const ScriptNode &n, double v) {
+        if (n.value == ScriptNode::Local)
+            return locals[n.target] = v;
+        int &variable = ScriptVariable(n.target) == ScriptVariable::State ? state : draw;
+        variable = int(std::trunc(v));
+        return variable;
     }
 
-    int value(int index) {
+    static double arithmetic(unsigned char op, double a, double b) {
+        switch (op) {
+        case ScriptNode::Add: return a + b;
+        case ScriptNode::Subtract: return a - b;
+        case ScriptNode::Multiply: return a * b;
+        case ScriptNode::Divide: return b == 0.0 ? 0.0 : a / b;
+        case ScriptNode::IntegerDivide: {
+            const double whole = std::trunc(b);
+            return whole == 0.0 ? 0.0 : std::trunc(std::trunc(a) / whole);
+        }
+        case ScriptNode::Modulo: return b == 0.0 ? 0.0 : std::fmod(a, b);
+        default: return b;
+        }
+    }
+
+    double value(int index) {
         if (index < 0)
-            return 0;
+            return 0.0;
         const ScriptNode &n = s.nodes[size_t(index)];
         switch (n.kind) {
         case ScriptNode::Number:
-            return n.value;
+            return n.number;
         case ScriptNode::Local:
             return locals[n.value];
         case ScriptNode::Variable:
@@ -634,23 +777,23 @@ private:
             case ScriptVariable::Enabled: return h.enabled();
             case ScriptVariable::BlockState: return h.blockState();
             }
-            return 0;
+            return 0.0;
         case ScriptNode::Not:
-            return value(n.a) == 0 ? 1 : 0;
+            return truth(value(n.a)) ? 0.0 : 1.0;
         case ScriptNode::Negate:
             return -value(n.a);
+        case ScriptNode::Integer:
+            return std::trunc(value(n.a));
         case ScriptNode::Arithmetic: {
-            const int a = value(n.a), b = value(n.b);
-            switch (n.op) {
-            case ScriptNode::Add: return a + b;
-            case ScriptNode::Subtract: return a - b;
-            case ScriptNode::Multiply: return a * b;
-            case ScriptNode::Divide: return b == 0 ? 0 : a / b;
-            default: return b == 0 ? 0 : a % b;
-            }
+            const double a = value(n.a);
+            return arithmetic(n.op, a, value(n.b));
         }
         case ScriptNode::Compare: {
-            const int a = value(n.a), b = value(n.b);
+            double a = value(n.a), b = value(n.b);
+            if (n.integer) {
+                a = std::trunc(a);
+                b = std::trunc(b);
+            }
             switch (n.op) {
             case ScriptNode::Equal: return a == b;
             case ScriptNode::NotEqual: return a != b;
@@ -660,48 +803,49 @@ private:
             default: return a >= b;
             }
         }
-        case ScriptNode::Logic: {
-            // Both sides, as Open Rails evaluates a condition.
-            const bool a = value(n.a) != 0, b = value(n.b) != 0;
-            return n.op == ScriptNode::And ? (a && b) : (a || b);
-        }
+        case ScriptNode::Logic:
+            // As C: the right side only when it decides.
+            if (n.op == ScriptNode::And)
+                return truth(value(n.a)) && truth(value(n.b));
+            return truth(value(n.a)) || truth(value(n.b));
+        case ScriptNode::Conditional:
+            return truth(value(n.a)) ? value(n.b) : value(n.c);
         case ScriptNode::Assign: {
-            const int v = value(n.a);
-            if (n.value == ScriptNode::Local)
-                locals[n.target] = v;
-            else if (ScriptVariable(n.target) == ScriptVariable::State)
-                state = v;
-            else if (ScriptVariable(n.target) == ScriptVariable::DrawState)
-                draw = v;
-            return v;
+            const double v = value(n.a);
+            return write(n, n.op == ScriptNode::Set ? v : arithmetic(n.op, read(n), v));
+        }
+        case ScriptNode::Step: {
+            const double before = read(n);
+            const double now = write(n, before + (n.op == ScriptNode::Add ? 1.0 : -1.0));
+            return n.after ? before : now;
         }
         case ScriptNode::Call:
             return call(n);
         default:
-            return 0;
+            return 0.0;
         }
     }
 
-    int call(const ScriptNode &n) {
+    double call(const ScriptNode &n) {
         switch (ScriptFunction(n.value)) {
         case ScriptFunction::BlockState: return h.blockState();
         case ScriptFunction::RouteSet: return h.routeSet();
-        case ScriptFunction::NextSigLr: return h.nextSignal(argument(n, 0), true, 1);
-        case ScriptFunction::NextSigMr: return h.nextSignal(argument(n, 0), false, 1);
-        case ScriptFunction::ThisSigLr: return h.thisSignal(argument(n, 0), true);
-        case ScriptFunction::ThisSigMr: return h.thisSignal(argument(n, 0), false);
-        case ScriptFunction::OppSigLr: return h.oppositeSignal(argument(n, 0), true);
-        case ScriptFunction::OppSigMr: return h.oppositeSignal(argument(n, 0), false);
-        case ScriptFunction::NextNsigLr: return h.nextSignal(argument(n, 0), true, argument(n, 1));
-        case ScriptFunction::DistMultiSigMr: return h.distantMulti(argument(n, 0), argument(n, 1));
-        case ScriptFunction::SigFeature: return h.feature(argument(n, 0));
-        case ScriptFunction::DefDrawState: return h.drawStateOf(argument(n, 0));
+        case ScriptFunction::NextSigLr: return h.nextSignal(whole(n, 0), true, 1);
+        case ScriptFunction::NextSigMr: return h.nextSignal(whole(n, 0), false, 1);
+        case ScriptFunction::ThisSigLr: return h.thisSignal(whole(n, 0), true);
+        case ScriptFunction::ThisSigMr: return h.thisSignal(whole(n, 0), false);
+        case ScriptFunction::OppSigLr: return h.oppositeSignal(whole(n, 0), true);
+        case ScriptFunction::OppSigMr: return h.oppositeSignal(whole(n, 0), false);
+        case ScriptFunction::NextNsigLr: return h.nextSignal(whole(n, 0), true, whole(n, 1));
+        case ScriptFunction::DistMultiSigMr: return h.distantMulti(whole(n, 0), whole(n, 1));
+        case ScriptFunction::SigFeature: return h.feature(whole(n, 0));
+        case ScriptFunction::DefDrawState: return h.drawStateOf(whole(n, 0));
         case ScriptFunction::DebugOut:
             for (int i = 0; i < n.count; ++i)
                 argument(n, i);
-            return 0;
+            return 0.0;
         default:
-            return 0;
+            return 0.0;
         }
     }
 };
