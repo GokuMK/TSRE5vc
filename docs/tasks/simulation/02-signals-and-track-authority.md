@@ -373,7 +373,7 @@ consists, so Traffic k is train k + 6 on USA1.
   these activities' calculated timetables, ours near them (JAPAN1 median 4
   s early). Matching Open Rails needs acceleration limited by the
   locomotive (its force and power, the train's mass and resistance) and
-  its gentler braking: task 01 left physics out.
+  its gentler braking: task 01 left physics out; task 03 does it.
 
   BNSF_SCENIC's CanadianImports meets are the same with both; ours wait
   about seven minutes longer at the first (the opposing westbound,
@@ -385,7 +385,7 @@ Trains wait for each other: the track they occupy and the track reserved
 for them are theirs alone, signals give and withhold authority, junctions
 are set for the train that has them, and speeds follow the line's limits.
 Everything the TDB and `sigcfg.dat` say about signals is used; signal
-scripts (`sigscr.dat`) are not (task 03). Where trains cannot pass each
+scripts (`sigscr.dat`) are not (task 04). Where trains cannot pass each
 other, the editor says so.
 
 In scope:
@@ -406,7 +406,7 @@ In scope:
 - the editor: aspects on the signals in 3D, occupied and reserved track on
   the map, why each train waits.
 
-Not in scope: `sigscr.dat` and other scripts (task 03); Open Rails
+Not in scope: `sigscr.dat` and other scripts (task 04); Open Rails
 additions that need data from the world files (`HASHEAD`, exact signal
 grouping: they wait for the TDB fields proposed in
 `tdb-signal-extension.md`); location-linked passing paths; permissive
@@ -603,7 +603,7 @@ the stock scripts:
   draw state.
 
 The draw state is the aspect's draw state in the type. Each head notes
-that the built-in rule chose it, so task 03 can report where a route's
+that the built-in rule chose it, so task 04 can report where a route's
 script would decide differently. A head's aspect is evaluated again when
 its reservation, its track, its junction or the next head's aspect
 changes (a change runs back along the line, bounded).
@@ -644,14 +644,14 @@ task 01 (no speed posts).
 
 ### 9. Later
 
-Task 03: `sigscr.dat` read and run (the 14 native functions, `mr`/`lr`
+Task 04: `sigscr.dat` read and run (the 14 native functions, `mr`/`lr`
 aggregation, `sig_feature`, grouping on one signal), replacing the
 built-in rule where a route has a script. Then the Open Rails additions
 that need world data, stored in the TDB as `tdb-signal-extension.md`
 proposes; approach control; location-linked passing paths; curves and
-gradients; the player's train driven by the user; acceleration and
-braking from the locomotive and the train (the Open Rails comparisons'
-largest difference). Single-track
+gradients; the player's train driven by the user (acceleration and
+braking from the locomotive and the train, the Open Rails comparisons'
+largest difference: task 03). Single-track
 arbitration beyond first come, first served (decision 2): a train
 waiting at a single line without passing paths can still be passed over
 by opposing trains that claim it first; Open Rails keeps a loop track
@@ -715,7 +715,7 @@ blocks of aspects and section use, if country-scale routes need it.
 ## Decisions (user, 2026-10-15)
 
 1. **All but scripts:** the TDB's and `sigcfg.dat`'s signal data are used;
-   `sigscr.dat` waits for task 03. Open Rails additions that need world
+   `sigscr.dat` waits for task 04. Open Rails additions that need world
    files wait: the simulation does not read the W files; the editor can
    store what they need in the TDB (`tdb-signal-extension.md`).
 2. **Single track:** a train claims the whole single-track stretch; a

@@ -50,7 +50,14 @@ model as the first operating policy, and threading.
   the editor, the scaling workloads, Open Rails comparisons on every
   local route: our trains run ahead of Open Rails' where stops are close,
   its AI accelerating through its physics).
-- [ ] 03: `sigscr.dat` read and run in place of the built-in aspect rule.
+- [ ] `03-train-performance.md`: AI driving with force and mass
+  (tractive effort from the engines' force and power, resistance,
+  gradient, Open Rails' acceleration floor, braking per train), chosen per
+  train in code against task 01's simple driving. Designed 2026-10-16
+  from the Open Rails comparisons; decisions open.
+- [ ] 04: `sigscr.dat` read and run in place of the built-in aspect rule
+  (the rule is a stand-in: each route's scripts define its own aspect
+  sequences, plates and features).
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curves and gradients, activity events, the player
