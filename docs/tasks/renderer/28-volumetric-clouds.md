@@ -1087,6 +1087,14 @@ What remains of the "Still open" lists above, checked against the code:
   which keeps the error while still (a moving camera resamples the
   history, blurring it). Lowering the clouds was considered and
   rejected: steps shorten only in proportion, storms reach 10 to 12 km.
+- **Cloud shadows past 7 km** (user, 2026-10-16): the cloud shadow map
+  covers 14 km about the camera (made finer, not larger: 512 x 512 for its
+  texel edge on near terrain); past it the lit shaders, the fog volume and
+  its rain take the clouds' average. Distant land under a storm is not in
+  its shade, and the rain's veil there looks lighter than the sky above.
+  The light shafts read the clouds past the map from the weather and the
+  far cover map (205 km, `farCloudVisible`, `cloudFarMaps`): the same for
+  the lit shaders and the fog, past the map, is the fix.
 - **OpenGL renderer:** step 9 (a flat cloud layer from the weather).
 - **Settings in `Game.h`** (sky model, cloud quality, shafts, enclosure,
   enclosed ambient): to their classes at the next forced full rebuild.
