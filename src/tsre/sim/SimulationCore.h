@@ -72,6 +72,8 @@ struct TrainEvent {
     int index = -1;
     WaitFor waitFor = WaitFor::Track;
     int signal = -1;
+    // Metres the train had travelled.
+    double travelled = 0.0;
 };
 
 // The simulation's state and its stepping: plain C++, no QObject, nothing

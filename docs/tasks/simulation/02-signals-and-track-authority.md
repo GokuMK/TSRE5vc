@@ -1,8 +1,8 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
-Status: done (phases 1 to 7, 2026-10-16, branch `feature/simulation`).
-Open Rails comparisons of the other local routes are left (the script runs
-an activity at 17 times real time). Decisions taken are at the end.
+Status: done (phases 1 to 7, 2026-10-16, branch `feature/simulation`),
+compared with Open Rails on every local route. Decisions taken are at the
+end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -336,6 +336,48 @@ consists, so Traffic k is train k + 6 on USA1.
   Rails 06:42). BNSF_SCENIC's sixteen trains all finish now, in 19.2
   simulated hours (39.9 before); its two timed stops are 179 s early and
   179 s late.
+- **The other routes** (`scripts/orts-compare-stops.py` pairs each Open
+  Rails train's stops and stands with the same train's in TSRE by the
+  distance travelled, from TSRE's events, `TSRE_SIM_EVENTS`; Open Rails
+  numbers its trains: the player's 0, loose consists from 1, then the AI
+  trains in traffic order). Each route's itr_e1_s1_w1_t1 from 12:00
+  (EUROPE1's aftstorm from 15:00), at 17 times real time, TSRE minus Open
+  Rails at the stops paired:
+
+  | Route | Stops paired | Median | Range |
+  |---|---|---|---|
+  | EUROPE1 | 56 | -396 s | -898 to -60 s |
+  | EUROPE2 | 51 | -200 s | -1309 to +261 s |
+  | JAPAN1 | 249 | -1154 s | -2033 to -47 s |
+  | JAPAN2 | 16 | -24 s | -39 to +264 s |
+  | USA2 | 6 | -500 s | -588 to -367 s |
+
+  USA2's first run had our trains 10 to 24 minutes late: its BNSF
+  three-light signals have no APPROACH_3, so behind a red every signal
+  showed APPROACH_2 (40 mph) mile after mile; Open Rails' script clears
+  them. The built-in rule now does too (section 6); USA2's two timed stops
+  went from an hour late to 31 minutes.
+
+  What is left is driving. Open Rails' AI drives through its locomotive's
+  physics, raising the throttle in steps: its passenger trains accelerate
+  at about 0.4 m/s² (EUROPE2's 17, 47, 77, 95 km/h at 18 s intervals) and
+  brake at 0.2 to 0.5, where ours take 1.0 m/s² both ways (Open Rails' AI
+  targets, which only its pre-run reaches, scaled by the efficiency). Ours
+  gain about 30 s on each run between stops (JAPAN1: 79 s against 109 s on
+  the median) and stand a little shorter, so they pull ahead where stops
+  are close: JAPAN1's Odakyu stoppers by 10 to 30 minutes over an hour or
+  two, and trains started long before the activity (the pre-run) furthest.
+  On JAPAN2's long mountain runs the player stays within 25 s of Open
+  Rails at nearly every stop for two hours, and EUROPE1's player within 60
+  to 96 s at most of its ten (its AI stoppers gain 70 s a stop). Open Rails' trains run behind
+  these activities' calculated timetables, ours near them (JAPAN1 median 4
+  s early). Matching Open Rails needs acceleration limited by the
+  locomotive (its force and power, the train's mass and resistance) and
+  its gentler braking: task 01 left physics out.
+
+  BNSF_SCENIC's CanadianImports meets are the same with both; ours wait
+  about seven minutes longer at the first (the opposing westbound,
+  running since 03:18, comes five minutes later).
 
 ## Objective
 
@@ -550,7 +592,10 @@ the stock scripts:
   next STOP, STOP_AND_PROCEED or RESTRICTING gives APPROACH_1, next
   APPROACH_1 gives APPROACH_2, next APPROACH_2 gives APPROACH_3, otherwise
   CLEAR_2; each limited to the aspects the type defines (the nearest more
-  restrictive one it has).
+  restrictive one it has), except that a caution beyond the type's last
+  caution is its clearest aspect: a three-aspect signal before one at
+  APPROACH_1 (or a BNSF three-light before one at APPROACH_2) clears, as
+  their scripts have it, and cautions do not repeat signal after signal.
 - **DISTANT:** from the next NORMAL head: STOP gives its most restrictive
   aspect, else the clear progression as above. **REPEATER:** the next
   NORMAL head's aspect.
@@ -604,15 +649,14 @@ aggregation, `sig_feature`, grouping on one signal), replacing the
 built-in rule where a route has a script. Then the Open Rails additions
 that need world data, stored in the TDB as `tdb-signal-extension.md`
 proposes; approach control; location-linked passing paths; curves and
-gradients; the player's train driven by the user. Single-track
+gradients; the player's train driven by the user; acceleration and
+braking from the locomotive and the train (the Open Rails comparisons'
+largest difference). Single-track
 arbitration beyond first come, first served (decision 2): a train
 waiting at a single line without passing paths can still be passed over
 by opposing trains that claim it first; Open Rails keeps a loop track
-open for a train awaiting a single line. Open Rails comparisons of
-EUROPE2, JAPAN1, JAPAN2 and USA2 (EUROPE1's lclsrvce does not load in
-Open Rails: its early waiting point), now quick to run. Frames that share
-unchanged blocks of aspects and section use, if country-scale routes need
-it.
+open for a train awaiting a single line. Frames that share unchanged
+blocks of aspects and section use, if country-scale routes need it.
 
 ## Phases
 

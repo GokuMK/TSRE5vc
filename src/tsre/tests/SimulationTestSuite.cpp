@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QFileInfo>
 #include <QRandomGenerator>
@@ -962,17 +964,23 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
         auto geometry = std::make_shared<const Sim::TrackGeometry>(db);
         auto network = std::make_shared<const Sim::TrackNetwork>(db, *geometry, &signalConfig, false);
         const Sim::TrainRoute east = routeOf(db, {{10, 100.0f}, {10, 1990.0f}}, 31.0);
-        Sim::SimulationCore core(inputOf(geometry, network, {trainOn(east, *network, t0)}));
+        // A consist beyond the last signal: its block never clears.
+        auto aspectInput = inputOf(geometry, network, {trainOn(east, *network, t0)});
+        Sim::StaticConsist beyond;
+        beyond.track.push_back(Sim::RouteInterval{10, 1700.0f, 1750.0f, 0.0});
+        aspectInput->staticConsists.push_back(beyond);
+        Sim::SimulationCore core(aspectInput);
         core.step(0.1);
         const auto aspectOf = [&](const Sim::SimulationCore &c, int item) {
             return c.aspects()[size_t(network->headOfItem(item))];
         };
-        check(aspectOf(core, 971) == SignalType::APPROACH_1 && aspectOf(core, 972) == SignalType::APPROACH_1
+        check(aspectOf(core, 971) == SignalType::CLEAR_2 && aspectOf(core, 972) == SignalType::APPROACH_1
                   && aspectOf(core, 973) == SignalType::STOP && aspectOf(core, 974) == SignalType::APPROACH_1
                   && core.drawStates()[size_t(network->headOfItem(972))] == 1
                   && core.drawStates()[size_t(network->headOfItem(973))] == 0,
-              QString("aspects without scripts: the two cleared signals at caution before the one at stop (the type has "
-                      "no second caution), the distant before it at caution: %1 %2 %3 %4")
+              QString("aspects without scripts: the signal before the one at stop at caution, the one before that "
+                      "clear (the type has no second caution: its clearest, as the stock scripts), the distant before "
+                      "the stop at caution: %1 %2 %3 %4")
                   .arg(aspectOf(core, 971)).arg(aspectOf(core, 972)).arg(aspectOf(core, 973)).arg(aspectOf(core, 974)));
         // The lights' draw states by name, in the frame with the serial.
         const auto drawNameOf = [&](const Sim::SimulationFrame &f, int item) {
@@ -985,11 +993,11 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
                   && drawNameOf(*lit, 973) == "red",
               QString("the frame carries the draw states (serial %1): %2 and %3 by name")
                   .arg(lit->drawSerial).arg(drawNameOf(*lit, 972), drawNameOf(*lit, 973)));
-        // Through the signal at 500 m at its caution's 40 km/h.
+        // Through the signal at 1000 m at its caution's 40 km/h.
         double atSignal = -1.0;
-        for (int i = 0; i < 2000 && atSignal < 0.0; ++i) {
+        for (int i = 0; i < 4000 && atSignal < 0.0; ++i) {
             core.step(0.1);
-            if (core.trains()[0].front + 69.0 >= 500.0)
+            if (core.trains()[0].front + 69.0 >= 1000.0)
                 atSignal = core.trains()[0].speed;
         }
         check(atSignal > 0.0 && atSignal <= 40.0 / 3.6 + 0.05,
@@ -1608,6 +1616,40 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 qInfo().noquote() << "[tests:simulation-route]" << activity->name << warning;
         timer.restart();
         Sim::SimulationCore core(input);
+        // TSRE_SIM_EVENTS: the trains' events to <folder>/<activity>.jsonl,
+        // a line each, for scripts/orts-compare-stops.py: the activity
+        // first (its start, its loose consists), then starts, stops, waits
+        // (with when they ended) and ends, with the distance travelled.
+        std::unique_ptr<QFile> eventLog;
+        std::vector<double> waitingSince(input->trains.size(), -1.0);
+        const auto logEvent = [&](double time, int train, const QString &kind, QJsonObject line,
+                                  double travelled = -1.0) {
+            if (eventLog == nullptr)
+                return;
+            line["time"] = time;
+            line["kind"] = kind;
+            if (train >= 0) {
+                const Sim::TrainPlan &p = input->trains[size_t(train)];
+                const Sim::TrainState &state = core.trains()[size_t(train)];
+                line["train"] = train;
+                line["service"] = p.service;
+                line["serviceTime"] = p.serviceTime;
+                line["traffic"] = p.traffic;
+                line["player"] = p.player;
+                line["travelled"] = travelled >= 0.0 ? travelled : state.travelled;
+            }
+            eventLog->write(QJsonDocument(line).toJson(QJsonDocument::Compact) + "\n");
+        };
+        if (qEnvironmentVariableIsSet("TSRE_SIM_EVENTS")) {
+            eventLog = std::make_unique<QFile>(qEnvironmentVariable("TSRE_SIM_EVENTS") + "/"
+                                               + QFileInfo(activity->name).completeBaseName() + ".jsonl");
+            if (!eventLog->open(QIODevice::WriteOnly | QIODevice::Truncate))
+                eventLog.reset();
+            int loose = 0;
+            for (const ActivityObject *object : activity->activityObjects)
+                loose += object != nullptr && object->objectTypeId == ActivityObject::WAGONLIST ? 1 : 0;
+            logEvent(input->startTime, -1, "activity", QJsonObject{{"name", activity->name}, {"loose", loose}});
+        }
         // To the end, or until every train left is in a deadlock.
         const auto allStuck = [&core] {
             for (const Sim::TrainState &state : core.trains())
@@ -1617,7 +1659,44 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         };
         for (int s = 0; s < 24 * 3600 && !core.finished() && !allStuck(); ++s) {
             core.step(1.0);
+            // A wait ends when the train moves again.
+            for (size_t t = 0; t < waitingSince.size() && eventLog != nullptr; ++t)
+                if (waitingSince[t] >= 0.0 && (core.trains()[t].status == Sim::TrainStatus::Running
+                                               || core.trains()[t].status == Sim::TrainStatus::Finished)) {
+                    logEvent(core.time(), int(t), "resumed", QJsonObject{{"since", waitingSince[t]}});
+                    waitingSince[t] = -1.0;
+                }
             for (const Sim::TrainEvent &event : core.takeEvents()) {
+                switch (event.kind) {
+                case Sim::TrainEvent::Started:
+                    logEvent(event.time, event.train, "started", {}, event.travelled);
+                    break;
+                case Sim::TrainEvent::Arrived: {
+                    const Sim::StopPlan &stop = input->trains[size_t(event.train)].stops[size_t(event.index)];
+                    logEvent(event.time, event.train, "arrived",
+                             QJsonObject{{"stop", event.index}, {"platform", stop.platform}, {"booked", stop.arrival}},
+                             event.travelled);
+                    break;
+                }
+                case Sim::TrainEvent::Departed:
+                    logEvent(event.time, event.train, "departed", QJsonObject{{"stop", event.index}}, event.travelled);
+                    break;
+                case Sim::TrainEvent::Blocked:
+                    if (waitingSince[size_t(event.train)] < 0.0)
+                        waitingSince[size_t(event.train)] = event.time;
+                    logEvent(event.time, event.train, "blocked",
+                             QJsonObject{{"by", event.index}, {"for", int(event.waitFor)}, {"signal", event.signal}},
+                             event.travelled);
+                    break;
+                case Sim::TrainEvent::Finished:
+                    logEvent(event.time, event.train, "finished", {}, event.travelled);
+                    break;
+                case Sim::TrainEvent::Deadlock:
+                    logEvent(event.time, event.train, "deadlock", QJsonObject{{"by", event.index}}, event.travelled);
+                    break;
+                default:
+                    break;
+                }
                 if (event.kind == Sim::TrainEvent::Blocked)
                     ++waits;
                 if (event.kind == Sim::TrainEvent::Deadlock) {

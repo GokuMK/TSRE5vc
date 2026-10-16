@@ -47,8 +47,9 @@ model as the first operating policy, and threading.
   their speeds, speed posts and speed zones, single-track claims and
   deadlocks reported to the user, path-based passing paths. Designed
   2026-10-15, decisions taken; done 2026-10-16 (phases 1 to 7: the core,
-  the editor, the scaling workloads, Open Rails comparisons of USA1 and
-  BNSF_SCENIC).
+  the editor, the scaling workloads, Open Rails comparisons on every
+  local route: our trains run ahead of Open Rails' where stops are close,
+  its AI accelerating through its physics).
 - [ ] 03: `sigscr.dat` read and run in place of the built-in aspect rule.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked

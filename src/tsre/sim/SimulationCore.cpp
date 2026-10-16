@@ -170,6 +170,8 @@ void SimulationCore::record(double time, int train, TrainEvent::Kind kind, int i
     event.train = train;
     event.kind = kind;
     event.index = index;
+    if (train >= 0 && size_t(train) < states.size())
+        event.travelled = states[size_t(train)].travelled;
     events.push_back(event);
 }
 
@@ -761,8 +763,20 @@ void SimulationCore::evaluateAspects() {
             return;
         }
         const SignalKind::Aspect *chosen = nullptr;
+        // A caution beyond the type's last one is its clearest aspect (as
+        // the stock scripts have it: a three-aspect signal before a second
+        // caution clears), so cautions do not repeat signal after signal.
+        int lastCaution = -1;
+        bool has = false;
+        for (const SignalKind::Aspect &a : kind.aspects) {
+            if (a.aspect >= Approach1 && a.aspect <= Approach3)
+                lastCaution = std::max(lastCaution, a.aspect);
+            has = has || a.aspect == wanted;
+        }
         if (wanted <= Stop) {
             chosen = &kind.aspects.front();
+        } else if (!has && wanted <= Approach3 && lastCaution >= Approach1 && wanted > lastCaution) {
+            chosen = &kind.aspects.back();
         } else {
             for (const SignalKind::Aspect &a : kind.aspects)
                 if (a.aspect >= Approach1 && a.aspect <= wanted)
