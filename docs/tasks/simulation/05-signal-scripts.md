@@ -1,6 +1,7 @@
 # Task 05 - Signal Scripts (`sigscr.dat`)
 
-Status: designed 2026-10-16; decisions open (at the end).
+Status: done (phases 1 to 4, 2026-10-16, branch `feature/simulation`).
+Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/signal-scripting.md` (MSTS's and Open
@@ -14,6 +15,80 @@ Sources:
   `def_draw_state`, `dist_multi_sig_mr`);
 - the local routes' scripts: EUROPE1/2, JAPAN1/2, USA1/2, BNSF_SCENIC, the
   global and template ones.
+
+## Progress
+
+**Phase 1, reading (done 2026-10-16).** `SignalScript`
+(`src/tsre/sim`): the text without comments, sections from each line
+beginning `SCRIPT` (`REM SCRIPT` skipped), a lexer, a recursive-descent
+parser into a flat tree (names bound: locals, externals, functions,
+constants), problems with file and line; a loop (`for`, `while`) reported
+and passed over. `TrackNetwork` reads the files `sigcfg.dat` lists
+(`SigCfg::path` kept: beside it, else in the route) and gives each type
+its rule. Every local script reads without a problem.
+
+**Phase 2, evaluating (done 2026-10-16).** The interpreter (integers,
+truncating division, by zero zero, locals cleared, `state` and
+`draw_state` kept, `&&`/`||` and arithmetic left to right of equal
+precedence, both sides of a condition evaluated) and the functions on the
+network: `enabled` (cleared), `block_state` (clear while cleared, else
+obstructed), `route_set`, `next_sig_lr`/`mr` (the n-th: `next_nsig_lr`,
+stopping at STOP), `this_sig_lr`/`mr` (none of NORMAL: CLEAR_2),
+`opp_sig_lr`/`mr` (only while cleared), `dist_multi_sig_mr`,
+`sig_feature`, `def_draw_state`, `debug_*`. `TrackNetwork::nextSignalWhere`
+finds the next signal with heads of a function (or facing the other way).
+
+**Phase 3, in the core (done 2026-10-16).** `evaluateAspects` runs a
+head's script (its type's rule Script), Open Rails' choice (Basic: its
+least restrictive aspect while cleared, else its most restrictive), or
+task 02's rule. What a script reads beyond its signal's next stop signal
+(kept as before) is recorded per head; the head runs again when one of
+those signals' aspects, or a junction on its searches, changes. The
+scripts' problems and the types without one go to the input's warnings
+(the panel's status line, Simulate). Fixtures: the language (each
+construct, each problem, Open Rails' order of evaluation), a line by
+script (a number plate showing caution instead of stop, the homes before
+it clear, a distant reading the homes up to the next distant), a type
+without a script, a script with problems (the built-in rule, told), the
+aspects following a train.
+
+**Phase 4, compared (done 2026-10-16).** `scripts/orts-compare-aspects.py`:
+the route suite's events (with `TSRE_SIM_EVENTS`) carry every 10 s each
+running train's next signal and its aspect (`SimulationCore::
+nextSignalAhead`); each Open Rails dispatcher sample (a train's next
+signal aspect and distance) is paired with the same train's record for
+the same signal within a minute. The same aspect, by script (built-in
+rule):
+
+| Route, activity | samples | scripts | built-in |
+|---|---|---|---|
+| EUROPE1 `aftstorm` | 651 | 99 % | 99 % |
+| USA2 `itr_e1_s1_w1_t1` | 31 | 97 % | 94 % |
+| BNSF_SCENIC `3_CanadianImports` (15 minutes) | 45 | 100 % | (1 paired) |
+| EUROPE2 `itr_e1_s1_w1_t1` | 607 | 80 % | 80 % |
+| JAPAN1, from 10:30 | 2739 | 69 % | 68 % |
+| JAPAN2 `itr_e1_s1_w1_t1` | 228 | 62 % | 62 % |
+
+On BNSF the built-in rule gave approach aspects (with their 40 mph)
+where the scripts clear: its trains ran kilometres behind Open Rails'
+(so few samples pair). Elsewhere the scripts and the built-in rule
+choose the same: the stops against Open Rails are as before (EUROPE1
+−14 s, EUROPE2 −25 s, JAPAN2 0 s, USA2 −27 s, JAPAN1 from 10:30 +2 s).
+The differences left are where signals are cleared (task 02), below.
+
+## Left
+
+- **Clearing ahead (task 02):** Open Rails has signals cleared that ours
+  have not: JAPAN2's next signal up to 6 to 12 km ahead (ours clears
+  within the Auto Node reach: 5 km, or 2 minutes at the train's top speed
+  within the route's limit), EUROPE2's next signal about 1 km ahead,
+  JAPAN1's around stations (10 m before exit signals, and one signal
+  before them). Not timing differences (the stops match), but the aspects
+  shown differ.
+- **Open Rails' additions** (approach control, call-on, timing triggers,
+  stored values, clear-ahead control, subtypes): read and reported, run
+  in a later task (decision 3). `block_state` OCCUPIED (a train asking a
+  signal whose block another train occupies: call-on) with them.
 
 ## Why
 
@@ -120,22 +195,12 @@ No script editor in this task.
    for their plates and advance approaches, EUROPE1/2 for their
    distants); the aspects shown in 3D and on the map.
 
-## Decisions for the user
+## Decisions (user, 2026-10-16)
 
-1. **A type without a script** (on a route with `sigscr.dat`): Open
-   Rails' basic behaviour (clear when its block is clear, else stop) for
-   parity, or task 02's built-in progression? Recommended: Open Rails'
-   (the route author left it so, and Open Rails shows it so); the built-in
-   rule then stays only for routes without any `sigscr.dat`.
-2. **A script with problems** (a parse error, a function we do not
-   have): its type treated as having no script (decision 1) and the
-   problem reported? Recommended: partial evaluation could show wrong
-   aspects silently.
-3. **Open Rails' additions** (approach control, call-on, timing triggers,
-   stored values, clear-ahead control, subtypes): none of the local routes
-   uses them, and several need train data the core does not pass to
-   signals yet (speeds, positions, call-on requests). Recommended: read
-   and report them now (decision 2), implement them in a later task.
-4. **Order:** this task now, before the Open Rails additions that need
-   world data and the player's driving? Recommended (the user asked for
-   it, 2026-10-16).
+1. Open Rails' parity where `sigscr.dat` exists: a type without a script
+   shows Open Rails' choice (clear while cleared, else stop); task 02's
+   built-in rule where there is no `sigscr.dat`, or issues prevent using
+   it (a script with problems).
+2. A script with problems is not run and the problem is reported.
+3. Open Rails' additions: read, implemented later.
+4. This task now.

@@ -1321,6 +1321,111 @@ Engine ( Test
         check(atSignal > 0.0 && atSignal <= 40.0 / 3.6 + 0.05,
               QString("a train passes a signal at caution at its aspect's speed (%1 km/h)").arg(atSignal * 3.6));
 
+        // Signal scripts in the core (task 05): the same line, the types'
+        // scripts beside sigcfg.dat. Home: stop unless cleared, caution
+        // before a signal at stop, else clear; a number plate shows caution
+        // instead of stop (a permissive signal). Dist: caution while a home
+        // up to the next distant is at stop.
+        {
+            QTemporaryDir scripted;
+            const QString homeScript = R"(SCRIPT Home
+	extern float block_state (), route_set (), next_sig_lr (), sig_feature (), def_draw_state ();
+	extern float state, draw_state, enabled;
+	if (!enabled || block_state() !=# BLOCK_CLEAR || !route_set())
+	{
+		if (sig_feature (SIGFEAT_NUMBER_PLATE))
+			state = SIGASP_APPROACH_1;
+		else
+			state = SIGASP_STOP;
+	}
+	else if (next_sig_lr (SIGFN_NORMAL) ==# SIGASP_STOP)
+		state = SIGASP_APPROACH_1;
+	else
+		state = SIGASP_CLEAR_2;
+	draw_state = def_draw_state (state);
+)";
+            const QString distScript = R"(SCRIPT Dist
+	extern float dist_multi_sig_mr (), def_draw_state ();
+	extern float state, draw_state;
+	if (dist_multi_sig_mr (SIGFN_NORMAL, SIGFN_DISTANCE) ==# SIGASP_STOP)
+		state = SIGASP_APPROACH_1;
+	else
+		state = SIGASP_CLEAR_2;
+	draw_state = def_draw_state (state);
+)";
+            const auto writeText = [](const QString &path, const QString &text) {
+                QFile file(path);
+                return file.open(QIODevice::WriteOnly) && file.write(text.toLatin1()) == text.size();
+            };
+            const auto networkWith = [&](const QString &scripts, const QString &folder) {
+                QString config = QString(testSigCfg);
+                config.replace("SignalShapes ( 0 )", "ScriptFiles ( ScriptFile ( sigscr.dat ) )\nSignalShapes ( 0 )");
+                QDir().mkpath(folder);
+                writeUtf16(folder + "/sigcfg.dat", config);
+                writeText(folder + "/sigscr.dat", scripts);
+                const SigCfg withScripts(folder + "/sigcfg.dat");
+                return std::make_shared<const Sim::TrackNetwork>(db, *geometry, &withScripts, false);
+            };
+            // A number plate on the signal at 1500 m.
+            TRitem *plated = db->trackItems.count(973) ? db->trackItems[973] : nullptr;
+            if (plated != nullptr)
+                plated->trSignalType1 |= 1u << 4;
+            auto byScript = networkWith(homeScript + distScript, scripted.path() + "/both");
+            auto homeOnly = networkWith(homeScript, scripted.path() + "/home");
+            auto broken = networkWith(homeScript + "SCRIPT Dist\n\tstate = mystery ();\n", scripted.path() + "/broken");
+            if (plated != nullptr)
+                plated->trSignalType1 &= ~(1u << 4);
+            const auto rule = [](const Sim::TrackNetwork &n, const char *name) {
+                for (const Sim::SignalKind &kind : n.kinds())
+                    if (kind.name == name)
+                        return kind.rule;
+                return Sim::SignalKind::Rule::BuiltIn;
+            };
+            check(byScript->hasScripts && rule(*byScript, "home") == Sim::SignalKind::Rule::Script
+                      && rule(*byScript, "dist") == Sim::SignalKind::Rule::Script
+                      && rule(*homeOnly, "dist") == Sim::SignalKind::Rule::Basic
+                      && rule(*broken, "dist") == Sim::SignalKind::Rule::BuiltIn
+                      && broken->scriptWarnings.join(" ").contains("unknown function mystery")
+                      && homeOnly->scriptWarnings.join(" ").contains("without a script"),
+                  QString("each type's rule: its script; none on a route with scripts: Open Rails'; a script with "
+                          "problems: the built-in rule, told (%1)").arg(broken->scriptWarnings.join("; ")));
+            const auto aspectIn = [&](const Sim::SimulationCore &c, const Sim::TrackNetwork &n, int item) {
+                return c.aspects()[size_t(n.headOfItem(item))];
+            };
+            const auto run = [&](std::shared_ptr<const Sim::TrackNetwork> n) {
+                auto input = inputOf(geometry, n, {trainOn(east, *n, t0)});
+                input->staticConsists.push_back(beyond);
+                return input;
+            };
+            Sim::SimulationCore scriptedCore(run(byScript));
+            scriptedCore.step(0.1);
+            const int s971 = aspectIn(scriptedCore, *byScript, 971), s972 = aspectIn(scriptedCore, *byScript, 972);
+            const int s973 = aspectIn(scriptedCore, *byScript, 973), s974 = aspectIn(scriptedCore, *byScript, 974);
+            check(s971 == SignalType::CLEAR_2 && s972 == SignalType::CLEAR_2 && s973 == SignalType::APPROACH_1
+                      && s974 == SignalType::CLEAR_2
+                      && scriptedCore.drawStates()[size_t(byScript->headOfItem(973))] == 1,
+                  QString("by script: the plated signal at caution instead of stop, the homes before it clear, the "
+                          "distant reading the homes up to the next distant clear: %1 %2 %3 %4")
+                      .arg(s971).arg(s972).arg(s973).arg(s974));
+            // On: the train past the signal at 500 m: it stands at stop, the
+            // next ones read on.
+            for (int i = 0; i < 4000 && scriptedCore.trains()[0].front + 69.0 < 600.0; ++i)
+                scriptedCore.step(0.1);
+            check(aspectIn(scriptedCore, *byScript, 971) == SignalType::STOP
+                      && aspectIn(scriptedCore, *byScript, 972) == SignalType::CLEAR_2,
+                  QString("the train past it: the signal at 500 m at stop, the one at 1000 m still clear (%1 %2)")
+                      .arg(aspectIn(scriptedCore, *byScript, 971)).arg(aspectIn(scriptedCore, *byScript, 972)));
+            Sim::SimulationCore basicCore(run(homeOnly));
+            basicCore.step(0.1);
+            Sim::SimulationCore brokenCore(run(broken));
+            brokenCore.step(0.1);
+            check(aspectIn(basicCore, *homeOnly, 974) == SignalType::APPROACH_1
+                      && aspectIn(brokenCore, *broken, 974) == SignalType::CLEAR_2,
+                  QString("the distant without a script: its most restrictive, never cleared (%1); with a broken "
+                          "script: the built-in rule, clear before a signal at caution (%2)")
+                      .arg(aspectIn(basicCore, *homeOnly, 974)).arg(aspectIn(brokenCore, *broken, 974)));
+        }
+
         // Open Rails' forced red at station stops: a stop whose platform ends
         // 50 m short of the signal at 1000 m (route distance 931). The train
         // does not clear that signal until it stands there two minutes before
@@ -1991,6 +2096,17 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         // a deadlock or held by a standing consist), as Simulate runs.
         for (int s = 0; s < 24 * 3600 && !core.settled(); ++s) {
             core.step(1.0);
+            // Every 10 s each running train's next signal and its aspect
+            // (scripts/orts-compare-aspects.py).
+            if (eventLog != nullptr && s % 10 == 0)
+                for (size_t t = 0; t < core.trains().size(); ++t) {
+                    int aspect = 0;
+                    double ahead = 0.0;
+                    if (core.trains()[t].status != Sim::TrainStatus::Running
+                            || core.nextSignalAhead(int(t), &aspect, &ahead) < 0)
+                        continue;
+                    logEvent(core.time(), int(t), "signal", QJsonObject{{"aspect", aspect}, {"ahead", ahead}});
+                }
             // A wait ends when the train moves again.
             for (size_t t = 0; t < waitingSince.size() && eventLog != nullptr; ++t)
                 if (waitingSince[t] >= 0.0 && (core.trains()[t].status == Sim::TrainStatus::Running

@@ -262,6 +262,8 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
         network = std::make_shared<const TrackNetwork>(tdb, *input->geometry, config.get(), openRails);
     }
     input->network = network;
+    // The signal scripts' problems (task 05), for the user.
+    input->warnings << network->scriptWarnings;
     if (activity == nullptr || tdb == nullptr)
         return input;
     if (activity->header != nullptr) {

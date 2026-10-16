@@ -197,6 +197,10 @@ public:
     // Where a route distance of a train's current part is, its roll
     // looking along the route.
     bool pose(int train, double routeDistance, TrackPose &out) const;
+    // The next stop signal ahead of a train's front on its route part and
+    // its least restrictive NORMAL head's aspect, how far ahead (m); -1
+    // none (comparisons with Open Rails, task 05).
+    int nextSignalAhead(int train, int *aspect = nullptr, double *distance = nullptr) const;
     // Every train has finished its path.
     bool finished() const;
     // Nothing more will happen: every train has finished, stands at its
@@ -247,6 +251,14 @@ private:
     std::vector<std::vector<int>> linkedTo;
     std::vector<std::vector<int>> readers;
     std::vector<char> queued;
+    // Signal scripts (task 05): per head, the signals and junction sections
+    // its last run read beyond its signal's next stop signal (kept above);
+    // per signal and junction section, the heads to run again when it
+    // changes.
+    std::vector<std::vector<int>> scriptSignals;
+    std::vector<std::vector<int>> scriptJunctions;
+    std::vector<std::vector<int>> signalScriptReaders;
+    std::vector<std::vector<int>> junctionScriptReaders;
     std::vector<Stretch> single;
     std::vector<int> claimedBy;
     // Per train and part: its stretches (stretch, its side) by where it

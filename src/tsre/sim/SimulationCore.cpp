@@ -182,6 +182,31 @@ bool SimulationCore::finished() const {
     return true;
 }
 
+int SimulationCore::nextSignalAhead(int train, int *aspect, double *distance) const {
+    if (train < 0 || size_t(train) >= states.size() || in->network == nullptr)
+        return -1;
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (s.part < 0 || size_t(s.part) >= rt.ways.size())
+        return -1;
+    const std::vector<ProjectedSignal> &stops = rt.ways[size_t(s.part)].stopSignals;
+    size_t next = rt.passed;
+    while (next < stops.size() && stops[next].at < s.front)
+        ++next;
+    if (next >= stops.size())
+        return -1;
+    const int signal = stops[next].signal;
+    if (aspect != nullptr) {
+        *aspect = 0;
+        for (int head : in->network->signalGroups()[size_t(signal)].heads)
+            if (in->network->isNormal(in->network->heads()[size_t(head)]))
+                *aspect = std::max(*aspect, headAspect[size_t(head)]);
+    }
+    if (distance != nullptr)
+        *distance = stops[next].at - s.front;
+    return signal;
+}
+
 bool SimulationCore::settled() const {
     for (const TrainState &state : states) {
         const bool held = state.blockedBy == StandingConsist
@@ -796,6 +821,10 @@ void SimulationCore::evaluateAspects() {
         readers.assign(groups.size(), {});
         linkedTo.assign(network.sections().size(), {});
         queued.assign(heads.size(), 0);
+        scriptSignals.assign(heads.size(), {});
+        scriptJunctions.assign(heads.size(), {});
+        signalScriptReaders.assign(groups.size(), {});
+        junctionScriptReaders.assign(network.sections().size(), {});
         for (size_t h = 0; h < heads.size(); ++h) {
             const int junction = network.junctionSection(heads[h].junction);
             if (heads[h].junction >= 0 && junction >= 0)
@@ -877,6 +906,9 @@ void SimulationCore::evaluateAspects() {
         }
         for (int h : linkedTo[size_t(junction)])
             push(h);
+        const std::vector<int> scripted = junctionScriptReaders[size_t(junction)];
+        for (int h : scripted)
+            push(h);
     }
     for (int signal : dirtyGroups)
         for (int h : groups[size_t(signal)].heads)
@@ -936,6 +968,151 @@ void SimulationCore::evaluateAspects() {
                 best = std::max(best, headAspect[size_t(head)]);
         return best;
     };
+    // Signal scripts (task 05): what a head's script reads is recorded, so
+    // that it runs again when that changes; its signal's next stop signal
+    // through nextOf (kept, its readers told), any other search here.
+    const auto unregister = [&](int h) {
+        for (int signal : scriptSignals[size_t(h)]) {
+            std::vector<int> &list = signalScriptReaders[size_t(signal)];
+            list.erase(std::remove(list.begin(), list.end(), h), list.end());
+        }
+        for (int junction : scriptJunctions[size_t(h)]) {
+            std::vector<int> &list = junctionScriptReaders[size_t(junction)];
+            list.erase(std::remove(list.begin(), list.end(), h), list.end());
+        }
+        scriptSignals[size_t(h)].clear();
+        scriptJunctions[size_t(h)].clear();
+    };
+    struct Host final : SignalScriptHost {
+        SimulationCore &core;
+        const TrackNetwork &network;
+        const int h;
+        const SignalHead &head;
+        const SignalKind &kind;
+        const std::function<int(int)> nextStop;
+        Host(SimulationCore &core, const TrackNetwork &network, int h, std::function<int(int)> nextStop)
+            : core(core), network(network), h(h), head(network.heads()[size_t(h)]),
+              kind(network.kinds()[size_t(head.kind)]), nextStop(std::move(nextStop)) {}
+        void read(int signal) {
+            if (signal < 0)
+                return;
+            std::vector<int> &list = core.scriptSignals[size_t(h)];
+            if (std::find(list.begin(), list.end(), signal) != list.end())
+                return;
+            list.push_back(signal);
+            core.signalScriptReaders[size_t(signal)].push_back(h);
+        }
+        void readThrough(const std::vector<int> &junctions) {
+            std::vector<int> &list = core.scriptJunctions[size_t(h)];
+            for (int junction : junctions)
+                if (std::find(list.begin(), list.end(), junction) == list.end()) {
+                    list.push_back(junction);
+                    core.junctionScriptReaders[size_t(junction)].push_back(h);
+                }
+        }
+        // A signal's heads of a function: their least (most) restrictive
+        // aspect; -1 none.
+        int aspectOf(int signal, int function, bool least) const {
+            int found = -1;
+            for (int g : network.signalGroups()[size_t(signal)].heads) {
+                const SignalHead &other = network.heads()[size_t(g)];
+                if (other.kind < 0 || int(network.kinds()[size_t(other.kind)].function) != function)
+                    continue;
+                const int a = core.headAspect[size_t(g)];
+                found = found < 0 ? a : least ? std::max(found, a) : std::min(found, a);
+            }
+            return found;
+        }
+        // The next signal from a signal's place with a head of `function`
+        // (facing the other way: opposite).
+        int after(int signal, int function, bool opposite) {
+            const SignalGroup &group = network.signalGroups()[size_t(signal)];
+            std::vector<int> facing;
+            const int found = network.nextSignalWhere(
+                group.node, group.distance, group.forward, core.switchAt, 20000.0, &facing,
+                [this, function](const SignalHead &other) {
+                    return other.kind >= 0 && int(network.kinds()[size_t(other.kind)].function) == function;
+                }, opposite);
+            readThrough(facing);
+            read(found);
+            return found;
+        }
+        int enabled() override { return core.clearedFor[size_t(head.signal)] != NoHolder ? 1 : 0; }
+        // Clear while cleared for a train (its block reserved for it);
+        // else, as Open Rails without a train's request, obstructed.
+        int blockState() override { return enabled() ? BlockClear : BlockJunctionObstructed; }
+        int routeSet() override {
+            const int junction = network.junctionSection(head.junction);
+            return head.junction < 0 || junction < 0 || core.switchAt[size_t(junction)] == head.junctionPin ? 1 : 0;
+        }
+        int nextSignal(int function, bool least, int nth) override {
+            nth = std::max(1, nth);
+            int signal = head.signal;
+            int aspect = 0;
+            for (int i = 0; i < nth; ++i) {
+                const int found = function == int(SignalFunction::Normal) && i == 0 ? nextStop(signal)
+                                                                                    : after(signal, function, false);
+                if (found < 0)
+                    return 0;
+                aspect = aspectOf(found, function, least);
+                // Open Rails' next_nsig_lr stops at a signal at STOP.
+                if (aspect <= 0)
+                    return 0;
+                signal = found;
+            }
+            return aspect;
+        }
+        int thisSignal(int function, bool least) override {
+            read(head.signal);
+            const int found = aspectOf(head.signal, function, least);
+            // Open Rails: none of the function gives CLEAR_2 for NORMAL,
+            // else STOP.
+            return found >= 0 ? found : function == int(SignalFunction::Normal) ? 7 : 0;
+        }
+        int oppositeSignal(int function, bool least) override {
+            if (!enabled())
+                return 0;
+            const int found = after(head.signal, function, true);
+            return found >= 0 ? std::max(0, aspectOf(found, function, least)) : 0;
+        }
+        // The most restrictive `function1` head up to (and on) the next
+        // signal with a `function2` head; STOP for none.
+        int distantMulti(int function1, int function2) override {
+            int signal = head.signal, worst = -1;
+            for (int i = 0; i < 64; ++i) {
+                const SignalGroup &group = network.signalGroups()[size_t(signal)];
+                std::vector<int> facing;
+                const int found = network.nextSignalWhere(
+                    group.node, group.distance, group.forward, core.switchAt, 20000.0, &facing,
+                    [this, function1, function2](const SignalHead &other) {
+                        if (other.kind < 0)
+                            return false;
+                        const int f = int(network.kinds()[size_t(other.kind)].function);
+                        return f == function1 || f == function2;
+                    });
+                readThrough(facing);
+                if (found < 0)
+                    break;
+                read(found);
+                const int here = aspectOf(found, function1, false);
+                if (here >= 0)
+                    worst = worst < 0 ? here : std::min(worst, here);
+                if (aspectOf(found, function2, false) >= 0)
+                    break;
+                signal = found;
+            }
+            return std::max(0, worst);
+        }
+        int feature(int feature) override {
+            return feature >= 0 && feature < 6 ? int((head.flags >> (4 + feature)) & 1u) : 0;
+        }
+        int drawStateOf(int aspect) override {
+            for (const SignalKind::Aspect &a : kind.aspects)
+                if (a.aspect == aspect)
+                    return a.drawState;
+            return -1;
+        }
+    };
     // Each head from the aspects it reads now; a head that changes puts
     // those reading it on the list again (a ring of signals is cut off).
     bool changed = false;
@@ -947,7 +1124,32 @@ void SimulationCore::evaluateAspects() {
         ++workDone.aspectHeads;
         const SignalHead &head = heads[size_t(h)];
         int aspect = Stop, draw = 0;
-        if (head.kind >= 0) {
+        if (head.kind >= 0 && kinds[size_t(head.kind)].rule == SignalKind::Rule::Script
+                && kinds[size_t(head.kind)].script >= 0) {
+            // Its script (task 05): state and draw_state kept from its last
+            // run; a draw state left out (or none) is the aspect's.
+            const SignalKind &kind = kinds[size_t(head.kind)];
+            unregister(h);
+            Host host(*this, network, h, [&](int signal) { return nextOf(signal); });
+            int state = headAspect[size_t(h)], drawState = headDraw[size_t(h)];
+            RunSignalScript(network.scripts[size_t(kind.script)], host, state, drawState);
+            aspect = state;
+            draw = drawState >= 0 ? drawState : host.drawStateOf(state);
+            if (draw < 0)
+                draw = kind.defaultDrawState;
+        } else if (head.kind >= 0 && kinds[size_t(head.kind)].rule == SignalKind::Rule::Basic) {
+            // A type without a script on a route with scripts: Open Rails'
+            // least restrictive aspect while cleared, else its most.
+            const SignalKind &kind = kinds[size_t(head.kind)];
+            const bool cleared = clearedFor[size_t(head.signal)] != NoHolder;
+            if (kind.aspects.empty()) {
+                aspect = Stop;
+                draw = kind.defaultDrawState;
+            } else {
+                aspect = cleared ? kind.aspects.back().aspect : kind.aspects.front().aspect;
+                draw = cleared ? kind.aspects.back().drawState : kind.aspects.front().drawState;
+            }
+        } else if (head.kind >= 0) {
             const SignalKind &kind = kinds[size_t(head.kind)];
             int wanted = -1;
             switch (kind.function) {
@@ -986,6 +1188,11 @@ void SimulationCore::evaluateAspects() {
             const std::vector<int> reading = readers[size_t(head.signal)];
             for (int reader : reading)
                 pushReader(reader);
+        }
+        if (aspectChanged) {
+            const std::vector<int> scripted = signalScriptReaders[size_t(head.signal)];
+            for (int reader : scripted)
+                push(reader);
         }
     }
     for (; i < work.size(); ++i)

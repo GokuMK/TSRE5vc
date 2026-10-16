@@ -2,6 +2,7 @@
 #include <QHash>
 #include <QString>
 #include <QStringList>
+#include <functional>
 #include <memory>
 #include <vector>
 #include <tsre/sim/SignalScript.h>
@@ -191,6 +192,11 @@ public:
     // junctions passed (whose switches it depends on).
     int nextStopSignal(int node, float distance, bool forward, const std::vector<int> &switches, double reach,
                        std::vector<int> *facing = nullptr) const;
+    // The same for the next signal with a head `wanted` takes, facing the
+    // train (or, `opposite`, facing the other way: task 05's opp_sig).
+    int nextSignalWhere(int node, float distance, bool forward, const std::vector<int> &switches, double reach,
+                        std::vector<int> *facing, const std::function<bool(const SignalHead &)> &wanted,
+                        bool opposite = false) const;
     bool isNormal(const SignalHead &head) const {
         return head.kind >= 0 && types[size_t(head.kind)].function == SignalFunction::Normal;
     }

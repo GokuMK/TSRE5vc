@@ -528,6 +528,13 @@ Projection TrackNetwork::project(const RouteTrack &route) const {
 
 int TrackNetwork::nextStopSignal(int node, float distance, bool forward, const std::vector<int> &switches,
                                  double reach, std::vector<int> *facing) const {
+    return nextSignalWhere(node, distance, forward, switches, reach, facing,
+                           [this](const SignalHead &head) { return isNormal(head); });
+}
+
+int TrackNetwork::nextSignalWhere(int node, float distance, bool forward, const std::vector<int> &switches,
+                                  double reach, std::vector<int> *facing,
+                                  const std::function<bool(const SignalHead &)> &wanted, bool opposite) const {
     double travelled = 0.0;
     float from = distance;
     for (int hops = 0; hops < 256 && travelled <= reach; ++hops) {
@@ -536,12 +543,13 @@ int TrackNetwork::nextStopSignal(int node, float distance, bool forward, const s
         const std::vector<OnNode> &on = headsOnNode[size_t(node)];
         if (forward) {
             for (const OnNode &o : on)
-                if (o.distance > from + Same && signalHeads[size_t(o.index)].forward && isNormal(signalHeads[size_t(o.index)]))
+                if (o.distance > from + Same && signalHeads[size_t(o.index)].forward != opposite
+                        && wanted(signalHeads[size_t(o.index)]))
                     return signalHeads[size_t(o.index)].signal;
         } else {
             for (auto o = on.rbegin(); o != on.rend(); ++o)
-                if (o->distance < from - Same && !signalHeads[size_t(o->index)].forward
-                        && isNormal(signalHeads[size_t(o->index)]))
+                if (o->distance < from - Same && signalHeads[size_t(o->index)].forward == opposite
+                        && wanted(signalHeads[size_t(o->index)]))
                     return signalHeads[size_t(o->index)].signal;
         }
         const float length = nodes[size_t(node)].length;
