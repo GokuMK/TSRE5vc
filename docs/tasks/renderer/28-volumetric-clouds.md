@@ -1283,6 +1283,15 @@ The storm clouds stood as pillars of billows streaked straight up.
   8 x 8 window averages within 0.04 of a half (`cloud-blue-noise`).
 - Cost: one texture read a marched pixel; on the Steam Deck within the
   runs' noise (thunderstorm 44.1 against 44.0 ms, rain 40.2 against 40.1).
+- Compared without the split too (`build/bluecase`, Low and High, still
+  and as in use): the old noise alone hatched diagonally, blue noise alone
+  left even grain; with the split the old noise kept curved bands on the
+  towers, blue noise fine grain. As in use, blue noise is the cleanest.
+- Observation (user): the old noise's curved bands, still, looked like air
+  rising. They are its samples' bands of equal depth through the towers
+  (as with the rain off), moving with each frame and the camera, not the
+  clouds' own. That look, if wanted, would be streaks along the updraft in
+  the towers' noise (storms' fine tuning, later).
 
 ## Verification
 
