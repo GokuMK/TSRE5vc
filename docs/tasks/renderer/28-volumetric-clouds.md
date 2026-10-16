@@ -1409,9 +1409,20 @@ The storm clouds stood as pillars of billows streaked straight up.
   far drops; four rounds against none, steady): 39.5 against 40.5 ms
   median, about 1 ms; the near box alone about 0.4 ms. Nothing in dry
   weather.
-- Not yet: none under roofs and in tunnels (the drops fall there too; the
-  sky enclosure, task 27, could tell); lamps do not light them; none in the
-  reflection and the cube.
+- **None under cover** (user, 2026-10-16): each drop looks itself up in
+  the sky enclosure's maps (task 27; near, else far: something more than
+  0.5 to 2 m over it hides it, as `coverOver`), in the vertex shader, so
+  under a roof, a deck or the terrain over a tunnel no drops fall, while
+  rain outside shows from under it. With the enclosure off, none at all
+  while the camera is 2 m or more under the terrain (a tunnel; the editor
+  sets `rainHere` 0); roofs then keep their drops. Captures (EUROPE1,
+  `build/cover/cover1.png`): in the tunnel no drops (with and without the
+  enclosure), at the portal and the viaduct rain in the open in front.
+  Roofs with alpha-tested textures are not in the enclosure map (task 27,
+  "Blended shape parts"): drops fall under them.
+- Not yet: lamps do not light the drops; none in the reflection and the
+  cube; the fog volume's rain fills tunnels too (only a few metres of it
+  between the camera and the walls: faint).
 
 ## Verification
 

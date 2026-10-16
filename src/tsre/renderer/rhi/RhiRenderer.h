@@ -843,6 +843,8 @@ private:
         QRhiGraphicsPipeline *pipeline = nullptr;
         QRhiTexture *viewColor = nullptr;
         QRhiTexture *viewDepth = nullptr;
+        QRhiTexture *cover = nullptr;
+        QRhiTexture *coverFar = nullptr;
         QElapsedTimer clock;
     } rainResources;
     bool rainApplied = false;

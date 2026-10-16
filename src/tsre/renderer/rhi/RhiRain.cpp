@@ -16,7 +16,8 @@
 // place in the world from its index (the box wraps as the camera moves, so a
 // moving train passes through the drops), falling with the wind; each drawn
 // as a thin quad from where it is back along its fall over a moment, at
-// least a pixel wide, behind the scene's depth not. No buffers: the vertex
+// least a pixel wide, behind the scene's depth not, under cover not (the sky
+// enclosure's maps; without them, none in a tunnel). No buffers: the vertex
 // shader makes them. (Drops found per pixel in shells about the camera cost
 // 2 ms for a few of them, and stood in rings looking down; user,
 // 2026-10-16.)
@@ -39,6 +40,9 @@ struct RainParameters {
     float viewport[4];   // 2 / width, 2 / height, the drop's size (m), snow share
     float colour[4];     // their light (display), strength
     float farBox[4];     // the far box's half size across and up (m), its drops (after the near box's), 0
+    float cover[16];     // the sky enclosure's near map (task 27): world to its clip space
+    float coverFar[16];  // its far map
+    float coverOn[4];    // near map on, far map on, metres per unit of their depth, 0
 };
 
 const char *RainVertex = R"(#version 440
@@ -53,12 +57,30 @@ layout(std140, binding = 0) uniform Rain {
     vec4 viewport;
     vec4 colour;
     vec4 farBox;
+    mat4 cover;
+    mat4 coverFar;
+    vec4 coverOn;
 };
+
+layout(binding = 2) uniform sampler2D coverMap;
+layout(binding = 3) uniform sampler2D coverFarMap;
 
 vec3 hash3(vec3 p) {
     p = fract(p * vec3(0.1031, 0.1030, 0.0973));
     p += dot(p, p.yxz + 33.33);
     return fract((p.xxy + p.yxx) * p.zyx);
+}
+
+// Whether something lies over a point, 0-1 (more than 0.5 to 2 m over it): a
+// roof, a bridge's deck, the terrain over a tunnel, as the sky enclosure's
+// maps have them (ShadowSampling.glsl coverOver); the near map, else the far
+// one; outside them or their depth, none.
+float covered(vec3 p, mat4 matrix, sampler2D map) {
+    vec4 clip = matrix * vec4(p, 1.0);
+    vec3 m = clip.xyz / clip.w * 0.5 + 0.5;
+    if (any(lessThanEqual(m, vec3(0.02, 0.02, 0.0))) || any(greaterThanEqual(m, vec3(0.98, 0.98, 1.0))))
+        return -1.0;
+    return smoothstep(0.5, 2.0, (m.z - textureLod(map, m.xy, 0.0).r) * coverOn.z);
 }
 
 void main() {
@@ -74,6 +96,20 @@ void main() {
     vec3 p = camera.xyz + (fract((seed * size + velocity.xyz * box.w - camera.xyz) / size) - 0.5) * size;
     // Snow sways as it falls.
     p.xz += snow * 0.3 * vec2(sin(box.w * 1.3 + seed.y * 6.28), cos(box.w * 1.1 + seed.z * 6.28));
+    // None under cover (user, 2026-10-16: rain falling in tunnels and under
+    // roofs).
+    float under = 0.0;
+    if (coverOn.x > 0.0) {
+        under = covered(p, cover, coverMap);
+        if (under < 0.0)
+            under = coverOn.y > 0.0 ? max(covered(p, coverFar, coverFarMap), 0.0) : 0.0;
+    }
+    if (under > 0.99) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        streak = vec3(0.0);
+        depth = 0.0;
+        return;
+    }
     vec3 tail = p - velocity.xyz * velocity.w;
     vec4 c0 = forward * vec4(p - camera.xyz, 0.0);
     vec4 c1 = forward * vec4(tail - camera.xyz, 0.0);
@@ -101,7 +137,7 @@ void main() {
     // near box's fade out (not doubling them), out at its own box's edge.
     float fade = farDrop ? smoothstep(box.x * 0.6, box.x, c0.w) * (1.0 - smoothstep(farBox.x * 0.6, farBox.x, c0.w))
                          : smoothstep(0.4, 1.5, c0.w) * (1.0 - smoothstep(box.x * 0.6, box.x, c0.w));
-    float strength = colour.w * clamp(body / width, 0.5, 1.0) * fade;
+    float strength = colour.w * clamp(body / width, 0.5, 1.0) * fade * (1.0 - under);
     // The quad: two triangles, the ends a half width beyond the streak's.
     int corner = gl_VertexIndex;
     float s = (corner == 1 || corner == 4 || corner == 5) ? 1.0 : -1.0;
@@ -126,6 +162,9 @@ layout(std140, binding = 0) uniform Rain {
     vec4 viewport;
     vec4 colour;
     vec4 farBox;
+    mat4 cover;
+    mat4 coverFar;
+    vec4 coverOn;
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 
@@ -163,7 +202,13 @@ void RhiRenderer::applyRain() {
         return;
     flushTarget();
     RainResources &r = rainResources;
-    if (r.pipeline == nullptr || r.viewColor != view.color || r.viewDepth != view.depth) {
+    // The sky enclosure's maps (task 27), when drawn: no drops under cover.
+    const bool near = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
+    const bool farMap = near && enclosure.farEnabled && enclosureFarDrawn && enclosureFarMap.valid();
+    QRhiTexture *coverTexture = near ? enclosureMap.depth : dummy2D;
+    QRhiTexture *coverFarTexture = farMap ? enclosureFarMap.depth : dummy2D;
+    if (r.pipeline == nullptr || r.viewColor != view.color || r.viewDepth != view.depth || r.cover != coverTexture
+            || r.coverFar != coverFarTexture) {
         delete r.pipeline;
         delete r.bindings;
         delete r.target;
@@ -172,6 +217,8 @@ void RhiRenderer::applyRain() {
         r.bindings = nullptr;
         r.viewColor = view.color;
         r.viewDepth = view.depth;
+        r.cover = coverTexture;
+        r.coverFar = coverFarTexture;
         if (r.uniforms == nullptr) {
             r.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(RainParameters));
             r.uniforms->create();
@@ -186,7 +233,11 @@ void RhiRenderer::applyRain() {
                                          0, QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage,
                                          r.uniforms),
                                  QRhiShaderResourceBinding::sampledTexture(1, QRhiShaderResourceBinding::FragmentStage,
-                                                                           view.depth, sampler(false, true, true))});
+                                                                           view.depth, sampler(false, true, true)),
+                                 QRhiShaderResourceBinding::sampledTexture(2, QRhiShaderResourceBinding::VertexStage,
+                                                                           coverTexture, sampler(false, true, true)),
+                                 QRhiShaderResourceBinding::sampledTexture(3, QRhiShaderResourceBinding::VertexStage,
+                                                                           coverFarTexture, sampler(false, true, true))});
         r.bindings->create();
         static QShader vertex, fragment;
         if (!vertex.isValid()) {
@@ -240,6 +291,11 @@ void RhiRenderer::applyRain() {
     p.farBox[1] = 20.0f;
     const float farDrops = std::min(drops * 2.5f, 40000.0f);
     p.farBox[2] = farDrops;
+    std::copy(enclosure.viewProjection, enclosure.viewProjection + 16, p.cover);
+    std::copy(enclosure.farViewProjection, enclosure.farViewProjection + 16, p.coverFar);
+    p.coverOn[0] = near ? 1.0f : 0.0f;
+    p.coverOn[1] = farMap ? 1.0f : 0.0f;
+    p.coverOn[2] = enclosure.metresPerDepth;
     p.box[3] = float(std::fmod(seconds, 600.0));
     // Rain falls at some 8 m/s, snow 1, with half the low wind: east is x,
     // north -z.

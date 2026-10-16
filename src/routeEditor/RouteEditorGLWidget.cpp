@@ -2812,9 +2812,15 @@ void RouteEditorGLWidget::applyFog() {
                 f.rain = s.precipitationRate;
                 f.snow = s.snowShare;
                 f.rainBase = weather->layer(frame, east, north, WeatherLayer::Low).base;
-                // At the camera itself, under a shower's cell or not; the low
-                // wind.
+                // At the camera itself, under a shower's cell or not (none
+                // under the terrain: in a tunnel; under roofs the sky
+                // enclosure's maps take the drops away); the low wind.
                 f.rainHere = WeatherDetail::precipitation(*weather, frame, east, north, 1.0).precipitationRate;
+                const float *position = camera->getPos();
+                if (Game::terrainLib != nullptr
+                        && Game::terrainLib->getHeight(int(camera->pozT[0]), int(camera->pozT[1]), position[0],
+                                                       position[2]) > position[1] + 2.0f)
+                    f.rainHere = 0.0f;
                 Weather::velocity(weather->wind(weatherHours(), WeatherLayer::Low), f.rainWindEast, f.rainWindNorth);
             }
         }
