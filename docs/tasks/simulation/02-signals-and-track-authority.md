@@ -1,7 +1,9 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
-Status: phases 1 to 6 done (2026-10-16, branch `feature/simulation`);
-phase 7 next. Decisions taken are at the end.
+Status: done (phases 1 to 7, 2026-10-16, branch `feature/simulation`).
+Open Rails comparisons of the other local routes are left (the scripts
+are there; Open Rails runs this machine's heavier activities below real
+time). Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -215,7 +217,7 @@ other waits behind the player's train at its path's end; EUROPE1 48/48,
 EUROPE2 21/21, JAPAN1 49/50, JAPAN2 16/16, USA1 46/46, USA2 46/48 (the
 rest behind loose consists).
 
-**Phase 7, the editor and measures (in progress, 2026-10-16).**
+**Phase 7, the editor and measures (done 2026-10-16).**
 - 3D: each frame carries the heads' aspects and draw states (shared with
   the frame before until they change); the signals' lights
   (`SignalLights`) ask the simulation for each head's draw state by its
@@ -236,7 +238,10 @@ rest behind loose consists).
   trains, to change their times or paths; the status line names them
   too; the run goes on.
 
-Tests: `simulation-core` (the frame's draw states by name), `simulation-ui`
+Tests: `simulation-core` (the frame's draw states by name; a station
+stop's exit signal held until two minutes before the train leaves, the
+signal before it at caution, the train leaving on time; three trains in a
+ring reported as a deadlock), `simulation-ui`
 (a deadlock at a junction: the message, the status line and each train's
 state name the trains; Stop closes the message); capture case
 `tests/renderer/simulation-signals.json` (JAPAN1's shrtpass at 09:03: a
@@ -286,6 +291,45 @@ Every running train still asks for authority each 0.1 s step (cheap: it
 stops at once where its reservation already reaches its lookahead), so
 wall time follows the trains on the track, about 17 ms per train and
 simulated hour here.
+
+**Compared with Open Rails** (`scripts/orts-simulation-compare.sh`,
+`scripts/orts-dispatcher-stops.py`): the activity runs in the Linux fork on
+a display of its own (with a window manager: the game takes keys only in a
+focused window, held across its frames), the player's train on autopilot,
+the game sped up; every two seconds Open Rails' time and its dispatcher
+page (each train's state, speed, limit and next signal) are read from its
+web server, and each train's stops and stands are found in those samples.
+Open Rails numbers its AI trains in traffic order after the loose
+consists, so Traffic k is train k + 6 on USA1.
+- **USA1 smmrex, 12:00 to 12:40.** Open Rails' Summer Express trains
+  slowed for miles at 45 and 30 mph behind approach aspects that led to
+  the exit signal of the station they were to stop at: Open Rails holds a
+  station stop's exit signal at danger until two minutes before the train
+  leaves (forced red at station stops, its default). Our core did not, so
+  our trains reached their stops 12 to 15 minutes earlier; with the hold
+  (section 3) they reach them 1.5 to 4.5 minutes earlier (Traffic 02's
+  first stop 12:34:36 against 12:36:05, Traffic 04's 12:23:04 against
+  12:27:29), and Traffic 01, running since 10:30, 8 to 10 minutes earlier
+  (about 9 % of its run). What is left is driving: Open Rails' AI drives
+  with its physics and holds the aspects' speeds until the next signal as
+  we do. Both skip the stop at Baltimore 3, which is not on the trains'
+  paths. On the local routes the hold makes USA1's timed stops 501 s late
+  on the median against MSAE's timetables (326 s before); the other
+  routes change by a few seconds.
+- **BNSF_SCENIC 3_CanadianImports, 06:00 to 07:30.** Our player's train
+  and the eastbound intermodal waited at the start of the single line
+  from 06:12 until 10:43, while one westbound train after another claimed
+  it: the line was one stretch end to end, its loops inside it, though the
+  trains' paths have passing paths round them. Open Rails let them on,
+  and they met the westbound trains at those loops. A loop where one of
+  two trains has a passing path it fits on (and the other does not use its
+  track) now ends the single track for them (section 4), so they meet
+  there: the intermodal waits from 06:26 at 19.6 mi (Open Rails 06:28 at
+  18.4 mi, 11.5 minutes), the player behind it from 06:30 at 15.4 mi (Open
+  Rails 06:33 at 13.8 mi), the westbound intermodal from 06:47 (Open
+  Rails 06:42). BNSF_SCENIC's sixteen trains all finish now, in 19.2
+  simulated hours (39.9 before); its two timed stops are 179 s early and
+  179 s late.
 
 ## Objective
 
@@ -440,6 +484,11 @@ The driver brakes for it as for a stop. Requests:
   reverses releases what lies beyond its new direction.
 - **Start:** a train starts when its whole length's sections are free (it
   occupies them); otherwise it waits and the editor says why.
+- **Station stops (Open Rails' forced red, its default):** a stop's exit
+  signal, the first stop signal beyond the platform within 150 m (further
+  on the platform's node when its block holds a facing junction), is not
+  cleared for the train until it stands at the stop with its departure
+  two minutes off; a stop too near it moves back to 31 m short of it.
 
 Requests are taken in a fixed order (train id) each step, and a grant is
 all or nothing, so a run is repeatable: the same input gives the same
@@ -451,9 +500,11 @@ it does not rescan its route each step.
 Two trains whose routes use the same sections in opposite directions meet
 on a **single-track stretch**: each maximal run of shared sections between
 the places where their routes part. A loop where both routes use the same
-track is no passing place for them, so it lies inside the stretch; so does
-a place where they part that neither train fits in, or where a standing
-consist is on one's track. The stretches are found per pair of trains when
+track is no passing place for them, so it lies inside the stretch, unless
+one of them has a passing path round it that it fits on and the other
+does not use (Open Rails' path-based rule: the trains meet there). A place
+where they part that neither train fits in, or where a standing consist is
+on one's track, lies inside the stretch too. The stretches are found per pair of trains when
 the input is made, and again for a train that takes a passing path.
 
 A train about to reserve into such a stretch, while the opposing train
@@ -474,11 +525,12 @@ never finish are reported at the end too.
 
 A path's passing paths are alternative branches beside its main path.
 Each becomes an alternative in the train's route between its start and end
-nodes. When the train sets its route to the start of a passing path and
-the main route through to its end is claimed for an opposing train or
-held (a train, a standing consist), the train takes the passing path if it
-is free, leaving the main path to the other; otherwise it waits short of
-the start. Stops along the loop's main track move to the same share of
+nodes, and its loop a place where single track ends (section 4). When the
+train sets its route to the start of a passing path and the main route
+through to its end, or the single track beyond, is claimed for an opposing
+train or held (a train, a standing consist), the train takes the passing
+path if it is free, leaving the main path to the other; otherwise it waits
+short of the start. Stops along the loop's main track move to the same share of
 the passing track (Open Rails' location-linked option moves them to a
 platform on the passing track; not in this task).
 
@@ -546,7 +598,14 @@ aggregation, `sig_feature`, grouping on one signal), replacing the
 built-in rule where a route has a script. Then the Open Rails additions
 that need world data, stored in the TDB as `tdb-signal-extension.md`
 proposes; approach control; location-linked passing paths; curves and
-gradients; the player's train driven by the user.
+gradients; the player's train driven by the user. Single-track
+arbitration beyond first come, first served (decision 2): a train
+waiting at a single line without passing paths can still be passed over
+by opposing trains that claim it first; Open Rails keeps a loop track
+open for a train awaiting a single line. Open Rails comparisons of
+EUROPE2, JAPAN1, JAPAN2 and USA2 (EUROPE1's lclsrvce does not load in
+Open Rails: its early waiting point). Frames that share unchanged blocks
+of aspects and section use, if country-scale routes need it.
 
 ## Phases
 

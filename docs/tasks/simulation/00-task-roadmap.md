@@ -40,14 +40,15 @@ model as the first operating policy, and threading.
   timetables (stops, waits, reversals) with no signals: trains meet and
   pass through each other. Done 2026-10-15 (input, driver, thread and
   editor, measured).
-- [ ] `02-signals-and-track-authority.md`: everything the TDB and
+- [x] `02-signals-and-track-authority.md`: everything the TDB and
   `sigcfg.dat` say about signals, no scripts: sections, occupation and
   reservations, signals clearing ahead (Open Rails' legacy and Open Rails
   modes), junctions set and locked, aspects from a built-in rule with
   their speeds, speed posts and speed zones, single-track claims and
   deadlocks reported to the user, path-based passing paths. Designed
-  2026-10-15, decisions taken; phases 1 to 6 done 2026-10-16 (the core),
-  phase 7 (the editor, measures) next.
+  2026-10-15, decisions taken; done 2026-10-16 (phases 1 to 7: the core,
+  the editor, the scaling workloads, Open Rails comparisons of USA1 and
+  BNSF_SCENIC).
 - [ ] 03: `sigscr.dat` read and run in place of the built-in aspect rule.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked

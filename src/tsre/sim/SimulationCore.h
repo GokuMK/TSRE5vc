@@ -1,5 +1,6 @@
 #pragma once
 #include <deque>
+#include <functional>
 #include <memory>
 #include <vector>
 #include <tsre/sim/SimulationInput.h>
@@ -88,6 +89,13 @@ public:
     // A train waiting for track tries again at least this often (seconds),
     // and whenever what it waits for changes.
     static constexpr double RetryEvery = 5.0;
+    // Open Rails' forced red at station stops: a stop's exit signal is the
+    // first stop signal beyond the platform within this distance (or
+    // further on the same node when its block has a facing junction); a
+    // train clears it only when standing at the stop with its departure
+    // this near (seconds).
+    static constexpr double ExitSignalReach = 150.0;
+    static constexpr double HoldRelease = 120.0;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
@@ -236,8 +244,13 @@ private:
         std::vector<Projection> ways;
         std::vector<std::vector<SpeedLimit>> limits;
         std::vector<StopPlan> stops;
+        // Each stop's exit signal: an index in its part's stop signals, -1
+        // none.
+        std::vector<int> exits;
         std::vector<WaitPlan> waits;
         std::vector<PassingPlan> passing;
+        // Each passing path's own track: its track sections, sorted.
+        std::vector<std::vector<int>> passingSections;
         // Each passing path's route part made once (until one is taken).
         struct Side {
             bool made = false;
@@ -295,6 +308,10 @@ private:
     // `stop`): a track section with the junctions before it and the
     // crossings on it.
     size_t chunkEnd(const std::vector<ProjectedSection> &way, size_t from, size_t stop) const;
+    // Its stops' exit signals (on their parts as they are now); whether the
+    // stop signal at `signal` on its part is one held for a stop ahead.
+    void findExits(int train);
+    bool heldAtStop(int train, size_t signal) const;
     // The heads' aspects and draw states (task 02, section 6), where they
     // may have changed.
     void evaluateAspects();
@@ -303,6 +320,14 @@ private:
     // The stretches of each pair of trains; those of two trains' parts.
     void findStretches();
     void addStretches(int a, int pa, int b, int pb);
+    // The junction section a route reaches within a metre of a route
+    // distance, from index `start` (the way's size: none); the way indices
+    // of the main route through the loops a train's passing paths on a part
+    // go round, where it fits on them.
+    size_t junctionNear(const std::vector<ProjectedSection> &way, double at, size_t start) const;
+    // `usedByOther`: the other train passes that section (a passing path on
+    // its track is no place to pass it).
+    void loopsOf(int train, int part, std::vector<char> &marks, const std::function<bool(int)> &usedByOther) const;
     // A train's stretches on its current part again (its route changed),
     // keeping claims on the same track.
     void refreshStretches(int train);

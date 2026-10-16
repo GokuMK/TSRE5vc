@@ -5,6 +5,7 @@
 #include <cmath>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <tsre/trains/WaitingPoint.h>
 
 namespace Sim {
@@ -50,6 +51,16 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         rt.waits = plan.waits;
         rt.passing = plan.passing;
         rt.sides.resize(rt.passing.size());
+        for (const PassingPlan &passing : rt.passing) {
+            std::vector<int> own;
+            if (in->network != nullptr)
+                for (const ProjectedSection &pass : in->network->project(passing.track).sections)
+                    if (in->network->sections()[size_t(pass.section)].kind == TrackSection::Track)
+                        own.push_back(pass.section);
+            std::sort(own.begin(), own.end());
+            rt.passingSections.push_back(own);
+        }
+        findExits(int(i));
     }
     for (size_t i = 0; i < states.size(); ++i)
         states[i].front = in->trains[i].startFront;
@@ -254,6 +265,11 @@ void SimulationCore::advance(int train, double from, double to) {
                 runtime[size_t(train)].reported = Unreported;
                 continue;
             }
+            // Standing at a station, its exit signal is cleared a while
+            // before it leaves.
+            if (s.stoppedAt == StopKind::Station && to >= s.until - HoldRelease
+                    && runtime[size_t(train)].endsAtSignal)
+                extendAuthority(train);
             if (s.until > to)
                 break;
             t = std::max(t, s.until);
@@ -536,7 +552,7 @@ void SimulationCore::extendAuthority(int train) {
         if (rt.nextSignal < stopSignals.size() && stopSignals[rt.nextSignal].section <= rt.next) {
             // A stop signal: cleared with its whole block, or not passed.
             const ProjectedSignal &signal = stopSignals[rt.nextSignal];
-            if (rt.nextSignal >= allowed) {
+            if (rt.nextSignal >= allowed || heldAtStop(train, rt.nextSignal)) {
                 rt.endsAtSignal = true;
                 break;
             }
@@ -918,9 +934,20 @@ void SimulationCore::addStretches(int a, int pa, int b, int pb) {
         onB.emplace(wayB[k].section, k);
     // A's sections B passes the other way (junctions and crossings: at all),
     // in maximal runs with track.
+    // Loops where one of them has a passing path it fits on are places to
+    // pass too (Open Rails' path-based rule): the main route between the
+    // junctions the path leaves and rejoins by is not single track for them.
+    std::unordered_set<int> onA;
+    for (const ProjectedSection &pass : wayA)
+        onA.insert(pass.section);
+    std::vector<char> loopA, loopB;
+    loopsOf(a, pa, loopA, [&onB](int section) { return onB.count(section) > 0; });
+    loopsOf(b, pb, loopB, [&onA](int section) { return onA.count(section) > 0; });
     auto shared = [&](size_t i) -> long {
+        if (loopA[i])
+            return -1;
         auto found = onB.find(wayA[i].section);
-        if (found == onB.end())
+        if (found == onB.end() || loopB[found->second])
             return -1;
         const ProjectedSection &other = wayB[found->second];
         if (sections[size_t(wayA[i].section)].kind == TrackSection::Track && other.forward == wayA[i].forward)
@@ -961,8 +988,15 @@ void SimulationCore::addStretches(int a, int pa, int b, int pb) {
                 open = holder[size_t(wayA[k].section)] != StandingConsist;
             for (size_t k = run.high; apart && k < last.low && open; ++k)
                 open = holder[size_t(wayB[k].section)] != StandingConsist;
-            if (!open || (gapA < in->trains[size_t(a)].length + SignalMargin
-                          && gapB < in->trains[size_t(b)].length + SignalMargin)) {
+            // A loop with a passing path is one whatever the main track's
+            // length (the passing path's was checked).
+            bool loop = false;
+            for (size_t k = last.to; k < run.from && !loop; ++k)
+                loop = loopA[k] != 0;
+            for (size_t k = run.high; apart && k < last.low && !loop; ++k)
+                loop = loopB[k] != 0;
+            if (!loop && (!open || (gapA < in->trains[size_t(a)].length + SignalMargin
+                                    && gapB < in->trains[size_t(b)].length + SignalMargin))) {
                 last.to = run.to;
                 last.low = std::min(last.low, run.low);
                 last.high = std::max(last.high, run.high);
@@ -999,6 +1033,39 @@ void SimulationCore::addStretches(int a, int pa, int b, int pb) {
         };
         insert(stretchesOf[size_t(a)][size_t(pa)], 0);
         insert(stretchesOf[size_t(b)][size_t(pb)], 1);
+    }
+}
+
+size_t SimulationCore::junctionNear(const std::vector<ProjectedSection> &way, double at, size_t start) const {
+    const std::vector<TrackSection> &sections = in->network->sections();
+    auto first = std::lower_bound(way.begin() + long(std::min(start, way.size())), way.end(), at - 1.0,
+                                  [](const ProjectedSection &p, double d) { return p.enter < d; });
+    for (auto i = first; i != way.end() && i->enter <= at + 1.0; ++i)
+        if (sections[size_t(i->section)].kind == TrackSection::Junction)
+            return size_t(i - way.begin());
+    return way.size();
+}
+
+void SimulationCore::loopsOf(int train, int part, std::vector<char> &marks,
+                            const std::function<bool(int)> &usedByOther) const {
+    const Runtime &rt = runtime[size_t(train)];
+    const std::vector<ProjectedSection> &way = rt.ways[size_t(part)].sections;
+    marks.assign(way.size(), 0);
+    for (size_t p = 0; p < rt.passing.size(); ++p) {
+        const PassingPlan &passing = rt.passing[p];
+        if (passing.part != part || passing.track.length() < in->trains[size_t(train)].length + SignalMargin)
+            continue;
+        bool theirs = false;
+        for (int section : rt.passingSections[p])
+            theirs = theirs || usedByOther(section);
+        if (theirs)
+            continue;
+        const size_t leaves = junctionNear(way, passing.from, 0);
+        const size_t rejoins = junctionNear(way, passing.to, leaves < way.size() ? leaves : 0);
+        if (leaves >= way.size() || rejoins >= way.size() || rejoins <= leaves)
+            continue;
+        for (size_t k = leaves + 1; k < rejoins; ++k)
+            marks[k] = 1;
     }
 }
 
@@ -1153,18 +1220,10 @@ SimulationCore::Passing SimulationCore::choosePassing(int train, size_t from, si
                 || passing.from > way[to - 1].leave + 1.0)
             continue;
         // The junctions where it leaves the route and rejoins it.
-        auto junctionAt = [&](double at, size_t start) {
-            auto first = std::lower_bound(way.begin() + long(start), way.end(), at - 1.0,
-                                          [](const ProjectedSection &p, double d) { return p.enter < d; });
-            for (auto i = first; i != way.end() && i->enter <= at + 1.0; ++i)
-                if (sections[size_t(i->section)].kind == TrackSection::Junction)
-                    return size_t(i - way.begin());
-            return way.size();
-        };
-        const size_t leaves = junctionAt(passing.from, from);
+        const size_t leaves = junctionNear(way, passing.from, from);
         if (leaves < from || leaves >= to)
             continue;
-        const size_t rejoins = junctionAt(passing.to, leaves);
+        const size_t rejoins = junctionNear(way, passing.to, leaves);
         if (rejoins >= way.size())
             continue;
         // The main route through the loop is free of opposing claims and of
@@ -1230,12 +1289,15 @@ void SimulationCore::takePassing(int train, size_t index) {
     rt.limits[part] = SpeedLimits(rt.ways[part], *in->network, plan.passenger, {}, 0.0f, rt.parts[part].length());
     rt.limit = 0;
     for (StopPlan &stop : rt.stops)
-        if (size_t(stop.part) == part)
+        if (size_t(stop.part) == part) {
             stop.front = moved(stop.front);
+            stop.platformEnd = moved(stop.platformEnd);
+        }
     for (WaitPlan &wait : rt.waits)
         if (size_t(wait.part) == part)
             wait.front = moved(wait.front);
     rt.passing.erase(rt.passing.begin() + long(index));
+    rt.passingSections.erase(rt.passingSections.begin() + long(index));
     rt.sides.erase(rt.sides.begin() + long(index));
     // The others' routes were made on the route before.
     for (Runtime::Side &other : rt.sides)
@@ -1246,6 +1308,70 @@ void SimulationCore::takePassing(int train, size_t index) {
             other.to = moved(other.to);
         }
     refreshStretches(train);
+    findExits(train);
+}
+
+void SimulationCore::findExits(int train) {
+    Runtime &rt = runtime[size_t(train)];
+    rt.exits.assign(rt.stops.size(), -1);
+    if (in->network == nullptr)
+        return;
+    const std::vector<TrackSection> &sections = in->network->sections();
+    for (size_t k = 0; k < rt.stops.size(); ++k) {
+        const StopPlan &stop = rt.stops[k];
+        if (size_t(stop.part) >= rt.ways.size())
+            continue;
+        const Projection &way = rt.ways[size_t(stop.part)];
+        // The first stop signal beyond the platform.
+        const auto beyond = std::lower_bound(way.stopSignals.begin(), way.stopSignals.end(), stop.platformEnd - 1.0,
+                                             [](const ProjectedSignal &p, double at) { return p.at < at; });
+        if (beyond == way.stopSignals.end())
+            continue;
+        const size_t index = size_t(beyond - way.stopSignals.begin());
+        bool held = beyond->at - stop.platformEnd <= ExitSignalReach;
+        if (!held) {
+            // Further on: on the platform's node, its block holding a facing
+            // junction (Open Rails: a signal without a fixed route).
+            auto at = std::upper_bound(way.sections.begin(), way.sections.end(), stop.platformEnd,
+                                       [](double d, const ProjectedSection &p) { return d < p.enter; });
+            size_t from = at == way.sections.begin() ? 0 : size_t(at - way.sections.begin()) - 1;
+            const int node = from < way.sections.size() ? sections[size_t(way.sections[from].section)].node : -1;
+            bool sameNode = from < way.sections.size() && sections[size_t(way.sections[from].section)].kind == TrackSection::Track;
+            for (size_t i = from; i < beyond->section && i < way.sections.size() && sameNode; ++i) {
+                const TrackSection &section = sections[size_t(way.sections[i].section)];
+                sameNode = section.kind == TrackSection::Crossing
+                        || (section.kind == TrackSection::Track && section.node == node);
+            }
+            const size_t blockEnd = index + 1 < way.stopSignals.size() ? way.stopSignals[index + 1].section
+                                                                      : way.sections.size();
+            bool facing = false;
+            for (size_t i = beyond->section; i < blockEnd && i < way.sections.size() && !facing; ++i)
+                facing = sections[size_t(way.sections[i].section)].kind == TrackSection::Junction
+                        && way.sections[i].pinIn == 0;
+            held = sameNode && facing;
+        }
+        if (!held)
+            continue;
+        rt.exits[k] = int(index);
+        // Short of it, as Open Rails stops a train at a held signal.
+        rt.stops[k].front = std::min(stop.front, beyond->at - SignalMargin - 1.0);
+    }
+}
+
+bool SimulationCore::heldAtStop(int train, size_t signal) const {
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    const bool standing = s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Station;
+    // The stop it stands at, then those ahead on this part.
+    for (int k = standing ? s.nextStop - 1 : s.nextStop; k >= 0 && k < int(rt.stops.size()); ++k) {
+        if (rt.stops[size_t(k)].part != s.part)
+            break;
+        if (rt.exits[size_t(k)] != int(signal))
+            continue;
+        // Released while it stands there, its departure near.
+        return !(standing && k == s.nextStop - 1 && now >= s.until - HoldRelease - MaxStep);
+    }
+    return false;
 }
 
 void SimulationCore::take(int train, size_t from, size_t to) {

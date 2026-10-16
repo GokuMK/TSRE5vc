@@ -696,6 +696,44 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
                   "opposing trains on a single line stop short of each other: a deadlock, reported for both");
         }
 
+        // Three trains in a ring: a circle of three 1 km tracks joined by
+        // junctions (a stub on each one's other output), each train on its
+        // own track for the next; each waits for the one ahead of it.
+        {
+            TestTrack::Layout ring;
+            ring.track(10, 1, 2, 100);
+            ring.track(11, 2, 3, 100);
+            ring.track(12, 3, 1, 100);
+            ring.junction(1, 12, 10, 20);
+            ring.junction(2, 10, 11, 21);
+            ring.junction(3, 11, 12, 22);
+            for (int k = 0; k < 3; ++k) {
+                ring.track(20 + k, 1 + k, 30 + k, 10);
+                ring.end(30 + k, 20 + k);
+            }
+            TDB *ringDb = &ring.db;
+            const QScopedValueRollback<TDB *> liveRing(Game::trackDB, ringDb);
+            auto ringGeometry = std::make_shared<const Sim::TrackGeometry>(ringDb);
+            auto ringNetwork = std::make_shared<const Sim::TrackNetwork>(ringDb, *ringGeometry, &signalConfig, false);
+            std::vector<Sim::TrainPlan> three;
+            for (int k = 0; k < 3; ++k)
+                three.push_back(trainOn(routeOf(ringDb, {10 + k, 800.0f}, {10 + (k + 1) % 3, 500.0f}, 31.0),
+                                        *ringNetwork, t0));
+            Sim::SimulationCore circle(inputOf(ringGeometry, ringNetwork, three));
+            std::vector<Sim::TrainEvent> ringEvents;
+            for (int i = 0; i < 600; ++i) {
+                circle.step(1.0);
+                for (const Sim::TrainEvent &e : circle.takeEvents())
+                    ringEvents.push_back(e);
+            }
+            bool ringed = true;
+            for (int k = 0; k < 3; ++k) {
+                const Sim::TrainEvent *deadlock = firstEvent(ringEvents, k, Sim::TrainEvent::Deadlock);
+                ringed = ringed && deadlock != nullptr && deadlock->index == (k + 1) % 3 && circle.trains()[size_t(k)].deadlocked;
+            }
+            check(ringed, "three trains in a ring, each waiting for the next: a deadlock, reported for all three");
+        }
+
         // A loose consist on the track a train starts on: it never starts.
         auto blockedInput = inputOf(lineGeometry, lineNetwork, {trainOn(east, *lineNetwork, t0)});
         Sim::StaticConsist standing;
@@ -956,6 +994,44 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
         }
         check(atSignal > 0.0 && atSignal <= 40.0 / 3.6 + 0.05,
               QString("a train passes a signal at caution at its aspect's speed (%1 km/h)").arg(atSignal * 3.6));
+
+        // Open Rails' forced red at station stops: a stop whose platform ends
+        // 50 m short of the signal at 1000 m (route distance 931). The train
+        // does not clear that signal until it stands there two minutes before
+        // its departure; the signal before it shows caution meanwhile.
+        {
+            Sim::TrainPlan stopping = trainOn(east, *network, t0);
+            Sim::StopPlan stop;
+            stop.part = 0;
+            stop.front = 850.0;
+            stop.platformEnd = 881.0;
+            stop.arrival = t0 + 60;
+            stop.departure = t0 + 400;
+            stop.platform = "Middle";
+            stopping.stops = {stop};
+            Sim::SimulationCore held(inputOf(geometry, network, {stopping}));
+            held.step(10.0);
+            const int approaching = aspectOf(held, 972), before = aspectOf(held, 971);
+            held.step(240.0);
+            const bool standing = held.trains()[0].status == Sim::TrainStatus::Stopped
+                    && held.trains()[0].stoppedAt == Sim::StopKind::Station;
+            const int standingAspect = aspectOf(held, 972);
+            held.step(60.0);
+            const int released = aspectOf(held, 972);
+            double departed = -1.0;
+            for (int i = 0; i < 200 && departed < 0.0; ++i) {
+                held.step(1.0);
+                for (const Sim::TrainEvent &e : held.takeEvents())
+                    if (e.kind == Sim::TrainEvent::Departed)
+                        departed = e.time;
+            }
+            check(approaching == SignalType::STOP && before == SignalType::APPROACH_1 && standing
+                      && standingAspect == SignalType::STOP && released >= SignalType::APPROACH_1
+                      && std::fabs(departed - (t0 + 400)) < 1.0,
+                  QString("a station stop's exit signal: at stop while the train comes (the one before at caution: %1), "
+                          "while it stands (%2), cleared two minutes before it leaves (%3); it leaves on time (%4 s)")
+                      .arg(before).arg(standingAspect).arg(released).arg(departed - t0));
+        }
 
         // A speed post's limit from the post, until the train's rear is past
         // the resume post.
@@ -1229,7 +1305,7 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
             int deadlocks = 0;
             bool onTrack15 = false;
         };
-        const auto run = [&](const std::vector<Sim::TrainPlan> &trains, bool withConsist) {
+        const auto run = [&](const std::vector<Sim::TrainPlan> &trains, bool withConsist, int watch = 0) {
             auto made = std::make_shared<Sim::SimulationInput>();
             made->startTime = t0;
             made->geometry = geometry;
@@ -1249,7 +1325,7 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
                     out.deadlocks += e.kind == Sim::TrainEvent::Deadlock ? 1 : 0;
                 // The layout lays each track on its own stretch of x.
                 std::vector<Sim::TrackPose> fronts, rears;
-                if (core.vehicleEnds(0, fronts, rears) && !fronts.empty())
+                if (core.vehicleEnds(watch, fronts, rears) && !fronts.empty())
                     out.onTrack15 = out.onTrack15 || (fronts.front().x > track15[0] && fronts.front().x < track15[1]);
             }
             out.finished = core.finished();
@@ -1278,6 +1354,27 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
               QString("a consist on a loop's main track: %1 stretches, the passing path round it taken (%2), %3, "
                       "%4 deadlocked").arg(blocked.stretches).arg(blocked.onTrack15 ? "yes" : "no")
                   .arg(blocked.finished ? "both finish" : "not finished").arg(blocked.deadlocks));
+        // Both through the main tracks, the westbound with a passing path
+        // round the long loop: the line is single track either side of it,
+        // each claims its side from the start and they meet there (Open
+        // Rails' path-based rule); without the passing path the line is one
+        // stretch end to end, both start in it: a deadlock.
+        const Sim::TrainRoute westMain = routeOf({{16, 390.0f}, {10, 10.0f}});
+        Sim::TrainPlan westbound = trainOn(westMain, 1, 40.0f);
+        Sim::PassingPlan loopRound;
+        loopRound.part = 0;
+        loopRound.from = 390.0;
+        loopRound.to = 790.0;
+        loopRound.track.append(15, 420.0f, 0.0f);
+        westbound.passing = {loopRound};
+        const Outcome met = run({trainOn(east, 0, 40.0f), westbound}, false, 1);
+        const Outcome endToEnd = run({trainOn(east, 0, 40.0f), trainOn(westMain, 1, 40.0f)}, false, 1);
+        check(met.finished && met.deadlocks == 0 && met.onTrack15 && met.stretches == 2 && endToEnd.stretches == 1
+                  && endToEnd.deadlocks > 0,
+              QString("a passing path in the middle of a single line: %1 stretches (%2 without), they meet at its loop "
+                      "(%3, %4), %5 deadlocked; without it %6 deadlocked")
+                  .arg(met.stretches).arg(endToEnd.stretches).arg(met.onTrack15 ? "round it" : "not round it")
+                  .arg(met.finished ? "both finish" : "not finished").arg(met.deadlocks).arg(endToEnd.deadlocks));
     }
 
     qInfo().noquote() << QString("simulation-core: %1 passed, %2 failed").arg(passed).arg(failed);
@@ -1538,6 +1635,12 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                                          .arg(side.track.length(), 0, 'f', 0);
                         qInfo().noquote() << "[tests:simulation-route]   its passing paths (from-to:length)" << sides.join(" ");
                     }
+                }
+                if (event.kind == Sim::TrainEvent::Blocked && qEnvironmentVariableIsSet("TSRE_SIM_TRACE")) {
+                    const Sim::TrainPlan &p = input->trains[size_t(event.train)];
+                    qInfo().noquote() << "[sim-trace]" << activity->name << p.service << p.serviceTime << "blocked at"
+                                      << event.time << "by" << event.index << "for" << int(event.waitFor) << "signal"
+                                      << event.signal << "front" << core.trains()[size_t(event.train)].front;
                 }
                 if (event.kind != Sim::TrainEvent::Arrived)
                     continue;

@@ -27,8 +27,9 @@ struct Vehicle {
 struct StopPlan {
     int part = 0;
     // Route distance where the train's front stands: centred on the
-    // platform, as Open Rails stops trains.
+    // platform, as Open Rails stops trains; and the platform's far end.
     double front = 0.0;
+    double platformEnd = 0.0;
     // Booked times, seconds after midnight; -1 for a stop without them.
     int arrival = -1;
     int departure = -1;
