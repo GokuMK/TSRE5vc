@@ -172,6 +172,15 @@ their acceleration as TSRE's stand-in driver gives them (a third of the
 throttle holding the speed). A capture view's `"trainView"` (`cab`,
 `front`, `back`) rides the train.
 
+The view's tick pins the frame it shows (`SimulationController::
+pinViewFrame`, until the next tick): the camera riding a train is placed
+in the tick and the trains are drawn in the paint after it, and with the
+host publishing every 16 ms a frame coming in between put the train a
+frame ahead of its camera on some paints (the user, 2026-10-17: the train
+stuttered by centimetres while the camera ran smoothly, at 12 fps). Now
+the camera, the drawing, the map, picking and sounds take the pinned
+frame; the windows' texts still take the latest.
+
 **Follow-up: one world clock (2026-10-15, the user).** The world's state
 that depends on time (sun, sky, lights, weather, clouds, and the fog on
 `feature/mist`) all reads the time of day (`Game::timeOfDayHours` and the

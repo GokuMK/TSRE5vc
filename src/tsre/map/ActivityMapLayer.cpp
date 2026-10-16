@@ -372,7 +372,7 @@ void ActivityMapLayer::pushSimulated(RenderQueue &queue, const MapView &view, co
     Activity *current = activity && route != nullptr ? route->getCurrentActivity() : nullptr;
     if (!simulation->shows(current))
         return;
-    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->viewFrame();
     if (frame.get() != simulatedFrame || simulation->chosen() != simulatedChosen || view.tileX != simulatedTileX
             || view.tileZ != simulatedTileZ || view.metresPerPixel != simulatedMetresPerPixel
             || palette.name != simulatedPalette) {
@@ -427,7 +427,7 @@ void ActivityMapLayer::pushSimulated(RenderQueue &queue, const MapView &view, co
 void ActivityMapLayer::buildSimulatedTrack(const MapView &view, const MapPalette &palette) {
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const std::shared_ptr<const Sim::SimulationInput> input = simulation->input();
-    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->viewFrame();
     TDB *tdb = Game::trackDB;
     const float mpp = view.metresPerPixel;
     std::vector<float> trackVertices[2], borderVertices, fillVertices[3];
@@ -591,7 +591,7 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
     // Simulated trains where they are, with the ids of their trains.
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     if (simulation->shows(current)) {
-        for (int train = 0; train < int(simulation->frame()->trains.size()); ++train) {
+        for (int train = 0; train < int(simulation->viewFrame()->trains.size()); ++train) {
             if (!SelectionIdCodec::tryActivityService(simulation->serviceId(train), 0, id))
                 continue;
             MapFeatures own;

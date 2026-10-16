@@ -254,6 +254,10 @@ void RouteEditorGLWidget::cleanup() {
 
 void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     Game::currentShapeLib = currentShapeLib;
+    // The simulation's trains as one frame has them, from here (sounds,
+    // Follow, the camera riding a train) to the next tick: the paints draw
+    // them where the camera was placed by them.
+    Sim::SimulationController::instance()->pinViewFrame();
     timeNow = QDateTime::currentMSecsSinceEpoch();
     unsigned long long frameTimeMs = timeNow - lastTime;
     if(frameTimeMs < 1)
@@ -3421,7 +3425,7 @@ bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     Consist *consist = simulation->consistOf(train);
     const std::shared_ptr<const Sim::SimulationInput> input = simulation->input();
-    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->viewFrame();
     if (consist == NULL || !consist->isOnTrack || consist->engItems.isEmpty() || input == nullptr
             || train < 0 || size_t(train) >= input->trains.size() || size_t(train) >= frame->trains.size())
         return false;

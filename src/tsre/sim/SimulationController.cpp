@@ -298,6 +298,14 @@ std::shared_ptr<const SimulationFrame> SimulationController::frame() const {
     return latest != nullptr ? latest : none;
 }
 
+std::shared_ptr<const SimulationFrame> SimulationController::viewFrame() const {
+    return pinnedFrame != nullptr && in != nullptr && pinnedFrame->runId == in->runId ? pinnedFrame : frame();
+}
+
+void SimulationController::pinViewFrame() {
+    pinnedFrame = exists() ? frame() : nullptr;
+}
+
 void SimulationController::poll() {
     if (!exists() || in == nullptr)
         return;
@@ -438,7 +446,7 @@ void SimulationController::follow(int train) {
 }
 
 bool SimulationController::trainPlace(int train, int *tile, float *position, float *heading, float *length) const {
-    const std::shared_ptr<const SimulationFrame> now = frame();
+    const std::shared_ptr<const SimulationFrame> now = viewFrame();
     if (train < 0 || size_t(train) >= now->trains.size())
         return false;
     const TrainFrame &t = now->trains[size_t(train)];
@@ -635,7 +643,7 @@ int SimulationController::trainOfService(int service) const {
 void SimulationController::placeTrains() const {
     if (!exists() || in == nullptr)
         return;
-    const std::shared_ptr<const SimulationFrame> now = frame();
+    const std::shared_ptr<const SimulationFrame> now = viewFrame();
     if (now == placedFrame)
         return;
     placedFrame = now;
@@ -688,6 +696,7 @@ void SimulationController::dropTrains() {
     }
     consists.clear();
     placedFrame.reset();
+    pinnedFrame.reset();
     heard.clear();
 }
 

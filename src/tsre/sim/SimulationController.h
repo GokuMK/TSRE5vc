@@ -67,6 +67,12 @@ public:
     // The latest frame, from the host's mailbox (the views draw it each
     // time); an empty one when none exists.
     std::shared_ptr<const SimulationFrame> frame() const;
+    // The frame the views show: the one the view's last tick pinned, so the
+    // camera riding a train and the train drawn come from the same frame
+    // while the host publishes newer ones; the latest when none is pinned.
+    std::shared_ptr<const SimulationFrame> viewFrame() const;
+    void pinViewFrame();
+    void unpinViewFrame() { pinnedFrame.reset(); }
     // The run's events so far, in order.
     const std::vector<TrainEvent> &events() const { return history; }
     // Milliseconds the input took to make.
@@ -196,6 +202,7 @@ private:
     // each was heard last time.
     mutable std::vector<std::unique_ptr<Consist>> consists;
     mutable std::shared_ptr<const SimulationFrame> placedFrame;
+    std::shared_ptr<const SimulationFrame> pinnedFrame;
     std::vector<bool> heard;
     // The consists placed where the latest frame has them (once a frame).
     void placeTrains() const;

@@ -604,6 +604,42 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(f && std::fabs(f->time - (8 * 3600 + 90)) < 1e-6 && f->trains[1].state.status == Sim::TrainStatus::Running,
           QString("Run to 08:01:30, before the time shown: reached from the start (%1)").arg(f ? f->time : -1));
 
+    // A view's tick pins the frame it shows (the camera riding a train and
+    // the train drawn from the same one): the consists stay where it has
+    // them while newer frames come, and go on with the next tick's.
+    {
+        const auto placedAt = [&](const Sim::SimulationFrame &x, int train) {
+            Consist *consist = simulation->consistOf(train);
+            if (consist == nullptr || !consist->isOnTrack || consist->engItems.isEmpty()
+                    || consist->engItems[0].engPointer == nullptr)
+                return false;
+            const float *at = consist->engItems[0].engPointer->getCurrentPositionOnTrack();
+            const Sim::TrackPose &a = x.trains[size_t(train)].fronts[0];
+            return at != nullptr && std::fabs(at[0] - a.x) < 0.01f && std::fabs(at[2] - a.z) < 0.01f
+                    && int(at[5]) == a.tileX && int(at[6]) == a.tileZ;
+        };
+        simulation->pinViewFrame();
+        const std::shared_ptr<const Sim::SimulationFrame> pinned = simulation->viewFrame();
+        const bool before = placedAt(*pinned, 1);
+        runToTime->setTime(QTime(8, 2, 0));
+        runTo->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 10000, pump);
+        pump();
+        const bool moved = f && f->trains[1].state.status == Sim::TrainStatus::Running && !placedAt(*f, 1);
+        const bool stayed = simulation->viewFrame() == pinned && placedAt(*pinned, 1);
+        simulation->pinViewFrame();
+        const bool next = simulation->viewFrame() == f && placedAt(*f, 1);
+        simulation->unpinViewFrame();
+        check(before && moved && stayed && next,
+              "the frame a view pins: its trains stay there as newer frames come, the next tick's moves them on");
+        runToTime->setTime(QTime(8, 1, 30));
+        runTo->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 10000, pump);
+        pump();
+    }
+
     // The world's clock is the simulation's; a run as fast as possible
     // leaves it until it pauses; past midnight, the next day.
     WorldClock *clock = WorldClock::instance();
