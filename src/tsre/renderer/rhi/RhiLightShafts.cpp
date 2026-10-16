@@ -344,15 +344,19 @@ void main() {
     // The near layer's light, added (camera.w: its strength).
     // The lit air's light (direction.w), the near layer's (camera.w), added;
     // thin haze's rays kept visible (its square root).
-    // At a low sun the rays only in a fan about it (camera.y: the share of
-    // the wide spread, none under 10 degrees, all over 25): a cloud's shadow
-    // stretches along the sun 1 / tan(elevation) times its height above the
-    // air, and at 8 degrees, 30 to 60 degrees from the sun, the shadows drew
-    // long near-horizontal stripes across the sky (user, CMK 5:00); about
-    // the sun they converge, as sunset's rays.
-    float rays = sqrt(haze) * mix(pow(towards, 12.0), forward, camera.y);
+    // The rays where they fall, not where they run across the sky: on the
+    // screen a sun ray at this pixel runs along the sun's direction less its
+    // part along the view; steeper than some 35 degrees from the vertical
+    // they show, flatter than 60 not (at a low sun the clouds' shadows drew
+    // long near-horizontal stripes across the sky and its clouds, user, CMK
+    // 5:00; under broken clouds the rays fall from the gaps).
+    vec3 view = normalize(far.xyz / far.w);
+    vec3 along = normalize(direction.xyz) - view * dot(view, normalize(direction.xyz));
+    vec3 upright = vec3(0.0, 1.0, 0.0) - view * view.y;
+    float vertical = abs(dot(along, upright)) / max(length(along) * length(upright), 1e-5);
+    float rays = sqrt(haze) * forward * smoothstep(0.5, 0.82, vertical);
     result = vec4(colour.rgb * (s.r * sun.z + s.a * camera.w + lit * rays * direction.w),
-                  1.0 - clamp(shade * sqrt(haze) * forward * sun.w, 0.0, 0.35));
+                  1.0 - clamp(shade * rays * sun.w, 0.0, 0.35));
 }
 )";
 
@@ -718,13 +722,8 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     // little (more read as the image darkened around them, user
     // 2026-10-16).
     parameters.sun[3] = 0.8f * fade;
-    // For the view's directions (forward scattering); the rays' wide spread
-    // by the sun's elevation (the composite).
+    // For the view's directions (forward scattering, the rays' run).
     parameters.camera[0] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
-    {
-        const float t = std::clamp((elevation - 10.0f) / 15.0f, 0.0f, 1.0f);
-        parameters.camera[1] = t * t * (3.0f - 2.0f * t);
-    }
     // The near layer's light, added.
     parameters.camera[3] = 0.1f * fade;
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, parameters.inverse);

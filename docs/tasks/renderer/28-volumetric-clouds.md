@@ -1115,20 +1115,22 @@ of 255 on average against shafts off, a faint greying, no rays.
   6), air shaded more darkened only a little (`sun.w` 0.8; the user:
   stronger, the image looked darkened around the rays), the haze's square
   root (thin haze keeps its rays), towards the sun most.
-- **At a low sun a fan about it:** a cloud's shadow stretches along the sun
-  1 / tan(elevation) times its height above the air: at 8.6 degrees (user,
-  CMK 5:00, fair cumulus, `-5350,14860,542.10,286.98,-960.66,1168.04,7.80`)
-  the shadows 30 to 60 degrees from the sun drew long near-horizontal
-  stripes across the sky and its clouds. The rays' spread goes from the
-  wide one (a fifth of their strength everywhere, as the shade's) at 25
-  degrees to a fan of some 35 degrees about the sun (the cosine to the
-  12th) under 10 (`camera.y`), so sunset's rays converge on the sun.
-  Tried on the way, all rejected (debug output showed the low sun: the
-  hills shading most of the air, the air still lit striped by the far
-  clouds): the haze's phase (all rays fainter, the stripes kept); the lit
-  share compressed (the stripes and the good rays differ alike, 5 to 15 %);
-  no rays over cloud faces (near the horizon the good rays lie over
-  distant clouds too). Only against
+- **Rays that fall, not across the sky** (user: rays falling below the
+  clouds good, running horizontally not, at any sun): at a low sun (8.6
+  degrees, user, CMK 5:00, fair cumulus,
+  `-5350,14860,542.10,286.98,-960.66,1168.04,7.80`) the clouds' shadows,
+  stretched 1 / tan(elevation) times their height, drew long
+  near-horizontal stripes across the sky and its clouds. A sun ray at a
+  pixel runs on the screen along the sun's direction less its part along
+  the view: the rays show where that is steeper than some 35 degrees from
+  the vertical and go flatter than 60. Tried on the way, all rejected
+  (debug output showed the low sun: the hills shading most of the air, the
+  air still lit striped by the far clouds): the haze's phase (all rays
+  fainter, the stripes kept); the lit share compressed (the stripes and the
+  good rays differ alike, 5 to 15 %); no rays over cloud faces (near the
+  horizon the good rays lie over distant clouds too); the spread narrowed
+  to a fan about the sun below 10 degrees of elevation (fitted to two
+  views; what matters is the rays' run). Only against
   surroundings of a like path (the haze each crosses): at the horizon the
   terrain's short path beside the sky's long one made a dark band along
   the hills.
@@ -1139,12 +1141,12 @@ of 255 on average against shafts off, a faint greying, no rays.
   whole view under scattered clouds 13 of 255 darker); the light added
   alone (a glow, no rays); the lit air against the clouds' average (no
   effect: the average is no measure at a low sun).
-- **Captures** (`build/shafts/fan.png`, `fan-zoom.png`): fair cumulus at
-  17:00 (27.5 degrees), rays fanning from the sun; broken at 17:00, two
-  bright rays from the gaps; at 5:00 (8.6) the stripes gone, faint short
-  rays on a cloud by the sun; broken at 19:00 (9.1) a glow and rays at the
-  sun on the horizon; away from the sun, overcast and noon as before;
-  under a storm the view no longer 9 of 255 darker. Between frames 1.7 % of pixels
+- **Captures** (`build/shafts/fall.png`, `fall-zoom.png`): broken at 17:00
+  (27.5 degrees), two bright rays falling from the gaps; fair cumulus at
+  17:00, rays falling from the clouds by the sun; at 5:00 (8.6) no stripes,
+  a glow under the sun at the horizon; broken at 19:00 (9.1) a glow and
+  rays at the sun on the horizon; away from the sun, overcast and noon as
+  before; under a storm the view no longer 9 of 255 darker. Between frames 1.7 % of pixels
   change by more than 2 of 255 (0.1 % with shafts off): fine grain in the
   lower sky by the sun.
 - **Cost on the Steam Deck** (High, median frame, three rounds, old
