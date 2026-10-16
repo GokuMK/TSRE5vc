@@ -28,6 +28,59 @@ namespace {
 
 std::atomic<unsigned int> nextRun{1};
 
+constexpr double PoundForce = 4.44822162;
+constexpr double Mile = 0.44704;
+
+// A vehicle's resistance as Davis coefficients (N, N/(m/s), N/(m/s)²):
+// Open Rails' ORTSDavis values where the file has them; else MSTS's
+// Friction, where its second speed is a low one (FCalc's), fitted by least
+// squares from there to 80 mph; else the Davis equation for plain bearings
+// (four axles, a frontal area of 10 m², the leading vehicle's air drag
+// higher).
+void resistanceOf(const Eng &eng, bool leading, double davis[3]) {
+    if (eng.hasDavis) {
+        std::copy(eng.davis, eng.davis + 3, davis);
+        return;
+    }
+    const double *f = eng.friction;
+    if (eng.hasFriction && f[2] >= 0.0 && f[2] <= 10.0 * Mile) {
+        // Its force above the second speed.
+        const auto force = [f](double v) {
+            return f[0] * std::pow(f[2], f[1]) + f[3] * f[2] + f[3] * (std::pow(v, f[4] + 1.0) - std::pow(f[2], f[4] + 1.0));
+        };
+        // Normal equations of a + b v + c v².
+        double m[3][4] = {};
+        for (double v = std::max(f[2], 0.5); v <= 80.0 * Mile; v += 0.5) {
+            const double row[3] = {1.0, v, v * v};
+            const double y = force(v);
+            for (int r = 0; r < 3; ++r) {
+                for (int c = 0; c < 3; ++c)
+                    m[r][c] += row[r] * row[c];
+                m[r][3] += row[r] * y;
+            }
+        }
+        for (int k = 0; k < 3; ++k) {
+            for (int r = k + 1; r < 3; ++r) {
+                const double scale = m[r][k] / m[k][k];
+                for (int c = k; c < 4; ++c)
+                    m[r][c] -= scale * m[k][c];
+            }
+        }
+        for (int k = 2; k >= 0; --k) {
+            double sum = m[k][3];
+            for (int c = k + 1; c < 3; ++c)
+                sum -= m[k][c] * davis[c];
+            davis[k] = sum / m[k][k];
+        }
+        return;
+    }
+    const double tons = eng.massKg / 907.18474;
+    const double areaFt2 = 10.0 / 0.09290304;
+    davis[0] = (1.3 * tons + 29.0 * 4.0) * PoundForce;
+    davis[1] = 0.045 * tons * PoundForce / Mile;
+    davis[2] = (leading ? 0.0005 : 0.00035) * areaFt2 * PoundForce / (Mile * Mile);
+}
+
 const TRitem *platformItem(TDB *tdb, int id) {
     auto it = tdb->trackItems.find(id);
     if (it == tdb->trackItems.end() || it->second == nullptr || it->second->platformTrItemData == nullptr)
@@ -171,18 +224,27 @@ std::vector<SpeedLimit> SpeedLimits(const Projection &way, const TrackNetwork &n
     return limits;
 }
 
-void SetRates(TrainPlan &train) {
-    bool passenger = false;
+void SetRates(TrainPlan &train, float topSpeed) {
+    // A freight wagon makes it a freight train (Open Rails).
+    bool freight = false;
     for (const Vehicle &vehicle : train.vehicles)
-        passenger = passenger || vehicle.type == 1;
-    train.passenger = passenger;
-    if (!passenger) {
+        freight = freight || vehicle.type == 2;
+    train.passenger = !freight;
+    if (freight) {
         train.acceleration = 0.5f;
         train.deceleration = 0.5f;
         return;
     }
     train.acceleration = 1.0f;
-    train.deceleration = train.maxSpeed > 55.0f ? 2.5f : train.maxSpeed > 40.0f ? 1.5f : 1.0f;
+    const float top = topSpeed >= 0.0f ? topSpeed : train.maxSpeed;
+    train.deceleration = top > 55.0f ? 2.5f : top > 40.0f ? 1.5f : 1.0f;
+    // An EMU: electric power cars with passengers at both ends.
+    const auto powerCar = [](const Vehicle &vehicle) { return vehicle.type == 4 && vehicle.passengerCapacity; };
+    if (train.deceleration == 1.0f && !train.vehicles.empty() && powerCar(train.vehicles.front())
+            && powerCar(train.vehicles.back())) {
+        train.acceleration = 1.5f;
+        train.deceleration = 2.0f;
+    }
 }
 
 std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
@@ -250,6 +312,7 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
         plan.traffic = player ? -1 : train.index;
         plan.consist = service->trainConfig;
         float engineSpeed = 0.0f;
+        QStringList missing;
         for (const Consist::EngItem &item : consist->engItems) {
             Vehicle vehicle;
             vehicle.flip = item.flip;
@@ -262,16 +325,49 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
             if (eng != nullptr) {
                 vehicle.length = eng->getFullWidth();
                 vehicle.type = eng->wagonTypeId;
-                if (eng->wagonTypeId >= 4 && eng->maxSpeed > 0.0f)
-                    engineSpeed = engineSpeed > 0.0f ? std::min(engineSpeed, eng->maxSpeed) : eng->maxSpeed;
+                vehicle.passengerCapacity = eng->passengerCapacity;
+                const float speed = float(eng->maxSpeedMps);
+                if (eng->wagonTypeId >= 4 && speed > 0.0f)
+                    engineSpeed = engineSpeed > 0.0f ? std::min(engineSpeed, speed) : speed;
             }
             plan.length += vehicle.length;
             plan.vehicles.push_back(vehicle);
+            // Its share of the train's performance (task 03).
+            if (eng == nullptr || eng->massKg <= 0.0) {
+                const QString what = eng != nullptr ? eng->name : QString::number(item.eng);
+                if (!missing.contains(what))
+                    missing << what;
+                continue;
+            }
+            Performance &p = plan.performance;
+            p.mass += eng->massKg;
+            if (eng->wagonTypeId >= 4) {
+                p.force += eng->forceN;
+                p.power += eng->powerW;
+            }
+            double davis[3] = {0.0, 0.0, 0.0};
+            resistanceOf(*eng, plan.vehicles.size() == 1, davis);
+            p.davisA += davis[0];
+            p.davisB += davis[1];
+            p.davisC += davis[2];
         }
-        plan.maxSpeed = consist->maxVelocity[0] > 0.1f ? consist->maxVelocity[0]
+        // Driven with force and mass where every vehicle has its mass and the
+        // engines their force or power (task 03), else simply.
+        if (missing.isEmpty() && (plan.performance.force > 0.0 || plan.performance.power > 0.0)) {
+            plan.driving = Driving::Physics;
+        } else {
+            plan.driving = Driving::Simple;
+            input->warnings << (missing.isEmpty()
+                                ? QString("%1: driven simply (its engines have no force or power)").arg(name)
+                                : QString("%1: driven simply (no mass for %2)").arg(name, missing.join(", ")));
+        }
+        // The consist file's MaxVelocity (as Open Rails takes it), else its
+        // slowest engine's.
+        plan.maxSpeed = consist->fileMaxVelocity > 0.1f ? consist->fileMaxVelocity
                       : engineSpeed > 0.0f ? engineSpeed : input->routeSpeedLimit;
-        SetRates(plan);
         plan.efficiency = service->efficiency > 0.0f ? service->efficiency : 1.0f;
+        plan.drivingEfficiency = player ? 0.9f : plan.efficiency;
+        SetRates(plan, std::min(input->routeSpeedLimit, plan.maxSpeed * plan.efficiency));
         ActivityServiceDefinition *definition = ActivityTrains::Definition(activity, train);
         if (definition != nullptr && !definition->efficiency.isEmpty() && definition->efficiency.last() > 0.0f)
             plan.efficiency = definition->efficiency.last();

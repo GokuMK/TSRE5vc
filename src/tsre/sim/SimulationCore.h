@@ -102,6 +102,26 @@ public:
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
     static constexpr double AutoNodeTime = 120.0;
+    // Physics driving (task 03), as Open Rails' AI: it plans its braking at
+    // this share of its deceleration (allowing for the brakes' delay),
+    // comes down to the creep speed where it stops at a station, LimitCreep
+    // short of a reversal, its path's end or a waiting point, SignalCreep
+    // short of a stop signal and AuthorityCreep short of its authority's
+    // end (creeping on from there at half the creep speed), and stops from
+    // the creep speed at its full deceleration. It is down to a lower limit
+    // ahead LimitCreep before it. Short of a station's stop by 1.5 × its top
+    // speed² / its deceleration, and short of anything else it stops at or
+    // slows for by its braking distance and BrakingZone (Open Rails' AI
+    // braking state), it accelerates at full power up to that curve. Braking
+    // to stop, it holds its speed between half and one m/s above the curve
+    // (its bands): BrakingMargin.
+    static constexpr double BrakingShare = 0.22;
+    static constexpr double BrakingMargin = 0.75;
+    static constexpr double CreepSpeed = 2.5;
+    static constexpr double SignalCreep = 50.0;
+    static constexpr double AuthorityCreep = 30.0;
+    static constexpr double LimitCreep = 10.0;
+    static constexpr double BrakingZone = 90.0;
 
     // Trains that started before the activity are run up to its start (the
     // pre-run).
@@ -270,6 +290,9 @@ private:
         bool endsAtSignal = false;
         // On its part's speed limits: the first its rear has not left.
         size_t limit = 0;
+        // Physics: starting away from rest, until near its limit (Open
+        // Rails' accelerating state).
+        bool startingAway = false;
         // Whom it was last reported waiting for.
         int reported = Unreported;
         // Waiting for track: when it last tried (-1 not), and what the
@@ -357,6 +380,14 @@ private:
     // come down to `target` within `distance` at deceleration `d` (exact on
     // the braking curve).
     static double brakingSpeed(double v, double dt, double d, double distance, double target);
+    // Physics driving: the acceleration at full power at speed `v` (the
+    // engines' force, limited by their power, less the train's resistance
+    // and the gradient under it), m/s².
+    double fullAcceleration(int train, double v) const;
+    // Physics driving: the speed a train may have at the end of a step from
+    // `v` over `dt` to stop at a target of kind `kind` `distance` ahead,
+    // where its limit is `limit`.
+    double stoppingSpeed(int train, double v, double dt, double distance, StopKind kind, double limit) const;
     // A Blocked event, once for each holder it waits for.
     void blocked(int train, double time);
     // Rings of trains each waiting for track the next one holds.

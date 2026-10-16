@@ -70,6 +70,9 @@ public:
     QString showName;
     unsigned int serial = 0;
     float maxVelocity[2];
+    // MaxVelocity's speed as the file gives it (m/s), which the editor's
+    // value above replaces with its engines'; -1 without one.
+    float fileMaxVelocity = -1;
     int nextWagonUID = 0;
     float durability = 0;
     float conLength = 0;

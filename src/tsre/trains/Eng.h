@@ -74,6 +74,20 @@ public:
     float maxForce = 0;
     float maxPower = 0;
     float maxCurrent = 0;
+    // For the simulation's driving (task simulation 03), in SI units: the
+    // mass (kg), the engine's force (N), power (W) and top speed (m/s);
+    // the resistance as Open Rails' Davis A, B, C (N, N/(m/s), N/(m/s)²)
+    // where given, else MSTS's Friction (C1, E1, V2, C2, E2); a passenger
+    // capacity (an EMU's power car).
+    double massKg = 0.0;
+    double forceN = 0.0;
+    double powerW = 0.0;
+    double maxSpeedMps = 0.0;
+    double davis[3] = {0.0, 0.0, 0.0};
+    bool hasDavis = false;
+    double friction[5] = {0.0, 0.0, -1.0, 0.0, 0.0};
+    bool hasFriction = false;
+    bool passengerCapacity = false;
     QString souncCabFile;
     // The outside .sms ("Sound" of the Wagon section) and the wheels' radii
     // (the Engine section's are the driving wheels), in metres.

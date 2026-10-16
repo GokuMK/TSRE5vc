@@ -13,6 +13,7 @@
 #include <tsre/map/MapFeatures.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/fileFunctions/MstsUnits.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/ComplexShape.h>
@@ -70,6 +71,15 @@ Eng::Eng(Eng *o) {
     maxForce = o->maxForce;
     maxPower = o->maxPower;
     maxCurrent = o->maxCurrent;
+    massKg = o->massKg;
+    forceN = o->forceN;
+    powerW = o->powerW;
+    maxSpeedMps = o->maxSpeedMps;
+    std::copy(o->davis, o->davis + 3, davis);
+    hasDavis = o->hasDavis;
+    std::copy(o->friction, o->friction + 5, friction);
+    hasFriction = o->hasFriction;
+    passengerCapacity = o->passengerCapacity;
     flip = o->flip;
     loaded = o->loaded;
     kierunek = o->kierunek;
@@ -344,7 +354,39 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("mass")) {
+                    const int at = data->off;
                     mass = ParserX::GetNumberInside(data);
+                    data->off = at;
+                    massKg = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Mass);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("ortsdavis_a") || sh == ("ortsdavis_b") || sh == ("ortsdavis_c")) {
+                    const int k = sh.back().toLatin1() - 'a';
+                    const MstsUnits::Kind kinds[3] = {MstsUnits::Kind::Force, MstsUnits::Kind::Resistance,
+                                                      MstsUnits::Kind::ResistanceSquared};
+                    bool ok = false;
+                    davis[k] = MstsUnits::value(ParserX::GetToken(data), kinds[k], &ok);
+                    hasDavis = hasDavis || ok;
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("friction")) {
+                    const MstsUnits::Kind kinds[5] = {MstsUnits::Kind::Resistance, MstsUnits::Kind::None,
+                                                      MstsUnits::Kind::Speed, MstsUnits::Kind::Resistance,
+                                                      MstsUnits::Kind::None};
+                    bool all = true;
+                    for (int k = 0; k < 5; ++k) {
+                        bool ok = false;
+                        friction[k] = MstsUnits::value(ParserX::GetToken(data), kinds[k], &ok);
+                        all = all && ok;
+                    }
+                    hasFriction = all;
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("passengercapacity")) {
+                    passengerCapacity = true;
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -496,12 +538,18 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("maxvelocity")) {
+                    const int at = data->off;
                     maxSpeed = ParserX::GetNumberInside(data);
+                    data->off = at;
+                    maxSpeedMps = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Speed);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("maxpower")) {
+                    const int at = data->off;
                     maxPower = ParserX::GetNumberInside(data);
+                    data->off = at;
+                    powerW = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Power);
                     //qDebug() << "maxPower "<<maxPower;
                     ParserX::SkipToken(data);
                     continue;
@@ -513,7 +561,10 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("maxforce")) {
+                    const int at = data->off;
                     maxForce = ParserX::GetNumberInside(data);
+                    data->off = at;
+                    forceN = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Force);
                     //qDebug() << "maxForce "<<maxForce / 1000;
                     ParserX::SkipToken(data);
                     continue;

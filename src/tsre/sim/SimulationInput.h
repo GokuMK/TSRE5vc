@@ -21,6 +21,26 @@ struct Vehicle {
     // Its Eng in the editor's EngLib, which draws it (the core does not
     // read it); -1 for one not found.
     int eng = -1;
+    // It carries passengers (a carriage, or a power car with a passenger
+    // capacity: an EMU's).
+    bool passengerCapacity = false;
+};
+
+// How a train is driven (task simulation 03): Simple, task 01's constant
+// acceleration and braking; Physics, as Open Rails' AI drives with its
+// force and mass.
+enum class Driving { Simple, Physics };
+
+// What the physics driving reads of a train: its mass (kg), its engines'
+// force (N) and power (W), its resistance as Davis coefficients summed
+// over its vehicles (N, N/(m/s), N/(m/s)²).
+struct Performance {
+    double mass = 0.0;
+    double force = 0.0;
+    double power = 0.0;
+    double davisA = 0.0;
+    double davisB = 0.0;
+    double davisC = 0.0;
 };
 
 // A station stop on a train's route.
@@ -82,10 +102,19 @@ struct TrainPlan {
     float maxSpeed = 0.0f;
     // After the last stop, and for a train without stops.
     float efficiency = 1.0f;
+    // Open Rails' AI targets (m/s²): passenger trains 1.0 (an EMU 1.5) and
+    // braking 1.0, 1.5 above 40 m/s, 2.5 above 55 m/s (an EMU 2.0); freight
+    // 0.5 both ways.
     float acceleration = 1.0f;
     float deceleration = 1.0f;
-    // It has a carriage: passenger speed limits apply, else freight ones.
+    // Open Rails' AI efficiency in driving (Physics): the service's, the
+    // player's train 0.9.
+    float drivingEfficiency = 1.0f;
+    // No freight wagon in it (Open Rails): passenger speed limits apply,
+    // else freight ones.
     bool passenger = false;
+    Driving driving = Driving::Simple;
+    Performance performance;
     // Seconds after midnight.
     int startTime = 0;
     TrainRoute route;
@@ -135,8 +164,10 @@ struct SimulationInput {
 };
 
 // Open Rails' AI rates (m/s²): passenger trains 1.0, braking 1.5 above
-// 40 m/s and 2.5 above 55 m/s; freight 0.5 both.
-void SetRates(TrainPlan &train);
+// 40 m/s and 2.5 above 55 m/s of `topSpeed` (its top speed × its service's
+// efficiency within the route's limit, Open Rails' TrainMaxSpeedMpS; its
+// maxSpeed when negative); freight 0.5 both.
+void SetRates(TrainPlan &train, float topSpeed = -1.0f);
 
 // The input for an activity, made on the main thread from the editor's data
 // (the activity's player and AI trains, their services, paths, consists and

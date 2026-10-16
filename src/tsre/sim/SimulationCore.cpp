@@ -198,13 +198,15 @@ void SimulationCore::start(int train, double from, double to) {
     runtime[size_t(train)].reported = Unreported;
     record(t, train, TrainEvent::Started);
     // Starting at its first station (within a train's length of the stop):
-    // it stands there until its departure.
+    // it stands there its boarding time, and until its departure.
     if (!runtime[size_t(train)].stops.empty() && runtime[size_t(train)].stops.front().part == s.part
             && std::fabs(runtime[size_t(train)].stops.front().front - s.front) <= plan.length) {
         const StopPlan &stop = runtime[size_t(train)].stops.front();
         s.status = TrainStatus::Stopped;
         s.stoppedAt = StopKind::Station;
-        s.until = stop.departure >= 0 ? std::max(t, double(stop.departure)) : t + stop.boarding;
+        s.until = t + stop.boarding;
+        if (stop.departure >= 0)
+            s.until = std::max(s.until, double(stop.departure));
         s.nextStop = 1;
         record(t, train, TrainEvent::Arrived, 0);
     }
@@ -358,17 +360,32 @@ void SimulationCore::advance(int train, double from, double to) {
             // efficiency on this run, the line's limits along its whole
             // length, the last signal's speed), braking at constant
             // deceleration to stand at the target and to be down to each
-            // lower limit ahead where it begins.
+            // lower limit ahead where it begins. Physics driving brakes as
+            // Open Rails' AI plans it (stoppingSpeed).
             const float efficiency = s.nextStop < int(runtime[size_t(train)].stops.size())
                     ? runtime[size_t(train)].stops[size_t(s.nextStop)].efficiency : plan.efficiency;
-            double limit = std::min(double(in->routeSpeedLimit), double(plan.maxSpeed * efficiency));
+            const double top = std::min(double(in->routeSpeedLimit), double(plan.maxSpeed * efficiency));
+            double limit = top;
             if (s.signalSpeed > 0.0f)
                 limit = std::min(limit, double(s.signalSpeed));
             const double dt = to - t;
             const double v = s.speed;
-            const double d = plan.deceleration;
+            const bool physics = plan.driving == Driving::Physics;
+            const double d = physics ? BrakingShare * plan.deceleration : plan.deceleration;
             const double rear = s.front - plan.length;
-            const double reach = v * v / (2.0 * d) + 2.0 * v * dt + 50.0;
+            const double fastest = physics ? std::max(v, limit) : v;
+            const double reach = fastest * fastest / (2.0 * d) + 2.0 * v * dt + 50.0
+                    + (physics ? LimitCreep + BrakingZone : 0.0);
+            // Physics: within reach of what it next stops at or slows for,
+            // Open Rails' AI is in its braking state.
+            bool braking = false;
+            // The speed at the step's end from which it is down to `speed`
+            // `distance` ahead.
+            const auto downTo = [&](double distance, double speed) {
+                if (!physics)
+                    return brakingSpeed(v, dt, d, distance, speed);
+                return std::max(speed, brakingSpeed(v, dt, d, distance - LimitCreep, speed));
+            };
             double ahead = 1e9;
             if (size_t(s.part) < runtime[size_t(train)].limits.size()) {
                 const std::vector<SpeedLimit> &limits = runtime[size_t(train)].limits[size_t(s.part)];
@@ -376,10 +393,13 @@ void SimulationCore::advance(int train, double from, double to) {
                 while (rt.limit < limits.size() && limits[rt.limit].to <= rear)
                     ++rt.limit;
                 for (size_t k = rt.limit; k < limits.size() && limits[k].from < s.front + reach; ++k) {
-                    if (limits[k].from <= s.front)
+                    if (limits[k].from <= s.front) {
                         limit = std::min(limit, double(limits[k].speed));
-                    else
-                        ahead = std::min(ahead, brakingSpeed(v, dt, d, limits[k].from - s.front, limits[k].speed));
+                    } else {
+                        ahead = std::min(ahead, downTo(limits[k].from - s.front, limits[k].speed));
+                        braking = braking || (limits[k].speed < limit && limits[k].from - s.front
+                                <= (limit * limit - limits[k].speed * limits[k].speed) / (2.0 * d) + BrakingZone);
+                    }
                 }
             }
             // The next stop signal's speed, where its aspect has one.
@@ -388,16 +408,61 @@ void SimulationCore::advance(int train, double from, double to) {
                 const size_t next = runtime[size_t(train)].passed;
                 if (next < stops.size() && stops[next].at < s.front + reach) {
                     const float speed = signalSpeedOf(stops[next].signal);
-                    if (speed > 0.0f)
-                        ahead = std::min(ahead, brakingSpeed(v, dt, d, stops[next].at - s.front, speed));
+                    if (speed > 0.0f) {
+                        ahead = std::min(ahead, downTo(stops[next].at - s.front, speed));
+                        braking = braking || (speed < limit && stops[next].at - s.front
+                                <= (limit * limit - speed * speed) / (2.0 * d) + BrakingZone);
+                    }
                 }
             }
-            double next = v > limit ? std::max(v - plan.deceleration * dt, limit)
-                                    : std::min(v + plan.acceleration * dt, limit);
-            next = std::min(next, ahead);
+            // A station's stop from 1.5 × its top speed² / its deceleration
+            // (Open Rails' trigger from full speed), anything else from its
+            // braking distance and BrakingZone.
+            if (kind == StopKind::Station)
+                braking = braking || distance <= 1.5 * top * top / plan.deceleration;
+            else
+                braking = braking || distance <= limit * limit / (2.0 * d) + BrakingZone;
             // The fastest speed at the step's end from which it still stops
             // at the target, so the train follows the braking curve exactly.
-            next = std::min(next, brakingSpeed(v, dt, d, distance, 0.0));
+            const double cap = std::min(ahead, physics ? stoppingSpeed(train, v, dt, distance, kind, limit)
+                                                       : brakingSpeed(v, dt, d, distance, 0.0));
+            // Physics: away from rest it is starting away until within
+            // (9 - 6 × Efficiency) half m/s of its limit or in its braking
+            // state (Open Rails' accelerating state).
+            Runtime &driven = runtime[size_t(train)];
+            if (v <= 0.0)
+                driven.startingAway = true;
+            if (braking || v > limit - (9.0 - 6.0 * plan.drivingEfficiency) * 0.5)
+                driven.startingAway = false;
+            // Physics: it holds its speed in Open Rails' running band below
+            // the limit, (1.5 - Efficiency) to (3 - 2 × Efficiency) half m/s
+            // under it: at the band's middle, easing down to it from above.
+            const double hold = physics && limit > CreepSpeed
+                    ? limit - (4.5 - 3.0 * plan.drivingEfficiency) * 0.25 : limit;
+            double next;
+            if (v > limit) {
+                next = std::max(v - plan.deceleration * dt, limit);
+            } else if (v > hold) {
+                next = std::max(v - d * dt, hold);
+            } else if (v >= std::min(hold, cap)) {
+                next = hold;
+            } else {
+                // Physics: starting away, Open Rails' AI raises its throttle
+                // until the train gains half its target acceleration; where
+                // full power gives less, it gains Efficiency × that half
+                // instead. Else (running, or in its braking state up to its
+                // braking curve) it opens the throttle fully, gaining at
+                // least half the target. Before the activity (its pre-run)
+                // the same, unlike Open Rails' (task 03).
+                double a = plan.acceleration;
+                if (physics && !driven.startingAway)
+                    a = std::max(fullAcceleration(train, v), 0.5 * plan.acceleration);
+                else if (physics)
+                    a = fullAcceleration(train, v) >= 0.5 * plan.acceleration ? 0.5 * plan.acceleration
+                        : plan.drivingEfficiency * 0.5 * plan.acceleration;
+                next = std::min(v + a * dt, hold);
+            }
+            next = std::min(next, cap);
             const double moved = 0.5 * (v + next) * dt;
             if (moved >= distance - AtTarget) {
                 arrival = t + (moved > 0.0 ? dt * std::min(1.0, distance / moved) : dt);
@@ -621,6 +686,52 @@ double SimulationCore::brakingSpeed(double v, double dt, double d, double distan
     const double b = d * dt;
     const double disc = b * b + 4.0 * (target * target + 2.0 * d * distance - d * dt * v);
     return disc > 0.0 ? std::max(0.0, 0.5 * (-b + std::sqrt(disc))) : 0.0;
+}
+
+double SimulationCore::fullAcceleration(int train, double v) const {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    const Performance &p = plan.performance;
+    if (p.mass <= 0.0)
+        return 0.0;
+    double force = p.force > 0.0 ? p.force : p.power;
+    if (p.power > 0.0)
+        force = std::min(force, p.power / std::max(v, 1.0));
+    const double resistance = p.davisA + p.davisB * v + p.davisC * v * v;
+    // The gradient: the rise from the train's rear to its front.
+    double gradient = 0.0;
+    TrackPose front, rear;
+    const TrainState &s = states[size_t(train)];
+    if (plan.length > 0.0f && pose(train, s.front, front) && pose(train, s.front - plan.length, rear))
+        gradient = double(front.y - rear.y) / double(plan.length);
+    return (force - resistance - p.mass * 9.81 * gradient) / p.mass;
+}
+
+double SimulationCore::stoppingSpeed(int train, double v, double dt, double distance, StopKind kind,
+                                     double limit) const {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    double creep = LimitCreep;
+    bool slower = false;
+    if (kind == StopKind::Station) {
+        creep = 0.0;
+    } else if (kind == StopKind::Blocked) {
+        creep = runtime[size_t(train)].endsAtSignal ? SignalCreep : AuthorityCreep;
+        slower = true;
+    }
+    // At the creep speed (half that within the creep distance where it
+    // creeps slower), stopping from it at the full deceleration.
+    const double lowest = std::min(CreepSpeed, limit);
+    double speed = std::min(lowest, brakingSpeed(v, dt, plan.deceleration, distance, 0.0));
+    if (slower)
+        speed = std::min(speed, std::max(0.5 * lowest,
+                                         brakingSpeed(v, dt, plan.deceleration, distance - creep, 0.5 * lowest)));
+    // Above it, the planned braking curve down to the creep distance, held
+    // BrakingMargin above it (v - margin on the curve, exact over the step).
+    if (distance > creep) {
+        const double u = std::max(0.0, v - BrakingMargin);
+        speed = std::max(speed, BrakingMargin + brakingSpeed(u, dt, BrakingShare * plan.deceleration,
+                                                             distance - creep - BrakingMargin * dt, 0.0));
+    }
+    return speed;
 }
 
 float SimulationCore::signalSpeedOf(int signal) const {
@@ -1568,7 +1679,7 @@ std::vector<SimulationCore::SectionUse> SimulationCore::sectionUses() const {
 }
 
 bool SimulationCore::pose(int train, double routeDistance, TrackPose &out) const {
-    if (train < 0 || size_t(train) >= states.size())
+    if (train < 0 || size_t(train) >= states.size() || !in->geometry)
         return false;
     const TrainPlan &plan = in->trains[size_t(train)];
     const TrainState &state = states[size_t(train)];

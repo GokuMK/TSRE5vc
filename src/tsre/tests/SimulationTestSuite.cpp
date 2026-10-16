@@ -26,10 +26,12 @@
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/SignalType.h>
 #include <tsre/tdb/TSectionDAT.h>
+#include <tsre/fileFunctions/MstsUnits.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/PathTrack.h>
 #include <tsre/world/Route.h>
@@ -194,6 +196,59 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
         if (value) { ++passed; if (verbose) qInfo().noquote() << "[tests:simulation-core] PASS" << name; }
         else { ++failed; qWarning().noquote() << "[tests:simulation-core] FAIL" << name; }
     };
+
+    // Values with MSTS units (task 03), as the physics driving reads them.
+    {
+        using MstsUnits::Kind;
+        const auto near = [](double a, double b) { return std::fabs(a - b) <= 1e-6 * std::max(1.0, std::fabs(b)); };
+        bool ok = true, unknown = true;
+        const bool units = near(MstsUnits::value("39.19t", Kind::Mass), 39190.0)
+                && near(MstsUnits::value("\"117.57t #368000lbs\"", Kind::Mass), 117570.0)
+                && near(MstsUnits::value("166.9t#368000lbs", Kind::Mass), 166900.0)
+                && near(MstsUnits::value("230kN#est", Kind::Force), 230000.0)
+                && near(MstsUnits::value("1400kW", Kind::Power), 1400000.0)
+                && near(MstsUnits::value("4000hp", Kind::Power), 4000.0 * 745.6999)
+                && near(MstsUnits::value("74.56mph", Kind::Speed), 74.56 * 0.44704)
+                && near(MstsUnits::value("100km/h", Kind::Speed), 100.0 / 3.6)
+                && near(MstsUnits::value("-1mph", Kind::Speed), -0.44704)
+                && near(MstsUnits::value("150N/m/s", Kind::Resistance), 150.0)
+                && near(MstsUnits::value("1e3", Kind::Force, &ok), 1000.0) && ok;
+        MstsUnits::value("80furlongs", Kind::Mass, &unknown);
+        check(units && !unknown, "MSTS units: masses, forces, powers, speeds and resistances in SI; comments and quotes "
+                                 "dropped; an unknown unit refused");
+    }
+    // An engine's file: mass, force, power, speed, resistance, passengers.
+    {
+        QTemporaryDir folder;
+        writeUtf16(folder.path() + "/Test.eng", R"(SIMISA@@@@@@@@@@JINX0D0t______
+
+Wagon ( Test
+	Type ( Engine )
+	Mass ( "117.57t #368000lbs" )
+	ORTSDavis_A ( 1000N )
+	ORTSDavis_B ( 20N/m/s )
+	Friction (
+		150N/m/s		1		-1mph		0		1
+		5.1N/rad/s		1		-1rad/s		0		1
+	)
+	PassengerCapacity ( 60 )
+)
+Engine ( Test
+	Type ( Electric )
+	MaxPower ( 1400kW )
+	MaxForce ( 230kN#est )
+	MaxVelocity ( 74.56mph )
+)
+)");
+        Eng eng(folder.path(), "Test.eng");
+        check(std::fabs(eng.massKg - 117570.0) < 0.01 && std::fabs(eng.forceN - 230000.0) < 0.01
+                  && std::fabs(eng.powerW - 1400000.0) < 0.01 && std::fabs(eng.maxSpeedMps - 74.56 * 0.44704) < 1e-4
+                  && eng.hasDavis && eng.davis[0] == 1000.0 && eng.davis[1] == 20.0 && eng.davis[2] == 0.0
+                  && eng.hasFriction && eng.friction[0] == 150.0 && std::fabs(eng.friction[2] + 0.44704) < 1e-6
+                  && eng.passengerCapacity,
+              QString("an engine's file in SI: %1 kg, %2 N, %3 W, %4 m/s, Davis and Friction read")
+                  .arg(eng.massKg).arg(eng.forceN).arg(eng.powerW).arg(eng.maxSpeedMps));
+    }
 
     // The geometry copy: straight and curved sections, turned every way,
     // over several tiles.
@@ -455,6 +510,101 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
         c.step(31.0);
         check(standing && c.trains()[0].status == Sim::TrainStatus::Running,
               "a train starting at its first station stands there until its departure");
+    }
+    {
+        // Physics driving (task 03), as Open Rails' AI: a passenger train
+        // (target 1.0 m/s², braking 1.0) of 200 t with the force given, its
+        // power out of reach, efficiency 0.8.
+        const auto physics = [&](double force) {
+            Sim::TrainPlan p = plan(t0);
+            p.driving = Sim::Driving::Physics;
+            p.performance.mass = 200000.0;
+            p.performance.force = force;
+            p.performance.power = 1e9;
+            p.drivingEfficiency = 0.8f;
+            return p;
+        };
+        const auto inputOn = [&](const Sim::TrainPlan &p, std::shared_ptr<const Sim::TrackGeometry> geometry) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->trains.push_back(p);
+            return std::shared_ptr<const Sim::SimulationInput>(made);
+        };
+        const auto lineGeometry = std::make_shared<const Sim::TrackGeometry>(line);
+        const auto speedAfter = [&](const Sim::TrainPlan &p, double seconds,
+                                    std::shared_ptr<const Sim::TrackGeometry> geometry) {
+            Sim::SimulationCore c(inputOn(p, geometry));
+            c.step(seconds);
+            return double(c.trains()[0].speed);
+        };
+        // Far from its path's end: half the target where full power gives
+        // that (1.5 m/s²), else efficiency × that half (0.4 m/s² at full
+        // power: 0.8 × 0.5).
+        const double strong = speedAfter(physics(300000.0), 10.0, lineGeometry);
+        const double weak = speedAfter(physics(80000.0), 10.0, lineGeometry);
+        check(std::fabs(strong - 5.0) < 0.01 && std::fabs(weak - 4.0) < 0.01,
+              QString("physics: half the target where full power gives it, efficiency × that below "
+                      "(%1 and %2 m/s after 10 s)").arg(strong).arg(weak));
+        // Its next stop within 1.5 × top speed² / deceleration (600 m): its
+        // braking state, full power, at least half the target.
+        Sim::TrainPlan near = physics(300000.0);
+        near.stops.resize(1);
+        near.stops[0].front = near.startFront + 500.0;
+        Sim::TrainPlan nearWeak = near;
+        nearWeak.performance.force = 80000.0;
+        const double full = speedAfter(near, 2.0, lineGeometry);
+        const double least = speedAfter(nearWeak, 2.0, lineGeometry);
+        check(std::fabs(full - 3.0) < 0.01 && std::fabs(least - 1.0) < 0.01,
+              QString("physics: its stop near, full power (%1 m/s after 2 s), at least half the target (%2)")
+              .arg(full).arg(least));
+        // Up a 2 % grade (its 10 m pieces each 0.2 m higher): m g 2 % less
+        // force; 120 kN on 200 t then falls below half the target.
+        TestTrack::Layout hill;
+        hill.end(1, 10);
+        hill.track(10, 1, 2, 200);
+        hill.end(2, 10);
+        for (int i = 0; i < 200; ++i)
+            hill.db.trackNodes[10]->trVectorSection[i].y = 0.2f * float(i);
+        const auto hillGeometry = std::make_shared<const Sim::TrackGeometry>(&hill.db);
+        const double up = speedAfter(near, 2.0, hillGeometry);
+        Sim::TrainPlan modest = physics(120000.0);
+        const double modestFlat = speedAfter(modest, 10.0, lineGeometry);
+        const double modestUp = speedAfter(modest, 10.0, hillGeometry);
+        const double expectedUp = 2.0 * (1.5 - 9.81 * 0.02);
+        check(std::fabs(up - expectedUp) < 0.02 && std::fabs(modestFlat - 5.0) < 0.01 && std::fabs(modestUp - 4.0) < 0.01,
+              QString("physics: up a 2 % grade %1 m/s after 2 s (%2 expected); 120 kN gains %3 m/s in 10 s on the "
+                      "level, %4 up the grade").arg(up).arg(expectedUp).arg(modestFlat).arg(modestUp));
+        // Braking to its stop 1500 m on: its curve at 0.22 of its
+        // deceleration, BrakingMargin above it; the creep speed at the end;
+        // standing at the stop.
+        Sim::TrainPlan far = physics(300000.0);
+        far.stops.resize(1);
+        far.stops[0].front = far.startFront + 1500.0;
+        Sim::SimulationCore braking(inputOn(far, lineGeometry));
+        const auto speedAt = [&](double front) {
+            for (int i = 0; i < 20000 && braking.trains()[0].front < front
+                     && braking.trains()[0].status != Sim::TrainStatus::Stopped; ++i)
+                braking.step(0.1);
+            return double(braking.trains()[0].speed);
+        };
+        const double stop = far.stops[0].front;
+        const double at200 = speedAt(stop - 200.0);
+        const double curve = std::sqrt(2.0 * Sim::SimulationCore::BrakingShare * 200.0) + Sim::SimulationCore::BrakingMargin;
+        const double at5 = speedAt(stop - 5.0);
+        braking.step(5.0);
+        check(std::fabs(at200 - curve) < 0.05 && std::fabs(at5 - Sim::SimulationCore::CreepSpeed) < 0.01
+                  && braking.trains()[0].status == Sim::TrainStatus::Stopped
+                  && std::fabs(braking.trains()[0].front - stop) < 1e-6,
+              QString("physics: braking, %1 m/s 200 m short (%2 on the curve), %3 m/s 5 m short, standing at the stop")
+              .arg(at200).arg(curve).arg(at5));
+        // The same input, the same events.
+        Sim::SimulationCore once(inputOn(far, lineGeometry)), twice(inputOn(far, lineGeometry));
+        const std::vector<Sim::TrainEvent> first = runToEnd(once, 0.1), second = runToEnd(twice, 0.1);
+        bool same = !first.empty() && first.size() == second.size();
+        for (size_t i = 0; same && i < first.size(); ++i)
+            same = first[i].time == second[i].time && first[i].kind == second[i].kind;
+        check(same, "physics: the same input gives the same events");
     }
 
     // The track network (task 02, phase 1): a passing loop with signals, a
@@ -879,6 +1029,31 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
                   .arg(behind.front + 69.0));
         held.step(900.0);
         check(held.trains()[1].front > 1000.0 - 69.0, "it goes on when the block is clear");
+        // Physics driving: it creeps up to it, the last SignalCreep metres at
+        // half the creep speed.
+        Sim::TrainPlan creeping = trainOn(east, *lineNetwork, t0 + 120);
+        creeping.driving = Sim::Driving::Physics;
+        creeping.performance.mass = 200000.0;
+        creeping.performance.force = 300000.0;
+        creeping.performance.power = 1e9;
+        Sim::SimulationCore crept(inputOf(lineGeometry, lineNetwork, {waiting, creeping}));
+        const double standAt = 1000.0 - 69.0 - Sim::SimulationCore::SignalMargin;
+        const double slowest = 0.5 * Sim::SimulationCore::CreepSpeed;
+        double fastestCreeping = 0.0, entered = -1.0;
+        for (int i = 0; i < 6000 && !(crept.trains()[1].status == Sim::TrainStatus::Stopped
+                                      && crept.trains()[1].stoppedAt == Sim::StopKind::Blocked); ++i) {
+            crept.step(0.1);
+            const double left = standAt - crept.trains()[1].front;
+            if (crept.trains()[1].status == Sim::TrainStatus::Running && left < Sim::SimulationCore::SignalCreep - 2.0)
+                fastestCreeping = std::max(fastestCreeping, double(crept.trains()[1].speed));
+            if (entered < 0.0 && left <= Sim::SimulationCore::SignalCreep)
+                entered = crept.time();
+        }
+        const double creptFor = crept.time() - entered;
+        check(std::fabs(crept.trains()[1].front - standAt) < 0.5 && fastestCreeping <= slowest + 0.01
+                  && creptFor > (Sim::SimulationCore::SignalCreep - 2.0) / slowest,
+              QString("physics: it creeps the last %1 m to a red signal at up to %2 m/s (%3 s)")
+                  .arg(Sim::SimulationCore::SignalCreep).arg(fastestCreeping).arg(creptFor));
 
         // The passing loop: the train through the loop's other track sets the
         // junction its way and holds it; the one from the main track waits.

@@ -80,6 +80,7 @@ Consist::Consist(Consist * con, bool fullCopy) {
         serial = con->serial;
         maxVelocity[0] = con->maxVelocity[0];
         maxVelocity[1] = con->maxVelocity[1];
+        fileMaxVelocity = con->fileMaxVelocity;
         nextWagonUID = con->nextWagonUID;
         durability = con->durability;
         conLength = con->conLength;
@@ -199,6 +200,7 @@ bool Consist::load(FileBuffer* data){
                 if (sh == ("maxvelocity")) {
                     maxVelocity[0] = ParserX::GetNumber(data);
                     maxVelocity[1] = ParserX::GetNumber(data);
+                    fileMaxVelocity = maxVelocity[0];
                     //qDebug() << "wymiary taboru: " << sizex << " " << sizey << " " << sizez;
                     ParserX::SkipToken(data);
                     continue;

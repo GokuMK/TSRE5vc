@@ -50,11 +50,15 @@ model as the first operating policy, and threading.
   the editor, the scaling workloads, Open Rails comparisons on every
   local route: our trains run ahead of Open Rails' where stops are close,
   its AI accelerating through its physics).
-- [ ] `03-train-performance.md`: AI driving with force and mass
+- [x] `03-train-performance.md`: AI driving with force and mass
   (tractive effort from the engines' force and power, resistance,
   gradient, Open Rails' acceleration floor, braking per train), chosen per
   train in code against task 01's simple driving. Designed 2026-10-16
-  from the Open Rails comparisons; decisions open.
+  from the Open Rails comparisons, decisions taken; done 2026-10-16
+  (phases 1 to 4: every local route's stops within a minute or so of Open
+  Rails' where they differed by up to 20 minutes, but for trains in Open
+  Rails' slower pre-run). The player's own driving is a later, separate
+  system.
 - [ ] 04: `sigscr.dat` read and run in place of the built-in aspect rule
   (the rule is a stand-in: each route's scripts define its own aspect
   sequences, plates and features).
