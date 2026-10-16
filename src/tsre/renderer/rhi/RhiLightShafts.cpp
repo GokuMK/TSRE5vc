@@ -343,18 +343,16 @@ void main() {
     float forward = mix(0.2, 1.0, towards * towards * towards);
     // The near layer's light, added (camera.w: its strength).
     // The lit air's light (direction.w), the near layer's (camera.w), added;
-    // thin haze's rays kept visible (its square root). The rays by the haze's
-    // own forward scattering (the march's phase, against its peak): a fifth
-    // at 30 degrees from the sun, a twentieth at 60 (a fifth everywhere, as
-    // the shade's, drew bands across the whole sky at a low sun, user
-    // 2026-10-16).
-    float rays = sqrt(haze) * forward;
-    float c = dot(normalize(far.xyz / far.w), normalize(direction.xyz));
-    float g2 = 0.49;
-    float lobe = 0.7 * (1.0 - g2) / pow(1.0 + g2 - 1.4 * c, 1.5) + 0.3;
-    float near = lobe / (0.7 * (1.0 - g2) / pow(1.0 + g2 - 1.4, 1.5) + 0.3);
-    result = vec4(colour.rgb * (s.r * sun.z + s.a * camera.w + lit * sqrt(haze) * near * direction.w),
-                  1.0 - clamp(shade * rays * sun.w, 0.0, 0.35));
+    // thin haze's rays kept visible (its square root).
+    // At a low sun the rays only in a fan about it (camera.y: the share of
+    // the wide spread, none under 10 degrees, all over 25): a cloud's shadow
+    // stretches along the sun 1 / tan(elevation) times its height above the
+    // air, and at 8 degrees, 30 to 60 degrees from the sun, the shadows drew
+    // long near-horizontal stripes across the sky (user, CMK 5:00); about
+    // the sun they converge, as sunset's rays.
+    float rays = sqrt(haze) * mix(pow(towards, 12.0), forward, camera.y);
+    result = vec4(colour.rgb * (s.r * sun.z + s.a * camera.w + lit * rays * direction.w),
+                  1.0 - clamp(shade * sqrt(haze) * forward * sun.w, 0.0, 0.35));
 }
 )";
 
@@ -720,8 +718,13 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     // little (more read as the image darkened around them, user
     // 2026-10-16).
     parameters.sun[3] = 0.8f * fade;
-    // For the view's directions (forward scattering).
+    // For the view's directions (forward scattering); the rays' wide spread
+    // by the sun's elevation (the composite).
     parameters.camera[0] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
+    {
+        const float t = std::clamp((elevation - 10.0f) / 15.0f, 0.0f, 1.0f);
+        parameters.camera[1] = t * t * (3.0f - 2.0f * t);
+    }
     // The near layer's light, added.
     parameters.camera[3] = 0.1f * fade;
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, parameters.inverse);
@@ -729,7 +732,7 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     parameters.direction[1] = sunDirection.y();
     parameters.direction[2] = sunDirection.z();
     // The air lit through the clouds' gaps, lighter than around it: the rays.
-    parameters.direction[3] = 10.0f * fade;
+    parameters.direction[3] = 6.0f * fade;
     const Atmosphere::Rgb sunLight = Atmosphere::model().sunLight(std::max(0.001f, sky.cameraHeight / 1000.0f),
                                                                   sunDirection.y());
     const float peak = std::max({sunLight[0], sunLight[1], sunLight[2], 1e-4f});
