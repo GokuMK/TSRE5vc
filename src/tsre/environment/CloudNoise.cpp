@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <random>
 #include <thread>
 
 namespace CloudNoise {
@@ -162,6 +163,94 @@ std::vector<quint8> curl(int size) {
         out[i * 4 + 2] = 128;
         out[i * 4 + 3] = 255;
     }
+    return out;
+}
+
+std::vector<quint16> blue(int size) {
+    const int n = size * size;
+    // Each texel's energy: a Gaussian (sigma 1.5 texels) of the points
+    // around it, wrapped.
+    constexpr int Radius = 6;
+    constexpr int Width = 2 * Radius + 1;
+    float kernel[Width * Width];
+    for (int dy = -Radius; dy <= Radius; ++dy)
+        for (int dx = -Radius; dx <= Radius; ++dx)
+            kernel[(dy + Radius) * Width + dx + Radius] = std::exp(-float(dx * dx + dy * dy) / (2.0f * 1.5f * 1.5f));
+    std::vector<char> on(n, 0);
+    std::vector<float> energy(n, 0.0f);
+    auto spread = [&](std::vector<float> &field, int i, float sign) {
+        const int x = i % size, y = i / size;
+        for (int dy = -Radius; dy <= Radius; ++dy)
+            for (int dx = -Radius; dx <= Radius; ++dx)
+                field[((y + dy + size) % size) * size + (x + dx + size) % size]
+                        += sign * kernel[(dy + Radius) * Width + dx + Radius];
+    };
+    // The densest point of those set (want) or the emptiest place of those not.
+    auto extreme = [&](const std::vector<float> &field, char want, bool densest) {
+        int best = -1;
+        for (int i = 0; i < n; ++i)
+            if (on[i] == want && (best < 0 || (densest ? field[i] > field[best] : field[i] < field[best])))
+                best = i;
+        return best;
+    };
+    // A tenth of the texels at random (always the same), relaxed: the
+    // densest point moved to the emptiest place until it stays.
+    std::mt19937 random(0x5eedu);
+    int count = 0;
+    while (count < n / 10) {
+        const int i = int(random() % quint32(n));
+        if (!on[i]) {
+            on[i] = 1;
+            spread(energy, i, 1.0f);
+            ++count;
+        }
+    }
+    for (int guard = 0; guard < n; ++guard) {
+        const int densest = extreme(energy, 1, true);
+        on[densest] = 0;
+        spread(energy, densest, -1.0f);
+        const int emptiest = extreme(energy, 0, false);
+        on[emptiest] = 1;
+        spread(energy, emptiest, 1.0f);
+        if (emptiest == densest)
+            break;
+    }
+    std::vector<int> rank(n, 0);
+    // The first ranks: those points, the densest taken away last.
+    {
+        const std::vector<char> keep = on;
+        const std::vector<float> keepEnergy = energy;
+        for (int r = count - 1; r >= 0; --r) {
+            const int densest = extreme(energy, 1, true);
+            on[densest] = 0;
+            spread(energy, densest, -1.0f);
+            rank[densest] = r;
+        }
+        on = keep;
+        energy = keepEnergy;
+    }
+    // Then to half: points in the emptiest places.
+    int r = count;
+    for (; r < n / 2; ++r) {
+        const int emptiest = extreme(energy, 0, false);
+        on[emptiest] = 1;
+        spread(energy, emptiest, 1.0f);
+        rank[emptiest] = r;
+    }
+    // The rest: the places left as the points, their densest set first.
+    std::vector<float> empty(n, 0.0f);
+    for (int i = 0; i < n; ++i)
+        if (!on[i])
+            spread(empty, i, 1.0f);
+    for (; r < n; ++r) {
+        const int densest = extreme(empty, 0, true);
+        on[densest] = 1;
+        spread(empty, densest, -1.0f);
+        rank[densest] = r;
+    }
+    std::vector<quint16> out(n);
+    for (int i = 0; i < n; ++i)
+        out[i] = quint16(std::lround((rank[i] + 0.5) / n * 65535.0));
     return out;
 }
 

@@ -41,6 +41,15 @@ Terrain *TerrainLib::edgeTerrainAt(int x, int z, bool low, bool load) {
     return terrain != nullptr && terrain->lowTile == low ? terrain : nullptr;
 }
 
+Terrain *TerrainLib::groundTile(int x, int z) {
+    for (const bool low : {false, true}) {
+        Terrain *terrain = edgeTerrainAt(x, z, low, false);
+        if (terrain != nullptr && terrain->loaded && terrain->terrainData != nullptr)
+            return terrain;
+    }
+    return nullptr;
+}
+
 const TerrainAdjacentEdge &TerrainLib::resolveAdjacentEdge(
         Terrain &owner, TerrainEdgeSide side, TerrainEdgeDiscovery mode) {
     auto &edge = owner.adjacentEdges[size_t(side)];
@@ -201,6 +210,7 @@ void TerrainLib::fillCachedRaw(Terrain &terrain) {
 }
 
 void TerrainLib::terrainAvailabilityChanged(Terrain *source) {
+    ++availability;
     if (source == nullptr || source->getGridLayout().terrainWorldSize <= 0)
         return;
     for (auto &edge : source->adjacentEdges)

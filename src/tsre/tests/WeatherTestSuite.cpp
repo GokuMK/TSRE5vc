@@ -2,9 +2,13 @@
 
 #include <tsre/environment/EnvFile.h>
 #include <tsre/environment/WeatherDetail.h>
+#include <tsre/environment/WeatherFog.h>
+#include <tsre/environment/FogFloor.h>
+#include <tsre/environment/TerrainShade.h>
 #include <tsre/environment/WeatherPresets.h>
 #include <tsre/environment/WeatherImport.h>
 #include <tsre/environment/WeatherGenerator.h>
+#include <tsre/world/FogFloorSampler.h>
 
 #include <QJsonArray>
 #include <QUrl>
@@ -16,7 +20,11 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <cmath>
+#include <functional>
+#include <limits>
+#include <vector>
 
 namespace {
 
@@ -456,6 +464,17 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
         c.check(near(rainy.visibility, 10000.0, 1500.0) && rainy.precipitation == WeatherPrecipitation::Rain,
                 QString("import-rain-visibility (%1)").arg(rainy.visibility));
         c.check(imported.attribution.contains("Copernicus") && imported.source.contains("era5"), "import-attribution");
+        c.check(near(imported.keyframes[0].air.temperature, 10.75, 1e-3) && near(imported.keyframes[0].air.dewPoint, 7.5, 1e-3)
+                && imported.keyframes[0].fog.mode == WeatherFogSetting::Auto, "import-air");
+        // Fog reported at one sample of four: a set fog of a quarter; the air
+        // around it is damp, not 300 m thick.
+        QVector<WeatherImport::Series> foggy = series;
+        for (int &code : foggy[1].weatherCode)
+            code = 45;
+        Weather fogged;
+        c.check(WeatherImport::build(request, samples, columns, rows, foggy, 10.0, fogged, error)
+                && fogged.keyframes[0].fog.mode == WeatherFogSetting::Set && near(fogged.keyframes[0].fog.amount, 0.25, 1e-6)
+                && fogged.surface(0.0, 25000.0, 25000.0).visibility > 3000.0f, "import-fog-code");
         // Past the grid the maps fade to the keyframe's values (no stripes).
         Weather still = imported;
         for (WeatherKeyframe &k : still.keyframes)
@@ -577,6 +596,262 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
                         .arg(westNoon.precipitationRate).arg(centreMorning.precipitationRate));
         c.check(eastNoon.coverage > westLow.coverage,
                 QString("generator-cloud-ahead-clearer-behind (%1 %2)").arg(eastNoon.coverage).arg(westLow.coverage));
+        // The warm sector ahead of a cold front is damp, the air behind it dry.
+        c.check(w.air(5.0).dewPoint > w.air(20.0).dewPoint + 5.0f && w.air(3.0).temperature < w.air(15.0).temperature,
+                QString("generator-air (%1 %2)").arg(w.air(5.0).dewPoint).arg(w.air(20.0).dewPoint));
+    }
+
+    // Fog from the weather (task renderer 33). A summer sun: up from about
+    // 3:55 to 20:05, 60 degrees at noon; a winter one: up from about 7:10 to
+    // 16:50, 16 degrees at noon. Relative weathers count the time of day.
+    {
+        const WeatherFog::SunElevation summer = [](double h) { return 20.0 - 40.0 * std::cos(2.0 * M_PI * h / 24.0); };
+        const WeatherFog::SunElevation winter = [](double h) { return -8.0 - 24.0 * std::cos(2.0 * M_PI * h / 24.0); };
+        const Weather mist = WeatherPresets::weather("morning_mist");
+        const Weather valley = WeatherPresets::weather("valley_fog");
+        auto text = [](const WeatherFog::State &s) {
+            return QString("%1 %2 m deep %3 m vis %4 m base").arg(s.amount).arg(s.depth).arg(s.visibility).arg(s.base);
+        };
+        const WeatherFog::State dawn = WeatherFog::at(mist, 4.5, 0.0, 0.0, summer);
+        c.check(dawn.amount > 0.8f && dawn.depth > 20.0f && dawn.depth < 80.0f && dawn.visibility > 400.0f
+                && dawn.visibility < 2000.0f, "fog-mist-at-dawn (" + text(dawn) + ")");
+        c.check(WeatherFog::at(mist, 19.0, 0.0, 0.0, summer).amount == 0.0f
+                && WeatherFog::at(mist, 9.0, 0.0, 0.0, summer).amount == 0.0f
+                && WeatherFog::at(mist, 23.0, 0.0, 0.0, summer).amount < dawn.amount,
+                "fog-mist-none-in-the-evening-gone-by-nine");
+        const WeatherFog::State valleyDawn = WeatherFog::at(valley, 4.5, 0.0, 0.0, summer);
+        c.check(valleyDawn.depth > 100.0f && valleyDawn.visibility < 300.0f, "fog-valley-deep-and-thick (" + text(valleyDawn) + ")");
+        const WeatherFog::State clearing = WeatherFog::at(valley, 7.5, 0.0, 0.0, summer);
+        c.check(clearing.amount > 0.0f && clearing.amount < valleyDawn.amount && clearing.base > 0.0f
+                && clearing.depth < valleyDawn.depth && clearing.base < clearing.depth
+                && clearing.visibility > valleyDawn.visibility, "fog-clears-and-lifts (" + text(clearing) + ")");
+        const WeatherFog::State winterNoon = WeatherFog::at(valley, 12.0, 0.0, 0.0, winter);
+        c.check(WeatherFog::at(valley, 12.0, 0.0, 0.0, summer).amount == 0.0f && winterNoon.amount > 0.2f,
+                "fog-winter-valley-stays (" + text(winterNoon) + ")");
+
+        Weather windy = valley, cloudy = valley;
+        for (WeatherKeyframe &k : windy.keyframes)
+            k.wind[WeatherLayer::Low].speed = 9.0f;
+        for (WeatherKeyframe &k : cloudy.keyframes)
+            k.layers[WeatherLayer::Low] = {0.0f, 0.95f, 500.0f, 1100.0f, 0.8f};
+        const WeatherFog::State cloudyDawn = WeatherFog::at(cloudy, 4.5, 0.0, 0.0, summer);
+        c.check(WeatherFog::at(windy, 4.5, 0.0, 0.0, summer).amount == 0.0f && cloudyDawn.amount < 0.05f
+                && WeatherFog::at(WeatherPresets::weather("clear"), 4.5, 0.0, 0.0, summer).amount == 0.0f,
+                "fog-none-with-wind-clouds-or-dry-air (" + text(cloudyDawn) + ")");
+        const WeatherFog::State rainNoon = WeatherFog::at(WeatherPresets::weather("rain"), 12.0, 0.0, 0.0, summer);
+        c.check(rainNoon.amount > 0.2f && near(rainNoon.visibility, 2000.0, 1e-3), "fog-mist-in-rain (" + text(rainNoon) + ")");
+
+        Weather off = valley, set = WeatherPresets::weather("clear");
+        off.keyframes[0].fog.mode = WeatherFogSetting::Off;
+        set.keyframes[0].fog = {WeatherFogSetting::Set, 0.7f, 150.0f, 40.0f};
+        const WeatherFog::State forced = WeatherFog::at(set, 12.0, 0.0, 0.0, summer);
+        c.check(WeatherFog::at(off, 4.5, 0.0, 0.0, summer).amount == 0.0f && near(forced.amount, 0.7, 1e-6)
+                && near(forced.visibility, 150.0, 1e-3) && near(forced.depth, 40.0, 1e-3), "fog-override-off-and-set");
+
+        // The air and the fog setting in the file.
+        Weather file = WeatherPresets::weather("clear");
+        file.keyframes.push_back(file.keyframes[0]);
+        file.keyframes.push_back(file.keyframes[0]);
+        file.keyframes[1].time = 6.0f;
+        file.keyframes[2].time = 12.0f;
+        file.keyframes[0].air = {11.5f, 9.25f};
+        file.keyframes[1].fog = {WeatherFogSetting::Set, 0.5f, 300.0f, 70.0f};
+        file.keyframes[2].fog.mode = WeatherFogSetting::Off;
+        QStringList fileWarnings;
+        const Weather read = Weather::fromNode(file.toNode(), fileWarnings);
+        c.check(fileWarnings.isEmpty() && read.keyframes.size() == 3 && near(read.keyframes[0].air.temperature, 11.5, 1e-6)
+                && near(read.keyframes[0].air.dewPoint, 9.25, 1e-6)
+                && read.keyframes[0].fog.mode == WeatherFogSetting::Auto
+                && read.keyframes[1].fog.mode == WeatherFogSetting::Set && near(read.keyframes[1].fog.visibility, 300.0, 1e-3)
+                && near(read.keyframes[1].fog.depth, 70.0, 1e-3) && read.keyframes[2].fog.mode == WeatherFogSetting::Off
+                && near(read.air(3.0).temperature, (11.5 + 16.0) / 2.0, 1e-4),
+                "fog-air-and-setting-round-trip " + fileWarnings.join("; "));
+        // The pooling: kept after the mode or the numbers, left out when 1.
+        Weather pooled = file;
+        pooled.keyframes[0].fog.pooling = 0.0f;
+        pooled.keyframes[1].fog.pooling = 0.25f;
+        QStringList pooledWarnings;
+        const Weather pooledRead = Weather::fromNode(pooled.toNode(), pooledWarnings);
+        const Weather plainRead = Weather::fromNode(file.toNode(), pooledWarnings);
+        c.check(pooledWarnings.isEmpty() && near(pooledRead.keyframes[0].fog.pooling, 0.0, 1e-6)
+                && pooledRead.keyframes[0].fog.mode == WeatherFogSetting::Auto
+                && near(pooledRead.keyframes[1].fog.pooling, 0.25, 1e-6) && near(pooledRead.keyframes[1].fog.depth, 70.0, 1e-3)
+                && near(plainRead.keyframes[0].fog.pooling, 1.0, 1e-6), "fog-pooling-round-trip");
+        // Ground mist: valley fog's night, its fog not pooling.
+        const Weather groundMist = WeatherPresets::weather("ground_mist");
+        const WeatherFog::State mistNow = WeatherFog::at(groundMist, 4.5, 0.0, 0.0, summer);
+        const WeatherFog::State valleyNow = WeatherFog::at(valley, 4.5, 0.0, 0.0, summer);
+        c.check(WeatherPresets::exists("ground_mist") && mistNow.amount > 0.5f && near(mistNow.depth, valleyNow.depth, 1e-3)
+                && near(mistNow.pooling, 0.0, 1e-6) && near(valleyNow.pooling, 1.0, 1e-6), "fog-ground-mist-preset");
+        // Where the fog lies: the floor map on made-up terrain (x, y in metres
+        // from the map's centre, y north).
+        auto floorOf = [](const std::function<float(double, double)> &ground,
+                          const std::function<bool(double, double)> &water = {}) {
+            constexpr int N = FogFloor::Size;
+            const double half = N * FogFloor::CellSize * 0.5;
+            std::vector<float> heights(size_t(N) * N), wet(size_t(N) * N, 0.0f);
+            for (int row = 0; row < N; ++row)
+                for (int column = 0; column < N; ++column) {
+                    const double x = (column + 0.5) * FogFloor::CellSize - half;
+                    const double y = half - (row + 0.5) * FogFloor::CellSize;
+                    heights[size_t(row) * N + column] = ground(x, y);
+                    if (water && water(x, y))
+                        wet[size_t(row) * N + column] = 1.0f;
+                }
+            FogFloor floor;
+            floor.build(-half, half, heights, wet);
+            return floor;
+        };
+        // Fog over a place: metres of it above the ground.
+        auto thickness = [](const FogFloor &floor, double x, double y, float depth) {
+            const FogFloor::Sample s = floor.at(x, y);
+            return s.known ? FogFloor::top(s, depth) - s.ground : -1.0f;
+        };
+        // A valley 20 % steep each side, its floor at 100 m along y.
+        const FogFloor valleyFloor = floorOf([](double x, double) { return float(100.0 + 0.2 * std::abs(x)); });
+        const float inValley = thickness(valleyFloor, 0.0, 0.0, 60.0f);
+        const float onSlope = thickness(valleyFloor, 500.0, 0.0, 60.0f);
+        const float onRidge = thickness(valleyFloor, 4000.0, 0.0, 60.0f);
+        c.check(valleyFloor.valid() && valleyFloor.unknownCells() == 0 && inValley > 50.0f && inValley < 70.0f
+                && onSlope <= 0.0f && onRidge <= 0.0f,
+                QString("fog-floor-fills-the-valley (%1 %2 %3)").arg(inValley).arg(onSlope).arg(onRidge));
+        // Not pooling, nothing above the ground in the valley either.
+        const FogFloor::Sample valleyMiddle = valleyFloor.at(0.0, 0.0);
+        c.check(near(FogFloor::top(valleyMiddle, 60.0f, 0.0f), valleyMiddle.ground, 1e-3), "fog-floor-without-pooling");
+        // A plateau 300 m above a plain, 4 km across, a pond in its middle.
+        const FogFloor plateauFloor = floorOf(
+                [](double x, double y) {
+                    const double out = std::max(std::abs(x), std::abs(y)) - 2000.0;
+                    return float(100.0 + 300.0 * std::clamp(1.0 - out / 1500.0, 0.0, 1.0));
+                },
+                [](double x, double y) { return std::abs(x - 800.0) < 150.0 && std::abs(y) < 150.0; });
+        const float onPlateau = thickness(plateauFloor, -800.0, 0.0, 60.0f);
+        const float overPond = thickness(plateauFloor, 800.0, 0.0, 60.0f);
+        const float onPlain = thickness(plateauFloor, 6000.0, 0.0, 60.0f);
+        c.check(onPlateau < 5.0f && overPond > 20.0f && overPond < 35.0f && onPlain > 50.0f,
+                QString("fog-floor-plateau-sheds-water-adds (%1 %2 %3)").arg(onPlateau).arg(overPond).arg(onPlain));
+        // Terrain missing from the east half.
+        const FogFloor halfFloor = floorOf([](double x, double) {
+            return x < 0.0 ? 50.0f : std::numeric_limits<float>::quiet_NaN();
+        });
+        c.check(halfFloor.valid() && halfFloor.unknownCells() == FogFloor::Size * FogFloor::Size / 2
+                && !halfFloor.at(3000.0, 0.0).known && thickness(halfFloor, -3000.0, 0.0, 40.0f) > 35.0f,
+                "fog-floor-without-terrain");
+
+        // Wrong terrain tiles (FogFloorSampler::outlierTiles): 8 by 8 world
+        // tiles of 32 cells over gently rising ground, a scarp 300 m high
+        // along the edge between two columns of them (at 37 degrees there,
+        // but whole across it); one tile flat at 1 m, two side by side sunk
+        // 200 m, a corner one 300 m up.
+        {
+            const int N = FogFloor::Size, PerTile = N / 8;
+            std::vector<float> ground(size_t(N) * N);
+            for (int row = 0; row < N; ++row)
+                for (int column = 0; column < N; ++column) {
+                    const double x = (column + 0.5) * FogFloor::CellSize, y = (row + 0.5) * FogFloor::CellSize;
+                    const double across = std::clamp((x - 4 * 2048.0 + 300.0) / 600.0, 0.0, 1.0);
+                    float h = float(250.0 + 0.01 * x + 300.0 * across * across * (3.0 - 2.0 * across));
+                    const int tx = column / PerTile, tz = row / PerTile;
+                    if (tx == 2 && tz == 2)
+                        h = 1.0f;
+                    else if ((tx == 5 || tx == 6) && tz == 1)
+                        h -= 200.0f;
+                    else if (tx == 0 && tz == 7)
+                        h += 300.0f;
+                    ground[size_t(row) * N + column] = h;
+                }
+            std::vector<FogFloorSampler::TileCells> tiles;
+            for (int tz = 0; tz < 8; ++tz)
+                for (int tx = 0; tx < 8; ++tx)
+                    tiles.push_back({tx, tz, tx * PerTile, tx * PerTile + PerTile - 1, tz * PerTile,
+                                     tz * PerTile + PerTile - 1});
+            auto wrongOf = [](const std::vector<float> &heights, const std::vector<FogFloorSampler::TileCells> &of) {
+                QStringList names;
+                for (int i : FogFloorSampler::outlierTiles(heights, of))
+                    names << QString("%1,%2").arg(of[size_t(i)].x).arg(of[size_t(i)].z);
+                names.sort();
+                return names.join(' ');
+            };
+            const QString found = wrongOf(ground, tiles);
+            c.check(found == "0,7 2,2 5,1 6,1", QString("fog-floor-wrong-tiles (%1)").arg(found));
+            // As at CMK: a blank tile whose one neighbour loaded is wrong too,
+            // sloping to it; both go.
+            std::vector<float> blank = ground;
+            for (int row = 4 * PerTile; row < 5 * PerTile; ++row)
+                for (int column = 6 * PerTile; column < N; ++column)
+                    blank[size_t(row) * N + column] = column < 7 * PerTile ? 1.0f + (7 * PerTile - column) * 0.1f : 1.0f;
+            std::vector<FogFloorSampler::TileCells> loaded;
+            for (const auto &t : tiles)
+                if (!(t.x == 7 && (t.z == 3 || t.z == 5)))
+                    loaded.push_back(t);
+            const QString blankFound = wrongOf(blank, loaded);
+            c.check(blankFound == "0,7 2,2 5,1 6,1 6,4 7,4", QString("fog-floor-wrong-tiles-blank (%1)").arg(blankFound));
+            // Two tiles apart and alone: which is wrong cannot be told.
+            const std::vector<FogFloorSampler::TileCells> two(tiles.begin() + 2 * 8 + 1, tiles.begin() + 2 * 8 + 3);
+            c.check(wrongOf(ground, two).isEmpty(), "fog-floor-wrong-tiles-two-alone");
+        }
+
+        // The terrain's shade of a low sun (TerrainShade): towards the sun
+        // at an elevation and a bearing (x east, y up, z south).
+        auto towards = [](double elevation, double bearing, float *out) {
+            const double e = elevation * M_PI / 180.0, a = bearing * M_PI / 180.0;
+            out[0] = float(std::sin(a) * std::cos(e));
+            out[1] = float(std::sin(e));
+            out[2] = float(-std::cos(a) * std::cos(e));
+        };
+        // A ridge 60 m above a plain at 100 m, its west side 1920 m east of
+        // the middle, running north; the sun 3 degrees up in the east: its
+        // shade on the plain reaches 60 / tan 3 = 1145 m west of the ridge.
+        const FogFloor ridgeFloor = floorOf([](double x, double) {
+            return std::abs(x - 2000.0) < 64.0 ? 160.0f : 100.0f;
+        });
+        float eastLow[3], eastHigh[3];
+        towards(3.0, 90.0, eastLow);
+        towards(60.0, 90.0, eastHigh);
+        TerrainShade ridgeShade;
+        ridgeShade.build(ridgeFloor, eastLow);
+        const float slope = float(std::tan(3.0 * M_PI / 180.0));
+        const float behind = ridgeShade.light(1400.0, 0.0, 100.0f);
+        const float past = ridgeShade.light(400.0, 0.0, 100.0f);
+        const float over = ridgeShade.light(1400.0, 0.0, 160.0f - 520.0f * slope + 8.0f);
+        const float sunward = ridgeShade.light(2600.0, 0.0, 100.0f);
+        c.check(ridgeShade.valid() && behind < 0.01f && past > 0.99f && over > 0.99f && sunward > 0.99f,
+                QString("terrain-shade-of-a-ridge (%1 %2 %3 %4)").arg(behind).arg(past).arg(over).arg(sunward));
+        TerrainShade noonShade;
+        noonShade.build(ridgeFloor, eastHigh);
+        c.check(noonShade.valid() && noonShade.light(1400.0, 0.0, 100.0f) > 0.99f
+                && noonShade.light(1900.0, 0.0, 100.0f) > 0.99f, "terrain-shade-none-at-noon");
+        // A valley one cell wide, 50 m deep, running east towards the low
+        // sun: lit along its floor, also off its middle, where the cells'
+        // tops blend with its sides'.
+        {
+            constexpr int N = FogFloor::Size;
+            const double half = N * FogFloor::CellSize * 0.5;
+            std::vector<float> heights(size_t(N) * N, 150.0f), wet(size_t(N) * N, 0.0f);
+            for (int column = 0; column < N; ++column)
+                heights[size_t(N / 2 - 1) * N + column] = 100.0f;
+            FogFloor valley;
+            valley.build(-half, half, heights, wet);
+            TerrainShade valleyShade;
+            valleyShade.build(valley, eastLow);
+            // The valley's row has its middle 32 m north of the map's.
+            const float middle = valleyShade.light(0.0, 32.0, 100.0f);
+            const float aside = valleyShade.light(0.0, 12.0, 100.0f);
+            const float side = valleyShade.light(0.0, -200.0, 150.0f);
+            c.check(valleyShade.valid() && middle > 0.99f && aside > 0.99f && side > 0.99f,
+                    QString("terrain-shade-keeps-a-valley-lit (%1 %2 %3)").arg(middle).arg(aside).arg(side));
+        }
+        // Terrain missing from the east half hides nothing.
+        TerrainShade halfShade;
+        halfShade.build(halfFloor, eastLow);
+        c.check(halfShade.valid() && halfShade.light(-3000.0, 0.0, 50.0f) > 0.99f
+                && halfShade.light(-50.0, 0.0, 50.0f) > 0.99f, "terrain-shade-without-terrain");
+
+        Env::File fromPreset;
+        fromPreset.parse("tsre_weather ( tsre_weather_preset ( valley_fog ) tsre_weather_keyframe ( tsre_weather_time ( 0 ) ) )",
+                         error);
+        c.check(fromPreset.weather && !fromPreset.weather->keyframes.isEmpty()
+                && near(fromPreset.weather->keyframes[0].air.dewPoint, 9.0, 1e-6), "fog-air-from-the-preset");
     }
 
     qInfo() << "[tests:weather] cases=" << (c.passed + c.failed) << "passed=" << c.passed << "failed=" << c.failed;

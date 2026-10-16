@@ -228,6 +228,11 @@ vec3 agx(vec3 linear) {
     return outset * c;
 }
 
+// Interleaved gradient noise (Jimenez 2014): 0-1, even over the screen.
+float gradientNoise(vec2 p) {
+    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
+}
+
 void main() {
     vec3 colour = texture(view, uv).rgb;
     int curve = int(settings.x + 0.5);
@@ -245,7 +250,12 @@ void main() {
         display = agx(linear);
     else
         display = toDisplay(linear);
-    fragColor = vec4(clamp(display, 0.0, 1.0), 1.0);
+    // A step of the 8 bit frame either way (triangular, fixed on the
+    // screen): dark gradients, the night sky and fog, banded without it (the
+    // user, 2026-10-15).
+    vec2 p = gl_FragCoord.xy;
+    float dither = gradientNoise(p) + gradientNoise(p + vec2(47.0, 17.0)) - 1.0;
+    fragColor = vec4(clamp(display + dither / 255.0, 0.0, 1.0), 1.0);
 }
 )";
 

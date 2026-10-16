@@ -138,6 +138,31 @@ double smooth(double edge0, double edge1, double x) {
     return t * t * (3.0 - 2.0 * t);
 }
 
+// The air at the ground across the front (°C), at a distance ahead of the
+// line (km), before the day's warming: the warm sector warm and damp, the
+// rain's air nearly saturated, the cold air behind a cold front dry.
+WeatherAir airAt(Scenario scenario, double ahead) {
+    struct Point {
+        double ahead;
+        float temperature, dewPoint;
+    };
+    static const std::vector<Point> warm = {{-250, 15, 12}, {-40, 13, 11.5f}, {20, 10, 9.5f},
+                                            {220, 9, 6}, {650, 9, 4}};
+    static const std::vector<Point> cold = {{-300, 10, 2}, {-70, 11, 4}, {-15, 13, 9}, {0, 14, 12},
+                                            {40, 16, 13}, {300, 16, 12}};
+    const std::vector<Point> &p = scenario == WarmFront ? warm : cold;
+    if (ahead <= p.front().ahead)
+        return {p.front().temperature, p.front().dewPoint};
+    if (ahead >= p.back().ahead)
+        return {p.back().temperature, p.back().dewPoint};
+    size_t i = 1;
+    while (i < p.size() && p[i].ahead < ahead)
+        ++i;
+    const float w = float((ahead - p[i - 1].ahead) / (p[i].ahead - p[i - 1].ahead));
+    return {p[i - 1].temperature + (p[i].temperature - p[i - 1].temperature) * w,
+            p[i - 1].dewPoint + (p[i].dewPoint - p[i - 1].dewPoint) * w};
+}
+
 // Heaps grow through the day: fewer in the morning and at night.
 double convectiveDay(double hour) {
     const double h = std::fmod(std::fmod(hour, 24.0) + 24.0, 24.0);
@@ -255,7 +280,13 @@ Weather generate(const Settings &settings) {
         f.precipitationRate = float(rain / count);
         f.precipitation = f.precipitationRate < 0.05f ? WeatherPrecipitation::None : WeatherPrecipitation::Rain;
         f.visibility = float(visibility / count);
-        const Station centre = stationAt(settings.scenario, -settings.speed * (k - settings.arrival));
+        const double centreAhead = -settings.speed * (k - settings.arrival);
+        const Station centre = stationAt(settings.scenario, centreAhead);
+        // The air of the centre's part of the front, 4 °C warmer at 15:00
+        // and cooler at night; never below its dew point.
+        f.air = airAt(settings.scenario, centreAhead);
+        f.air.temperature = std::max(f.air.temperature + float(4.0 * std::cos(2.0 * M_PI * (k - 15.0) / 24.0)),
+                                     f.air.dewPoint);
         // The wind blows roughly with the front, turning as it passes.
         float from = float(std::fmod(settings.heading + 180.0 + centre.windTurn + 360.0, 360.0));
         f.wind[WeatherLayer::Low] = {from, centre.windSpeed};

@@ -20,7 +20,8 @@
 //    shell around the planet: density from the cover, a height profile by
 //    cloud type and 3D Perlin-Worley noise eroded by Worley detail; light
 //    from a short march towards the sun (multiple scattering in octaves,
-//    two-lobe phase) and from the sky; the flat high layer behind them;
+//    two-lobe phase) and from the sky, less under a deep cloud above (a
+//    storm's base dark); the flat high layer behind them;
 //    haze over the distance from the sky-view table;
 // 3. the result blended with the last frames' where the clouds were in the
 //    same direction (the march starts at a different jitter each frame),
@@ -58,6 +59,7 @@ constexpr float FarCoverTexel = 600.0f;
 constexpr int ShapeSize = 128;
 constexpr int DetailSize = 32;
 constexpr int CurlSize = 128;
+constexpr int BlueSize = 64;
 // Metres one period of the shape and detail volumes spans.
 constexpr double ShapePeriod = 6000.0;
 constexpr double DetailPeriod = 900.0;
@@ -113,10 +115,10 @@ struct CoverParameters {
 struct MarchParameters {
     float inverse[16];
     float previous[16];
-    float sun[4];
+    float sun[4];          // towards the sun; w: the rain's slant east (km a km of fall)
     float camera[4];       // height (km), y sign, exposure, jitter (0-1)
     float weatherMap[4];   // camera in the weather texture (m from its NW corner), extent (m), texels per side
-    float nearMap[4];      // camera in the near cover map (m), extent (m)
+    float nearMap[4];      // camera in the near cover map (m), extent (m), where the rain starts (km, 0 the scene's end)
     float farMap[4];
     float slab[4];         // bottom, top (km), distance (km), steps
     float projection[4];   // x and y scale, scene near and far
@@ -124,11 +126,11 @@ struct MarchParameters {
     float noiseLow[4];     // shape and detail offsets of the low layer (m), mod their periods
     float noiseMid[4];
     float lighting[4];     // light steps, still, buffer texel w, h
-    float high[4];         // high layer altitude (km)
+    float high[4];         // high layer altitude (km), haze; deep layers: extra samples a ray may take, samples a step at most
     float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), the low layer's centre east and north of the camera (km)
     float night[4];        // the night sky's floor (display colour); the scene's scale (auto exposure, task 29)
     float light[4];        // towards the clouds' light: the sun, or the moon at night (task 31)
-    float lightColour[4];  // its light relative to the sun's
+    float lightColour[4];  // its light relative to the sun's; w: the rain's slant north
     // How far the layers' weather and cover maps have moved with their wind
     // since they were drawn (km east, north): low, mid; high.
     float shiftLowMid[4];
@@ -138,7 +140,7 @@ struct MarchParameters {
     // without clouds. The history follows each pixel's clouds. The cloud
     // shell's radius (km) last, for the composite.
     float motion[4];
-    float shadowMid[4];    // the mid layer's cloud shadow map: its centre east and north of the camera (km)
+    float shadowMid[4];    // the mid layer's cloud shadow map: its centre east and north of the camera (km); downwind at the top (east, north)
     float motionHigh[4];
 };
 
@@ -242,7 +244,7 @@ float distribution(float value) {
     return (float(low) + (b > a ? (value - a) / (b - a) : 0.0)) / 256.0;
 }
 
-const float Scales[4] = float[4](5000.0, 2500.0, 1200.0, 3000.0);
+const float Scales[4] = float[4](5000.0, 2500.0, 1200.0, 8000.0);
 
 // WeatherDetail::cover for one layer at a point of the noise space; with
 // even set, the noise's even value (0-1) the cover thresholds instead.
@@ -252,11 +254,15 @@ float cover(vec2 point, vec2 values, uint seed, float texel, bool even) {
     float t3 = clamp(values.y, 0.0, 1.0) * 3.0;
     int i = min(2, int(t3));
     float along = t3 - float(i);
-    float a = fractalLimited(point.x / Scales[i], point.y / Scales[i], seed + uint(i) * 7919u, texel / Scales[i]);
+    // Storm cells without the noise's detail finer than 2 km: drawn
+    // straight up their 10 km, it grooved the towers' walls; the billows
+    // make their walls instead.
+    float limit = mix(texel, max(texel, 1000.0), smoothstep(0.8, 1.0, values.y));
+    float a = fractalLimited(point.x / Scales[i], point.y / Scales[i], seed + uint(i) * 7919u, limit / Scales[i]);
     float noise = a;
     if (along > 0.001) {
         float b = fractalLimited(point.x / Scales[i + 1], point.y / Scales[i + 1], seed + uint(i + 1) * 7919u,
-                                 texel / Scales[i + 1]);
+                                 limit / Scales[i + 1]);
         noise = along >= 0.999 ? b : (a * (1.0 - along) + b * along)
                 / sqrt((1.0 - along) * (1.0 - along) + along * along);
     }
@@ -278,7 +284,7 @@ void main() {
     float size = float(textureSize(weatherTexture, 0).y);
     for (int l = 0; l < 3; ++l) {
         vec2 w = clamp(weather, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
-        layers[l] = textureLod(weatherTexture, vec2((float(l) + w.x) / 3.0, w.y), 0.0);
+        layers[l] = textureLod(weatherTexture, vec2((float(l) + w.x) / 4.0, w.y), 0.0);
     }
     vec3 c;
     for (int l = 0; l < 3; ++l) {
@@ -378,14 +384,26 @@ vec2 layerShift(int layer) {
     return layer == 0 ? shiftLowMid.xy : (layer == 1 ? shiftLowMid.zw : shiftHigh.xy);
 }
 
-// The weather's values (coverage, type, base, top km) of a layer, at a
-// point given by its offset from the camera (km east, north).
-vec4 weatherAt(vec2 offset, int layer) {
+// A layer's place in the weather texture's columns, at a point given by its
+// offset from the camera (km east, north).
+vec2 weatherUv(vec2 offset, int layer) {
     offset -= layerShift(layer);
     vec2 w = (weatherMap.xy + vec2(offset.x, -offset.y) * 1000.0) / weatherMap.z;
     float size = weatherMap.w;
-    w = clamp(w, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
-    return textureLod(weatherTexture, vec2((float(layer) + w.x) / 3.0, w.y), 0.0);
+    return clamp(w, vec2(0.5 / size), vec2(1.0 - 0.5 / size));
+}
+
+// The weather's values (coverage, type, base, top km) of a layer at a point.
+vec4 weatherAt(vec2 offset, int layer) {
+    vec2 w = weatherUv(offset, layer);
+    return textureLod(weatherTexture, vec2((float(layer) + w.x) / 4.0, w.y), 0.0);
+}
+
+// The density of a layer (0 low, 1 mid) at a point, against its type's
+// usual (the weather's extras, moving with the layer).
+float layerScale(vec2 offset, int layer) {
+    vec2 w = weatherUv(offset, layer);
+    return textureLod(weatherTexture, vec2((3.0 + w.x) / 4.0, w.y), 0.0)[layer];
 }
 
 // The cover maps' value of a layer (0 low, 1 mid, 2 high): the near map
@@ -420,27 +438,68 @@ float layerDensity(vec2 offset, float altitude, bool detail, int layer) {
     vec3 metres = vec3(offset.x * 1000.0, altitude * 1000.0, -offset.y * 1000.0);
     vec3 q = (metres + vec3(offsets.x, 0.0, -offsets.y)) / ShapePeriod;
     vec4 s = textureLod(shapeNoise, q * mix(1.2, 3.2, convective), 0.0);
+    // Storm clouds (cumulonimbus, type 0.8 to 1) are towers, then anvils
+    // spreading at their top, which reach past their cells. Only in the
+    // shaders built with STORMS (the march's variant for storms): the code
+    // slowed every view a little.
+#ifdef STORMS
+    float storm = smoothstep(0.8, 1.0, w.y);
+#else
+    const float storm = 0.0;
+#endif
     // The map read a little aside, by height: sides bulge and lean
     // instead of standing straight.
     vec2 warp = (s.gb - 0.5) * 0.5 * mix(0.5, 1.0, convective);
     float even = coverAt(offset + warp, layer);
     float threshold = 1.0 - w.x;
     float coverage = clamp(0.5 + (even - threshold) * mix(2.5, 1.8, convective), 0.0, 1.0);
-    if (coverage <= 0.0)
+    if (coverage <= 0.0 && (storm <= 0.0 || h < 0.7))
         return 0.0;
     float fbm = dot(s.gba, vec3(0.625, 0.25, 0.125));
     float base = clamp(remap(s.r, fbm - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
-    // The height profile by type, before the coverage: only a patch's
-    // cores reach the top, so heaps rise as domes from flat bases;
-    // sheets fill their layer with ragged edges.
-    // Sheets vary in thickness with the 2D noise and the billows, so
-    // their bases show lighter and darker patches (rolls, thin parts).
-    float thickness = mix(0.45, 1.0, clamp(even * 1.2 + (s.r - 0.5) * 0.6, 0.0, 1.0));
-    float hs = h / thickness;
-    float stratusProfile = smoothstep(0.0, 0.25, hs + (s.g - 0.5) * 0.3) * (1.0 - smoothstep(0.55, 1.0, hs));
-    float cumulusProfile = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.15, 1.0, h));
-    base *= mix(stratusProfile, cumulusProfile, convective);
-    float v = clamp(remap(base, 1.0 - coverage, 1.0, 0.0, 1.0), 0.0, 1.0) * coverage;
+    float v = 0.0;
+    if (storm < 1.0 && coverage > 0.0) {
+        // The height profile by type, before the coverage: only a patch's
+        // cores reach the top, so heaps rise as domes from flat bases;
+        // sheets fill their layer with ragged edges.
+        // Sheets vary in thickness with the 2D noise and the billows, so
+        // their bases show lighter and darker patches (rolls, thin parts).
+        float thickness = mix(0.45, 1.0, clamp(even * 1.2 + (s.r - 0.5) * 0.6, 0.0, 1.0));
+        float hs = h / thickness;
+        float stratusProfile = smoothstep(0.0, 0.25, hs + (s.g - 0.5) * 0.3) * (1.0 - smoothstep(0.55, 1.0, hs));
+        float cumulusProfile = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.15, 1.0, h));
+        float shaped = base * mix(stratusProfile, cumulusProfile, convective);
+        v = clamp(remap(shaped, 1.0 - coverage, 1.0, 0.0, 1.0), 0.0, 1.0) * coverage;
+    }
+    if (storm > 0.0) {
+        // The tower: its cell solid from a flat base, its walls billowing at
+        // every height (the billows move its edge: not walls drawn straight
+        // up from the 2D map, which stood as pillars of streaks), each part
+        // of the cell as high as it lies deep in it: the edge stops low, the
+        // core reaches the anvil; towers narrow upwards into domes, their
+        // heights as their cells' strength. Weak cells stay heaps a km or two
+        // tall between the storms, others congestus (alone, the towers stood
+        // stark).
+        float top = mix(0.12, 0.9, smoothstep(0.0, 1.0, (even - threshold) / 0.3));
+        float edge = even + (s.r - 0.5) * 0.3 + (fbm - 0.5) * 0.2;
+        float tower = clamp(0.5 + (edge - threshold) * 4.0, 0.0, 1.0)
+                * smoothstep(0.0, 0.015, h) * (1.0 - smoothstep(top - 0.12, top, h + (s.g - 0.5) * 0.1));
+        // The anvil: the top spread from the cores that reach it, streaming
+        // downwind (shadowMid.zw: the map read upwind too), thinner (ice):
+        // a quarter of the sky at the top where cells are a third. Its top
+        // flat, its underside rising from the core to a thin edge.
+        float anvil = 0.0;
+        if (h > 0.72) {
+            float spread = even;
+            for (int k = 1; k <= 2; ++k)
+                spread = max(spread, coverAt(offset - shadowMid.zw * (3.0 * float(k)) + warp, layer) - 0.06 * float(k));
+            float inside = clamp((spread + (s.g - 0.5) * 0.15 - threshold + 0.05) / 0.35, 0.0, 1.0);
+            float underside = mix(0.94, 0.74, inside);
+            anvil = smoothstep(underside, underside + 0.04, h) * (1.0 - smoothstep(0.95, 1.0, h))
+                    * smoothstep(0.0, 0.25, inside) * 0.3;
+        }
+        v = mix(v, max(tower * mix(0.65, 1.0, base), anvil), storm);
+    }
     if (v <= 0.0)
         return 0.0;
     if (detail) {
@@ -454,9 +513,10 @@ float layerDensity(vec2 offset, float altitude, bool detail, int layer) {
                              / (DetailPeriod * mix(0.9, 0.55, convective)), 0.0).rgb;
         float dfbm = dot(dn, vec3(0.625, 0.25, 0.125));
         float erosion = mix(dfbm, 1.0 - dfbm, clamp(h * 5.0, 0.0, 1.0));
-        v = clamp(remap(v, erosion * mix(0.3, 0.55, convective), 1.0, 0.0, 1.0), 0.0, 1.0);
+        // (less on a storm: its towers' edges are hard)
+        v = clamp(remap(v, erosion * mix(mix(0.3, 0.55, convective), 0.3, storm), 1.0, 0.0, 1.0), 0.0, 1.0);
     }
-    return v * mix(35.0, 70.0, convective);
+    return v * mix(35.0, 70.0, convective) * layerScale(offset, layer);
 }
 
 // Extinction (1/km) of the low and mid layers at a point.
@@ -465,6 +525,54 @@ float density(vec3 p, vec2 offset, float altitude, bool detail) {
     for (int layer = 0; layer < 2; ++layer)
         sum += layerDensity(offset, altitude, detail, layer);
     return sum;
+}
+
+// The cloud in the low and mid layers' columns at a point, as optical
+// depth: above the altitude (x) and the whole column (y). Estimated from the
+// weather and the cover as layerDensity makes them, the billows' noise at its
+// mean, by its profile at three heights: a storm's tower some ten times a
+// cumulus's (about 20).
+vec2 cloudAbove(vec2 offset, float altitude) {
+    vec2 depth = vec2(0.0);
+    for (int layer = 0; layer < 2; ++layer) {
+        vec4 w = weatherAt(offset, layer);
+        if (w.x <= 0.0 || altitude >= w.w)
+            continue;
+        float convective = clamp((w.y - 0.3) / 0.4, 0.0, 1.0);
+#ifdef STORMS
+        float storm = smoothstep(0.8, 1.0, w.y);
+#else
+        const float storm = 0.0;
+#endif
+        float even = coverAt(offset, layer);
+        float coverage = clamp(0.5 + (even - (1.0 - w.x)) * mix(2.5, 1.8, convective), 0.0, 1.0);
+        if (coverage <= 0.0 && storm <= 0.0)
+            continue;
+        float from = clamp((altitude - w.z) / max(w.w - w.z, 0.05), 0.0, 1.0);
+        vec2 sums = vec2(0.0);
+        for (int k = 0; k < 3; ++k) {
+            float f = (float(k) + 0.5) / 3.0;
+            vec2 h = vec2(mix(from, 1.0, f), f);
+            vec2 hs = h / 0.75;
+            vec2 stratus = smoothstep(0.0, 0.25, hs) * (1.0 - smoothstep(0.55, 1.0, hs));
+            vec2 cumulus = smoothstep(0.0, 0.06, h) * (1.0 - smoothstep(0.15, 1.0, h));
+            vec2 base = 0.6 * mix(stratus, cumulus, convective);
+            vec2 shaped = clamp((base - (1.0 - coverage)) / max(coverage, 0.01), 0.0, 1.0) * coverage;
+            // A storm's tower and anvil (layerDensity), the billows at
+            // their mean.
+            float top = mix(0.12, 0.9, smoothstep(0.0, 1.0, (even - (1.0 - w.x)) / 0.3));
+            vec2 tower = clamp(0.5 + (even - (1.0 - w.x)) * 4.0, 0.0, 1.0)
+                    * smoothstep(0.0, 0.015, h) * (1.0 - smoothstep(top - 0.12, top, h)) * 0.8;
+            float inside = clamp((even - (1.0 - w.x) + 0.05) / 0.35, 0.0, 1.0);
+            float underside = mix(0.94, 0.74, inside);
+            vec2 anvil = smoothstep(underside, underside + 0.04, h) * (1.0 - smoothstep(0.95, 1.0, h))
+                    * smoothstep(0.0, 0.25, inside) * 0.3;
+            sums += mix(shaped, max(tower, anvil), storm);
+        }
+        float column = mix(35.0, 70.0, convective) * layerScale(offset, layer) * max(w.w - w.z, 0.05) / 3.0;
+        depth += sums * column * vec2(1.0 - from, 1.0);
+    }
+    return depth;
 }
 )";
 
@@ -519,12 +627,199 @@ vec3 airTo(vec3 d, float distance, float radius) {
 
 const char *MarchFragment = R"(
 layout(location = 0) out vec4 result;
+// Where each pixel's march starts (CloudNoise::blue, 64 x 64).
+layout(binding = 11) uniform sampler2D blueNoise;
 // Where the pixel's clouds are, times their cover (km: front, mean
 // distance; layer 0 low to 2 high), the cover.
 layout(location = 1) out vec4 cloudDepth;
 )";
 
 const char *MarchMain = R"(
+// The march's state along the ray: its light, what it lets through; where
+// the cloud starts (2 % of the light taken), the mean distance by the light
+// each sample takes, the layer by it (mid 1, high 2).
+vec3 marchLight;
+float marchThrough;
+float marchFront, marchDistance, marchWeights, marchLayers;
+// Along the ray: the shell's radius, towards the clouds' light, the angle's
+// cosine to it, the sky's light from above.
+float marchRadius;
+vec3 marchLightDir;
+float marchCos;
+vec3 marchSky;
+
+// The low and mid layers' extinction at a point (1/km), the mid's apart.
+float cloudDensity(vec3 p, out float mid) {
+    float altitude = length(p) - marchRadius;
+    vec2 offset = vec2(p.x, -p.z);
+    mid = layerDensity(offset, altitude, true, 1);
+    return layerDensity(offset, altitude, true, 0) + mid;
+}
+
+// The light a cloud of extinction sigma at a point scatters towards the
+// camera.
+vec3 cloudLight(vec3 p, float sigma) {
+    float R = marchRadius;
+    vec3 lightDir = marchLightDir;
+    float cosAngle = marchCos;
+    vec3 skyAbove = marchSky;
+    float phaseScale[3] = float[3](1.0, 0.5, 0.25);
+    float altitude = length(p) - R;
+    vec2 offset = vec2(p.x, -p.z);
+    // Towards the sun in growing steps spread in a cone, which
+    // smooths the banding and gathers the neighbours' density, then
+    // one far sample for the shadows of distant clouds (Schneider
+    // 2015).
+    float opticalDepth = 0.0;
+    float stepLength = 0.05;
+    float along = 0.0;
+    for (int k = 0; k < int(lighting.x); ++k) {
+        along += stepLength;
+        vec3 q = p + lightDir * along + Cone[k] * (stepLength * 0.6);
+        opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * stepLength;
+        stepLength *= 1.8;
+    }
+    {
+        vec3 q = p + lightDir * (along + 2.0);
+        opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * 0.8;
+    }
+    // The sun's light as on the Earth at this height and place: the
+    // smaller shell would tilt a far cloud's sky away from the sun
+    // and set it early.
+    vec3 earthPoint = vec3(p.x, BottomRadius + altitude, p.z);
+    float earthRadius = length(earthPoint);
+    vec3 up = earthPoint / earthRadius;
+    float sunCos = dot(up, lightDir);
+    vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(earthRadius, sunCos), 0.0).rgb
+            * lightColour.rgb;
+    vec2 ground = sphereHits(earthPoint, lightDir, BottomRadius);
+    if (ground.x > 0.0)
+        sunLight = vec3(0.0);
+    // The cloud above it and its column (cloudAbove).
+    vec2 column = cloudAbove(offset, altitude);
+    // Multiple scattering in octaves (Wrenninge 2013).
+    float scattered = 0.0;
+    for (int o = 0; o < 3; ++o) {
+        float a = phaseScale[o];
+        float phase = mix(henyeyGreenstein(cosAngle, 0.6 * a), henyeyGreenstein(cosAngle, -0.3 * a), 0.3);
+        scattered += a * exp(-opticalDepth * a) * phase;
+    }
+    // Beer-powder (Schneider 2015): cloud gathers light, so its
+    // edges facing the light are darker than its depths; seen only
+    // looking away from the sun.
+    float powder = 1.0 - exp(-2.0 * (opticalDepth + sigma * 0.05));
+    scattered *= mix(1.0, 2.0 * powder, clamp(0.5 - 0.5 * cosAngle, 0.0, 1.0) * 0.8);
+    float h = clamp((altitude - slab.x) / max(slab.y - slab.x, 0.1), 0.0, 1.0);
+    // The sky's light reaches less far in: less at the bottom of
+    // the layer and where the sun's path is dense (tuned on
+    // cumulus); under more cloud than a cumulus has above that
+    // height, less by what the cloud above lets through
+    // (two-stream): a storm's base and its lower sides dark.
+    float deeper = min(1.0, (1.0 + 0.11 * 20.0 * (1.0 - h)) / (1.0 + 0.11 * column.x));
+    float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05)) * deeper;
+    // The ground's light from below, where the sun reaches the
+    // ground (not under a covered sky); under a cloud many times a
+    // cumulus's depth (a storm, wide as it is deep) the ground
+    // below lies in its shadow.
+    float sunnyGround = (1.0 - 0.9 * max(weatherAt(offset, 0).x, weatherAt(offset, 1).x))
+            * (1.0 - smoothstep(20.0, 150.0, column.y));
+    // Through a deep cloud, the sky's light is the cloud's own,
+    // scattered many times: grey, not the sky's blue.
+    vec3 skyThrough = mix(vec3(dot(skyAbove, vec3(0.2126, 0.7152, 0.0722))), skyAbove, deeper);
+    vec3 ambient = skyThrough * open * 0.7
+            + vec3(0.11, 0.11, 0.09) * sunLight * max(sunCos, 0.0) * (1.0 - h) * sunnyGround / Pi;
+    // Light diffused through a thick layer, which the octaves miss
+    // (two-stream: 1 / (1 + 0.75 (1 - g) depth), g about 0.85): what
+    // lights an overcast's base; nothing near the surface.
+    // (the sun's path marched only a few km: at least the cloud
+    // above, for a storm's tower)
+    float diffused = (1.0 - exp(-opticalDepth / 6.0)) / (1.0 + 0.11 * max(opticalDepth, column.x));
+    return sunLight * (scattered * Pi + max(sunCos, 0.0) * diffused * 0.14) + ambient;
+}
+
+// A sample of extinction sigma (the mid layer's sigmaMid), dt long at t along
+// the ray: what it lets through, where it is (its light added by the march).
+void addSample(float sigma, float sigmaMid, float t, float dt) {
+    if (sigma <= 0.0)
+        return;
+    float before = marchThrough;
+    marchThrough *= exp(-sigma * dt);
+    marchDistance += t * (before - marchThrough);
+    marchWeights += before - marchThrough;
+    marchLayers += (before - marchThrough) * sigmaMid / sigma;
+    if (marchFront < 0.0 && marchThrough < 0.98)
+        marchFront = t;
+}
+
+#ifdef RAIN
+// Rain falling from the low clouds, seen from under their base: grey
+// curtains where the weather's rain falls (its rate, column 4 of the
+// weather), under the cells for showers (as WeatherDetail::precipitation),
+// streaked along the fall, slanted by the wind (sun.w, lightColour.w: km
+// aside a km of fall), lit by what the cloud above lets through: dark under
+// a storm, grey under a deck. From the near scene's end (near, km: the
+// composite draws the clouds over the sky and the distant scene only; begun
+// nearer, the rain covered distant terrain and not near terrain, with a
+// seam between them) to the base, the ground or the march's limit (the
+// storms on the horizon stand 30 to 60 km off), its samples closer near.
+void marchRain(vec3 p0, vec3 d, float R, float near, float limit, float jitter) {
+    vec2 baseHits = sphereHits(p0, d, R + slab.x);
+    vec2 groundHits = sphereHits(p0, d, R);
+    float far = baseHits.y > 0.0 ? baseHits.y : limit;
+    if (groundHits.x > 0.0)
+        far = min(far, groundHits.x);
+    far = min(far, limit);
+    float Near = max(near, 0.3);
+    if (far <= Near)
+        return;
+    vec3 earthPoint = vec3(0.0, BottomRadius + camera.x, 0.0);
+    float sunCos = marchLightDir.y;
+    vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(length(earthPoint), sunCos), 0.0).rgb
+            * lightColour.rgb;
+    vec3 grey = vec3(dot(marchSky, vec3(0.2126, 0.7152, 0.0722)));
+    const int Steps = 16;
+    float span = far - Near;
+    for (int i = 0; i < Steps; ++i) {
+        float f = (float(i) + jitter) / float(Steps);
+        float t = Near + span * f * f;
+        float dt = span * (2.0 * f + 1.0 / float(Steps)) / float(Steps);
+        vec3 p = p0 + d * t;
+        float altitude = length(p) - R;
+        vec2 offset = vec2(p.x, -p.z);
+        vec4 w = weatherAt(offset, 0);
+        if (w.x <= 0.0 || altitude >= w.z)
+            continue;
+        vec2 at = weatherUv(offset, 0);
+        vec4 extra = textureLod(weatherTexture, vec2((3.0 + at.x) / 4.0, at.y), 0.0);
+        if (extra.z <= 0.0)
+            continue;
+        // Fallen from the cloud upwind.
+        vec2 from = offset - vec2(sun.w, lightColour.w) * (w.z - altitude);
+        float convective = clamp((w.y - 0.45) / 0.35, 0.0, 1.0);
+        // Showers from their cells' cores (hard edged as the towers).
+        float cell = clamp(0.5 + (coverAt(from, 0) - (1.0 - w.x) - 0.05) * 4.0, 0.0, 1.0);
+        float rate = extra.z * mix(1.0, min(cell / max(w.x, 0.1), 3.0), convective);
+        if (rate <= 0.0)
+            continue;
+        // Streaks along the fall, lighter near the ground; snow even.
+        vec3 metres = vec3(from.x * 1000.0, altitude * 1000.0, -from.y * 1000.0);
+        float streak = smoothstep(0.25, 0.75, textureLod(shapeNoise, metres / vec3(2500.0, 25000.0, 2500.0), 0.0).r);
+        float sigma = 0.35 * pow(rate, 0.63) * mix(0.5, 1.0, convective)
+                * mix(mix(0.15, 1.85, streak), 1.0, extra.w) * mix(0.7, 1.0, altitude / max(w.z, 0.1));
+        // Lit through the cloud above (two-stream; its column as cloudAbove's
+        // estimate, at the cell's cover).
+        float column = mix(35.0, 70.0, clamp((w.y - 0.3) / 0.4, 0.0, 1.0)) * extra.x * max(w.w - w.z, 0.05)
+                * mix(0.35, 0.7, smoothstep(0.8, 1.0, w.y)) * max(cell, 1.0 - convective);
+        float through = 1.0 / (1.0 + 0.11 * column);
+        vec3 lit = (mix(grey, marchSky, through) * 0.7 + sunLight * max(sunCos, 0.0) * 0.25) * through
+                * mix(1.0, 1.8, extra.w);
+        float before = marchThrough;
+        addSample(sigma, 0.0, t, dt);
+        marchLight += lit * (before - marchThrough);
+    }
+}
+#endif
+
 void main() {
     // This march texel is one pixel of its block of the cloud image: the
     // one this pass updates.
@@ -579,24 +874,108 @@ void main() {
     // light keeps the sun.
     vec3 lightDir = normalize(light.xyz);
     float cosAngle = dot(d, lightDir);
-    // Each pixel starts the march at its own place (interleaved gradient
-    // noise), moved on each frame unless still.
+    // Each pixel starts the march at its own place (blue noise: the
+    // interleaved gradient noise before left what error remains in its
+    // diagonal pattern, a moiré on storms), moved on each frame unless
+    // still.
     // (by the image's pixel: the pixels of a block are marched by different
     // passes on the same march texel)
-    float jitter = fract(52.9829189 * fract(dot(pixel + 0.5, vec2(0.06711056, 0.00583715))) + camera.w);
-    float phaseScale[3] = float[3](1.0, 0.5, 0.25);
-    vec3 luminance = vec3(0.0);
-    float transmittance = 1.0;
-    // Where the cloud starts (2 % of the light taken), the mean distance
-    // by the light each sample takes, the layer by it (mid 1, high 2).
-    float front = -1.0;
-    float weightedDistance = 0.0, weights = 0.0, layers = 0.0;
+    float jitter = fract(texelFetch(blueNoise, ivec2(mod(pixel, vec2(64.0))), 0).r + camera.w);
+    marchRadius = R;
+    marchLightDir = lightDir;
+    marchCos = cosAngle;
+    marchLight = vec3(0.0);
+    marchThrough = 1.0;
+    marchFront = -1.0;
+    marchDistance = 0.0;
+    marchWeights = 0.0;
+    marchLayers = 0.0;
     // Light of the sky from above and of the ground from below.
     vec3 skyAbove = skyLight(vec3(0.0, 1.0, 0.0)) * 0.6 + skyLight(normalize(vec3(sun.x, 0.0, sun.z) + vec3(0.0, 0.3, 0.0))) * 0.4;
+    marchSky = skyAbove;
+#ifdef RAIN
+    if (pr < R + slab.x)
+        marchRain(p0, d, R, max(projection.w * length(vec3(ndc.x / projection.x, ndc.y / projection.y, 1.0)) / 1000.0,
+                                nearMap.w), limit, jitter);
+#endif
     if (start >= 0.0 && end > start) {
         int steps = int(slab.w);
         float segment = end - start;
         float previousT = start;
+#ifdef DEEP_SPLIT
+        // Steps longer than the clouds' shapes show at their distance in a
+        // deep layer (a storm's slab 10 km tall: the steps spread over some
+        // 30 km of ray, 400 m and more each at High, twice that at Low, left
+        // its towers grainy and hatched by each pixel's start) are split
+        // into samples no longer than that (high.w at most), each lit on
+        // its own (a lit cloud is far brighter at its surface than a few
+        // hundred metres in), while the ray's budget lasts (high.z; only
+        // then this variant). A probe without the detail first (it only
+        // erodes), so empty steps cost as before; other steps (thin layers:
+        // their long steps lie far off, where they do not show) are marched
+        // as they were.
+        int extra = int(high.z);
+        bool wasCloud = false;
+        // One sample an iteration (the lighting's code once in the shader;
+        // twice, it ran slower): a split step's further samples pending
+        // (its end, their length, how many).
+        int s = 0;
+        float pendingEnd = 0.0, pendingDt = 0.0;
+        int pendingLeft = 0;
+        for (int n = 0; n < steps + int(high.z); ++n) {
+            float t, dt;
+            bool coarse = pendingLeft == 0;
+            if (!coarse) {
+                --pendingLeft;
+                t = pendingEnd - pendingDt * float(pendingLeft);
+                dt = pendingDt;
+            } else {
+                if (s >= steps)
+                    break;
+                float f = (float(s) + jitter) / float(steps);
+                t = start + segment * f * f;
+                dt = max(t - previousT, 0.0);
+                if (s == 0)
+                    dt = segment * (1.0 / float(steps)) * (1.0 / float(steps));
+                previousT = t;
+                ++s;
+                float longest = max(0.12, t * 0.01);
+                if (extra > 0 && dt > longest) {
+                    vec3 p = p0 + d * t;
+                    vec2 offset = vec2(p.x, -p.z);
+                    vec4 low = weatherAt(offset, 0), mid = weatherAt(offset, 1);
+                    if (max(low.x > 0.0 ? low.w - low.z : 0.0, mid.x > 0.0 ? mid.w - mid.z : 0.0) >= 3.0) {
+                        bool cloud = density(p, offset, length(p) - R, false) > 0.0;
+                        // (into the step after a cloud too: its trailing edge)
+                        bool skip = !cloud && !wasCloud;
+                        wasCloud = cloud;
+                        if (skip)
+                            continue;
+                        int split = min(int(ceil(dt / longest)), min(int(high.w), extra + 1));
+                        extra -= split - 1;
+                        dt /= float(split);
+                        pendingEnd = t;
+                        pendingDt = dt;
+                        pendingLeft = split - 1;
+                        t -= dt * float(split - 1);
+                        coarse = false;
+                    }
+                }
+            }
+            vec3 q = p0 + d * t;
+            float mid;
+            float sigma = cloudDensity(q, mid);
+            if (coarse)
+                wasCloud = sigma > 0.0;
+            if (sigma > 0.0) {
+                float through = marchThrough;
+                addSample(sigma, mid, t, dt);
+                marchLight += cloudLight(q, sigma) * (through - marchThrough);
+            }
+            if (marchThrough < 0.01)
+                break;
+        }
+#else
         for (int s = 0; s < steps; ++s) {
             float f = (float(s) + jitter) / float(steps);
             float t = start + segment * f * f;
@@ -605,86 +984,22 @@ void main() {
                 dt = segment * (1.0 / float(steps)) * (1.0 / float(steps));
             previousT = t;
             vec3 p = p0 + d * t;
-            float r = length(p);
-            float altitude = r - R;
-            vec2 offset = vec2(p.x, -p.z);
-            float sigma = 0.0, sigmaMid = 0.0;
-            for (int layer = 0; layer < 2; ++layer) {
-                float s = layerDensity(offset, altitude, true, layer);
-                sigma += s;
-                if (layer == 1)
-                    sigmaMid = s;
-            }
+            float mid;
+            float sigma = cloudDensity(p, mid);
             if (sigma <= 0.0)
                 continue;
-            // Towards the sun in growing steps spread in a cone, which
-            // smooths the banding and gathers the neighbours' density, then
-            // one far sample for the shadows of distant clouds (Schneider
-            // 2015).
-            float opticalDepth = 0.0;
-            float stepLength = 0.05;
-            float along = 0.0;
-            for (int k = 0; k < int(lighting.x); ++k) {
-                along += stepLength;
-                vec3 q = p + lightDir * along + Cone[k] * (stepLength * 0.6);
-                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * stepLength;
-                stepLength *= 1.8;
-            }
-            {
-                vec3 q = p + lightDir * (along + 2.0);
-                opticalDepth += density(q, vec2(q.x, -q.z), length(q) - R, false) * 0.8;
-            }
-            // The sun's light as on the Earth at this height and place: the
-            // smaller shell would tilt a far cloud's sky away from the sun
-            // and set it early.
-            vec3 earthPoint = vec3(p.x, BottomRadius + altitude, p.z);
-            float earthRadius = length(earthPoint);
-            vec3 up = earthPoint / earthRadius;
-            float sunCos = dot(up, lightDir);
-            vec3 sunLight = textureLod(transmittanceTable, transmittanceUv(earthRadius, sunCos), 0.0).rgb
-                    * lightColour.rgb;
-            vec2 ground = sphereHits(earthPoint, lightDir, BottomRadius);
-            if (ground.x > 0.0)
-                sunLight = vec3(0.0);
-            // Multiple scattering in octaves (Wrenninge 2013).
-            float scattered = 0.0;
-            for (int o = 0; o < 3; ++o) {
-                float a = phaseScale[o];
-                float phase = mix(henyeyGreenstein(cosAngle, 0.6 * a), henyeyGreenstein(cosAngle, -0.3 * a), 0.3);
-                scattered += a * exp(-opticalDepth * a) * phase;
-            }
-            // Beer-powder (Schneider 2015): cloud gathers light, so its
-            // edges facing the light are darker than its depths; seen only
-            // looking away from the sun.
-            float powder = 1.0 - exp(-2.0 * (opticalDepth + sigma * 0.05));
-            scattered *= mix(1.0, 2.0 * powder, clamp(0.5 - 0.5 * cosAngle, 0.0, 1.0) * 0.8);
-            float h = clamp((altitude - slab.x) / max(slab.y - slab.x, 0.1), 0.0, 1.0);
-            // The sky's light reaches less far in: less at the bottom of
-            // the layer and where the sun's path is dense.
-            float open = mix(0.15, 1.0, h * h) * mix(0.4, 1.0, exp(-opticalDepth * 0.05));
-            // The ground's light from below, where the sun reaches the
-            // ground (not under a covered sky).
-            float sunnyGround = 1.0 - 0.9 * max(weatherAt(offset, 0).x, weatherAt(offset, 1).x);
-            vec3 ambient = skyAbove * open * 0.7
-                    + vec3(0.11, 0.11, 0.09) * sunLight * max(sunCos, 0.0) * (1.0 - h) * sunnyGround / Pi;
-            // Light diffused through a thick layer, which the octaves miss
-            // (two-stream: 1 / (1 + 0.75 (1 - g) depth), g about 0.85): what
-            // lights an overcast's base; nothing near the surface.
-            float diffused = (1.0 - exp(-opticalDepth / 6.0)) / (1.0 + 0.11 * opticalDepth);
-            vec3 lit = sunLight * (scattered * Pi + max(sunCos, 0.0) * diffused * 0.14) + ambient;
-            float sampleT = exp(-sigma * dt);
-            luminance += transmittance * lit * (1.0 - sampleT);
-            float before = transmittance;
-            transmittance *= sampleT;
-            weightedDistance += t * (before - transmittance);
-            weights += before - transmittance;
-            layers += (before - transmittance) * sigmaMid / sigma;
-            if (front < 0.0 && transmittance < 0.98)
-                front = t;
-            if (transmittance < 0.01)
+            float through = marchThrough;
+            addSample(sigma, mid, t, dt);
+            marchLight += cloudLight(p, sigma) * (through - marchThrough);
+            if (marchThrough < 0.01)
                 break;
         }
+#endif
     }
+    vec3 luminance = marchLight;
+    float transmittance = marchThrough;
+    float front = marchFront;
+    float weightedDistance = marchDistance, weights = marchWeights, layers = marchLayers;
     float highShare = 0.0, highDistance = 0.0;
     // The flat high layer, behind the others.
     if (high.x > 0.0 && pr < R + high.x) {
@@ -1069,12 +1384,24 @@ static QByteArray marchSource() {
     return cloudSource(MarchFragment, true) + CloudField + SceneDistance + SkyAir + MarchMain;
 }
 
+// The march for heavy weather (CloudView::deep): long steps in deep layers
+// split, storm clouds' towers and anvils, rain under the clouds.
+static QByteArray deepVariant(QByteArray source) {
+    return source.replace("#version 440\n", "#version 440\n#define DEEP_SPLIT\n#define STORMS\n#define RAIN\n");
+}
+
+// The shadow map and the sky's light always take storms' shapes (drawn
+// seldom, small).
+static QByteArray stormShapes(QByteArray source) {
+    return source.replace("#version 440\n", "#version 440\n#define STORMS\n");
+}
+
 static QByteArray shadowSource() {
-    return cloudSource(ShadowFragment, true) + CloudField + ShadowMain;
+    return stormShapes(cloudSource(ShadowFragment, true) + CloudField + ShadowMain);
 }
 
 static QByteArray skyLightSource() {
-    return cloudSource(ShadowFragment, true) + CloudField + SkyLightMain;
+    return stormShapes(cloudSource(ShadowFragment, true) + CloudField + SkyLightMain);
 }
 
 static QByteArray compositeSource() {
@@ -1082,14 +1409,15 @@ static QByteArray compositeSource() {
 }
 
 QList<QByteArray> RhiRenderer::cloudShaders() {
-    return {cloudSource(CoverFragment, true), marchSource(), shadowSource(), cloudSource(TemporalFragment, false),
+    return {cloudSource(CoverFragment, true), marchSource(), deepVariant(marchSource()), shadowSource(),
+            cloudSource(TemporalFragment, false),
             compositeSource(), glowVariant(compositeSource()), skyLightSource(), SkyMeanFragment};
 }
 
 namespace {
 
 struct CloudShaderSet {
-    QShader vertex, cover, march, shadow, skyLight, skyMean, temporal, composite, glowComposite;
+    QShader vertex, cover, march, marchDeep, shadow, skyLight, skyMean, temporal, composite, glowComposite;
 };
 
 const CloudShaderSet &cloudShaderSet(QRhi *rhi) {
@@ -1098,6 +1426,7 @@ const CloudShaderSet &cloudShaderSet(QRhi *rhi) {
         s.vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
         s.cover = bakeInline(cloudSource(CoverFragment, true).constData(), QShader::FragmentStage, rhi);
         s.march = bakeInline(marchSource().constData(), QShader::FragmentStage, rhi);
+        s.marchDeep = bakeInline(deepVariant(marchSource()).constData(), QShader::FragmentStage, rhi);
         s.shadow = bakeInline(shadowSource().constData(), QShader::FragmentStage, rhi);
         s.skyLight = bakeInline(skyLightSource().constData(), QShader::FragmentStage, rhi);
         s.skyMean = bakeInline(SkyMeanFragment, QShader::FragmentStage, rhi);
@@ -1203,6 +1532,8 @@ bool RhiRenderer::createCloudVolumes() {
     c.shape = rhi->newTexture(QRhiTexture::RGBA8, ShapeSize, ShapeSize, ShapeSize, 1, QRhiTexture::ThreeDimensional);
     c.curl = rhi->newTexture(QRhiTexture::RGBA8, QSize(CurlSize, CurlSize));
     c.curl->create();
+    c.blue = rhi->newTexture(QRhiTexture::R16, QSize(BlueSize, BlueSize));
+    c.blue->create();
     c.detail = rhi->newTexture(QRhiTexture::RGBA8, DetailSize, DetailSize, DetailSize, 1, QRhiTexture::ThreeDimensional);
     if (!c.shape->create() || !c.detail->create()) {
         delete c.shape;
@@ -1234,6 +1565,10 @@ bool RhiRenderer::createCloudVolumes() {
     QRhiTextureSubresourceUploadDescription curlData(curl.data(), quint32(curl.size()));
     curlData.setSourceSize(QSize(CurlSize, CurlSize));
     batch->uploadTexture(c.curl, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, curlData)));
+    const std::vector<quint16> blue = CloudNoise::blue(BlueSize);
+    QRhiTextureSubresourceUploadDescription blueData(blue.data(), quint32(blue.size() * sizeof(quint16)));
+    blueData.setSourceSize(QSize(BlueSize, BlueSize));
+    batch->uploadTexture(c.blue, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, blueData)));
     c.pendingUploads = batch;
     return true;
 }
@@ -1286,7 +1621,7 @@ bool RhiRenderer::createSharedCloudMaps() {
     c.coverUniforms[0]->create();
     c.coverUniforms[1]->create();
     if (c.weather == nullptr) {
-        c.weather = rhi->newTexture(QRhiTexture::RGBA16F, QSize(3 * clouds.size, clouds.size));
+        c.weather = rhi->newTexture(QRhiTexture::RGBA16F, QSize(4 * clouds.size, clouds.size));
         c.weather->create();
         c.weatherRevision = ~0ull;
     }
@@ -1392,7 +1727,8 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
                                           QRhiShaderResourceBinding::sampledTexture(8, fragment, depth, c.nearest),
                                           QRhiShaderResourceBinding::sampledTexture(9, fragment, c.curl, c.repeat),
                                           QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
-                                                  10, fragment, v.updateUniforms, sizeof(UpdateParameters))});
+                                                  10, fragment, v.updateUniforms, sizeof(UpdateParameters)),
+                                          QRhiShaderResourceBinding::sampledTexture(11, fragment, c.blue, c.nearest)});
     for (int i = 0; i < 2; ++i) {
         // Writes history i from the march and history 1 - i.
         v.temporalBindings[i] = cloudBindings(rhi, {QRhiShaderResourceBinding::uniformBuffer(0, fragment, v.uniforms),
@@ -1414,18 +1750,21 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
     if (share != nullptr && share->marchPipeline != nullptr) {
         // Targets of the same formats, resource sets of the same layout.
         v.marchPipeline = share->marchPipeline;
+        v.marchDeepPipeline = share->marchDeepPipeline;
         v.temporalPipeline = share->temporalPipeline;
         v.compositePipeline = share->compositePipeline;
         v.ownsPipelines = false;
     } else {
         const CloudShaderSet &shaders = cloudShaderSet(rhi);
         v.marchPipeline = cloudPipeline(rhi, shaders.march, v.marchBindings, v.marchPass, 2, false);
+        v.marchDeepPipeline = cloudPipeline(rhi, shaders.marchDeep, v.marchBindings, v.marchPass, 2, false);
         v.temporalPipeline = cloudPipeline(rhi, shaders.temporal, v.temporalBindings[0], v.historyPasses[0], 4, false);
         v.compositePipeline = glow != nullptr
                 ? cloudPipeline(rhi, shaders.glowComposite, v.compositeBindings[0], v.compositePass, 2, true)
                 : cloudPipeline(rhi, shaders.composite, v.compositeBindings[0], v.compositePass, 1, true);
     }
-    if (v.marchPipeline == nullptr || v.temporalPipeline == nullptr || v.compositePipeline == nullptr) {
+    if (v.marchPipeline == nullptr || v.marchDeepPipeline == nullptr || v.temporalPipeline == nullptr
+            || v.compositePipeline == nullptr) {
         releaseCloudView(v);
         return false;
     }
@@ -1478,6 +1817,56 @@ void RhiRenderer::cloudShadowCentre(int layer, float &x, float &z) const {
     // North is -z in the view's space.
     x = viewPosition[0] + float(east);
     z = viewPosition[2] - float(north);
+}
+
+bool RhiRenderer::cloudFarMaps(float *weatherMap, float *farMap, float *shift) const {
+    const CloudResources &c = cloudResources;
+    if (!cloudsWanted() || c.weather == nullptr || c.coverFar == nullptr || clouds.size <= 0)
+        return false;
+    weatherMap[0] = float(clouds.cameraEast - clouds.west);
+    weatherMap[1] = float(clouds.north - clouds.cameraNorth);
+    weatherMap[2] = float(double(clouds.size) * clouds.texel);
+    weatherMap[3] = float(clouds.size);
+    // As prepareClouds places it, snapped to its texels.
+    const double span = double(CoverSize) * FarCoverTexel;
+    const double west = std::floor((clouds.cameraEast - span * 0.5) / FarCoverTexel) * FarCoverTexel;
+    const double north = std::ceil((clouds.cameraNorth + span * 0.5) / FarCoverTexel) * FarCoverTexel;
+    farMap[0] = float(clouds.cameraEast - west);
+    farMap[1] = float(north - clouds.cameraNorth);
+    farMap[2] = float(span);
+    farMap[3] = 0.0f;
+    for (int l = 0; l < 2; ++l) {
+        shift[2 * l] = (clouds.drift[l][0] - clouds.built[l][0]) / 1000.0f;
+        shift[2 * l + 1] = (clouds.drift[l][1] - clouds.built[l][1]) / 1000.0f;
+    }
+    return true;
+}
+
+bool RhiRenderer::cloudRainMaps(float *weatherMap, float *nearMap, float *shift) const {
+    const CloudResources &c = cloudResources;
+    if (!cloudsWanted() || c.weather == nullptr || c.coverNear == nullptr || clouds.size <= 0)
+        return false;
+    weatherMap[0] = float(clouds.cameraEast - clouds.west);
+    weatherMap[1] = float(clouds.north - clouds.cameraNorth);
+    weatherMap[2] = float(double(clouds.size) * clouds.texel);
+    weatherMap[3] = float(clouds.size);
+    const double span = double(CoverSize) * NearCoverTexel;
+    const double west = std::floor((clouds.cameraEast - span * 0.5) / NearCoverTexel) * NearCoverTexel;
+    const double north = std::ceil((clouds.cameraNorth + span * 0.5) / NearCoverTexel) * NearCoverTexel;
+    nearMap[0] = float(clouds.cameraEast - west);
+    nearMap[1] = float(north - clouds.cameraNorth);
+    nearMap[2] = float(span);
+    nearMap[3] = 1.0f;
+    shift[0] = (clouds.drift[0][0] - clouds.built[0][0]) / 1000.0f;
+    shift[1] = (clouds.drift[0][1] - clouds.built[0][1]) / 1000.0f;
+    const float drift = std::hypot(clouds.drift[0][0], clouds.drift[0][1]);
+    shift[2] = drift > 1.0f ? 0.5f * clouds.drift[0][0] / drift : 0.0f;
+    shift[3] = drift > 1.0f ? 0.5f * clouds.drift[0][1] / drift : 0.0f;
+    return true;
+}
+
+float RhiRenderer::deepSamples(int steps) const {
+    return clouds.deepest >= 3.0f ? float(std::max(16, steps / 6)) : 0.0f;
 }
 
 float RhiRenderer::cloudShellRadius() const {
@@ -1561,7 +1950,7 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     cloudsPrepared = true;
     const int quality = std::clamp(clouds.quality, 1, 4);
     CloudResources &c = cloudResources;
-    if (c.weather != nullptr && c.weather->pixelSize() != QSize(3 * clouds.size, clouds.size)) {
+    if (c.weather != nullptr && c.weather->pixelSize() != QSize(4 * clouds.size, clouds.size)) {
         releaseCloudBuffers();
         dropLater(c.weather);
         c.weather = nullptr;
@@ -1584,17 +1973,25 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     if (c.weatherRevision != clouds.revision) {
         c.weatherRevision = clouds.revision;
         const std::vector<float> &layers = *clouds.layers;
-        std::vector<qfloat16> half(layers.size());
-        // Side by side: low, mid, high.
+        const std::vector<float> *extra = clouds.extra.get();
+        // Side by side: low, mid, high; the extras (densities, rain).
         const int n = clouds.size;
-        for (int l = 0; l < 3; ++l)
+        std::vector<qfloat16> half(size_t(4) * n * n * 4);
+        for (int l = 0; l < 4; ++l)
             for (int j = 0; j < n; ++j)
                 for (int i = 0; i < n; ++i)
-                    for (int k = 0; k < 4; ++k)
-                        half[(size_t(j) * 3 * n + size_t(l) * n + i) * 4 + k] =
-                                qfloat16(layers[((size_t(l) * n + j) * n + i) * 4 + k]);
+                    for (int k = 0; k < 4; ++k) {
+                        float value;
+                        if (l < 3)
+                            value = layers[((size_t(l) * n + j) * n + i) * 4 + k];
+                        else if (extra != nullptr && extra->size() == size_t(n) * n * 4)
+                            value = (*extra)[(size_t(j) * n + i) * 4 + k];
+                        else
+                            value = k < 2 ? 1.0f : 0.0f;
+                        half[(size_t(j) * 4 * n + size_t(l) * n + i) * 4 + k] = qfloat16(value);
+                    }
         QRhiTextureSubresourceUploadDescription data(half.data(), quint32(half.size() * sizeof(qfloat16)));
-        data.setSourceSize(QSize(3 * n, n));
+        data.setSourceSize(QSize(4 * n, n));
         updates->uploadTexture(c.weather, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, data)));
         c.coverKey.clear();
     }
@@ -1661,6 +2058,9 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         out[1] = float(mapNorth[m] - clouds.cameraNorth);
         out[2] = float(double(CoverSize) * texels[m]);
     }
+    // With the fog volume carrying the rain near the view (to its far end),
+    // the march's rain starts there (km; 0: at the near scene's end).
+    parameters.nearMap[3] = fogRain() ? FogFar / 1000.0f : 0.0f;
     parameters.slab[0] = clouds.bottom;
     parameters.slab[1] = std::max(clouds.top, clouds.bottom + 0.05f);
     parameters.slab[2] = MarchDistance;
@@ -1705,6 +2105,16 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         parameters.high[0] = (*clouds.layers)[centre] > 0.0f ? (*clouds.layers)[centre + 2] : 0.0f;
     }
     parameters.high[1] = std::clamp(sky.haze, 0.0f, 0.02f) * 1000.0f;
+    // Long steps in deep layers (3 km and more) split, 16 samples more at
+    // most a ray, or a sixth of the steps (the march's loop), when a layer
+    // is that deep somewhere; at every quality (the fewer the steps, the
+    // plainer the hatching), in the main view. Into three at most at
+    // Medium (its steps half as long again as High's), two otherwise (four
+    // at High cost 2.5 ms more in a storm for nothing seen; Low keeps a
+    // little, user).
+    parameters.high[2] = deepSamples(preset.steps);
+    parameters.high[3] = quality == 2 ? 3.0f : 2.0f;
+    c.deep = parameters.high[2] > 0.0f || clouds.stormiest >= 0.8f || clouds.rainiest > 0.05f;
     float plane = 0.0f;
     cloudShadowPlane(plane);
     // The shadow map is drawn for the clouds' maps, its plane and the light's
@@ -1736,6 +2146,16 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     cloudShadowOffset(1, shadowEast, shadowNorth);
     parameters.shadowMid[0] = float(shadowEast / 1000.0);
     parameters.shadowMid[1] = float(shadowNorth / 1000.0);
+    // Rain slants with the low wind (the low layer's drift so far), half a
+    // km aside a km of fall.
+    const float lowDrift = std::hypot(clouds.drift[0][0], clouds.drift[0][1]);
+    parameters.sun[3] = lowDrift > 1.0f ? 0.5f * clouds.drift[0][0] / lowDrift : 0.0f;
+    parameters.lightColour[3] = lowDrift > 1.0f ? 0.5f * clouds.drift[0][1] / lowDrift : 0.0f;
+    // Downwind at the clouds' top (the high layer's drift so far): storms'
+    // anvils stream that way.
+    const float topDrift = std::hypot(clouds.drift[2][0], clouds.drift[2][1]);
+    parameters.shadowMid[2] = topDrift > 1.0f ? clouds.drift[2][0] / topDrift : 0.0f;
+    parameters.shadowMid[3] = topDrift > 1.0f ? clouds.drift[2][1] / topDrift : 0.0f;
     updates->updateDynamicBuffer(c.uniforms, 0, sizeof(parameters), &parameters);
     const float *values = reinterpret_cast<const float *>(&parameters);
     c.parameters.assign(values, values + sizeof(parameters) / sizeof(float));
@@ -1842,7 +2262,7 @@ void RhiRenderer::runCloudView(CloudView &v, QRhiCommandBuffer *cb, const QSize 
     int write = v.current;
     for (int p = 0; p < passes; ++p) {
         const int pass = (first + p) % UpdatePasses;
-        fullScreen(v.marchTarget, v.marchPipeline, v.marchBindings, v.size, pass);
+        fullScreen(v.marchTarget, v.deep ? v.marchDeepPipeline : v.marchPipeline, v.marchBindings, v.size, pass);
         write = v.current = 1 - v.current;
         fullScreen(v.historyTargets[write], v.temporalPipeline, v.temporalBindings[write], v.imageSize, pass);
     }
@@ -1917,6 +2337,12 @@ void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &a
     parameters.projection[1] = bandScale[target][1];
     parameters.slab[3] = float(steps);
     parameters.lighting[0] = float(lightSteps);
+    // (no fog volume in these views)
+    parameters.nearMap[3] = 0.0f;
+    // Long steps in deep layers not split: the reflection is blurred by the
+    // waves, the cube read blurred (user). Storm clouds keep their shapes.
+    parameters.high[2] = 0.0f;
+    v.deep = clouds.stormiest >= 0.8f || clouds.rainiest > 0.05f;
     if (std::hypot(clouds.cameraEast - v.lastEast, clouds.cameraNorth - v.lastNorth) > 300.0)
         v.historyValid = false;
     v.lastEast = clouds.cameraEast;
@@ -1968,6 +2394,7 @@ void RhiRenderer::releaseEnvironmentClouds() {
 void RhiRenderer::releaseCloudView(CloudView &v) {
     if (v.ownsPipelines) {
         dropLater(v.marchPipeline);
+        dropLater(v.marchDeepPipeline);
         dropLater(v.temporalPipeline);
         dropLater(v.compositePipeline);
     }
@@ -2062,6 +2489,7 @@ void RhiRenderer::releaseCloudResources() {
     dropLater(c.shape);
     dropLater(c.detail);
     dropLater(c.curl);
+    dropLater(c.blue);
     if (c.pendingUploads != nullptr)
         c.pendingUploads->release();
     c = CloudResources();

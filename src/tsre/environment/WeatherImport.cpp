@@ -55,6 +55,8 @@ struct Hour {
     double snowShare = 0.0;
     double visibility = 40000.0; // m
     double windEast = 0.0, windNorth = 0.0;  // m/s towards, true north
+    double temperature = 10.0, dewPoint = 5.0;  // degrees C at 2 m
+    bool fog = false;
 };
 
 Hour hourOf(const WeatherImport::Series &s, int hour) {
@@ -84,8 +86,11 @@ Hour hourOf(const WeatherImport::Series &s, int hour) {
     // point spread above the ground.
     const double t = at(s.temperature, hour, 10.0), td = at(s.dewPoint, hour, t - 5.0);
     double base = s.elevation + std::clamp(125.0 * (t - td), 100.0, 2500.0);
-    if (fog)
-        base = s.elevation + 30.0;
+    h.temperature = t;
+    h.dewPoint = std::min(td, t);
+    // Fog lies on the ground in the fog layer (WeatherFog); the air around it
+    // is damp, not 300 m thick everywhere.
+    h.fog = fog;
     const double depth = thunder ? 10000.0 - base : lowType >= 0.6 ? 1500.0 : lowType >= 0.3 ? 800.0
                        : steady ? 1500.0 : 600.0;
     h.layers[WeatherLayer::Low] = {float(lowType), float(low), float(base), float(base + std::max(depth, 300.0)), 1.0f};
@@ -95,7 +100,7 @@ Hour hourOf(const WeatherImport::Series &s, int hour) {
     // Snowfall in cm: about 7 cm of snow to a mm of water.
     const double snowWater = std::max(0.0, at(s.snowfall, hour)) * 10.0 / 7.0;
     h.snowShare = h.precipitation > 0.0 ? std::clamp(snowWater / h.precipitation, 0.0, 1.0) : 0.0;
-    h.visibility = fog ? 300.0
+    h.visibility = fog ? 5000.0
                  : std::max(500.0, 40000.0 / (1.0 + h.precipitation * (1.5 + 6.0 * h.snowShare)));
     const double speed = std::max(0.0, at(s.windSpeed, hour));
     const double towards = (at(s.windDirection, hour, 270.0) + 180.0) * M_PI / 180.0;
@@ -296,8 +301,12 @@ bool WeatherImport::build(const Request &r, const QVector<Sample> &samples, int 
         f.variationAmount = float(std::min(0.1, 0.1 * spacing / 25000.0));
         f.variationScale = 15000.0f;
         double e = 0.0, n = 0.0, rate = 0.0, snow = 0.0, visibility = 0.0;
+        double temperature = 0.0, dewPoint = 0.0, fog = 0.0;
         double sums[WeatherLayer::Count][5] = {};
         for (const Hour &h : hours[k]) {
+            temperature += h.temperature;
+            dewPoint += h.dewPoint;
+            fog += h.fog ? 1.0 : 0.0;
             e += h.windEast;
             n += h.windNorth;
             rate += h.precipitation;
@@ -323,6 +332,15 @@ bool WeatherImport::build(const Request &r, const QVector<Sample> &samples, int 
         f.precipitation = rate / count < 0.05 ? WeatherPrecipitation::None
                         : snow / rate >= 0.5 ? WeatherPrecipitation::Snow : WeatherPrecipitation::Rain;
         f.visibility = float(visibility / count);
+        f.air = {float(temperature / count), float(dewPoint / count)};
+        // Where the model reports fog the fog is set, its amount the share of
+        // the samples that do; elsewhere it comes from the night (auto).
+        if (fog > 0.0) {
+            f.fog.mode = WeatherFogSetting::Set;
+            f.fog.amount = float(fog / count);
+            f.fog.visibility = 200.0f;
+            f.fog.depth = 80.0f;
+        }
         for (int l = 0; l < WeatherLayer::Count; ++l)
             f.layers[l] = {float(sums[l][0] / count), float(sums[l][1] / count), float(sums[l][2] / count),
                            float(sums[l][3] / count), float(sums[l][4] / count)};

@@ -32,6 +32,11 @@ std::vector<quint8> detail(int size = 32);
 // potential (non-divergent, as a fluid's flow), 0.5 for none; it distorts
 // the detail noise into swirls (Schneider 2015).
 std::vector<quint8> curl(int size = 128);
+// Blue noise, size^2, tileable (void and cluster, Ulichney 1993): each
+// texel's rank among all of them, 0-65535 spread evenly; neighbours differ
+// as much as they can, so where a march starts from texel to texel leaves
+// fine grain, not a pattern.
+std::vector<quint16> blue(int size = 64);
 
 // Tileable Worley noise: 1 - the distance to the nearest of one random point
 // per cell (cells per period), clamped; p in periods.

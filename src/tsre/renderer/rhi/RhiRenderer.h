@@ -11,6 +11,7 @@
 #ifndef RHIRENDERER_H
 #define RHIRENDERER_H
 
+#include <QElapsedTimer>
 #include <QHash>
 #include <QVarLengthArray>
 #include <QVector>
@@ -535,6 +536,12 @@ private:
         QRhiRenderPassDescriptor *marchPass = nullptr;
         QRhiShaderResourceBindings *marchBindings = nullptr;
         QRhiGraphicsPipeline *marchPipeline = nullptr;
+        // The march for heavy weather (long steps in deep layers split, storm
+        // clouds' towers and anvils, rain under the clouds), used while deep
+        // is set (such layers, clouds or rain in the weather): its larger
+        // code slows every view a little.
+        QRhiGraphicsPipeline *marchDeepPipeline = nullptr;
+        bool deep = false;
         QRhiTexture *history[2] = {};
         QRhiTextureRenderTarget *historyTargets[2] = {};
         QRhiRenderPassDescriptor *historyPasses[2] = {};
@@ -565,6 +572,7 @@ private:
         QRhiTexture *shape = nullptr;
         QRhiTexture *detail = nullptr;
         QRhiTexture *curl = nullptr;
+        QRhiTexture *blue = nullptr;
         QRhiResourceUpdateBatch *pendingUploads = nullptr;
         QRhiTexture *weather = nullptr;
         quint64 weatherRevision = ~0ull;
@@ -679,12 +687,22 @@ private:
     // the camera (m east, north) and its place in the view's space (x, z).
     void cloudShadowOffset(int layer, double &east, double &north) const;
     void cloudShadowCentre(int layer, float &x, float &z) const;
+    // The weather texture's and the far cover map's places about the camera
+    // (as the march takes them: weatherMap, farMap) and the low and mid
+    // layers' shifts since drawn (km): the light shafts' far cloud shadows.
+    bool cloudFarMaps(float *weatherMap, float *farMap, float *shift) const;
+    // The same with the near cover map, the low layer's shift since drawn
+    // and the rain's slant (km aside a km of fall): the fog volume's rain.
+    bool cloudRainMaps(float *weatherMap, float *nearMap, float *shift) const;
     // Moves a layer's map back near the camera when it has drifted too far,
     // before the frame's draws take its place.
     void placeCloudShadow();
     // The planet radius of the cloud shell (km): smaller than the Earth's,
     // so the clouds reach the horizon within the weather around the camera.
     float cloudShellRadius() const;
+    // Extra samples a march ray of so many steps may take in deep layers
+    // (none without such layers).
+    float deepSamples(int steps) const;
     // The clouds' light (task 31): towards it (normalized) and its light
     // relative to the sun's. The sun, also under the horizon while it still
     // reaches the clouds; then the moon, fading in.
@@ -729,8 +747,148 @@ private:
         QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
         const QRhiTexture *volumeCloudMap = nullptr;
         const QRhiTexture *volumeSunMap = nullptr;
+        const QRhiTexture *volumeShadeMap = nullptr;
+        const QRhiTexture *volumeWeather = nullptr;
+        const QRhiTexture *volumeFarCover = nullptr;
+        const QRhiTexture *volumeBlue = nullptr;
+        // The march's result read by its mips: the surroundings' average.
+        QRhiSampler *mipLinear = nullptr;
     } lightShafts;
     bool shaftsApplied = false;
+public:
+    // The fog's passes (RhiFog.cpp), for tests: the injection and the
+    // integration (compute), the sky's (fragment).
+    static QList<QByteArray> fogShaders();
+    // The falling drops' vertex and fragment shaders (RhiRain.cpp), for tests.
+    static QList<QByteArray> rainShaders();
+    void setFog(const Fog &fog) override;
+private:
+    // Fog lying on the ground (task 33, RhiFog.cpp). A volume of cells over
+    // the main view (froxels): x and y by the screen, slices by the distance,
+    // spaced evenly in its logarithm from 1 m to the far end. Each frame,
+    // before the view's geometry, a compute pass fills every cell with the
+    // fog's density there (the weather's fog where the floor map pools it)
+    // and the light it scatters (the sun through the shadow maps and the
+    // cloud shadow map, the sky), blended with last frame's cells moved with
+    // the camera; a second sums each column front to back into the light
+    // added and the share let through. The lit shaders read it at their
+    // fragments (Haze.glsl), the sky and the clouds behind it a pass after
+    // the clouds' composite. Vulkan and Direct3D 11 (compute); off elsewhere.
+    Fog fog;
+    struct FogResources {
+        int quality = 0;
+        QSize viewSize;
+        int width = 0, height = 0, slices = 0;
+        // The cells of this frame and the last (alternating), the sums.
+        QRhiTexture *scatter[2] = {};
+        QRhiTexture *integrated = nullptr;
+        QRhiTexture *floor = nullptr;
+        quint64 floorRevision = ~0ull;
+        // The highest fog top on the map, for the map and depth it was found for.
+        float highestTop = 0.0f;
+        quint64 topRevision = ~0ull;
+        float topDepth = -1.0f;
+        float topPooling = -1.0f;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiSampler *linear = nullptr;
+        QRhiShaderResourceBindings *injectBindings[2] = {};
+        QRhiShaderResourceBindings *integrateBindings[2] = {};
+        QRhiComputePipeline *inject = nullptr;
+        QRhiComputePipeline *integrate = nullptr;
+        // The maps the injection's bindings hold (shadow maps, the cloud
+        // shadow map, the terrain's shade, the lamps' and the signals' grids
+        // come and go).
+        const QRhiTexture *boundMaps[13] = {};
+        int current = 0;
+        bool historyValid = false;
+        float previousForward[16] = {};
+        float previousCamera[3] = {};
+        // The scale of the light in the cells last frame (0: none yet).
+        float cellScale = 0.0f;
+        // How far the fog had drifted last frame (world metres east, north).
+        double previousDrift[2] = {0.0, 0.0};
+        unsigned frame = 0;
+        // The sky and the clouds behind the fog.
+        QRhiBuffer *skyUniforms = nullptr;
+        QRhiTextureRenderTarget *skyTarget = nullptr;
+        QRhiRenderPassDescriptor *skyPass = nullptr;
+        QRhiShaderResourceBindings *skyBindings = nullptr;
+        QRhiGraphicsPipeline *skyPipeline = nullptr;
+        const QRhiTexture *skyViewColor = nullptr;
+        // This frame's volume is filled; the sky has its fog; the volume
+        // has been filled once (until then the lit shaders take none).
+        bool ready = false;
+        bool skyApplied = false;
+        bool filled = false;
+        bool unsupported = false;
+    } fogResources;
+    // A volume letting everything through, where a lit shader has no fog.
+    QRhiTexture *dummy3D = nullptr;
+    // Whether the main view has fog this frame.
+    bool fogWanted() const;
+    // The volume's quality: the fog's, or Low for rain alone with the fog
+    // off; whether it carries rain.
+    int fogQuality() const;
+    bool fogRain() const;
+    // Whether the volume holds the weather's fog (not rain alone).
+    bool fogFogged() const;
+    // Rain and snow falling near the camera (RhiRain.cpp), before the UI.
+    void applyRain();
+    void releaseRain();
+    struct RainResources {
+        QRhiBuffer *uniforms = nullptr;
+        QRhiTextureRenderTarget *target = nullptr;
+        QRhiRenderPassDescriptor *pass = nullptr;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        QRhiGraphicsPipeline *pipeline = nullptr;
+        QRhiTexture *viewColor = nullptr;
+        QRhiTexture *viewDepth = nullptr;
+        QRhiTexture *cover = nullptr;
+        QRhiTexture *coverFar = nullptr;
+        QElapsedTimer clock;
+    } rainResources;
+    bool rainApplied = false;
+    bool createFog(int quality, const QSize &viewSize);
+    void releaseFog();
+    // The volume, before the main view's geometry, which reads it.
+    void prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&updates);
+    // The sky and the clouds behind the fog, after the clouds' composite.
+    void applySkyFog();
+    // The lit shaders' fog uniforms (Haze.glsl).
+    void writeFogUniforms(RhiProgram *program);
+    // The volume's sums of light to the scene's.
+    float fogLightScale() const;
+    // The view's directions to the volume's x and y (0-1, its y sign in).
+    void fogForward(float *out) const;
+    // The patches' place (the floor map's corner in world metres, wrapped;
+    // patchiness) and drift (wrapped), for the shaders' noise.
+    void fogPatchPlace(float patches[4], float drift[4]) const;
+    // The volume's slices: nearest and farthest distance (m).
+    static constexpr float FogNear = 1.0f;
+    static constexpr float FogFar = 10000.0f;
+public:
+    void setTerrainShade(const TerrainShade &shade) override;
+private:
+    // The terrain's shade of a low sun or moon past the shadow maps: its map
+    // as a texture of the tops (half floats from the map's reference
+    // height), read by the lit shaders (ShadowSampling.glsl), the volumetric
+    // light shafts and the fog's light.
+    TerrainShade terrainShade;
+    struct ShadeResources {
+        QRhiTexture *texture = nullptr;
+        quint64 revision = ~0ull;
+        float reference = 0.0f;
+        bool filled = false;
+    } shadeResources;
+    // A changed map, uploaded in the frame's first pass, before anything
+    // reads it.
+    void prepareTerrainShade(QRhiResourceUpdateBatch *updates);
+    void releaseTerrainShade();
+    bool terrainShadeReady() const;
+    // The map's place in the view: its north-west corner (x, z), size (m),
+    // the view's y less heights above sea level; on, the tops' reference
+    // height, 1 / the light's fading band (m), 0.
+    void terrainShadePlace(float place[4], float params[4]) const;
     bool createLightShafts(QRhiTexture *cloudTexture);
     void applyLightShafts();
     void applyVolumetricShafts(const QVector3D &sunDirection, float elevation);
@@ -762,6 +920,18 @@ private:
     QRhiTexture *lightData = nullptr;
     QRhiTexture *lightCells = nullptr;
     QRhiTexture *lightIndices = nullptr;
+    // A grid's lights, cells and indices into textures (grown to its needs)
+    // in a batch; false when they cannot be made.
+    bool uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRhiTexture *&cells, QRhiTexture *&indices,
+                         QRhiResourceUpdateBatch *batch);
+    // The signals' lights for the fog (task 33): their emitters (the glow
+    // splats'), binned as the lamps are; the lit shaders do not read them.
+    LightGrid signalGrid;
+    quint64 signalHash = 0;
+    QRhiTexture *signalData = nullptr;
+    QRhiTexture *signalCells = nullptr;
+    QRhiTexture *signalIndices = nullptr;
+    void prepareSignalGrid(QRhiResourceUpdateBatch *batch);
     // Reads a texture back now: ends the current pass and waits for the
     // GPU. Rows come top first unless the backend's framebuffer has y up.
     QByteArray readNow(QRhiTexture *texture, QSize *size = nullptr);

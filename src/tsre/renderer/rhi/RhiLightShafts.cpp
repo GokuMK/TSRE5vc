@@ -103,7 +103,9 @@ void main() {
 // Volumetric (step 8): a march through the low haze in front of the camera
 // up to the scene's depth or 1.5 km, the sun's light at each step through
 // the clouds (their shadow map) and past terrain and objects (the far
-// shadow map); single scattering, forward-peaked.
+// shadow map, 700 m about the camera; farther, the terrain's shade, so a hill
+// the sun has set behind darkens the haze in front of it); single
+// scattering, forward-peaked.
 struct VolumeParameters {
     float inverse[16];
     float shadow[16];     // the far shadow map's matrix (OpenGL clip)
@@ -113,10 +115,17 @@ struct VolumeParameters {
     float bands[4];       // distant near and far, scene and distant depth ends
     float clouds[4];      // cloud shadow map: centre x, z, 1 / extent, on
     float cloudSun[4];    // sun x / y, z / y, the map's plane y, shadow map on
-    float march[4];       // distance (m), steps, jitter, 0
+    float march[4];       // distance (m), steps, jitter, blue noise on
     float colour[4];      // the sun's colour (display)
     float cloudsMid[4];   // the mid layer's cloud shadow map: centre x, z; the open share past the maps
     float ground[4];      // the camera above the ground (m), the near layer's extinction at it (1/m), reach (m), scale height (m)
+    float shadePlace[4];  // the terrain's shade: its map's north-west corner (x, z), size (m), the view's y less heights
+    float shadeParams[4]; // on, the map's reference height (m), 1 / the light's fading band (m), 0
+    // Past the cloud shadow maps, the clouds from their weather and far cover
+    // map (RhiRenderer::cloudFarMaps; weatherMap.w 0 for none).
+    float weatherMap[4];
+    float farMap[4];
+    float farShift[4];
 };
 
 const char *VolumeFragment = R"(#version 440
@@ -135,10 +144,20 @@ layout(std140, binding = 0) uniform Volume {
     vec4 colour;
     vec4 cloudsMid;
     vec4 ground;
+    vec4 shadePlace;
+    vec4 shadeParams;
+    vec4 weatherMap;
+    vec4 farMap;
+    vec4 farShift;
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 layout(binding = 2) uniform sampler2D cloudShadowMap;
 layout(binding = 3) uniform sampler2DShadow shadowMap;
+layout(binding = 4) uniform sampler2D terrainShadeMap;
+layout(binding = 5) uniform sampler2D weatherTexture;
+layout(binding = 6) uniform sampler2D farCover;
+// Where each pixel's march starts (the clouds' blue noise, 64 x 64).
+layout(binding = 7) uniform sampler2D blueNoise;
 
 float sceneDistance(float depth, vec2 ndc) {
     float viewZ;
@@ -159,6 +178,25 @@ float henyeyGreenstein(float c, float g) {
     return (1.0 - g2) / (4.0 * 3.14159265 * pow(1.0 + g2 - 2.0 * g * c, 1.5));
 }
 
+// Far off, the share of the sun the low and mid layers let through at a
+// point of the clouds' plane (km east, north of the camera): their weather
+// and the far cover map as the clouds' march reads them, where a cloud is
+// little passes.
+float farCloudVisible(vec2 offset) {
+    float visible = 1.0;
+    for (int layer = 0; layer < 2; ++layer) {
+        vec2 o = offset - (layer == 0 ? farShift.xy : farShift.zw);
+        vec2 m = vec2(o.x, -o.y) * 1000.0;
+        vec2 w = clamp((weatherMap.xy + m) / weatherMap.z, vec2(0.5 / weatherMap.w), vec2(1.0 - 0.5 / weatherMap.w));
+        vec4 values = textureLod(weatherTexture, vec2((float(layer) + w.x) / 4.0, w.y), 0.0);
+        if (values.x <= 0.0)
+            continue;
+        float even = textureLod(farCover, (farMap.xy + m) / farMap.z, 0.0)[layer];
+        visible *= 1.0 - 0.9 * clamp(0.5 + (even - (1.0 - values.x)) * 2.0, 0.0, 1.0);
+    }
+    return visible;
+}
+
 // The sun's light at a point of the air through the clouds (their shadow
 // map holds the light under them only).
 float cloudVisible(vec3 p) {
@@ -168,18 +206,23 @@ float cloudVisible(vec3 p) {
         vec2 low = (c - clouds.xy) * clouds.z + 0.5;
         vec2 mid = (c - cloudsMid.xy) * clouds.z + 0.5;
         // Past the maps (a low sun reaches the air through clouds many km
-        // away) the clouds' average, as the lit shaders take: their clamped
-        // edge made all the air at sunset shaded or lit at once.
+        // away, the clouds of a sunset's rays): the clouds from their weather
+        // and far cover map (before, their average: no rays at sunset; their
+        // clamped edge before that made all the air shaded or lit at once).
         float inside = smoothstep(0.5, 0.45, max(max(abs(low.x - 0.5), abs(low.y - 0.5)),
                                                  max(abs(mid.x - 0.5), abs(mid.y - 0.5))));
         float through = inside > 0.0 ? textureLod(cloudShadowMap, low, 0.0).r * textureLod(cloudShadowMap, mid, 0.0).g
                                      : 1.0;
-        visible *= mix(cloudsMid.z, through, inside);
+        float far = cloudsMid.z;
+        if (inside < 1.0 && weatherMap.w > 0.0)
+            far = farCloudVisible(vec2(c.x - camera.x, camera.z - c.y) / 1000.0);
+        visible *= mix(far, through, inside);
     }
     return visible;
 }
 
-// ... and past terrain and objects.
+// ... and past terrain and objects: near, the far shadow map; the terrain
+// farther off (ShadowSampling.glsl's terrainShade).
 float shadowVisible(vec3 p) {
     float visible = 1.0;
     if (cloudSun.w > 0.0) {
@@ -187,6 +230,13 @@ float shadowVisible(vec3 p) {
         vec3 m = q.xyz / q.w * 0.5 + 0.5;
         if (all(greaterThan(m.xy, vec2(0.0))) && all(lessThan(m.xy, vec2(1.0))) && m.z < 1.0)
             visible *= texture(shadowMap, vec3(m.xy, m.z - 0.002));
+    }
+    if (shadeParams.x > 0.0) {
+        vec2 m = (p.xz - shadePlace.xy) / shadePlace.z;
+        if (all(greaterThan(m, vec2(0.0))) && all(lessThan(m, vec2(1.0)))) {
+            float top = textureLod(terrainShadeMap, m, 0.0).r + shadeParams.y;
+            visible *= clamp((p.y - shadePlace.w - top) * shadeParams.z + 1.0, 0.0, 1.0);
+        }
     }
     return visible;
 }
@@ -210,7 +260,10 @@ void main() {
     vec3 s = normalize(sun.xyz);
     float phase = mix(henyeyGreenstein(dot(d, s), 0.7), 1.0 / (4.0 * 3.14159265), 0.3);
     int steps = int(march.y);
-    float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))) + march.z);
+    // (blue noise: the interleaved gradient noise's diagonal pattern showed
+    // in the rays, their contrast drawn strongly)
+    float jitter = march.w > 0.0 ? fract(texelFetch(blueNoise, ivec2(mod(gl_FragCoord.xy, vec2(64.0))), 0).r + march.z)
+                                 : fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))) + march.z);
     float dt = limit / float(steps);
     float sigma = sun.w;
     float light = 0.0, open = 0.0, transmittance = 1.0;
@@ -259,11 +312,26 @@ const char *VolumeAddFragment = R"(
 layout(binding = 1) uniform sampler2D shafts;
 
 void main() {
-    vec4 s = textureLod(shafts, uv, 0.0);
+    // A pixel's march with its neighbours' (2 x 2, a mip): its noise down, the
+    // rays wide.
+    vec4 s = textureLod(shafts, uv, 1.0);
     float blocked = s.g > 1e-5 ? clamp(1.0 - s.r / s.g, 0.0, 1.0) : 0.0;
-    // Against the clouds' average shade (colour.a): the shafts' contrast,
-    // not the overcast's dimming, which the ambient light already has.
-    float shade = max(blocked - colour.a, 0.0);
+    // Against the surroundings' share in shade (the march's result some 30
+    // pixels around, by its mips): the shafts' contrast, the air in shade
+    // darker than around it, the air lit through the gaps lighter, not the
+    // shade the clouds give all the air, which the ambient light already
+    // has. (Against the clouds' average cover before: at a low sun most air
+    // lies in some cloud's shade, more than they cover, and the lit air never
+    // showed.)
+    vec4 m = textureLod(shafts, uv, 4.5);
+    float around = m.g > 1e-5 ? clamp(1.0 - m.r / m.g, 0.0, 1.0) : 0.0;
+    // Only against surroundings of a like path (the haze it crosses, b): at
+    // the horizon the terrain's short path next to the sky's long one made
+    // a dark band along the hills.
+    float like = min(s.b, m.b) / max(max(s.b, m.b), 1e-5);
+    float contrast = smoothstep(0.6, 0.9, like);
+    float shade = max(blocked - around, 0.0) * contrast;
+    float lit = max(around - blocked, 0.0) * contrast;
     // The share of the view the haze makes up over this distance.
     float haze = clamp(s.b, 0.0, 1.0);
     // The haze's light is strongest towards the sun (forward scattering):
@@ -274,7 +342,21 @@ void main() {
     float towards = max(dot(normalize(far.xyz / far.w), normalize(direction.xyz)), 0.0);
     float forward = mix(0.2, 1.0, towards * towards * towards);
     // The near layer's light, added (camera.w: its strength).
-    result = vec4(colour.rgb * (s.r * sun.z + s.a * camera.w), 1.0 - clamp(shade * haze * sun.w * forward, 0.0, 0.35));
+    // The lit air's light (direction.w), the near layer's (camera.w), added;
+    // thin haze's rays kept visible (its square root).
+    // The rays where they fall, not where they run across the sky: on the
+    // screen a sun ray at this pixel runs along the sun's direction less its
+    // part along the view; steeper than some 35 degrees from the vertical
+    // they show, flatter than 60 not (at a low sun the clouds' shadows drew
+    // long near-horizontal stripes across the sky and its clouds, user, CMK
+    // 5:00; under broken clouds the rays fall from the gaps).
+    vec3 view = normalize(far.xyz / far.w);
+    vec3 along = normalize(direction.xyz) - view * dot(view, normalize(direction.xyz));
+    vec3 upright = vec3(0.0, 1.0, 0.0) - view * view.y;
+    float vertical = abs(dot(along, upright)) / max(length(along) * length(upright), 1e-5);
+    float rays = sqrt(haze) * forward * smoothstep(0.5, 0.82, vertical);
+    result = vec4(colour.rgb * (s.r * sun.z + s.a * camera.w + lit * rays * direction.w),
+                  1.0 - clamp(shade * rays * sun.w, 0.0, 0.35));
 }
 )";
 
@@ -307,6 +389,7 @@ void RhiRenderer::releaseLightShafts() {
     delete l.blurred;
     delete l.uniforms;
     delete l.linear;
+    delete l.mipLinear;
     delete l.white;
     delete l.volumeUniforms;
     delete l.volumeBindings;
@@ -324,8 +407,13 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     const QRhiTexture *cloudMap = cloudResources.shadow != nullptr && cloudResources.shadowValid
             ? cloudResources.shadow : nullptr;
     const QRhiTexture *sunMap = shadowMaps[2].valid() && Game::shadowsEnabled > 0 ? shadowMaps[2].depth : nullptr;
+    const QRhiTexture *shadeMap = terrainShadeReady() ? shadeResources.texture : nullptr;
+    const QRhiTexture *weather = cloudMap != nullptr ? cloudResources.weather : nullptr;
+    const QRhiTexture *farCover = cloudMap != nullptr ? cloudResources.coverFar : nullptr;
+    const QRhiTexture *blue = cloudResources.blue;
     if (l.addPipeline != nullptr && l.size == size && l.viewColor == view.color && l.cloudTexture == cloudTexture
-            && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap)
+            && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap && l.volumeShadeMap == shadeMap
+            && l.volumeWeather == weather && l.volumeFarCover == farCover && l.volumeBlue == blue)
         return true;
     // The white texture and its upload, if not done yet, stay.
     QRhiTexture *white = l.white;
@@ -351,11 +439,15 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     const auto format = rhi->isTextureFormatSupported(QRhiTexture::RGBA16F) ? QRhiTexture::RGBA16F
                                                                              : QRhiTexture::RGBA8;
     l.mask = rhi->newTexture(format, size, 1, QRhiTexture::RenderTarget);
-    l.blurred = rhi->newTexture(format, size, 1, QRhiTexture::RenderTarget);
+    l.blurred = rhi->newTexture(format, size, 1,
+                                QRhiTexture::RenderTarget | QRhiTexture::MipMapped | QRhiTexture::UsedWithGenerateMips);
     l.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(ShaftParameters));
     l.linear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
-    if (!l.mask->create() || !l.blurred->create() || !l.uniforms->create() || !l.linear->create())
+    l.mipLinear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::Linear,
+                                  QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+    if (!l.mask->create() || !l.blurred->create() || !l.uniforms->create() || !l.linear->create()
+            || !l.mipLinear->create())
         return false;
     auto target = [&](QRhiTexture *texture, bool preserve, QRhiTextureRenderTarget *&out,
                       QRhiRenderPassDescriptor *&pass) {
@@ -423,15 +515,31 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     l.volumeUniforms->create();
     l.volumeCloudMap = cloudMap;
     l.volumeSunMap = sunMap;
+    l.volumeShadeMap = shadeMap;
+    l.volumeWeather = weather;
+    l.volumeFarCover = farCover;
+    l.volumeBlue = blue;
     l.volumeBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.volumeUniforms),
                                  QRhiShaderResourceBinding::sampledTexture(1, fragment, view.depth, sampler(false, true, true)),
                                  QRhiShaderResourceBinding::sampledTexture(2, fragment, cloudMap != nullptr
                                                                            ? cloudResources.shadow : l.white, l.linear),
                                  QRhiShaderResourceBinding::sampledTexture(3, fragment, sunMap != nullptr
                                                                            ? shadowMaps[2].depth : dummyDepth,
-                                                                           shadowSampler)});
+                                                                           shadowSampler),
+                                 QRhiShaderResourceBinding::sampledTexture(4, fragment, shadeMap != nullptr
+                                                                           ? shadeResources.texture : l.white,
+                                                                           l.linear),
+                                 QRhiShaderResourceBinding::sampledTexture(5, fragment, weather != nullptr
+                                                                           ? cloudResources.weather : l.white,
+                                                                           l.linear),
+                                 QRhiShaderResourceBinding::sampledTexture(6, fragment, farCover != nullptr
+                                                                           ? cloudResources.coverFar : l.white,
+                                                                           l.linear),
+                                 QRhiShaderResourceBinding::sampledTexture(7, fragment, blue != nullptr
+                                                                           ? cloudResources.blue : l.white,
+                                                                           sampler(false, false, false))});
     l.volumeAddBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.uniforms),
-                                    QRhiShaderResourceBinding::sampledTexture(1, fragment, l.blurred, l.linear)});
+                                    QRhiShaderResourceBinding::sampledTexture(1, fragment, l.blurred, l.mipLinear)});
     static QShader volume, volumeAdd;
     if (!volume.isValid()) {
         volume = bakeInline(VolumeFragment, QShader::FragmentStage, rhi);
@@ -584,27 +692,37 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
         v.cloudSun[2] = viewPosition[1] + plane * 1000.0f - sky.cameraHeight;
     }
     v.cloudSun[3] = l.volumeSunMap != nullptr ? 1.0f : 0.0f;
+    if (l.volumeWeather == nullptr || l.volumeFarCover == nullptr || !cloudFarMaps(v.weatherMap, v.farMap, v.farShift))
+        v.weatherMap[3] = 0.0f;
     // The haze lying on the ground: ten times the weather's average at it,
     // thinning over 120 m of height, over the first 500 m of the view (the
     // far shafts are the long march's). At a sun 6 degrees up behind pines a
     // glow of lit haze around it (mean 2.9, at most 98 of 255); away from the
     // sun at most 1.
     v.ground[0] = std::max(sky.cameraHeight - sky.groundHeight, 0.0f);
-    v.ground[1] = std::clamp(sky.shaftHaze, 0.0f, 0.02f) * 10.0f;
+    // With the fog volume's fog (task 33) the haze on the ground is its
+    // thinnest case: the layer goes (not with its rain alone).
+    const bool fogged = fogResources.filled && fogWanted() && fogFogged();
+    v.ground[1] = fogged ? 0.0f : std::clamp(sky.shaftHaze, 0.0f, 0.02f) * 10.0f;
     v.ground[2] = 500.0f;
     v.ground[3] = 120.0f;
+    terrainShadePlace(v.shadePlace, v.shadeParams);
+    if (l.volumeShadeMap == nullptr)
+        v.shadeParams[0] = 0.0f;
     v.march[0] = 1500.0f;
     // 24 steps: as 40 to within 0.03 of 255, 0.6 ms less on the Steam Deck.
     v.march[1] = 24.0f;
     v.march[2] = cloudsApplied && clouds.still ? 0.5f : float(std::fmod(0.5 + cloudResources.frame * 0.618034, 1.0));
+    v.march[3] = l.volumeBlue != nullptr ? 1.0f : 0.0f;
     ShaftParameters parameters = {};
     // The haze's light; the sun's colour as the screen-space shafts.
     const float fade = std::clamp((elevation - 1.0f) / 5.0f, 0.0f, 1.0f);
     parameters.sun[2] = 0.1f * fade;
-    // How much of the haze's light the shadows take away (the haze is
-    // brighter than the scene behind it, so more than its share).
+    // How much of the haze's light the shadows take away, beside the rays:
+    // little (more read as the image darkened around them, user
+    // 2026-10-16).
     parameters.sun[3] = 0.8f * fade;
-    // For the view's directions (forward scattering).
+    // For the view's directions (forward scattering, the rays' run).
     parameters.camera[0] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
     // The near layer's light, added.
     parameters.camera[3] = 0.1f * fade;
@@ -612,7 +730,8 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     parameters.direction[0] = sunDirection.x();
     parameters.direction[1] = sunDirection.y();
     parameters.direction[2] = sunDirection.z();
-    parameters.colour[3] = std::clamp(sky.overcast, 0.0f, 0.9f);
+    // The air lit through the clouds' gaps, lighter than around it: the rays.
+    parameters.direction[3] = 6.0f * fade;
     const Atmosphere::Rgb sunLight = Atmosphere::model().sunLight(std::max(0.001f, sky.cameraHeight / 1000.0f),
                                                                   sunDirection.y());
     const float peak = std::max({sunLight[0], sunLight[1], sunLight[2], 1e-4f});
@@ -638,5 +757,8 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
         cb->endPass();
     };
     fullScreen(l.blurTarget, l.volumePipeline, l.volumeBindings, l.size, batch);
-    fullScreen(l.addTarget, l.volumeAddPipeline, l.volumeAddBindings, view.size, batch);
+    // Its mips: the surroundings' average for the contrast.
+    QRhiResourceUpdateBatch *mips = rhi->nextResourceUpdateBatch();
+    mips->generateMips(l.blurred);
+    fullScreen(l.addTarget, l.volumeAddPipeline, l.volumeAddBindings, view.size, mips);
 }

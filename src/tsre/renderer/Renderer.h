@@ -165,6 +165,10 @@ public:
         double north = 0.0;
         float texel = 0.0f;
         std::shared_ptr<const std::vector<float>> layers;
+        // On the same texels, RGBA: the low and mid layers' density (1 their
+        // type's usual), precipitation (mm/h, the area's) and its snow share.
+        // None: densities 1, dry.
+        std::shared_ptr<const std::vector<float>> extra;
         // Changes whenever the layers do.
         quint64 revision = 0;
         // How far each layer has drifted with its wind (east, north).
@@ -174,9 +178,14 @@ public:
         // built instead of drawing them again each frame.
         float built[3][2] = {};
         quint32 seed = 0;
-        // The low and mid layers' extent (km): bottom and top.
+        // The low and mid layers' extent (km): bottom and top; the deepest
+        // of them anywhere (km, its top above its base); their highest type
+        // anywhere (storm clouds from 0.8); the heaviest rain or snow (mm/h).
         float bottom = 0.0f;
         float top = 0.0f;
+        float deepest = 0.0f;
+        float stormiest = 0.0f;
+        float rainiest = 0.0f;
         // The camera.
         double cameraEast = 0.0;
         double cameraNorth = 0.0;
@@ -185,6 +194,68 @@ public:
         int passes = 1;
     };
     virtual void setClouds(const Clouds &clouds) {}
+
+    // Fog lying on the ground (task 33): the weather's fog where the floor
+    // map puts it. The QRhi renderer draws it with the physical sky.
+    struct Fog {
+        int quality = 0;              // core.rendering.mist: 0 off, 1 low, 2 high
+        float amount = 0.0f;          // 0-1
+        float visibility = 40000.0f;  // m, in the fog at the valley floor
+        float depth = 0.0f;           // m, its top above the floor
+        float base = 0.0f;            // m above the floor it has lifted to
+        float patchiness = 0.0f;
+        float pooling = 1.0f;           // 1 pooling in valleys, 0 lying evenly on all ground
+        // The floor map: size x size cells, RGBA (floor, the share of the
+        // depth pooled above it, ground, moisture; heights in the view's
+        // y), row 0 at the north edge; its north-west corner (world metres
+        // east, north) and cell size; a new revision when it changed.
+        const std::vector<float> *map = nullptr;
+        int size = 0;
+        double west = 0.0;
+        double north = 0.0;
+        float cell = 64.0f;
+        quint64 revision = 0;
+        // The camera (world metres east, north).
+        double cameraEast = 0.0;
+        double cameraNorth = 0.0;
+        // How far the fog has drifted with the wind near the ground (world
+        // metres east, north): its patches move.
+        double driftEast = 0.0;
+        double driftNorth = 0.0;
+        // Rain or snow at the camera (the area's, mm/h; its snow share) and
+        // the low clouds' base there (m above sea level): the volume carries
+        // it near the view, the clouds' rain far off (RhiRenderer). Set with
+        // the fog off too; the volume then runs for the rain alone.
+        float rain = 0.0f;
+        float snow = 0.0f;
+        float rainBase = 1000.0f;
+        // At the camera itself (under a shower's cell or not, mm/h) and the
+        // low wind (m/s east, north): the drops falling near it.
+        float rainHere = 0.0f;
+        double rainWindEast = 0.0;
+        double rainWindNorth = 0.0;
+    };
+    virtual void setFog(const Fog &fog) {}
+
+    // The terrain's shade of a low sun or moon past the shadow maps
+    // (TerrainShade): size x size cells, the height (m above sea level)
+    // under which the ground towards the light hides it, row 0 at the north
+    // edge; its north-west corner (world metres east, north), cell size, a
+    // height near its ground (the tops are stored as half floats from it); a
+    // new revision when it changed. No map: no shade.
+    struct TerrainShade {
+        const std::vector<float> *map = nullptr;
+        int size = 0;
+        double west = 0.0;
+        double north = 0.0;
+        float cell = 64.0f;
+        float reference = 0.0f;
+        quint64 revision = 0;
+        // The camera (world metres east, north).
+        double cameraEast = 0.0;
+        double cameraNorth = 0.0;
+    };
+    virtual void setTerrainShade(const TerrainShade &shade) {}
 
     // The sky enclosure (task 27): a depth map from straight above around
     // the camera, of terrain and opaque surfaces. A surface with something

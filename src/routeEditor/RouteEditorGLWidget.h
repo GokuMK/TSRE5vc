@@ -17,6 +17,9 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/world/SkySatellites.h>
 #include <vector>
+#include <array>
+#include <chrono>
+#include <future>
 #include <QOpenGLFunctions>
 //#include <QOpenGLFunctions_3_2_Core>
 #include <QOpenGLVertexArrayObject>
@@ -68,6 +71,11 @@ class MapOverlayFade;
 class OsmMapLayer;
 class ImageryMapLayer;
 class WeatherMapLayer;
+class FogMapLayer;
+#include <tsre/environment/FogFloor.h>
+#include <tsre/environment/TerrainShade.h>
+#include <tsre/environment/WeatherFog.h>
+#include <tsre/world/FogFloorSampler.h>
 #include <tsre/environment/WeatherImport.h>
 #include <tsre/environment/WeatherGenerator.h>
 class Weather;
@@ -191,6 +199,9 @@ public:
     bool routeArea(double &west, double &north, double &east, double &south) const;
     // The camera's place (MSTS world metres).
     void cameraWorldPosition(double &east, double &north) const;
+    // The weather's fog at the camera now (task renderer 33), with the sun
+    // at the camera's place.
+    WeatherFog::State weatherFog() const;
     // A weather from historical data (task environment 01, step 3) for the
     // request's area, set as the editor's weather (unsaved, as a preset).
     // A route-scale weather from a scenario (a front over the route), in
@@ -556,6 +567,42 @@ private:
     // in the bottom right corner while shown.
     std::unique_ptr<ImageryMapLayer> imageryMap;
     std::unique_ptr<WeatherMapLayer> weatherMap;
+    // Where fog lies (task renderer 33): the fog at the camera, kept while
+    // the weather's time moves under a minute and the camera under a km; the
+    // floor map around the camera, sampled a few tiles a frame while there
+    // is fog or the terrain's shade is wanted; drawn over the weather in map
+    // mode.
+    WeatherFog::State fogNow;
+    double fogNowHours = std::nan(""), fogNowEast = 0.0, fogNowNorth = 0.0;
+    quint64 fogNowRevision = 0;
+    FogFloor fogFloor;
+    FogFloorSampler fogFloorSampler;
+    QElapsedTimer fogFloorAge;
+    quint64 fogFloorTerrain = 0;  // the terrain's availability revision sampled
+    quint64 fogFloorBuilds = 0;   // floor maps completed
+    qint64 fogFloorSamplingNs = 0, fogFloorSamplingPeakNs = 0;  // the map being sampled: time, the longest step
+    int fogFloorSamplingSteps = 0;
+    std::unique_ptr<FogMapLayer> fogMap;
+    void updateFog();
+    // The fog for the renderer: core.rendering.mist (kept as lampsByDay), the
+    // fog now, the floor map's cells (floor, share, ground, moisture) made
+    // again when a new map is complete.
+    int mistQuality = 0;
+    std::vector<float> fogMapCells;
+    quint64 fogMapBuilt = ~0ull;
+    quint64 fogMapRevision = 0;
+    void applyFog();
+    // The terrain's shade of a low sun or moon past the shadow maps, from the
+    // floor map: with shadows, the volumetric light shafts or mist on. Made
+    // again when the floor map is new or the light has moved.
+    TerrainShade terrainShade;
+    std::future<TerrainShade> terrainShadeBuilding;
+    float terrainShadeLight[3] = {0.0f, 0.0f, 0.0f};  // the light the last one was made for
+    quint64 terrainShadeFloor = ~0ull;                 // the floor map it was made from
+    quint64 terrainShadeLogged = ~0ull;
+    quint64 terrainShadeRevision = 0;
+    bool terrainShadeWanted() const;
+    void applyTerrainShade();
     QString currentEnvironmentFile = QStringLiteral("editor.env");
     QString currentEnvironmentSlot;
     bool weatherModified = false;

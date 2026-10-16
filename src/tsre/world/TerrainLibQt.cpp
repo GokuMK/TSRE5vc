@@ -1535,6 +1535,9 @@ void TerrainLibQt::pushRenderItemsLo(RenderQueue &queue, float * playerT, float*
             terrainQtLo[terrainNameId] = new TerrainInfo();
             quadTreeLo->fillTerrainInfo((int) playerT[0] + i, -(int) playerT[1] - j, terrainQtLo[terrainNameId]);
             terrainQtLo[terrainNameId]->t = new Terrain(terrainQtLo[terrainNameId]);
+            // What was built from the loaded ground (the fog's floor map)
+            // takes the distant tiles too.
+            ++availability;
         }
         if (terrainQtLo[terrainNameId]->rendered)
             continue;
@@ -1618,6 +1621,9 @@ void TerrainLibQt::pushRenderItemsWaterLo(RenderQueue &queue, float* playerT, fl
             terrainQtLo[terrainNameId] = new TerrainInfo();
             quadTreeLo->fillTerrainInfo((int) playerT[0] + i, -(int) playerT[1] - j, terrainQtLo[terrainNameId]);
             terrainQtLo[terrainNameId]->t = new Terrain(terrainQtLo[terrainNameId]);
+            // What was built from the loaded ground (the fog's floor map)
+            // takes the distant tiles too.
+            ++availability;
         }
         if (terrainQtLo[terrainNameId]->rendered)
             continue;

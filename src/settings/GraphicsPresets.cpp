@@ -38,6 +38,8 @@ QVector<PresetRow> presetRows() {
         {"core.rendering.clouds", 0, 0, 3},
         // Off, off, volumetric.
         {"core.rendering.lightShafts", 0, 0, 2},
+        // Mist and fog: off, off, high.
+        {"core.rendering.mist", 0, 0, 2},
     };
 }
 }

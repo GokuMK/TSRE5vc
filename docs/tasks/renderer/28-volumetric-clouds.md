@@ -1056,6 +1056,374 @@ the terrain on its own (wind, cloud over the night, humidity, the time; how
 far a place lies below the ground around it), with optional controls per
 weather keyframe and painted areas only for special places.
 
+### Through a hill at sunset (user, 2026-10-15)
+
+EUROPE1 at 20:00: with the sun set behind a hill 1 km off, the march lit
+the haze in front of it in a glow with rays from under the ridge. Past the
+far shadow map (700 m about the camera) every point counted lit. The march
+now also takes the terrain's shade over 16 km (`TerrainShade`, task 33),
+as do the lit shaders and the fog.
+
+## Still open (2026-10-15)
+
+What remains of the "Still open" lists above, checked against the code:
+
+- **Volumetric light shafts too weak** (user, 2026-10-15): done (below,
+  "Rays from the volumetric shafts"), kept as they are (user, 2026-10-16:
+  still not fully liked; fine tuning later, it took too long now). Open:
+  frames not averaged (a fine shimmer by the sun); the rays' look; a
+  shadow lookup blurred by the distance the shadow travels (real cloud
+  shadows wash out far from the cloud) as a cleaner cure for the stripes
+  than the rule on the rays' run.
+- **Storms:** dark by their density and the cloud above, towers and anvils,
+  rain under the clouds (done, below). Still: rain near the camera and
+  from above, the rain's streaks.
+- **A little moiré on storms at High with the camera still** (user,
+  2026-10-16; the slightest move takes it away, so driving may hide it: to
+  check in practice). The march's start is blue noise now (below): what
+  error remains is grain, not ripples. Still for later if it shows: three
+  samples a long step at High (Medium has three; `high.w`, about 1 to 2
+  ms more in storms); the history's clamp to the marched neighbourhood,
+  which keeps the error while still (a moving camera resamples the
+  history, blurring it). Lowering the clouds was considered and
+  rejected: steps shorten only in proportion, storms reach 10 to 12 km.
+- **Cloud shadows past 7 km** (user, 2026-10-16): the cloud shadow map
+  covers 14 km about the camera (made finer, not larger: 512 x 512 for its
+  texel edge on near terrain); past it the lit shaders, the fog volume and
+  its rain take the clouds' average. Distant land under a storm is not in
+  its shade, and the rain's veil there looks lighter than the sky above.
+  The light shafts read the clouds past the map from the weather and the
+  far cover map (205 km, `farCloudVisible`, `cloudFarMaps`): the same for
+  the lit shaders and the fog, past the map, is the fix.
+- **OpenGL renderer:** step 9 (a flat cloud layer from the weather).
+- **Settings in `Game.h`** (sky model, cloud quality, shafts, enclosure,
+  enclosed ambient): to their classes at the next forced full rebuild.
+- Done since those lists: the cover maps follow the clock's drift instead
+  of being redrawn each frame ("Clouds that move with the clock"); lamps
+  reach at most 30 m and have a "Lamps by day" setting (task 27); the
+  shafts' blocky cloud outlines ("Light shafts, third pass").
+
+## Rays from the volumetric shafts (2026-10-16)
+
+The user: the volumetric shafts far too weak. Measured at CMK from the hill
+towards the sun (17:00 and 19:00, fair cumulus, scattered, broken): 2 to 4
+of 255 on average against shafts off, a faint greying, no rays.
+
+- **Why:** (1) the air's sunlight through the clouds came from the cloud
+  shadow map, 7 km about the camera; at a low sun the clouds that cast the
+  rays stand 10 to 50 km towards it, past the map, where the clouds'
+  average stood for them: no rays at sunset. (2) The rays' contrast was
+  the air's share in shade against the clouds' average cover, darkening
+  only: at a low sun most air lies in some cloud's shade, more than they
+  cover, and the air lit through the gaps never showed. Drawn in false
+  colours (the share in shade, the average, the haze) the march held the
+  rays all along; the composite took them out.
+- **Far cloud shadows:** past the map the air takes the clouds from their
+  weather and the far cover map (205 km), as the clouds' march reads them
+  (`RhiRenderer::cloudFarMaps`; bindings 5, 6).
+- **Contrast against the surroundings:** the march's result's mips (some
+  30 pixels around) give the neighbourhood's share in shade; air lit
+  through a gap more than around it is brightened (the rays, `direction.w`
+  6), air shaded more darkened only a little (`sun.w` 0.8; the user:
+  stronger, the image looked darkened around the rays), the haze's square
+  root (thin haze keeps its rays), towards the sun most.
+- **Rays that fall, not across the sky** (user: rays falling below the
+  clouds good, running horizontally not, at any sun): at a low sun (8.6
+  degrees, user, CMK 5:00, fair cumulus,
+  `-5350,14860,542.10,286.98,-960.66,1168.04,7.80`) the clouds' shadows,
+  stretched 1 / tan(elevation) times their height, drew long
+  near-horizontal stripes across the sky and its clouds. A sun ray at a
+  pixel runs on the screen along the sun's direction less its part along
+  the view: the rays show where that is steeper than some 35 degrees from
+  the vertical and go flatter than 60. Tried on the way, all rejected
+  (debug output showed the low sun: the hills shading most of the air, the
+  air still lit striped by the far clouds): the haze's phase (all rays
+  fainter, the stripes kept); the lit share compressed (the stripes and the
+  good rays differ alike, 5 to 15 %); no rays over cloud faces (near the
+  horizon the good rays lie over distant clouds too); the spread narrowed
+  to a fan about the sun below 10 degrees of elevation (fitted to two
+  views; what matters is the rays' run). Only against
+  surroundings of a like path (the haze each crosses): at the horizon the
+  terrain's short path beside the sky's long one made a dark band along
+  the hills.
+- **Noise:** the march starts from the clouds' blue noise (the old noise's
+  diagonal pattern showed in the drawn-out contrast) and is read 2 x 2 (a
+  mip).
+- Tried on the way: raising all the strengths (rays at sunset, but the
+  whole view under scattered clouds 13 of 255 darker); the light added
+  alone (a glow, no rays); the lit air against the clouds' average (no
+  effect: the average is no measure at a low sun).
+- **Captures** (`build/shafts/fall.png`, `fall-zoom.png`): broken at 17:00
+  (27.5 degrees), two bright rays falling from the gaps; fair cumulus at
+  17:00, rays falling from the clouds by the sun; at 5:00 (8.6) no stripes,
+  a glow under the sun at the horizon; broken at 19:00 (9.1) a glow and
+  rays at the sun on the horizon; away from the sun, overcast and noon as
+  before; under a storm the view no longer 9 of 255 darker. Between frames 1.7 % of pixels
+  change by more than 2 of 255 (0.1 % with shafts off): fine grain in the
+  lower sky by the sun.
+- **Cost on the Steam Deck** (High, median frame, three rounds, old
+  against new): fair cumulus 29.1 against 29.4 ms, broken 27.0 against
+  27.7, broken at 19:00 24.7 against 24.7.
+
+## Storms dark by their density (2026-10-16)
+
+The user: heavy storm clouds should look dark. They were lit as cumulus:
+the weather's layer density never reached the march (the extinction was
+the type's alone), and the sky's light inside a cloud fell only with the
+height in the layer and the sun's path, marched a few km, so an 11 km
+tower's base was lit as a 1 km cumulus's.
+
+- **Density:** the weather texture has a fourth column beside the three
+  layers' (`Renderer::Clouds::extra`): the low and mid layers' density (1
+  the type's usual), the area's precipitation (mm/h) and its snow share
+  (for rain under the clouds, next). The extinction is the type's times
+  the density, in the march, the cloud shadow map and the sky's light
+  through the clouds alike. Presets: thunderstorm 1.2, rain 1.0, overcast
+  0.8 (its low sheet a little thinner: 2 of 255 brighter at noon over
+  CMK); imported weather 1.
+- **The cloud above** (`cloudAbove`): for each sample in a cloud, the
+  optical depth of the low and mid layers above it and of its whole
+  column, estimated from the weather and the cover as `layerDensity` makes
+  them, the billows' noise at its mean, by the type's profile at three
+  heights. No pass and no reach: far towers as near ones. A fair cumulus's
+  column comes to about 20, a storm's tower about 250.
+- **What it darkens:** the sky's light inside falls by what the cloud
+  above lets through (two-stream), as far as that is less than a
+  cumulus's at the same height (the shares were tuned on cumulus: thinner
+  clouds stay as they were); through a deep cloud it is the cloud's own
+  light, grey, not the sky's blue. The ground's light from below goes
+  under columns of 20 to 150 (a storm is as wide as it is deep: the ground
+  under its base lies in its shadow). The sun's light diffused through
+  takes at least the cloud above (its path was marched only a few km).
+- **Captures** (`build/storms`, CMK from the hill 130 m up, still): a storm
+  against the sun at 17:00 has a dark grey base under its sunlit edges
+  (mean 93 to 87 of 255, up to 46 darker); with the sun behind, towers lit
+  cream-white over a dark base band; looking up, the base overhead dark
+  grey. Broken 0.4 of 255 on average, rain 1.6 darker.
+- **Cost on the Steam Deck** (High, median frame, two rounds each, old
+  against new): fair cumulus 38.4 / 37.2 against 39.1 / 39.3 ms,
+  thunderstorm 43.4 / 42.5 against 43.4 / 42.8, overcast 34.9 / 35.0
+  against 35.3 / 35.6: about half a millisecond, within the runs' noise.
+- Rain under the clouds needs the march below their base, in front of the
+  scene (the composite takes the clouds only over the sky and the distant
+  band): a step of its own, with the anvils.
+
+### The storms' hatching (user, 2026-10-16)
+
+The user: a moiré clearly visible on storm clouds (CMK,
+`core.startup.camera=-5354,14854,-931.35,325.05,-355.80,-81.23,22.41`).
+
+- **Cause: the march's steps.** Its steps (96 at High) spread with the
+  square of the distance along the ray through the layers: through a
+  cumulus layer some 3 km of ray, steps of 85 m at most; through a storm's
+  slab, 10 km tall, some 27 km at 22 degrees up, 400 to 800 m. Too coarse
+  for its edges and its lit surface (far brighter than a few hundred metres
+  in): where each pixel's samples fell (its start, interleaved gradient
+  noise, of diagonal structure) showed as hatching on the bases and the
+  towers, in motion too. Averaging more frames (a new sample a quarter, not
+  half) kept it: it is the coarse steps' error, not noise. Ultra (128
+  steps, more pixels) mostly removed it.
+- **Fix:** in a layer 3 km deep or more, a step longer than 120 m or 1 % of
+  its distance that meets cloud is split into samples no longer than that,
+  each lit on its own: two at most at Low, High and Ultra, three at Medium
+  (its steps half as long again as High's; `high.w`). A probe without the
+  detail first (it only erodes), so empty steps cost as before; 16 samples
+  more at most a ray, or a sixth of the steps (`high.z`). Every quality, in
+  the main view (user: the fewer the steps, the plainer the hatching; Low
+  may keep a little; not the water's reflection, blurred by the waves, nor
+  the cube, read blurred). Tried on the way: four
+  samples a step (no better seen, 2.5 ms more at High in a storm); lit once
+  a step, at its end or where it meets cloud (the hatching stayed on lit
+  towers).
+- **A variant of the march** (`DEEP_SPLIT`, `CloudView::marchDeepPipeline`):
+  its larger loop slowed every view by 0.7 to 1 ms even where nothing was
+  split, so it is compiled apart and used only while a layer of the
+  weather is 3 km deep somewhere (`Renderer::Clouds::deepest`).
+- **Captures** (as in use, frames averaged; `build/moire`): the user's view
+  (`your-view-towers.png`, `your-view-base.png`) and a lit tower at 17:00
+  (`lit-tower.png`) at High, the hatching gone; each quality before and
+  after (`CMK/q-all.png`: Low's hatching nearly gone, a little grain left;
+  Medium and High smooth, within 0.1 of 255 of four samples a step); fair
+  cumulus as before (0.04 of 255).
+- **Cost on the Steam Deck** (median frame, old against new): at High with
+  two samples a step (three rounds) thunderstorm 42.8 against 45.5 ms,
+  looking up 31.7 against 34.0; fair cumulus 37.8 against 38.3 and overcast
+  35.6 against 35.4, within the runs' noise. Every quality, with the caps
+  (two rounds each, against the march split at High only; noisy, fair
+  cumulus anywhere from 38 to 46 ms): thunderstorm at Low 42.5 against
+  44.6, at Medium 42.3 against 44.9; fair cumulus and overcast as before.
+  (With the lake's reflection split too, High was 1.5 ms dearer: taken
+  back.)
+- The towers' vertical streaks (pillars of billows) stay: their shape, with
+  the anvils (below).
+
+### Storm shapes (2026-10-16)
+
+The storm clouds stood as pillars of billows streaked straight up.
+
+- **Causes:** cumulonimbus cells came from noise of 3 km features, so
+  towers some 2 km wide stood 10 km tall; the heaps' profile (only a
+  patch's core reaches the top) made them spikes; the cover map's finer
+  detail, the same at every height, was drawn straight up their 10 km into
+  grooves; and they had no anvils.
+- **Cells of 8 km** for cumulonimbus (`WeatherDetail::cloudScales` and the
+  cover pass alike: the map view and the showers under the cells follow),
+  their map without the detail finer than 2 km: towers 5 to 10 km across,
+  their walls made by the billows.
+- **Towers** (storm clouds, type 0.8 to 1): each cell solid from its flat
+  base, each part of it as high as it lies deep in the cell (its edge half
+  the layer, its core to 0.9): towers narrow upwards into domes and differ
+  in height; the billows move their edge at every height; less eroded
+  (hard edges).
+- **Anvils:** the top of the layer (from 0.74) spread from the cores that
+  reach it, 6 km downwind (the high layer's drift so far, `shadowMid.zw`),
+  a quarter of the sky at the top where the cells cover a third; the top
+  flat, the underside rising from the core to a thin edge; thinner (0.3,
+  ice). `cloudAbove` takes both.
+- Tried on the way: anvils spread over half the sky (a dark ceiling over
+  everything); the walls moved a km by the billows' finer noise (walls
+  full of holes) or by the curl noise read along a slant (towers leaning
+  on diagonal streaks).
+- **In the storm variant** of the march (`STORMS` with `DEEP_SPLIT`; the
+  code slowed fair cumulus by about 1 ms though it never ran there), used
+  while the weather has storm clouds (`Renderer::Clouds::stormiest`); the
+  reflection and the cube take it too, without the split; the shadow map
+  and the sky's light always have the shapes.
+- **Captures** (`build/shape`, CMK from the hill, still): from 13 km, towers
+  of several heights with anvils spread over them; from the hill, massive
+  towers with billowing walls over flat dark bases, without streaks (as in
+  use too, the user's view); against the sun at 17:00, one dark tower with
+  lit edges.
+- **Cost on the Steam Deck** (High, median frame, old against new, four
+  rounds): thunderstorm 46.1 against 45.5 ms (the solid towers end rays
+  sooner), looking up 33.8 against 35.2 (more cloud overhead); fair
+  cumulus and overcast as before.
+- **Mixed with heaps** (user: alone the towers look stark, among other
+  clouds natural): a weak cell stays a heap a km or two tall (from 0.12 of
+  the layer, was 0.45), stronger ones congestus, only the cores reach the
+  anvil; the thunderstorm preset's low cover 0.4 (was 0.3; its variation
+  spreads that from few storms to many). From the hill: a storm with its
+  dark base among cumulus and blue gaps (`build/shape/CMK/mix1`). Cost
+  within the runs' noise.
+
+### Rain under the clouds (2026-10-16)
+
+- **Where:** the march, before the clouds, marches the rain from under the
+  low clouds' base (camera below it): 16 samples, closer near, from the
+  near scene's end (the scene's far plane along the ray: the composite
+  draws the clouds over the sky and the distant scene only; begun at
+  300 m, rain covered distant terrain and not near terrain, with a seam
+  between them) to the base, the ground, distant terrain or 60 km (storms
+  on the horizon stand 30 to 60 km off).
+- **How much:** the weather's rain (column 4 of the weather texture, the
+  area's rate), under the cells' cores for showers (as
+  `WeatherDetail::precipitation`, hard edged as the towers), everywhere
+  for a deck's rain; extinction 0.35 rate^0.63 per km (8 mm/h about
+  1.3), half for a deck's; streaked along the fall (noise 2.5 km across,
+  25 km tall), lighter near the ground; slanted by the low wind (half a km
+  aside a km of fall: `sun.w`, `lightColour.w`).
+- **Its light:** the sky's and the sun's through the cloud above
+  (two-stream, the column as `cloudAbove`'s, a storm's as solid as its
+  tower): dark under a storm, grey under a deck; snow lighter.
+- **In the heavy-weather variant** (`RAIN` with `STORMS` and `DEEP_SPLIT`),
+  used while the weather has rain (`Renderer::Clouds::rainiest`).
+- **Captures** (`build/rain`, CMK from the hill, as in use): under a storm
+  cell 5 to 15 km off (`sweep2`, `sweep3` against `sweep-old`) a grey
+  curtain hangs under the dark base, hiding the bright horizon and the far
+  towers behind it; a deck's rain thickens the grey to the horizon. Storms
+  30 to 60 km off show little: their rain is a strip a degree or two high
+  in the haze. The streaks do not show: seen through kilometres of rain
+  they average out (and the cloud image is coarse).
+- **Cost on the Steam Deck** (High, median frame, four rounds, noisy):
+  rain 40.1 against 41.2 ms; thunderstorm, fair cumulus and overcast as
+  before within the noise.
+- Near the view: the fog volume's (below). Not yet: rain seen from above
+  the base (flying).
+
+### Rain near the view (2026-10-16)
+
+- **In the fog volume** (task 33, `RhiFog.cpp` `rainDensity`): its cells
+  out to 10 km, in front of terrain and objects, take the rain as density
+  added to the fog's, below the low clouds' base: from the clouds' weather
+  texture and near cover map (`RhiRenderer::cloudRainMaps`, bindings 15
+  and 16) as the march has it beyond, under the cells' cores for showers,
+  slanted by the low wind; else the rate at the camera
+  (`Renderer::Fog::rain`, `snow`, `rainBase`, set by the editor whatever
+  the fog). The volume runs while it rains, at Low cells with Mist and fog
+  off (`fogQuality`); without the weather's fog the floor map is left out
+  (`fogFogged`).
+- **Its light** as the fog's, the sky's through the cloud above and from
+  the open sky at the cell's sides, 60 % at least (lit from above alone,
+  the rain under a storm came out black; at a third a dark lens under the
+  base), the sun's through the cloud above too (past the cloud shadow map,
+  7 km, the clouds' average lit the rain under a storm and its veil glowed
+  over the far hills).
+- **The march's rain** starts at the volume's end (`nearMap.w`, 10 km)
+  instead of the near scene's (3 km), so the two do not double; the
+  reflection and the cube, without the volume, as before.
+- On the way: the inject pipeline's layout lacked the two new bindings (the
+  fog vanished, valley fog too); the light shafts drop their ground haze
+  only for the volume's fog, not its rain alone.
+- **Captures** (`build/nearrain`, CMK from the hill): under the storms grey
+  rain shafts as light as their bases, down to the ground in front of the
+  fields; the rain preset's own fog as before (it veils everything);
+  valley fog and morning mist as before (within 0.01 of 255).
+- **Cost on the Steam Deck** (High, four rounds): thunderstorm 43.0 against
+  45.2 ms (the volume runs for the rain), rain as before (it ran for the
+  fog already), fair cumulus and overcast as before.
+- Still: the far land under a storm past the cloud shadow map (7 km) is not
+  in its shade, nor its aerial haze darker: over it the rain's veil looks
+  lighter than the sky above.
+
+### Falling drops near the camera (2026-10-16)
+
+- **Particles, as games draw them** (`RhiRain.cpp`): before the view's UI,
+  while it rains or snows at the camera (`Renderer::Fog::rainHere`: the
+  weather's rate there under a shower's cell or not,
+  `WeatherDetail::precipitation` with its cells), under the low clouds'
+  base. 8000 drops and more with the rate (snow more flakes for its water;
+  30000 at most) in a box of 24 m across and 14 m up about the camera, each
+  drop's place in the world from its index (the box wraps as the camera
+  moves: a moving train passes through them), falling (8 m/s, snow 1,
+  swaying) and drifting with half the low wind (`rainWindEast`,
+  `rainWindNorth`). The vertex shader makes each a thin quad from where it
+  is back along its fall over 1/30 s (a flake's 1/120), a pixel wide at
+  least or the drop's size (1.5 mm, a flake 1 cm), thinner fainter (half
+  at least); no buffers (`draw(6, drops)`, no vertex input). The fragment
+  shader leaves out what lies behind the scene's depth. Light: the
+  horizon's (the sky about them), the scene's scale, 0.6 (a flake 0.9).
+- **Before:** drops found per pixel in four shells about the camera (a
+  grid fixed in the world, one drop a cell): 1 to 2.5 ms for few drops,
+  and looking down they stood in rings (the shells; user, CMK
+  `-5354,14855,645.37,270.02,-140.14,-412.68,-89.95`); in a box of 50 m
+  most particles lay far off, thinner than a pixel.
+- **Captures** (`build/drops/part2.png`): fine slanted streaks over the
+  fields; looking down, streaks falling away towards the view's middle,
+  no rings; snow a dense scatter of flakes.
+- **Depth** (user: the cost small, more depth): a far box of 80 m across
+  and 40 m up beyond the near one, 2.5 times its drops (40000 at most),
+  fading in where the near box's fade out (not doubling them) and out at
+  its own edge: streaks fill the field towards the fog volume's veil. A
+  flake round and no longer than wide (near, the wind's blur drew dashes).
+- **Cost on the Steam Deck** (rain preset, 2 mm/h: 16000 near and 40000
+  far drops; four rounds against none, steady): 39.5 against 40.5 ms
+  median, about 1 ms; the near box alone about 0.4 ms. Nothing in dry
+  weather.
+- **None under cover** (user, 2026-10-16): each drop looks itself up in
+  the sky enclosure's maps (task 27; near, else far: something more than
+  0.5 to 2 m over it hides it, as `coverOver`), in the vertex shader, so
+  under a roof, a deck or the terrain over a tunnel no drops fall, while
+  rain outside shows from under it. With the enclosure off, none at all
+  while the camera is 2 m or more under the terrain (a tunnel; the editor
+  sets `rainHere` 0); roofs then keep their drops. Captures (EUROPE1,
+  `build/cover/cover1.png`): in the tunnel no drops (with and without the
+  enclosure), at the portal and the viaduct rain in the open in front.
+  Roofs with alpha-tested textures are not in the enclosure map (task 27,
+  "Blended shape parts"): drops fall under them.
+- Not yet: lamps do not light the drops; none in the reflection and the
+  cube; the fog volume's rain fills tunnels too (only a few metres of it
+  between the camera and the walls: faint).
+
 ## Verification
 
 - Captures (QRhi): presets (fair cumulus, broken, overcast, front) at noon,

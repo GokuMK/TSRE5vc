@@ -105,6 +105,8 @@ struct ViewSpec {
     // Settings (key: JSON value) for this view and the following ones, applied
     // to the running editor as the Settings Editor's Apply to Running TSRE.
     QJsonObject settings;
+    // Settling options of this view over the file's (minFrames, stableFrames, maxFrames).
+    QJsonObject settle;
     // terrainOverlayTool actions run at the view's centre ("osm", "show"), and the
     // overlay opacity (0 to 1).
     QStringList overlayActions;
@@ -193,6 +195,10 @@ struct Options {
     // Editor view toggles that have no profile setting.
     bool pivotPoints = false;
     bool snapable = false;
+    // The editor's helpers all off, as 3D View > Unselect All (TrackDB and
+    // section lines, track items, interactives, grids, markers, the pointer)
+    // and the compass: the scene alone.
+    bool hideAll = false;
     Thresholds thresholds;
     // Map mode layers: an activity and a path to select, by file name.
     QString activity;
@@ -273,6 +279,9 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         options.shadows = root.value("shadows").toBool() ? 1 : 0;
     options.pivotPoints = root.value("pivotPoints").toBool(options.pivotPoints);
     options.snapable = root.value("snapable").toBool(options.snapable);
+    options.hideAll = root.value("hideAll").toBool(options.hideAll);
+    if (options.hideAll)
+        options.compass = options.pointer = options.pivotPoints = options.snapable = false;
 
     const QJsonObject settle = root.value("settle").toObject();
     options.settle.minFrames = settle.value("minFrames").toInt(options.settle.minFrames);
@@ -350,6 +359,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         if (object.contains("time"))
             view.time = object.value("time").toDouble();
         view.settings = object.value("settings").toObject();
+        // Its own settling, over the file's (a frame right after a turn).
+        view.settle = object.value("settle").toObject();
         for (const QJsonValue &action : object.value("overlay").toArray())
             view.overlayActions << action.toString();
         view.overlayOpacity = object.value("overlayOpacity").toDouble(1.0);
@@ -544,6 +555,13 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         Game::shadowsEnabled = options.shadows > 0 ? std::max(1, Game::shadowsEnabled) : 0;
     QScopedValueRollback<bool> restorePivots(Game::showWorldObjPivotPoints, options.pivotPoints);
     QScopedValueRollback<bool> restoreSnapable(Game::viewSnapable, options.snapable);
+    QScopedValueRollback<bool> restoreTrackDb(Game::viewTrackDbLines, Game::viewTrackDbLines && !options.hideAll);
+    QScopedValueRollback<bool> restoreTsection(Game::viewTsectionLines, Game::viewTsectionLines && !options.hideAll);
+    QScopedValueRollback<bool> restoreTrackItems(Game::renderTrItems, Game::renderTrItems && !options.hideAll);
+    QScopedValueRollback<bool> restoreInteractives(Game::viewInteractives, Game::viewInteractives && !options.hideAll);
+    QScopedValueRollback<bool> restoreWorldGrid(Game::viewWorldGrid, Game::viewWorldGrid && !options.hideAll);
+    QScopedValueRollback<bool> restoreTileGrid(Game::viewTileGrid, Game::viewTileGrid && !options.hideAll);
+    QScopedValueRollback<bool> restoreTerrainGrid(Game::viewTerrainGrid, Game::viewTerrainGrid && !options.hideAll);
     RenderStats::setEnabled(true);
 
     RouteEditorGLWidget widget;
@@ -647,7 +665,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             Game::check_coords(groundX, groundZ, ground);
             pos[1] = Game::terrainLib->getHeight(groundX, groundZ, ground[0], ground[2]) + spec.aboveGround;
         }
-        Game::viewMarkers = spec.viewMarkers;
+        Game::viewMarkers = spec.viewMarkers && !options.hideAll;
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
@@ -701,6 +719,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (!std::isnan(spec.time))
             Game::timeOfDayHours = float(spec.time);
 
+        SettleOptions settle = options.settle;
+        settle.minFrames = spec.settle.value("minFrames").toInt(settle.minFrames);
+        settle.stableFrames = spec.settle.value("stableFrames").toInt(settle.stableFrames);
+        settle.maxFrames = spec.settle.value("maxFrames").toInt(settle.maxFrames);
         QElapsedTimer settleTimer;
         settleTimer.start();
         QByteArray lastHash;
@@ -708,9 +730,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         unsigned lastShapeProgress = ShapeLoader::progress();
         int frames = 0;
         bool settled = false;
-        while (frames < options.settle.maxFrames
-               && settleTimer.elapsed() < qint64(options.settle.maxSeconds) * 1000) {
-            pumpEvents(options.settle.frameIntervalMs);
+        while (frames < settle.maxFrames
+               && settleTimer.elapsed() < qint64(settle.maxSeconds) * 1000) {
+            pumpEvents(settle.frameIntervalMs);
             const QByteArray hash = imageHash(widget.grabFramebuffer());
             frames++;
             stableCount = hash == lastHash ? stableCount + 1 : 0;
@@ -723,7 +745,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             // Map layers built on a worker (OSM data) draw the same until they are ready.
             if (widget.mapLayersBusy())
                 stableCount = 0;
-            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
+            if (frames >= settle.minFrames && stableCount >= settle.stableFrames
                     && !ShapeLoader::busy()) {
                 settled = true;
                 break;

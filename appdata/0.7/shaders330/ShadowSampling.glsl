@@ -49,9 +49,104 @@ uniform vec4 cloudShadowMid;
 // the clouds' average shade (past the maps).
 uniform vec4 cloudShadowSun;
 
-float cloudShadow(vec3 position) {
-    if (cloudShadowArea.w <= 0.0)
+// Fog lying on the ground (task 33): the floor map (floor, the share of the
+// fog's depth pooled above it, ground, moisture) and the fog's shape. The sun
+// reaches a point under the fog's top through the fog above it, along the
+// sun: a low sun not at all, so the ground under thick fog has no shadows.
+uniform sampler2D fogFloorMap;
+// The fog's extinction at the floor (1/m; 0 without fog), depth (m), base
+// (m), 1 / sin of the light's height.
+uniform vec4 fogShape;
+// The map's north-west corner (x, z), its size (m), the view's y less heights.
+uniform vec4 fogPlace;
+// The patches (RhiFog.cpp): the map's corner in world metres (east, north,
+// wrapped), the weather's patchiness, its pooling; how far they have drifted.
+uniform vec4 fogPatchPlace;
+uniform vec4 fogDrift;
+
+// Patches (step 5): fog thinning into holes and its top rising and falling,
+// a sum of value noise at 600, 240 and 90 m in world metres (east, north,
+// wrapped every 36 km, which each scale repeats over exactly), drifting
+// together with the wind near the ground, so that the fog's history can
+// follow them (each at its own pace, they smeared in it with the clock
+// running fast, unlike newly seen fog). 0-1, about 0.5.
+float fogHash(vec2 i) {
+    vec3 p3 = fract(vec3(i.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float fogNoise(vec2 p, float period) {
+    vec2 i = floor(p);
+    vec2 f = p - i;
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = fogHash(mod(i, period)), b = fogHash(mod(i + vec2(1.0, 0.0), period));
+    float c = fogHash(mod(i + vec2(0.0, 1.0), period)), d = fogHash(mod(i + vec2(1.0, 1.0), period));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fogPatches(vec2 q, vec2 drift) {
+    vec2 p = q - drift;
+    return fogNoise(p / 600.0, 60.0) * 0.55 + fogNoise(p / 240.0 + 17.0, 150.0) * 0.3
+            + fogNoise(p / 90.0 + 41.0, 400.0) * 0.15;
+}
+
+// The patches' noise at a fragment's place, kept for the fog's other uses
+// there (Haze.glsl).
+vec3 fogNoisePosition;
+float fogNoiseValue;
+bool fogNoiseKept = false;
+
+float fogPatchesAt(vec3 position) {
+    if (!fogNoiseKept || fogNoisePosition != position) {
+        fogNoiseValue = fogPatches(vec2(position.x - fogPlace.x, fogPlace.y - position.z) + fogPatchPlace.xy, fogDrift.xy);
+        fogNoisePosition = position;
+        fogNoiseKept = true;
+    }
+    return fogNoiseValue;
+}
+
+float fogSunThrough(vec3 position) {
+    if (fogShape.x <= 0.0)
         return 1.0;
+    vec2 m = (position.xz - fogPlace.xy) / fogPlace.z;
+    if (any(lessThan(m, vec2(0.0))) || any(greaterThan(m, vec2(1.0))))
+        return 1.0;
+    vec4 cell = textureLod(fogFloorMap, m, 0.0);
+    float height = position.y - fogPlace.w;
+    float top = max(cell.x + fogShape.y * cell.y * fogPatchPlace.w, cell.z + fogShape.y * 0.5 * cell.w);
+    // The fog's patches, as the fog's volume has them.
+    float n = fogPatchesAt(position);
+    top += (n - 0.5) * fogShape.y * (0.15 + 0.45 * fogPatchPlace.z);
+    float holes = mix(1.0, smoothstep(0.3, 0.6, n), fogPatchPlace.z);
+    float above = max(top - max(height, cell.x + fogShape.z), 0.0);
+    return exp(-fogShape.x * (1.0 + 0.5 * cell.w) * holes * min(above * fogShape.w, 3000.0));
+}
+
+// The terrain's shade of a low sun or moon past the shadow maps' 700 m
+// (TerrainShade): over 16 km, the height under which the ground towards the
+// light hides it (a hill the sun has set behind).
+uniform sampler2D terrainShadeMap;
+// The map's north-west corner (x, z), its size (m), the view's y less heights.
+uniform vec4 terrainShadePlace;
+// On (1) or off (0), the map's reference height (m), 1 / the light's fading
+// band (m).
+uniform vec4 terrainShadeParams;
+
+float terrainShade(vec3 position) {
+    if (terrainShadeParams.x <= 0.0)
+        return 1.0;
+    vec2 m = (position.xz - terrainShadePlace.xy) / terrainShadePlace.z;
+    if (any(lessThan(m, vec2(0.0))) || any(greaterThan(m, vec2(1.0))))
+        return 1.0;
+    float top = textureLod(terrainShadeMap, m, 0.0).r + terrainShadeParams.y;
+    return clamp((position.y - terrainShadePlace.w - top) * terrainShadeParams.z + 1.0, 0.0, 1.0);
+}
+
+float cloudShadow(vec3 position) {
+    float fog = fogSunThrough(position) * terrainShade(position);
+    if (cloudShadowArea.w <= 0.0)
+        return fog;
     vec2 p = position.xz + cloudShadowSun.xy * (cloudShadowSun.z - position.y);
     vec2 low = (p - cloudShadowArea.xy) * cloudShadowArea.z + 0.5;
     vec2 mid = (p - cloudShadowMid.xy) * cloudShadowArea.z + 0.5;
@@ -65,7 +160,7 @@ float cloudShadow(vec3 position) {
     float midThrough = max(textureLod(cloudShadowMap, mid, 0.0).a, 1e-3);
     float through = 1.0 / max(1.0 / lowThrough + 1.0 / midThrough - 1.0, 1.0);
     float shade = mix(cloudShadowSun.w, through, inside);
-    return mix(1.0, shade, cloudShadowArea.w);
+    return mix(1.0, shade, cloudShadowArea.w) * fog;
 }
 #endif
 

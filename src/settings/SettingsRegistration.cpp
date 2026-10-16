@@ -1139,6 +1139,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Volumetric"
                 QT_TRID_NOOP("settings.core.rendering.light.shafts.option.volumetric")}})).inGroup("rendering").inSubgroup("environment"),
         "lightShafts", "Game::lightShafts", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.mist", 0)
+            .withNameId(
+                //% "Mist and fog"
+                QT_TRID_NOOP("settings.core.rendering.mist.name")).withDescriptionId(
+                //% "Fog lying on the ground, from the weather: in valleys and over rivers after calm, clear nights, burning off as the sun climbs, lit by the sun through trees and clouds. With the physical sky (QRhi renderer on Vulkan or Direct3D 11). High is finer near the camera and costs more time per frame."
+                QT_TRID_NOOP("settings.core.rendering.mist.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.mist.option.off")}, {1,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.mist.option.low")}, {2,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.mist.option.high")}})).inGroup("rendering").inSubgroup("environment"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.skyEnclosure", false)
             .withNameId(
                 //% "Sky enclosure"

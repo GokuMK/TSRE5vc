@@ -232,6 +232,7 @@ The **Graphics Presets** menu sets the rendering settings that make a look in on
 | Sky | Classic | Classic | Physical |
 | Clouds | Off | Off | High |
 | Light shafts | Off | Off | Volumetric |
+| Mist and fog | Off | Off | High |
 
 OpenRails Extended is what a new profile starts with. Basic keeps time of day:
 the classic sky takes its colours and the sun its place from it. Fog density
