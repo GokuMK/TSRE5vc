@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs an activity in Open Rails for comparison with TSRE's simulation (task
 # simulation 02, phase 7): the player's train on Open Rails' autopilot, the
-# game sped up, and every two seconds the time of day and the dispatcher
-# page (every train's state) read from Open Rails' web server.
+# game sped up, and every second or so (ORTS_SAMPLE seconds) the time of day
+# and the dispatcher page (every train's state) read from Open Rails' web
+# server.
 # Usage: scripts/orts-simulation-compare.sh <game-root> <route> <work-dir> <activity> <until hh:mm> [speed presses]
 #
 # Makes <work-dir>/MSTS a view of the game root (symlinks: Open Rails writes
@@ -11,14 +12,21 @@
 # there too), runs it on its own display with a window manager (Open Rails
 # reads keys only in a focused window), and writes the samples to
 # <work-dir>/logs/<activity>.jsonl. Speed presses: Ctrl+Alt+PageUp, 1.5
-# times each (default 3). scripts/orts-dispatcher-stops.py reads the
-# samples.
+# times each (default 7: 17 times real time, which the game keeps on the
+# llvmpipe box and which gives Open Rails' stops and waits within a sample
+# of a run at 5 times; at 38 times they come up to a minute later).
+# scripts/orts-dispatcher-stops.py reads the samples.
 #
 # ORTS_PROGRAM: the folder with RunActivity (default: the sibling
 # openrails-linux-spike worktree's Program). DOTNET_ROOT: the .NET install
 # (default ~/.local/dotnet when it exists). ORTS_WINDOW: its window size
-# (default 640x400; smaller draws faster on software GL, so the game runs
-# nearer the speed asked). Needs xvfb-run, xdotool, openbox and curl.
+# (default 400x250). ORTS_LEAN: 0 keeps Open Rails' own drawing and sound
+# settings; else less is drawn (no vertical sync, distant mountains,
+# overhead wire, extended LOD; scenery objects of detail level 0 only) and
+# no sound played, which doubles the frame rate there (frames of 25 to 45
+# ms). Faster frames mean smaller steps for Open Rails' AI at a given game
+# speed, and a frame over 250 ms would simulate nothing. Needs xvfb-run,
+# xdotool, openbox and curl.
 set -euo pipefail
 
 if [[ "${1:-}" == --inner ]]; then
@@ -74,18 +82,48 @@ sys.exit(1)' && break
     focus
     for _ in $(seq 1 "$presses"); do press Control_L Alt_L Page_Up; done
     : > "$samples"
+    debug="${samples%.jsonl}-debug.txt"
+    : > "$debug"
+    count=0
+    still=0
+    last=""
     while kill -0 "$pid" 2>/dev/null; do
         time="$(now)"
-        # One line a sample: the time and the dispatcher table.
+        # Its clock stopped (the activity over, a window open): done.
+        if [[ "$time" == "$last" ]]; then
+            (( ++still >= 30 )) && { echo "the game clock stopped at $time"; break; }
+        else
+            still=0
+        fi
+        last="$time"
+        # One line a sample: the time of day, the wall clock and the
+        # dispatcher table.
         curl -s -m 10 http://localhost:2150/API/HUD/7 | python3 -c '
 import json, sys
 try:
     table = json.load(sys.stdin)["extraTable"]
 except Exception:
     sys.exit(0)
-print(json.dumps({"time": float(sys.argv[1]), "hud": {"extraTable": table}}))' "$time" >> "$samples" || true
+print(json.dumps({"time": float(sys.argv[1]), "wall": float(sys.argv[2]), "hud": {"extraTable": table}}))' \
+            "$time" "$(date +%s.%N)" >> "$samples" || true
+        # Every thirty samples the debug page: frame times, the processes'
+        # loads.
+        if (( count++ % 30 == 0 )); then
+            curl -s -m 10 http://localhost:2150/API/HUD/9 | python3 -c '
+import json, sys
+try:
+    table = json.load(sys.stdin)["extraTable"]
+except Exception:
+    sys.exit(0)
+values, columns = table["values"], table["nCols"]
+keep = ("GPU", "Render process", "Updater process", "Loader process", "Sound process", "Render primitives")
+for r in range(table["nRows"]):
+    row = [(cell or "").strip() for cell in values[r * columns:(r + 1) * columns]]
+    if row and row[0] in keep:
+        print(sys.argv[1], row[0], " ".join(cell for cell in row[1:] if cell))' "$time" >> "$debug" || true
+        fi
         python3 -c "import sys; sys.exit(0 if float('$time') >= $until else 1)" && break
-        sleep 2
+        sleep "${ORTS_SAMPLE:-1}"
     done
     kill "$pid" 2>/dev/null || true
     exit 0
@@ -100,7 +138,7 @@ route="$2"
 work="$(mkdir -p "$3" && cd "$3" && pwd)"
 activity="$4"
 until="$(python3 -c "import sys; h, m = sys.argv[1].split(':'); print(int(h) * 3600 + int(m) * 60)" "$5")"
-presses="${6:-3}"
+presses="${6:-7}"
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 program="${ORTS_PROGRAM:-$repo/../openrails-linux-spike/Program}"
 if [[ -z "${DOTNET_ROOT:-}" && -d "$HOME/.local/dotnet" ]]; then
@@ -134,10 +172,22 @@ FullScreen=bool:false
 AntiAliasing=int:1
 ShowErrorDialogs=bool:false
 DataLogStationStops=bool:true
-WindowSize=string:${ORTS_WINDOW:-640x400}
+WindowSize=string:${ORTS_WINDOW:-400x250}
 ViewingDistance=int:500
 DynamicShadows=bool:false
 EOF
+# Less to draw and to play (ORTS_LEAN=0 leaves Open Rails' own values).
+if [[ "${ORTS_LEAN:-1}" != 0 ]]; then
+    cat >> "$work/config/Open Rails/OpenRails.ini" <<EOF
+VerticalSync=bool:false
+DistantMountains=bool:false
+Wire=bool:false
+LODViewingExtension=bool:false
+WorldObjectDensity=int:0
+SoundDetailLevel=int:0
+SoundVolumePercent=int:0
+EOF
+fi
 
 samples="$logs/${activity}.jsonl"
 # Its own process group: the subshell becomes setsid, then xvfb-run.
@@ -149,3 +199,14 @@ wait "$runner" || true
 kill -- "-$runner" 2>/dev/null || true
 cp "$logs/OpenRailsLog.txt" "$logs/${activity}.log" 2>/dev/null || true
 echo "$(wc -l < "$samples") samples in $samples"
+# How fast the game ran against the wall clock.
+python3 - "$samples" <<'PY'
+import json, sys
+samples = [json.loads(line) for line in open(sys.argv[1]) if line.strip()]
+timed = [s for s in samples if "wall" in s]
+if len(timed) >= 2 and timed[-1]["wall"] > timed[0]["wall"]:
+    game = timed[-1]["time"] - timed[0]["time"]
+    wall = timed[-1]["wall"] - timed[0]["wall"]
+    print("game time %.0f s in %.0f s: %.2f times real time" % (game, wall, game / wall))
+PY
+tail -n 6 "${samples%.jsonl}-debug.txt" 2>/dev/null || true

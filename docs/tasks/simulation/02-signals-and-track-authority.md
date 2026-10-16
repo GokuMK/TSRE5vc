@@ -1,9 +1,8 @@
 # Task 02 - Signals and Track Authority (No Scripts)
 
 Status: done (phases 1 to 7, 2026-10-16, branch `feature/simulation`).
-Open Rails comparisons of the other local routes are left (the scripts
-are there; Open Rails runs this machine's heavier activities below real
-time). Decisions taken are at the end.
+Open Rails comparisons of the other local routes are left (the script runs
+an activity at 17 times real time). Decisions taken are at the end.
 
 Sources:
 - `msts-analysis/reports/signalling/` (2026-10-14, -15): `overview.md`,
@@ -296,9 +295,16 @@ simulated hour here.
 `scripts/orts-dispatcher-stops.py`): the activity runs in the Linux fork on
 a display of its own (with a window manager: the game takes keys only in a
 focused window, held across its frames), the player's train on autopilot,
-the game sped up; every two seconds Open Rails' time and its dispatcher
+the game sped up; every second or so Open Rails' time and its dispatcher
 page (each train's state, speed, limit and next signal) are read from its
 web server, and each train's stops and stands are found in those samples.
+Open Rails has no mode without drawing, and a frame over 250 ms simulates
+nothing; with less drawn (no vertical sync, distant mountains, wire or
+extended LOD, scenery of detail level 0, no sound) its frames on the
+llvmpipe box take 25 to 45 ms against 55 to 80, and CanadianImports runs
+at the 17 times real time asked (an hour of the activity in under four
+minutes), its stops and waits within a sample of a run at 5 times; at 38
+times they come up to a minute later.
 Open Rails numbers its AI trains in traffic order after the loose
 consists, so Traffic k is train k + 6 on USA1.
 - **USA1 smmrex, 12:00 to 12:40.** Open Rails' Summer Express trains
@@ -604,8 +610,9 @@ waiting at a single line without passing paths can still be passed over
 by opposing trains that claim it first; Open Rails keeps a loop track
 open for a train awaiting a single line. Open Rails comparisons of
 EUROPE2, JAPAN1, JAPAN2 and USA2 (EUROPE1's lclsrvce does not load in
-Open Rails: its early waiting point). Frames that share unchanged blocks
-of aspects and section use, if country-scale routes need it.
+Open Rails: its early waiting point), now quick to run. Frames that share
+unchanged blocks of aspects and section use, if country-scale routes need
+it.
 
 ## Phases
 
