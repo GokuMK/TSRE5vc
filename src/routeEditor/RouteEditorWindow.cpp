@@ -202,9 +202,10 @@ RouteEditorWindow::RouteEditorWindow() {
     objProperties["TrackItem"] = new PropertiesTrackItem;
     objProperties["ActivityPath"] = new PropertiesActivityPath;
     objProperties["ActivityConsist"] = new PropertiesConsist;
-    // Activity data shows but is not edited while a simulation exists.
-    ActivityEditLock::Follow(this, {objProperties["ActivityObject"], objProperties["ActivityPath"],
-                                    objProperties["ActivityConsist"]});
+    // Activity data shows but is not edited while a simulation exists (a
+    // consist's properties stay on: its camera buttons; a simulated train's
+    // speed is not edited).
+    ActivityEditLock::Follow(this, {objProperties["ActivityObject"], objProperties["ActivityPath"]});
     // last 
     objProperties["Undefined"] = new PropertiesUndefined;
     
@@ -804,6 +805,8 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(objProperties["ActivityConsist"], SIGNAL(cameraObject(GameObj*)),
                       glWidget, SLOT(setCameraObject(GameObj*)));
+    QObject::connect(objProperties["ActivityConsist"], SIGNAL(releaseCamera()),
+                      glWidget, SLOT(releaseCameraObject()));
     
     QObject::connect(objProperties["TrackObj"], SIGNAL(setMoveStep(float)),
                       glWidget, SLOT(setMoveStep(float)));

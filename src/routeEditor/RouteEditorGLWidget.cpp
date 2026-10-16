@@ -647,8 +647,29 @@ void RouteEditorGLWidget::refreshMarkerList() {
     if (route != NULL) emit mkrList(route->getMkrList());
 }
 
+// Riding a consist: a simulated train's is followed (the Timetable window's
+// Follow, its cab view); another ends Follow.
 void RouteEditorGLWidget::setCameraObject(GameObj* obj){
-    camera->setCameraObject(obj);
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int train = simulation->trainOfObject(obj);
+    if (train >= 0) {
+        simulation->choose(train);
+        simulation->follow(train);
+        followedTrain = -1;
+        return;
+    }
+    if (simulation->followed() >= 0)
+        simulation->follow(-1);
+    stopRiding();
+    cameraFree->setCameraObject(obj);
+}
+
+void RouteEditorGLWidget::releaseCameraObject(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (simulation->followed() >= 0)
+        simulation->follow(-1);
+    if (cameraFree != NULL)
+        cameraFree->releaseObject();
 }
 
 void RouteEditorGLWidget::setMoveStep(float val){
@@ -3335,6 +3356,15 @@ void RouteEditorGLWidget::followTrain() {
         // has come back from the map.
         rideTrain(train, followedView);
     }
+    // Where it is first known: its consist selected, its properties shown.
+    if (!followedKnown) {
+        Consist *consist = simulation->consistOf(train);
+        if (consist != NULL && selectedObj != consist) {
+            if (selectedObj != NULL)
+                selectedObj->unselect();
+            setSelectedObj(consist);
+        }
+    }
     followedTile[0] = tile[0];
     followedTile[1] = tile[1];
     std::copy(place, place + 3, followedPlace);
@@ -3512,6 +3542,8 @@ void RouteEditorGLWidget::jumpTo(float *posT, float *pos) {
 
 void RouteEditorGLWidget::jumpTo(int X, int Z, float x, float y, float z) {
     qDebug() << "jump: " << X << " " << Z;
+    // Off a train it rides, or the place would be relative to the train.
+    releaseCameraObject();
     Game::terrainLib->load(X, Z);
     float h = Game::terrainLib->getHeight(X, Z, x, z);
     //if(h == -1)

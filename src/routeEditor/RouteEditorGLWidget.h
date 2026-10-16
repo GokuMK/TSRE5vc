@@ -248,6 +248,8 @@ public slots:
     void reloadTrackProfiles();
     void refreshMarkerList();
     void setCameraObject(GameObj* obj);
+    // The camera off the object it rides, where it is (Follow ends).
+    void releaseCameraObject();
     void setMoveStep(float val);
     void setTerrainToObj();
     void adjustObjPositionToTerrainMenu();

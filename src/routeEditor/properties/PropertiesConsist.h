@@ -26,10 +26,12 @@ public:
     
 public slots:
     void bCamEnabled();
+    void bReleaseEnabled();
     void eSpeedEnabled(QString val);
     
 signals:
     void cameraObject(GameObj* obj);
+    void releaseCamera();
 
 private:
     Consist *conObj = NULL;

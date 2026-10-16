@@ -49,6 +49,14 @@ PropertiesConsist::PropertiesConsist() {
         qtTrId("route.editor.properties.consist.button.b.cam"));
     QObject::connect(bCam, SIGNAL(released()), this, SLOT(bCamEnabled()));
     vbox->addWidget(bCam);
+    QPushButton *bRelease = new QPushButton(
+        //% "Release Camera"
+        qtTrId("route.editor.properties.consist.button.release.camera"));
+    bRelease->setToolTip(
+        //% "The camera leaves the train it rides and stays where it is."
+        qtTrId("route.editor.properties.consist.button.release.camera.tooltip"));
+    QObject::connect(bRelease, SIGNAL(released()), this, SLOT(bReleaseEnabled()));
+    vbox->addWidget(bRelease);
     
         
     vbox->addStretch(1);
@@ -111,6 +119,10 @@ bool PropertiesConsist::support(GameObj* obj){
 
 void PropertiesConsist::bCamEnabled(){
     emit cameraObject((GameObj*)conObj);
+}
+
+void PropertiesConsist::bReleaseEnabled(){
+    emit releaseCamera();
 }
 
 void PropertiesConsist::eSpeedEnabled(QString val){
