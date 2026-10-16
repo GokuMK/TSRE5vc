@@ -80,6 +80,18 @@ int wrapped(int seconds) {
     return (seconds % 86400 + 86400) % 86400;
 }
 
+// A timetable MSAE never calculated: every stop at the train's start, as it
+// writes them. Its times are no bookings: nothing held, nothing compared.
+bool uncalculated(const ActivityTimetable *timetable, int start) {
+    const int rows = rowsOf(timetable);
+    if (rows == 0)
+        return false;
+    for (int r = 0; r < rows; ++r)
+        if (wrapped(timetable->arrivalTime[r]) != wrapped(start) || wrapped(timetable->departTime[r]) != wrapped(start))
+            return false;
+    return true;
+}
+
 // A change between two times of day, the shorter way round midnight.
 int difference(int now, int before) {
     int d = wrapped(now - before);
@@ -166,6 +178,7 @@ std::unique_ptr<TimetableCalculation> TimetableCalculation::Prepare(Activity *ac
         train.stops.resize(size_t(rows));
         for (int r = 0; r < rows; ++r)
             train.stops[size_t(r)].platform = platformName(timetable->platformStartID[r]);
+        const bool booked = !uncalculated(timetable, train.time);
         const auto remembered = memory.rows.constFind(trainKey(plan.player, plan.service, train.time));
         calculation->keptStop[k].assign(plan.stops.size(), false);
         for (size_t i = 0; i < plan.stops.size(); ++i) {
@@ -175,7 +188,9 @@ std::unique_ptr<TimetableCalculation> TimetableCalculation::Prepare(Activity *ac
             TimetableStop &row = train.stops[size_t(stop.entry)];
             row.simulated = true;
             // Trains not written keep their booked departures; so do
-            // untimed stops (none).
+            // untimed stops (none). An uncalculated timetable books none.
+            if (train.written && !booked)
+                stop.departure = -1;
             if (!train.written || stop.departure < 0)
                 continue;
             // A departure a run calculated is calculated again; another is
@@ -265,6 +280,7 @@ const TimetableRun &TimetableCalculation::write(Activity *activity) {
         ActivityTimetable *timetable = train.written ? timetableOf(trains, plan) : nullptr;
         const int rows = rowsOf(timetable);
         QVector<Row> *remembered = nullptr;
+        const bool booked = !uncalculated(timetable, train.time);
         if (timetable != nullptr) {
             remembered = &memory.rows[trainKey(plan.player, plan.service, train.time)];
             if (remembered->size() < rows)
@@ -283,7 +299,7 @@ const TimetableRun &TimetableCalculation::write(Activity *activity) {
             if (timetable == nullptr || r >= rows)
                 continue;
             Row &row = (*remembered)[r];
-            const bool timed = timetable->arrivalTime[r] != 0 || timetable->departTime[r] != 0;
+            const bool timed = booked && (timetable->arrivalTime[r] != 0 || timetable->departTime[r] != 0);
             stop.arrivalBefore = row.arrival >= 0 ? row.arrival : timed ? timetable->arrivalTime[r] : -1;
             stop.departureBefore = row.departure >= 0 ? row.departure : timed ? timetable->departTime[r] : -1;
             timetable->setArrival(r, stop.arrival);

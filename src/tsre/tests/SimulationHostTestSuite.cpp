@@ -710,6 +710,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
                   && stopsTable->item(0, 3) != nullptr && stopsTable->item(0, 3)->text() == "0:00 / +2:00"
                   && stopsTable->item(0, 2)->font().bold(),
               QString("Simulate keeps it, the change shown: \"%1\"").arg(stopsTable->item(0, 3) != nullptr ? stopsTable->item(0, 3)->text() : QString()));
+        // TSRE_UI_SHOTS: the window as it is now, for a look at its layout.
+        if (qEnvironmentVariableIsSet("TSRE_UI_SHOTS"))
+            timetable.grab().save(qEnvironmentVariable("TSRE_UI_SHOTS") + "/timetable-simulated.png");
 
         // Another activity naming the same traffic pattern: the player's
         // times alone are written.
@@ -731,6 +734,21 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
             ActLib::Act[otherId] = nullptr;
         timetable.showTimetable(activity);
         check(timesFor->isEnabled() && timesFor->currentIndex() == 0, "the pattern its own again: all trains, as chosen");
+
+        // A timetable MSAE never calculated (every stop at the train's
+        // start): its times are no bookings, Simulate's shown as new.
+        Sim::TimetableCalculation::ForgetAll();
+        if (ActivityTimetable *a = aiTimes())
+            for (int r = 0; r < a->arrivalTime.size() && r < a->departTime.size(); ++r) {
+                a->arrivalTime[r] = 28860;
+                a->departTime[r] = 28860;
+            }
+        simulate->click();
+        const Sim::TimetableTrain *placeholder = Sim::TimetableCalculation::LastTrain(activity, false, "S2", 28860);
+        check(placeholder != nullptr && !placeholder->stops.empty() && placeholder->stops[0].reached
+                  && placeholder->stops[0].arrivalBefore < 0 && placeholder->stops[0].departureBefore < 0
+                  && !placeholder->stops[0].kept,
+              "an uncalculated timetable (every stop at the train's start): Simulate's times shown as new, none kept");
         Undo::Clear();
     }
 

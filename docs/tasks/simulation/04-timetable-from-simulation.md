@@ -30,7 +30,7 @@ Sources:
   step).
 
 **Phase 2, Simulate in the Timetable window (done 2026-10-16).** Under
-the trains: Simulate, Round to (15 s, 30 s, 1 min, none), Times for (all
+the trains (since the review on the left, below): Simulate, Round to (15 s, 30 s, 1 min, none), Times for (all
 trains, the player's train; the player's alone and disabled when the
 pattern is shared or missing, with why), From scratch. The run on a worker
 thread behind a progress dialog (Cancel); the write is one undo step;
@@ -73,6 +73,21 @@ waiting for ..."). Polish texts with the English.
   which it uses in an edge case of its boarding computation; elsewhere on
   the same route it stands 18 to 55 s, by passengers), and carry on from
   there.
+
+**Review fixes (user, 2026-10-16).**
+- Layout: Simulate and its options (Round to, Times for, From scratch,
+  the last run's summary) on the left under the chosen train's
+  information, so the stops' table has the window's height; TSRE's
+  section labels for both parts ("Info:", "Simulation:") and TSRE's
+  combo boxes; the stops and times two thirds of the height at first.
+- "Trains an hour late" (EUROPE1 `aftstorm`): its traffic timetables were
+  never calculated in MSAE (every stop at the train's start, 13:35), so
+  the Change column compared Simulate's times with those (up to +1:01 at
+  Dent). A timetable whose every stop is at the train's start books
+  nothing now: its times are shown as new, none kept as the user's. The
+  simulated times were right (the player 2 to 4 minutes early).
+- simulation-ui: such a timetable gives new times, none kept;
+  `TSRE_UI_SHOTS=<folder>` saves the window after Simulate.
 
 ## Left
 

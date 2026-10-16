@@ -14,6 +14,7 @@
 #include <routeEditor/activity/ActivityEdit.h>
 #include <routeEditor/properties/EditFileNameDialog.h>
 #include <tsre/Game.h>
+#include <tsre/gui/GuiFunct.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/trains/ActLib.h>
@@ -199,7 +200,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     topLayout->addWidget(&trains);
     topLayout->addLayout(buttons);
 
-    // Simulate: the activity run as fast as possible, its times written.
+    // Simulate (on the left under the chosen train's information): the
+    // activity run as fast as possible, its times written.
     bSimulate = new QPushButton(
         //% "Simulate"
         qtTrId("route.editor.activity.timetable.window.button.simulate"));
@@ -209,6 +211,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     for(int seconds : {15, 30, 60, 0})
         roundTo.addItem(stepText(seconds), seconds);
     roundTo.setCurrentIndex(1);
+    roundTo.setStyleSheet("combobox-popup: 0;");
+    timesFor.setStyleSheet("combobox-popup: 0;");
     roundTo.setToolTip(
         //% "Departures rounded up to it, the train waiting for them; arrivals rounded down."
         qtTrId("route.editor.activity.timetable.window.round.tooltip"));
@@ -233,28 +237,24 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     timesFor.setObjectName("timetableTimesFor");
     fromScratch.setObjectName("timetableFromScratch");
     lastRun.setObjectName("timetableLastRun");
-    QHBoxLayout *simulate = new QHBoxLayout;
-    simulate->setContentsMargins(0, 0, 0, 0);
-    simulate->addWidget(bSimulate);
-    simulate->addSpacing(6);
-    simulate->addWidget(new QLabel(
+    QGridLayout *simulateOptions = new QGridLayout;
+    simulateOptions->setContentsMargins(0, 0, 0, 0);
+    simulateOptions->setSpacing(2);
+    simulateOptions->addWidget(new QLabel(
         //% "Round to:"
-        qtTrId("route.editor.activity.timetable.window.round")));
-    simulate->addWidget(&roundTo);
-    simulate->addSpacing(6);
-    simulate->addWidget(new QLabel(
+        qtTrId("route.editor.activity.timetable.window.round")), 0, 0);
+    simulateOptions->addWidget(&roundTo, 0, 1);
+    simulateOptions->addWidget(new QLabel(
         //% "Times for:"
-        qtTrId("route.editor.activity.timetable.window.times")));
-    simulate->addWidget(&timesFor);
-    simulate->addSpacing(6);
-    simulate->addWidget(&fromScratch);
-    simulate->addStretch(1);
-    topLayout->addLayout(simulate);
-    topLayout->addWidget(&lastRun);
+        qtTrId("route.editor.activity.timetable.window.times")), 1, 0);
+    simulateOptions->addWidget(&timesFor, 1, 1);
+    simulateOptions->addWidget(&fromScratch, 2, 0, 1, 2);
+    simulateOptions->setColumnStretch(1, 1);
 
     // Under the trains, side by side: on the left what is known of the
     // chosen train (where its times are saved, with Make Own Copy...; its
-    // start, engine and speeds), on the right its stops and times.
+    // start, engine and speeds) and Simulate, on the right its stops and
+    // times, with the window's height.
     QWidget *saved = new QWidget;
     QVBoxLayout *savedLayout = new QVBoxLayout(saved);
     savedLayout->setContentsMargins(0, 0, 0, 0);
@@ -263,8 +263,18 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     savedLayout->addWidget(&savedIn);
     savedLayout->addWidget(bCopy, 0, Qt::AlignLeft);
     savedLayout->addSpacing(6);
+    savedLayout->addWidget(GuiFunct::newTQLabel(
+        //% "Info:"
+        qtTrId("route.editor.activity.timetable.window.section.info")));
     QWidget *info = ActivityEditLock::Box(timetableProperties->info);
     savedLayout->addWidget(info);
+    savedLayout->addSpacing(6);
+    savedLayout->addWidget(GuiFunct::newTQLabel(
+        //% "Simulation:"
+        qtTrId("route.editor.activity.timetable.window.section.simulation")));
+    savedLayout->addWidget(bSimulate, 0, Qt::AlignLeft);
+    savedLayout->addLayout(simulateOptions);
+    savedLayout->addWidget(&lastRun);
     // The chosen train's events while a simulation runs, taking the room
     // left (a spacer does without a simulation).
     simulationBox = new QWidget;
@@ -298,6 +308,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     this->setLayout(v);
     resize(960, 600);
     bottom->setSizes({384, 576});
+    // The stops and times the most of the height.
+    splitter->setSizes({200, 400});
     
     // Undo replaces activity data: let go of it before, show it after.
     QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
