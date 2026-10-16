@@ -20,7 +20,29 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
+#include <tsre/sim/TimetableCalculation.h>
 #include <algorithm>
+
+namespace {
+
+enum Column { StationColumn, ArriveColumn, DepartColumn, ChangeColumn, PerformanceColumn, Columns };
+
+// A change of a time ("+1:30", "−0:30", "+1:02:00"), the shorter way round
+// midnight; nothing for none.
+QString change(int now, int before){
+    int d = ((now - before) % 86400 + 86400) % 86400;
+    if(d > 43200)
+        d -= 86400;
+    if(d == 0)
+        return QString();
+    const int a = std::abs(d);
+    const QString sign = d > 0 ? "+" : QString(QChar(0x2212));
+    if(a >= 3600)
+        return sign + QString("%1:%2:%3").arg(a / 3600).arg(a / 60 % 60, 2, 10, QChar('0')).arg(a % 60, 2, 10, QChar('0'));
+    return sign + QString("%1:%2").arg(a / 60).arg(a % 60, 2, 10, QChar('0'));
+}
+
+}
 
 ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWidget(parent) {
     setMinimumWidth(450);
@@ -44,6 +66,8 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
     list.append(qtTrId("activity.timetable.header.arrive"));
     //% "Depart:"
     list.append(qtTrId("activity.timetable.header.depart"));
+    //% "Change:"
+    list.append(qtTrId("activity.timetable.header.change"));
     //% "Performance:"
     list.append(qtTrId("activity.timetable.header.performance"));
     //lTimetable.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -53,24 +77,24 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
     //lTimetable.header()->resizeSection(0,200);    
     //lTimetable.header()->resizeSection(1,100);    
     //tableWidget->setRowCount(10);
-    lTimetable.setColumnCount(4);
+    lTimetable.setColumnCount(Columns);
     lTimetable.setHorizontalHeaderLabels(list);
+    lTimetable.horizontalHeaderItem(ChangeColumn)->setToolTip(
+        //% "What the last Simulate changed: arrival, and departure where it differs; new times; stops not reached."
+        qtTrId("route.editor.activity.timetable.properties.change.tooltip"));
     lTimetable.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     lTimetable.verticalHeader()->hide();
     lTimetable.verticalHeader()->setDefaultSectionSize(25);
-    lTimetable.horizontalHeader()->resizeSection(0,220);
-    lTimetable.horizontalHeader()->resizeSection(1,60);
-    lTimetable.horizontalHeader()->resizeSection(2,60);
-    lTimetable.horizontalHeader()->resizeSection(3,100);
+    lTimetable.horizontalHeader()->resizeSection(StationColumn,220);
+    lTimetable.horizontalHeader()->resizeSection(ArriveColumn,60);
+    lTimetable.horizontalHeader()->resizeSection(DepartColumn,60);
+    lTimetable.horizontalHeader()->resizeSection(ChangeColumn,90);
+    lTimetable.horizontalHeader()->resizeSection(PerformanceColumn,80);
     lTimetable.horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
     // The station's name takes the width the times leave.
     lTimetable.horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     vlist->addWidget(&lTimetable, row++, 0, 1, 2);
-    QPushButton *bCalculate = new QPushButton(
-        //% "Calculate"
-        qtTrId("route.editor.activity.timetable.properties.button.b.calculate"));
-    QObject::connect(bCalculate, SIGNAL(released()), this, SLOT(bCalculateSelected()));
-    vlist->addWidget(bCalculate, row++, 0, 1, 2);
+    lTimetable.setObjectName("timetableStops");
     vbox->addItem(vlist);
 
     info = new QWidget(this);
@@ -146,6 +170,12 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s, Ac
     // The stops' arrays may differ in length (a file missing a field, an
     // instance changed to another service): rows only for complete stops.
     const int stops = std::min({t->platformStartID.size(), t->arrivalTime.size(), t->departTime.size()});
+    // What the last Simulate wrote for the train, shown while the times are
+    // as it wrote them.
+    const bool player = activity != NULL && s == activity->playerServiceDefinition;
+    const Sim::TimetableTrain *run = activity != NULL ? Sim::TimetableCalculation::LastTrain(activity, player, s->name, s->time) : NULL;
+    if(run != NULL && !run->written)
+        run = NULL;
     for(int i = 0; i < stops; i++){
         TRitem *trit = NULL;
         if(tdb != NULL){
@@ -167,8 +197,58 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s, Ac
         time = QTime::fromMSecsSinceStartOfDay(t->departTime[i]*1000);
         newItem = new QTableWidgetItem(time.toString("HH:mm:ss"));
         lTimetable.setItem(i, 2, newItem);
+        QTableWidgetItem *depart = newItem;
+        QTableWidgetItem *changed = new QTableWidgetItem();
+        changed->setFlags(changed->flags() & ~Qt::ItemIsEditable);
+        lTimetable.setItem(i, ChangeColumn, changed);
         newItem = new QTableWidgetItem(i < s->efficiency.size() ? QString::number(s->efficiency[i]) : QString());
-        lTimetable.setItem(i, 3, newItem);
+        lTimetable.setItem(i, PerformanceColumn, newItem);
+        if(run == NULL || i >= int(run->stops.size()))
+            continue;
+        const Sim::TimetableStop &stop = run->stops[size_t(i)];
+        if(!stop.simulated){
+            changed->setText(QString(QChar(0x2013)));
+            changed->setToolTip(
+                //% "Its platform is not on the train's path: not simulated."
+                qtTrId("route.editor.activity.timetable.properties.not.simulated"));
+            continue;
+        }
+        if(!stop.reached){
+            changed->setText(
+                //% "not reached"
+                qtTrId("route.editor.activity.timetable.properties.not.reached"));
+            changed->setToolTip(run->state);
+            for(int column = 0; column < Columns; column++)
+                if(lTimetable.item(i, column) != NULL)
+                    lTimetable.item(i, column)->setForeground(QBrush(QColor(140, 140, 140)));
+            continue;
+        }
+        const bool departSet = stop.departure >= 0 && t->departTime[i] != stop.departure;
+        if(t->arrivalTime[i] == stop.arrival && !departSet){
+            if(stop.arrivalBefore < 0){
+                changed->setText(
+                    //% "new"
+                    qtTrId("route.editor.activity.timetable.properties.new"));
+            } else {
+                const QString arrival = change(stop.arrival, stop.arrivalBefore);
+                const QString departure = stop.departure >= 0 && stop.departureBefore >= 0
+                        ? change(stop.departure, stop.departureBefore) : arrival;
+                changed->setText(arrival == departure ? arrival
+                    : QString("%1 / %2").arg(arrival.isEmpty() ? QString("0:00") : arrival,
+                                             departure.isEmpty() ? QString("0:00") : departure));
+            }
+        }
+        // The user's departures in bold: kept by the run, or set since.
+        if(departSet || stop.kept){
+            QFont font = depart->font();
+            font.setBold(true);
+            depart->setFont(font);
+            depart->setToolTip(departSet ?
+                //% "Set by you: the next Simulate keeps it (the train leaves no earlier)."
+                qtTrId("route.editor.activity.timetable.properties.depart.set") :
+                //% "Your departure, kept: the train left no earlier."
+                qtTrId("route.editor.activity.timetable.properties.depart.kept"));
+        }
     }
     lTimetable.blockSignals(false);
     
@@ -191,38 +271,33 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s, Ac
             qtTrId("route.editor.activity.timetable.properties.text.none"));
 }
 
-void ActivityTimetableProperties::bCalculateSelected(){
-    if(service == NULL)
-        return;
-    
-    ActivityEdit edit(activity);
-    edit.alsoTrafficOf(activity);
-    service->calculateTimetable();
-
-    showTimetable(service, activity);
-    emit edited();
-}
-
 void ActivityTimetableProperties::lTimetableSelected(int row, int column){
     if(service == NULL)
         return;
     ActivityTimetable *t = service->trafficDefinition;
     
-    if(column < 1 || t == NULL)
+    if(column < ArriveColumn || column == ChangeColumn || t == NULL)
         return;
     ActivityEdit edit(activity);
     edit.alsoTrafficOf(activity);
     QTime time;
-    if(column == 1){
+    if(column == ArriveColumn){
         time = QTime::fromString(lTimetable.item(row, column)->text(), "HH:mm:ss");
         t->setArrival(row, time.msecsSinceStartOfDay()/1000);
     }
-    if(column == 2){
+    if(column == DepartColumn){
         time = QTime::fromString(lTimetable.item(row, column)->text(), "HH:mm:ss");
         t->setDepart(row, time.msecsSinceStartOfDay()/1000);
     }
-    if(column == 3){
+    if(column == PerformanceColumn){
         service->setTimetableEfficiency(row, lTimetable.item(row, column)->text().toFloat());
     }
     emit edited();
+    // Shown again once the edit has ended: a departure set since the last
+    // Simulate in bold, its change gone.
+    ActivityServiceDefinition *shown = service;
+    QTimer::singleShot(0, this, [this, shown]{
+        if(service == shown)
+            showTimetable(service, activity);
+    });
 }

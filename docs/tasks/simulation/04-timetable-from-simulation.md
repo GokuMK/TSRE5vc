@@ -1,6 +1,7 @@
 # Task 04 - Timetable from the Simulation
 
-Status: designed 2026-10-16; decisions taken and open at the end.
+Status: done (phases 1 to 4, 2026-10-16, branch `feature/simulation`).
+Decisions taken are at the end.
 
 Sources:
 - tasks 01 to 03 (the simulation core, signals, driving: every local
@@ -10,6 +11,78 @@ Sources:
   (trains, their timetables, shared patterns, own copies), `ActivityEdit`
   (undo);
 - Open Rails (a behavioural reference): `StationStop.CalculateDepartTime`.
+
+## Progress
+
+**Phase 1, core and input (done 2026-10-16).**
+- `SimulationInput::departureStep`: a station's departure (and a train's
+  first station's) rounded up to it, the train waiting for it
+  (`SimulationCore::departureAt`); `StopPlan::entry`, its timetable row.
+- `SimulationCore::settled()`: nothing more will happen (every train
+  finished, at its path's end, in a deadlock or held by a standing
+  consist); the route suite runs to it too.
+- `TimetableCalculation` (`src/tsre/sim`): `Prepare` makes the input on the
+  main thread (which departures hold, 2), `run` simulates to the end on any
+  thread, `write` writes the times and keeps the run for the session;
+  `Last`/`LastTrain` for the window. The trains' state texts moved to
+  `SimulationTexts` (the controller's and Simulate's).
+- Fixtures: rounding (30 s and 15 s steps, a booked departure off the
+  step).
+
+**Phase 2, Simulate in the Timetable window (done 2026-10-16).** Under
+the trains: Simulate, Round to (15 s, 30 s, 1 min, none), Times for (all
+trains, the player's train; the player's alone and disabled when the
+pattern is shared or missing, with why), From scratch. The run on a worker
+thread behind a progress dialog (Cancel); the write is one undo step;
+Simulate is off while the panel's simulation exists. The old Calculate
+(one train's estimate) and `ActivityServiceDefinition::calculateTimetable`
+removed.
+
+**Phase 3, the changes shown (done 2026-10-16).** The stops' table has a
+Change column: the arrival's change against the run before ("+1:30"),
+and the departure's where it differs ("0:00 / +2:00"); "new" for times a
+row had not; "not reached" (greyed, the train's state as tooltip); "–" for
+a stop whose platform is not on the path. Departures that are the user's
+in bold: kept by the run, or set since (shown once the edit ends). A line
+under the trains: the time simulated, the step, whose times were written
+(the pattern's other users when shared), how many trains changed and the
+largest change, each train that did not finish and why ("deadlocked:
+waiting for ..."). Polish texts with the English.
+
+**Phase 4, verified (done 2026-10-16).**
+- simulation-ui: Simulate writes both trains (the file's departures hold
+  them, 08:04:20 rounded to 08:04:30); again: nothing changed; From
+  scratch: departures after boarding; one undo brings the times back; the
+  file's departures hold again; a departure set in the table is bold,
+  kept, its change shown; a shared pattern writes the player's alone; a
+  deadlock names the trains that did not finish.
+- simulation-route, every local route: each activity simulated twice, the
+  second run changes nothing (JAPAN1 8 activities, 1117 stops; USA2 16;
+  EUROPE1 10, 417 stops); the times restored after. A saved calculated
+  timetable, loaded again in a new session, simulates to the same times.
+- Open Rails on a calculated timetable: JAPAN1's `itr_e1_s1_w1_t1` from
+  10:30 (a scratch copy of the route: links, a copy of the activity and of
+  its traffic pattern), its 566 stops simulated and saved by TSRE
+  (`TSRE_SIM_TIMETABLE_SAVE`, refused outside a copy marked
+  `TSRE_SCRATCH` or through a link), then run in Open Rails, which loads
+  the files TSRE wrote. Its trains never leave before the timetable; at
+  56 % of 322 stops they leave on it, at 30 within 30 s; arrivals against
+  ours median −6 s (−21 s on the untimed timetable before). The late
+  departures all begin at Yurigaoka and Chitose Funabashi, where Open Rails
+  stands its trains 182 s (their platforms' minimum waiting time, 183 s,
+  which it uses in an edge case of its boarding computation; elsewhere on
+  the same route it stands 18 to 55 s, by passengers), and carry on from
+  there.
+
+## Left
+
+- Open Rails' 183 s stands at Yurigaoka and Chitose Funabashi (above):
+  where and why its boarding computation takes the platform's minimum
+  waiting time, to stand the same there (the timetables we calculate are
+  late from there in Open Rails).
+- Times past midnight are written wrapped; a booked departure after
+  midnight is not unwrapped for a train still running from the day before
+  (task 01's limit).
 
 ## Why
 
@@ -42,8 +115,8 @@ its start to its end as fast as possible: all its trains, since they meet,
 follow and wait for each other. It runs on its own core and thread, apart
 from the panel's simulation (it is off while that one exists: activity
 editing is off then), and ends when every train has finished, or every one
-left stands deadlocked, at its path's end or waiting for track, or 24
-hours after the start.
+left stands deadlocked, at its path's end or held by a standing consist,
+or 24 hours after the start.
 
 Then, for the trains whose times it writes, every stop's arrival and
 departure as simulated, rounded to the step (3), past midnight wrapped; one
@@ -57,13 +130,18 @@ Nothing is stored beyond the activity's own files. A departure in the
 timetable is a "not before" (as Open Rails takes it), but a timetable the
 simulation wrote must not hold its own trains on the next run, else a train
 held up by a conflict the user has since removed would keep its slower
-times. So the last run's written times are kept in memory (they are needed
-for the comparison too):
-- a departure still as the last run wrote it is calculated again (it may
-  come earlier or later);
-- one the user changed since is kept: the train leaves no earlier;
-- without a run before in this session (after a reload) every booked
-  departure is kept; "From scratch" calculates them all again.
+times. So the session keeps, per timetable row, what the runs wrote (they are
+needed for the comparison too):
+- a departure a run calculated (one that held nothing) is calculated
+  again: it may come earlier or later;
+- any other is the user's (typed, the file's, or one undo brought back)
+  and is kept: the train leaves no earlier;
+- where a kept departure could not be met (the train came later, or it
+  was off the step) the run writes the later one and remembers the user's
+  under it: the next run keeps the user's while the row still shows that
+  later one;
+- after a reload every booked departure is the user's; "From scratch"
+  calculates them all again.
 
 AI trains whose times are not written (a shared pattern, 4) keep all
 their booked departures.
@@ -118,15 +196,7 @@ many trains changed, the largest change, trains stuck and where.
 - Shared traffic: Simulate available; only the player's timetable is
   written then, fitting the existing traffic; an own copy to rewrite the
   traffic's times.
-
-## Open decisions
-
-1. **The old "Calculate"** (one train alone, times only later): replaced by
-   Simulate? Recommended.
-2. **Stuck trains:** write the stops reached and mark the rest (above), or
-   write nothing until every train finishes? Recommended: write the
-   stops reached (one undo step brings the times back).
-3. **Own pattern:** write all trains by default, with "the player's train
-   alone" to choose? Recommended.
-4. **Rounding's direction:** departures up, arrivals down? Recommended
-   (the written stand covers the real one).
+- "Yes to all": the old Calculate replaced by Simulate; stuck trains: the
+  stops reached written, the rest marked; an own pattern: all trains by
+  default, the player's alone to choose; departures rounded up, arrivals
+  down.

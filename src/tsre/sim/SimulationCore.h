@@ -199,6 +199,10 @@ public:
     bool pose(int train, double routeDistance, TrackPose &out) const;
     // Every train has finished its path.
     bool finished() const;
+    // Nothing more will happen: every train has finished, stands at its
+    // path's end, is in a deadlock or waits for track a standing consist
+    // holds (those never move).
+    bool settled() const;
 
 private:
     std::shared_ptr<const SimulationInput> in;
@@ -380,6 +384,9 @@ private:
     // come down to `target` within `distance` at deceleration `d` (exact on
     // the braking curve).
     static double brakingSpeed(double v, double dt, double d, double distance, double target);
+    // When a train ready to leave a station at `ready` leaves: rounded up
+    // to the input's departure step.
+    double departureAt(double ready) const;
     // Physics driving: the acceleration at full power at speed `v` (the
     // engines' force, limited by their power, less the train's resistance
     // and the gradient under it), m/s².

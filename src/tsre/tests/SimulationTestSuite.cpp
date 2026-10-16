@@ -16,6 +16,7 @@
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/TimetableCalculation.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
@@ -31,6 +32,9 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityTimetable.h>
+#include <tsre/trains/ActivityTrains.h>
+#include <tsre/trains/Traffic.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/PathTrack.h>
@@ -453,6 +457,25 @@ Engine ( Test
         check(std::fabs(d1 - 200.0) < 0.01, QString("a booked departure later than boarding: leaves at %1 s").arg(d1));
         check(std::fabs(d2 - a2 - 20.0) < 0.01 && a2 > 210.0,
               QString("reached late (%1 s, booked 210 s): leaves after boarding at %2 s").arg(a2).arg(d2));
+    }
+    {
+        // Departures rounded up to the input's step (task 04): ready at 65 s
+        // (boarding from 45 s), it leaves at 90 s on a 30 s step, 75 s on a
+        // 15 s one; booked 200 s, at 210 s on both.
+        double first[2] = {0.0, 0.0}, booked[2] = {0.0, 0.0};
+        int k = 0;
+        for (int step : {30, 15}) {
+            auto rounded = std::make_shared<Sim::SimulationInput>(*inputWith(withStops, t0));
+            rounded->departureStep = step;
+            Sim::SimulationCore c(rounded);
+            const std::vector<Sim::TrainEvent> all = runToEnd(c, 0.1);
+            first[k] = when(all, Sim::TrainEvent::Departed, 0) - t0;
+            booked[k++] = when(all, Sim::TrainEvent::Departed, 1) - t0;
+        }
+        check(std::fabs(first[0] - 90.0) < 1e-6 && std::fabs(first[1] - 75.0) < 1e-6 && std::fabs(booked[0] - 210.0) < 1e-6
+                  && std::fabs(booked[1] - 210.0) < 1e-6,
+              QString("departures rounded up to the step: %1 and %2 s, booked %3 and %4 s")
+                  .arg(first[0]).arg(first[1]).arg(booked[0]).arg(booked[1]));
     }
     {
         // The same with 5 s steps: the same events at the same times.
@@ -1843,14 +1866,9 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 loose += object != nullptr && object->objectTypeId == ActivityObject::WAGONLIST ? 1 : 0;
             logEvent(input->startTime, -1, "activity", QJsonObject{{"name", activity->name}, {"loose", loose}});
         }
-        // To the end, or until every train left is in a deadlock.
-        const auto allStuck = [&core] {
-            for (const Sim::TrainState &state : core.trains())
-                if (state.status != Sim::TrainStatus::Finished && state.stoppedAt != Sim::StopKind::End && !state.deadlocked)
-                    return false;
-            return true;
-        };
-        for (int s = 0; s < 24 * 3600 && !core.finished() && !allStuck(); ++s) {
+        // To the end, or until nothing more will happen (every train left in
+        // a deadlock or held by a standing consist), as Simulate runs.
+        for (int s = 0; s < 24 * 3600 && !core.settled(); ++s) {
             core.step(1.0);
             // A wait ends when the train moves again.
             for (size_t t = 0; t < waitingSince.size() && eventLog != nullptr; ++t)
@@ -1973,6 +1991,81 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                              .arg(lateness.size()).arg(sum / lateness.size(), 0, 'f', 0)
                              .arg(lateness[lateness.size() / 2], 0, 'f', 0)
                              .arg(lateness.front(), 0, 'f', 0).arg(lateness.back(), 0, 'f', 0);
+    }
+
+    // Simulate (task 04) on every activity: its times written, then a second
+    // run changes none of them; the times restored after.
+    {
+        const QScopedValueRollback<Route *> current(Game::currentRoute, content);
+        Sim::TimetableCalculation::ForgetAll();
+        int ran = 0, converged = 0, rowsWritten = 0, notFinished = 0;
+        qint64 calculationMs = 0;
+        QStringList differing;
+        for (int id : content->activityId) {
+            Activity *activity = ActLib::Act.value(id);
+            if (activity == nullptr || activity->loaded != 1)
+                continue;
+            std::vector<std::pair<ActivityTimetable *, std::pair<QVector<int>, QVector<int>>>> before;
+            for (const ActivityTrains::Train &train : ActivityTrains::List(activity))
+                if (train.timetable != nullptr)
+                    before.push_back({train.timetable, {train.timetable->arrivalTime, train.timetable->departTime}});
+            const Sim::TimetableOptions options;
+            std::unique_ptr<Sim::TimetableCalculation> first = Sim::TimetableCalculation::Prepare(activity, options);
+            if (first == nullptr)
+                continue;
+            ++ran;
+            first->run();
+            const Sim::TimetableRun written = first->write(activity);
+            calculationMs += written.ms;
+            // TSRE_SIM_TIMETABLE_SAVE: the first run's times saved (the
+            // activity and its traffic pattern) for Open Rails, only in a
+            // scratch copy of a route (TSRE_SCRATCH in the game root, as
+            // scripts/orts-simulation-compare.sh makes) and never through
+            // a link to the real file.
+            if (qEnvironmentVariableIsSet("TSRE_SIM_TIMETABLE_SAVE")) {
+                Traffic *pattern = ActivityTrains::Pattern(activity);
+                const QString files[2] = {activity->path + "/" + activity->name,
+                                          pattern != nullptr ? pattern->path + "/" + pattern->name : QString()};
+                const bool scratch = QFileInfo::exists(Game::root + "/TSRE_SCRATCH");
+                const bool linked = QFileInfo(files[0]).isSymLink() || (!files[1].isEmpty() && QFileInfo(files[1]).isSymLink());
+                if (scratch && !linked) {
+                    activity->save();
+                    if (pattern != nullptr && !written.options.playerOnly)
+                        pattern->save();
+                    qInfo().noquote() << "[tests:simulation-route] timetables saved:" << files[0] << files[1];
+                } else {
+                    qWarning().noquote() << "[tests:simulation-route] not saved (not a scratch copy, or a linked file):"
+                                         << files[0] << files[1];
+                }
+            }
+            std::unique_ptr<Sim::TimetableCalculation> second = Sim::TimetableCalculation::Prepare(activity, options);
+            second->run();
+            const Sim::TimetableRun &again = second->write(activity);
+            bool same = written.trains.size() == again.trains.size();
+            for (size_t t = 0; t < written.trains.size(); ++t) {
+                const Sim::TimetableTrain &a = written.trains[t];
+                notFinished += a.finished ? 0 : 1;
+                for (size_t r = 0; r < a.stops.size(); ++r) {
+                    rowsWritten += a.written && a.stops[r].arrival >= 0 ? 1 : 0;
+                    if (same && t < again.trains.size() && r < again.trains[t].stops.size())
+                        same = a.stops[r].arrival == again.trains[t].stops[r].arrival
+                            && a.stops[r].departure == again.trains[t].stops[r].departure;
+                }
+            }
+            if (same)
+                ++converged;
+            else
+                differing << activity->name;
+            for (auto &[timetable, times] : before) {
+                timetable->arrivalTime = times.first;
+                timetable->departTime = times.second;
+            }
+        }
+        Sim::TimetableCalculation::ForgetAll();
+        check(ran > 0 && converged == ran,
+              QString("Simulate on %1 activities: %2 timetable stops written in %3 ms (%4 trains did not finish); "
+                      "simulated again, %5 unchanged%6").arg(ran).arg(rowsWritten).arg(calculationMs).arg(notFinished)
+                  .arg(converged).arg(differing.isEmpty() ? QString() : ", changed: " + differing.join(", ")));
     }
 
     // Measured (phase 4) on the activity with the most trains: its input

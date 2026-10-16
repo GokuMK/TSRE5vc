@@ -21,6 +21,8 @@
 #include <tsre/trains/Traffic.h>
 #include <routeEditor/activity/ActivityEditLock.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/sim/TimetableCalculation.h>
+#include <atomic>
 
 namespace {
 
@@ -28,6 +30,81 @@ enum Column { StartColumn, TrainColumn, StateColumn, PathColumn, ConsistColumn, 
 
 QString clock(int seconds) {
     return QTime::fromMSecsSinceStartOfDay((seconds % 86400 + 86400) % 86400 * 1000).toString("HH:mm:ss");
+}
+
+// A length of time: "4:30", "1:02:00".
+QString duration(int seconds) {
+    if(seconds >= 3600)
+        return QString("%1:%2:%3").arg(seconds / 3600).arg(seconds / 60 % 60, 2, 10, QChar('0'))
+            .arg(seconds % 60, 2, 10, QChar('0'));
+    return QString("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QChar('0'));
+}
+
+QString stepText(int seconds) {
+    if(seconds <= 0)
+        //% "none"
+        return qtTrId("route.editor.activity.timetable.window.round.none");
+    if(seconds % 60 == 0)
+        //% "%1 min"
+        return qtTrId("route.editor.activity.timetable.window.round.minutes").arg(seconds / 60);
+    //% "%1 s"
+    return qtTrId("route.editor.activity.timetable.window.round.seconds").arg(seconds);
+}
+
+// What a Simulate did: the time simulated, whose times it wrote and what
+// changed, the trains that did not finish.
+QString summary(const Sim::TimetableRun &run) {
+    QStringList lines;
+    const QString step = run.options.step > 0 ?
+        //% "departures rounded up to %1"
+        qtTrId("route.editor.activity.timetable.window.summary.step").arg(stepText(run.options.step)) :
+        //% "departures not rounded"
+        qtTrId("route.editor.activity.timetable.window.summary.no.step");
+    //% "Simulated from %1 to %2 in %3 s, %4."
+    lines << qtTrId("route.editor.activity.timetable.window.summary.run").arg(clock(int(run.from)), clock(int(run.to)))
+        .arg(run.ms / 1000.0, 0, 'f', 1).arg(step);
+    int written = 0, changed = 0, largest = 0;
+    for(const Sim::TimetableTrain &train : run.trains){
+        bool any = false;
+        for(const Sim::TimetableStop &stop : train.stops)
+            any = any || (stop.reached && stop.arrival >= 0);
+        if(!train.written || !any)
+            continue;
+        ++written;
+        if(train.changed() > 0)
+            ++changed;
+        largest = std::max(largest, train.largestChange());
+    }
+    QString who;
+    if(written == 0)
+        //% "No times written."
+        who = qtTrId("route.editor.activity.timetable.window.summary.none");
+    else if(run.options.playerOnly && !run.sharedWith.isEmpty())
+        //% "The player's times written (the traffic pattern is shared with %1)."
+        who = qtTrId("route.editor.activity.timetable.window.summary.player.shared").arg(run.sharedWith.join(", "));
+    else if(run.options.playerOnly)
+        //% "The player's times written."
+        who = qtTrId("route.editor.activity.timetable.window.summary.player");
+    else
+        //% "Times written for %1 trains."
+        who = qtTrId("route.editor.activity.timetable.window.summary.all").arg(written);
+    if(written == 0)
+        ;
+    else if(changed == 0)
+        //% "Nothing changed."
+        who += " " + qtTrId("route.editor.activity.timetable.window.summary.unchanged");
+    else if(largest > 0)
+        //% "%1 changed, the largest change %2."
+        who += " " + qtTrId("route.editor.activity.timetable.window.summary.changed").arg(changed).arg(duration(largest));
+    else
+        //% "%1 with new times."
+        who += " " + qtTrId("route.editor.activity.timetable.window.summary.new").arg(changed);
+    lines << who;
+    for(const Sim::TimetableTrain &train : run.trains)
+        if(!train.finished)
+            //% "%1 did not finish: %2."
+            lines << qtTrId("route.editor.activity.timetable.window.summary.stuck").arg(train.name, train.state);
+    return lines.join("\n");
 }
 
 }
@@ -122,6 +199,59 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     topLayout->addWidget(&trains);
     topLayout->addLayout(buttons);
 
+    // Simulate: the activity run as fast as possible, its times written.
+    bSimulate = new QPushButton(
+        //% "Simulate"
+        qtTrId("route.editor.activity.timetable.window.button.simulate"));
+    bSimulate->setToolTip(
+        //% "Runs the activity as fast as possible and writes the times it gives into the timetables. Departures you set since the last Simulate are kept: the train leaves no earlier."
+        qtTrId("route.editor.activity.timetable.window.button.simulate.tooltip"));
+    for(int seconds : {15, 30, 60, 0})
+        roundTo.addItem(stepText(seconds), seconds);
+    roundTo.setCurrentIndex(1);
+    roundTo.setToolTip(
+        //% "Departures rounded up to it, the train waiting for them; arrivals rounded down."
+        qtTrId("route.editor.activity.timetable.window.round.tooltip"));
+    timesFor.addItem(
+        //% "All trains"
+        qtTrId("route.editor.activity.timetable.window.times.all"));
+    timesFor.addItem(
+        //% "The player's train"
+        qtTrId("route.editor.activity.timetable.window.times.player"));
+    fromScratch.setText(
+        //% "From scratch"
+        qtTrId("route.editor.activity.timetable.window.from.scratch"));
+    fromScratch.setToolTip(
+        //% "Every departure calculated again: the ones you set are not kept."
+        qtTrId("route.editor.activity.timetable.window.from.scratch.tooltip"));
+    lastRun.setWordWrap(true);
+    lastRun.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    lastRun.setContentsMargins(3, 2, 3, 2);
+    lastRun.hide();
+    bSimulate->setObjectName("timetableSimulate");
+    roundTo.setObjectName("timetableRoundTo");
+    timesFor.setObjectName("timetableTimesFor");
+    fromScratch.setObjectName("timetableFromScratch");
+    lastRun.setObjectName("timetableLastRun");
+    QHBoxLayout *simulate = new QHBoxLayout;
+    simulate->setContentsMargins(0, 0, 0, 0);
+    simulate->addWidget(bSimulate);
+    simulate->addSpacing(6);
+    simulate->addWidget(new QLabel(
+        //% "Round to:"
+        qtTrId("route.editor.activity.timetable.window.round")));
+    simulate->addWidget(&roundTo);
+    simulate->addSpacing(6);
+    simulate->addWidget(new QLabel(
+        //% "Times for:"
+        qtTrId("route.editor.activity.timetable.window.times")));
+    simulate->addWidget(&timesFor);
+    simulate->addSpacing(6);
+    simulate->addWidget(&fromScratch);
+    simulate->addStretch(1);
+    topLayout->addLayout(simulate);
+    topLayout->addWidget(&lastRun);
+
     // Under the trains, side by side: on the left what is known of the
     // chosen train (where its times are saved, with Make Own Copy...; its
     // start, engine and speeds), on the right its stops and times.
@@ -183,6 +313,11 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     QObject::connect(timetableProperties, &ActivityTimetableProperties::edited,
                      this, &ActivityTimetableWindow::timetableEdited);
     QObject::connect(bFollow, &QPushButton::toggled, this, &ActivityTimetableWindow::followToggled);
+    QObject::connect(bSimulate, &QPushButton::released, this, &ActivityTimetableWindow::simulateTimetables);
+    // The user's choice, kept while a shared pattern forces the player's.
+    QObject::connect(&timesFor, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
+        timesFor.setProperty("chosen", index);
+    });
     // While a simulation exists its times show but are not edited.
     ActivityEditLock::Follow(this, {info, stops});
     QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged,
@@ -302,6 +437,7 @@ void ActivityTimetableWindow::trainChosen(){
 // The chosen train: where its times are saved, what can be done with it,
 // its timetable; map and 3D show it.
 void ActivityTimetableWindow::showChosen(){
+    showSimulate();
     const ActivityTrains::Train *train = chosen();
     if(activity != NULL)
         activity->shownAITrain = train != NULL && train->kind == ActivityTrains::AI ? train->index : -1;
@@ -528,6 +664,81 @@ void ActivityTimetableWindow::showAllToggled(bool on){
 // (the timetable itself stays as it is being edited).
 void ActivityTimetableWindow::timetableEdited(){
     fillTrains();
+}
+
+void ActivityTimetableWindow::showSimulate(){
+    const bool usable = activity != NULL && !ActivityNotifier::editingLocked();
+    const QStringList shared = activity != NULL ? ActivityTrains::OtherUsers(activity) : QStringList();
+    Traffic *pattern = activity != NULL ? ActivityTrains::Pattern(activity) : NULL;
+    const bool playerOnly = !shared.isEmpty() || pattern == NULL;
+    bSimulate->setEnabled(usable && !list.isEmpty());
+    roundTo.setEnabled(usable);
+    fromScratch.setEnabled(usable);
+    timesFor.setEnabled(usable && !playerOnly);
+    {
+        QSignalBlocker blocker(timesFor);
+        timesFor.setCurrentIndex(playerOnly ? 1 : timesFor.property("chosen").toInt());
+    }
+    if(!shared.isEmpty())
+        timesFor.setToolTip(
+            //% "The traffic pattern %1 is shared with: %2. Only the player's times are written; Make Own Copy... to write the AI trains' too."
+            qtTrId("route.editor.activity.timetable.window.times.shared").arg(pattern->nameId, shared.join(", ")));
+    else if(pattern == NULL)
+        timesFor.setToolTip(
+            //% "The activity has no traffic pattern: the player's times alone."
+            qtTrId("route.editor.activity.timetable.window.times.no.pattern"));
+    else
+        timesFor.setToolTip(
+            //% "Whose times Simulate writes: the player's in the activity, the AI trains' in the traffic pattern."
+            qtTrId("route.editor.activity.timetable.window.times.tooltip"));
+    const Sim::TimetableRun *run = Sim::TimetableCalculation::Last(activity);
+    lastRun.setText(run != NULL ? summary(*run) : QString());
+    lastRun.setToolTip(run != NULL ? run->warnings.join("\n") : QString());
+    lastRun.setVisible(run != NULL);
+}
+
+void ActivityTimetableWindow::simulateTimetables(){
+    if(activity == NULL || ActivityNotifier::editingLocked())
+        return;
+    Sim::TimetableOptions options;
+    options.step = roundTo.currentData().toInt();
+    options.playerOnly = timesFor.currentIndex() == 1;
+    options.fromScratch = fromScratch.isChecked();
+    QString error;
+    std::unique_ptr<Sim::TimetableCalculation> calculation = Sim::TimetableCalculation::Prepare(activity, options, &error);
+    if(calculation == nullptr){
+        QMessageBox::warning(this, windowTitle(), error);
+        return;
+    }
+    // The run on its own thread, everything else waiting (Cancel offered).
+    std::atomic<bool> cancel(false);
+    QProgressDialog progress(
+        //% "Simulating the activity..."
+        qtTrId("route.editor.activity.timetable.window.simulating"),
+        //% "Cancel"
+        qtTrId("route.editor.activity.timetable.window.simulating.cancel"), 0, 0, this);
+    progress.setWindowModality(Qt::ApplicationModal);
+    progress.setMinimumDuration(400);
+    QObject::connect(&progress, &QProgressDialog::canceled, this, [&cancel]{ cancel = true; });
+    Sim::TimetableCalculation *running = calculation.get();
+    QThread *worker = QThread::create([running, &cancel]{ running->run(&cancel); });
+    QEventLoop wait;
+    QObject::connect(worker, &QThread::finished, &wait, &QEventLoop::quit);
+    worker->start();
+    wait.exec();
+    worker->wait();
+    delete worker;
+    progress.reset();
+    if(calculation->result().cancelled)
+        return;
+    {
+        ActivityEdit edit(activity);
+        if(!calculation->result().options.playerOnly)
+            edit.alsoTrafficOf(activity);
+        calculation->write(activity);
+    }
+    fillTrains();
+    showChosen();
 }
 
 // Other windows change what the rows show: shown again when this one is

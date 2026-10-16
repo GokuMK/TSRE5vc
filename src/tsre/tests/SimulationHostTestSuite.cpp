@@ -1,18 +1,22 @@
 #include <tsre/tests/SimulationTestSuite.h>
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDateTimeEdit>
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QLabel>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScopedValueRollback>
+#include <QTableWidget>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTime>
 #include <QTreeWidget>
 #include <cmath>
 #include <functional>
@@ -33,10 +37,13 @@
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/TimetableCalculation.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/ActivityTimetable.h>
+#include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/PathTrack.h>
@@ -618,6 +625,115 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(Undo::UndoLast() && activity->header->name == "Simulated", "after Stop the activity's step undoes");
     Undo::Clear();
 
+    // Simulate (task 04): the activity run as fast as possible, its times
+    // written. The file books the player's S to leave Middle at 08:02:40, the
+    // AI's S2 Middle 2 at 08:04:20: departures that hold them, rounded up
+    // to 30 s.
+    QPushButton *simulate = timetable.findChild<QPushButton *>("timetableSimulate");
+    QComboBox *roundTo = timetable.findChild<QComboBox *>("timetableRoundTo");
+    QComboBox *timesFor = timetable.findChild<QComboBox *>("timetableTimesFor");
+    QCheckBox *fromScratch = timetable.findChild<QCheckBox *>("timetableFromScratch");
+    QLabel *lastRun = timetable.findChild<QLabel *>("timetableLastRun");
+    QTableWidget *stopsTable = timetable.findChild<QTableWidget *>("timetableStops");
+    bool oldCalculate = false;
+    for (QPushButton *button : timetable.findChildren<QPushButton *>())
+        oldCalculate = oldCalculate || button->text() == "Calculate"
+                || button->text() == "route.editor.activity.timetable.properties.button.b.calculate";
+    check(simulate && roundTo && timesFor && fromScratch && lastRun && stopsTable && !oldCalculate,
+          "Simulate's controls in the Timetable window; the old Calculate gone");
+    if (simulate && roundTo && timesFor && fromScratch && lastRun && stopsTable) {
+        Sim::TimetableCalculation::ForgetAll();
+        timetable.showTimetable(activity);
+        const auto playerTimes = [&]() -> ActivityTimetable * {
+            return activity->playerServiceDefinition != nullptr ? activity->playerServiceDefinition->trafficDefinition
+                                                                : nullptr;
+        };
+        const auto aiTimes = [&]() -> ActivityTimetable * {
+            Traffic *pattern = ActivityTrains::Pattern(activity);
+            return pattern != nullptr ? pattern->getInstance("S2", 28860) : nullptr;
+        };
+        const auto times = [&] {
+            ActivityTimetable *p = playerTimes(), *a = aiTimes();
+            return p != nullptr && a != nullptr && !p->arrivalTime.isEmpty() && !a->arrivalTime.isEmpty()
+                ? std::vector<int>{p->arrivalTime[0], p->departTime[0], a->arrivalTime[0], a->departTime[0]}
+                : std::vector<int>{};
+        };
+        const auto text = [](const std::vector<int> &t) {
+            QStringList parts;
+            for (int v : t)
+                parts << QString::number(v);
+            return parts.join(" ");
+        };
+        const auto onStep = [](int t) { return t % 30 == 0; };
+        check(simulate->isEnabled() && timesFor->isEnabled() && timesFor->currentIndex() == 0
+                  && roundTo->currentData().toInt() == 30 && times().size() == 4,
+              "Simulate on offer: all trains, rounded to 30 s");
+        simulate->click();
+        const std::vector<int> first = times();
+        check(first.size() == 4 && onStep(first[0]) && first[0] > 28800 && first[0] < 28980 && first[1] == 28980
+                  && onStep(first[2]) && first[2] > 28860 && first[3] == 29070 && lastRun->isVisible(),
+              QString("both trains' times written: the file's departures hold them, rounded up (%1)").arg(text(first)));
+        simulate->click();
+        check(times() == first && lastRun->text().contains(qtTrId("route.editor.activity.timetable.window.summary.unchanged")),
+              QString("simulated again: nothing changed (%1)").arg(lastRun->text()));
+        fromScratch->setChecked(true);
+        simulate->click();
+        fromScratch->setChecked(false);
+        const std::vector<int> scratch = times();
+        check(scratch.size() == 4 && scratch[0] == first[0] && onStep(scratch[1]) && scratch[1] < 28980
+                  && scratch[1] >= scratch[0] + 20 && onStep(scratch[3]) && scratch[3] < 29070 && scratch[3] >= scratch[2] + 20,
+              QString("From scratch: every departure calculated again, after boarding (%1)").arg(text(scratch)));
+        check(Undo::UndoLast() && times() == first, "one undo brings the times before back");
+        simulate->click();
+        check(times() == first, "the file's departures, back, hold the trains again");
+
+        // The user sets the player's departure two minutes later in the
+        // stops' table: kept on the next Simulate, the change shown.
+        for (int i = 0; i < rows->topLevelItemCount(); ++i)
+            if (rows->topLevelItem(i)->text(1).contains("(player)")
+                    || rows->topLevelItem(i)->text(1).contains(activity->playerServiceDefinition->name + " ")) {
+                rows->setCurrentItem(rows->topLevelItem(i));
+                rows->topLevelItem(i)->setSelected(true);
+            }
+        QApplication::processEvents();
+        const QString later = QTime::fromMSecsSinceStartOfDay((first[1] + 120) * 1000).toString("HH:mm:ss");
+        if (stopsTable->rowCount() > 0 && stopsTable->item(0, 2) != nullptr)
+            stopsTable->item(0, 2)->setText(later);
+        QApplication::processEvents();
+        check(playerTimes() != nullptr && playerTimes()->departTime[0] == first[1] + 120 && stopsTable->item(0, 2) != nullptr
+                  && stopsTable->item(0, 2)->font().bold(),
+              QString("a departure set in the table: %1, shown in bold").arg(later));
+        simulate->click();
+        QApplication::processEvents();
+        const std::vector<int> kept = times();
+        check(kept.size() == 4 && kept[1] == first[1] + 120 && kept[0] == first[0] && kept[3] == first[3]
+                  && stopsTable->item(0, 3) != nullptr && stopsTable->item(0, 3)->text() == "0:00 / +2:00"
+                  && stopsTable->item(0, 2)->font().bold(),
+              QString("Simulate keeps it, the change shown: \"%1\"").arg(stopsTable->item(0, 3) != nullptr ? stopsTable->item(0, 3)->text() : QString()));
+
+        // Another activity naming the same traffic pattern: the player's
+        // times alone are written.
+        QString other = QString(activityText).replace("\"Simulated\"", "\"Other\"");
+        const int otherId = writeSimis(routePath + "/ACTIVITIES/Other.act", other)
+                ? ActLib::AddAct(routePath + "/ACTIVITIES", "Other.act") : -1;
+        timetable.showTimetable(activity);
+        const bool shared = !ActivityTrains::OtherUsers(activity).isEmpty();
+        check(shared && !timesFor->isEnabled() && timesFor->currentIndex() == 1,
+              "a traffic pattern shared with another activity: the player's times alone");
+        if (ActivityTimetable *p = playerTimes())
+            p->setDepart(0, first[1] + 300);
+        simulate->click();
+        const std::vector<int> alone = times();
+        check(alone.size() == 4 && alone[1] == first[1] + 300 && alone[2] == kept[2] && alone[3] == kept[3]
+                  && lastRun->text().contains("Other"),
+              QString("Simulate writes the player's times, the AI train's stay (%1)").arg(lastRun->text()));
+        if (otherId >= 0)
+            ActLib::Act[otherId] = nullptr;
+        timetable.showTimetable(activity);
+        check(timesFor->isEnabled() && timesFor->currentIndex() == 0, "the pattern its own again: all trains, as chosen");
+        Undo::Clear();
+    }
+
     // A deadlock: the two trains either side of a junction, each for the
     // other's side, both on the track from 08:00. The user is told which
     // trains; the run goes on.
@@ -651,6 +767,15 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(tools.findChild<QMessageBox *>() == nullptr, "Stop closes the message");
     clock->setSpeed(1.0);
     Undo::Clear();
+    if (simulate != nullptr && lastRun != nullptr) {
+        // Simulate where the trains end in a deadlock: it says which did not
+        // finish and why.
+        simulate->click();
+        QApplication::processEvents();
+        check(lastRun->text().count('\n') >= 3 && lastRun->text().contains("S2"),
+              QString("Simulate in a deadlock: the trains that did not finish named (%1)").arg(lastRun->text()));
+        Undo::Clear();
+    }
 
     for (QWidget *window : QList<QWidget *>{&tools, &events, &timetable})
         window->hide();

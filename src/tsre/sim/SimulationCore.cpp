@@ -182,6 +182,23 @@ bool SimulationCore::finished() const {
     return true;
 }
 
+bool SimulationCore::settled() const {
+    for (const TrainState &state : states) {
+        const bool held = state.blockedBy == StandingConsist
+                && (state.status == TrainStatus::Waiting || state.status == TrainStatus::Stopped);
+        if (state.status != TrainStatus::Finished && state.stoppedAt != StopKind::End && !state.deadlocked && !held)
+            return false;
+    }
+    return true;
+}
+
+double SimulationCore::departureAt(double ready) const {
+    if (in->departureStep <= 0)
+        return ready;
+    const double step = double(in->departureStep);
+    return std::ceil(ready / step - 1e-9) * step;
+}
+
 void SimulationCore::start(int train, double from, double to) {
     const TrainPlan &plan = in->trains[size_t(train)];
     TrainState &s = states[size_t(train)];
@@ -207,6 +224,7 @@ void SimulationCore::start(int train, double from, double to) {
         s.until = t + stop.boarding;
         if (stop.departure >= 0)
             s.until = std::max(s.until, double(stop.departure));
+        s.until = departureAt(s.until);
         s.nextStop = 1;
         record(t, train, TrainEvent::Arrived, 0);
     }
@@ -500,6 +518,7 @@ void SimulationCore::advance(int train, double from, double to) {
             s.until = t + stop.boarding;
             if (stop.departure >= 0)
                 s.until = std::max(s.until, double(stop.departure));
+            s.until = departureAt(s.until);
             s.nextStop = index + 1;
             record(t, train, TrainEvent::Arrived, index);
             break;

@@ -56,7 +56,6 @@ public:
     void reloadTimetable();
     void reloadDefinition();
     bool isModified();
-    void calculateTimetable();
     void setTimetableEfficiency(int id, float val);
     void updateSim(float *playerT, float deltaTime);
     void pushRenderItems(RenderQueue &queue, float* playerT, int renderMode);

@@ -59,12 +59,14 @@ model as the first operating policy, and threading.
   Rails' where they differed by up to 20 minutes, but for trains in Open
   Rails' slower pre-run). The player's own driving is a later, separate
   system.
-- [ ] `04-timetable-from-simulation.md`: a Simulate button in the
+- [x] `04-timetable-from-simulation.md`: a Simulate button in the
   Timetable window runs the activity as fast as possible and writes the
   timetables (departures rounded to 30 s by default); the user sets later
   departures and simulates again, the window showing what changed; with a
-  shared traffic pattern only the player's times are written. Designed
-  2026-10-16.
+  shared traffic pattern only the player's times are written. Designed and
+  done 2026-10-16 (phases 1 to 4; Open Rails runs a calculated timetable,
+  its trains leaving on time but where it stands them its platforms'
+  minimum waiting time).
 - [ ] 05: `sigscr.dat` read and run in place of the built-in aspect rule
   (the rule is a stand-in: each route's scripts define its own aspect
   sequences, plates and features).

@@ -31,10 +31,9 @@ public:
     
 public slots:
     void lTimetableSelected(int row, int column);
-    void bCalculateSelected();
     
 signals:
-    // Times or efficiencies changed (a cell, Calculate).
+    // Times or efficiencies changed (a cell).
     void edited();
     
 private:

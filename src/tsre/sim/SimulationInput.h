@@ -58,6 +58,8 @@ struct StopPlan {
     // The efficiency on the run to this stop.
     float efficiency = 1.0f;
     QString platform;
+    // Its row in the train's timetable.
+    int entry = -1;
 };
 
 // A speed limit along a route part (route distances), m/s.
@@ -151,6 +153,10 @@ struct SimulationInput {
     // The speed in the activity's restricted speed zones (the route's
     // TempRestrictedSpeed; Open Rails takes 25 km/h without one).
     float restrictedSpeed = 25.0f / 3.6f;
+    // Departures from stations rounded up to this many seconds, the train
+    // waiting for its rounded departure (a timetable's calculation, task
+    // 04); 0 none.
+    int departureStep = 0;
     unsigned int runId = 0;
     std::shared_ptr<const TrackGeometry> geometry;
     std::shared_ptr<const TrackNetwork> network;
