@@ -3314,14 +3314,17 @@ void RouteEditorGLWidget::followTrain() {
         stopRiding();
         followedTrain = train;
         followedView = RideView::Cab;
-        if (train >= 0 && currentViewMode == ViewMode::Map)
-            viewTrain(train);
+        followedKnown = false;
     }
     int tile[2];
     float place[3], heading[3];
     if (train < 0 || !simulation->trainPlace(train, tile, place, heading))
         return;
-    if (currentViewMode == ViewMode::Map) {
+    if (currentViewMode == ViewMode::Map && !followedKnown) {
+        // Where it is first known (it may come on the track later): centred
+        // on it, then moved as it moves.
+        viewTrain(train);
+    } else if (currentViewMode == ViewMode::Map) {
         const float *at = camera->getPos();
         camera->setPos(at[0] + place[0] - followedPlace[0] + 2048.0f * (tile[0] - followedTile[0]),
                        at[1] + place[1] - followedPlace[1],
@@ -3335,6 +3338,7 @@ void RouteEditorGLWidget::followTrain() {
     followedTile[0] = tile[0];
     followedTile[1] = tile[1];
     std::copy(place, place + 3, followedPlace);
+    followedKnown = true;
 }
 
 void RouteEditorGLWidget::stopRiding() {

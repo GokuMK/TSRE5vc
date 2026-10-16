@@ -215,10 +215,12 @@ struct Options {
     // "all", an AI train's place in the activity's traffic (the one
     // chosen), or both ("all,3").
     QString aiTrains;
-    // A simulation of the activity run to this time of day ("08:10:00")
-    // before the views (task simulation 01), and the train outlined.
+    // A simulation of the activity run to this time of day ("08:10:00"),
+    // or "start" (started, paused at its start, as Start does) before the
+    // views (task simulation 01); the train outlined, and the one followed.
     QString simulateTo;
     int simulationChosen = -1;
+    int simulationFollowed = -1;
     QVector<ViewSpec> views;
 };
 
@@ -311,6 +313,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.aiTrains = root.value("aiTrains").toVariant().toString();
     options.simulateTo = root.value("simulateTo").toString();
     options.simulationChosen = root.value("simulationChosen").toInt(-1);
+    options.simulationFollowed = root.value("simulationFollowed").toInt(-1);
 
     const QJsonArray objects = root.value("objects").toArray();
     for (const QJsonValue &value : objects) {
@@ -619,7 +622,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         const QTime time = QTime::fromString(options.simulateTo, "HH:mm:ss");
         QString error;
         Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
-        if (!time.isValid() || !simulation->runTo(activity, time.msecsSinceStartOfDay() / 1000, &error)) {
+        const bool started = options.simulateTo == "start" ? simulation->start(activity, &error)
+                : time.isValid() && simulation->runTo(activity, time.msecsSinceStartOfDay() / 1000, &error);
+        if (!started) {
             qWarning() << CaptureLog << "no simulation:" << error;
         } else {
             QElapsedTimer waited;
@@ -633,6 +638,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 QThread::msleep(2);
             }
             simulation->choose(options.simulationChosen);
+            simulation->follow(options.simulationFollowed);
             qInfo().noquote() << CaptureLog << "simulated to" << simulation->frame()->time << "in" << waited.elapsed()
                               << "ms, input" << simulation->inputMilliseconds() << "ms:" << simulation->statusText();
             // The trains by number, as the views name them.

@@ -505,6 +505,7 @@ private:
     // was last frame for the map (tile and place in the camera's space).
     int followedTrain = -1;
     RideView followedView = RideView::Cab;
+    bool followedKnown = false;
     int followedTile[2] = {0, 0};
     float followedPlace[3] = {0, 0, 0};
     void followTrain();
