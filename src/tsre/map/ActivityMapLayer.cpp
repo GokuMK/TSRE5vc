@@ -150,7 +150,7 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     // A simulation draws the activity's trains where they are (simulated
     // vehicles, built each frame).
     const bool atStart = !Sim::SimulationController::instance()->shows(current);
-    if (player != nullptr) {
+    if (player != nullptr && shows(MapActivityKind::PlayerPath)) {
         ::Path *playerPath = player->getPathPointer();
         if (playerPath != nullptr
                 && std::find(shownPaths.begin(), shownPaths.end(), playerPath) == shownPaths.end())
@@ -171,12 +171,17 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
                     selected.append(own);
             }
         };
-        collect(current->activityObjects, consists);
-        collect(current->restrictedSpeedZone, zones);
-        collect(current->activityFailedSignal, failedSignals);
-        for (ActivityEvent *event : current->event)
-            event->getMapFeatures(events, tileX, tileZ);
-        if (player != nullptr && atStart) {
+        if (shows(MapActivityKind::LooseConsists))
+            collect(current->activityObjects, consists);
+        if (shows(MapActivityKind::SpeedZones))
+            collect(current->restrictedSpeedZone, zones);
+        if (shows(MapActivityKind::FailedSignals))
+            collect(current->activityFailedSignal, failedSignals);
+        if (shows(MapActivityKind::Events))
+            for (ActivityEvent *event : current->event)
+                event->getMapFeatures(events, tileX, tileZ);
+        const bool trains = shows(MapActivityKind::Trains);
+        if (player != nullptr && atStart && trains) {
             MapFeatures own;
             player->getMapFeatures(own, tileX, tileZ);
             consists.append(own);
@@ -188,9 +193,9 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
         for (int i : current->shownAITrains()) {
             Service *service = current->aiTrainService(i);
             ::Path *trainPath = service->getPathPointer();
-            if (trainPath != nullptr)
+            if (trainPath != nullptr && shows(MapActivityKind::AIPaths))
                 trainPath->getMapFeatures(i == current->shownAITrain ? chosenPath : aiPaths, tileX, tileZ);
-            if (!atStart)
+            if (!atStart || !trains)
                 continue;
             MapFeatures own;
             service->getMapFeatures(own, tileX, tileZ);
@@ -311,16 +316,18 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
 
 void ActivityMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
                                        const MapPalette &palette, Route *route, bool activity,
-                                       bool paths) {
+                                       bool paths, unsigned kinds) {
     if (!activity && !paths)
         return;
+    shownKinds = kinds;
     std::vector<const void *> current = sources(route, activity, paths);
     const float scale = view.metresPerPixel / std::max(builtMetresPerPixel, 1e-6f);
     if (!valid || view.tileX != builtTileX || view.tileZ != builtTileZ || scale > RebuildScale
             || scale < 1.0f / RebuildScale || palette.name != builtPalette
-            || current != builtSources) {
+            || current != builtSources || kinds != builtKinds) {
         build(view, palette, route, activity, paths);
         builtSources = std::move(current);
+        builtKinds = kinds;
     }
     aiBand->pushRenderItem(queue);
     chosenBand->pushRenderItem(queue);
@@ -392,6 +399,14 @@ void ActivityMapLayer::pushSimulated(RenderQueue &queue, const MapView &view, co
         upload(*simulatedFills[0], fillVertices[0], colour(palette, Vehicles));
         upload(*simulatedFills[1], fillVertices[1], colour(palette, Engines));
     }
+    if (shows(MapActivityKind::Trains)) {
+        simulatedHalos->pushRenderItem(queue);
+        simulatedBorders->pushRenderItem(queue);
+        for (auto &fill : simulatedFills)
+            fill->pushRenderItem(queue);
+    }
+    if (!shows(MapActivityKind::SimulatedTrack))
+        return;
     if (frame->sectionUses.get() != trackUses || frame->aspects.get() != trackAspects || view.tileX != trackTileX
             || view.tileZ != trackTileZ || view.metresPerPixel != trackMetresPerPixel || palette.name != trackPalette) {
         trackUses = frame->sectionUses.get();
@@ -404,10 +419,6 @@ void ActivityMapLayer::pushSimulated(RenderQueue &queue, const MapView &view, co
     }
     for (auto &track : simulatedTrack)
         track->pushRenderItem(queue);
-    simulatedHalos->pushRenderItem(queue);
-    simulatedBorders->pushRenderItem(queue);
-    for (auto &fill : simulatedFills)
-        fill->pushRenderItem(queue);
     aspectBorders->pushRenderItem(queue);
     for (auto &fill : aspectFills)
         fill->pushRenderItem(queue);
@@ -518,7 +529,8 @@ void ActivityMapLayer::buildSimulatedTrack(const MapView &view, const MapPalette
 }
 
 void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &view, Route *route,
-                                     bool activity) const {
+                                     bool activity, unsigned kinds) const {
+    auto shown = [kinds](MapActivityKind kind) { return MapLayers::has(kinds, int(kind)); };
     Activity *current = activity && route != nullptr ? route->getCurrentActivity() : nullptr;
     if (current == nullptr)
         return;
@@ -550,7 +562,7 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
     };
     const int tileX = view.tileX, tileZ = view.tileZ;
     quint32 id = 0;
-    for (int i = 0; i < current->activityObjects.size(); ++i) {
+    for (int i = 0; i < current->activityObjects.size() && shown(MapActivityKind::LooseConsists); ++i) {
         ActivityObject *object = current->activityObjects[i];
         if (object == nullptr || !SelectionIdCodec::tryActivityObject(i, 0, id))
             continue;
@@ -558,7 +570,7 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
         object->getMapFeatures(own, tileX, tileZ);
         vehicles(own, id);
     }
-    for (int i = 0; i < current->restrictedSpeedZone.size(); ++i) {
+    for (int i = 0; i < current->restrictedSpeedZone.size() && shown(MapActivityKind::SpeedZones); ++i) {
         ActivityObject *object = current->restrictedSpeedZone[i];
         if (object == nullptr || !SelectionIdCodec::tryActivityObject(3000 + i, 0, id))
             continue;
@@ -566,7 +578,7 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
         object->getMapFeatures(own, tileX, tileZ);
         points(own, id, true);
     }
-    for (int i = 0; i < current->activityFailedSignal.size(); ++i) {
+    for (int i = 0; i < current->activityFailedSignal.size() && shown(MapActivityKind::FailedSignals); ++i) {
         ActivityObject *object = current->activityFailedSignal[i];
         if (object == nullptr || !SelectionIdCodec::tryActivityObject(3500 + i, 0, id))
             continue;
@@ -574,6 +586,8 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
         object->getMapFeatures(own, tileX, tileZ);
         points(own, id, false);
     }
+    if (!shown(MapActivityKind::Trains))
+        return;
     // Simulated trains where they are, with the ids of their trains.
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     if (simulation->shows(current)) {

@@ -2662,117 +2662,117 @@ Consist with this file name already exist. Overwrite?
         <translation>Procedural terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4956"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4974"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2613"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2625"/>
         <source>OSM Data</source>
         <translation>OSM Data</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2618"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2630"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2624"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2636"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2857"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2869"/>
         <source>Imagery</source>
         <translation>Imagery</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2860"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2872"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>This route has no geographic reference, so imagery cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2862"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2874"/>
         <source>No imagery source can be shown: %1</source>
         <translation>No imagery source can be shown: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2914"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="2926"/>
         <source>Measure Distance</source>
         <translation>Measure Distance</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4885"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4903"/>
         <source>Undo</source>
         <translation>Undo</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4887"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4905"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>The last change is to the activity: it can be undone when the simulation stops.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4962"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4980"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4968"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4986"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4974"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4992"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Select Similar 1x1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4980"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4998"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Select Similar 3x3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4986"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5004"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4992"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5010"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Set Terrain to Object</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4998"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5016"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Set position to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5004"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5022"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Set rotation to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5010"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5028"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pick for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5016"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5034"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pick rotation for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5022"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5040"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pick elevation for placement</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5034"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5052"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5052"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5070"/>
         <source>No Tool</source>
         <translation>No Tool</translation>
     </message>
@@ -2950,287 +2950,382 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Nearest TDB/RDB Vector</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5070"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5088"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
     <message id="route.editor.route.editor.window.title.tools.window">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="218"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="219"/>
         <source>Tools Window</source>
         <translation>Tools Window</translation>
     </message>
     <message id="route.editor.properties.window.title">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="221"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="222"/>
         <source>Properties Window</source>
         <translation>Properties Window</translation>
     </message>
     <message id="route.editor.title">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="296"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="297"/>
         <source>%1 %2 Route Editor</source>
         <translation>%1 %2 Route Editor</translation>
     </message>
     <message id="route.editor.route.editor.window.action.save.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="303"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="304"/>
         <source>&amp;Save</source>
         <translation>&amp;Save</translation>
     </message>
     <message id="route.editor.route.editor.window.action.create.paths.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="308"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="309"/>
         <source>&amp;Create Debug Paths</source>
         <translation>&amp;Create Debug Paths</translation>
     </message>
     <message id="route.editor.route.editor.window.action.generate.country.places">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="312"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="313"/>
         <source>&amp;Generate country places...</source>
         <translation>&amp;Generate country places...</translation>
     </message>
     <message id="route.editor.route.editor.window.action.reload.ref.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="318"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="319"/>
         <source>&amp;Reload Ref File</source>
         <translation>&amp;Reload Ref File</translation>
     </message>
     <message id="route.editor.route.editor.window.action.reload.track.profiles">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="322"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="323"/>
         <source>Reload &amp;Track Profiles</source>
         <translation>Reload &amp;Track Profiles</translation>
     </message>
     <message id="route.editor.route.editor.window.action.exit.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="328"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="329"/>
         <source>&amp;Exit</source>
         <translation>&amp;Exit</translation>
     </message>
     <message id="route.editor.route.editor.window.action.trk.editr">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="333"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="334"/>
         <source>&amp;Edit route settings</source>
         <translation>&amp;Edit route settings</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.route.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="338"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="339"/>
         <source>&amp;Route</source>
         <translation>&amp;Route</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.route.menu.2">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="347"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="348"/>
         <source>&amp;Server</source>
         <translation>&amp;Server</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.edit.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="353"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="354"/>
         <source>&amp;Edit</source>
         <translation>&amp;Edit</translation>
     </message>
     <message id="route.editor.route.editor.window.action.undo.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="357"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="358"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.window.action.copy.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="364"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="365"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.window.action.paste.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="370"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="371"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.window.action.select.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="377"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="378"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.view.3d">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="384"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="385"/>
         <source>&amp;3D View</source>
         <translation>&amp;3D View</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.map">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="477"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="478"/>
         <source>&amp;Map</source>
         <translation>&amp;Map</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.track.lines">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="480"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="481"/>
         <source>&amp;Track Lines</source>
         <translation>&amp;Track Lines</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.road.lines">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="482"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="483"/>
         <source>&amp;Road Lines</source>
         <translation>&amp;Road Lines</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.junctions">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="484"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="485"/>
         <source>&amp;Junctions</source>
         <translation>&amp;Junctions</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.ends">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="486"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="487"/>
         <source>Track &amp;Ends</source>
         <translation>Track &amp;Ends</translation>
     </message>
-    <message id="route.editor.route.editor.window.action.map.track.objects">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="488"/>
-        <source>Track &amp;Objects</source>
-        <translation>Track &amp;Objects</translation>
-    </message>
     <message id="route.editor.route.editor.window.action.map.paths">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="491"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="492"/>
         <source>Pat&amp;hs</source>
         <translation>Pat&amp;hs</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.activity">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="493"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="494"/>
         <source>&amp;Activity</source>
         <translation>&amp;Activity</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.weather">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="495"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="496"/>
         <source>&amp;Weather</source>
         <translation>&amp;Weather</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.terrain">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="497"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="498"/>
         <source>Terra&amp;in</source>
         <translation>Terra&amp;in</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.imagery">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="499"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="500"/>
         <source>Ima&amp;gery</source>
         <translation>Ima&amp;gery</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.osm.data">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="501"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="502"/>
         <source>&amp;OSM Data</source>
         <translation>&amp;OSM Data</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.osm.transparent">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="503"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="504"/>
         <source>Transparent OSM &amp;Areas</source>
         <translation>Transparent OSM &amp;Areas</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.faded.overlay">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="506"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="507"/>
         <source>&amp;Faded Overlay</source>
         <translation>&amp;Faded Overlay</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.markers">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="509"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="510"/>
         <source>&amp;Markers</source>
         <translation>&amp;Markers</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.pointer">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="511"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="512"/>
         <source>&amp;Pointer</source>
         <translation>&amp;Pointer</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.mode">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="397"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="398"/>
         <source>&amp;Map Mode</source>
         <translation>&amp;Map Mode</translation>
     </message>
     <message id="route.editor.route.editor.window.action.view.unselect.all">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="390"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="391"/>
         <source>&amp;Unselect All</source>
         <translation>&amp;Unselect All</translation>
     </message>
     <message id="route.editor.route.editor.window.action.tools.copy.camera">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="607"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="676"/>
         <source>&amp;Copy Camera Position</source>
         <translation>&amp;Copy Camera Position</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.world.grid">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="410"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="411"/>
         <source>&amp;World Grid</source>
         <translation>&amp;World Grid</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.tile.grid">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="415"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="416"/>
         <source>&amp;Tile Grid</source>
         <translation>&amp;Tile Grid</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.terrain.grid">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="420"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="421"/>
         <source>&amp;Terrain Grid</source>
         <translation>&amp;Terrain Grid</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.terrain.shape">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="425"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="426"/>
         <source>&amp;Hide Terrain Shape</source>
         <translation>&amp;Hide Terrain Shape</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.show.world.obj.pivot.points">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="430"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="431"/>
         <source>&amp;WorldObj Markers</source>
         <translation>&amp;WorldObj Markers</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.interactives">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="435"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="436"/>
         <source>&amp;Interactives</source>
         <translation>&amp;Interactives</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.track.db.lines">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="440"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="441"/>
         <source>&amp;TrackDB Lines</source>
         <translation>&amp;TrackDB Lines</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.tsection.lines">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="445"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="446"/>
         <source>&amp;Tsection Lines</source>
         <translation>&amp;Tsection Lines</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.track.items">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="450"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="451"/>
         <source>&amp;TrackDB Items</source>
         <translation>&amp;TrackDB Items</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.pointer3d">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="457"/>
         <source>&amp;3D Pointer</source>
         <translation>&amp;3D Pointer</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.markers">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="461"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="462"/>
         <source>&amp;Markers</source>
         <translation>&amp;Markers</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.snapable">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="466"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="467"/>
         <source>&amp;Snapable Points</source>
         <translation>&amp;Snapable Points</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.compass">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="471"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="472"/>
         <source>&amp;Compass</source>
         <translation>&amp;Compass</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.map.track.database">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="489"/>
+        <source>Track &amp;Database</source>
+        <translation>Track &amp;Database</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.map.scale.bar">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="513"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="514"/>
         <source>Scale &amp;Bar</source>
         <translation>Scale &amp;Bar</translation>
     </message>
+    <message id="route.editor.route.editor.window.menu.map.track.objects">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="538"/>
+        <source>Track &amp;Objects</source>
+        <translation>Track &amp;Objects</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.signals">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="541"/>
+        <source>&amp;Signals</source>
+        <translation>&amp;Signals</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.speed.posts">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="543"/>
+        <source>Speed &amp;Posts</source>
+        <translation>Speed &amp;Posts</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.platforms">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="545"/>
+        <source>P&amp;latforms</source>
+        <translation>P&amp;latforms</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.sidings">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="547"/>
+        <source>Si&amp;dings</source>
+        <translation>Si&amp;dings</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.car.spawners">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="549"/>
+        <source>&amp;Car Spawners</source>
+        <translation>&amp;Car Spawners</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.level.crossings">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="551"/>
+        <source>Level &amp;Crossings</source>
+        <translation>Level &amp;Crossings</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.hazards">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="553"/>
+        <source>&amp;Hazards</source>
+        <translation>&amp;Hazards</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.pickups">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="555"/>
+        <source>Pic&amp;kups</source>
+        <translation>Pic&amp;kups</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.sound.regions">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="557"/>
+        <source>Sound &amp;Regions</source>
+        <translation>Sound &amp;Regions</translation>
+    </message>
+    <message id="route.editor.route.editor.window.menu.map.activity.objects">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="569"/>
+        <source>Activity O&amp;bjects</source>
+        <translation>Activity O&amp;bjects</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity.player.path">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="572"/>
+        <source>&amp;Player&apos;s Path</source>
+        <translation>&amp;Player&apos;s Path</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity.ai.paths">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="574"/>
+        <source>&amp;AI Trains&apos; Paths</source>
+        <translation>&amp;AI Trains&apos; Paths</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity.trains">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="576"/>
+        <source>&amp;Trains</source>
+        <translation>&amp;Trains</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity.loose.consists">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="578"/>
+        <source>&amp;Loose Consists</source>
+        <translation>&amp;Loose Consists</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity.speed.zones">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="580"/>
+        <source>&amp;Speed Zones</source>
+        <translation>&amp;Speed Zones</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity.failed.signals">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="582"/>
+        <source>&amp;Failed Signals</source>
+        <translation>&amp;Failed Signals</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity.events">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="584"/>
+        <source>&amp;Events</source>
+        <translation>&amp;Events</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity.simulated.track">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="586"/>
+        <source>Track &amp;Use and Signal Aspects</source>
+        <translation>Track &amp;Use and Signal Aspects</translation>
+    </message>
     <message id="route.editor.route.editor.window.menu.window.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="535"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="604"/>
         <source>&amp;Window</source>
         <translation>&amp;Window</translation>
     </message>
     <message id="route.editor.route.editor.window.action.environment.panel">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="593"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="662"/>
         <source>&amp;Environment</source>
         <translation>&amp;Environment</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.tools.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="600"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="669"/>
         <source>&amp;Tools</source>
         <translation>&amp;Tools</translation>
     </message>
     <message id="route.editor.route.editor.window.action.properties.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="540"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="609"/>
         <source>&amp;Properties</source>
         <translation>&amp;Properties</translation>
     </message>
     <message id="route.editor.route.editor.window.action.navi.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="545"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="614"/>
         <source>&amp;Navi Window</source>
         <translation>&amp;Navi Window</translation>
     </message>
@@ -3393,155 +3488,155 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>Moon %1° above the horizon, %2% lit</translation>
     </message>
     <message id="route.editor.route.editor.window.action.shape.view.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="550"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="619"/>
         <source>&amp;Shape View Window</source>
         <translation>&amp;Shape View Window</translation>
     </message>
     <message id="route.editor.route.editor.window.action.error.view.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="555"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="624"/>
         <source>&amp;Errors and Messages</source>
         <translation>&amp;Errors and Messages</translation>
     </message>
     <message id="route.editor.route.editor.window.action.objects.and.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="561"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="630"/>
         <source>&amp;Objects and Terrain</source>
         <translation>&amp;Objects and Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.action.objects.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="566"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="635"/>
         <source>&amp;Objects</source>
         <translation>&amp;Objects</translation>
     </message>
     <message id="route.editor.route.editor.window.action.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="572"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="641"/>
         <source>&amp;Terrain</source>
         <translation>&amp;Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.action.geo.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="579"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="648"/>
         <source>&amp;Geo</source>
         <translation>&amp;Geo</translation>
     </message>
     <message id="route.editor.route.editor.window.action.activity.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="586"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="655"/>
         <source>&amp;Activity</source>
         <translation>&amp;Activity</translation>
     </message>
     <message id="route.editor.route.editor.window.action.terrain.camera.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="633"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="702"/>
         <source>&amp;Stick Camera To Terrain</source>
         <translation>&amp;Stick Camera To Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.action.msts.shadows.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="639"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="708"/>
         <source>&amp;MSTS Shadows</source>
         <translation>&amp;MSTS Shadows</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.terrain.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="644"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="713"/>
         <source>&amp;Terrain Editing:</source>
         <translation>&amp;Terrain Editing:</translation>
     </message>
     <message id="route.editor.route.editor.window.action.detail.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="647"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="716"/>
         <source>&amp;Detailed Terrain</source>
         <translation>&amp;Detailed Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.action.distant.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="651"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="720"/>
         <source>&amp;Distant Terrain</source>
         <translation>&amp;Distant Terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.settings.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="657"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="726"/>
         <source>&amp;Settings</source>
         <translation>&amp;Settings</translation>
     </message>
     <message id="route.editor.route.editor.window.action.settings.editor.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="660"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="729"/>
         <source>Settings &amp;Editor...</source>
         <translation>Settings &amp;Editor...</translation>
     </message>
     <message id="route.editor.route.editor.window.action.bake.terrain.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="617"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="686"/>
         <source>Bake procedural terrain textures…</source>
         <translation>Bake procedural terrain textures…</translation>
     </message>
     <message id="route.editor.route.editor.window.message.bake.terrain">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="624"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="693"/>
         <source>Bake terrain</source>
         <translation>Bake terrain</translation>
     </message>
     <message id="route.editor.route.editor.window.message.save.discard.route.changes.before.batch.baking">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="626"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="695"/>
         <source>Save or discard route changes before batch baking.</source>
         <translation>Save or discard route changes before batch baking.</translation>
     </message>
     <message id="route.editor.route.editor.window.action.about.action">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="671"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="740"/>
         <source>&amp;About</source>
         <translation>&amp;About</translation>
     </message>
     <message id="route.editor.route.editor.window.menu.help.menu">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="675"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="744"/>
         <source>&amp;Help</source>
         <translation>&amp;Help</translation>
     </message>
     <message id="route.editor.route.editor.window.title.save.changes">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="965"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1034"/>
         <source>Save changes?</source>
         <translation>Save changes?</translation>
     </message>
     <message id="route.editor.route.editor.window.message.save.changes.in.route">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="968"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1037"/>
         <source>Save changes in route?</source>
         <translation>Save changes in route?</translation>
     </message>
     <message id="route.editor.route.editor.window.text.this.action.will.delete.all.your.existing">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1006"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1075"/>
         <source>This action will delete all your existing activity paths and create new simple paths! Continue?</source>
         <translation>This action will delete all your existing activity paths and create new simple paths! Continue?</translation>
     </message>
     <message id="route.editor.country.places.title">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1027"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1043"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1069"/>
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1096"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1119"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1112"/>
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1138"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1158"/>
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1165"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1171"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1188"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1207"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1227"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1234"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1240"/>
         <source>Generate country places</source>
         <translation>Generate country places</translation>
     </message>
     <message id="route.editor.country.places.writing.disabled">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1029"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1098"/>
         <source>Route writing is disabled.</source>
         <translation>Route writing is disabled.</translation>
     </message>
     <message id="route.editor.country.places.loading">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1041"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1110"/>
         <source>Loading country place presets...</source>
         <translation>Loading country place presets...</translation>
     </message>
     <message id="route.editor.country.places.no.countries">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1098"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1167"/>
         <source>No countries were found in the place presets.</source>
         <translation>No countries were found in the place presets.</translation>
     </message>
     <message id="route.editor.country.places.country">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1121"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1190"/>
         <source>Country:</source>
         <translation>Country:</translation>
     </message>
     <message id="route.editor.country.places.generating">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1135"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1204"/>
         <source>Generating country places...</source>
         <translation>Generating country places...</translation>
     </message>
     <message id="route.editor.country.places.generated">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1173"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1242"/>
         <source>Country places for %1 were generated successfully.</source>
         <translation>Country places for %1 were generated successfully.</translation>
     </message>

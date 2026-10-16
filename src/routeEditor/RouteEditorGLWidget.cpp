@@ -2608,6 +2608,18 @@ void RouteEditorGLWidget::setMapLayerVisible(MapLayer layer, bool visible) {
     update();
 }
 
+void RouteEditorGLWidget::setMapTrackObjectKind(int kind, bool visible) {
+    MapLayers::set(mapLayers.trackObjectKinds, kind, visible);
+    mapLabelsInvalid = true;
+    update();
+}
+
+void RouteEditorGLWidget::setMapActivityKind(MapActivityKind kind, bool visible) {
+    MapLayers::set(mapLayers.activityKinds, int(kind), visible);
+    mapLabelsInvalid = true;
+    update();
+}
+
 bool RouteEditorGLWidget::prepareOsmLayer() {
     //% "OSM Data"
     const QString title = qtTrId("route.editor.route.editor.glwidget.osm.title");
@@ -2939,7 +2951,9 @@ bool RouteEditorGLWidget::mapLayersBusy() const {
 void RouteEditorGLWidget::updateMapLabels() {
     Coords *markers = mapLayers.shows(MapLayer::Markers) && route != NULL ? route->currentMkr() : NULL;
     TDB *track = mapLayers.shows(MapLayer::TrackObjects) ? Game::trackDB : NULL;
-    Activity *activity = mapLayers.shows(MapLayer::Activity) && route != NULL ? route->getCurrentActivity() : NULL;
+    Activity *activity = mapLayers.shows(MapLayer::Activity)
+            && MapLayers::has(mapLayers.activityKinds, int(MapActivityKind::Events)) && route != NULL
+            ? route->getCurrentActivity() : NULL;
     const OsmMapLayer *osm = mapLayers.shows(MapLayer::OsmData) ? osmMap.get() : NULL;
     // What is labelled, and how much of it: a change rebuilds the labels.
     const std::vector<const void *> sources = {
@@ -2954,7 +2968,9 @@ void RouteEditorGLWidget::updateMapLabels() {
     if (mapMeasure->shown())
         labels.push_back(mapMeasure->label(Game::GeoCoordConverter));
     MapLabelSources::appendActivity(labels, activity);
-    MapLabelSources::appendTrackDatabase(labels, track);
+    MapLabelSources::appendTrackDatabase(labels, track,
+                                         MapLayers::has(mapLayers.trackObjectKinds, TrackItemMapLayer::Platform),
+                                         MapLayers::has(mapLayers.trackObjectKinds, TrackItemMapLayer::Siding));
     MapLabelSources::appendMarkers(labels, markers);
     if (osm != NULL)
         labels.insert(labels.end(), osm->labels().begin(), osm->labels().end());
@@ -3031,9 +3047,10 @@ void RouteEditorGLWidget::paintMap() {
     }
     trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB, mapLayers);
     if (mapLayers.shows(MapLayer::TrackObjects))
-        trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
+        trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB,
+                                      mapLayers.trackObjectKinds);
     activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
-                                 mapLayers.shows(MapLayer::Paths));
+                                 mapLayers.shows(MapLayer::Paths), mapLayers.activityKinds);
     // The weather over the route's data, as a weather app shows it.
     if (mapLayers.shows(MapLayer::Weather) && weatherMap && currentWeather())
         weatherMap->pushRenderItems(queue, view, palette, *currentWeather(), weatherHours(), true);
@@ -3128,7 +3145,8 @@ void RouteEditorGLWidget::paintMapSelection(int width, int height) {
     mapSelection->clear();
     if (mapLayers.shows(MapLayer::TrackObjects))
         trackItemMap->pushSelection(*mapSelection, view);
-    activityMap->pushSelection(*mapSelection, view, route, mapLayers.shows(MapLayer::Activity));
+    activityMap->pushSelection(*mapSelection, view, route, mapLayers.shows(MapLayer::Activity),
+                               mapLayers.activityKinds);
     mapSelection->pushRenderItems(queue);
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     renderer->setShadowCasting(true);

@@ -129,6 +129,10 @@ struct ViewSpec {
     // Centred on a latitude and longitude through the route's projection, instead of
     // tile and pos (map views of OSM data).
     bool markers = false;  // Map > Markers
+    // Map > Track Objects and Activity Objects: the kinds drawn (bits by
+    // TrackItemMapLayer::Kind and MapActivityKind), all by default.
+    unsigned trackObjectKinds = ~0u;
+    unsigned activityKinds = ~0u;
     bool viewMarkers = false;  // 3D View > Markers
     bool hasLatLon = false;
     double lat = 0.0, lon = 0.0;
@@ -379,6 +383,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         for (int i = 0; i < 4 && view.hasMeasure; ++i)
             view.measure[i] = float(measure[i].toDouble());
         view.markers = object.value("markers").toBool(false);
+        view.trackObjectKinds = unsigned(object.value("trackObjectKinds").toInteger(-1));
+        view.activityKinds = unsigned(object.value("activityKinds").toInteger(-1));
         view.viewMarkers = object.value("viewMarkers").toBool(false);
         const QJsonArray latLon = object.value("latLon").toArray();
         view.hasLatLon = latLon.size() == 2;
@@ -724,6 +730,11 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setDiagnosticMapMeasurement(spec.hasMeasure ? &measureFrom : nullptr,
                                                spec.hasMeasure ? &measureTo : nullptr);
             widget.setMapLayerVisible(MapLayer::Markers, spec.markers);
+            for (int kind = 0; kind < 32; ++kind) {
+                widget.setMapTrackObjectKind(kind, MapLayers::has(spec.trackObjectKinds, kind));
+                if (kind < int(MapActivityKind::Count))
+                    widget.setMapActivityKind(MapActivityKind(kind), MapLayers::has(spec.activityKinds, kind));
+            }
             if (spec.train >= 0)
                 widget.viewTrain(spec.train);
             if (spec.editDistant)

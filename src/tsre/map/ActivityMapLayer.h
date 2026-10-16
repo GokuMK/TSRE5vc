@@ -16,6 +16,7 @@
 #include <memory>
 #include <vector>
 #include "MapFeatures.h"
+#include "MapLayers.h"
 
 class MapSelection;
 class MapView;
@@ -67,13 +68,16 @@ public:
 
     ActivityMapLayer();
     ~ActivityMapLayer();
+    // `kinds`: what of the activity it draws (bits by MapActivityKind; the
+    // Map menu's Activity Objects).
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
-                         Route *route, bool activity, bool paths);
+                         Route *route, bool activity, bool paths, unsigned kinds = ~0u);
     void invalidate() { valid = false; }
     // The activity's selectable parts with the 3D view's selection IDs:
-    // each vehicle of a consist, speed zone ends, failed signals.
+    // each vehicle of a consist, speed zone ends, failed signals; of the
+    // kinds drawn.
     void pushSelection(MapSelection &selection, const MapView &view, Route *route,
-                       bool activity) const;
+                       bool activity, unsigned kinds = ~0u) const;
 
     static QColor colour(const MapPalette &palette, int group);
     // A vehicle's footprint as two triangles, grown by a margin all round
@@ -97,6 +101,10 @@ private:
     void buildSimulatedTrack(const MapView &view, const MapPalette &palette);
 
     bool valid = false;
+    // The kinds drawn, and those the last build drew.
+    unsigned shownKinds = ~0u;
+    unsigned builtKinds = ~0u;
+    bool shows(MapActivityKind kind) const { return MapLayers::has(shownKinds, int(kind)); }
     int builtTileX = 0;
     int builtTileZ = 0;
     float builtMetresPerPixel = 0.0f;

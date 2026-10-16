@@ -153,6 +153,10 @@ public:
     void setViewMode(ViewMode mode);
     // Shows or hides a layer of the map mode (the Map menu).
     void setMapLayerVisible(MapLayer layer, bool visible);
+    // Within Track Objects and Activity, one kind drawn or not (the Map
+    // menu's Track Objects and Activity Objects).
+    void setMapTrackObjectKind(int kind, bool visible);
+    void setMapActivityKind(MapActivityKind kind, bool visible);
     // Before Map > OSM Data is switched on: checks the OSM directory and the route's
     // geographic reference (telling the user what is missing) and offers to convert the
     // downloads covering the view. False when the layer cannot be shown.

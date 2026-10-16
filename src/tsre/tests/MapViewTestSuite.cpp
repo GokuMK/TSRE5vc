@@ -244,6 +244,25 @@ int TsreTests::runMapViewSuite(bool verbose) {
                       && sourced[1].tileZ == -7 && near(sourced[1].z, -20) && sourced[1].major
                       && sourced[0].priority > sourced[1].priority,
               "label sources: events and markers in the view's tile convention, events ranked above places");
+        // The Map menu's Track Objects and Activity Objects: every kind
+        // drawn at first, each turned off and on alone.
+        {
+            MapLayers layers;
+            bool all = true;
+            for (int kind = 0; kind < TrackItemMapLayer::KindCount; ++kind)
+                all = all && MapLayers::has(layers.trackObjectKinds, kind);
+            for (int kind = 0; kind < int(MapActivityKind::Count); ++kind)
+                all = all && MapLayers::has(layers.activityKinds, kind);
+            MapLayers::set(layers.trackObjectKinds, TrackItemMapLayer::Signal, false);
+            MapLayers::set(layers.activityKinds, int(MapActivityKind::Events), false);
+            const bool alone = !MapLayers::has(layers.trackObjectKinds, TrackItemMapLayer::Signal)
+                    && MapLayers::has(layers.trackObjectKinds, TrackItemMapLayer::Platform)
+                    && !MapLayers::has(layers.activityKinds, int(MapActivityKind::Events))
+                    && MapLayers::has(layers.activityKinds, int(MapActivityKind::Trains));
+            MapLayers::set(layers.trackObjectKinds, TrackItemMapLayer::Signal, true);
+            check(all && alone && MapLayers::has(layers.trackObjectKinds, TrackItemMapLayer::Signal),
+                  "map kinds: all drawn at first, each turned off and on alone");
+        }
         const MapPalette lightPalette = MapPalette::light();
         check(MapLabelLayer::dotColour(lightPalette, MapLabelKind::Siding) == lightPalette.siding
                       && MapLabelLayer::dotColour(lightPalette, MapLabelKind::Station) == lightPalette.platform
