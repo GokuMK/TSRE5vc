@@ -70,7 +70,7 @@ QVector<WeatherKeyframe> make(const QString &name) {
                           L{0.0f, 0.5f, 7500, 9000, 0.3f}}, 20, 6,
                       WeatherPrecipitation::Snow, 1.0f, 3000, 0.05f), -2, -3)};
     if (name == "thunderstorm")
-        return {air(frame(0, {L{1.0f, 0.3f, 800, 11000, 1.2f}, L{0.6f, 0.3f, 3500, 4500, 0.7f},
+        return {air(frame(0, {L{1.0f, 0.4f, 800, 11000, 1.2f}, L{0.6f, 0.3f, 3500, 4500, 0.7f},
                           L{0.5f, 0.4f, 9500, 10500, 0.4f}}, 240, 10,
                       WeatherPrecipitation::Rain, 8.0f, 8000, 0.35f), 24, 17)};
     if (name == "front") {

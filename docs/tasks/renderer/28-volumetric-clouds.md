@@ -1076,6 +1076,16 @@ What remains of the "Still open" lists above, checked against the code:
 - **Storms:** dark by their density and the cloud above, towers and anvils,
   rain under the clouds (done, below). Still: rain near the camera and
   from above, the rain's streaks.
+- **A little moiré on storms at High with the camera still** (user,
+  2026-10-16; the slightest move takes it away, so driving may hide it: to
+  check in practice). For later: three samples a long step at High
+  (Medium has three; `high.w`, about 1 to 2 ms more in storms); the
+  history's clamp to the marched neighbourhood, which keeps the pattern
+  while still (a moving camera resamples the history, blurring it); a
+  blue-noise start for each pixel instead of the interleaved gradient
+  noise, whose diagonal structure the pattern shows. Lowering the clouds
+  was considered and rejected: steps shorten only in proportion, storms
+  reach 10 to 12 km.
 - **OpenGL renderer:** step 9 (a flat cloud layer from the weather).
 - **Settings in `Game.h`** (sky model, cloud quality, shafts, enclosure,
   enclosed ambient): to their classes at the next forced full rebuild.
@@ -1217,6 +1227,13 @@ The storm clouds stood as pillars of billows streaked straight up.
   rounds): thunderstorm 46.1 against 45.5 ms (the solid towers end rays
   sooner), looking up 33.8 against 35.2 (more cloud overhead); fair
   cumulus and overcast as before.
+- **Mixed with heaps** (user: alone the towers look stark, among other
+  clouds natural): a weak cell stays a heap a km or two tall (from 0.12 of
+  the layer, was 0.45), stronger ones congestus, only the cores reach the
+  anvil; the thunderstorm preset's low cover 0.4 (was 0.3; its variation
+  spreads that from few storms to many). From the hill: a storm with its
+  dark base among cumulus and blue gaps (`build/shape/CMK/mix1`). Cost
+  within the runs' noise.
 
 ### Rain under the clouds (2026-10-16)
 

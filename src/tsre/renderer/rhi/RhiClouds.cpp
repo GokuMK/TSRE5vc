@@ -476,8 +476,10 @@ float layerDensity(vec2 offset, float altitude, bool detail, int layer) {
         // up from the 2D map, which stood as pillars of streaks), each part
         // of the cell as high as it lies deep in it: the edge stops low, the
         // core reaches the anvil; towers narrow upwards into domes, their
-        // heights as their cells' strength.
-        float top = mix(0.45, 0.9, clamp((even - threshold) / 0.2, 0.0, 1.0));
+        // heights as their cells' strength. Weak cells stay heaps a km or two
+        // tall between the storms, others congestus (alone, the towers stood
+        // stark).
+        float top = mix(0.12, 0.9, smoothstep(0.0, 1.0, (even - threshold) / 0.3));
         float edge = even + (s.r - 0.5) * 0.3 + (fbm - 0.5) * 0.2;
         float tower = clamp(0.5 + (edge - threshold) * 4.0, 0.0, 1.0)
                 * smoothstep(0.0, 0.015, h) * (1.0 - smoothstep(top - 0.12, top, h + (s.g - 0.5) * 0.1));
@@ -557,7 +559,7 @@ vec2 cloudAbove(vec2 offset, float altitude) {
             vec2 shaped = clamp((base - (1.0 - coverage)) / max(coverage, 0.01), 0.0, 1.0) * coverage;
             // A storm's tower and anvil (layerDensity), the billows at
             // their mean.
-            float top = mix(0.45, 0.9, clamp((even - (1.0 - w.x)) / 0.2, 0.0, 1.0));
+            float top = mix(0.12, 0.9, smoothstep(0.0, 1.0, (even - (1.0 - w.x)) / 0.3));
             vec2 tower = clamp(0.5 + (even - (1.0 - w.x)) * 4.0, 0.0, 1.0)
                     * smoothstep(0.0, 0.015, h) * (1.0 - smoothstep(top - 0.12, top, h)) * 0.8;
             float inside = clamp((even - (1.0 - w.x) + 0.05) / 0.35, 0.0, 1.0);
