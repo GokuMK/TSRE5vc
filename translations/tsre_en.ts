@@ -4948,53 +4948,58 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>What the last Simulate changed: arrival, and departure where it differs; new times; stops not reached.</source>
         <translation>What the last Simulate changed: arrival, and departure where it differs; new times; stops not reached.</translation>
     </message>
+    <message id="route.editor.activity.timetable.properties.performance.tooltip">
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="87"/>
+        <source>The train&apos;s performance on the way to this stop, from the stop before (from its start for the first): it runs at most at this share of its consist&apos;s top speed.</source>
+        <translation>The train&apos;s performance on the way to this stop, from the stop before (from its start for the first): it runs at most at this share of its consist&apos;s top speed.</translation>
+    </message>
     <message id="route.editor.activity.timetable.properties.label.start.time">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="107"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="110"/>
         <source>Start Time:</source>
         <translation>Start Time:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.label.consist.main.eng">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="113"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="116"/>
         <source>Consist main ENG:</source>
         <translation>Consist main ENG:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.label.max.eng.speed">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="118"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="121"/>
         <source>Max ENG Speed:</source>
         <translation>Max ENG Speed:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.label.timetable.avg.speed">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="123"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="126"/>
         <source>Timetable Avg Speed:</source>
         <translation>Timetable Avg Speed:</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.not.simulated">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="213"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="216"/>
         <source>Its platform is not on the train&apos;s path: not simulated.</source>
         <translation>Its platform is not on the train&apos;s path: not simulated.</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.not.reached">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="219"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="222"/>
         <source>not reached</source>
         <translation>not reached</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.new">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="231"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="234"/>
         <source>new</source>
         <translation>new</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.depart.set">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="248"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="251"/>
         <source>Set by you: the next Simulate keeps it (the train leaves no earlier).</source>
         <translation>Set by you: the next Simulate keeps it (the train leaves no earlier).</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.depart.kept">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="250"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="253"/>
         <source>Your departure, kept: the train left no earlier.</source>
         <translation>Your departure, kept: the train left no earlier.</translation>
     </message>
     <message id="route.editor.activity.timetable.properties.text.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="271"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableProperties.cpp" line="274"/>
         <source>NONE</source>
         <translation>NONE</translation>
     </message>

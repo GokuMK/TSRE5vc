@@ -82,6 +82,9 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
     lTimetable.horizontalHeaderItem(ChangeColumn)->setToolTip(
         //% "What the last Simulate changed: arrival, and departure where it differs; new times; stops not reached."
         qtTrId("route.editor.activity.timetable.properties.change.tooltip"));
+    lTimetable.horizontalHeaderItem(PerformanceColumn)->setToolTip(
+        //% "The train's performance on the way to this stop, from the stop before (from its start for the first): it runs at most at this share of its consist's top speed."
+        qtTrId("route.editor.activity.timetable.properties.performance.tooltip"));
     lTimetable.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     lTimetable.verticalHeader()->hide();
     lTimetable.verticalHeader()->setDefaultSectionSize(25);
