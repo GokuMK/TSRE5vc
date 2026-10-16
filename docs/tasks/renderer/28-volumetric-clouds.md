@@ -1068,11 +1068,9 @@ as do the lit shaders and the fog.
 
 What remains of the "Still open" lists above, checked against the code:
 
-- **Volumetric light shafts too weak** (user, 2026-10-15): since the third
-  pass and the haze's changes they are fainter than wanted; to look at on
-  their own. They are still marched at half resolution, 24 steps, a new
-  jitter each frame and no frames averaged (`RhiLightShafts.cpp`); in fog
-  the beams are the fog volume's (task 33), which averages frames.
+- **Volumetric light shafts too weak** (user, 2026-10-15): done (below,
+  "Rays from the volumetric shafts"). Still without frames averaged: a
+  fine shimmer by the sun.
 - **Storms:** dark by their density and the cloud above, towers and anvils,
   rain under the clouds (done, below). Still: rain near the camera and
   from above, the rain's streaks.
@@ -1092,6 +1090,51 @@ What remains of the "Still open" lists above, checked against the code:
   of being redrawn each frame ("Clouds that move with the clock"); lamps
   reach at most 30 m and have a "Lamps by day" setting (task 27); the
   shafts' blocky cloud outlines ("Light shafts, third pass").
+
+## Rays from the volumetric shafts (2026-10-16)
+
+The user: the volumetric shafts far too weak. Measured at CMK from the hill
+towards the sun (17:00 and 19:00, fair cumulus, scattered, broken): 2 to 4
+of 255 on average against shafts off, a faint greying, no rays.
+
+- **Why:** (1) the air's sunlight through the clouds came from the cloud
+  shadow map, 7 km about the camera; at a low sun the clouds that cast the
+  rays stand 10 to 50 km towards it, past the map, where the clouds'
+  average stood for them: no rays at sunset. (2) The rays' contrast was
+  the air's share in shade against the clouds' average cover, darkening
+  only: at a low sun most air lies in some cloud's shade, more than they
+  cover, and the air lit through the gaps never showed. Drawn in false
+  colours (the share in shade, the average, the haze) the march held the
+  rays all along; the composite took them out.
+- **Far cloud shadows:** past the map the air takes the clouds from their
+  weather and the far cover map (205 km), as the clouds' march reads them
+  (`RhiRenderer::cloudFarMaps`; bindings 5, 6).
+- **Contrast against the surroundings:** the march's result's mips (some
+  30 pixels around) give the neighbourhood's share in shade; air lit
+  through a gap more than around it is brightened (the rays, `direction.w`
+  6), air shaded more darkened only a little (`sun.w` 0.8; the user:
+  stronger, the image looked darkened around the rays), the haze's square
+  root (thin haze keeps its rays), towards the sun most. Only against
+  surroundings of a like path (the haze each crosses): at the horizon the
+  terrain's short path beside the sky's long one made a dark band along
+  the hills.
+- **Noise:** the march starts from the clouds' blue noise (the old noise's
+  diagonal pattern showed in the drawn-out contrast) and is read 2 x 2 (a
+  mip).
+- Tried on the way: raising all the strengths (rays at sunset, but the
+  whole view under scattered clouds 13 of 255 darker); the light added
+  alone (a glow, no rays); the lit air against the clouds' average (no
+  effect: the average is no measure at a low sun).
+- **Captures** (`build/shafts`: `cumulus-cmp4.png`, `broken-cmp6.png`):
+  fair cumulus at 17:00, rays fanning from the sun across the sky and over
+  the horizon; broken at 17:00, two bright rays from the gaps to the
+  ground; away from the sun, overcast and noon as before; under a storm
+  the view no longer 9 of 255 darker. Between frames 1.7 % of pixels
+  change by more than 2 of 255 (0.1 % with shafts off): fine grain in the
+  lower sky by the sun.
+- **Cost on the Steam Deck** (High, median frame, three rounds, old
+  against new): fair cumulus 29.1 against 29.4 ms, broken 27.0 against
+  27.7, broken at 19:00 24.7 against 24.7.
 
 ## Storms dark by their density (2026-10-16)
 

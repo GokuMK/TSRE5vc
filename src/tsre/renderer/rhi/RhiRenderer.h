@@ -686,6 +686,10 @@ private:
     // the camera (m east, north) and its place in the view's space (x, z).
     void cloudShadowOffset(int layer, double &east, double &north) const;
     void cloudShadowCentre(int layer, float &x, float &z) const;
+    // The weather texture's and the far cover map's places about the camera
+    // (as the march takes them: weatherMap, farMap) and the low and mid
+    // layers' shifts since drawn (km): the light shafts' far cloud shadows.
+    bool cloudFarMaps(float *weatherMap, float *farMap, float *shift) const;
     // Moves a layer's map back near the camera when it has drifted too far,
     // before the frame's draws take its place.
     void placeCloudShadow();
@@ -740,6 +744,11 @@ private:
         const QRhiTexture *volumeCloudMap = nullptr;
         const QRhiTexture *volumeSunMap = nullptr;
         const QRhiTexture *volumeShadeMap = nullptr;
+        const QRhiTexture *volumeWeather = nullptr;
+        const QRhiTexture *volumeFarCover = nullptr;
+        const QRhiTexture *volumeBlue = nullptr;
+        // The march's result read by its mips: the surroundings' average.
+        QRhiSampler *mipLinear = nullptr;
     } lightShafts;
     bool shaftsApplied = false;
 public:

@@ -1819,6 +1819,29 @@ void RhiRenderer::cloudShadowCentre(int layer, float &x, float &z) const {
     z = viewPosition[2] - float(north);
 }
 
+bool RhiRenderer::cloudFarMaps(float *weatherMap, float *farMap, float *shift) const {
+    const CloudResources &c = cloudResources;
+    if (!cloudsWanted() || c.weather == nullptr || c.coverFar == nullptr || clouds.size <= 0)
+        return false;
+    weatherMap[0] = float(clouds.cameraEast - clouds.west);
+    weatherMap[1] = float(clouds.north - clouds.cameraNorth);
+    weatherMap[2] = float(double(clouds.size) * clouds.texel);
+    weatherMap[3] = float(clouds.size);
+    // As prepareClouds places it, snapped to its texels.
+    const double span = double(CoverSize) * FarCoverTexel;
+    const double west = std::floor((clouds.cameraEast - span * 0.5) / FarCoverTexel) * FarCoverTexel;
+    const double north = std::ceil((clouds.cameraNorth + span * 0.5) / FarCoverTexel) * FarCoverTexel;
+    farMap[0] = float(clouds.cameraEast - west);
+    farMap[1] = float(north - clouds.cameraNorth);
+    farMap[2] = float(span);
+    farMap[3] = 0.0f;
+    for (int l = 0; l < 2; ++l) {
+        shift[2 * l] = (clouds.drift[l][0] - clouds.built[l][0]) / 1000.0f;
+        shift[2 * l + 1] = (clouds.drift[l][1] - clouds.built[l][1]) / 1000.0f;
+    }
+    return true;
+}
+
 float RhiRenderer::deepSamples(int steps) const {
     return clouds.deepest >= 3.0f ? float(std::max(16, steps / 6)) : 0.0f;
 }
