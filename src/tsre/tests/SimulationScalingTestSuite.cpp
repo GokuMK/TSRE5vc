@@ -6,7 +6,14 @@
 #include <QTemporaryDir>
 #include <algorithm>
 #include <memory>
+#ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <psapi.h>
+#else
 #include <sys/resource.h>
+#endif
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationFrame.h>
@@ -177,9 +184,17 @@ struct Measured {
 };
 
 long peakMemoryKiB() {
+#ifdef _WIN32
+    // Windows has no getrusage: the peak working set.
+    PROCESS_MEMORY_COUNTERS counters {};
+    if (!K32GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)))
+        return 0;
+    return long(counters.PeakWorkingSetSize / 1024);
+#else
     struct rusage usage {};
     getrusage(RUSAGE_SELF, &usage);
     return usage.ru_maxrss;
+#endif
 }
 
 Measured measure(Scenario &scenario, const SigCfg &config, double maxHours) {
