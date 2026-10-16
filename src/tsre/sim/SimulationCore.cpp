@@ -388,7 +388,10 @@ void SimulationCore::advance(int train, double from, double to) {
         if (s.authority < parts[size_t(s.part)].length() - 1e-6) {
             const double margin = runtime[size_t(train)].endsAtSignal ? SignalMargin : AuthorityMargin;
             const double limit = std::max(s.front, s.authority - margin);
-            if (limit < target) {
+            // A station stop short of where its authority ends is kept: Open
+            // Rails' AI favours it over the signal or the authority's end.
+            const bool station = kind == StopKind::Station && target <= s.authority - 1.0;
+            if (limit < target && !station) {
                 target = limit;
                 kind = StopKind::Blocked;
                 index = -1;
@@ -1701,20 +1704,15 @@ void SimulationCore::findExits(int train) {
                                                                   : way.sections.size();
         for (size_t i = beyond->section; i < blockEnd && i < way.sections.size() && !held; ++i)
             held = sections[size_t(way.sections[i].section)].kind != TrackSection::Track;
-        // Held when the train stops short of it, or stopping at it (by Open
-        // Rails' clearing distance) most of the train (60 %) stands at the
-        // platform; not again once let go.
-        const TrainPlan &plan = in->trains[size_t(train)];
-        const double clearing = plan.player || plan.vehicles.size() < StationClearingCars ? StationClearingShort
-                                                                                         : StationClearing;
-        if (!held || (stop.front >= beyond->at && beyond->at - clearing - stop.platformStart <= 0.6 * plan.length)
+        // Held when the train stops short of it, or stopping at it most of
+        // the train (60 %) stands at the platform; not again once let go.
+        if (!held || (stop.front >= beyond->at
+                      && beyond->at - StationClearing - stop.platformStart <= 0.6 * in->trains[size_t(train)].length)
                 || (k < rt.letGo.size() && rt.letGo[k]))
             continue;
         rt.exits[k] = int(index);
-        // Short of it, as Open Rails stops a train at a held signal (ours
-        // stop SignalMargin short of any signal at stop, Open Rails at its
-        // clearing distance).
-        rt.stops[k].front = std::min(stop.front, beyond->at - SignalMargin - 1.0);
+        // Short of it, as Open Rails stops a train at a held signal.
+        rt.stops[k].front = std::min(stop.front, beyond->at - StationClearing - 1.0);
     }
 }
 

@@ -84,8 +84,9 @@ public:
     // The longest step taken at once: longer steps are cut into these.
     static constexpr double MaxStep = 0.1;
     // A train stops this far short of the end of its authority, and this
-    // far short of a stop signal not cleared for it (Open Rails' AI keeps
-    // 30 m to the stopping point).
+    // far short of a stop signal not cleared for it (Open Rails' AI aims
+    // 20 m short and brakes fully from 15 m before that), but at a station
+    // stop short of either.
     static constexpr double AuthorityMargin = 10.0;
     static constexpr double SignalMargin = 30.0;
     // A train waiting for track tries again at least this often (seconds),
@@ -99,11 +100,10 @@ public:
     // this near (seconds).
     static constexpr double ExitSignalReach = 150.0;
     static constexpr double HoldRelease = 120.0;
-    // Open Rails' clearing distance at station stops: its player train and
-    // trains of fewer than StationClearingCars vehicles the short one.
-    static constexpr double StationClearing = 30.0;
-    static constexpr double StationClearingShort = 15.0;
-    static constexpr size_t StationClearingCars = 10;
+    // A train stops this far short of its stop's held exit signal (Open
+    // Rails' clearing distance at station stops: 15 m for every AI train,
+    // its 10-car rule never applied as its trains are made).
+    static constexpr double StationClearing = 15.0;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;

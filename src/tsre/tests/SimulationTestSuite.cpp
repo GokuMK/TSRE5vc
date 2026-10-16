@@ -1490,6 +1490,36 @@ Engine ( Test
                       .arg(before).arg(standingAspect).arg(released).arg(departed - t0));
         }
 
+        // A stop ending 6 m short of that signal: the train stands 16 m short
+        // of it (Open Rails' clearing distance), the stop favoured over the
+        // signal at stop, and leaves on time.
+        {
+            Sim::TrainPlan stopping = trainOn(east, *network, t0);
+            Sim::StopPlan stop;
+            stop.platformStart = 885.0;
+            stop.platformEnd = 925.0;
+            stop.front = 925.0;
+            stop.arrival = t0 + 60;
+            stop.departure = t0 + 400;
+            stop.platform = "Near";
+            stopping.stops = {stop};
+            Sim::SimulationCore near(inputOf(geometry, network, {stopping}));
+            while (near.time() < t0 + 250.0)
+                near.step(1.0);
+            const bool standing = near.trains()[0].stoppedAt == Sim::StopKind::Station;
+            const double front = near.trains()[0].front, signalAt = 931.0;
+            double departed = -1.0;
+            for (int i = 0; i < 400 && departed < 0.0; ++i) {
+                near.step(1.0);
+                for (const Sim::TrainEvent &e : near.takeEvents())
+                    if (e.kind == Sim::TrainEvent::Departed)
+                        departed = e.time;
+            }
+            check(standing && std::fabs(signalAt - front - 16.0) < 0.5 && std::fabs(departed - (t0 + 400)) < 1.0,
+                  QString("a stop near its exit signal: standing %1 m short of it, leaving on time (%2 s)")
+                      .arg(signalAt - front, 0, 'f', 1).arg(departed - t0));
+        }
+
         // Two stops sharing the exit signal at 1000 m (Open Rails lists it once
         // per stop): kept at stop through the first stop's two minutes, let
         // go as the train leaves it; the second stop no longer holds it.

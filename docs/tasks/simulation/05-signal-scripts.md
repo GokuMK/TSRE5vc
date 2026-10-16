@@ -85,7 +85,7 @@ the exit signal only on the platform's track node; beyond 150 m a block
 with any junction or crossing (not a facing junction only); a train
 stopping beyond the signal held only when 60 % of it stands at the
 platform stopped short of it (Open Rails' clearing distance: 15 m for
-the player's train and trains of fewer than 10 vehicles); a signal held
+every AI train, below); a signal held
 once per stop sharing it, each taking it off two minutes before its
 departure and, still listed, as the train leaves; a hold let go when the
 train stands with the signal next and its present stop is not the
@@ -100,7 +100,7 @@ aspect now:
 | USA2 `itr_e1_s1_w1_t1` | 32 | 97 % | 94 % |
 | BNSF_SCENIC `3_CanadianImports` | 142 | 99 % | 99 % |
 | EUROPE2 `itr_e1_s1_w1_t1` | 545 | 81 % | 97 % |
-| JAPAN1, from 10:30 | 2295 | 76 % | 77 % |
+| JAPAN1, from 10:30 | 2312 | 76 % | 82 % |
 | JAPAN2 `itr_e1_s1_w1_t1` | 178 | 60 % | 87 % |
 
 The stops against Open Rails: as before but USA2 (−27 s before, +47 s
@@ -146,19 +146,19 @@ are as before.
   within the train's route, from a signal's update. Not a distance limit:
   Open Rails asks for the next signal at any distance once the previous
   one is passed, as ours clears without one. To follow.
-- **Station stops:** Open Rails gives every AI train of an activity the
-  short clearing distance, 15 m (its own TODO in `AITrain`'s constructor:
-  the car count is still 0 there; the 10-car rule applies only after
-  coupling). That holds JAPAN1's Isehara and Kakio exits for its 200 m
-  trains, which ours (by the rule's intent) does not. Open Rails' AI stops
-  20 m short of a signal at stop (5 m with fewer than 10 cars:
-  `signalApproachDistanceM`), and a station stop just short of a signal
-  takes priority over it; ours stops SignalMargin (30 m) short of any
-  signal at stop, so a held exit's stop stays 31 m short of it (at 16 m
-  the driver stopped at 30 m, short of the stop, and the hold was never
-  released). To do together: the stopping margins as Open Rails'. Open
-  Rails' check of a platform near a reversal reads the train's first
-  reversal (its own quirk), not taken.
+- **Station stops:** done 2026-10-16 (user: 15 m for all AI trains).
+  Open Rails gives every AI train of an activity the short clearing
+  distance, 15 m (its own TODO in `AITrain`'s constructor: the car count
+  is still 0 there; the 10-car rule applies only after coupling), and its
+  AI favours a station stop short of a signal at stop over the signal. Ours
+  now the same: a held exit's stop 16 m short of it, the stop kept as the
+  train's target. JAPAN1 (Isehara, Kakio exits held for 200 m trains)
+  77 % to 82 %, the stops as before. Left: Open Rails' AI aims 20 m short
+  of a signal at stop and brakes fully from 15 m before that (standing
+  some 30 m short, ours 30 m), a train of fewer than 10 cars 5 m short
+  (standing some 15 to 20 m short, ours 30 m). Open Rails' check of a
+  platform near a reversal reads the train's first reversal (its own
+  quirk), not taken.
 - **Open Rails' additions** (approach control, call-on, timing triggers,
   stored values, clear-ahead control, subtypes): read and reported, run
   in a later task (decision 3). `block_state` OCCUPIED (a train asking a

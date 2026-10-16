@@ -537,10 +537,12 @@ The driver brakes for it as for a stop. Requests:
   track node, within 150 m (further on when its block holds a junction or
   crossing: Open Rails' signal without a fixed route), is not cleared for
   the train until it stands at the stop with its departure two minutes
-  off; a stop too near it moves back to 31 m short of it. A train stopping
-  beyond the signal has it only when, stopped short of it (by Open Rails'
-  clearing distance: 15 m for the player's train and trains of fewer than
-  10 vehicles, else 30 m), 60 % of the train stands at the platform. A
+  off; a stop too near it moves back to 16 m short of it (Open Rails'
+  clearing distance at station stops, 15 m for every AI train), a station
+  stop short of a signal at stop or of the authority's end kept as Open
+  Rails' AI favours it (not the 30 m kept to a signal at stop). A train
+  stopping beyond the signal has it only when, stopped 16 m short of it,
+  60 % of the train stands at the platform. A
   signal several stops share is held once per stop, as Open Rails lists
   it: each stop takes it off two minutes before its departure and, still
   listed, again as the train leaves. A train standing with a held signal
