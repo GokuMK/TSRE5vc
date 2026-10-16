@@ -28,6 +28,7 @@ public slots:
     void bCamEnabled();
     void bReleaseEnabled();
     void eSpeedEnabled(QString val);
+    void showBorderEnabled(bool val);
     
 signals:
     void cameraObject(GameObj* obj);
@@ -36,6 +37,7 @@ signals:
 private:
     Consist *conObj = NULL;
     QLineEdit eSpeed;
+    QCheckBox showBorder;
     // A simulated train's state ("running 72 km/h"), shown for one alone.
     QLabel state;
     void showSimulated();

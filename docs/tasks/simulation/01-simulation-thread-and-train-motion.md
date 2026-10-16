@@ -170,7 +170,9 @@ copies go). Sounds: the trains within 1.5 km of the camera play their
 consists' sounds (silenced beyond 2 km), their throttle and brake from
 their acceleration as TSRE's stand-in driver gives them (a third of the
 throttle holding the speed). A capture view's `"trainView"` (`cab`,
-`front`, `back`) rides the train.
+`front`, `back`) rides the train. The Consist properties' Show Border
+(the user, 2026-10-17) hides the red outlines, the selected vehicle's and
+the chosen train's, for every consist (`Consist::showBorder`, not saved).
 
 The view's tick pins the frame it shows (`SimulationController::
 pinViewFrame`, until the next tick): the camera riding a train is placed

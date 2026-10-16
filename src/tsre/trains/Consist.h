@@ -131,7 +131,10 @@ public:
     // first by default).
     void getCameraPosition(float *out);
     int cameraVehicle = 0;
-    // Every vehicle outlined when `outlined` (the simulation's chosen train).
+    // Every vehicle outlined when `outlined` (the simulation's chosen train),
+    // and the selected one; neither without showBorder (the Consist
+    // properties' Show border, for every consist, not saved).
+    static bool showBorder;
     void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId, bool outlined = false);
     // A train of the simulation (task simulation 01), its vehicles placed by
     // the simulation's frames (Eng::placeOnTrack): its speed, the distance

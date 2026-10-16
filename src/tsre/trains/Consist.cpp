@@ -833,6 +833,8 @@ void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
             engItems[i].engPointer->getMapFeatures(features, tileX, tileZ);
 }
 
+bool Consist::showBorder = true;
+
 void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool outlined) {
     if (loaded != 1) return;
 
@@ -843,7 +845,8 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
             scolor = SelectionIdCodec::withPart(selectionId, i);
         }
         if (engItems[i].engPointer != NULL)
-            engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor, outlined || selectedIdx == i);
+            engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor,
+                                                          showBorder && (outlined || selectedIdx == i));
         queue.popTransform();
     }
 }

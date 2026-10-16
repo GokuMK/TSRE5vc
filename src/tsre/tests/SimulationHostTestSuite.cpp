@@ -30,6 +30,7 @@
 #include <routeEditor/activity/ActivityEventWindow.h>
 #include <routeEditor/activity/ActivityTimetableProperties.h>
 #include <routeEditor/activity/ActivityTimetableWindow.h>
+#include <routeEditor/properties/PropertiesConsist.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
 #include <tsre/environment/WorldClock.h>
@@ -593,6 +594,17 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         controlled(20.0f, 0.5f, 1.0f, 0.0f);     // full acceleration
         controlled(20.0f, -0.5f, 0.0f, 0.5f);    // braking at half its deceleration
         check(controls, "a train's sounds: throttle and brake from its speed and acceleration");
+        // The Consist properties' Show Border: the outlines drawn or not,
+        // for every consist.
+        PropertiesConsist properties;
+        properties.showObj(consist);
+        QCheckBox *border = properties.findChild<QCheckBox *>("consistShowBorder");
+        const bool shown = border != nullptr && border->isChecked() && Consist::showBorder;
+        if (border != nullptr)
+            border->setChecked(false);
+        const bool hidden = !Consist::showBorder;
+        Consist::showBorder = true;
+        check(shown && hidden, "the Consist properties' Show Border: the outlines drawn at first, not when unchecked");
     }
 
     // Run to an earlier time: from the start again.

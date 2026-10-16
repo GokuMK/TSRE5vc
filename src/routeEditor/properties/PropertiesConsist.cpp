@@ -57,6 +57,16 @@ PropertiesConsist::PropertiesConsist() {
         qtTrId("route.editor.properties.consist.button.release.camera.tooltip"));
     QObject::connect(bRelease, SIGNAL(released()), this, SLOT(bReleaseEnabled()));
     vbox->addWidget(bRelease);
+    showBorder.setText(
+        //% "Show Border"
+        qtTrId("route.editor.properties.consist.option.show.border"));
+    showBorder.setToolTip(
+        //% "The red outline of the selected vehicle, and of the whole train the simulation has chosen; for every consist."
+        qtTrId("route.editor.properties.consist.option.show.border.tooltip"));
+    showBorder.setObjectName("consistShowBorder");
+    showBorder.setChecked(Consist::showBorder);
+    QObject::connect(&showBorder, SIGNAL(toggled(bool)), this, SLOT(showBorderEnabled(bool)));
+    vbox->addWidget(&showBorder);
     
         
     vbox->addStretch(1);
@@ -79,6 +89,7 @@ void PropertiesConsist::showObj(GameObj* obj){
         //% "Object: Activity Consist"
         qtTrId("route.editor.properties.consist.text.object.activity.consist"));
     eSpeed.setText(QString::number(floor(conObj->getTrainSpeed()*3.6)));
+    showBorder.setChecked(Consist::showBorder);
     showSimulated();
 }
 
@@ -123,6 +134,10 @@ void PropertiesConsist::bCamEnabled(){
 
 void PropertiesConsist::bReleaseEnabled(){
     emit releaseCamera();
+}
+
+void PropertiesConsist::showBorderEnabled(bool val){
+    Consist::showBorder = val;
 }
 
 void PropertiesConsist::eSpeedEnabled(QString val){
