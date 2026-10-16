@@ -20,6 +20,8 @@ public:
     FileBuffer();
     FileBuffer(unsigned char * data, int nLength);
     FileBuffer(const FileBuffer* orig);
+    // Text as the text readers take it (UTF-16, no byte order mark).
+    static FileBuffer* fromText(const QString &text);
     virtual ~FileBuffer();
     
     int getInt();

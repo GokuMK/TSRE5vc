@@ -12,6 +12,7 @@
 #define	ACTIVITYTIMETABLE_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 class FileBuffer;
@@ -26,7 +27,6 @@ public:
     int time = 0;
     QString name;
     QString routePath;
-    QString nameTime;
     bool empty = true;
     bool actTimetable = false;
     QVector<int> arrivalTime;
@@ -34,7 +34,11 @@ public:
     QVector<int> skipCount;
     QVector<float> distanceDownPath;
     QVector<int> platformStartID;
+    // Blocks TSRE does not read, as they were in the file; written at the
+    // end of the instance.
+    QStringList kept;
     void load(FileBuffer* data);
+    void setModified(bool val);
     void save(QTextStream* out, QString off = "");
     void reloadTimetable();
     void setService(QString sn);

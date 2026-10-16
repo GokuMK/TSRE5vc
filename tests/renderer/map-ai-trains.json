@@ -1,0 +1,22 @@
+{
+  "notes": "AI trains shown from the Timetable window (docs/tasks/editor/07-activity-editing.md, section 7) on EUROPE1's lclsrvce: twelve AI trains of three services on two paths, all shown, the one on the short path (its place 11) chosen; that path starts at a track's end, so its train is moved ahead, its rear at the end. The player's train and path without Play (player-start; its centre pick is service 0). Map: the AI paths' bands in the AI colours (the chosen one cyan), the consists at their starts; the centre picks of 'chosen-start' and 'consist' are that AI train (service 12). 3D: the chosen path's line cyan and wide past its train.",
+  "output": "build/renderer-ai-trains",
+  "activity": "lclsrvce.act",
+  "aiTrains": "all,11",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "player-start", "mode": "map", "tile": [-6121, -15094], "pos": [-901, 0, 116], "metresPerPixel": 0.5},
+    {"name": "player-start-3d", "tile": [-6121, -15094], "pos": [-901, 90, 216], "rot": [3.1416, -0.5]},
+    {"name": "chosen-start", "mode": "map", "tile": [-6120, -15094], "pos": [370, 0, -250], "metresPerPixel": 2},
+    {"name": "other-start", "mode": "map", "tile": [-6113, -15053], "pos": [-789, 0, -883], "metresPerPixel": 2},
+    {"name": "consist", "mode": "map", "tile": [-6120, -15094], "pos": [360, 0, -236], "metresPerPixel": 0.25},
+    {"name": "along-map", "mode": "map", "tile": [-6120, -15094], "pos": [70, 0, 50], "metresPerPixel": 0.5},
+    {"name": "along-3d", "tile": [-6120, -15094], "pos": [70, 60, 200], "rot": [3.1416, -0.5]}
+  ]
+}

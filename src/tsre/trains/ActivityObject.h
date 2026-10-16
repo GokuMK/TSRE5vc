@@ -12,6 +12,7 @@
 #define	ACTIVITYOBJECT_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <tsre/GameObj.h>
 
@@ -39,6 +40,9 @@ public:
     };
     Consist* con = NULL;
     QString objectType;
+    // Blocks TSRE does not read, as they were in the file; written at the
+    // end of the object.
+    QStringList kept;
     TypeActivityObject objectTypeId = NONE;
     float direction = 0;
     unsigned int id = 0;
@@ -61,6 +65,7 @@ public:
     QString getSpeedZoneName();
     void setModified(bool val);
     bool isUnSaved();
+    Activity *getParentActivity() const { return parentActivity; }
     int getId();
     int getSelectedElementId();
     int getFailedSignalId();

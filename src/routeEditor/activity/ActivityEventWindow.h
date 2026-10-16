@@ -29,25 +29,31 @@ public slots:
     void eventNameChanged(int id);
     void bNewEventSelected();
     void bDeleteEventSelected();
+    // The event with this ID shown and chosen in its list.
+    void selectEvent(int id);
+    // Undo replaces activity data (ActivityNotifier).
+    void activityDataRestoring();
+    void activityDataRestored();
 signals:
     
         
 private:
+    // The ID of the event shown when undo replaced the activity's events.
+    int restoredEventId = -99999;
     QWidget actionWidget;
     QWidget locationWidget;
     QWidget timeWidget;
     
+    QTabWidget *tabs = NULL;
     QListWidget actionList;
     QListWidget locationList;
     QListWidget timeList;
     
     
     
-    Activity *activity;
-    
-    QComboBox *cActionTypes;
-    QComboBox *cOutcomeTypes;
-    QComboBox *cEventNames;
+    Activity *activity = NULL;
+    // Lists the activity's events again and selects the one shown.
+    void selectShownEvent();
 };
 
 #endif	/* ACTIVITYEVENTWINDOW_H */

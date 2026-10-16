@@ -9,6 +9,7 @@
  */
 
 #include "ActivityServiceWindow.h"
+#include <tsre/trains/ActivityNotifier.h>
 #include <routeEditor/activity/ActivityServiceProperties.h>
 #include <tsre/Game.h>
 #include <tsre/trains/Activity.h>
@@ -31,6 +32,11 @@ ActivityServiceWindow::ActivityServiceWindow(QWidget* parent) : QWidget(parent) 
     QPushButton *bNewActionEvent = new QPushButton(
         //% "New Service"
         qtTrId("route.editor.activity.service.window.button.b.new.action.event"));
+    // Undo replaces activity data: let go of it before, show it after.
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restoring,
+                     this, &ActivityServiceWindow::activityDataRestoring);
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::restored,
+                     this, &ActivityServiceWindow::activityDataRestored);
     QObject::connect(bNewActionEvent, SIGNAL(released()),
                       this, SLOT(bNewServiceSelected()));
     QPushButton *bDeleteActionEvent = new QPushButton(
@@ -74,10 +80,15 @@ void ActivityServiceWindow::showServices(Route* r){
     if(this->isHidden())
         return;
     route = r;
+    serviceList.clear();
+    if(route == NULL){
+        activity = NULL;
+        serviceProperties->showService(NULL);
+        return;
+    }
     serviceProperties->setPaths(route->path);
     activity = route->getCurrentActivity();
-    
-    serviceList.clear();
+
     QList<QTreeWidgetItem *> items;
     QStringList list;
     for(int i = 0; i < ActLib::jestservice; i++ ){
@@ -97,39 +108,118 @@ void ActivityServiceWindow::showServices(Route* r){
             if(activity->isServiceInUse(ActLib::Services[i]->nameId))
                 item->setCheckState(1, Qt::Checked);
         }
-        
+
+        // Any: an activity of the route runs it.
         if(ActLib::IsServiceInUse(ActLib::Services[i]->nameId))
             item->setCheckState(2, Qt::Checked);
         else
             item->setCheckState(2, Qt::Unchecked);
-
-        item->setCheckState(2, Qt::Checked);
         item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
         items.append(item);
     }
     serviceList.insertTopLevelItems(0, items);
 }
 
+void ActivityServiceWindow::selectService(QString nameId){
+    for(int row = 0; row < serviceList.topLevelItemCount(); row++){
+        QTreeWidgetItem *item = serviceList.topLevelItem(row);
+        Service *service = ActLib::Services.value(item->type());
+        if(service == NULL || service->nameId.compare(nameId, Qt::CaseInsensitive) != 0)
+            continue;
+        serviceList.setCurrentItem(item);
+        serviceListSelected(item, 0);
+        return;
+    }
+}
+
+Service *ActivityServiceWindow::selectedService(){
+    QTreeWidgetItem *item = serviceList.currentItem();
+    if(item == NULL || item->type() < 0 || item->type() >= ActLib::jestservice)
+        return NULL;
+    return ActLib::Services[item->type()];
+}
+
 void ActivityServiceWindow::serviceListSelected(QTreeWidgetItem * item, int column){
-    if(route == NULL)
+    if(route == NULL || item == NULL)
+        return;
+    if(item->type() < 0 || item->type() >= ActLib::jestservice)
         return;
     serviceProperties->showService(ActLib::Services[item->type()]);
 }
 
 void ActivityServiceWindow::serviceNameChanged(int id){
-    
+
 }
 
 void ActivityServiceWindow::bNewServiceSelected(){
+    if(route == NULL)
+        return;
     EditFileNameDialog eWindow;
     eWindow.exec();
-    if(eWindow.isOk && eWindow.name.text().length() > 0){
-        ActLib::AddService(Game::root + "/ROUTES/" + Game::route + "/SERVICES/", eWindow.name.text()+".srv", true);
+    const QString name = eWindow.name.text().trimmed();
+    if(!eWindow.isOk || name.isEmpty())
+        return;
+    if(name.contains(QRegularExpression("[\\\\/:*?\"<>|]"))){
+        QMessageBox::warning(this, windowTitle(),
+            //% "A file name cannot be empty or contain \\ / : * ? \" < > |."
+            qtTrId("route.editor.activity.service.window.name.invalid"));
+        return;
     }
+    if(ActLib::ServiceExists(name)){
+        QMessageBox::warning(this, windowTitle(),
+            //% "A service named %1 exists already."
+            qtTrId("route.editor.activity.service.window.name.exists").arg(name));
+        return;
+    }
+    ActLib::AddService(Game::root + "/ROUTES/" + Game::route + "/SERVICES/", name+".srv", true);
     showServices(route);
-    reloadServicesList();
+    emit reloadServicesList();
 }
 
+// As a path is deleted: the activities and traffic naming the service are
+// listed in the question; they keep its name.
 void ActivityServiceWindow::bDeleteServiceSelected(){
-    
+    Service *service = selectedService();
+    if(route == NULL || service == NULL)
+        return;
+    //% "Delete Service"
+    const QString title = qtTrId("route.editor.activity.service.window.delete.title");
+    if(!Game::writeEnabled){
+        QMessageBox::warning(this, title,
+            //% "The route is read-only."
+            qtTrId("route.editor.activity.service.window.delete.read.only"));
+        return;
+    }
+    QString question =
+        //% "Delete the service %1 and its file? This cannot be undone."
+        qtTrId("route.editor.activity.service.window.delete.question").arg(service->displayName);
+    const QStringList users = ActLib::ServiceUsers(service);
+    if(!users.isEmpty())
+        question += "\n\n" +
+            //% "These activities and traffic name it: %1"
+            qtTrId("route.editor.activity.service.window.delete.users").arg(users.join(", "));
+    if(QMessageBox::question(this, title, question) != QMessageBox::Yes)
+        return;
+    if(QFile::exists(service->pathid) && !QFile::remove(service->pathid)){
+        QMessageBox::warning(this, title,
+            //% "The file %1 could not be deleted."
+            qtTrId("route.editor.activity.service.window.delete.failed").arg(service->pathid));
+        return;
+    }
+    serviceProperties->showService(NULL);
+    ActLib::RemoveService(service);
+    showServices(route);
+    emit reloadServicesList();
+}
+// Services are restored in place: the one shown is shown again.
+void ActivityServiceWindow::activityDataRestoring(){
+}
+
+void ActivityServiceWindow::activityDataRestored(){
+    if(route == NULL)
+        return;
+    Service *service = serviceProperties->shownService();
+    showServices(route);
+    if(service != NULL)
+        serviceProperties->showService(service);
 }

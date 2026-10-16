@@ -117,6 +117,7 @@
 #include <tsre/world/Trk.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
+#include <tsre/trains/ActivityNotifier.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
@@ -141,6 +142,14 @@ tools(std::make_unique<ToolRegistry>()) {
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
     timeRuns = Settings::boolean("core.rendering.timeOfDay.running");
+    // Undo replaces activity data: a selected loose consist, speed zone or
+    // failed signal is gone.
+    connect(ActivityNotifier::instance(), &ActivityNotifier::restoring, this, [this] {
+        if (selectedObj != NULL && selectedObj->typeObj == GameObj::activityobj)
+            setSelectedObj(NULL);
+        if (lastSelectedObj != NULL && lastSelectedObj->typeObj == GameObj::activityobj)
+            lastSelectedObj = NULL;
+    });
     // Sky and fog settings change while the editor runs (environment window,
     // task editor 05); the next frame takes them.
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
@@ -1954,6 +1963,7 @@ void RouteEditorGLWidget::applySelection(quint32 selectionId,
             //qDebug() << "eid"<<EID;
             selectedObj->select(EID);
             setSelectedObj(selectedObj);
+            emit activityTrainSelected(CID);
         }
     } else {
         if (selectedObj != NULL) {
@@ -3678,6 +3688,20 @@ void RouteEditorGLWidget::setDiagnosticActivity(const QString &activity, const Q
         }
         if (!found)
             qWarning() << "diagnostic path not found" << path;
+    }
+}
+
+void RouteEditorGLWidget::setDiagnosticAITrains(const QString &trains) {
+    Activity *activity = route != NULL ? route->getCurrentActivity() : NULL;
+    if (activity == NULL || trains.isEmpty())
+        return;
+    for (const QString &part : trains.split(',', Qt::SkipEmptyParts)) {
+        bool number = false;
+        const int index = part.trimmed().toInt(&number);
+        if (number)
+            activity->shownAITrain = index;
+        else if (part.trimmed() == "all")
+            activity->showAllAITrains = true;
     }
 }
 

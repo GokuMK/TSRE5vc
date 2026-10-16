@@ -35,6 +35,8 @@ struct PathSnapshot {
     };
     QVector<Passing> passing;
     bool modified = false;
+    // Saves of the path when the snapshot was taken.
+    int saves = 0;
 };
 
 // An activity path (.pat). Its nodes are read once and resolved on the
@@ -47,13 +49,31 @@ class Path : public GameObj {
 public:
     static void CreatePaths(TDB * tdb);
 
+    // A pass of the path over a platform, as MSTS counts a stop's
+    // SkipCount (task editor 07, Reference): each pass over both of a
+    // platform's items between reversals (a switchback platform twice), the
+    // platform the path starts or ends in, platforms passed together once.
+    // A stop's SkipCount is its pass's place in pathObjects.
     struct PathObject {
         QString name;
+        // The platform item the pass leaves the platform at, and the
+        // distance down the path to it.
         int trItemId = -1;
-        float distanceDownPath;
+        float distanceDownPath = 0;
+        // The platform: the lower id of its two items.
+        int platform = -1;
+        // Each platform item met in the pass, with its distance.
+        QVector<QPair<int, float>> items;
+        // Whether the pass meets the item; its distance there.
+        bool meets(int itemId, float *distance = NULL) const;
     };
 
     QVector<PathObject*> pathObjects;
+    // The passes before the last change of the path (Path::apply, restore):
+    // services find their stops' passes in them.
+    const QVector<PathObject> &previousPasses() const { return previousObjects; }
+    // Passing paths the last edit dropped.
+    int droppedByLastEdit() const { return lastDroppedPassing; }
 
     QString displayName;
     QString name;
@@ -64,6 +84,9 @@ public:
     QString routeHashid;
     QString pathId;
     QString trPathName;
+    // A service's or activity's PathID names this path: its file name, or
+    // its TrPathName in content where the two differ.
+    bool isNamed(const QString &pathId) const;
     QString trPathStart;
     QString trPathEnd;
     unsigned int trPathFlags = 0;
@@ -88,7 +111,11 @@ public:
     void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
     void init3dShapes(bool initShapes = true);
     bool isModified();
-    void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId);
+    // How the path's line is drawn: green (a selected path, the player's),
+    // or as an activity's AI train's, blue, or cyan and wider when it is
+    // the train chosen.
+    enum LineStyle { LinePlain = 0, LineAITrain = 1, LineChosenTrain = 2 };
+    void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId, int style = LinePlain);
 
     // The nodes on the current track database, and the track between them.
     const QVector<PathTrack::Node> &nodes();
@@ -106,6 +133,9 @@ public:
     // Grows with every change of the path, for panels that show it.
     unsigned int changes() const { return changeCount; }
     bool hasFlags() const { return hasPathFlags; }
+    // Passing paths in the file that do not come back to the main path:
+    // not read, so not written either.
+    int droppedPassingPaths() const { return unjoinedPassing; }
     // TrPathFlags; 0x20 marks a path no player train runs (Open Rails).
     void setPathFlags(unsigned int value);
     void setDisplayName(const QString &value);
@@ -118,16 +148,28 @@ public:
 
 private:
     bool modified = false;
+    // Times saved: a state restored from before a save is not on disk.
+    int saves = 0;
     bool isinit1 = false;
     bool isinit2 = false;
     bool hasPathFlags = false;
+    int unjoinedPassing = 0;
     unsigned int changeCount = 0;
     int serial = -1;
     TrackItemObj* pointer3d[4] = {NULL, NULL, NULL, NULL};
     QVector<OglObj*> lines;
     QVector<float> linesX;
     QVector<float> linesZ;
-    QMap<float, PathObject*> pathObjectsMap;
+    // The lines in the AI train styles, made when first drawn so.
+    QVector<OglObj*> styleLines[2];
+    QVector<float> styleX[2];
+    QVector<float> styleZ[2];
+    void appendLines(QVector<OglObj*> &out, QVector<float> &outX, QVector<float> &outZ,
+                     const float *colour, float width);
+    QVector<PathObject> previousObjects;
+    int lastDroppedPassing = 0;
+    // The passes over platforms (PathObject), from the resolved legs.
+    void findPlatformPasses(TDB *tdb);
     QMap<int, int> junctionDirections;
     int startDirection = 0;
     // The nodes of the main path, and the passing paths beside it: the

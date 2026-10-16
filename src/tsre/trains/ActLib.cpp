@@ -10,6 +10,8 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/ActLib.h>
+#include <tsre/Undo.h>
+#include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Traffic.h>
@@ -86,17 +88,6 @@ int ActLib::AddAct(QString path, QString name, bool nowe) {
     if(!nowe && Act[jestact]->loaded == 1 && Act[jestact]->header)
         route[Act[jestact]->header->routeid].push_back(jestact);
     return jestact++;
-}
-
-void ActLib::UpdateServiceChanges(QString serviceNameId, QString routePath){
-    const QString ownerKey = routeKey(routePath);
-    QHashIterator<int, Activity*> i(Act);
-    while (i.hasNext()) {
-        i.next();
-        if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(i.value()->routeHashid != ownerKey) continue;
-        i.value()->updateService(serviceNameId);
-    }
 }
 
 int ActLib::AddService(QString path, QString name, bool nowe) {
@@ -196,8 +187,10 @@ Service* ActLib::GetServiceByName(QString name, QString routePath){
     return NULL;
 }
 
+// Activities name traffic by its file; the name inside it is tried after.
 Traffic* ActLib::GetTrafficByName(QString name, QString routePath){
     const QString ownerKey = routeKey(routePath);
+    Traffic *byDisplayName = NULL;
     QHashIterator<int, Traffic*> i(Traffics);
     while (i.hasNext()) {
         i.next();
@@ -205,27 +198,49 @@ Traffic* ActLib::GetTrafficByName(QString name, QString routePath){
         if(i.value()->routeHashid != ownerKey) continue;
         if(i.value()->nameId.compare(name, Qt::CaseInsensitive) == 0)
             return i.value();
+        if(byDisplayName == NULL && i.value()->displayName.compare(name, Qt::CaseInsensitive) == 0)
+            byDisplayName = i.value();
     }
-    return NULL;
+    return byDisplayName;
 }
 
+// A PathID is the path's file name (as MSTS opens it); TrPathName is
+// tried after, for content where the two differ.
 Path* ActLib::GetPathByName(QString name, QString routePath){
     const QString ownerKey = routeKey(routePath);
+    Path *byTrPathName = NULL;
     QHashIterator<int, Path*> i(Paths);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
         if(i.value()->routeHashid != ownerKey) continue;
-        if(i.value()->trPathName.compare(name, Qt::CaseInsensitive) == 0)
+        if(i.value()->nameId.compare(name, Qt::CaseInsensitive) == 0)
             return i.value();
+        if(byTrPathName == NULL && i.value()->trPathName.compare(name, Qt::CaseInsensitive) == 0)
+            byTrPathName = i.value();
     }
-    return NULL;
+    return byTrPathName;
 }
 
-void ActLib::PathChanged(Path *path) {
-    for (Service *service : Services)
-        if (service != NULL)
-            service->pathChanged(path);
+// The services on the path follow it (task editor 07, phase 5), kept for
+// undo first; what changed goes to the activity windows.
+void ActLib::PathChanged(Path *path, bool report) {
+    QStringList lines;
+    for (Service *service : Services) {
+        if (service == NULL)
+            continue;
+        if (service->loaded == 1 && service->routeHashid == path->routeHashid && path->isNamed(service->pathId)) {
+            Undo::PushServiceData(service);
+            lines += service->followPath(path);
+        }
+        service->pathChanged(path);
+    }
+    if (path->droppedByLastEdit() > 0)
+        lines << QString(
+            //% "%1: %2 passing paths the edit went through are dropped."
+            qtTrId("activity.follow.passing.dropped")).arg(path->nameId).arg(path->droppedByLastEdit());
+    if (report && !lines.isEmpty())
+        emit ActivityNotifier::instance()->pathFollowed(path->nameId, lines);
 }
 
 int ActLib::AddNewPath(Path *path) {
@@ -239,17 +254,104 @@ void ActLib::RemovePath(Path *path) {
             it.value() = NULL;
 }
 
+void ActLib::RemoveService(Service *service) {
+    for (auto it = Services.begin(); it != Services.end(); ++it)
+        if (it.value() == service)
+            it.value() = NULL;
+}
+
+void ActLib::ForgetInstances(Traffic *traffic) {
+    if (traffic == NULL)
+        return;
+    // Every instance of the traffic, removed ones too: activities naming it.
+    for (Activity *activity : Act) {
+        if (activity == NULL || activity->loaded != 1 || activity->traffic == NULL
+                || activity->routeHashid != traffic->routeHashid
+                || activity->traffic->name.compare(traffic->nameId, Qt::CaseInsensitive) != 0)
+            continue;
+        for (ActivityServiceDefinition &instance : activity->traffic->service)
+            instance.trafficDefinition = NULL;
+    }
+}
+
+void ActLib::RemoveTraffic(Traffic *traffic) {
+    for (auto it = Traffics.begin(); it != Traffics.end(); ++it)
+        if (it.value() == traffic)
+            it.value() = NULL;
+}
+
+QStringList ActLib::ServiceUsers(Service *service) {
+    QStringList users;
+    if (service == NULL)
+        return users;
+    for (Activity *activity : Act)
+        if (activity != NULL && activity->loaded == 1 && activity->routeHashid == service->routeHashid
+                && activity->isServiceInUse(service->nameId))
+            users << activity->name;
+    for (Traffic *traffic : Traffics) {
+        if (traffic == NULL || traffic->loaded != 1 || traffic->routeHashid != service->routeHashid)
+            continue;
+        for (ActivityTimetable *instance : traffic->service)
+            if (instance != NULL && instance->name.compare(service->nameId, Qt::CaseInsensitive) == 0) {
+                users << traffic->name;
+                break;
+            }
+    }
+    return users;
+}
+
+QStringList ActLib::TrafficUsers(Traffic *traffic) {
+    QStringList users;
+    if (traffic == NULL)
+        return users;
+    for (Activity *activity : Act)
+        if (activity != NULL && activity->loaded == 1 && activity->routeHashid == traffic->routeHashid
+                && activity->traffic != NULL && activity->traffic->name.compare(traffic->nameId, Qt::CaseInsensitive) == 0)
+            users << activity->name;
+    return users;
+}
+
+namespace {
+// A file of the folder by this name, in any case.
+bool fileInFolder(const QString &folder, const QString &name) {
+    QDir dir(folder);
+    for (const QString &entry : dir.entryList(QDir::Files))
+        if (entry.compare(name, Qt::CaseInsensitive) == 0)
+            return true;
+    return false;
+}
+}
+
+bool ActLib::ServiceExists(QString nameId, QString routePath) {
+    if (routePath.isEmpty())
+        routePath = Game::root + "/ROUTES/" + Game::route;
+    for (Service *service : Services)
+        if (service != NULL && service->routeHashid == routeKey(routePath)
+                && service->nameId.compare(nameId, Qt::CaseInsensitive) == 0)
+            return true;
+    return fileInFolder(routePath + "/SERVICES", nameId + ".srv");
+}
+
+bool ActLib::TrafficExists(QString nameId, QString routePath) {
+    if (routePath.isEmpty())
+        routePath = Game::root + "/ROUTES/" + Game::route;
+    for (Traffic *traffic : Traffics)
+        if (traffic != NULL && traffic->routeHashid == routeKey(routePath)
+                && traffic->nameId.compare(nameId, Qt::CaseInsensitive) == 0)
+            return true;
+    return fileInFolder(routePath + "/TRAFFIC", nameId + ".trf");
+}
+
 QStringList ActLib::PathUsers(Path *path) {
     QStringList users;
     if (path == NULL)
         return users;
     for (Service *service : Services)
-        if (service != NULL && service->routeHashid == path->routeHashid
-                && service->pathId.compare(path->trPathName, Qt::CaseInsensitive) == 0)
+        if (service != NULL && service->routeHashid == path->routeHashid && path->isNamed(service->pathId))
             users << service->name;
     for (Activity *activity : Act)
         if (activity != NULL && activity->header != NULL && activity->routeHashid == path->routeHashid
-                && activity->header->pathid.compare(path->trPathName, Qt::CaseInsensitive) == 0)
+                && path->isNamed(activity->header->pathid))
             users << activity->name;
     return users;
 }

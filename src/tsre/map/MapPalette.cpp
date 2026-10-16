@@ -35,6 +35,8 @@ MapPalette MapPalette::dark() {
     palette.pathStart = QColor(80, 170, 255);
     palette.pathEnd = QColor(255, 90, 90);
     palette.pathBroken = QColor(255, 80, 210);
+    palette.aiPath = QColor(50, 80, 150);
+    palette.aiPathChosen = QColor(0, 150, 190);
     palette.wagon = QColor(110, 150, 235);
     palette.engine = QColor(60, 90, 200);
     palette.terrainBorder = QColor(70, 73, 82);
@@ -82,6 +84,8 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("pathStart", palette.pathStart);
     read("pathEnd", palette.pathEnd);
     read("pathBroken", palette.pathBroken);
+    read("aiPath", palette.aiPath);
+    read("aiPathChosen", palette.aiPathChosen);
     read("wagon", palette.wagon);
     read("engine", palette.engine);
     read("speedZone", palette.speedZone);

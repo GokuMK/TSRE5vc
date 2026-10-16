@@ -19,6 +19,7 @@
 #include <QOpenGLFunctions>
 #include <algorithm>
 #include <cmath>
+#include <tuple>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/SelectionId.h>
@@ -45,7 +46,8 @@ void setHeight(std::vector<float> &points, float y) {
 }
 
 ActivityMapLayer::ActivityMapLayer()
-    : pathBand(std::make_unique<OglObj>()), halos(std::make_unique<OglObj>()),
+    : pathBand(std::make_unique<OglObj>()), aiBand(std::make_unique<OglObj>()),
+      chosenBand(std::make_unique<OglObj>()), halos(std::make_unique<OglObj>()),
       borders(std::make_unique<OglObj>()),
       areas(std::make_unique<OglObj>()) {
     for (auto &fill : fills)
@@ -111,8 +113,10 @@ std::vector<const void *> ActivityMapLayer::sources(Route *route, bool activity,
             list.push_back(object->con);
             count(object->con->isOnTrack ? 1 : 0);
         }
-    if (current->playerServiceDefinition != nullptr)
-        list.push_back(current->playerServiceDefinition->servicePointer);
+    list.push_back(current->playerService());
+    count(current->shownAITrain);
+    for (int i : current->shownAITrains())
+        list.push_back(current->aiTrainService(i));
     return list;
 }
 
@@ -121,7 +125,7 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     static const bool trace = qEnvironmentVariableIsSet("TSRE_MAP_TRACE");
     QElapsedTimer timer;
     timer.start();
-    MapFeatures path, consists, zones, failedSignals, events, selected;
+    MapFeatures path, aiPaths, chosenPath, consists, zones, failedSignals, events, selected;
     const int tileX = view.tileX, tileZ = view.tileZ;
     // The selected paths and the activity's player path, each once.
     std::vector<::Path *> shownPaths;
@@ -130,8 +134,7 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
             if (selected != nullptr && selected->isSelected())
                 shownPaths.push_back(selected);
     Activity *current = activity && route != nullptr ? route->getCurrentActivity() : nullptr;
-    Service *player = current != nullptr && current->playerServiceDefinition != nullptr
-            ? current->playerServiceDefinition->servicePointer : nullptr;
+    Service *player = current != nullptr ? current->playerService() : nullptr;
     if (player != nullptr) {
         ::Path *playerPath = player->getPathPointer();
         if (playerPath != nullptr
@@ -156,8 +159,8 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
         collect(current->activityObjects, consists);
         collect(current->restrictedSpeedZone, zones);
         collect(current->activityFailedSignal, failedSignals);
-        for (ActivityEvent &event : current->event)
-            event.getMapFeatures(events, tileX, tileZ);
+        for (ActivityEvent *event : current->event)
+            event->getMapFeatures(events, tileX, tileZ);
         if (player != nullptr) {
             MapFeatures own;
             player->getMapFeatures(own, tileX, tileZ);
@@ -166,13 +169,26 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
             if (train != nullptr && train->isSelected())
                 selected.append(own);
         }
+        // The AI trains shown: paths (the chosen one apart) and consists.
+        for (int i : current->shownAITrains()) {
+            Service *service = current->aiTrainService(i);
+            ::Path *trainPath = service->getPathPointer();
+            if (trainPath != nullptr)
+                trainPath->getMapFeatures(i == current->shownAITrain ? chosenPath : aiPaths, tileX, tileZ);
+            MapFeatures own;
+            service->getMapFeatures(own, tileX, tileZ);
+            consists.append(own);
+            Consist *train = service->getConsistPointer();
+            if (train != nullptr && train->isSelected())
+                selected.append(own);
+        }
     }
 
     const float mpp = view.metresPerPixel;
     const float border = BorderPixels * mpp;
     const float radius = 0.5f * MarkerPixels * mpp;
-    std::vector<float> bandVertices, haloVertices, borderVertices, areaVertices,
-            fillVertices[GroupCount];
+    std::vector<float> bandVertices, aiBandVertices, chosenBandVertices, haloVertices,
+            borderVertices, areaVertices, fillVertices[GroupCount];
     auto lines = [&](std::vector<float> &segments, int group) {
         const int count = int(segments.size() / 6);
         setHeight(segments, BorderHeight);
@@ -199,6 +215,19 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     circles(path.ends, PathEnd);
     lines(path.brokenLines, PathBroken);
     circles(path.brokenPoints, PathBroken);
+    // AI trains' paths: their bands under the player's, nodes as the
+    // player's.
+    for (auto [features, vertices, height] : {std::make_tuple(&aiPaths, &aiBandVertices, AIPathHeight),
+                                               std::make_tuple(&chosenPath, &chosenBandVertices, ChosenPathHeight)}) {
+        setHeight(features->lines, height);
+        TrackMapLayer::appendRibbons(*vertices, features->lines.data(), int(features->lines.size() / 6),
+                                     PathPixels * mpp);
+        circles(features->points, Path);
+        circles(features->starts, PathStart);
+        circles(features->ends, PathEnd);
+        lines(features->brokenLines, PathBroken);
+        circles(features->brokenPoints, PathBroken);
+    }
     // Consists.
     const int vehicleCount = int(consists.vehicles.size()) / MapFeatures::VehicleFloats;
     for (int i = 0; i < vehicleCount; ++i) {
@@ -255,6 +284,8 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
         object.init(vertices.data(), int(vertices.size()), RenderItem::V, GL_TRIANGLES);
     };
     upload(*pathBand, bandVertices, palette.path);
+    upload(*aiBand, aiBandVertices, palette.aiPath);
+    upload(*chosenBand, chosenBandVertices, palette.aiPathChosen);
     upload(*halos, haloVertices, palette.selection);
     upload(*borders, borderVertices, palette.itemBorder);
     upload(*areas, areaVertices, palette.event);
@@ -287,6 +318,8 @@ void ActivityMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
         build(view, palette, route, activity, paths);
         builtSources = std::move(current);
     }
+    aiBand->pushRenderItem(queue);
+    chosenBand->pushRenderItem(queue);
     pathBand->pushRenderItem(queue);
     halos->pushRenderItem(queue);
     areas->pushRenderItem(queue);
@@ -352,11 +385,18 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
         object->getMapFeatures(own, tileX, tileZ);
         points(own, id, false);
     }
-    Service *player = current->playerServiceDefinition != nullptr
-            ? current->playerServiceDefinition->servicePointer : nullptr;
+    Service *player = current->playerService();
     if (player != nullptr && SelectionIdCodec::tryActivityService(0, 0, id)) {
         MapFeatures own;
         player->getMapFeatures(own, tileX, tileZ);
+        vehicles(own, id);
+    }
+    // AI trains: their place in the activity's traffic + 1, as in 3D.
+    for (int i : current->shownAITrains()) {
+        if (!SelectionIdCodec::tryActivityService(i + 1, 0, id))
+            continue;
+        MapFeatures own;
+        current->aiTrainService(i)->getMapFeatures(own, tileX, tileZ);
         vehicles(own, id);
     }
 }

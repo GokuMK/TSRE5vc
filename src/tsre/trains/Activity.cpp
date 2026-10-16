@@ -11,6 +11,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActLib.h>
+#include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -27,6 +28,7 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
+#include <algorithm>
 
 Activity::Activity() {
 }
@@ -118,7 +120,6 @@ Activity::Activity(QString src, QString p, QString n, bool isnew) {
 
 void Activity::load() {
 
-    QString sh;
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
@@ -132,7 +133,13 @@ void Activity::load() {
     file->close();
     data->toUtf16();
     data->skipBOM();
+    parse(data);
+    delete data;
+    loaded = 1;
+}
 
+void Activity::parse(FileBuffer *data) {
+    QString sh;
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         if (sh == ("simisa@@@@@@@@@@jinx0a0t______")) {
             continue;
@@ -190,6 +197,11 @@ void Activity::load() {
                             ParserX::SkipToken(data);
                             continue;
                         }
+                        if (sh == ("ortsaicrossinghornpattern")) {
+                            ortsAICrossingHornPattern = ParserX::GetStringInside(data);
+                            ParserX::SkipToken(data);
+                            continue;
+                        }
                         if (sh == ("traffic_definition")) {
                             traffic = new TrafficDefinition();
                             traffic->name = ParserX::GetStringInside(data);
@@ -202,7 +214,7 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                ParserX::SkipToken(data);
+                                traffic->kept.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -212,37 +224,36 @@ void Activity::load() {
                             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
 
                                 if (sh == ("eventcategoryaction")) {
-                                    event.push_back(ActivityEvent());
-                                    event.back().category = ActivityEvent::CategoryAction;
-                                    event.back().load(data);
-                                    if(event.back().id > nextEventUID)
-                                        nextEventUID = event.back().id;
-                                    event.back().setParentActivity(this);
+                                    event.push_back(new ActivityEvent());
+                                    event.back()->category = ActivityEvent::CategoryAction;
+                                    event.back()->load(data);
+                                    if(event.back()->id > nextEventUID)
+                                        nextEventUID = event.back()->id;
+                                    event.back()->setParentActivity(this);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
                                 if (sh == ("eventcategorylocation")) {
-                                    event.push_back(ActivityEvent());
-                                    event.back().category = ActivityEvent::CategoryLocation;
-                                    event.back().load(data);
-                                    if(event.back().id > nextEventUID)
-                                        nextEventUID = event.back().id;
-                                    event.back().setParentActivity(this);
+                                    event.push_back(new ActivityEvent());
+                                    event.back()->category = ActivityEvent::CategoryLocation;
+                                    event.back()->load(data);
+                                    if(event.back()->id > nextEventUID)
+                                        nextEventUID = event.back()->id;
+                                    event.back()->setParentActivity(this);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
                                 if (sh == ("eventcategorytime")) {
-                                    event.push_back(ActivityEvent());
-                                    event.back().category = ActivityEvent::CategoryTime;
-                                    event.back().load(data);
-                                    if(event.back().id > nextEventUID)
-                                        nextEventUID = event.back().id;
-                                    event.back().setParentActivity(this);
+                                    event.push_back(new ActivityEvent());
+                                    event.back()->category = ActivityEvent::CategoryTime;
+                                    event.back()->load(data);
+                                    if(event.back()->id > nextEventUID)
+                                        nextEventUID = event.back()->id;
+                                    event.back()->setParentActivity(this);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#events - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptEvents.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -251,12 +262,15 @@ void Activity::load() {
                         if (sh == ("platformnumpassengerswaiting")) {
                             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                                 if (sh == ("platformdata")) {
-                                    platformNumPassengersWaiting.push_back(qMakePair(ParserX::GetNumber(data), ParserX::GetNumber(data)));
+                                    // The platform, then the passengers: two
+                                    // statements, read in this order.
+                                    const int platform = ParserX::GetNumber(data);
+                                    const int passengers = ParserX::GetNumber(data);
+                                    platformNumPassengersWaiting.push_back(qMakePair(platform, passengers));
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#platformnumpassengerswaiting - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptPassengers.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -272,8 +286,7 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#activityobjects - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptObjects.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -291,8 +304,7 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#activityrestrictedspeedzones - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptSpeedZones.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
@@ -308,22 +320,19 @@ void Activity::load() {
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
-                                qDebug() << "#activityfailedsignals - undefined token: " << sh;
-                                ParserX::SkipToken(data);
+                                keptFailedSignals.push_back(ParserX::KeepBlock(data, sh));
                                 continue;
                             }
                             ParserX::SkipToken(data);
                             continue;
                         }
-                        qDebug() << "#tr_activity_file - undefined token: " << sh;
-                        ParserX::SkipToken(data);
+                        keptFile.push_back(ParserX::KeepBlock(data, sh));
                         continue;
                     }
                     ParserX::SkipToken(data);
                     continue;
                 }
-                qDebug() << "#tr_activity - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                kept.push_back(ParserX::KeepBlock(data, sh));
                 continue;
             }
             ParserX::SkipToken(data);
@@ -333,11 +342,6 @@ void Activity::load() {
         ParserX::SkipToken(data);
         continue;
     }
-    delete data;
-    loaded = 1;
-
-    //save();
-    return;
 }
 
 void Activity::save() {
@@ -360,6 +364,99 @@ void Activity::save() {
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
+    out << toText();
+    out.flush();
+    file.close();
+    setSaved();
+    nowe = false;
+    ++saves;
+    // A merged overlay is kept, renamed so that Open Rails stops adding it.
+    if(!mergedOverlay.isEmpty() && QFile::exists(mergedOverlay)){
+        QString target = mergedOverlay + ".merged";
+        for(int i = 2; QFile::exists(target); i++)
+            target = mergedOverlay + ".merged." + QString::number(i);
+        if(QFile::rename(mergedOverlay, target))
+            emit ActivityNotifier::instance()->overlayRenamed(mergedOverlay);
+    }
+    mergedOverlay.clear();
+    
+    tpath = pathid;
+    tpath.remove(tpath.length()-4, 4);
+    tpath += ".asv";
+    tpath = ContentPath::normalize(tpath);
+    qDebug() << tpath;
+    QFile::remove(tpath);
+}
+
+void Activity::setSaved() {
+    modified = false;
+    for(ActivityObject *o : activityObjects)
+        o->setModified(false);
+    for(ActivityObject *o : restrictedSpeedZone)
+        o->setModified(false);
+    for(ActivityObject *o : activityFailedSignal)
+        o->setModified(false);
+    for(ActivityEvent *e : event)
+        e->setModified(false);
+    if(playerServiceDefinition != NULL)
+        playerServiceDefinition->setModified(false);
+    if(traffic != NULL)
+        for(ActivityServiceDefinition &s : traffic->service)
+            s.setModified(false);
+}
+
+std::shared_ptr<TextSnapshot> Activity::snapshot() {
+    auto copy = std::make_shared<TextSnapshot>();
+    copy->text = toText();
+    copy->unsaved = isUnSaved();
+    copy->saves = saves;
+    copy->pending = mergedOverlay;
+    return copy;
+}
+
+void Activity::restore(const TextSnapshot &snapshot) {
+    mergedOverlay = snapshot.pending;
+    clearContent();
+    FileBuffer *data = FileBuffer::fromText(snapshot.text);
+    parse(data);
+    delete data;
+    setSaved();
+    modified = snapshot.unsaved || snapshot.saves != saves;
+}
+
+void Activity::clearContent() {
+    currentEventSelected = NULL;
+    currentOutcomeSelected = NULL;
+    qDeleteAll(event);
+    event.clear();
+    qDeleteAll(activityObjects);
+    activityObjects.clear();
+    qDeleteAll(restrictedSpeedZone);
+    restrictedSpeedZone.clear();
+    qDeleteAll(activityFailedSignal);
+    activityFailedSignal.clear();
+    platformNumPassengersWaiting.clear();
+    delete header;
+    header = NULL;
+    delete playerServiceDefinition;
+    playerServiceDefinition = NULL;
+    delete traffic;
+    traffic = NULL;
+    for(QStringList *list : {&kept, &keptFile, &keptEvents, &keptObjects, &keptSpeedZones,
+                             &keptFailedSignals, &keptPassengers})
+        list->clear();
+    serial = -1;
+    nextServiceUID = -1;
+    nextActivityObjectUID = -1;
+    nextEventUID = 0;
+    ortsAIHornAtCrossings = -9999;
+    ortsAICrossingHornPattern.clear();
+    isInitActivityObjects = false;
+}
+
+QString Activity::toText() {
+    QString text;
+    QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0a0t______\n";
     out << "\n";
     out << "Tr_Activity (\n";
@@ -381,67 +478,61 @@ void Activity::save() {
         out << "		NextActivityObjectUID ( " << nextActivityObjectUID << " )\n";
     if (ortsAIHornAtCrossings != -9999)
         out << "		ORTSAIHornAtCrossings ( " << ortsAIHornAtCrossings << " )\n";
+    if (!ortsAICrossingHornPattern.isEmpty())
+        out << "		ORTSAICrossingHornPattern ( " << ParserX::AddComIfReq(ortsAICrossingHornPattern) << " )\n";
     if (traffic != NULL){
         out << "		Traffic_Definition ( " << ParserX::AddComIfReq(traffic->name) <<"\n";
         for(int i = 0; i<traffic->service.size(); i++)
             traffic->service[i].save(&out);
+        ParserX::WriteKept(&out, traffic->kept, "			");
         out << "		)\n";
     }
 
-    if (event.size() > 0 ){
+    if (event.size() > 0 || keptEvents.size() > 0){
         out << "		Events (\n";
         for(int i = 0; i<event.size(); i++)
-            event[i].save(&out);
+            event[i]->save(&out);
+        ParserX::WriteKept(&out, keptEvents, "			");
         out << "		)\n";
     }
 
-    if (activityObjects.size() > 0 ){
+    if (activityObjects.size() > 0 || keptObjects.size() > 0){
         out << "		ActivityObjects (\n";
         for(int i = 0; i<activityObjects.size(); i++)
             activityObjects[i]->save(&out);
+        ParserX::WriteKept(&out, keptObjects, "			");
         out << "		)\n";
     }
 
-    if (restrictedSpeedZone.size() > 0 ){
+    if (restrictedSpeedZone.size() > 0 || keptSpeedZones.size() > 0){
         out << "		ActivityRestrictedSpeedZones (\n";
         for(int i = 0; i<restrictedSpeedZone.size(); i++)
             restrictedSpeedZone[i]->save(&out);
+        ParserX::WriteKept(&out, keptSpeedZones, "			");
         out << "		)\n";
     }
-    if (activityFailedSignal.size() > 0 ){
+    if (activityFailedSignal.size() > 0 || keptFailedSignals.size() > 0){
         out << "		ActivityFailedSignals (\n";
         for(int i = 0; i<activityFailedSignal.size(); i++)
             activityFailedSignal[i]->save(&out);
+        ParserX::WriteKept(&out, keptFailedSignals, "			");
         out << "		)\n";
     }
-    if (platformNumPassengersWaiting.size() > 0 ){
+    if (platformNumPassengersWaiting.size() > 0 || keptPassengers.size() > 0){
         out << "		PlatformNumPassengersWaiting (\n";
         for(int i = 0; i<platformNumPassengersWaiting.size(); i++)
-            out << "			PlatformData ( " << platformNumPassengersWaiting[i].second << " " << platformNumPassengersWaiting[i].first << " )\n";
+            out << "			PlatformData ( " << platformNumPassengersWaiting[i].first << " " << platformNumPassengersWaiting[i].second << " )\n";
+        ParserX::WriteKept(&out, keptPassengers, "			");
         out << "		)\n";
     }
+    ParserX::WriteKept(&out, keptFile, "		");
     out << "	)\n";
-    
+    ParserX::WriteKept(&out, kept, "	");
 
     out << ")";
 
     out.flush();
-    file.close();
-    modified = false;
-    nowe = false;
-    for(int i = 0; i < activityObjects.size(); i++){
-        activityObjects[i]->setModified(false);
-    }
-    for(int i = 0; i < event.size(); i++){
-        event[i].setModified(false);
-    }
-    
-    tpath = pathid;
-    tpath.remove(tpath.length()-4, 4);
-    tpath += ".asv";
-    tpath = ContentPath::normalize(tpath);
-    qDebug() << tpath;
-    QFile::remove(tpath);
+    return text;
 }
 
 void ActivityServiceDefinition::reloadTimetable(){
@@ -569,8 +660,7 @@ void ActivityServiceDefinition::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#serviceDefinition - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
 }
@@ -586,7 +676,6 @@ void ActivityServiceDefinition::save(QTextStream* out) {
             woff = "	";
             *out << woff << "		Service_Definition ( )\n";
         }
-        modified = false;
         return;
     }
     
@@ -604,15 +693,28 @@ void ActivityServiceDefinition::save(QTextStream* out) {
     
     if(uid != -1)
         *out << woff << "			UiD ( "<<uid<<" )\n";
-    for(int i = 0; i<efficiency.size(); i++){
-        *out << woff << "			Efficiency ( "<<efficiency[i]<<" )\n";
-        *out << woff << "			SkipCount ( "<<skipCount[i]<<" )\n";
-        *out << woff << "			DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
-        *out << woff << "			PlatformStartID ( "<<platformStartId[i]<<" )\n";
+    // Stop by stop; a field the file lacks for a stop stays missing, so the
+    // file reads back as it was read.
+    const int stops = std::max({efficiency.size(), skipCount.size(),
+                                distanceDownPath.size(), platformStartId.size()});
+    for(int i = 0; i<stops; i++){
+        if(i < efficiency.size())
+            *out << woff << "			Efficiency ( "<<efficiency[i]<<" )\n";
+        if(i < skipCount.size())
+            *out << woff << "			SkipCount ( "<<skipCount[i]<<" )\n";
+        if(i < distanceDownPath.size())
+            *out << woff << "			DistanceDownPath ( "<<distanceDownPath[i]<<" )\n";
+        if(i < platformStartId.size())
+            *out << woff << "			PlatformStartID ( "<<platformStartId[i]<<" )\n";
     }
+    ParserX::WriteKept(out, kept, woff + "			");
     *out << woff << "		)\n";
-    
-    modified = false;
+}
+
+void ActivityServiceDefinition::setModified(bool val){
+    modified = val;
+    if(trafficDefinition != NULL)
+        trafficDefinition->setModified(val);
 }
 
 void ActivityServiceDefinition::pushRenderItems(RenderQueue &queue, float* playerT, int renderMode) {
@@ -733,6 +835,21 @@ void Activity::ActivityHeader::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
+        if (sh == ("fuelwood")) {
+            fuelWood = ParserX::GetNumber(data);
+            ParserX::SkipToken(data);
+            continue;
+        }
+        if (sh == ("fuelsand")) {
+            fuelSand = ParserX::GetNumber(data);
+            ParserX::SkipToken(data);
+            continue;
+        }
+        if (sh == ("ortsloadstationspopulation")) {
+            loadStationsPopulation = ParserX::GetStringInside(data);
+            ParserX::SkipToken(data);
+            continue;
+        }
         if (sh == ("voltage")) {
             voltage = new int[2];
             voltage[0] = ParserX::GetNumber(data);
@@ -740,8 +857,7 @@ void Activity::ActivityHeader::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#activityHeader - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
 }
@@ -795,6 +911,13 @@ void Activity::ActivityHeader::save(QTextStream* out) {
         *out << "		FuelCoal ( " << fuelCoal << " )\n";
     if (fuelDiesel != -1)
         *out << "		FuelDiesel ( " << fuelDiesel << " )\n";
+    if (fuelWood != -1)
+        *out << "		FuelWood ( " << fuelWood << " )\n";
+    if (fuelSand != -1)
+        *out << "		FuelSand ( " << fuelSand << " )\n";
+    if (!loadStationsPopulation.isEmpty())
+        *out << "		ORTSLoadStationsPopulation ( " << ParserX::AddComIfReq(loadStationsPopulation) << " )\n";
+    ParserX::WriteKept(out, kept, "		");
     *out << "	)\n";
 }
 
@@ -803,6 +926,8 @@ bool Activity::isNew(){
 }
 
 void Activity::initToPlay(){
+    if(playerServiceDefinition == NULL)
+        return;
     playerServiceDefinition->servicePointer = ActLib::GetServiceByName(playerServiceDefinition->name, ContentPath::parentDirectory(path));
     if(playerServiceDefinition->servicePointer != NULL)
         playerServiceDefinition->servicePointer->initToPlay();
@@ -814,7 +939,7 @@ bool Activity::isUnSaved(){
             return true;
     }
     for(int i = 0; i < event.size(); i++){
-        if(event[i].isModified())
+        if(event[i]->isModified())
             return true;
     }
     if(playerServiceDefinition != NULL)
@@ -876,10 +1001,16 @@ void Activity::setDuration(int h, int m){
     modified = true;
 }
 
+// The player's timetable moves with the start (task editor 07, decided).
 void Activity::setStartTime(int h, int m, int s){
+    const int before = header->startTime[0]*3600 + header->startTime[1]*60 + header->startTime[2];
     header->startTime[0] = h;
     header->startTime[1] = m;
     header->startTime[2] = s;
+    const int delta = h*3600 + m*60 + s - before;
+    ActivityServiceDefinition *player = playerServiceDefinition;
+    if(delta != 0 && player != NULL && player->trafficDefinition != NULL)
+        player->trafficDefinition->setTime(player->trafficDefinition->time + delta);
     modified = true;
 }
 
@@ -913,12 +1044,47 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
     }
 
     for (int i = 0; i < event.size(); i++) {
-        event[i].pushRenderItem(queue, playerT, playerRot, renderMode);
+        event[i]->pushRenderItem(queue, playerT, playerRot, renderMode);
     }
 
-    if (playerServiceDefinition != NULL) {
-        playerServiceDefinition->pushRenderItems(queue, playerT, renderMode);
+    if (Service *player = playerService()) {
+        const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
+                ? SelectionIdCodec::activityService(0) : 0;
+        player->pushRenderItems(queue, playerT, selectionId);
     }
+
+    for (int i : shownAITrains()) {
+        Service *service = aiTrainService(i);
+        const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
+                ? SelectionIdCodec::activityService(i + 1) : 0;
+        service->pushRenderItems(queue, playerT, selectionId,
+                                 i == shownAITrain ? Path::LineChosenTrain : Path::LineAITrain);
+    }
+}
+
+QVector<int> Activity::shownAITrains(){
+    QVector<int> shown;
+    if(Game::playerMode || traffic == NULL || (!showAllAITrains && shownAITrain < 0))
+        return shown;
+    // AI trains of one service share its path and consist: drawn once, the
+    // chosen train first so its style wins. One of the player's service is
+    // drawn too, in its own style.
+    QVector<Service*> drawn;
+    QVector<int> order;
+    if(shownAITrain >= 0 && shownAITrain < traffic->service.size())
+        order.push_back(shownAITrain);
+    if(showAllAITrains)
+        for(int i = 0; i < traffic->service.size(); i++)
+            if(i != shownAITrain)
+                order.push_back(i);
+    for(int i : order){
+        Service *service = aiTrainService(i);
+        if(service == NULL || drawn.contains(service))
+            continue;
+        drawn.push_back(service);
+        shown.push_back(i);
+    }
+    return shown;
 }
 /*
 void Activity::initActivityObjects(){
@@ -945,6 +1111,18 @@ void Activity::pickNewEventLocation(float* tdbPos){
 
 }
 
+void Activity::pickSoundLocation(float *tdbPos){
+    if(currentEventSelected == NULL || currentOutcomeSelected == NULL
+            || !currentEventSelected->outcomes.contains(currentOutcomeSelected)
+            || currentOutcomeSelected->category != ActivityEvent::Outcome::CategorySoundFile)
+        return;
+    float drawPosition[7];
+    if(Game::trackDB == NULL || !Game::trackDB->getDrawPositionOnTrNode(drawPosition, tdbPos[0], tdbPos[1]))
+        return;
+    currentOutcomeSelected->setSoundLocation(true, drawPosition[5], drawPosition[6],
+                                             drawPosition[0], drawPosition[1], drawPosition[2]);
+}
+
 bool Activity::newFailedSignalFromSelected(){
     if(Game::currentSelectedGameObj == NULL)
         return false;
@@ -960,7 +1138,7 @@ bool Activity::newFailedSignalFromSelected(){
     activityFailedSignal.back()->setFailedSignalData(tid);
     activityFailedSignal.back()->id = activityFailedSignal.size()-1;
     activityFailedSignal.back()->setParentActivity(this);
-    
+    modified = true;
     return true;
 }
 
@@ -975,6 +1153,7 @@ void Activity::newSpeedZone(float *tdbPos){
     restrictedSpeedZone.back()->setSpeedZoneData(drawPosition);
     restrictedSpeedZone.back()->id = restrictedSpeedZone.size()-1;
     restrictedSpeedZone.back()->setParentActivity(this);
+    modified = true;
 }
 
 void Activity::newLooseConsist(float *tdbPos){
@@ -1068,7 +1247,20 @@ void Activity::createNewPlayerService(QString sName, int sTime ){
     modified = true;
 }
 
+void Activity::clearPlayerService(){
+    playerServiceDefinition = NULL;
+    modified = true;
+}
+
+void Activity::clearTraffic(){
+    traffic = NULL;
+    modified = true;
+}
+
 void Activity::createNewTrafficService(Traffic *t){
+    if(t == NULL)
+        return;
+    modified = true;
     traffic = new TrafficDefinition();
     traffic->name = t->nameId;
     for(int i = 0; i < t->service.size(); i++){
@@ -1083,6 +1275,62 @@ void Activity::createNewTrafficService(Traffic *t){
     }
 }
 
+bool Activity::addAITrain(ActivityTimetable *run){
+    if(run == NULL || traffic == NULL)
+        return false;
+    if(nextServiceUID < 0){
+        nextServiceUID = playerServiceDefinition != NULL ? playerServiceDefinition->uid + 1 : 1;
+        for(const ActivityServiceDefinition &train : traffic->service)
+            nextServiceUID = std::max(nextServiceUID, train.uid + 1);
+    }
+    ActivityServiceDefinition train;
+    train.routePath = ContentPath::parentDirectory(path);
+    train.empty = false;
+    train.name = run->name;
+    train.time = run->time;
+    train.uid = nextServiceUID++;
+    train.trafficDefinition = run;
+    train.reloadDefinition();
+    traffic->service.push_back(train);
+    modified = true;
+    return true;
+}
+
+bool Activity::removeAITrain(int index){
+    if(traffic == NULL || index < 0 || index >= traffic->service.size())
+        return false;
+    traffic->service.remove(index);
+    if(shownAITrain == index)
+        shownAITrain = -1;
+    else if(shownAITrain > index)
+        shownAITrain--;
+    modified = true;
+    return true;
+}
+
+void Activity::setTrafficName(const QString &nameId){
+    if(traffic == NULL || traffic->name == nameId)
+        return;
+    traffic->name = nameId;
+    for(ActivityServiceDefinition &train : traffic->service)
+        train.trafficDefinition = NULL;
+    modified = true;
+}
+
+Service *Activity::playerService(){
+    if(playerServiceDefinition == NULL || playerServiceDefinition->empty)
+        return NULL;
+    if(playerServiceDefinition->servicePointer != NULL)
+        return playerServiceDefinition->servicePointer;
+    return ActLib::GetServiceByName(playerServiceDefinition->name, ContentPath::parentDirectory(path));
+}
+
+Service *Activity::aiTrainService(int index){
+    if(traffic == NULL || index < 0 || index >= traffic->service.size())
+        return NULL;
+    return ActLib::GetServiceByName(traffic->service[index].name, ContentPath::parentDirectory(path));
+}
+
 void Activity::setFuelCoal(int val){
     header->fuelCoal = val;
     modified = true;
@@ -1095,6 +1343,26 @@ void Activity::setFuelWater(int val){
 
 void Activity::setFuelDiesel(int val){
     header->fuelDiesel = val;
+    modified = true;
+}
+
+void Activity::setFuelWood(int val){
+    header->fuelWood = val;
+    modified = true;
+}
+
+void Activity::setFuelSand(int val){
+    header->fuelSand = val;
+    modified = true;
+}
+
+void Activity::setLoadStationsPopulation(const QString &val){
+    header->loadStationsPopulation = val;
+    modified = true;
+}
+
+void Activity::setOrtsHornPattern(const QString &val){
+    ortsAICrossingHornPattern = val;
     modified = true;
 }
 
@@ -1137,18 +1405,19 @@ ActivityObject* Activity::getObjectById(int id){
 }
 
 Consist* Activity::getServiceConsistById(int id){
-    if(playerServiceDefinition != NULL ){
-        if(playerServiceDefinition->servicePointer != NULL)
-            return playerServiceDefinition->servicePointer->getConsistPointer();
+    if(id > 0){
+        Service *service = aiTrainService(id - 1);
+        return service != NULL ? service->getConsistPointer() : NULL;
     }
-    return NULL;
+    Service *player = playerService();
+    return player != NULL ? player->getConsistPointer() : NULL;
 }
 
 QMap<int, QString> Activity::getEventIdNameList(){
     QMap<int, QString> data;
             
     for(int i = 0; i < event.size(); i++){
-        data[event[i].id] = event[i].name;
+        data[event[i]->id] = event[i]->name;
     }
     
     return data;
@@ -1180,25 +1449,38 @@ QMap<int, QString> ActivityServiceDefinition::getStationStopNameList(){
 
 void Activity::deleteObject(int id){
     for(int i = 0; i < activityObjects.size(); i++){
-        if(activityObjects[i]->id == id)
+        if(activityObjects[i]->id == id){
             activityObjects.remove(i);
+            modified = true;
+            return;
+        }
     }
-    modified = true;
 }
 
+// Failed signals and speed zones are numbered by their place in the list
+// (their selection ids are 3500 + and 3000 + it): numbered again after one
+// goes, so the ids stay unique.
 void Activity::deleteObjectFailedSignal(int id){
     for(int i = 0; i < activityFailedSignal.size(); i++){
-        if(activityFailedSignal[i]->id == id)
+        if(activityFailedSignal[i]->id == id){
             activityFailedSignal.remove(i);
+            break;
+        }
     }
+    for(int i = 0; i < activityFailedSignal.size(); i++)
+        activityFailedSignal[i]->id = i;
     modified = true;
 }
 
 void Activity::deleteObjectSpeedZone(int id){
     for(int i = 0; i < restrictedSpeedZone.size(); i++){
-        if(restrictedSpeedZone[i]->id == id)
+        if(restrictedSpeedZone[i]->id == id){
             restrictedSpeedZone.remove(i);
+            break;
+        }
     }
+    for(int i = 0; i < restrictedSpeedZone.size(); i++)
+        restrictedSpeedZone[i]->id = i;
     modified = true;
 }
 
@@ -1213,20 +1495,33 @@ void Activity::removeAllSpeedZones(){
 }
 
 void Activity::deleteCurrentEvent(){
-    for(int i = 0; i < event.size(); i++){
-        if(event[i].id == currentEventSelected->id){
-            event.remove(i);
-            modified = true;
-            return;
-        }
-    }
+    deleteEvent(currentEventSelected);
 }
-    
-void Activity::newEvent(ActivityEvent::EventCategory category){
-    event.push_back(ActivityEvent(++nextEventUID, category));
-    event.back().name = "New Event";
-    event.back().setParentActivity(this);
+
+void Activity::deleteEvent(ActivityEvent *e){
+    if(e == NULL)
+        return;
+    const int i = event.indexOf(e);
+    if(i < 0)
+        return;
+    if(currentEventSelected == e){
+        currentEventSelected = NULL;
+        currentOutcomeSelected = NULL;
+    }
+    event.remove(i);
+    delete e;
     modified = true;
+}
+
+// Event IDs are never reused while the activity is open: Open Rails'
+// overlay files name events by ID.
+ActivityEvent *Activity::newEvent(ActivityEvent::EventCategory category){
+    ActivityEvent *e = new ActivityEvent(++nextEventUID, category);
+    e->name = "New Event";
+    e->setParentActivity(this);
+    event.push_back(e);
+    modified = true;
+    return e;
 }
 
 QVector<ActivityServiceDefinition*> Activity::getServiceList(){
@@ -1243,7 +1538,7 @@ QVector<ActivityServiceDefinition*> Activity::getServiceList(){
     for(int i = 0; i < traffic->service.size(); i++){
         if(traffic->service[i].trafficDefinition == NULL){
             qDebug() << "trafficDefinition == NULL";
-            traffic->service[i].trafficDefinition = t->getTimetableByServiceName(traffic->service[i].name+QString::number(traffic->service[i].time));
+            traffic->service[i].trafficDefinition = t->getInstance(traffic->service[i].name, traffic->service[i].time);
         }
         if(traffic->service[i].trafficDefinition != NULL){
             qDebug() << "s.push_back";
@@ -1253,24 +1548,3 @@ QVector<ActivityServiceDefinition*> Activity::getServiceList(){
     return s;
 }
 
-void Activity::updateService(QString serviceName){
-    if(playerServiceDefinition != NULL)
-        if(playerServiceDefinition->name == serviceName){
-            playerServiceDefinition->reloadTimetable();
-        }
-    
-    if(traffic == NULL)
-        return;
-    
-    Traffic *t = ActLib::GetTrafficByName(traffic->name, ContentPath::parentDirectory(path));
-    if(t == NULL){
-        return;
-    }
-    for(int i = 0; i < traffic->service.size(); i++){
-        if(traffic->service[i].trafficDefinition != NULL){
-            if(traffic->service[i].name == serviceName){
-                traffic->service[i].reloadTimetable();
-            }
-        }
-    }
-}

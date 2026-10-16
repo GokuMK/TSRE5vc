@@ -132,6 +132,7 @@ void Ruch::checkNode(int mSign) {
         nodeLength = Game::trackDB->getVectorSectionLength(nodeIdx);
 
     } else if (n->typ == 0) {
+        endsPassed++;
         kierunek = n->pins[0].direction;
         nodeIdx = n->pins[0].link;
         nodeLength = Game::trackDB->getVectorSectionLength(nodeIdx);

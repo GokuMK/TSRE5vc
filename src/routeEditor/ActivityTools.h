@@ -15,6 +15,8 @@
 #include <QString>
 
 class Route;
+class ActivityCheckWindow;
+struct ActivityFinding;
 class GameObj;
 class Activity;
 class ActivityServiceDefinition;
@@ -63,6 +65,11 @@ public slots:
     void cSeasonEnabled(int val);
     void cWeatherEnabled(int val);
     void cHornAtCrossingsEnabled(int val);
+    // Open Rails' additions to the activity.
+    void cHornPatternEnabled(int index);
+    void sFuelWoodEnabled(int val);
+    void sFuelSandEnabled(int val);
+    void eLoadStationsEnabled(QString val);
     void eFuelCoalEnabled(QString val);
     void sFuelCoalEnabled();
     void eFuelDieselEnabled(QString val);
@@ -84,6 +91,11 @@ public slots:
     void actSettingsOpenEnabled();
     void actPlayEnabled();
     void actSaveEnabled();
+    // Check Activity: the activity chosen, its findings in their window.
+    void actCheckEnabled();
+    // Merge the activity's Open Rails overlay into it (what it adds shown
+    // first).
+    void actOverlayMergeEnabled();
     
     void reloadActivityList();
     void reloadServicesList();
@@ -103,6 +115,10 @@ signals:
     void showActivityTrafficEditor();
     void showTraffic(Route *r);
     void showActivityTimetableEditor();
+    // Check Activity's findings: what they name, shown.
+    void selectEvent(int id);
+    void selectService(QString nameId);
+    void selectTraffic(QString nameId);
     void showTimetable(Activity *a);
     void jumpTo(PreciseTileCoordinate* c);
     
@@ -125,7 +141,15 @@ private:
     QComboBox conFilesShow;
     QMap<QString, QPushButton*> buttonTools;
     
+    // Before the fields it holds: members are destroyed in reverse order,
+    // and it would free the fields declared before it.
+    QWidget settingsWidget;
+    QLabel pathReport;
     QLineEdit eDisplayName;
+    QComboBox cHornPattern;
+    QSpinBox sFuelWood;
+    QSpinBox sFuelSand;
+    QLineEdit eLoadStations;
     QLineEdit eFileName;
 
     QTimeEdit eDuration;
@@ -151,13 +175,22 @@ private:
     QComboBox cTraffic;
     QComboBox cPath;
     
-    QWidget settingsWidget;
     QPlainTextEdit eDescription;
     QPlainTextEdit eBriefing;
     
     PreciseTileCoordinate* coordinate = NULL;
+    ActivityCheckWindow *checkWindow = NULL;
+    // A line under Activity Info while the activity has an Open Rails
+    // overlay: Merge... puts it in.
+    QWidget overlayLine;
+    QLabel overlayLabel;
+    void showOverlay();
+    void showFinding(const ActivityFinding &finding);
     
     void reloadActivityObjectLists();
+    // The activity chosen in the list, or NULL: none chosen (the list
+    // starts so), or one that did not load.
+    Activity *currentActivity();
 };
 
 #endif	/* ACTIVITYTOOLS_H */

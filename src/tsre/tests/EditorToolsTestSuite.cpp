@@ -225,7 +225,7 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
 
     // Geo and activity tools; every name the panels send.
     const QStringList dataTools = {"terrainOverlayTool", "heightTileLoadTool", "actNewLooseConsistTool",
-                                   "actNewSpeedZoneTool", "pickNewEventLocationTool",
+                                   "actNewSpeedZoneTool", "pickNewEventLocationTool", "pickSoundLocationTool",
                                    "quadTreeTool", "trackPathTool"};
     allFound = true;
     for (const QString &id : dataTools)

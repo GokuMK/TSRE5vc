@@ -9,6 +9,7 @@
  */
 
 #include "ActivityTimetableProperties.h"
+#include <routeEditor/activity/ActivityEdit.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTimetable.h>
@@ -19,6 +20,7 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
+#include <algorithm>
 
 ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWidget(parent) {
     setMinimumWidth(450);
@@ -61,63 +63,96 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
     lTimetable.horizontalHeader()->resizeSection(2,60);
     lTimetable.horizontalHeader()->resizeSection(3,100);
     lTimetable.horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
+    // The station's name takes the width the times leave.
+    lTimetable.horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     vlist->addWidget(&lTimetable, row++, 0, 1, 2);
     QPushButton *bCalculate = new QPushButton(
         //% "Calculate"
         qtTrId("route.editor.activity.timetable.properties.button.b.calculate"));
     QObject::connect(bCalculate, SIGNAL(released()), this, SLOT(bCalculateSelected()));
     vlist->addWidget(bCalculate, row++, 0, 1, 2);
-    vlist->addWidget(new QLabel(
+    vbox->addItem(vlist);
+
+    info = new QWidget(this);
+    QGridLayout *infoGrid = new QGridLayout(info);
+    infoGrid->setSpacing(2);
+    infoGrid->setContentsMargins(0, 0, 0, 0);
+    row = 0;
+    infoGrid->addWidget(new QLabel(
         //% "Start Time:"
         qtTrId("route.editor.activity.timetable.properties.label.start.time")), row, 0);
-    vlist->addWidget(&eTime, row++, 1);
+    infoGrid->addWidget(&eTime, row++, 1);
     eTime.setDisplayFormat("HH:mm:ss");
     eTime.setDisabled(true);
-    vlist->addWidget(new QLabel(
+    infoGrid->addWidget(new QLabel(
         //% "Consist main ENG:"
         qtTrId("route.editor.activity.timetable.properties.label.consist.main.eng")), row, 0);
-    vlist->addWidget(&eMainEng, row++, 1);
+    infoGrid->addWidget(&eMainEng, row++, 1);
     eMainEng.setDisabled(true);
-    vlist->addWidget(new QLabel(
+    infoGrid->addWidget(new QLabel(
         //% "Max ENG Speed:"
         qtTrId("route.editor.activity.timetable.properties.label.max.eng.speed")), row, 0);
-    vlist->addWidget(&eMaxSpeed, row++, 1);
+    infoGrid->addWidget(&eMaxSpeed, row++, 1);
     eMaxSpeed.setDisabled(true);
-    vlist->addWidget(new QLabel(
+    infoGrid->addWidget(new QLabel(
         //% "Timetable Avg Speed:"
         qtTrId("route.editor.activity.timetable.properties.label.timetable.avg.speed")), row, 0);
-    vlist->addWidget(&eAvgSpeed, row++, 1);
+    infoGrid->addWidget(&eAvgSpeed, row++, 1);
     eAvgSpeed.setDisabled(true);
-    vbox->addItem(vlist);
+    // Until the window takes it: under the stops.
+    vbox->addWidget(info);
 
     //vbox->addStretch(1);
     this->setLayout(vbox);
     
     QObject::connect(&lTimetable, SIGNAL(cellChanged(int, int)),
                       this, SLOT(lTimetableSelected(int, int)));
+    // No timetable shown yet.
+    setEnabled(false);
 }
 
 ActivityTimetableProperties::~ActivityTimetableProperties() {
 }
 
-void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
+void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s, Activity *owner){
     service = s;
-    ActivityTimetable *t = service->trafficDefinition;
-    if(t == NULL)
+    activity = s != NULL ? owner : NULL;
+    ActivityTimetable *t = service != NULL ? service->trafficDefinition : NULL;
+    if(t == NULL){
+        service = NULL;
+        QSignalBlocker blocker(lTimetable);
+        lTimetable.clearContents();
+        lTimetable.setRowCount(0);
+        eMainEng.clear();
+        eMaxSpeed.clear();
+        eAvgSpeed.clear();
+        eTime.setTime(QTime(0, 0));
+        setEnabled(false);
+        info->setEnabled(false);
         return;
+    }
+    setEnabled(true);
+    info->setEnabled(true);
 
     QTableWidgetItem *newItem;
     QTime time;
+    // Without the track database the stops show their item ids.
     TDB *tdb = Game::trackDB;
-    if(tdb == NULL)
-        return;
     
     lTimetable.blockSignals(true);
     lTimetable.clearContents();
     lTimetable.setRowCount(0);
     QString name = "";
-    for(int i = 0; i < t->platformStartID.size(); i++){
-        TRitem *trit = tdb->trackItems[t->platformStartID[i]];
+    // The stops' arrays may differ in length (a file missing a field, an
+    // instance changed to another service): rows only for complete stops.
+    const int stops = std::min({t->platformStartID.size(), t->arrivalTime.size(), t->departTime.size()});
+    for(int i = 0; i < stops; i++){
+        TRitem *trit = NULL;
+        if(tdb != NULL){
+            const auto found = tdb->trackItems.find(t->platformStartID[i]);
+            if(found != tdb->trackItems.end())
+                trit = found->second;
+        }
         if(trit != NULL){
             name = trit->stationName;
         } else {
@@ -132,7 +167,7 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
         time = QTime::fromMSecsSinceStartOfDay(t->departTime[i]*1000);
         newItem = new QTableWidgetItem(time.toString("HH:mm:ss"));
         lTimetable.setItem(i, 2, newItem);
-        newItem = new QTableWidgetItem(QString::number(s->efficiency[i]));
+        newItem = new QTableWidgetItem(i < s->efficiency.size() ? QString::number(s->efficiency[i]) : QString());
         lTimetable.setItem(i, 3, newItem);
     }
     lTimetable.blockSignals(false);
@@ -140,14 +175,16 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
     Service *srv = ActLib::GetServiceByName(service->name, service->routePath);
     if(srv == NULL)
         return;
+    if(srv->trainConfig.isEmpty())
+        return;
     Consist *con = ConLib::con[ConLib::addCon(Game::root+"/TRAINS/CONSISTS/", srv->trainConfig+".con")];
-    if(con == NULL)
+    if(con == NULL || con->engItems.isEmpty())
         return;
     eMainEng.setText(con->engItems[0].ename);
     eMaxSpeed.setText(QString::number((int)(con->maxVelocity[0]*3.6)) + " km/h");
     eTime.setTime(QTime::fromMSecsSinceStartOfDay((t->time*1000)));
-    if(t->platformStartID.size() > 1)
-        eAvgSpeed.setText(QString::number(3.6*(t->distanceDownPath[t->distanceDownPath.size()-1]/(t->arrivalTime[t->arrivalTime.size()-1]-t->time))) + " km/h");
+    if(stops > 1 && !t->distanceDownPath.isEmpty() && t->arrivalTime.last() > t->time)
+        eAvgSpeed.setText(QString::number(3.6*(t->distanceDownPath.last()/(t->arrivalTime.last()-t->time))) + " km/h");
     else
         eAvgSpeed.setText(
             //% "NONE"
@@ -158,20 +195,23 @@ void ActivityTimetableProperties::bCalculateSelected(){
     if(service == NULL)
         return;
     
+    ActivityEdit edit(activity);
+    edit.alsoTrafficOf(activity);
     service->calculateTimetable();
 
-    showTimetable(service);
+    showTimetable(service, activity);
+    emit edited();
 }
 
 void ActivityTimetableProperties::lTimetableSelected(int row, int column){
-     qDebug() << "column" << column;
-    
     if(service == NULL)
         return;
     ActivityTimetable *t = service->trafficDefinition;
     
-    if(column < 1)
+    if(column < 1 || t == NULL)
         return;
+    ActivityEdit edit(activity);
+    edit.alsoTrafficOf(activity);
     QTime time;
     if(column == 1){
         time = QTime::fromString(lTimetable.item(row, column)->text(), "HH:mm:ss");
@@ -184,4 +224,5 @@ void ActivityTimetableProperties::lTimetableSelected(int row, int column){
     if(column == 3){
         service->setTimetableEfficiency(row, lTimetable.item(row, column)->text().toFloat());
     }
+    emit edited();
 }

@@ -30,6 +30,12 @@ public slots:
     void lTrafficSelected(QTreeWidgetItem * item, int column);
     void showTraffic(Route* r);
     void bNewTrafficSelected();
+    void bDeleteTrafficSelected();
+    // The traffic (by its file's name) shown and chosen in the list.
+    void selectTraffic(QString nameId);
+    // Undo replaces activity data (ActivityNotifier).
+    void activityDataRestoring();
+    void activityDataRestored();
     
 signals:
     void reloadTrafficsList();

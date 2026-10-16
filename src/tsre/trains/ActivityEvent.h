@@ -9,6 +9,7 @@
  */
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QVariant>
 
@@ -37,7 +38,8 @@ public:
             CategoryEvent = 1,
             CategoryInfo = 2,
             CategorySoundFile = 3,
-            CategoryWeatherChange = 4
+            CategoryWeatherChange = 4,
+            CategoryRestartTrain = 5
         };
         
         enum OutcomeType {
@@ -52,8 +54,12 @@ public:
             TypeStartIgnoringSpeedLimits = 8,
             TypeStopIgnoringSpeedLimits = 9,
             TypeORTSActSoundFile = 10,
-            TypeORTSWeatherChange = 11
+            TypeORTSWeatherChange = 11,
+            TypeORTSRestartWaitingTrain = 12
         };
+        // Open Rails' weather values: overcast factor, fog distance,
+        // precipitation intensity, liquidity.
+        enum Weather { Overcast = 0, Fog = 1, Intensity = 2, Liquidity = 3 };
         
         static QMap<OutcomeType, QString> OutcomeTypeDescription;
         static QMap<QString, OutcomeType> OutcomeNameType;
@@ -63,15 +69,42 @@ public:
         OutcomeType type;
         OutcomeCategory category;
         QVariant value;
+        // Play a sound (ORTSActivitySound): the file and type are in value;
+        // where a Location sound plays.
+        bool soundAt = false;
+        int soundTile[2] = {0, 0};
+        float soundPosition[3] = {0, 0, 0};
+        // Change the weather (ORTSWeatherChange): each value with its
+        // transition seconds, -1 not changed. A TSRE preset name read from
+        // an older file and not found stays in value.
+        float weather[4] = {-1, -1, -1, -1};
+        int weatherTime[4] = {-1, -1, -1, -1};
+        // Restart a waiting train (ORTSRestartWaitingTrain): the AI train
+        // (service, start time), after a delay, waiting at the waiting
+        // point of this value.
+        QString restartService;
+        int restartTime = -1;
+        int restartDelay = 0;
+        int restartWaitingPoint = 0;
+        // Blocks in the outcome TSRE does not read, written back in it.
+        QStringList kept;
         
         Outcome(OutcomeType t){
             type = t;
             category = OutcomeTypeCategory[type];
         }
         
-        void load(FileBuffer* data);
+        // Its values, the outcome's token (`token`) already read.
+        void load(FileBuffer* data, const QString &token = QString());
         void save(QTextStream* out);
         void setToNewType(OutcomeType newType);
+        void setSoundLocation(bool at, int tileX, int tileZ, float x, float y, float z);
+        void setWeather(int which, float value, int seconds);
+        // A TSRE weather preset (weathertransitions.dat): its values.
+        bool applyWeatherPreset(const QString &name);
+        void setRestartTrain(const QString &service, int time);
+        void setRestartDelay(int seconds);
+        void setRestartWaitingPoint(int value);
         void setMessage(QString val);
         void setEventLinkId(int id);
         void setSoundFileName(QString val);
@@ -137,11 +170,22 @@ public:
     float speed = -99999;
     int triggerOnStop = -99999;
     int ortsContinue = -99999;
+    // Open Rails: the AI train (service, start time, -1 left out) whose
+    // passing triggers a location event.
+    QString triggeringService;
+    int triggeringTime = -1;
+    // Read as Open Rails' Reversible_Event: written back so.
+    bool reversibleSpelling = false;
     QVector<int> pickupIdAndAmount;
     QString textToDisplayOnCompletionIfTriggered;
     QString textToDisplayOnCompletionIfNotTriggered;
     QString textToDisplayDescriptionOfTask;
     QVector<Outcome*> outcomes;
+    // Blocks TSRE does not read, as they were in the file, by the block
+    // they were in; written at the end of that block.
+    QStringList kept;
+    QStringList keptOutcomes;
+    QStringList keptWagonList;
     // deprecated - use only for OpenRails 1.2;
     OrtsWeatherChange* ortsWeatherChangeDeprecated = NULL;
     QVector<QString> ortsActSoundFileDeprecated;
@@ -165,6 +209,7 @@ public:
     void setLocationRadius(int val);
     void setLocationStop(bool val);
     void setReversable(bool val);
+    void setTriggeringTrain(const QString &service, int time);
     void setAutoContinue(int val);
     void setActionToNewType(EventType newType);
     void setStationStop(int tid);
@@ -187,6 +232,7 @@ public:
     QString getSidingDescription();
     bool setSidingFromSelected();
     void setParentActivity(Activity* a);
+    Activity *getParentActivity() const { return parentActivity; }
     void pushRenderItem(RenderQueue &queue, float *playerT, float playerRot, int renderMode);
     // A location event for the map mode: its place as a point and its
     // trigger area.

@@ -331,6 +331,12 @@ std::vector<std::unique_ptr<EditorTool>> create() {
                                                     useHeight(ctx));
         ctx.activateTool("");
     }, bothModes);
+    click("pickSoundLocationTool", [useHeight](ToolContext &ctx) {
+        ctx.currentRoute()->actPickSoundLocation(ctx.tileX(), ctx.tileZ(), ctx.pointer(),
+                                                 useHeight(ctx));
+        ctx.activateTool("");
+        ctx.message("refreshActivityEvent", QString());
+    }, bothModes);
     return tools;
 }
 

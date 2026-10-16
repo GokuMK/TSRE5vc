@@ -17,6 +17,19 @@
 #include <tsre/tdb/TrackShape.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/PathTrack.h>
+#include <tsre/Undo.h>
+#include <tsre/tdb/TRitem.h>
+#include <tsre/trains/ActLib.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityTimetable.h>
+#include <tsre/trains/Consist.h>
+#include <tsre/trains/ActivityCheck.h>
+#include <tsre/trains/Service.h>
+#include <tsre/trains/Traffic.h>
+#include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/WaitingPoint.h>
+#include <QScopedValueRollback>
+#include <functional>
 
 using PathTrack::Node;
 using PathTrack::NodeType;
@@ -112,6 +125,35 @@ void passingLoop(Layout &l) {
     l.junction(3, 13, 11, 12);
     l.track(13, 3, 4, 10);
     l.end(4, 13);
+}
+
+// A platform's two items on the track, `from` and `to` metres along it.
+void platform(Layout &l, int track, int first, float from, float to, const QString &name) {
+    TRnode *node = l.db.trackNodes[track];
+    QVector<int> refs;
+    for (int i = 0; i < node->iTri; ++i)
+        refs.push_back(node->trItemRef[i]);
+    for (int k = 0; k < 2; ++k) {
+        TRitem *item = TRitem::newPlatformItem(first + k, k == 0 ? from : to);
+        item->platformTrItemData[1] = first + 1 - k;
+        item->platformName = name;
+        item->stationName = name;
+        l.db.trackItems[first + k] = item;
+        refs.push_back(first + k);
+    }
+    delete[] node->trItemRef;
+    node->iTri = refs.size();
+    node->trItemRef = new int[refs.size()];
+    for (int i = 0; i < refs.size(); ++i)
+        node->trItemRef[i] = refs[i];
+}
+
+// The passes: platform name, far item, distance.
+QString passes(Path &path) {
+    QStringList parts;
+    for (const Path::PathObject *pass : path.pathObjects)
+        parts << QString("%1:%2@%3").arg(pass->name).arg(pass->trItemId).arg(pass->distanceDownPath, 0, 'f', 0);
+    return parts.join(" ");
 }
 
 bool sameNodes(const QVector<Node> &a, const QVector<Node> &b) {
@@ -413,7 +455,226 @@ int TsreTests::runPathEditSuite(bool verbose) {
         // A new path without nodes is not written.
         Path empty("C:/tsre-path-test", "empty.pat", true);
         check(!empty.save() && empty.isModified(), "an empty path is not saved");
+
+        // Saved, edited, saved, undone: the file holds the edit, so the
+        // path restored from before it is unsaved.
+        QTemporaryDir folder;
+        Path saved(folder.path(), "saved.pat", true);
+        saved.apply(start.nodes);
+        const bool firstSave = saved.save();
+        const auto clean = saved.snapshot();
+        saved.apply(reverse.nodes);
+        const bool secondSave = saved.save();
+        saved.restore(*clean);
+        check(firstSave && secondSave && saved.isModified(), "undo after a save leaves the path unsaved");
+        saved.save();
+        const auto afterSave = saved.snapshot();
+        saved.apply(reverse.nodes);
+        saved.restore(*afterSave);
+        check(!saved.isModified(), "undo back to the saved state leaves the path saved");
         Game::trackDB = previous;
+    }
+
+    {
+        // Platform passes, as MSTS counts a stop's SkipCount: a straight
+        // 300 m track with platforms A (50-80), B (150-180) and two
+        // overlapping ones C (220-250) and D (225-245).
+        Layout l;
+        l.end(1, 10);
+        l.track(10, 1, 2, 30);
+        l.end(2, 10);
+        platform(l, 10, 100, 50, 80, "A");
+        platform(l, 10, 102, 150, 180, "B");
+        platform(l, 10, 104, 220, 250, "C");
+        platform(l, 10, 106, 225, 245, "D");
+        TDB *previous = Game::trackDB;
+        Game::trackDB = &l.db;
+        QTemporaryDir folder;
+        const auto made = [&](const PathTrack::TrackPoint &start, QVector<std::function<Result(const QVector<Node>&)>> steps) {
+            Result result = PathTrack::startAt(&l.db, start);
+            for (const auto &step : steps)
+                result = step(result.nodes);
+            return result.nodes;
+        };
+        Path through(folder.path(), "through.pat", true);
+        through.apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 290}); }}));
+        check(passes(through) == "A:101@70 B:103@170 C:105@240", "a pass over each platform, overlapping ones once: " + passes(through));
+        Path inside(folder.path(), "inside.pat", true);
+        inside.apply(made({10, 60}, {[&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 120}); }}));
+        check(passes(inside) == "A:101@20", "the platform the path starts in counts: " + passes(inside));
+        Path back(folder.path(), "back.pat", true);
+        back.apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::reverseAt(&l.db, n, {10, 120}); },
+                                   [&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 20}); }}));
+        check(passes(back) == "A:101@70 A:100@180", "a switchback passes a platform twice: " + passes(back));
+        Path turn(folder.path(), "turn.pat", true);
+        turn.apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::reverseAt(&l.db, n, {10, 65}); },
+                                   [&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 20}); }}));
+        check(passes(turn).isEmpty(), "a reversal inside a platform is no pass: " + passes(turn));
+        // Passing paths: an edit keeps those it does not go through.
+        Path branch(folder.path(), "branch.pat", true);
+        branch.apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::reverseAt(&l.db, n, {10, 120}); },
+                                     [&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 20}); }}));
+        auto withSide = branch.snapshot();
+        PathSnapshot::Passing side;
+        side.from = 0;
+        side.to = 1;
+        withSide->passing = {side};
+        branch.restore(*withSide);
+        branch.apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::reverseAt(&l.db, n, {10, 120}); },
+                                     [&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 40}); }}));
+        check(branch.droppedByLastEdit() == 0 && branch.snapshot()->passing.size() == 1,
+              "an edit after a passing path keeps it");
+        branch.apply(made({10, 30}, {[&](const QVector<Node> &n) { return PathTrack::reverseAt(&l.db, n, {10, 120}); },
+                                     [&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 40}); }}));
+        check(branch.droppedByLastEdit() == 1 && branch.snapshot()->passing.isEmpty(),
+              "an edit through a passing path drops it and counts it");
+
+        // A service's train stands behind its start: the track behind it,
+        // 30 m one way to the track's end, the train's length the other.
+        {
+            const float start[2] = {10, 30};
+            const float one = Consist::roomBehind(start, 0, nullptr, 100);
+            const float other = Consist::roomBehind(start, 1, nullptr, 100);
+            check(std::fabs(std::min(one, other) - 30) <= 1 && std::max(one, other) == 100,
+                  QString("the room behind a start ends at the track's end: %1, %2").arg(one).arg(other));
+        }
+
+        // Loose consists on the track (Check Activity): on it at 50 m, with
+        // 50 m behind one way and the train's 100 m the other; 10 m beside
+        // it (the side without the other tracks laid here) is off it.
+        {
+            const float on[4] = {0, 0, 50, 0};
+            const float beside[4] = {0, 0, 50, -10};
+            float distance = -2, room = 0, otherRoom = 0, besideDistance = -2, besideRoom = 0;
+            const bool placed = LooseConsistPlace(on, 0, 100, &distance, &room)
+                    && LooseConsistPlace(on, 1, 100, &distance, &otherRoom)
+                    && LooseConsistPlace(beside, 0, 100, &besideDistance, &besideRoom);
+            check(placed && distance == 0 && std::fabs(std::min(room, otherRoom) - 50) <= 1
+                  && std::max(room, otherRoom) == 100 && besideDistance >= 9,
+                  QString("a loose consist on the track, its room behind; one beside it: %1 %2 %3 %4")
+                  .arg(distance).arg(room).arg(otherRoom).arg(besideDistance));
+        }
+
+        // Waiting points of each kind saved in the path file and read back
+        // as their values.
+        {
+            bool same = true;
+            for (int value : {90, 30830, 40305, 50210, 60015, 60021}) {
+                Path written(folder.path(), "waits.pat", true);
+                written.apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 290}); },
+                                              [&](const QVector<Node> &n) { return PathTrack::waitAt(&l.db, n, {10, 150}, value); }}));
+                same = same && written.save();
+                Path read(folder.path(), "waits.pat");
+                int found = -1;
+                for (const Node &node : read.nodes())
+                    if (node.type == PathTrack::NodeType::Wait)
+                        found = node.waitTime;
+                same = same && found == value;
+            }
+            check(same, "waiting points of each kind are saved and read back as their values");
+        }
+
+        // Services follow their path; activities and traffic keep their
+        // times; undo takes it all back.
+        const QString route = folder.path() + "/ROUTES/R";
+        for (const QString &dir : {"PATHS", "SERVICES", "TRAFFIC", "ACTIVITIES"})
+            QDir().mkpath(route + "/" + dir);
+        const QScopedValueRollback<QString> root(Game::root, folder.path());
+        const QScopedValueRollback<QString> routeName(Game::route, "R");
+        const int firstPath = ActLib::jestpath, firstService = ActLib::jestservice;
+        const int firstAct = ActLib::jestact, firstTraffic = ActLib::jesttraffic;
+        Path *main = new Path(route + "/PATHS", "Main.pat", true);
+        ActLib::AddNewPath(main);
+        main->apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 290}); }}));
+        Service *service = ActLib::Services.value(ActLib::AddService(route + "/SERVICES", "S.srv", true));
+        service->setNewPath("Main");
+        service->disableStationStop(2);
+        check(service->stationStop.size() == 2 && service->stationStop[1].skipCount == 1,
+              "the service stops at A and B");
+        Activity *activity = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "a.act", true));
+        activity->init("R", "a");
+        activity->header->startTime[0] = 8;
+        activity->createNewPlayerService("S", 8 * 3600);
+        ActivityTimetable *timetable = activity->playerServiceDefinition->trafficDefinition;
+        timetable->arrivalTime = {29000, 29600};
+        timetable->departTime = {29060, 29660};
+        Traffic *traffic = ActLib::Traffics.value(ActLib::AddTraffic(route + "/TRAFFIC", "T.trf", true));
+        ActivityTimetable *instance = new ActivityTimetable("S", 30000);
+        instance->routePath = route;
+        traffic->addInstance(instance);
+        instance->setTime(30000);
+        instance->arrivalTime = {30100, 30700};
+        instance->departTime = {30160, 30760};
+        QStringList report;
+        const QMetaObject::Connection reported = QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::pathFollowed,
+                [&](const QString &, const QStringList &lines) { report = lines; });
+        // The path now ends before B.
+        Undo::Clear();
+        Undo::StateBegin();
+        Undo::PushPathData(main);
+        main->apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 140}); }}));
+        Undo::StateEnd();
+        check(service->stationStop.size() == 1 && service->stationStop[0].platformStartID == 101,
+              "a stop the path no longer passes is removed");
+        check(timetable->arrivalTime == QVector<int>{29000} && timetable->departTime == QVector<int>{29060}
+              && instance->arrivalTime == QVector<int>{30100} && instance->departTime == QVector<int>{30160},
+              "the activity and traffic keep the times of the stop kept");
+        check(report.size() == 2, "the edit is reported: the service, the timetables following");
+        Undo::UndoLast();
+        // Undo reads the activity and traffic back: new objects.
+        timetable = activity->playerServiceDefinition->trafficDefinition;
+        instance = traffic->service.value(0);
+        check(service->stationStop.size() == 2 && timetable->arrivalTime == QVector<int>{29000, 29600}
+              && instance->departTime == QVector<int>{30160, 30760},
+              "undo takes the path, the service, the activity and the traffic back");
+        // A switchback: the stop stays at its pass.
+        Undo::StateBegin();
+        Undo::PushPathData(main);
+        main->apply(made({10, 10}, {[&](const QVector<Node> &n) { return PathTrack::reverseAt(&l.db, n, {10, 120}); },
+                                    [&](const QVector<Node> &n) { return PathTrack::endAt(&l.db, n, {10, 20}); }}));
+        Undo::StateEnd();
+        check(service->stationStop.size() == 1 && service->stationStop[0].skipCount == 0
+              && std::fabs(service->stationStop[0].distanceDownPath - 70) < 0.5f,
+              "a stop keeps the first pass of a switchback platform");
+        service->enableStationStop(1);
+        check(service->stationStop.size() == 2 && service->stationStop[1].skipCount == 1
+              && timetable->arrivalTime.size() == 2 && timetable->arrivalTime[0] == 29000
+              && timetable->arrivalTime[1] == timetable->departTime[0],
+              "a new stop at the second pass takes the time of the stop before");
+        Undo::Clear();
+
+        // Times move with a new start.
+        activity->setStartTime(9, 0, 0);
+        check(timetable->time == 9 * 3600 && timetable->arrivalTime[0] == 29000 + 3600,
+              "the activity's start moves the player's timetable");
+        traffic->setInstanceTime(instance, 31000);
+        check(instance->time == 31000 && instance->arrivalTime[0] == 30100 + 1000,
+              "a new start time moves a traffic instance's timetable");
+
+        QObject::disconnect(reported);
+        for (int id = firstAct; id < ActLib::jestact; ++id) ActLib::Act[id] = nullptr;
+        for (int id = firstService; id < ActLib::jestservice; ++id) ActLib::Services[id] = nullptr;
+        for (int id = firstTraffic; id < ActLib::jesttraffic; ++id) ActLib::Traffics[id] = nullptr;
+        for (int id = firstPath; id < ActLib::jestpath; ++id) ActLib::Paths[id] = nullptr;
+        Game::trackDB = previous;
+    }
+
+    // Waiting point values: each kind back to its value; MSTS's seconds as
+    // they are.
+    {
+        bool same = true;
+        for (int value : {1, 90, 29999, 30000, 30830, 32359, 40305, 49999, 50210, 60011, 60020, 60021})
+            same = same && WaitingPoint::encode(WaitingPoint::decode(value)) == value;
+        check(same, "waiting point values decode and encode back");
+        const WaitingPoint::Point keep = WaitingPoint::decode(40305);
+        const WaitingPoint::Point until = WaitingPoint::decode(30830);
+        check(keep.kind == WaitingPoint::KeepFirst && keep.cars == 3 && keep.seconds == 5
+              && until.kind == WaitingPoint::UntilTime && until.hour == 8 && until.minute == 30
+              && WaitingPoint::decode(60015).kind == WaitingPoint::Horn && WaitingPoint::decode(60015).seconds == 5
+              && WaitingPoint::decode(50210).kind == WaitingPoint::KeepLast,
+              "waiting point kinds: uncouple, until a time, horn");
+        check(WaitingPoint::decode(30060).kind == WaitingPoint::Seconds && WaitingPoint::decode(60010).kind == WaitingPoint::Seconds,
+              "a value of no Open Rails kind is seconds");
     }
 
     qInfo().noquote() << QString("path-edit: %1 passed, %2 failed").arg(passed).arg(failed);

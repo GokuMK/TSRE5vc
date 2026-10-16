@@ -648,8 +648,7 @@ void ActivityObject::load(FileBuffer* data) {
             ParserX::SkipToken(data);
             continue;
         }
-        qDebug() << "#activityObject - undefined token: " << sh;
-        ParserX::SkipToken(data);
+        kept.push_back(ParserX::KeepBlock(data, sh));
         continue;
     }
 }
@@ -659,6 +658,7 @@ void ActivityObject::save(QTextStream* out) {
         *out << "			ActivityRestrictedSpeedZone (\n";
         *out << "				StartPosition ( "<<speedZoneData->start[0]<<" "<<speedZoneData->start[1]<<" "<<speedZoneData->start[2]<<" "<<speedZoneData->start[3]<<" )\n";
         *out << "				EndPosition ( "<<speedZoneData->end[0]<<" "<<speedZoneData->end[1]<<" "<<speedZoneData->end[2]<<" "<<speedZoneData->end[3]<<" )\n";
+        ParserX::WriteKept(out, kept, "				");
         *out << "			)\n";
         return;
     }
@@ -672,10 +672,12 @@ void ActivityObject::save(QTextStream* out) {
     if(con != NULL){
         *out << "				Train_Config (\n";
         con->save("				", out);
+        ParserX::WriteKept(out, con->kept, "					");
         *out << "				)\n";
     }
     *out << "				Direction ( "<<direction<<" )\n";
     *out << "				ID ( "<<id<<" )\n";
     *out << "				Tile ( "<<tile[0]<<" "<<tile[1]<<" "<<tile[2]<<" "<<tile[3]<<" )\n";
+    ParserX::WriteKept(out, kept, "				");
     *out << "			)\n";
 }
