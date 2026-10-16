@@ -2800,6 +2800,21 @@ void RouteEditorGLWidget::applyFog() {
             f.driftNorth = north * 0.4;
         }
     }
+    // Rain or snow near the view (the volume carries it; with the fog off
+    // too): the area's at the camera, the low clouds' base there.
+    if (Game::cloudQuality > 0 && renderer->drawsPhysicalSky()) {
+        if (const Weather *weather = currentWeather(); weather != nullptr && !weather->keyframes.isEmpty()) {
+            double east, north;
+            cameraWorldPosition(east, north);
+            const Weather::Frame frame = weather->frame(weatherHours());
+            const WeatherSurface s = WeatherDetail::precipitation(*weather, frame, east, north, 0.0);
+            if (s.precipitationRate > 0.05f) {
+                f.rain = s.precipitationRate;
+                f.snow = s.snowShare;
+                f.rainBase = weather->layer(frame, east, north, WeatherLayer::Low).base;
+            }
+        }
+    }
     renderer->setFog(f);
 }
 

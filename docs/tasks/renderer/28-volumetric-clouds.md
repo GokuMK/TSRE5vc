@@ -1329,9 +1329,43 @@ The storm clouds stood as pillars of billows streaked straight up.
 - **Cost on the Steam Deck** (High, median frame, four rounds, noisy):
   rain 40.1 against 41.2 ms; thunderstorm, fair cumulus and overcast as
   before within the noise.
-- Not yet: rain near the camera (within the near scene: the weather's haze
-  stands for it; drops later), rain seen from above the base (flying),
-  rain in front of near terrain.
+- Near the view: the fog volume's (below). Not yet: rain seen from above
+  the base (flying).
+
+### Rain near the view (2026-10-16)
+
+- **In the fog volume** (task 33, `RhiFog.cpp` `rainDensity`): its cells
+  out to 10 km, in front of terrain and objects, take the rain as density
+  added to the fog's, below the low clouds' base: from the clouds' weather
+  texture and near cover map (`RhiRenderer::cloudRainMaps`, bindings 15
+  and 16) as the march has it beyond, under the cells' cores for showers,
+  slanted by the low wind; else the rate at the camera
+  (`Renderer::Fog::rain`, `snow`, `rainBase`, set by the editor whatever
+  the fog). The volume runs while it rains, at Low cells with Mist and fog
+  off (`fogQuality`); without the weather's fog the floor map is left out
+  (`fogFogged`).
+- **Its light** as the fog's, the sky's through the cloud above and from
+  the open sky at the cell's sides, 60 % at least (lit from above alone,
+  the rain under a storm came out black; at a third a dark lens under the
+  base), the sun's through the cloud above too (past the cloud shadow map,
+  7 km, the clouds' average lit the rain under a storm and its veil glowed
+  over the far hills).
+- **The march's rain** starts at the volume's end (`nearMap.w`, 10 km)
+  instead of the near scene's (3 km), so the two do not double; the
+  reflection and the cube, without the volume, as before.
+- On the way: the inject pipeline's layout lacked the two new bindings (the
+  fog vanished, valley fog too); the light shafts drop their ground haze
+  only for the volume's fog, not its rain alone.
+- **Captures** (`build/nearrain`, CMK from the hill): under the storms grey
+  rain shafts as light as their bases, down to the ground in front of the
+  fields; the rain preset's own fog as before (it veils everything);
+  valley fog and morning mist as before (within 0.01 of 255).
+- **Cost on the Steam Deck** (High, four rounds): thunderstorm 43.0 against
+  45.2 ms (the volume runs for the rain), rain as before (it ran for the
+  fog already), fair cumulus and overcast as before.
+- Still: the far land under a storm past the cloud shadow map (7 km) is not
+  in its shade, nor its aerial haze darker: over it the rain's veil looks
+  lighter than the sky above.
 
 ### Blue noise for the march's start (2026-10-16)
 

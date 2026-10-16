@@ -61,6 +61,10 @@ struct FogParameters {
     float signalLayers[4];
     float patches[4];          // the floor map's corner in world metres (east, north, wrapped), patchiness, pooling
     float drift[4];            // how far the fog has drifted (east, north, wrapped); since last frame (east, north)
+    float rain[4];             // mm/h at the camera, its snow share, the clouds' maps on, the low clouds' base (m above sea level)
+    float rainWeather[4];      // the clouds' weather texture about the camera (RhiRenderer::cloudRainMaps)
+    float rainCover[4];        // their near cover map about the camera
+    float rainShift[4];        // the low layer's shift since drawn (km east, north), the rain's slant (km a km of fall)
 };
 
 const char *FogBlock = R"(#version 440
@@ -94,6 +98,10 @@ layout(std140, binding = 0) uniform Fog {
     vec4 signalLayers;
     vec4 patches;
     vec4 drift;
+    vec4 rain;
+    vec4 rainWeather;
+    vec4 rainCover;
+    vec4 rainShift;
 };
 
 // The distance (m) a slice coordinate stands for.
@@ -120,6 +128,53 @@ layout(binding = 11) uniform sampler2D localLightIndices;
 layout(binding = 12) uniform sampler2D signalLightData;
 layout(binding = 13) uniform sampler2D signalLightCells;
 layout(binding = 14) uniform sampler2D signalLightIndices;
+layout(binding = 15) uniform sampler2D rainWeatherTexture;
+layout(binding = 16) uniform sampler2D rainNearCover;
+
+// Rain (or snow) at a point (extinction, 1/m): the weather's under the low
+// clouds' base, as the clouds' march has it beyond the volume (RhiClouds.cpp,
+// marchRain): from their weather and near cover map, under the cells' cores
+// for showers, slanted by the low wind, everywhere for a deck's rain; else
+// the rate at the camera. through: what the cloud above lets through (the
+// sky's light in the rain: dark under a storm); snow: its share.
+float rainDensity(vec3 p, out float through, out float snow) {
+    through = 1.0;
+    snow = rain.y;
+    if (rain.x <= 0.0)
+        return 0.0;
+    float altitude = (p.y - range.y) / 1000.0;
+    float rate = rain.x, base = rain.w / 1000.0, convective = 0.0;
+    if (rain.z > 0.5) {
+        vec2 offset = vec2(p.x - camera.x, camera.z - p.z) / 1000.0;
+        vec2 o = offset - rainShift.xy;
+        float size = rainWeather.w;
+        vec2 w = clamp((rainWeather.xy + vec2(o.x, -o.y) * 1000.0) / rainWeather.z, vec2(0.5 / size),
+                       vec2(1.0 - 0.5 / size));
+        vec4 low = textureLod(rainWeatherTexture, vec2(w.x / 4.0, w.y), 0.0);
+        vec4 extra = textureLod(rainWeatherTexture, vec2((3.0 + w.x) / 4.0, w.y), 0.0);
+        if (low.x <= 0.0 || extra.z <= 0.0)
+            return 0.0;
+        rate = extra.z;
+        snow = extra.w;
+        base = low.z;
+        if (altitude >= base)
+            return 0.0;
+        convective = clamp((low.y - 0.45) / 0.35, 0.0, 1.0);
+        // Fallen from the cloud upwind; showers from the cells' cores.
+        vec2 from = offset - rainShift.zw * (base - altitude) - rainShift.xy;
+        float even = textureLod(rainNearCover, (rainCover.xy + vec2(from.x, -from.y) * 1000.0) / rainCover.z, 0.0).r;
+        float cell = clamp(0.5 + (even - (1.0 - low.x) - 0.05) * 4.0, 0.0, 1.0);
+        rate *= mix(1.0, min(cell / max(low.x, 0.1), 3.0), convective);
+        float column = mix(35.0, 70.0, clamp((low.y - 0.3) / 0.4, 0.0, 1.0)) * extra.x * max(low.w - low.z, 0.05)
+                * mix(0.35, 0.7, smoothstep(0.8, 1.0, low.y)) * max(cell, 1.0 - convective);
+        through = 1.0 / (1.0 + 0.11 * column);
+    } else if (altitude >= base) {
+        return 0.0;
+    }
+    if (rate <= 0.0)
+        return 0.0;
+    return 0.35e-3 * pow(rate, 0.63) * mix(0.5, 1.0, convective) * mix(0.7, 1.0, altitude / max(base, 0.1));
+}
 
 // Extinction (1/m): the weather's fog from the floor up to its top, where the
 // floor map pools it (FogFloor), softly edged; none past the map. above: the
@@ -364,6 +419,11 @@ void main() {
     sigmaAbove = sigma > 0.0 ? sigmaAbove / (sigma * float(Points)) : 0.0;
     // Its light at one point, shifted along the slice each frame.
     vec3 p = camera.xyz + d * sliceDistance(float(id.z) + jitter.z);
+    // Rain there, added to the fog (lit as it is, the sky's light through the
+    // cloud above; snow lighter).
+    float rainThrough, snow;
+    float sigmaRain = rainDensity(p, rainThrough, snow);
+    sigma += sigmaRain;
     vec3 scattered = vec3(0.0);
     if (sigma > 0.0) {
         // The sky's light: the horizon's colour, as far fog shows it, dimmer
@@ -377,6 +437,16 @@ void main() {
         float phase = mix(henyeyGreenstein(dot(d, light.xyz), 0.85), 1.0 / (4.0 * 3.14159265), 0.3)
                 * 4.0 * 3.14159265;
         vec3 sunLight = lightColour.rgb * (cloudVisible(p) * shadowVisible(p) * sunThrough * phase * 0.8);
+        // The rain's sky light: what the cloud above lets through, and from
+        // the open sky about the cell at its sides, 60 % at least (lit only
+        // from above, the rain under a storm came out black; at a third, a
+        // dark lens under the base, darker than the base).
+        // The sun's in it: under its own cloud, past the cloud shadow map too
+        // (7 km; beyond it the clouds' average lit the rain under a storm
+        // and its veil glowed over the far hills).
+        float rainShare = sigmaRain / sigma;
+        skyLight *= mix(1.0, (0.6 + 0.4 * rainThrough) * mix(1.0, 1.8, snow), rainShare);
+        sunLight *= mix(1.0, rainThrough, rainShare);
         scattered = (skyLight + sunLight
                      + gridLight(localLightData, localLightCells, localLightIndices, lightGrid, lightLayers,
                                  camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0))
@@ -491,10 +561,21 @@ void RhiRenderer::setFog(const Fog &next) {
     fog = next;
 }
 
-bool RhiRenderer::fogWanted() const {
+bool RhiRenderer::fogFogged() const {
     return fog.quality > 0 && fog.amount > 0.0f && fog.map != nullptr && fog.size > 0
-            && fog.map->size() == size_t(fog.size) * fog.size * 4 && !fogResources.unsupported
-            && skyFor(TARGET_VIEW);
+            && fog.map->size() == size_t(fog.size) * fog.size * 4;
+}
+
+bool RhiRenderer::fogWanted() const {
+    return (fogFogged() || fogRain()) && !fogResources.unsupported && skyFor(TARGET_VIEW);
+}
+
+bool RhiRenderer::fogRain() const {
+    return fog.rain > 0.05f && !fogResources.unsupported && skyFor(TARGET_VIEW);
+}
+
+int RhiRenderer::fogQuality() const {
+    return fog.quality > 0 ? fog.quality : 1;
 }
 
 void RhiRenderer::fogForward(float *out) const {
@@ -602,7 +683,9 @@ bool RhiRenderer::createFog(int quality, const QSize &viewSize) {
                                       QRhiShaderResourceBinding::sampledTexture(11, compute, dummy2D, sampler(false, true, true)),
                                       QRhiShaderResourceBinding::sampledTexture(12, compute, dummy2D, sampler(false, true, true)),
                                       QRhiShaderResourceBinding::sampledTexture(13, compute, dummy2D, sampler(false, true, true)),
-                                      QRhiShaderResourceBinding::sampledTexture(14, compute, dummy2D, sampler(false, true, true))});
+                                      QRhiShaderResourceBinding::sampledTexture(14, compute, dummy2D, sampler(false, true, true)),
+                                      QRhiShaderResourceBinding::sampledTexture(15, compute, dummy2D, f.linear),
+                                      QRhiShaderResourceBinding::sampledTexture(16, compute, dummy2D, f.linear)});
     f.injectBindings[0]->create();
     f.inject = rhi->newComputePipeline();
     f.inject->setShaderStage({QRhiShaderStage::Compute, inject});
@@ -627,12 +710,13 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     f.ready = false;
     f.skyApplied = false;
     if (!fogWanted() || secondaryView || currentTarget != TARGET_VIEW || !skyInverseValid[TARGET_VIEW]
-            || !createFog(fog.quality, view.size))
+            || !createFog(fogQuality(), view.size))
         return;
     // The floor map, when it changed (half floats: heights to a few metres).
     if (updates == nullptr)
         updates = rhi->nextResourceUpdateBatch();
-    if (f.floorRevision != fog.revision || f.floor->pixelSize() != QSize(fog.size, fog.size)) {
+    const bool floorMap = fogFogged();
+    if (floorMap && (f.floorRevision != fog.revision || f.floor->pixelSize() != QSize(fog.size, fog.size))) {
         if (f.floor->pixelSize() != QSize(fog.size, fog.size)) {
             f.floor->setPixelSize(QSize(fog.size, fog.size));
             f.floor->create();
@@ -656,7 +740,10 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     prepareSignalGrid(updates);
     const bool signalLights = signalData != nullptr && signalCells != nullptr && signalIndices != nullptr
             && !signalGrid.empty();
-    const QRhiTexture *maps[11] = {
+    // The clouds' weather and near cover map, for the rain under them.
+    float rainWeather[4] = {}, rainCover[4] = {}, rainShift[4] = {};
+    const bool rainMaps = fogRain() && cloudRainMaps(rainWeather, rainCover, rainShift);
+    const QRhiTexture *maps[13] = {
         cloudResources.shadow != nullptr && cloudResources.shadowValid ? cloudResources.shadow : dummy2D,
         shadows && shadowMaps[0].valid() ? shadowMaps[0].depth : dummyDepth,
         shadows && shadowMaps[1].valid() ? shadowMaps[1].depth : dummyDepth,
@@ -667,8 +754,10 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
         lamps ? lightIndices : dummy2D,
         signalLights ? signalData : dummy2D,
         signalLights ? signalCells : dummy2D,
-        signalLights ? signalIndices : dummy2D};
-    if (!std::equal(maps, maps + 11, f.boundMaps))
+        signalLights ? signalIndices : dummy2D,
+        rainMaps ? cloudResources.weather : dummy2D,
+        rainMaps ? cloudResources.coverNear : dummy2D};
+    if (!std::equal(maps, maps + 13, f.boundMaps))
         for (QRhiShaderResourceBindings *&b : f.injectBindings) {
             delete b;
             b = nullptr;
@@ -699,10 +788,12 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
                  QRhiShaderResourceBinding::sampledTexture(13, compute, const_cast<QRhiTexture *>(maps[9]),
                                                            sampler(false, true, true)),
                  QRhiShaderResourceBinding::sampledTexture(14, compute, const_cast<QRhiTexture *>(maps[10]),
-                                                           sampler(false, true, true))});
+                                                           sampler(false, true, true)),
+                 QRhiShaderResourceBinding::sampledTexture(15, compute, const_cast<QRhiTexture *>(maps[11]), f.linear),
+                 QRhiShaderResourceBinding::sampledTexture(16, compute, const_cast<QRhiTexture *>(maps[12]), f.linear)});
         f.injectBindings[i]->create();
     }
-    std::copy(maps, maps + 11, f.boundMaps);
+    std::copy(maps, maps + 13, f.boundMaps);
 
     FogParameters p = {};
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, p.inverse);
@@ -726,7 +817,10 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     p.range[1] = viewPosition[1] - sky.cameraHeight;
     // The highest fog top on the map (with its soft edge), when the map or
     // the fog's depth changed.
-    if (f.topRevision != fog.revision || f.topDepth != fog.depth || f.topPooling != fog.pooling) {
+    if (!floorMap) {
+        f.highestTop = -1e9f;
+        f.topRevision = ~0ull;
+    } else if (f.topRevision != fog.revision || f.topDepth != fog.depth || f.topPooling != fog.pooling) {
         float highest = -1e9f;
         for (size_t i = 0; i + 3 < fog.map->size(); i += 4) {
             const float *c = &(*fog.map)[i];
@@ -748,7 +842,7 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
         p.jitter[1] = halton(index, 3);
         p.jitter[2] = halton(index, 5);
     }
-    p.fog[0] = fog.amount * 3.912f / std::max(fog.visibility, 10.0f);
+    p.fog[0] = floorMap ? fog.amount * 3.912f / std::max(fog.visibility, 10.0f) : 0.0f;
     p.fog[1] = fog.depth;
     p.fog[2] = fog.base;
     p.fog[3] = std::clamp(fog.depth * 0.15f, 3.0f, 20.0f);
@@ -756,7 +850,17 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     p.map[0] = viewPosition[0] + float(fog.west - fog.cameraEast);
     p.map[1] = viewPosition[2] - float(fog.north - fog.cameraNorth);
     p.map[2] = float(fog.size) * fog.cell;
-    p.map[3] = 1.0f;
+    p.map[3] = floorMap ? 1.0f : 0.0f;
+    // The rain.
+    if (fogRain()) {
+        p.rain[0] = fog.rain;
+        p.rain[1] = std::clamp(fog.snow, 0.0f, 1.0f);
+        p.rain[2] = rainMaps ? 1.0f : 0.0f;
+        p.rain[3] = fog.rainBase;
+        std::copy(rainWeather, rainWeather + 4, p.rainWeather);
+        std::copy(rainCover, rainCover + 4, p.rainCover);
+        std::copy(rainShift, rainShift + 4, p.rainShift);
+    }
     // The lit shaders' light (the sun, or the moon at night) and the sky's,
     // linear.
     const float *l = Game::sunLightDirection;
@@ -809,7 +913,8 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     // 2026-10-15: at 3:00 with the dawn coming the fog's old part darker
     // than what a turn brought into view, by 10 %, and banded). The sums in
     // the day's scale (x 16), the cells also per the fog's extinction.
-    const float extinction = std::max(p.fog[0], 1e-4f);
+    // (with rain alone, the rain's at the camera)
+    const float extinction = std::max({p.fog[0], fogRain() ? 0.35e-3f * std::pow(fog.rain, 0.63f) : 0.0f, 1e-4f});
     const float cellScale = 1.0f / (fogLightScale() * extinction);
     p.scale[0] = cellScale;
     p.scale[1] = f.cellScale > 0.0f ? cellScale / f.cellScale : 1.0f;
@@ -940,14 +1045,16 @@ void RhiRenderer::writeFogUniforms(RhiProgram *program) {
     program->setFloat("fogLightScale", fogLightScale());
     // High: surfaces seen from above the fog take the fog over their place
     // per pixel (Haze.glsl); Low the volume's alone.
-    program->setVec("fogFilm", on && fog.quality >= 2 ? 1.0f : 0.0f, std::clamp(fog.depth * 0.15f, 3.0f, 20.0f),
+    program->setVec("fogFilm", on && fog.quality >= 2 && fog.amount > 0.0f ? 1.0f : 0.0f,
+                    std::clamp(fog.depth * 0.15f, 3.0f, 20.0f),
                     0.0f, 0.0f);
     // The sun under the fog (ShadowSampling.glsl), in every view.
     const bool shading = fogResources.filled && fogWanted();
     const float *l = Game::sunLightDirection;
     const float length = std::sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]);
     const float rise = length > 0.0f ? l[1] / length : 1.0f;
-    program->setVec("fogShape", shading ? fog.amount * 3.912f / std::max(fog.visibility, 10.0f) : 0.0f, fog.depth,
+    program->setVec("fogShape", shading && fog.quality > 0 && fog.map != nullptr
+                    ? fog.amount * 3.912f / std::max(fog.visibility, 10.0f) : 0.0f, fog.depth,
                     fog.base, 1.0f / std::max(rise, 0.05f));
     float patches[4], drift[4];
     fogPatchPlace(patches, drift);

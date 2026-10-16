@@ -118,7 +118,7 @@ struct MarchParameters {
     float sun[4];          // towards the sun; w: the rain's slant east (km a km of fall)
     float camera[4];       // height (km), y sign, exposure, jitter (0-1)
     float weatherMap[4];   // camera in the weather texture (m from its NW corner), extent (m), texels per side
-    float nearMap[4];      // camera in the near cover map (m), extent (m)
+    float nearMap[4];      // camera in the near cover map (m), extent (m), where the rain starts (km, 0 the scene's end)
     float farMap[4];
     float slab[4];         // bottom, top (km), distance (km), steps
     float projection[4];   // x and y scale, scene near and far
@@ -895,8 +895,8 @@ void main() {
     marchSky = skyAbove;
 #ifdef RAIN
     if (pr < R + slab.x)
-        marchRain(p0, d, R, projection.w * length(vec3(ndc.x / projection.x, ndc.y / projection.y, 1.0)) / 1000.0,
-                  limit, jitter);
+        marchRain(p0, d, R, max(projection.w * length(vec3(ndc.x / projection.x, ndc.y / projection.y, 1.0)) / 1000.0,
+                                nearMap.w), limit, jitter);
 #endif
     if (start >= 0.0 && end > start) {
         int steps = int(slab.w);
@@ -1842,6 +1842,29 @@ bool RhiRenderer::cloudFarMaps(float *weatherMap, float *farMap, float *shift) c
     return true;
 }
 
+bool RhiRenderer::cloudRainMaps(float *weatherMap, float *nearMap, float *shift) const {
+    const CloudResources &c = cloudResources;
+    if (!cloudsWanted() || c.weather == nullptr || c.coverNear == nullptr || clouds.size <= 0)
+        return false;
+    weatherMap[0] = float(clouds.cameraEast - clouds.west);
+    weatherMap[1] = float(clouds.north - clouds.cameraNorth);
+    weatherMap[2] = float(double(clouds.size) * clouds.texel);
+    weatherMap[3] = float(clouds.size);
+    const double span = double(CoverSize) * NearCoverTexel;
+    const double west = std::floor((clouds.cameraEast - span * 0.5) / NearCoverTexel) * NearCoverTexel;
+    const double north = std::ceil((clouds.cameraNorth + span * 0.5) / NearCoverTexel) * NearCoverTexel;
+    nearMap[0] = float(clouds.cameraEast - west);
+    nearMap[1] = float(north - clouds.cameraNorth);
+    nearMap[2] = float(span);
+    nearMap[3] = 1.0f;
+    shift[0] = (clouds.drift[0][0] - clouds.built[0][0]) / 1000.0f;
+    shift[1] = (clouds.drift[0][1] - clouds.built[0][1]) / 1000.0f;
+    const float drift = std::hypot(clouds.drift[0][0], clouds.drift[0][1]);
+    shift[2] = drift > 1.0f ? 0.5f * clouds.drift[0][0] / drift : 0.0f;
+    shift[3] = drift > 1.0f ? 0.5f * clouds.drift[0][1] / drift : 0.0f;
+    return true;
+}
+
 float RhiRenderer::deepSamples(int steps) const {
     return clouds.deepest >= 3.0f ? float(std::max(16, steps / 6)) : 0.0f;
 }
@@ -2035,6 +2058,9 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         out[1] = float(mapNorth[m] - clouds.cameraNorth);
         out[2] = float(double(CoverSize) * texels[m]);
     }
+    // With the fog volume carrying the rain near the view (to its far end),
+    // the march's rain starts there (km; 0: at the near scene's end).
+    parameters.nearMap[3] = fogRain() ? FogFar / 1000.0f : 0.0f;
     parameters.slab[0] = clouds.bottom;
     parameters.slab[1] = std::max(clouds.top, clouds.bottom + 0.05f);
     parameters.slab[2] = MarchDistance;
@@ -2311,6 +2337,8 @@ void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &a
     parameters.projection[1] = bandScale[target][1];
     parameters.slab[3] = float(steps);
     parameters.lighting[0] = float(lightSteps);
+    // (no fog volume in these views)
+    parameters.nearMap[3] = 0.0f;
     // Long steps in deep layers not split: the reflection is blurred by the
     // waves, the cube read blurred (user). Storm clouds keep their shapes.
     parameters.high[2] = 0.0f;

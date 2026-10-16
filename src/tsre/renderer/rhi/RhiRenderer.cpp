@@ -1977,7 +1977,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             texture = dummy3D;
             slotSampler = sampler(false, true);
             if (slot.binding == RhiShaderSource::FogVolumeBinding && !secondaryView
-                    && currentTarget == TARGET_VIEW && fogWanted() && createFog(fog.quality, view.size)
+                    && currentTarget == TARGET_VIEW && fogWanted() && createFog(fogQuality(), view.size)
                     && fogResources.filled) {
                 texture = fogResources.integrated;
                 slotSampler = fogResources.linear;

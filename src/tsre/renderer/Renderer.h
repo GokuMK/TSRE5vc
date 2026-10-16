@@ -222,6 +222,13 @@ public:
         // metres east, north): its patches move.
         double driftEast = 0.0;
         double driftNorth = 0.0;
+        // Rain or snow at the camera (the area's, mm/h; its snow share) and
+        // the low clouds' base there (m above sea level): the volume carries
+        // it near the view, the clouds' rain far off (RhiRenderer). Set with
+        // the fog off too; the volume then runs for the rain alone.
+        float rain = 0.0f;
+        float snow = 0.0f;
+        float rainBase = 1000.0f;
     };
     virtual void setFog(const Fog &fog) {}
 

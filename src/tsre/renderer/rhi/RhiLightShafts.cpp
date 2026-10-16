@@ -700,9 +700,9 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     // glow of lit haze around it (mean 2.9, at most 98 of 255); away from the
     // sun at most 1.
     v.ground[0] = std::max(sky.cameraHeight - sky.groundHeight, 0.0f);
-    // With the fog volume (task 33) the haze on the ground is its thinnest
-    // case: the layer goes.
-    const bool fogged = fogResources.filled && fogWanted();
+    // With the fog volume's fog (task 33) the haze on the ground is its
+    // thinnest case: the layer goes (not with its rain alone).
+    const bool fogged = fogResources.filled && fogWanted() && fogFogged();
     v.ground[1] = fogged ? 0.0f : std::clamp(sky.shaftHaze, 0.0f, 0.02f) * 10.0f;
     v.ground[2] = 500.0f;
     v.ground[3] = 120.0f;

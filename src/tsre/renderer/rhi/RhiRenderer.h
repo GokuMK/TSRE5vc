@@ -690,6 +690,9 @@ private:
     // (as the march takes them: weatherMap, farMap) and the low and mid
     // layers' shifts since drawn (km): the light shafts' far cloud shadows.
     bool cloudFarMaps(float *weatherMap, float *farMap, float *shift) const;
+    // The same with the near cover map, the low layer's shift since drawn
+    // and the rain's slant (km aside a km of fall): the fog volume's rain.
+    bool cloudRainMaps(float *weatherMap, float *nearMap, float *shift) const;
     // Moves a layer's map back near the camera when it has drifted too far,
     // before the frame's draws take its place.
     void placeCloudShadow();
@@ -792,7 +795,7 @@ private:
         // The maps the injection's bindings hold (shadow maps, the cloud
         // shadow map, the terrain's shade, the lamps' and the signals' grids
         // come and go).
-        const QRhiTexture *boundMaps[11] = {};
+        const QRhiTexture *boundMaps[13] = {};
         int current = 0;
         bool historyValid = false;
         float previousForward[16] = {};
@@ -820,6 +823,12 @@ private:
     QRhiTexture *dummy3D = nullptr;
     // Whether the main view has fog this frame.
     bool fogWanted() const;
+    // The volume's quality: the fog's, or Low for rain alone with the fog
+    // off; whether it carries rain.
+    int fogQuality() const;
+    bool fogRain() const;
+    // Whether the volume holds the weather's fog (not rain alone).
+    bool fogFogged() const;
     bool createFog(int quality, const QSize &viewSize);
     void releaseFog();
     // The volume, before the main view's geometry, which reads it.
