@@ -111,7 +111,7 @@ stops paired, and the median change between consecutive stops (one run):
 | JAPAN1 `itr_e1_s1_w1_t1` (12:00) | 249 | −1154 s | −287 s | −1 s |
 | JAPAN1, the same from 10:30 | 328 | | +2 s | 0 s |
 | JAPAN2 `itr_e1_s1_w1_t1` | 16 | −24 s | 0 s | +1 s |
-| USA2 `itr_e1_s1_w1_t1` | 6 | −500 s | +79 s | |
+| USA2 `itr_e1_s1_w1_t1` | 6 | −500 s | −27 s | |
 
 JAPAN1's trains started before 12:00 are run in Open Rails' pre-run.
 To tell its pre-run from its driving, the activity was run from 10:30 (a
@@ -122,11 +122,25 @@ brakes a step an update; it runs JAPAN1's stoppers 11 to 13 % slower than
 its own normal running (about 18 s a stop), so at 12:00 they stand 3 to
 10 minutes behind where its run from 10:30 has them. Ours run the pre-run
 as they run (as designed): where Open Rails' run from an earlier start
-would have them.
+would have them. The user (2026-10-16): keep it so; Open Rails' slower
+pre-run may come later as a compatibility setting.
 
-Fixed on the way (both task 01's): a train starting at its first station
-stands its boarding time there as at any stop (it left at once when its
-booked departure was its start); the consist's top speed as above.
+Open Rails gives no reason for its pre-run's shortcut (neither its code
+nor its manual); it runs while the activity loads, in 5 s steps without
+the cars' physics, so presumably to keep loading short: its trains'
+update is heavy (each car's forces and brakes). Ours needs no shortcut:
+the pre-run with the full driving in 0.1 s steps takes 0.5 s for
+JAPAN1's `itr_e1_s1_w1_t1` (10 trains, 1.5 hours before the start) and
+0.8 s for USA2's (7 trains, 10.5 hours), the core's setup included.
+
+Fixed on the way: a train starting at its first station stands its
+boarding time there as at any stop (task 01: it left at once when its
+booked departure was its start); the consist's top speed as above (task
+01); a signal of several heads clears as far ahead as its
+furthest-clearing head, as Open Rails takes it (task 02 took its first
+head's: USA2's junction signals, a BNSF2Light head clearing 3 heads and a
+BNSF3Light head 4, cleared one signal short, so the train passed them at
+advance approach, 40 mph, where Open Rails shows clear).
 
 ## What Open Rails' AI does
 
@@ -164,14 +178,11 @@ Rails' floor then still raises the speed); Open Rails' pre-run slowness.
 
 ## Left
 
-- **Open Rails' pre-run** (decision for the user): keep ours as its
-  normal running (now), or slow our pre-run to match where Open Rails
-  places those trains at the activity's start (its 5 s throttle and
-  brake steps modelled: they cost its JAPAN1 stoppers about 18 s a stop).
-- USA2: Open Rails shows 45 mph on stretches where our freight train
-  holds 40 mph (speed post selection, to check); Open Rails holds a JAPAN1
-  stopper about 3 minutes at Yurigaoka and Chitose Funabashi (overtakes:
-  dispatching, task 02's area).
+- Later, a compatibility setting: Open Rails' slower pre-run (its 5 s
+  throttle and brake steps modelled: they cost its JAPAN1 stoppers about
+  18 s a stop), for start positions as Open Rails places them.
+- Open Rails holds a JAPAN1 stopper about 3 minutes at Yurigaoka and
+  Chitose Funabashi (overtakes: dispatching, task 02's area).
 
 ## Design
 

@@ -132,7 +132,8 @@ struct ProjectedSignal {
     double at = 0.0;
     // Its NORMAL heads facing the train (legacy clearing ahead counts them).
     int normalHeads = 0;
-    // The kind of its first NORMAL head (how far to clear ahead).
+    // The kind of its NORMAL head clearing furthest ahead (how far the
+    // signal clears ahead: Open Rails takes its heads' most).
     int kind = -1;
     // The first projected section of its block (past it).
     size_t section = 0;

@@ -423,7 +423,11 @@ Projection TrackNetwork::project(const RouteTrack &route) const {
         if (head.kind < 0 || types[size_t(head.kind)].function != SignalFunction::Normal)
             continue;
         if (!projection.stopSignals.empty() && projection.stopSignals.back().signal == head.signal) {
-            ++projection.stopSignals.back().normalHeads;
+            ProjectedSignal &signal = projection.stopSignals.back();
+            ++signal.normalHeads;
+            // It clears as far ahead as its heads' most (Open Rails).
+            if (types[size_t(head.kind)].clearAhead > types[size_t(signal.kind)].clearAhead)
+                signal.kind = head.kind;
             continue;
         }
         ProjectedSignal signal;

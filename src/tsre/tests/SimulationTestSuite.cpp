@@ -671,6 +671,24 @@ Engine ( Test
                   && std::fabs((posts[0].item == 601 ? posts[0] : posts[1]).speed - 40.0f / 3.6f) < 0.01f
                   && (posts[0].item == 601 ? posts[0] : posts[1]).forward,
               "speed posts face the way their angle says");
+        {
+            // A signal of two heads, the first clearing none ahead: it clears
+            // as far as its other head (Open Rails takes its heads' most).
+            TestTrack::Layout two;
+            two.end(1, 10);
+            two.track(10, 1, 2, 20);
+            two.end(2, 10);
+            TestTrack::signalHead(two, 10, 801, 100.0f, true, "Zero");
+            TestTrack::signalHead(two, 10, 802, 100.0f, true, "Home");
+            const QScopedValueRollback<TDB *> twoLive(Game::trackDB, &two.db);
+            const Sim::TrackGeometry twoGeometry(&two.db);
+            const Sim::TrackNetwork twoNetwork(&two.db, twoGeometry, &signalConfig, false);
+            const PathTrack::Result along = PathTrack::endAt(&two.db, PathTrack::startAt(&two.db, {10, 10.0f}).nodes, {10, 190.0f});
+            const Sim::TrainRoute alongRoute = Sim::BuildRoute(&two.db, along.nodes, PathTrack::legs(&two.db, along.nodes), 0.0);
+            const Sim::Projection twoWay = alongRoute.parts.empty() ? Sim::Projection() : twoNetwork.project(alongRoute.parts[0]);
+            check(twoWay.stopSignals.size() == 1 && twoWay.stopSignals[0].normalHeads == 2 && twoWay.stopSignals[0].kind == home,
+                  "a signal's heads clear as far ahead as the furthest-clearing one");
+        }
         // Through the loop's main track and back.
         const PathTrack::Result there = PathTrack::endAt(net, PathTrack::startAt(net, {10, 10.0f}).nodes, {13, 80.0f});
         const Sim::TrainRoute out = Sim::BuildRoute(net, there.nodes, PathTrack::legs(net, there.nodes), 0.0);
