@@ -50,6 +50,9 @@ Eng::Eng(Eng *o) {
     shape = o->shape;
     freightanimShape.append(o->freightanimShape);
     lights = o->lights;
+    lightsFile = o->lightsFile;
+    lightsIncludePath = o->lightsIncludePath;
+    lightsRead = o->lightsRead;
     
     name = o->name;
     path = o->path;
@@ -284,6 +287,8 @@ Eng::Eng(QString src, QString p, QString n) {
 void Eng::load(){
     filePaths.clear();
     lights.reset();
+    lightsFile.clear();
+    lightsRead = false;
     QString mstsincpath = path;
     QString incpath = orpath;
     QString sh;
@@ -517,11 +522,9 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("lights")) {
-                    // A later block replaces an earlier one; Open Rails
-                    // refuses one without lights.
-                    auto read = std::make_shared<EngLights>();
-                    read->read(data);
-                    lights = read->lights.isEmpty() ? nullptr : read;
+                    // Read on first use (getLights).
+                    lightsFile = file->fileName();
+                    lightsIncludePath = incpath;
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -841,6 +844,14 @@ void Eng::updateSim(float deltaTime){
             ruch1->onJunction = 0;
         }
     }
+}
+
+const EngLights *Eng::getLights() {
+    if (!lightsRead && !lightsFile.isEmpty()) {
+        lightsRead = true;
+        lights = EngLights::fromFile(lightsFile, lightsIncludePath, path);
+    }
+    return lights.get();
 }
 
 float Eng::getCurrentSpeed(){

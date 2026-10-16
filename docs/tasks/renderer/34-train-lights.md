@@ -76,12 +76,18 @@ Open Rails rules kept:
   section in `Eng::load`. A later `Lights` block replaces an earlier one.
 - Everything Open Rails reads is kept, also what the first version does not
   use, so later steps need no parser work.
-- Read-only once loaded and shared: the cars of a consist are copies of the
-  library's `Eng` (`Eng(Eng *)`) and share the lights (`std::shared_ptr`).
-- The Consist Editor loads every ENG and WAG file (`EngLib::loadAll`); today
-  it already reads these blocks token by token to skip them. Its load time
-  is measured before and after; the lights are read on first use if it
-  grows.
+- Read on first use (`Eng::getLights`): `Eng::load` only notes where the
+  block is and skips it as before; the first draw reads it from the file,
+  includes resolved as `Eng::load` resolves them (`EngLights::fromFile`).
+  Read-only once read and shared by every car of the same file (the cars of
+  a consist are copies of the library's `Eng`).
+- Why (measured 2026-10-17, C:/trainsim, 3597 cars, 1397 with lights): the
+  Consist Editor loads every ENG and WAG file (`EngLib::loadAll`), and
+  reading the lights there made its load 37 % longer (about 1.4 s), as the
+  variants of a locomotive each read the same large include (the Vectron's
+  24,000 lines). Read on first use, its load is unchanged (4.5 to 4.7 s
+  both ways, alternating runs); reading the lights of all 1397 cars would
+  take 2.7 s, the route editor reads only those of the cars it draws.
 - Other work on ENG goes on in parallel. Code goes where it belongs (in
   `Eng` and `Consist` where it fits them), with merges kept in mind: no
   refactoring of their code on the way.

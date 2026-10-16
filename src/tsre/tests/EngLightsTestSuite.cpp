@@ -101,10 +101,10 @@ int TsreTests::runEngLightsSuite(bool verbose) {
         test.check(file.open(QIODevice::WriteOnly) && file.write(Fixture) > 0, "write fixture");
     }
     Eng eng(temp.path(), "test.eng");
-    test.check(eng.loaded == 1 && eng.lights != nullptr, "the fixture loads with lights");
-    if (eng.lights == nullptr)
+    test.check(eng.loaded == 1 && eng.getLights() != nullptr, "the fixture loads with lights");
+    if (eng.getLights() == nullptr)
         return test.finish();
-    const EngLights &lights = *eng.lights;
+    const EngLights &lights = *eng.getLights();
     test.check(lights.lights.size() == 7 && lights.graphic == "MYGLOW.PNG",
                "the later block replaces the first; six lights and the cone's reversed copy; the block's glow");
     if (lights.lights.size() != 7)
@@ -242,18 +242,21 @@ int TsreTests::runEngLightsSuite(bool verbose) {
     test.check(!noPenalty && holds(c, t), "battery off, brakes applied, penalty");
 
     Eng copy(&eng);
-    test.check(copy.lights == eng.lights, "copies of a car share its lights");
+    Eng again(temp.path(), "test.eng");
+    test.check(copy.getLights() == eng.getLights() && again.getLights() == eng.getLights(),
+               "copies of a car and cars of the same file share its lights");
 
     // The CMK test train's locomotive, when the content is there.
     const QString vectron = Game::root + "/TRAINS/TRAINSET/PKOR_Vectron";
     if (QFile::exists(vectron + "/ID_6193-490_PL.eng")) {
         Eng loco(vectron, "ID_6193-490_PL.eng");
-        test.check(loco.lights != nullptr && loco.lights->lights.size() == 1104,
+        const EngLights *vectronLights = loco.getLights();
+        test.check(vectronLights != nullptr && vectronLights->lights.size() == 1104,
                    "PKOR_Vectron: 1101 lights and 3 reversed cones");
-        if (loco.lights != nullptr) {
+        if (vectronLights != nullptr) {
             auto count = [&](const Train &train, quint32 colour, int type, bool frontEnd) {
                 int n = 0;
-                for (const Light &light : loco.lights->lights)
+                for (const Light &light : vectronLights->lights)
                     if (light.type == type && EngLights::isOn(light, train)
                             && (light.type == EngLights::Cone || light.states[0].colour == colour)
                             && (light.states[0].position[2] > 0) == frontEnd)

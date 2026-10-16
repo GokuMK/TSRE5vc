@@ -59,9 +59,10 @@ public:
     
     EngShape shape;
     QVector<EngShape> freightanimShape;
-    // Its Lights block (task renderer 34), shared by the copies of it in
-    // consists; null without one.
-    std::shared_ptr<const EngLights> lights;
+    // Its Lights block (task renderer 34), read on first use (the Consist
+    // Editor loads every car and needs none) and shared by every car of the
+    // same file; null without one.
+    const EngLights *getLights();
 
     QString engName;
     QString displayName;
@@ -157,6 +158,11 @@ public:
     // gone out of hearing).
     void silenceSounds();
 private:
+    std::shared_ptr<const EngLights> lights;
+    // Where load() met the Lights block: its file and include path.
+    QString lightsFile;
+    QString lightsIncludePath;
+    bool lightsRead = false;
     long long int resolveShapeIds();
     // Drawn between two places on the track (as getDrawPositionOnTrNode
     // gives them: x, y, z, angle, slope, tile x, tile z), its front and rear

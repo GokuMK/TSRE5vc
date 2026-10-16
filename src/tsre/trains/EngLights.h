@@ -14,6 +14,7 @@
 #include <QString>
 #include <QVector>
 #include <QtGlobal>
+#include <memory>
 
 class FileBuffer;
 
@@ -127,6 +128,12 @@ public:
     // Reads the block from just inside its parenthesis (after ParserX
     // returned "lights") to its end; the reversed cones follow the others.
     void read(FileBuffer *data);
+    // The Lights block of an ENG or WAG file's Wagon section, includes
+    // resolved as Eng::load resolves them (in includePath, else
+    // mstsIncludePath); the last block when there are several, null without
+    // one. Read once per file and include path, then shared.
+    static std::shared_ptr<const EngLights> fromFile(const QString &file, const QString &includePath,
+                                                     const QString &mstsIncludePath);
     static bool isOn(const Light &light, const Train &train);
     static bool holds(const Condition &condition, const Train &train);
 };
