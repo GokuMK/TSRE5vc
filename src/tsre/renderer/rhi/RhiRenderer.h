@@ -571,6 +571,7 @@ private:
         QRhiTexture *shape = nullptr;
         QRhiTexture *detail = nullptr;
         QRhiTexture *curl = nullptr;
+        QRhiTexture *blue = nullptr;
         QRhiResourceUpdateBatch *pendingUploads = nullptr;
         QRhiTexture *weather = nullptr;
         quint64 weatherRevision = ~0ull;

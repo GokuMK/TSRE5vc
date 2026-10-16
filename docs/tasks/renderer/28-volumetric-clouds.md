@@ -1078,14 +1078,13 @@ What remains of the "Still open" lists above, checked against the code:
   from above, the rain's streaks.
 - **A little moiré on storms at High with the camera still** (user,
   2026-10-16; the slightest move takes it away, so driving may hide it: to
-  check in practice). For later: three samples a long step at High
-  (Medium has three; `high.w`, about 1 to 2 ms more in storms); the
-  history's clamp to the marched neighbourhood, which keeps the pattern
-  while still (a moving camera resamples the history, blurring it); a
-  blue-noise start for each pixel instead of the interleaved gradient
-  noise, whose diagonal structure the pattern shows. Lowering the clouds
-  was considered and rejected: steps shorten only in proportion, storms
-  reach 10 to 12 km.
+  check in practice). The march's start is blue noise now (below): what
+  error remains is grain, not ripples. Still for later if it shows: three
+  samples a long step at High (Medium has three; `high.w`, about 1 to 2
+  ms more in storms); the history's clamp to the marched neighbourhood,
+  which keeps the error while still (a moving camera resamples the
+  history, blurring it). Lowering the clouds was considered and
+  rejected: steps shorten only in proportion, storms reach 10 to 12 km.
 - **OpenGL renderer:** step 9 (a flat cloud layer from the weather).
 - **Settings in `Game.h`** (sky model, cloud quality, shafts, enclosure,
   enclosed ambient): to their classes at the next forced full rebuild.
@@ -1269,6 +1268,21 @@ The storm clouds stood as pillars of billows streaked straight up.
 - Not yet: rain near the camera (within the near scene: the weather's haze
   stands for it; drops later), rain seen from above the base (flying),
   rain in front of near terrain.
+
+### Blue noise for the march's start (2026-10-16)
+
+- Where each pixel's march starts was interleaved gradient noise (cheap,
+  no texture), whose diagonal structure the remaining error took: ripples
+  on storms with the camera still. It is now blue noise
+  (`CloudNoise::blue`: void and cluster, 64 x 64, 16-bit ranks, made at
+  start with the other noise; binding 11), moved on each frame by the
+  golden ratio as before: the error is fine grain, without a pattern.
+- Captures at the user's CMK view at High (`build/blue`): with a fixed
+  start (still) the old ripples across the towers become even grain; as
+  in use both smooth; fair cumulus as before. Unit: each rank once, every
+  8 x 8 window averages within 0.04 of a half (`cloud-blue-noise`).
+- Cost: one texture read a marched pixel; on the Steam Deck within the
+  runs' noise (thunderstorm 44.1 against 44.0 ms, rain 40.2 against 40.1).
 
 ## Verification
 

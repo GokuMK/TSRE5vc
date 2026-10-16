@@ -121,6 +121,26 @@ int runSkySuite(bool verbose) {
             QString("cloud-shape-volume (mean %1, %2-%3)").arg(mean).arg(low).arg(high));
     const std::vector<quint8> detail = CloudNoise::detail(16);
     c.check(detail.size() == 16u * 16 * 16 * 4, "cloud-detail-volume");
+    // The march's blue noise: each rank once; every 8 x 8 window (wrapped)
+    // averages near a half (white noise strays about four times as far).
+    {
+        constexpr int Size = 64;
+        const std::vector<quint16> blue = CloudNoise::blue(Size);
+        std::vector<quint16> sorted = blue;
+        std::sort(sorted.begin(), sorted.end());
+        const bool distinct = blue.size() == size_t(Size) * Size
+                && std::adjacent_find(sorted.begin(), sorted.end()) == sorted.end();
+        double worst = 0.0;
+        for (int y = 0; y < Size; ++y)
+            for (int x = 0; x < Size; ++x) {
+                double window = 0.0;
+                for (int j = 0; j < 8; ++j)
+                    for (int i = 0; i < 8; ++i)
+                        window += blue[size_t((y + j) % Size) * Size + (x + i) % Size] / 65535.0;
+                worst = std::max(worst, std::abs(window / 64.0 - 0.5));
+            }
+        c.check(distinct && worst < 0.04, QString("cloud-blue-noise (window off %1)").arg(worst, 0, 'f', 4));
+    }
 
     qInfo() << "[tests:sky] cases=" << (c.passed + c.failed) << "passed=" << c.passed << "failed=" << c.failed;
     return c.failed == 0 ? 0 : 1;

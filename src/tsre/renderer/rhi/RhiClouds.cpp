@@ -59,6 +59,7 @@ constexpr float FarCoverTexel = 600.0f;
 constexpr int ShapeSize = 128;
 constexpr int DetailSize = 32;
 constexpr int CurlSize = 128;
+constexpr int BlueSize = 64;
 // Metres one period of the shape and detail volumes spans.
 constexpr double ShapePeriod = 6000.0;
 constexpr double DetailPeriod = 900.0;
@@ -626,6 +627,8 @@ vec3 airTo(vec3 d, float distance, float radius) {
 
 const char *MarchFragment = R"(
 layout(location = 0) out vec4 result;
+// Where each pixel's march starts (CloudNoise::blue, 64 x 64).
+layout(binding = 11) uniform sampler2D blueNoise;
 // Where the pixel's clouds are, times their cover (km: front, mean
 // distance; layer 0 low to 2 high), the cover.
 layout(location = 1) out vec4 cloudDepth;
@@ -871,11 +874,13 @@ void main() {
     // light keeps the sun.
     vec3 lightDir = normalize(light.xyz);
     float cosAngle = dot(d, lightDir);
-    // Each pixel starts the march at its own place (interleaved gradient
-    // noise), moved on each frame unless still.
+    // Each pixel starts the march at its own place (blue noise: the
+    // interleaved gradient noise before left what error remains in its
+    // diagonal pattern, a moiré on storms), moved on each frame unless
+    // still.
     // (by the image's pixel: the pixels of a block are marched by different
     // passes on the same march texel)
-    float jitter = fract(52.9829189 * fract(dot(pixel + 0.5, vec2(0.06711056, 0.00583715))) + camera.w);
+    float jitter = fract(texelFetch(blueNoise, ivec2(mod(pixel, vec2(64.0))), 0).r + camera.w);
     marchRadius = R;
     marchLightDir = lightDir;
     marchCos = cosAngle;
@@ -1527,6 +1532,8 @@ bool RhiRenderer::createCloudVolumes() {
     c.shape = rhi->newTexture(QRhiTexture::RGBA8, ShapeSize, ShapeSize, ShapeSize, 1, QRhiTexture::ThreeDimensional);
     c.curl = rhi->newTexture(QRhiTexture::RGBA8, QSize(CurlSize, CurlSize));
     c.curl->create();
+    c.blue = rhi->newTexture(QRhiTexture::R16, QSize(BlueSize, BlueSize));
+    c.blue->create();
     c.detail = rhi->newTexture(QRhiTexture::RGBA8, DetailSize, DetailSize, DetailSize, 1, QRhiTexture::ThreeDimensional);
     if (!c.shape->create() || !c.detail->create()) {
         delete c.shape;
@@ -1558,6 +1565,10 @@ bool RhiRenderer::createCloudVolumes() {
     QRhiTextureSubresourceUploadDescription curlData(curl.data(), quint32(curl.size()));
     curlData.setSourceSize(QSize(CurlSize, CurlSize));
     batch->uploadTexture(c.curl, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, curlData)));
+    const std::vector<quint16> blue = CloudNoise::blue(BlueSize);
+    QRhiTextureSubresourceUploadDescription blueData(blue.data(), quint32(blue.size() * sizeof(quint16)));
+    blueData.setSourceSize(QSize(BlueSize, BlueSize));
+    batch->uploadTexture(c.blue, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, blueData)));
     c.pendingUploads = batch;
     return true;
 }
@@ -1716,7 +1727,8 @@ bool RhiRenderer::createCloudView(CloudView &v, const QSize &viewSize, int pixel
                                           QRhiShaderResourceBinding::sampledTexture(8, fragment, depth, c.nearest),
                                           QRhiShaderResourceBinding::sampledTexture(9, fragment, c.curl, c.repeat),
                                           QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
-                                                  10, fragment, v.updateUniforms, sizeof(UpdateParameters))});
+                                                  10, fragment, v.updateUniforms, sizeof(UpdateParameters)),
+                                          QRhiShaderResourceBinding::sampledTexture(11, fragment, c.blue, c.nearest)});
     for (int i = 0; i < 2; ++i) {
         // Writes history i from the march and history 1 - i.
         v.temporalBindings[i] = cloudBindings(rhi, {QRhiShaderResourceBinding::uniformBuffer(0, fragment, v.uniforms),
@@ -2426,6 +2438,7 @@ void RhiRenderer::releaseCloudResources() {
     dropLater(c.shape);
     dropLater(c.detail);
     dropLater(c.curl);
+    dropLater(c.blue);
     if (c.pendingUploads != nullptr)
         c.pendingUploads->release();
     c = CloudResources();
