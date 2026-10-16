@@ -125,7 +125,7 @@ struct MarchParameters {
     float noiseLow[4];     // shape and detail offsets of the low layer (m), mod their periods
     float noiseMid[4];
     float lighting[4];     // light steps, still, buffer texel w, h
-    float high[4];         // high layer altitude (km), haze, extra samples a ray may take in deep layers
+    float high[4];         // high layer altitude (km), haze; deep layers: extra samples a ray may take, samples a step at most
     float shadow[4];       // cloud shadow map: extent (km), its plane's altitude (km), the low layer's centre east and north of the camera (km)
     float night[4];        // the night sky's floor (display colour); the scene's scale (auto exposure, task 29)
     float light[4];        // towards the clouds' light: the sun, or the moon at night (task 31)
@@ -764,28 +764,30 @@ void main() {
 #ifdef DEEP_SPLIT
         // Steps longer than the clouds' shapes show at their distance in a
         // deep layer (a storm's slab 10 km tall: the steps spread over some
-        // 30 km of ray, 400 m and more each, left its towers grainy and
-        // hatched by each pixel's start) take a sample at their middle too,
-        // lit on its own (a lit cloud is far brighter at its surface than a
-        // few hundred metres in), while the ray's budget lasts (high.z: High
-        // and Ultra, the main view; only then this variant). A probe without
-        // the detail first (it only erodes), so empty steps cost as before;
-        // other steps (thin layers: their long steps lie far off, where they
-        // do not show) are marched as they were.
+        // 30 km of ray, 400 m and more each at High, twice that at Low, left
+        // its towers grainy and hatched by each pixel's start) are split
+        // into samples no longer than that (high.w at most), each lit on
+        // its own (a lit cloud is far brighter at its surface than a few
+        // hundred metres in), while the ray's budget lasts (high.z; only
+        // then this variant). A probe without the detail first (it only
+        // erodes), so empty steps cost as before; other steps (thin layers:
+        // their long steps lie far off, where they do not show) are marched
+        // as they were.
         int extra = int(high.z);
         bool wasCloud = false;
         // One sample an iteration (the lighting's code once in the shader;
-        // twice, it ran slower): a split step takes two, its second half
-        // pending.
+        // twice, it ran slower): a split step's further samples pending
+        // (its end, their length, how many).
         int s = 0;
-        float pendingT = -1.0, pendingDt = 0.0;
+        float pendingEnd = 0.0, pendingDt = 0.0;
+        int pendingLeft = 0;
         for (int n = 0; n < steps + int(high.z); ++n) {
             float t, dt;
-            bool coarse = pendingT < 0.0;
+            bool coarse = pendingLeft == 0;
             if (!coarse) {
-                t = pendingT;
+                --pendingLeft;
+                t = pendingEnd - pendingDt * float(pendingLeft);
                 dt = pendingDt;
-                pendingT = -1.0;
             } else {
                 if (s >= steps)
                     break;
@@ -796,7 +798,8 @@ void main() {
                     dt = segment * (1.0 / float(steps)) * (1.0 / float(steps));
                 previousT = t;
                 ++s;
-                if (extra > 0 && dt > max(0.12, t * 0.01)) {
+                float longest = max(0.12, t * 0.01);
+                if (extra > 0 && dt > longest) {
                     vec3 p = p0 + d * t;
                     vec2 offset = vec2(p.x, -p.z);
                     vec4 low = weatherAt(offset, 0), mid = weatherAt(offset, 1);
@@ -807,11 +810,13 @@ void main() {
                         wasCloud = cloud;
                         if (skip)
                             continue;
-                        --extra;
-                        dt *= 0.5;
-                        pendingT = t;
+                        int split = min(int(ceil(dt / longest)), min(int(high.w), extra + 1));
+                        extra -= split - 1;
+                        dt /= float(split);
+                        pendingEnd = t;
                         pendingDt = dt;
-                        t -= dt;
+                        pendingLeft = split - 1;
+                        t -= dt * float(split - 1);
                         coarse = false;
                     }
                 }
@@ -1659,6 +1664,10 @@ void RhiRenderer::cloudShadowCentre(int layer, float &x, float &z) const {
     z = viewPosition[2] - float(north);
 }
 
+float RhiRenderer::deepSamples(int steps) const {
+    return clouds.deepest >= 3.0f ? float(std::max(16, steps / 6)) : 0.0f;
+}
+
 float RhiRenderer::cloudShellRadius() const {
     // The radius at which the top of the clouds, seen from the camera's
     // height, meets the horizon HorizonDistance away: s^2 = 2 R (top - h).
@@ -1892,10 +1901,14 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
         parameters.high[0] = (*clouds.layers)[centre] > 0.0f ? (*clouds.layers)[centre + 2] : 0.0f;
     }
     parameters.high[1] = std::clamp(sky.haze, 0.0f, 0.02f) * 1000.0f;
-    // Long steps in deep layers (3 km and more) sampled twice, for a sixth of
-    // the steps at most (the march's loop): High and Ultra, when a layer is
-    // that deep somewhere.
-    parameters.high[2] = quality >= 3 && clouds.deepest >= 3.0f ? float(preset.steps / 6) : 0.0f;
+    // Long steps in deep layers (3 km and more) split, 16 samples more at
+    // most a ray, or a sixth of the steps (the march's loop), when a layer
+    // is that deep somewhere; every quality and view (the fewer the steps,
+    // the plainer the hatching). Into three at most at Medium (its steps
+    // half as long again as High's), two otherwise (four at High cost 2.5
+    // ms more in a storm for nothing seen; Low keeps a little, user).
+    parameters.high[2] = deepSamples(preset.steps);
+    parameters.high[3] = quality == 2 ? 3.0f : 2.0f;
     c.deep = parameters.high[2] > 0.0f;
     float plane = 0.0f;
     cloudShadowPlane(plane);
@@ -2109,8 +2122,9 @@ void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &a
     parameters.projection[1] = bandScale[target][1];
     parameters.slab[3] = float(steps);
     parameters.lighting[0] = float(lightSteps);
-    parameters.high[2] = 0.0f;
-    v.deep = false;
+    parameters.high[2] = deepSamples(steps);
+    parameters.high[3] = 2.0f;
+    v.deep = parameters.high[2] > 0.0f;
     if (std::hypot(clouds.cameraEast - v.lastEast, clouds.cameraNorth - v.lastNorth) > 300.0)
         v.historyValid = false;
     v.lastEast = clouds.cameraEast;

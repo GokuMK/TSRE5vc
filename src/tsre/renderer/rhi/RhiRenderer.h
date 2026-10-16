@@ -535,9 +535,9 @@ private:
         QRhiRenderPassDescriptor *marchPass = nullptr;
         QRhiShaderResourceBindings *marchBindings = nullptr;
         QRhiGraphicsPipeline *marchPipeline = nullptr;
-        // The march sampling long steps in deep layers twice (storms), used
-        // while deep is set (High and Ultra, the main view, such layers in
-        // the weather): its larger loop slows every view a little.
+        // The march splitting long steps in deep layers (storms), used while
+        // deep is set (such layers in the weather): its larger loop slows
+        // every view a little.
         QRhiGraphicsPipeline *marchDeepPipeline = nullptr;
         bool deep = false;
         QRhiTexture *history[2] = {};
@@ -690,6 +690,9 @@ private:
     // The planet radius of the cloud shell (km): smaller than the Earth's,
     // so the clouds reach the horizon within the weather around the camera.
     float cloudShellRadius() const;
+    // Extra samples a march ray of so many steps may take in deep layers
+    // (none without such layers).
+    float deepSamples(int steps) const;
     // The clouds' light (task 31): towards it (normalized) and its light
     // relative to the sun's. The sun, also under the horizon while it still
     // reaches the clouds; then the moon, fading in.
