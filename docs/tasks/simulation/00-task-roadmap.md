@@ -67,9 +67,10 @@ model as the first operating policy, and threading.
   done 2026-10-16 (phases 1 to 4; Open Rails runs a calculated timetable,
   its trains leaving on time but where it stands them its platforms'
   minimum waiting time).
-- [ ] 05: `sigscr.dat` read and run in place of the built-in aspect rule
-  (the rule is a stand-in: each route's scripts define its own aspect
-  sequences, plates and features).
+- [ ] `05-signal-scripts.md`: `sigscr.dat` read and run in place of the
+  built-in aspect rule (the rule is a stand-in: each route's scripts
+  define its own aspect sequences, plates and features). Designed
+  2026-10-16; decisions open.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance, activity events, the player driving,
