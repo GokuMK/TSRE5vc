@@ -536,8 +536,8 @@ private:
         QRhiShaderResourceBindings *marchBindings = nullptr;
         QRhiGraphicsPipeline *marchPipeline = nullptr;
         // The march splitting long steps in deep layers (storms), used while
-        // deep is set (such layers in the weather): its larger loop slows
-        // every view a little.
+        // deep is set (the main view, such layers in the weather): its
+        // larger loop slows every view a little.
         QRhiGraphicsPipeline *marchDeepPipeline = nullptr;
         bool deep = false;
         QRhiTexture *history[2] = {};

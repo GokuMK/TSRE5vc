@@ -1148,9 +1148,10 @@ The user: a moiré clearly visible on storm clouds (CMK,
   each lit on its own: two at most at Low, High and Ultra, three at Medium
   (its steps half as long again as High's; `high.w`). A probe without the
   detail first (it only erodes), so empty steps cost as before; 16 samples
-  more at most a ray, or a sixth of the steps (`high.z`). Every quality and
-  view, the reflection and the cube too (user: the fewer the steps, the
-  plainer the hatching; Low may keep a little). Tried on the way: four
+  more at most a ray, or a sixth of the steps (`high.z`). Every quality, in
+  the main view (user: the fewer the steps, the plainer the hatching; Low
+  may keep a little; not the water's reflection, blurred by the waves, nor
+  the cube, read blurred). Tried on the way: four
   samples a step (no better seen, 2.5 ms more at High in a storm); lit once
   a step, at its end or where it meets cloud (the hatching stayed on lit
   towers).
@@ -1167,12 +1168,12 @@ The user: a moiré clearly visible on storm clouds (CMK,
 - **Cost on the Steam Deck** (median frame, old against new): at High with
   two samples a step (three rounds) thunderstorm 42.8 against 45.5 ms,
   looking up 31.7 against 34.0; fair cumulus 37.8 against 38.3 and overcast
-  35.6 against 35.4, within the runs' noise. Every quality and view, with
-  the caps (two rounds each, against the march split at High only; noisy,
-  fair cumulus anywhere from 38 to 46 ms): thunderstorm at Low 42.5 against
-  44.6, at Medium 42.3 against 44.9, at High 46.1 against 47.6 (the lake's
-  reflection now split too: about 1.5 ms there); fair cumulus and overcast
-  as before.
+  35.6 against 35.4, within the runs' noise. Every quality, with the caps
+  (two rounds each, against the march split at High only; noisy, fair
+  cumulus anywhere from 38 to 46 ms): thunderstorm at Low 42.5 against
+  44.6, at Medium 42.3 against 44.9; fair cumulus and overcast as before.
+  (With the lake's reflection split too, High was 1.5 ms dearer: taken
+  back.)
 - The towers' vertical streaks (pillars of billows) stay: their shape, with
   the anvils.
 

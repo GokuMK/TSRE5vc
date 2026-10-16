@@ -1903,10 +1903,11 @@ void RhiRenderer::prepareClouds(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *
     parameters.high[1] = std::clamp(sky.haze, 0.0f, 0.02f) * 1000.0f;
     // Long steps in deep layers (3 km and more) split, 16 samples more at
     // most a ray, or a sixth of the steps (the march's loop), when a layer
-    // is that deep somewhere; every quality and view (the fewer the steps,
-    // the plainer the hatching). Into three at most at Medium (its steps
-    // half as long again as High's), two otherwise (four at High cost 2.5
-    // ms more in a storm for nothing seen; Low keeps a little, user).
+    // is that deep somewhere; at every quality (the fewer the steps, the
+    // plainer the hatching), in the main view. Into three at most at
+    // Medium (its steps half as long again as High's), two otherwise (four
+    // at High cost 2.5 ms more in a storm for nothing seen; Low keeps a
+    // little, user).
     parameters.high[2] = deepSamples(preset.steps);
     parameters.high[3] = quality == 2 ? 3.0f : 2.0f;
     c.deep = parameters.high[2] > 0.0f;
@@ -2122,9 +2123,10 @@ void RhiRenderer::applyViewClouds(CloudView &v, int target, const Attachments &a
     parameters.projection[1] = bandScale[target][1];
     parameters.slab[3] = float(steps);
     parameters.lighting[0] = float(lightSteps);
-    parameters.high[2] = deepSamples(steps);
-    parameters.high[3] = 2.0f;
-    v.deep = parameters.high[2] > 0.0f;
+    // Long steps in deep layers not split: the reflection is blurred by the
+    // waves, the cube read blurred (user).
+    parameters.high[2] = 0.0f;
+    v.deep = false;
     if (std::hypot(clouds.cameraEast - v.lastEast, clouds.cameraNorth - v.lastNorth) > 300.0)
         v.historyValid = false;
     v.lastEast = clouds.cameraEast;
