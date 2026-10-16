@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/trains/EngLights.h>
 #include <tsre/map/MapFeatures.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -48,6 +49,7 @@ Eng::Eng(Eng *o) {
     filePaths.append(o->filePaths);
     shape = o->shape;
     freightanimShape.append(o->freightanimShape);
+    lights = o->lights;
     
     name = o->name;
     path = o->path;
@@ -281,6 +283,7 @@ Eng::Eng(QString src, QString p, QString n) {
 
 void Eng::load(){
     filePaths.clear();
+    lights.reset();
     QString mstsincpath = path;
     QString incpath = orpath;
     QString sh;
@@ -510,6 +513,15 @@ void Eng::load(){
                 }
                 if (sh == ("brakesystemtype")) {
                     brakeSystemType = ParserX::GetString(data);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("lights")) {
+                    // A later block replaces an earlier one; Open Rails
+                    // refuses one without lights.
+                    auto read = std::make_shared<EngLights>();
+                    read->read(data);
+                    lights = read->lights.isEmpty() ? nullptr : read;
                     ParserX::SkipToken(data);
                     continue;
                 }

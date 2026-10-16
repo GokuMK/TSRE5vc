@@ -13,6 +13,7 @@
 #include <QString>
 #include <QVector>
 #include <QHash>
+#include <memory>
 
 class RenderQueue;
 
@@ -25,6 +26,7 @@ class PlayDriver;
 struct SoundValues;
 class TrainNetworkEng;
 class ContentHierarchyInfo;
+class EngLights;
 
 struct MapFeatures;
 
@@ -57,6 +59,9 @@ public:
     
     EngShape shape;
     QVector<EngShape> freightanimShape;
+    // Its Lights block (task renderer 34), shared by the copies of it in
+    // consists; null without one.
+    std::shared_ptr<const EngLights> lights;
 
     QString engName;
     QString displayName;
