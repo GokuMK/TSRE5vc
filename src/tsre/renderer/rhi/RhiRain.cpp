@@ -9,9 +9,10 @@
  */
 
 // Falling rain and snow near the camera (task renderer 28, the rain): the
-// drops in the air within some 12 m, which the fog volume's rain
+// drops in the air within some 40 m, which the fog volume's rain
 // (RhiFog.cpp) shows only as a veil. Particles, as games draw them: before
-// the view's UI, thousands of streaks in a box about the camera, each drop's
+// the view's UI, thousands of streaks in two boxes about the camera (12 and
+// 40 m), each drop's
 // place in the world from its index (the box wraps as the camera moves, so a
 // moving train passes through the drops), falling with the wind; each drawn
 // as a thin quad from where it is back along its fall over a moment, at
@@ -37,6 +38,7 @@ struct RainParameters {
     float projection[4]; // scene near and far, its depth band's end, focal length (pixels)
     float viewport[4];   // 2 / width, 2 / height, the drop's size (m), snow share
     float colour[4];     // their light (display), strength
+    float farBox[4];     // the far box's half size across and up (m), its drops (after the near box's), 0
 };
 
 const char *RainVertex = R"(#version 440
@@ -50,6 +52,7 @@ layout(std140, binding = 0) uniform Rain {
     vec4 projection;
     vec4 viewport;
     vec4 colour;
+    vec4 farBox;
 };
 
 vec3 hash3(vec3 p) {
@@ -61,7 +64,10 @@ vec3 hash3(vec3 p) {
 void main() {
     float id = float(gl_InstanceIndex);
     vec3 seed = hash3(vec3(id * 0.618, id * 0.371 + 11.0, id * 1.713 + 29.0));
-    vec3 size = box.xyx * 2.0;
+    // The near box's drops first, then the far box's: depth beyond the near
+    // drops, up to the volume's veil.
+    bool farDrop = id >= box.z;
+    vec3 size = (farDrop ? farBox.xyx : box.xyx) * 2.0;
     float snow = viewport.w;
     // Where it is: its place in the world, falling, wrapped into the box
     // about the camera.
@@ -88,9 +94,14 @@ void main() {
     vec2 side = vec2(-dir.y, dir.x);
     float body = viewport.z * projection.w / c0.w;
     float width = max(body, 1.2);
-    // Fading in near the camera and out far off.
-    float strength = colour.w * clamp(body / width, 0.5, 1.0) * smoothstep(0.4, 1.5, c0.w)
-            * (1.0 - smoothstep(box.x * 0.6, box.x, c0.w));
+    // A flake no longer than wide (near, the wind's blur drew dashes).
+    if (snow > 0.5)
+        back = head + dir * min(sqrt(squared), width);
+    // Fading in near the camera and out far off; a far drop in where the
+    // near box's fade out (not doubling them), out at its own box's edge.
+    float fade = farDrop ? smoothstep(box.x * 0.6, box.x, c0.w) * (1.0 - smoothstep(farBox.x * 0.6, farBox.x, c0.w))
+                         : smoothstep(0.4, 1.5, c0.w) * (1.0 - smoothstep(box.x * 0.6, box.x, c0.w));
+    float strength = colour.w * clamp(body / width, 0.5, 1.0) * fade;
     // The quad: two triangles, the ends a half width beyond the streak's.
     int corner = gl_VertexIndex;
     float s = (corner == 1 || corner == 4 || corner == 5) ? 1.0 : -1.0;
@@ -114,6 +125,7 @@ layout(std140, binding = 0) uniform Rain {
     vec4 projection;
     vec4 viewport;
     vec4 colour;
+    vec4 farBox;
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 
@@ -127,9 +139,10 @@ void main() {
         if (depth > viewZ)
             discard;
     }
-    // Soft across; a rain streak brightest at its head, a flake even.
+    // Soft across; a rain streak brightest at its head; a flake round.
     float across = 1.0 - streak.x * streak.x;
-    float a = streak.z * across * mix(mix(1.0, 0.5, streak.y), 1.0, viewport.w);
+    vec2 flake = vec2(streak.x, streak.y * 2.0 - 1.0);
+    float a = streak.z * mix(across * mix(1.0, 0.5, streak.y), max(1.0 - dot(flake, flake), 0.0), viewport.w);
     result = vec4(colour.rgb * a, a);
 }
 )";
@@ -220,6 +233,13 @@ void RhiRenderer::applyRain() {
     p.box[1] = 7.0f;
     const float drops = std::clamp(8000.0f + rate * (4000.0f + 8000.0f * snow), 6000.0f, 30000.0f);
     p.box[2] = drops;
+    // Beyond it a box of 80 m across and 40 m up, its drops filling the
+    // distance towards the fog volume's veil: 2.5 times the near box's drops
+    // in 32 times its volume (far off they run together).
+    p.farBox[0] = 40.0f;
+    p.farBox[1] = 20.0f;
+    const float farDrops = std::min(drops * 2.5f, 40000.0f);
+    p.farBox[2] = farDrops;
     p.box[3] = float(std::fmod(seconds, 600.0));
     // Rain falls at some 8 m/s, snow 1, with half the low wind: east is x,
     // north -z.
@@ -253,7 +273,7 @@ void RhiRenderer::applyRain() {
     cb->setGraphicsPipeline(r.pipeline);
     cb->setViewport(QRhiViewport(0, 0, float(view.size.width()), float(view.size.height())));
     cb->setShaderResources(r.bindings);
-    cb->draw(6, quint32(drops));
+    cb->draw(6, quint32(drops + farDrops));
     cb->endPass();
 }
 

@@ -1400,8 +1400,15 @@ The storm clouds stood as pillars of billows streaked straight up.
 - **Captures** (`build/drops/part2.png`): fine slanted streaks over the
   fields; looking down, streaks falling away towards the view's middle,
   no rings; snow a dense scatter of flakes.
-- **Cost on the Steam Deck** (rain preset, seven rounds, the best frames):
-  about 0.4 ms (35.5 against 35.9 ms); nothing in dry weather.
+- **Depth** (user: the cost small, more depth): a far box of 80 m across
+  and 40 m up beyond the near one, 2.5 times its drops (40000 at most),
+  fading in where the near box's fade out (not doubling them) and out at
+  its own edge: streaks fill the field towards the fog volume's veil. A
+  flake round and no longer than wide (near, the wind's blur drew dashes).
+- **Cost on the Steam Deck** (rain preset, 2 mm/h: 16000 near and 40000
+  far drops; four rounds against none, steady): 39.5 against 40.5 ms
+  median, about 1 ms; the near box alone about 0.4 ms. Nothing in dry
+  weather.
 - Not yet: none under roofs and in tunnels (the drops fall there too; the
   sky enclosure, task 27, could tell); lamps do not light them; none in the
   reflection and the cube.
