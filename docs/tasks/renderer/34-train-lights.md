@@ -82,10 +82,9 @@ Open Rails rules kept:
   it already reads these blocks token by token to skip them. Its load time
   is measured before and after; the lights are read on first use if it
   grows.
-- Other work on ENG goes on in parallel, so `Eng` and `Consist` get only
-  small hooks: the parser call in `Eng::load`, the shared pointer in the
-  copy constructor, one call in `Eng::pushRenderItemOnTrack`, the car's
-  place set by `Consist`. Everything else is in new files.
+- Other work on ENG goes on in parallel. Code goes where it belongs (in
+  `Eng` and `Consist` where it fits them), with merges kept in mind: no
+  refactoring of their code on the way.
 
 ### Which lights are on
 
@@ -97,7 +96,11 @@ Open Rails rules kept:
 - The simulation fills the state per car (a later task). Until then
   `Consist` gives each car its place (first and last car of the consist,
   reversed when flipped, coupled to its neighbours) and the rest is a test
-  state (see the questions).
+  state: a train in service, headlights at Bright, the player's, no
+  penalty, battery on, brakes released, reverser forward, doors closed,
+  horn and bell off (user, 2026-10-17).
+- Day and weather follow the environment, as in Open Rails (the sun above
+  the horizon; the weather's rain or snow), not switched by hand.
 - The lit set is rebuilt only when the state changes.
 
 ### Drawing lamps (glows)
@@ -153,7 +156,7 @@ Open Rails rules kept:
 2. Lamps: lenses, emitters, both material paths; captures.
 3. Beams: spot lights, reach and strength; night captures, mist.
 4. Flashing states (`Duration`, `Cycle`, `Transition`) and fading on and off
-   (`FadeIn`, `FadeOut`), if wanted in this task (see the questions).
+   (`FadeIn`, `FadeOut`), the last step (user, 2026-10-17).
 
 ## Verification
 
@@ -169,17 +172,15 @@ Open Rails rules kept:
 - Consist Editor load time before and after.
 - OpenGL renderer: plain discs.
 
-## Questions (open)
+## Decisions (user, 2026-10-17)
 
-1. The test state: a train in service with the headlights at Bright
-   (player's train, no penalty, battery on, brakes released, reverser
-   forward, doors closed, horn and bell off), or every condition but the
-   unit ignored? The latter lights the Vectron's off, dim and bright
-   variants of the same lamps together, and red and white lenses at the same
-   places at the back.
-2. Time of day and weather: from the sun and the weather now (the editor
-   knows them), or left to the simulation?
-3. Flashing and fading (step 4): in this task, or later?
+| Topic | Decision |
+|---|---|
+| Test state | A train in service with the headlights at Bright, not every condition but the unit ignored (that would light the Vectron's off, dim and bright variants of the same lamps together, and red and white lenses at the same places at the back). |
+| Day and weather | From the environment, automatic as in Open Rails. |
+| Flashing and fading | The last step of this task. |
+| OpenGL | Plain discs in the light's colour, as signal lights. |
+| Code placement | Where it fits (also in `Eng` and `Consist`), no file splits made only for easier merges; merges with the parallel ENG work kept in mind. |
 
 ## Later
 
