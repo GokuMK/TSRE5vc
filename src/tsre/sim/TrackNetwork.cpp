@@ -70,7 +70,16 @@ SignalKind kindOf(const SignalType &type, const SigCfg *config, bool openRailsCo
     if (!type.numClearAhead.isEmpty())
         kind.clearAhead = type.numClearAhead.first();
     kind.countsSignals = openRailsConfig || type.numClearAhead.size() >= 2;
+    kind.scriptName = type.script.isEmpty() ? type.name.toLower() : type.script.toLower();
     return kind;
+}
+
+// A file in a folder by name, in any letter case; empty for none.
+QString fileIn(const QString &folder, const QString &name) {
+    for (const QFileInfo &file : QDir(folder).entryInfoList(QDir::Files))
+        if (file.fileName().compare(name, Qt::CaseInsensitive) == 0)
+            return file.filePath();
+    return QString();
 }
 
 double wrap(double angle) {
@@ -288,6 +297,77 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
         last->normal = last->normal
                 || (head.kind >= 0 && types[size_t(head.kind)].function == SignalFunction::Normal);
     }
+    readScripts(config);
+}
+
+void TrackNetwork::readScripts(const SigCfg *config) {
+    if (config == nullptr || config->scriptFiles.isEmpty())
+        return;
+    // The files sigcfg.dat lists: beside it, else in the route's folder.
+    const QString beside = QFileInfo(config->path).absolutePath();
+    const QString route = Game::root + "/ROUTES/" + Game::route;
+    QStringList problems;
+    QHash<QString, int> byName;
+    for (const QString &name : config->scriptFiles) {
+        QString path = config->path.isEmpty() ? QString() : fileIn(beside, name);
+        if (path.isEmpty())
+            path = fileIn(route, name);
+        QString text;
+        if (path.isEmpty() || !ReadSignalScriptText(path, text)) {
+            problems << QString("%1: not found").arg(name);
+            continue;
+        }
+        hasScripts = true;
+        for (SignalScript &script : ReadSignalScripts(text, QFileInfo(path).fileName(), &problems)) {
+            if (byName.contains(script.name)) {
+                problems << QString("%1 line %2: a second script %3, not used").arg(script.file).arg(script.line)
+                                .arg(script.name);
+                continue;
+            }
+            byName.insert(script.name, int(scripts.size()));
+            scripts.push_back(std::move(script));
+        }
+    }
+    if (!hasScripts) {
+        scriptWarnings << problems;
+        return;
+    }
+    // Each type's rule; problems told for the types heads have.
+    std::vector<bool> used(types.size(), false);
+    for (const SignalHead &head : signalHeads)
+        if (head.kind >= 0)
+            used[size_t(head.kind)] = true;
+    QStringList without;
+    for (size_t k = 0; k < types.size(); ++k) {
+        SignalKind &kind = types[k];
+        const auto found = byName.constFind(kind.scriptName);
+        if (found == byName.constEnd()) {
+            kind.rule = SignalKind::Rule::Basic;
+            if (used[k])
+                without << kind.name;
+            continue;
+        }
+        const SignalScript &script = scripts[size_t(found.value())];
+        if (script.usable()) {
+            kind.rule = SignalKind::Rule::Script;
+            kind.script = found.value();
+            continue;
+        }
+        kind.rule = SignalKind::Rule::BuiltIn;
+        if (!used[k])
+            continue;
+        for (const QString &problem : script.problems)
+            problems << problem;
+        if (!script.openRails.isEmpty())
+            problems << QString("%1 line %2: script %3 calls Open Rails' %4, not run yet")
+                            .arg(script.file).arg(script.line).arg(script.name, script.openRails.join(", "));
+        problems << QString("signal type %1: the built-in aspects instead of its script").arg(kind.name);
+    }
+    problems.removeDuplicates();
+    scriptWarnings << problems;
+    if (!without.isEmpty())
+        scriptWarnings << QString("signal types without a script, clear or stop as in Open Rails: %1")
+                              .arg(without.join(", "));
 }
 
 int TrackNetwork::headOfItem(int item) const {

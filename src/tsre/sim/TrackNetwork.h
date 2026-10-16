@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <memory>
 #include <vector>
+#include <tsre/sim/SignalScript.h>
 
 class SigCfg;
 class TDB;
@@ -39,6 +40,16 @@ struct SignalKind {
     // nothing beyond it and -1 does not count it.
     int clearAhead = 1;
     bool countsSignals = false;
+    // How its heads get their aspects (task 05): its script; on a route with
+    // scripts but none for it, Open Rails' choice (its least restrictive
+    // aspect when its block is clear, else its most restrictive); on a
+    // route without scripts, or when its script has problems, task 02's
+    // built-in rule.
+    enum class Rule : unsigned char { BuiltIn, Basic, Script };
+    Rule rule = Rule::BuiltIn;
+    int script = -1;
+    // Its script's name: Open Rails' ORTSScript, else its own (lower case).
+    QString scriptName;
 };
 
 // A signal head: a TDB signal item.
@@ -184,9 +195,17 @@ public:
         return head.kind >= 0 && types[size_t(head.kind)].function == SignalFunction::Normal;
     }
     QStringList warnings;
+    // The route's signal scripts (task 05), from the files sigcfg.dat
+    // lists; whether there were any; their problems and the types of heads
+    // without one, for the user.
+    std::vector<SignalScript> scripts;
+    bool hasScripts = false;
+    QStringList scriptWarnings;
     size_t memory() const;
 
 private:
+    // The signal scripts sigcfg.dat lists, each type's rule (task 05).
+    void readScripts(const SigCfg *config);
     struct Node {
         int first = 0;
         int count = 0;

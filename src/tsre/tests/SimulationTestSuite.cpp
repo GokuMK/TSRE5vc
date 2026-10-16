@@ -15,6 +15,7 @@
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationFrame.h>
+#include <tsre/sim/SignalScript.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TimetableCalculation.h>
 #include <tsre/sim/TrackGeometry.h>
@@ -221,6 +222,107 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
         check(units && !unknown, "MSTS units: masses, forces, powers, speeds and resistances in SI; comments and quotes "
                                  "dropped; an unknown unit refused");
     }
+    // Signal scripts (task 05): read and run as Open Rails runs them.
+    {
+        const QString text = R"(// heading comment
+SCRIPT First
+/* a block
+   comment */
+	extern float	block_state ();
+	extern float	next_sig_lr ();
+	extern float	state, draw_state, enabled;
+	float			a, b;
+	a = b = 2 + 3 * 4;			// left to right: 20
+	if (!enabled || block_state() !=# BLOCK_CLEAR)
+		state = SIGASP_STOP;
+	else if (next_sig_lr (SIGFN_NORMAL) ==# SIGASP_STOP)
+	{
+		state = SIGASP_APPROACH_1;
+	}
+	else
+		state = SIGASP_CLEAR_2;
+	draw_state = a / 3 + 7 / 0;		// 20 / 3 = 6, then + 7 = 13, then / 0 = 0
+	if (1 || 0 && 0) draw_state = draw_state + 100;	// (1 || 0) && 0: no
+	if (! b ==# 5) draw_state = draw_state + 10;		// !(b == 5): yes
+REM SCRIPT Skipped
+	for (a = 0; a < 3; a++) b = b + 1;
+SCRIPT Second
+	extern float state;
+	float kept;
+	kept = kept + 1;
+	state = state + kept;
+	return;
+	state = 99;
+SCRIPT Broken
+	extern float approach_control_speed ();
+	state = approach_control_speed (100, 200) + nothing_known + mystery (1);
+	for (state = 0; state < 2; state++) state = 1;
+	enabled = 1;
+	state = next_sig_lr ()
+)";
+        QStringList fileProblems;
+        const std::vector<Sim::SignalScript> scripts = Sim::ReadSignalScripts(text, "test.dat", &fileProblems);
+        const auto byName = [&](const QString &name) -> const Sim::SignalScript * {
+            for (const Sim::SignalScript &script : scripts)
+                if (script.name == name)
+                    return &script;
+            return nullptr;
+        };
+        const Sim::SignalScript *first = byName("first"), *second = byName("second"), *broken = byName("broken");
+        check(scripts.size() == 3 && first && second && broken && byName("skipped") == nullptr && fileProblems.isEmpty()
+                  && first->usable() && second->usable() && first->locals == 2,
+              "signal scripts read: sections, REM SCRIPT skipped, comments, declarations");
+        const QString brokenText = broken != nullptr ? broken->problems.join(" | ") : QString();
+        check(broken && !broken->usable() && broken->openRails == QStringList{"approach_control_speed"}
+                  && brokenText.contains("unknown name nothing_known") && brokenText.contains("unknown function mystery")
+                  && brokenText.contains("for is not in the language") && brokenText.contains("enabled cannot be set")
+                  && brokenText.contains("next_sig_lr takes 1 arguments") && brokenText.contains("; expected")
+                  && brokenText.contains("test.dat line "),
+              QString("signal script problems with their lines: %1").arg(brokenText));
+        // A host answering fixed values.
+        struct Host : Sim::SignalScriptHost {
+            int on = 1, block = Sim::BlockClear, next = 0;
+            int enabled() override { return on; }
+            int blockState() override { return block; }
+            int routeSet() override { return 1; }
+            int nextSignal(int, bool, int) override { return next; }
+            int thisSignal(int, bool) override { return 0; }
+            int oppositeSignal(int, bool) override { return 0; }
+            int distantMulti(int, int) override { return 0; }
+            int feature(int) override { return 0; }
+            int drawStateOf(int aspect) override { return aspect; }
+        } host;
+        int state = -1, draw = -1;
+        if (first != nullptr)
+            Sim::RunSignalScript(*first, host, state, draw);
+        const int clearState = state, clearDraw = draw;
+        host.next = 0;
+        host.block = Sim::BlockOccupied;
+        if (first != nullptr)
+            Sim::RunSignalScript(*first, host, state, draw);
+        const int occupied = state;
+        check(clearState == 3 && clearDraw == 10 && occupied == 0,
+              QString("signal scripts run: APPROACH_1 before a signal at STOP (%1), STOP with the block occupied (%2); "
+                      "left to right arithmetic and conditions, division by zero 0, a negated comparison (draw %3)")
+                  .arg(clearState).arg(occupied).arg(clearDraw));
+        host.block = Sim::BlockClear;
+        host.next = 7;
+        if (first != nullptr)
+            Sim::RunSignalScript(*first, host, state, draw);
+        const int clear = state;
+        host.next = 0;
+        if (first != nullptr)
+            Sim::RunSignalScript(*first, host, state, draw);
+        check(clear == 7 && state == 3, QString("the block clear: CLEAR_2 before a clear signal (%1), APPROACH_1 "
+                                                "before one at STOP (%2)").arg(clear).arg(state));
+        int kept = 5, unused = 0;
+        if (second != nullptr) {
+            Sim::RunSignalScript(*second, host, kept, unused);
+            Sim::RunSignalScript(*second, host, kept, unused);
+        }
+        check(kept == 7, QString("locals cleared for each run, state kept between runs, return stops (%1)").arg(kept));
+    }
+
     // An engine's file: mass, force, power, speed, resistance, passengers.
     {
         QTemporaryDir folder;
@@ -1772,6 +1874,25 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         if (verbose)
             for (const QString &warning : network->warnings.mid(0, 20))
                 qInfo().noquote() << "[tests:simulation-route] network:" << warning;
+        // The signal scripts (task 05): read, each type of a head with its
+        // rule.
+        int byScript = 0, basic = 0, builtIn = 0;
+        std::vector<bool> used(network->kinds().size(), false);
+        for (const Sim::SignalHead &head : network->heads())
+            if (head.kind >= 0)
+                used[size_t(head.kind)] = true;
+        for (size_t k = 0; k < network->kinds().size(); ++k) {
+            if (!used[k])
+                continue;
+            const Sim::SignalKind::Rule rule = network->kinds()[k].rule;
+            byScript += rule == Sim::SignalKind::Rule::Script ? 1 : 0;
+            basic += rule == Sim::SignalKind::Rule::Basic ? 1 : 0;
+            builtIn += rule == Sim::SignalKind::Rule::BuiltIn ? 1 : 0;
+        }
+        check(!network->hasScripts || builtIn == 0,
+              QString("signal scripts: %1 read; the types of heads by script %2, without one %3, with problems %4%5")
+                  .arg(network->scripts.size()).arg(byScript).arg(basic).arg(builtIn)
+                  .arg(network->scriptWarnings.isEmpty() ? QString() : ": " + network->scriptWarnings.join("; ")));
     }
 
     // Every activity: its input, run to its end.
