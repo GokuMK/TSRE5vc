@@ -1112,9 +1112,15 @@ of 255 on average against shafts off, a faint greying, no rays.
 - **Contrast against the surroundings:** the march's result's mips (some
   30 pixels around) give the neighbourhood's share in shade; air lit
   through a gap more than around it is brightened (the rays, `direction.w`
-  6), air shaded more darkened only a little (`sun.w` 0.8; the user:
+  10), air shaded more darkened only a little (`sun.w` 0.8; the user:
   stronger, the image looked darkened around the rays), the haze's square
-  root (thin haze keeps its rays), towards the sun most. Only against
+  root (thin haze keeps its rays). The rays weighted by the haze's own
+  forward scattering against its peak (the march's phase: a fifth at 30
+  degrees from the sun, a twentieth at 60): weighted as the old shade (a
+  fifth everywhere) they drew near-horizontal bands across the whole sky at
+  sunrise (user, CMK 5:00, fair cumulus,
+  `-5350,14860,542.10,286.98,-960.66,1168.04,7.80`); a cone of 40 degrees
+  removed the rays under broken clouds as well. Only against
   surroundings of a like path (the haze each crosses): at the horizon the
   terrain's short path beside the sky's long one made a dark band along
   the hills.
@@ -1125,11 +1131,11 @@ of 255 on average against shafts off, a faint greying, no rays.
   whole view under scattered clouds 13 of 255 darker); the light added
   alone (a glow, no rays); the lit air against the clouds' average (no
   effect: the average is no measure at a low sun).
-- **Captures** (`build/shafts`: `cumulus-cmp4.png`, `broken-cmp6.png`):
-  fair cumulus at 17:00, rays fanning from the sun across the sky and over
-  the horizon; broken at 17:00, two bright rays from the gaps to the
-  ground; away from the sun, overcast and noon as before; under a storm
-  the view no longer 9 of 255 darker. Between frames 1.7 % of pixels
+- **Captures** (`build/shafts/phase.png`): fair cumulus at 17:00, rays
+  about the sun; at 5:00 no bands across the sky; broken at 17:00 the rays
+  from the gaps faint (40 to 60 degrees from the sun); away from the sun,
+  overcast and noon as before; under a storm the view no longer 9 of 255
+  darker. Between frames 1.7 % of pixels
   change by more than 2 of 255 (0.1 % with shafts off): fine grain in the
   lower sky by the sun.
 - **Cost on the Steam Deck** (High, median frame, three rounds, old
