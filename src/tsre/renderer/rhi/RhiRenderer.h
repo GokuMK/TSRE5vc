@@ -535,9 +535,10 @@ private:
         QRhiRenderPassDescriptor *marchPass = nullptr;
         QRhiShaderResourceBindings *marchBindings = nullptr;
         QRhiGraphicsPipeline *marchPipeline = nullptr;
-        // The march splitting long steps in deep layers (storms), used while
-        // deep is set (the main view, such layers in the weather): its
-        // larger loop slows every view a little.
+        // The march for storms (long steps in deep layers split, storm
+        // clouds' towers and anvils), used while deep is set (the main view,
+        // such layers or clouds in the weather): its larger code slows every
+        // view a little.
         QRhiGraphicsPipeline *marchDeepPipeline = nullptr;
         bool deep = false;
         QRhiTexture *history[2] = {};

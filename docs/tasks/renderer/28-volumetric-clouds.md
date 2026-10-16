@@ -1175,7 +1175,49 @@ The user: a moiré clearly visible on storm clouds (CMK,
   (With the lake's reflection split too, High was 1.5 ms dearer: taken
   back.)
 - The towers' vertical streaks (pillars of billows) stay: their shape, with
-  the anvils.
+  the anvils (below).
+
+### Storm shapes (2026-10-16)
+
+The storm clouds stood as pillars of billows streaked straight up.
+
+- **Causes:** cumulonimbus cells came from noise of 3 km features, so
+  towers some 2 km wide stood 10 km tall; the heaps' profile (only a
+  patch's core reaches the top) made them spikes; the cover map's finer
+  detail, the same at every height, was drawn straight up their 10 km into
+  grooves; and they had no anvils.
+- **Cells of 8 km** for cumulonimbus (`WeatherDetail::cloudScales` and the
+  cover pass alike: the map view and the showers under the cells follow),
+  their map without the detail finer than 2 km: towers 5 to 10 km across,
+  their walls made by the billows.
+- **Towers** (storm clouds, type 0.8 to 1): each cell solid from its flat
+  base, each part of it as high as it lies deep in the cell (its edge half
+  the layer, its core to 0.9): towers narrow upwards into domes and differ
+  in height; the billows move their edge at every height; less eroded
+  (hard edges).
+- **Anvils:** the top of the layer (from 0.74) spread from the cores that
+  reach it, 6 km downwind (the high layer's drift so far, `shadowMid.zw`),
+  a quarter of the sky at the top where the cells cover a third; the top
+  flat, the underside rising from the core to a thin edge; thinner (0.3,
+  ice). `cloudAbove` takes both.
+- Tried on the way: anvils spread over half the sky (a dark ceiling over
+  everything); the walls moved a km by the billows' finer noise (walls
+  full of holes) or by the curl noise read along a slant (towers leaning
+  on diagonal streaks).
+- **In the storm variant** of the march (`STORMS` with `DEEP_SPLIT`; the
+  code slowed fair cumulus by about 1 ms though it never ran there), used
+  while the weather has storm clouds (`Renderer::Clouds::stormiest`); the
+  reflection and the cube take it too, without the split; the shadow map
+  and the sky's light always have the shapes.
+- **Captures** (`build/shape`, CMK from the hill, still): from 13 km, towers
+  of several heights with anvils spread over them; from the hill, massive
+  towers with billowing walls over flat dark bases, without streaks (as in
+  use too, the user's view); against the sun at 17:00, one dark tower with
+  lit edges.
+- **Cost on the Steam Deck** (High, median frame, old against new, four
+  rounds): thunderstorm 46.1 against 45.5 ms (the solid towers end rays
+  sooner), looking up 33.8 against 35.2 (more cloud overhead); fair
+  cumulus and overcast as before.
 
 ## Verification
 

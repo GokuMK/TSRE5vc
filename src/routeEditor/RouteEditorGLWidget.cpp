@@ -1362,7 +1362,7 @@ void RouteEditorGLWidget::applyClouds() {
         }
         auto layers = std::make_shared<std::vector<float>>(size_t(3) * Size * Size * 4);
         auto extra = std::make_shared<std::vector<float>>(size_t(Size) * Size * 4, 0.0f);
-        float bottom = 1e9f, highest = -1e9f, deepest = 0.0f;
+        float bottom = 1e9f, highest = -1e9f, deepest = 0.0f, stormiest = 0.0f;
         for (int l = 0; l < 3; ++l)
             for (int j = 0; j < Size; ++j)
                 for (int i = 0; i < Size; ++i) {
@@ -1379,6 +1379,7 @@ void RouteEditorGLWidget::applyClouds() {
                         bottom = std::min(bottom, out[2]);
                         highest = std::max(highest, out[3]);
                         deepest = std::max(deepest, out[3] - out[2]);
+                        stormiest = std::max(stormiest, out[1]);
                     }
                 }
         if (bottom > highest)
@@ -1396,6 +1397,7 @@ void RouteEditorGLWidget::applyClouds() {
         c.bottom = bottom;
         c.top = highest;
         c.deepest = deepest;
+        c.stormiest = stormiest;
         c.layers = layers;
         c.extra = extra;
         ++c.revision;

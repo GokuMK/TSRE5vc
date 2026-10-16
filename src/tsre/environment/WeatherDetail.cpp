@@ -58,8 +58,9 @@ struct Octaves {
 const Octaves octaveTurns;
 
 // Stratus sheets break into large patches, cumulus into small cells,
-// cumulonimbus into large towers.
-const double cloudScales[] = {5000.0, 2500.0, 1200.0, 3000.0};
+// cumulonimbus into large towers (5 to 10 km across: at 3 km they stood as
+// pillars five times taller than wide).
+const double cloudScales[] = {5000.0, 2500.0, 1200.0, 8000.0};
 
 // A cloud type between two of the scales: which two, and how far along.
 void scalePair(float type, int &i, double &along) {
