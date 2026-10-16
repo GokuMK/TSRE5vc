@@ -11,6 +11,7 @@
 #ifndef RHIRENDERER_H
 #define RHIRENDERER_H
 
+#include <QElapsedTimer>
 #include <QHash>
 #include <QVarLengthArray>
 #include <QVector>
@@ -758,6 +759,8 @@ public:
     // The fog's passes (RhiFog.cpp), for tests: the injection and the
     // integration (compute), the sky's (fragment).
     static QList<QByteArray> fogShaders();
+    // The falling drops' pass (RhiRain.cpp), for tests.
+    static QByteArray rainShader();
     void setFog(const Fog &fog) override;
 private:
     // Fog lying on the ground (task 33, RhiFog.cpp). A volume of cells over
@@ -829,6 +832,20 @@ private:
     bool fogRain() const;
     // Whether the volume holds the weather's fog (not rain alone).
     bool fogFogged() const;
+    // Rain and snow falling near the camera (RhiRain.cpp), before the UI.
+    void applyRain();
+    void releaseRain();
+    struct RainResources {
+        QRhiBuffer *uniforms = nullptr;
+        QRhiTextureRenderTarget *target = nullptr;
+        QRhiRenderPassDescriptor *pass = nullptr;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        QRhiGraphicsPipeline *pipeline = nullptr;
+        QRhiTexture *viewColor = nullptr;
+        QRhiTexture *viewDepth = nullptr;
+        QElapsedTimer clock;
+    } rainResources;
+    bool rainApplied = false;
     bool createFog(int quality, const QSize &viewSize);
     void releaseFog();
     // The volume, before the main view's geometry, which reads it.

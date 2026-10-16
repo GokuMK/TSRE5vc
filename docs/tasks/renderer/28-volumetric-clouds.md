@@ -1367,6 +1367,35 @@ The storm clouds stood as pillars of billows streaked straight up.
   in its shade, nor its aerial haze darker: over it the rain's veil looks
   lighter than the sky above.
 
+### Falling drops near the camera (2026-10-16)
+
+- **A full-screen pass** before the UI (`RhiRain.cpp`), while it rains or
+  snows at the camera (`Renderer::Fog::rainHere`: the weather's rate there
+  under a shower's cell or not, `WeatherDetail::precipitation` with its
+  cells), under the low clouds' base: four shells about the camera (1.2,
+  2.4, 4.8, 9.6 m), each a grid of cells fixed in the world (a moving train
+  passes through the drops), one drop at a random place in each cell (all
+  cells' at 2 mm/h, half at drizzle; snow all at 1 mm/h), falling (8 m/s,
+  snow 1, swaying) and drifting with half the low wind
+  (`rainWindEast`, `rainWindNorth`). A drop is drawn where the pixel's ray
+  passes its streak (its fall over 1/30 s, a flake's over 1/120), as wide
+  as a pixel or the drop (1.5 mm, a flake 1 cm), a thinner one fainter;
+  behind the scene's depth not; only within its shell, fading at its edges.
+  Light: the horizon's (the sky about them), the scene's scale, 0.35 (a
+  flake 1.6 times).
+- **Cost:** two cells a shell (for streaks crossing into the next) and five
+  shells cost 2.5 ms on the Steam Deck in the rain preset; one cell, four
+  shells and cells five times taller than wide for rain (streaks of 0.3 m
+  within them): about 1 to 2 ms (the timings noisy at the time); nothing in
+  dry weather.
+- **Captures** (`build/drops`, CMK low over the fields at the user's dawn
+  spot): fine slanted streaks over the trees and fields in the rain preset,
+  a scatter of flakes in the snow preset; still frames (in motion they
+  fall).
+- Not yet: none under roofs and in tunnels (the drops fall there too; the
+  sky enclosure, task 27, could tell); lamps do not light them; none in the
+  reflection and the cube.
+
 ### Blue noise for the march's start (2026-10-16)
 
 - Where each pixel's march starts was interleaved gradient noise (cheap,

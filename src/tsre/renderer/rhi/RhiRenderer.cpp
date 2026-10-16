@@ -261,6 +261,7 @@ void RhiRenderer::releaseResources() {
     releaseGlowClear();
     releaseLightShafts();
     releaseFog();
+    releaseRain();
     releaseTerrainShade();
     releaseCloudResources();
     releaseSkyResources();
@@ -937,6 +938,7 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     // mapping, which keeps the size, crashed; user, 2026-10-12).
     releaseLightShafts();
     releaseFog();
+    releaseRain();
     // The clouds' maps (weather, cover, shadow, the sky's light) read none of
     // them and stay: released with them, a resized window's frame lost its
     // cloud shadows (user, 2026-10-14).
@@ -2211,6 +2213,9 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         return;
     for (int pass = first; pass <= last; ++pass) {
         PassQueue &queue = passes[pass];
+        // The falling drops over the scene, before the UI.
+        if (pass == PASS_UI && first < PASS_UI)
+            applyRain();
         if (queue.ordered.empty() && queue.grouped.empty())
             continue;
         // Occlusion of the opaque scene, before blended and later passes.
@@ -2631,6 +2636,7 @@ void RhiRenderer::renderFrame() {
     applyAmbientOcclusion();
     applyClouds();
     applySkyFog();
+    applyRain();
     flushTarget();
     // The view goes to the frame when the surface ends it, after the
     // client painted its overlay.
@@ -2668,6 +2674,7 @@ void RhiRenderer::resetFrame() {
     shaftsApplied = false;
     fogResources.ready = false;
     fogResources.skyApplied = false;
+    rainApplied = false;
     std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }
 

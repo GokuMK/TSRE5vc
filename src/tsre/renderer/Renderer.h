@@ -229,6 +229,11 @@ public:
         float rain = 0.0f;
         float snow = 0.0f;
         float rainBase = 1000.0f;
+        // At the camera itself (under a shower's cell or not, mm/h) and the
+        // low wind (m/s east, north): the drops falling near it.
+        float rainHere = 0.0f;
+        double rainWindEast = 0.0;
+        double rainWindNorth = 0.0;
     };
     virtual void setFog(const Fog &fog) {}
 

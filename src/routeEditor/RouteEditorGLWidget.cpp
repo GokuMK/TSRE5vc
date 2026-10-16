@@ -2812,6 +2812,10 @@ void RouteEditorGLWidget::applyFog() {
                 f.rain = s.precipitationRate;
                 f.snow = s.snowShare;
                 f.rainBase = weather->layer(frame, east, north, WeatherLayer::Low).base;
+                // At the camera itself, under a shower's cell or not; the low
+                // wind.
+                f.rainHere = WeatherDetail::precipitation(*weather, frame, east, north, 1.0).precipitationRate;
+                Weather::velocity(weather->wind(weatherHours(), WeatherLayer::Low), f.rainWindEast, f.rainWindNorth);
             }
         }
     }
