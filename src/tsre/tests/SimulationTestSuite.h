@@ -16,4 +16,8 @@ int runSimulationHostSuite(bool verbose);
 // editing off while it exists, undo, the Timetable window's states, events
 // and Follow, Run to, Stop.
 int runSimulationUiSuite(bool verbose);
+// The scaling workloads (task simulation 02): the route enlarged with the
+// same traffic, more traffic, more trains at one junction, on hand-made
+// track; measured.
+int runSimulationScalingSuite(bool verbose);
 }

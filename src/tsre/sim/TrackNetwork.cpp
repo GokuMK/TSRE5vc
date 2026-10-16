@@ -443,7 +443,7 @@ Projection TrackNetwork::project(const RouteTrack &route) const {
 }
 
 int TrackNetwork::nextStopSignal(int node, float distance, bool forward, const std::vector<int> &switches,
-                                 double reach) const {
+                                 double reach, std::vector<int> *facing) const {
     double travelled = 0.0;
     float from = distance;
     for (int hops = 0; hops < 256 && travelled <= reach; ++hops) {
@@ -470,6 +470,8 @@ int TrackNetwork::nextStopSignal(int node, float distance, bool forward, const s
             return -1;
         const int in = nodes[size_t(node)].pin[end];
         const TrackSection &j = all[size_t(junction)];
+        if (in == 0 && facing != nullptr)
+            facing->push_back(junction);
         const int out = in == 0 ? (size_t(junction) < switches.size() && switches[size_t(junction)] > 0
                                        ? switches[size_t(junction)] : j.mainPin)
                                 : 0;

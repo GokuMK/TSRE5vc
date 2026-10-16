@@ -1,6 +1,7 @@
 #include <tsre/sim/SimulationCore.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <functional>
 #include <unordered_map>
@@ -54,6 +55,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         states[i].front = in->trains[i].startFront;
     const TrackNetwork *network = in->network.get();
     holder.assign(network != nullptr ? network->sections().size() : 0, NoHolder);
+    heldStamp.assign(holder.size(), 0);
     // Switches in their main position until a train sets them.
     switchAt.assign(holder.size(), 0);
     if (network != nullptr)
@@ -96,7 +98,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         run(start - first);
         now = start;
     }
-    if (aspectsDirty)
+    if (aspectsPending())
         evaluateAspects();
     stepCount = 0;
 }
@@ -140,7 +142,7 @@ void SimulationCore::run(double seconds) {
         left -= h;
         ++stepCount;
         findDeadlocks(now);
-        if (aspectsDirty)
+        if (aspectsPending())
             evaluateAspects();
     }
 }
@@ -222,14 +224,29 @@ void SimulationCore::advance(int train, double from, double to) {
             if (s.stoppedAt == StopKind::End)
                 return;
             if (s.stoppedAt == StopKind::Blocked) {
-                // Goes on when the track ahead is its own again.
+                // Goes on when the track ahead is its own again: tried again
+                // when what it waits for has changed (the section it waits
+                // for, or any section for the single track; any claim), and
+                // every RetryEvery seconds whatever.
+                Runtime &rt = runtime[size_t(train)];
+                const auto stamp = [&] {
+                    return s.waitFor != WaitFor::SingleTrack && s.waitSection >= 0
+                            ? heldStamp[size_t(s.waitSection)] : holdChanges;
+                };
+                if (rt.triedAt >= 0.0 && t < rt.triedAt + RetryEvery && rt.triedClaims == claimChanges
+                        && rt.triedHold == stamp())
+                    break;
                 extendAuthority(train);
-                const double margin = runtime[size_t(train)].endsAtSignal ? SignalMargin : AuthorityMargin;
+                const double margin = rt.endsAtSignal ? SignalMargin : AuthorityMargin;
                 if (s.authority < parts[size_t(s.part)].length() - 1e-6
                         && s.authority - margin <= s.front + AtTarget) {
+                    rt.triedAt = t;
+                    rt.triedClaims = claimChanges;
+                    rt.triedHold = stamp();
                     blocked(train, t);
                     break;
                 }
+                rt.triedAt = -1.0;
                 s.status = TrainStatus::Running;
                 s.stoppedAt = StopKind::None;
                 s.blockedBy = NoHolder;
@@ -504,7 +521,9 @@ void SimulationCore::extendAuthority(int train) {
                                       AutoNodeTime * std::min(double(plan.maxSpeed), double(in->routeSpeedLimit)));
     const double autoLimit = std::min(s.front + lookahead, partLength);
     const size_t allowed = rt.passed + clearable(projection, rt.passed);
+    ++workDone.authority;
     auto blockedAt = [&](size_t k) {
+        ++workDone.sectionChecks;
         const int h = holder[size_t(way[k].section)];
         if (h == NoHolder || h == train)
             return false;
@@ -546,7 +565,7 @@ void SimulationCore::extendAuthority(int train) {
                 s.authority = std::max(s.authority, way[blockEnd - 1].leave);
             rt.next = blockEnd;
             clearedFor[size_t(signal.signal)] = train;
-            aspectsDirty = true;
+            clearedChanged(signal.signal);
             ++rt.nextSignal;
             continue;
         }
@@ -606,19 +625,116 @@ float SimulationCore::signalSpeedOf(int signal) const {
 }
 
 void SimulationCore::evaluateAspects() {
-    aspectsDirty = false;
-    if (in->network == nullptr)
+    ++workDone.aspectRuns;
+    if (in->network == nullptr) {
+        aspectsAll = false;
+        dirtyGroups.clear();
+        dirtyJunctions.clear();
         return;
+    }
     const TrackNetwork &network = *in->network;
     const std::vector<SignalHead> &heads = network.heads();
     const std::vector<SignalGroup> &groups = network.signalGroups();
     const std::vector<SignalKind> &kinds = network.kinds();
     enum { Stop = 0, StopAndProceed = 1, Restricting = 2, Approach1 = 3, Approach2 = 4, Approach3 = 5, Clear2 = 7 };
     constexpr double Reach = 20000.0;
-    const std::vector<int> drawnBefore = headDraw;
-    const std::vector<int> aspectsBefore = headAspect;
-    std::vector<char> done(heads.size(), 0);
-    std::vector<int> nextOf(groups.size(), -2);
+    if (!aspectsReady) {
+        aspectsReady = true;
+        nextOfGroup.assign(groups.size(), -2);
+        nextOfHead.assign(heads.size(), -2);
+        facingOf.assign(groups.size() + heads.size(), {});
+        readsFrom.assign(groups.size() + heads.size(), -1);
+        watchers.assign(network.sections().size(), {});
+        readers.assign(groups.size(), {});
+        linkedTo.assign(network.sections().size(), {});
+        queued.assign(heads.size(), 0);
+        for (size_t h = 0; h < heads.size(); ++h) {
+            const int junction = network.junctionSection(heads[h].junction);
+            if (heads[h].junction >= 0 && junction >= 0)
+                linkedTo[size_t(junction)].push_back(int(h));
+        }
+        aspectsAll = true;
+    }
+    // A reader: a signal (its NORMAL heads read the next signal), or a head
+    // of another function (it reads the next from its own place); its slot
+    // in facingOf and readsFrom.
+    const auto slotOf = [&](int reader) { return reader >= 0 ? size_t(reader) : groups.size() + size_t(-reader - 1); };
+    // Forgets where a reader's next signal is: off its junctions' and its
+    // next's lists.
+    const auto forget = [&](int reader) {
+        const size_t slot = slotOf(reader);
+        for (int junction : facingOf[slot]) {
+            std::vector<int> &list = watchers[size_t(junction)];
+            list.erase(std::remove(list.begin(), list.end(), reader), list.end());
+        }
+        facingOf[slot].clear();
+        if (readsFrom[slot] >= 0) {
+            std::vector<int> &list = readers[size_t(readsFrom[slot])];
+            list.erase(std::remove(list.begin(), list.end(), reader), list.end());
+            readsFrom[slot] = -1;
+        }
+        if (reader >= 0)
+            nextOfGroup[size_t(reader)] = -2;
+        else
+            nextOfHead[size_t(-reader - 1)] = -2;
+    };
+    // The next stop signal a reader reads, found once until a switch on the
+    // way changes.
+    const auto nextOf = [&](int reader) {
+        int &known = reader >= 0 ? nextOfGroup[size_t(reader)] : nextOfHead[size_t(-reader - 1)];
+        if (known != -2)
+            return known;
+        const size_t slot = slotOf(reader);
+        if (reader >= 0) {
+            const SignalGroup &group = groups[size_t(reader)];
+            known = network.nextStopSignal(group.node, group.distance, group.forward, switchAt, Reach, &facingOf[slot]);
+        } else {
+            const SignalHead &head = heads[size_t(-reader - 1)];
+            known = network.nextStopSignal(head.node, head.distance, head.forward, switchAt, Reach, &facingOf[slot]);
+        }
+        for (int junction : facingOf[slot])
+            watchers[size_t(junction)].push_back(reader);
+        if (known >= 0) {
+            readers[size_t(known)].push_back(reader);
+            readsFrom[slot] = known;
+        }
+        return known;
+    };
+    std::vector<int> work;
+    const auto push = [&](int h) {
+        if (!queued[size_t(h)]) {
+            queued[size_t(h)] = 1;
+            work.push_back(h);
+        }
+    };
+    const auto pushReader = [&](int reader) {
+        if (reader >= 0) {
+            for (int h : groups[size_t(reader)].heads)
+                push(h);
+        } else {
+            push(-reader - 1);
+        }
+    };
+    // What changed: every head the first time; the heads of signals cleared
+    // or given back; those reading through a switch set, or linked to it.
+    if (aspectsAll)
+        for (size_t h = 0; h < heads.size(); ++h)
+            push(int(h));
+    aspectsAll = false;
+    for (int junction : dirtyJunctions) {
+        const std::vector<int> through = watchers[size_t(junction)];
+        for (int reader : through) {
+            forget(reader);
+            pushReader(reader);
+        }
+        for (int h : linkedTo[size_t(junction)])
+            push(h);
+    }
+    for (int signal : dirtyGroups)
+        for (int h : groups[size_t(signal)].heads)
+            push(h);
+    dirtyJunctions.clear();
+    dirtyGroups.clear();
     // The type's aspect for the one wanted: the most restrictive for stop;
     // otherwise the least restrictive it has no less restrictive than wanted
     // among its proceed aspects (approach on), else the nearest above.
@@ -650,7 +766,6 @@ void SimulationCore::evaluateAspects() {
     auto progression = [](int next) {
         return next <= Restricting ? Approach1 : next == Approach1 ? Approach2 : next == Approach2 ? Approach3 : Clear2;
     };
-    std::function<int(int)> evaluate;
     // A signal's least restrictive NORMAL head (next_sig_lr), STOP for none.
     auto leastRestrictive = [&](int signal) {
         int best = Stop;
@@ -658,18 +773,18 @@ void SimulationCore::evaluateAspects() {
             return best;
         for (int head : groups[size_t(signal)].heads)
             if (network.isNormal(heads[size_t(head)]))
-                best = std::max(best, evaluate(head));
+                best = std::max(best, headAspect[size_t(head)]);
         return best;
     };
-    auto nextSignal = [&](int node, float distance, bool forward) {
-        return network.nextStopSignal(node, distance, forward, switchAt, Reach);
-    };
-    evaluate = [&](int h) -> int {
-        if (done[size_t(h)] == 2)
-            return headAspect[size_t(h)];
-        if (done[size_t(h)] == 1)
-            return Stop;
-        done[size_t(h)] = 1;
+    // Each head from the aspects it reads now; a head that changes puts
+    // those reading it on the list again (a ring of signals is cut off).
+    bool changed = false;
+    size_t i = 0;
+    const size_t limit = 8 * heads.size() + 64;
+    for (; i < work.size() && i < limit; ++i) {
+        const int h = work[i];
+        queued[size_t(h)] = 0;
+        ++workDone.aspectHeads;
         const SignalHead &head = heads[size_t(h)];
         int aspect = Stop, draw = 0;
         if (head.kind >= 0) {
@@ -680,25 +795,16 @@ void SimulationCore::evaluateAspects() {
                 const bool cleared = clearedFor[size_t(head.signal)] != NoHolder;
                 const int junction = network.junctionSection(head.junction);
                 const bool routeSet = head.junction < 0 || junction < 0 || switchAt[size_t(junction)] == head.junctionPin;
-                if (!cleared || !routeSet) {
-                    wanted = Stop;
-                } else {
-                    int &next = nextOf[size_t(head.signal)];
-                    if (next == -2) {
-                        const SignalGroup &group = groups[size_t(head.signal)];
-                        next = nextSignal(group.node, group.distance, group.forward);
-                    }
-                    wanted = progression(leastRestrictive(next));
-                }
+                wanted = !cleared || !routeSet ? Stop : progression(leastRestrictive(nextOf(head.signal)));
                 break;
             }
             case SignalFunction::Distant: {
-                const int next = leastRestrictive(nextSignal(head.node, head.distance, head.forward));
+                const int next = leastRestrictive(nextOf(-h - 1));
                 wanted = next <= Stop ? Stop : progression(next);
                 break;
             }
             case SignalFunction::Repeater:
-                wanted = leastRestrictive(nextSignal(head.node, head.distance, head.forward));
+                wanted = leastRestrictive(nextOf(-h - 1));
                 break;
             default:
                 break;
@@ -710,15 +816,30 @@ void SimulationCore::evaluateAspects() {
                 draw = kind.defaultDrawState;
             }
         }
+        if (aspect == headAspect[size_t(h)] && draw == headDraw[size_t(h)])
+            continue;
+        const bool aspectChanged = aspect != headAspect[size_t(h)];
         headAspect[size_t(h)] = aspect;
         headDraw[size_t(h)] = draw;
-        done[size_t(h)] = 2;
-        return aspect;
-    };
-    for (size_t h = 0; h < heads.size(); ++h)
-        evaluate(int(h));
-    if (headDraw != drawnBefore || headAspect != aspectsBefore)
+        changed = true;
+        if (aspectChanged && network.isNormal(head)) {
+            const std::vector<int> reading = readers[size_t(head.signal)];
+            for (int reader : reading)
+                pushReader(reader);
+        }
+    }
+    for (; i < work.size(); ++i)
+        queued[size_t(work[i])] = 0;
+    if (changed)
         ++drawChanges;
+}
+
+void SimulationCore::clearedChanged(int signal) {
+    dirtyGroups.push_back(signal);
+}
+
+void SimulationCore::switchChanged(int junction) {
+    dirtyJunctions.push_back(junction);
 }
 
 size_t SimulationCore::chunkEnd(const std::vector<ProjectedSection> &way, size_t from, size_t stop) const {
@@ -746,11 +867,44 @@ void SimulationCore::findStretches() {
     stretchesOf.assign(in->trains.size(), {});
     for (size_t t = 0; t < in->trains.size(); ++t)
         stretchesOf[t].resize(runtime[t].ways.size());
-    for (size_t a = 0; a < in->trains.size(); ++a)
-        for (size_t b = a + 1; b < in->trains.size(); ++b)
-            for (size_t pa = 0; pa < runtime[a].ways.size(); ++pa)
-                for (size_t pb = 0; pb < runtime[b].ways.size(); ++pb)
-                    addStretches(int(a), int(pa), int(b), int(pb));
+    // Only parts that pass a section in common can meet: the trains' parts
+    // by section; for each train the later trains' parts it meets, once,
+    // in the order of trains and parts.
+    struct Part {
+        int train;
+        int part;
+    };
+    std::vector<std::vector<Part>> through(in->network->sections().size());
+    std::vector<size_t> firstSlot(in->trains.size() + 1, 0);
+    for (size_t t = 0; t < in->trains.size(); ++t) {
+        firstSlot[t + 1] = firstSlot[t] + runtime[t].ways.size();
+        for (size_t p = 0; p < runtime[t].ways.size(); ++p)
+            for (const ProjectedSection &pass : runtime[t].ways[p].sections) {
+                std::vector<Part> &list = through[size_t(pass.section)];
+                if (list.empty() || list.back().train != int(t) || list.back().part != int(p))
+                    list.push_back({int(t), int(p)});
+            }
+    }
+    std::vector<size_t> seen(firstSlot.back(), 0);
+    size_t visit = 0;
+    std::vector<std::array<int, 3>> met;
+    for (size_t a = 0; a < in->trains.size(); ++a) {
+        met.clear();
+        for (size_t pa = 0; pa < runtime[a].ways.size(); ++pa) {
+            ++visit;
+            for (const ProjectedSection &pass : runtime[a].ways[pa].sections)
+                for (const Part &other : through[size_t(pass.section)]) {
+                    size_t &mark = seen[firstSlot[size_t(other.train)] + size_t(other.part)];
+                    if (other.train > int(a) && mark != visit) {
+                        mark = visit;
+                        met.push_back({other.train, int(pa), other.part});
+                    }
+                }
+        }
+        std::sort(met.begin(), met.end());
+        for (const std::array<int, 3> &pair : met)
+            addStretches(int(a), pair[1], pair[0], pair[2]);
+    }
     claimedBy.assign(single.size(), NoHolder);
 }
 
@@ -870,6 +1024,7 @@ void SimulationCore::refreshStretches(int train) {
                      theirs.end());
         claimedBy[size_t(id)] = NoHolder;
         single[size_t(id)].train[0] = single[size_t(id)].train[1] = -1;
+        ++claimChanges;
     }
     stretchesOf[size_t(train)][size_t(part)].clear();
     for (size_t other = 0; other < in->trains.size(); ++other) {
@@ -929,6 +1084,8 @@ bool SimulationCore::mayEnter(int train, size_t from, size_t to) {
     // All or none.
     for (int stretch : claim)
         claimedBy[size_t(stretch)] = train;
+    if (!claim.empty())
+        ++claimChanges;
     return true;
 }
 
@@ -1089,7 +1246,6 @@ void SimulationCore::takePassing(int train, size_t index) {
             other.to = moved(other.to);
         }
     refreshStretches(train);
-    aspectsDirty = true;
 }
 
 void SimulationCore::take(int train, size_t from, size_t to) {
@@ -1097,20 +1253,19 @@ void SimulationCore::take(int train, size_t from, size_t to) {
     const std::vector<ProjectedSection> &way = runtime[size_t(train)].ways[size_t(states[size_t(train)].part)].sections;
     const std::vector<TrackSection> &sections = in->network->sections();
     Runtime &rt = runtime[size_t(train)];
-    if (to > from) {
-        aspectsDirty = true;
-        ++holdChanges;
-    }
     for (size_t k = from; k < to; ++k) {
         const ProjectedSection &pass = way[k];
         holder[size_t(pass.section)] = train;
+        heldStamp[size_t(pass.section)] = ++holdChanges;
         rt.held.push_back({pass.section, pass.enter, pass.leave});
         // A junction set the train's way: its output where it goes out by
         // one, the output it comes in by trailing.
         if (sections[size_t(pass.section)].kind == TrackSection::Junction) {
             const int pin = pass.pinIn == 0 ? pass.pinOut : pass.pinIn;
-            if (pin == 1 || pin == 2)
+            if ((pin == 1 || pin == 2) && switchAt[size_t(pass.section)] != pin) {
                 switchAt[size_t(pass.section)] = pin;
+                switchChanged(pass.section);
+            }
         }
     }
 }
@@ -1155,18 +1310,21 @@ void SimulationCore::releaseBehind(int train) {
             TrainState &passing = states[size_t(train)];
             passing.signalSpeed = signalSpeedOf(stopSignals[rt.passed].signal);
             int &cleared = clearedFor[size_t(stopSignals[rt.passed].signal)];
-            if (cleared == train)
+            if (cleared == train) {
                 cleared = NoHolder;
+                clearedChanged(stopSignals[rt.passed].signal);
+            }
             ++rt.passed;
-            aspectsDirty = true;
         }
     }
     const double rear = s.front - plan.length;
     // Stretches its rear has left are no longer its own.
     if (size_t(train) < stretchesOf.size() && size_t(s.part) < stretchesOf[size_t(train)].size())
         for (const auto &[stretch, side] : stretchesOf[size_t(train)][size_t(s.part)])
-            if (claimedBy[size_t(stretch)] == train && rear > single[size_t(stretch)].leave[side] - 1e-6)
+            if (claimedBy[size_t(stretch)] == train && rear > single[size_t(stretch)].leave[side] - 1e-6) {
                 claimedBy[size_t(stretch)] = NoHolder;
+                ++claimChanges;
+            }
     while (!rt.held.empty() && rt.held.front().leave < rear - 1e-6) {
         const int section = rt.held.front().section;
         rt.held.pop_front();
@@ -1176,8 +1334,7 @@ void SimulationCore::releaseBehind(int train) {
             again = again || other.section == section;
         if (!again && holder[size_t(section)] == train) {
             holder[size_t(section)] = NoHolder;
-            aspectsDirty = true;
-            ++holdChanges;
+            heldStamp[size_t(section)] = ++holdChanges;
         }
     }
 }
@@ -1185,25 +1342,28 @@ void SimulationCore::releaseBehind(int train) {
 void SimulationCore::releaseAll(int train) {
     Runtime &rt = runtime[size_t(train)];
     for (const Held &held : rt.held)
-        if (holder[size_t(held.section)] == train)
+        if (holder[size_t(held.section)] == train) {
             holder[size_t(held.section)] = NoHolder;
-    if (!rt.held.empty())
-        ++holdChanges;
+            heldStamp[size_t(held.section)] = ++holdChanges;
+        }
     rt.held.clear();
     rt.next = 0;
     rt.nextSignal = 0;
     rt.passed = 0;
     rt.endsAtSignal = false;
-    for (int &cleared : clearedFor)
-        if (cleared == train)
-            cleared = NoHolder;
+    for (size_t signal = 0; signal < clearedFor.size(); ++signal)
+        if (clearedFor[signal] == train) {
+            clearedFor[signal] = NoHolder;
+            clearedChanged(int(signal));
+        }
     for (int &claim : claimedBy)
-        if (claim == train)
+        if (claim == train) {
             claim = NoHolder;
+            ++claimChanges;
+        }
     rt.limit = 0;
     states[size_t(train)].authority = 0.0;
     states[size_t(train)].signalSpeed = -1.0f;
-    aspectsDirty = true;
 }
 
 void SimulationCore::blocked(int train, double time) {

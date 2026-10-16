@@ -85,6 +85,9 @@ public:
     // 30 m to the stopping point).
     static constexpr double AuthorityMargin = 10.0;
     static constexpr double SignalMargin = 30.0;
+    // A train waiting for track tries again at least this often (seconds),
+    // and whenever what it waits for changes.
+    static constexpr double RetryEvery = 5.0;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
@@ -146,6 +149,16 @@ public:
     // How many of the sections a train holds it stands on (they change as
     // its front passes into the next).
     size_t standsOn(int train) const;
+    // What it has done (the scaling workloads, task 02 phase 7): authority
+    // extensions, sections looked at for their holders, aspect evaluations
+    // and the heads they visited.
+    struct Work {
+        unsigned long long authority = 0;
+        unsigned long long sectionChecks = 0;
+        unsigned long long aspectRuns = 0;
+        unsigned long long aspectHeads = 0;
+    };
+    const Work &work() const { return workDone; }
     // The two ends of each of a train's vehicles, in the consist's order:
     // the vehicle's front (as the consist lists it) and its rear, their
     // roll looking from the rear to the front. False for a train not on the
@@ -174,7 +187,32 @@ private:
     std::vector<int> headDraw;
     unsigned long long drawChanges = 0;
     unsigned long long holdChanges = 0;
-    bool aspectsDirty = true;
+    // Per section, holdChanges when its holder last changed; claims changed.
+    std::vector<unsigned long long> heldStamp;
+    unsigned long long claimChanges = 0;
+    Work workDone;
+    // Aspects are evaluated again where something changed: every head the
+    // first time; signals cleared or given back; switches set (task 02,
+    // phase 7, the scaling workloads).
+    bool aspectsAll = true;
+    bool aspectsReady = false;
+    std::vector<int> dirtyGroups;
+    std::vector<int> dirtyJunctions;
+    bool aspectsPending() const { return aspectsAll || !dirtyGroups.empty() || !dirtyJunctions.empty(); }
+    // Kept from one evaluation to the next: each signal's next stop signal
+    // (its NORMAL heads read it), each other head's (-2 not known); per
+    // reader (a signal, or head h as -(h + 1); slot: signals, then heads)
+    // the facing junctions on the way and the signal it reads; per
+    // junction section the readers through it and the heads linked to it;
+    // per signal its readers.
+    std::vector<int> nextOfGroup;
+    std::vector<int> nextOfHead;
+    std::vector<std::vector<int>> facingOf;
+    std::vector<int> readsFrom;
+    std::vector<std::vector<int>> watchers;
+    std::vector<std::vector<int>> linkedTo;
+    std::vector<std::vector<int>> readers;
+    std::vector<char> queued;
     std::vector<Stretch> single;
     std::vector<int> claimedBy;
     // Per train and part: its stretches (stretch, its side) by where it
@@ -219,6 +257,11 @@ private:
         size_t limit = 0;
         // Whom it was last reported waiting for.
         int reported = Unreported;
+        // Waiting for track: when it last tried (-1 not), and what the
+        // holders and claims were then.
+        double triedAt = -1.0;
+        unsigned long long triedHold = 0;
+        unsigned long long triedClaims = 0;
     };
     std::vector<Runtime> runtime;
 
@@ -252,8 +295,11 @@ private:
     // `stop`): a track section with the junctions before it and the
     // crossings on it.
     size_t chunkEnd(const std::vector<ProjectedSection> &way, size_t from, size_t stop) const;
-    // Every head's aspect and draw state (task 02, section 6).
+    // The heads' aspects and draw states (task 02, section 6), where they
+    // may have changed.
     void evaluateAspects();
+    void clearedChanged(int signal);
+    void switchChanged(int junction);
     // The stretches of each pair of trains; those of two trains' parts.
     void findStretches();
     void addStretches(int a, int pa, int b, int pb);

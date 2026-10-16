@@ -243,6 +243,50 @@ state name the trains; Stop closes the message); capture case
 head at caution ahead of the AI train shows yellow, one ahead of the
 player's train green, both red without a simulation; the two maps).
 
+**The scaling workloads** (`simulation-scaling`, hand-made track: 100 m
+pieces, home signals clearing two ahead; llvmpipe box). Measured first,
+three costs grew where they should not: every aspect change evaluated
+every head (a whole-route scan), the single-track stretches were sought
+for every pair of trains, and a train waiting for track looked at it
+again every 0.1 s step. Now:
+- aspects are evaluated again only where something changed: the heads of
+  signals cleared or given back, of signals whose next signal is found
+  through a switch that was set, of heads linked to that switch, and,
+  when a head's aspect changes, of the signals reading it; each signal's
+  next signal is kept until a switch on its way changes;
+- stretches are sought only for trains' parts that pass a section in
+  common;
+- a train waiting for track tries again when the section it waits for
+  changes holder (any section, for the single track), when a claim
+  changes, and at least every 5 s.
+
+The local routes give the same results as before each change (trains
+finished, waits, stops, arrivals).
+
+| Workload | Trains | Sections, heads | Track built | Input | Wall time per simulated hour | Slowest simulated second | Per simulated hour | A frame |
+|---|---|---|---|---|---|---|---|---|
+| Double track, 20 km | 8 | 40, 38 | 0.3 ms | 0.2 ms | 149 ms | 0.11 ms | 800 head visits, 205 section checks | 23 µs |
+| + 100 unused 10 km lines | 8 | 1,040, 1,838 | 5 ms | 1.0 ms | 150 ms | 0.10 ms | the same | 57 µs |
+| + 1,000 unused lines | 8 | 10,040, 18,038 | 55 ms, 3.2 MiB | 7.9 ms | 170 ms | 0.38 ms | the same | 340 µs |
+| 10 double tracks | 80 | 400, 380 | 1.1 ms | 1.5 ms | 1,328 ms | 1.06 ms | 8,003 head visits | 176 µs |
+| 100 double tracks | 800 | 4,000, 3,800 | 12 ms | 15 ms | 13,786 ms | 11.9 ms | 80,030 head visits | 1.8 ms |
+| 2 branches onto a trunk | 8 | 17, 13 | 0.1 ms | 0.2 ms | 164 ms | 0.08 ms | 157,040 section checks, 21 waits | 21 µs |
+| 4 branches | 16 | 27, 17 | 0.1 ms | 1.0 ms | 286 ms | 0.15 ms | 261,264 section checks, 59 waits | 30 µs |
+| 8 branches | 32 | 47, 25 | 0.1 ms | 5.1 ms | 493 ms | 0.40 ms | 371,051 section checks, 183 waits | 48 µs |
+| 16 branches | 64 | 87, 41 | 0.1 ms | 31 ms | 851 ms | 0.79 ms | 467,440 section checks, 623 waits | 75 µs |
+
+Before the changes: 1,000 unused lines took 756 ms per simulated hour
+(4.95 million head visits), 800 trains' input 2.2 s, 16 branches 5.2
+million section checks. The work that grows with the route alone is now
+the track's build and a frame: a frame copies the heads' aspects and the
+sections' use whenever one changed (about 20 ns a head or section), a
+third of a millisecond on a route of 10,000 sections; frames sharing
+unchanged blocks of them would remove it if country-scale routes need it.
+Every running train still asks for authority each 0.1 s step (cheap: it
+stops at once where its reservation already reaches its lookahead), so
+wall time follows the trains on the track, about 17 ms per train and
+simulated hour here.
+
 ## Objective
 
 Trains wait for each other: the track they occupy and the track reserved

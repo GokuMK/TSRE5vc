@@ -17,6 +17,8 @@ namespace TestTrack {
 // Ids for the test's own section and track shapes, clear of the global
 // tsection.dat's.
 constexpr int SectionId = 900000;
+// A 100 m straight, for long lines.
+constexpr int LongSectionId = 900001;
 constexpr int ShapeMainFirst = 900000;
 constexpr int ShapeMainSecond = 900001;
 
@@ -25,6 +27,7 @@ constexpr int ShapeMainSecond = 900001;
 struct Layout {
     TSectionDAT sections{false, false};
     TSection piece{SectionId, 0, 10.0f, 0.0f};
+    TSection longPiece{LongSectionId, 0, 100.0f, 0.0f};
     TrackShape mainFirst{ShapeMainFirst};
     TrackShape mainSecond{ShapeMainSecond};
     TDB db{&sections, false};
@@ -32,6 +35,7 @@ struct Layout {
 
     Layout() {
         sections.sekcja[SectionId] = &piece;
+        sections.sekcja[LongSectionId] = &longPiece;
         mainFirst.mainroute = 0;
         mainSecond.mainroute = 1;
         sections.shape[ShapeMainFirst] = &mainFirst;
@@ -40,6 +44,7 @@ struct Layout {
     }
     ~Layout() {
         sections.sekcja.erase(SectionId);
+        sections.sekcja.erase(LongSectionId);
         sections.shape.erase(ShapeMainFirst);
         sections.shape.erase(ShapeMainSecond);
     }
@@ -62,17 +67,18 @@ struct Layout {
         node->pins[2].link = second;
         node->junction.shapeIndex = secondIsMain ? ShapeMainSecond : ShapeMainFirst;
     }
-    // A vector node from node `from` (its distance 0) to node `to`.
-    void track(int id, int from, int to, int pieces) {
+    // A vector node from node `from` (its distance 0) to node `to`, of 10 m
+    // pieces (or 100 m ones).
+    void track(int id, int from, int to, int pieces, bool longPieces = false) {
         TRnode *node = add(id, 1, 1, 1);
         node->pins[0].link = from;
         node->pins[1].link = to;
         node->iTrv = pieces;
         node->trVectorSection = new TrackVectorSection[pieces];
         for (int i = 0; i < pieces; ++i) {
-            node->trVectorSection[i].sectionIndex = SectionId;
+            node->trVectorSection[i].sectionIndex = longPieces ? LongSectionId : SectionId;
             node->trVectorSection[i].x = nextX;
-            nextX += 10.0f;
+            nextX += longPieces ? 100.0f : 10.0f;
         }
     }
 };
