@@ -7,7 +7,8 @@ ahead) and Open Rails' dispatcher samples (scripts/orts-simulation-compare.sh:
 each train's next signal aspect and its distance). A sample is paired with
 TSRE's record of the same train for the same signal (the signal's place on
 the train's way within 100 m) taken within a minute; the aspects are
-compared.
+compared, the player's train apart from the AI trains. Samples of a train
+standing at a station are left out (TSRE records running trains).
 
 Usage: scripts/orts-compare-aspects.py <tsre events.jsonl> <open rails samples.jsonl>
 """
@@ -53,12 +54,13 @@ def theirs(path):
             travelled = dispatcher.metres(row.get("Travelled", ""))
             ahead = dispatcher.metres(row.get("Distance", ""))
             aspect = row.get("Signal", "")
+            standing = row.get("AI mode", "").split(" ")[0] == "STA"
             if travelled is None:
                 continue
             if number in shown and travelled < shown[number] - 200.0:
                 carried[number] += shown[number]
             shown[number] = travelled
-            if ahead is None or not aspect:
+            if ahead is None or not aspect or standing:
                 continue
             trains[number].append((time, travelled + carried[number] + ahead, aspect))
     return trains
@@ -70,12 +72,13 @@ def main(events_path, samples_path):
     by_number = {}
     for (player, traffic), records in mine.items():
         by_number["0" if player else str(loose + 1 + traffic)] = records
-    pairs, same = 0, 0
+    pairs, same = collections.Counter(), collections.Counter()
     differ = collections.Counter()
     for number, samples in theirs(samples_path).items():
         records = by_number.get(number)
         if not records:
             continue
+        who = "player" if number == "0" else "AI"
         for time, place, aspect in samples:
             best = None
             for record in records:
@@ -84,15 +87,17 @@ def main(events_path, samples_path):
                         best = record
             if best is None:
                 continue
-            pairs += 1
+            pairs[who] += 1
             if best[2] == aspect:
-                same += 1
+                same[who] += 1
             else:
-                differ[(aspect, best[2])] += 1
-    print("%s: %d samples paired, the same aspect in %d (%.0f %%)"
-          % (activity["name"] if activity else events_path, pairs, same, 100.0 * same / max(pairs, 1)))
-    for (theirs_aspect, mine_aspect), count in differ.most_common(8):
-        print("  Open Rails %s, TSRE %s: %d" % (theirs_aspect, mine_aspect, count))
+                differ[(who, aspect, best[2])] += 1
+    total, equal = sum(pairs.values()), sum(same.values())
+    print("%s: %d samples paired, the same aspect in %d (%.0f %%); AI trains %d of %d, the player's %d of %d"
+          % (activity["name"] if activity else events_path, total, equal, 100.0 * equal / max(total, 1),
+             same["AI"], pairs["AI"], same["player"], pairs["player"]))
+    for (who, theirs_aspect, mine_aspect), count in differ.most_common(8):
+        print("  %s: Open Rails %s, TSRE %s: %d" % (who, theirs_aspect, mine_aspect, count))
 
 
 if __name__ == "__main__":

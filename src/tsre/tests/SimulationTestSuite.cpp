@@ -1464,6 +1464,92 @@ Engine ( Test
                       .arg(before).arg(standingAspect).arg(released).arg(departed - t0));
         }
 
+        // Two stops sharing the exit signal at 1000 m (Open Rails lists it once
+        // per stop): kept at stop through the first stop's two minutes, let
+        // go as the train leaves it; the second stop no longer holds it.
+        {
+            Sim::TrainPlan stopping = trainOn(east, *network, t0);
+            Sim::StopPlan first;
+            first.platformStart = 760.0;
+            first.platformEnd = 800.0;
+            first.front = 800.0;
+            first.arrival = t0 + 60;
+            first.departure = t0 + 300;
+            first.platform = "First";
+            Sim::StopPlan second = first;
+            second.platformStart = 841.0;
+            second.platformEnd = 881.0;
+            second.front = 881.0;
+            second.arrival = t0 + 320;
+            second.departure = t0 + 600;
+            second.platform = "Second";
+            second.entry = 1;
+            stopping.stops = {first, second};
+            Sim::SimulationCore shared(inputOf(geometry, network, {stopping}));
+            while (shared.time() < t0 + 240.0)
+                shared.step(1.0);
+            const bool standing = shared.trains()[0].stoppedAt == Sim::StopKind::Station
+                    && shared.trains()[0].nextStop == 1;
+            const int kept = aspectOf(shared, 972);
+            double departed = -1.0;
+            int leaving = -1, atSecond = -1;
+            for (int i = 0; i < 400 && atSecond < 0; ++i) {
+                shared.step(1.0);
+                for (const Sim::TrainEvent &e : shared.takeEvents()) {
+                    if (e.kind == Sim::TrainEvent::Departed && departed < 0.0)
+                        departed = e.time;
+                    if (e.kind == Sim::TrainEvent::Arrived && e.index == 1)
+                        atSecond = aspectOf(shared, 972);
+                }
+                if (departed >= 0.0 && leaving < 0 && shared.time() >= departed + 5.0)
+                    leaving = aspectOf(shared, 972);
+            }
+            check(standing && kept == SignalType::STOP && std::fabs(departed - (t0 + 300)) < 1.0
+                      && leaving >= SignalType::APPROACH_1 && atSecond >= SignalType::APPROACH_1,
+                  QString("an exit signal two stops share: at stop at the first a minute before it leaves (%1), "
+                          "cleared as it leaves on time (%2, %3 s), clear at the second (%4)")
+                      .arg(kept).arg(leaving).arg(departed - t0).arg(atSecond));
+        }
+
+        // A stop past the signal at 500 m (the train does not fit short of it:
+        // not its exit signal); standing there with the next stop's exit
+        // signal next, Open Rails lets that hold go at once.
+        {
+            Sim::TrainPlan stopping = trainOn(east, *network, t0);
+            Sim::StopPlan past;
+            past.platformStart = 400.0;
+            past.platformEnd = 425.0;
+            past.front = 432.5;
+            past.arrival = t0 + 30;
+            past.departure = t0 + 400;
+            past.platform = "Past";
+            Sim::StopPlan middle = past;
+            middle.platformStart = 841.0;
+            middle.platformEnd = 881.0;
+            middle.front = 850.0;
+            middle.arrival = t0 + 450;
+            middle.departure = t0 + 700;
+            middle.platform = "Middle";
+            middle.entry = 1;
+            stopping.stops = {past, middle};
+            Sim::SimulationCore letGo(inputOf(geometry, network, {stopping}));
+            while (letGo.time() < t0 + 200.0)
+                letGo.step(1.0);
+            const bool standing = letGo.trains()[0].stoppedAt == Sim::StopKind::Station
+                    && letGo.trains()[0].nextStop == 1;
+            const int standingAspect = aspectOf(letGo, 972);
+            int atMiddle = -1;
+            for (int i = 0; i < 600 && atMiddle < 0; ++i) {
+                letGo.step(1.0);
+                for (const Sim::TrainEvent &e : letGo.takeEvents())
+                    if (e.kind == Sim::TrainEvent::Arrived && e.index == 1)
+                        atMiddle = aspectOf(letGo, 972);
+            }
+            check(standing && standingAspect >= SignalType::APPROACH_1 && atMiddle >= SignalType::APPROACH_1,
+                  QString("standing past a signal, the next stop's exit signal next: let go at once (%1), clear at "
+                          "that stop (%2)").arg(standingAspect).arg(atMiddle));
+        }
+
         // A speed post's limit from the post, until the train's rear is past
         // the resume post.
         TestTrack::Layout posts;
@@ -2102,10 +2188,14 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 for (size_t t = 0; t < core.trains().size(); ++t) {
                     int aspect = 0;
                     double ahead = 0.0;
-                    if (core.trains()[t].status != Sim::TrainStatus::Running
-                            || core.nextSignalAhead(int(t), &aspect, &ahead) < 0)
+                    const Sim::TrainState &state = core.trains()[t];
+                    const int signal = state.status == Sim::TrainStatus::Running
+                            ? core.nextSignalAhead(int(t), &aspect, &ahead) : -1;
+                    if (signal < 0)
                         continue;
-                    logEvent(core.time(), int(t), "signal", QJsonObject{{"aspect", aspect}, {"ahead", ahead}});
+                    logEvent(core.time(), int(t), "signal", QJsonObject{{"aspect", aspect}, {"ahead", ahead},
+                             {"signal", signal}, {"cleared", core.cleared()[size_t(signal)] == int(t)},
+                             {"authority", state.authority - state.front}, {"blockedBy", state.blockedBy}});
                 }
             // A wait ends when the train moves again.
             for (size_t t = 0; t < waitingSince.size() && eventLog != nullptr; ++t)

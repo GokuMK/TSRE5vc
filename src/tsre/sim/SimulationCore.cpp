@@ -313,9 +313,10 @@ void SimulationCore::advance(int train, double from, double to) {
                 continue;
             }
             // Standing at a station, its exit signal is cleared a while
-            // before it leaves.
-            if (s.stoppedAt == StopKind::Station && to >= s.until - HoldRelease
-                    && runtime[size_t(train)].endsAtSignal)
+            // before it leaves; a signal next held for a stop further on is
+            // let go at once.
+            if (s.stoppedAt == StopKind::Station && runtime[size_t(train)].endsAtSignal
+                    && (to >= s.until - HoldRelease || holdDroppable(train, runtime[size_t(train)].nextSignal)))
                 extendAuthority(train);
             if (s.until > to)
                 break;
@@ -663,7 +664,7 @@ void SimulationCore::extendAuthority(int train) {
         if (rt.nextSignal < stopSignals.size() && stopSignals[rt.nextSignal].section <= rt.next) {
             // A stop signal: cleared with its whole block, or not passed.
             const ProjectedSignal &signal = stopSignals[rt.nextSignal];
-            if (rt.nextSignal >= allowed || heldAtStop(train, rt.nextSignal)) {
+            if (rt.nextSignal >= allowed || (heldAtStop(train, rt.nextSignal) && !dropHold(train, rt.nextSignal))) {
                 rt.endsAtSignal = true;
                 break;
             }
@@ -1643,6 +1644,7 @@ void SimulationCore::takePassing(int train, size_t index) {
         if (size_t(stop.part) == part) {
             stop.front = moved(stop.front);
             stop.platformEnd = moved(stop.platformEnd);
+            stop.platformStart = moved(stop.platformStart);
         }
     for (WaitPlan &wait : rt.waits)
         if (size_t(wait.part) == part)
@@ -1679,32 +1681,39 @@ void SimulationCore::findExits(int train) {
         if (beyond == way.stopSignals.end())
             continue;
         const size_t index = size_t(beyond - way.stopSignals.begin());
-        bool held = beyond->at - stop.platformEnd <= ExitSignalReach;
-        if (!held) {
-            // Further on: on the platform's node, its block holding a facing
-            // junction (Open Rails: a signal without a fixed route).
-            auto at = std::upper_bound(way.sections.begin(), way.sections.end(), stop.platformEnd,
-                                       [](double d, const ProjectedSection &p) { return d < p.enter; });
-            size_t from = at == way.sections.begin() ? 0 : size_t(at - way.sections.begin()) - 1;
-            const int node = from < way.sections.size() ? sections[size_t(way.sections[from].section)].node : -1;
-            bool sameNode = from < way.sections.size() && sections[size_t(way.sections[from].section)].kind == TrackSection::Track;
-            for (size_t i = from; i < beyond->section && i < way.sections.size() && sameNode; ++i) {
-                const TrackSection &section = sections[size_t(way.sections[i].section)];
-                sameNode = section.kind == TrackSection::Crossing
-                        || (section.kind == TrackSection::Track && section.node == node);
-            }
-            const size_t blockEnd = index + 1 < way.stopSignals.size() ? way.stopSignals[index + 1].section
-                                                                      : way.sections.size();
-            bool facing = false;
-            for (size_t i = beyond->section; i < blockEnd && i < way.sections.size() && !facing; ++i)
-                facing = sections[size_t(way.sections[i].section)].kind == TrackSection::Junction
-                        && way.sections[i].pinIn == 0;
-            held = sameNode && facing;
+        // Open Rails' end signal: on the platform's node (crossings
+        // between), within 150 m, or further on with a junction or crossing
+        // in its block (a signal without a fixed route).
+        auto at = std::upper_bound(way.sections.begin(), way.sections.end(), stop.platformEnd,
+                                   [](double d, const ProjectedSection &p) { return d < p.enter; });
+        size_t from = at == way.sections.begin() ? 0 : size_t(at - way.sections.begin()) - 1;
+        const int node = from < way.sections.size() ? sections[size_t(way.sections[from].section)].node : -1;
+        bool sameNode = from < way.sections.size() && sections[size_t(way.sections[from].section)].kind == TrackSection::Track;
+        for (size_t i = from; i < beyond->section && i < way.sections.size() && sameNode; ++i) {
+            const TrackSection &section = sections[size_t(way.sections[i].section)];
+            sameNode = section.kind == TrackSection::Crossing
+                    || (section.kind == TrackSection::Track && section.node == node);
         }
-        if (!held)
+        if (!sameNode)
+            continue;
+        bool held = beyond->at - stop.platformEnd <= ExitSignalReach;
+        const size_t blockEnd = index + 1 < way.stopSignals.size() ? way.stopSignals[index + 1].section
+                                                                  : way.sections.size();
+        for (size_t i = beyond->section; i < blockEnd && i < way.sections.size() && !held; ++i)
+            held = sections[size_t(way.sections[i].section)].kind != TrackSection::Track;
+        // Held when the train stops short of it, or stopping at it (by Open
+        // Rails' clearing distance) most of the train (60 %) stands at the
+        // platform; not again once let go.
+        const TrainPlan &plan = in->trains[size_t(train)];
+        const double clearing = plan.player || plan.vehicles.size() < StationClearingCars ? StationClearingShort
+                                                                                         : StationClearing;
+        if (!held || (stop.front >= beyond->at && beyond->at - clearing - stop.platformStart <= 0.6 * plan.length)
+                || (k < rt.letGo.size() && rt.letGo[k]))
             continue;
         rt.exits[k] = int(index);
-        // Short of it, as Open Rails stops a train at a held signal.
+        // Short of it, as Open Rails stops a train at a held signal (ours
+        // stop SignalMargin short of any signal at stop, Open Rails at its
+        // clearing distance).
         rt.stops[k].front = std::min(stop.front, beyond->at - SignalMargin - 1.0);
     }
 }
@@ -1713,16 +1722,48 @@ bool SimulationCore::heldAtStop(int train, size_t signal) const {
     const TrainState &s = states[size_t(train)];
     const Runtime &rt = runtime[size_t(train)];
     const bool standing = s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Station;
-    // The stop it stands at, then those ahead on this part.
-    for (int k = standing ? s.nextStop - 1 : s.nextStop; k >= 0 && k < int(rt.stops.size()); ++k) {
-        if (rt.stops[size_t(k)].part != s.part)
-            break;
-        if (rt.exits[size_t(k)] != int(signal))
-            continue;
-        // Released while it stands there, its departure near.
-        return !(standing && k == s.nextStop - 1 && now >= s.until - HoldRelease - MaxStep);
-    }
-    return false;
+    // Open Rails lists the stops' exit signals, a signal once per stop: a
+    // stop takes it off the list a while before its departure and, still
+    // listed (another stop's), again as the train leaves. Held while listed
+    // and the stop it stands at or one ahead on this part has it.
+    const int at = standing ? s.nextStop - 1 : s.nextStop;
+    if (at < 0 || at >= int(rt.stops.size()))
+        return false;
+    int listed = 0;
+    bool ahead = false;
+    for (size_t k = 0; k < rt.stops.size(); ++k)
+        if (rt.stops[k].part == s.part && rt.exits[k] == int(signal)) {
+            listed -= int(k) < at ? 1 : -1;
+            ahead = ahead || int(k) >= at;
+        }
+    if (standing && rt.exits[size_t(at)] == int(signal))
+        listed -= (now >= s.until - HoldRelease - MaxStep ? 1 : 0) + (now >= s.until - MaxStep ? 1 : 0);
+    return ahead && listed > 0;
+}
+
+bool SimulationCore::holdDroppable(int train, size_t signal) const {
+    // Open Rails lets a hold go when the train stands with the held signal
+    // next and the stop it stands at, or comes to next, is not the signal's.
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (s.status != TrainStatus::Stopped || signal != rt.passed || !heldAtStop(train, signal))
+        return false;
+    const int at = s.stoppedAt == StopKind::Station ? s.nextStop - 1 : s.nextStop;
+    return at >= 0 && size_t(at) < rt.stops.size()
+            && (rt.stops[size_t(at)].part != s.part || rt.exits[size_t(at)] != int(signal));
+}
+
+bool SimulationCore::dropHold(int train, size_t signal) {
+    if (!holdDroppable(train, signal))
+        return false;
+    Runtime &rt = runtime[size_t(train)];
+    rt.letGo.resize(rt.stops.size(), false);
+    for (size_t k = 0; k < rt.stops.size(); ++k)
+        if (rt.stops[k].part == states[size_t(train)].part && rt.exits[k] == int(signal)) {
+            rt.exits[k] = -1;
+            rt.letGo[k] = true;
+        }
+    return true;
 }
 
 void SimulationCore::take(int train, size_t from, size_t to) {

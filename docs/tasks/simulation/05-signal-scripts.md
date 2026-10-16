@@ -74,17 +74,62 @@ where the scripts clear: its trains ran kilometres behind Open Rails'
 (so few samples pair). Elsewhere the scripts and the built-in rule
 choose the same: the stops against Open Rails are as before (EUROPE1
 −14 s, EUROPE2 −25 s, JAPAN2 0 s, USA2 −27 s, JAPAN1 from 10:30 +2 s).
-The differences left are where signals are cleared (task 02), below.
+
+**Station exit signals (2026-10-16).** Most of the differences left were
+task 02's hold of a station stop's exit signal (Open Rails' forced red)
+taken where Open Rails does not take it, or kept when it lets it go. Now
+as Open Rails (`Train.CreateStationStop`, `Signals` platform end
+signals, `AITrain` station departures, `Train.CheckTrainWaitingForSignal`):
+the exit signal only on the platform's track node; beyond 150 m a block
+with any junction or crossing (not a facing junction only); a train
+stopping beyond the signal held only when 60 % of it stands at the
+platform stopped short of it (Open Rails' clearing distance: 15 m for
+the player's train and trains of fewer than 10 vehicles); a signal held
+once per stop sharing it, each taking it off two minutes before its
+departure and, still listed, as the train leaves; a hold let go when the
+train stands with the signal next and its present stop is not the
+signal's (JAPAN2's Dan: let go standing at Sakamoto; EUROPE2's Hatting:
+at Inzing, where the train stops past Inzing's own exit). The same
+aspect now:
+
+| Route, activity | samples | before | now |
+|---|---|---|---|
+| EUROPE1 `aftstorm` | 612 | 99 % | 100 % |
+| USA1 `smmrex` (12:00 to 12:40) | 1998 | 98 % | 98 % |
+| USA2 `itr_e1_s1_w1_t1` | 32 | 97 % | 94 % |
+| BNSF_SCENIC `3_CanadianImports` | 142 | 99 % | 99 % |
+| EUROPE2 `itr_e1_s1_w1_t1` | 545 | 81 % | 97 % |
+| JAPAN1, from 10:30 | 2295 | 76 % | 77 % |
+| JAPAN2 `itr_e1_s1_w1_t1` | 178 | 60 % | 87 % |
+
+The stops against Open Rails: as before but USA2 (−27 s before, +47 s
+now): its 1.2 km freight trains now have Belton's and Glacier Park's exit
+signals held (their blocks hold a trailing junction), as Open Rails holds
+them (STOP 3.4 km ahead braking for Belton, cleared standing), and pass
+the approach signals before at their 40 mph as Open Rails' trains do
+(Open Rails 7 min 17 s from signal 205 to standing at Belton, ours
+7 min 12 s); the trains were already some 30 s behind Open Rails' before
+that, which the missing holds had made up.
 
 ## Left
 
-- **Clearing ahead (task 02):** Open Rails has signals cleared that ours
-  have not: JAPAN2's next signal up to 6 to 12 km ahead (ours clears
-  within the Auto Node reach: 5 km, or 2 minutes at the train's top speed
-  within the route's limit), EUROPE2's next signal about 1 km ahead,
-  JAPAN1's around stations (10 m before exit signals, and one signal
-  before them). Not timing differences (the stops match), but the aspects
-  shown differ.
+- **Clearing ahead:** Open Rails often shows a signal one step more
+  restrictive than ours (JAPAN1's APP3 where ours shows CLR2, 251 samples;
+  JAPAN2's player at signal 46): the signal after next not yet cleared in
+  Open Rails where ours is. Both clear as many signals ahead (the type's
+  `SignalNumClearAhead` less its NORMAL heads, passed on); Open Rails
+  passes a request on only when the signal's whole block is reserved and
+  within the train's route, from a signal's update. Not a distance limit:
+  Open Rails asks for the next signal at any distance once the previous
+  one is passed, as ours clears without one. To follow.
+- **Station stops:** JAPAN1's Isehara and Kakio exits show STOP in Open
+  Rails for its 200 m trains, which the rule above (on the platform alone)
+  does not hold; probably Open Rails' stop counting other platforms of the
+  same name along the route (a longer platform, the train stopping
+  further back), not checked. Open Rails stops a short train 15 m short of
+  a held signal, ours 31 m (our driver stops SignalMargin short of any
+  signal at stop). Open Rails' check of a platform near a reversal reads
+  the train's first reversal (its own quirk), not taken.
 - **Open Rails' additions** (approach control, call-on, timing triggers,
   stored values, clear-ahead control, subtypes): read and reported, run
   in a later task (decision 3). `block_state` OCCUPIED (a train asking a

@@ -432,6 +432,7 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
                 if (nearPart != stop.part)
                     nearRoute = 0.0;
                 stop.platformEnd = stop.front;
+                stop.platformStart = nearRoute;
                 // Centred on the platform; a longer train overhangs both ends.
                 const double platformLength = stop.front - nearRoute;
                 stop.front = std::clamp(stop.front - 0.5 * (platformLength - plan.length), 0.0,

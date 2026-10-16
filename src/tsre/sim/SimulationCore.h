@@ -92,12 +92,18 @@ public:
     // and whenever what it waits for changes.
     static constexpr double RetryEvery = 5.0;
     // Open Rails' forced red at station stops: a stop's exit signal is the
-    // first stop signal beyond the platform within this distance (or
-    // further on the same node when its block has a facing junction); a
-    // train clears it only when standing at the stop with its departure
+    // first stop signal beyond the platform on the platform's node, within
+    // this distance (or further on when its block has a junction or
+    // crossing), the train stopping short of it or mostly at the platform;
+    // a train clears it only when standing at the stop with its departure
     // this near (seconds).
     static constexpr double ExitSignalReach = 150.0;
     static constexpr double HoldRelease = 120.0;
+    // Open Rails' clearing distance at station stops: its player train and
+    // trains of fewer than StationClearingCars vehicles the short one.
+    static constexpr double StationClearing = 30.0;
+    static constexpr double StationClearingShort = 15.0;
+    static constexpr size_t StationClearingCars = 10;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
@@ -283,8 +289,9 @@ private:
         std::vector<std::vector<SpeedLimit>> limits;
         std::vector<StopPlan> stops;
         // Each stop's exit signal: an index in its part's stop signals, -1
-        // none.
+        // none; its hold let go (dropHold).
         std::vector<int> exits;
+        std::vector<bool> letGo;
         std::vector<WaitPlan> waits;
         std::vector<PassingPlan> passing;
         // Each passing path's own track: its track sections, sorted.
@@ -353,6 +360,8 @@ private:
     // stop signal at `signal` on its part is one held for a stop ahead.
     void findExits(int train);
     bool heldAtStop(int train, size_t signal) const;
+    bool holdDroppable(int train, size_t signal) const;
+    bool dropHold(int train, size_t signal);
     // The heads' aspects and draw states (task 02, section 6), where they
     // may have changed.
     void evaluateAspects();
