@@ -1167,10 +1167,12 @@ The user: a moiré clearly visible on storm clouds (CMK,
 - **Cost on the Steam Deck** (median frame, old against new): at High with
   two samples a step (three rounds) thunderstorm 42.8 against 45.5 ms,
   looking up 31.7 against 34.0; fair cumulus 37.8 against 38.3 and overcast
-  35.6 against 35.4, within the runs' noise. With four a step everywhere
-  (two rounds; the caps should cost less, not measured yet): thunderstorm at
-  Low 39.3 against 42.6, at Medium 39.9 against 43.4; fair cumulus and
-  overcast as before at both.
+  35.6 against 35.4, within the runs' noise. Every quality and view, with
+  the caps (two rounds each, against the march split at High only; noisy,
+  fair cumulus anywhere from 38 to 46 ms): thunderstorm at Low 42.5 against
+  44.6, at Medium 42.3 against 44.9, at High 46.1 against 47.6 (the lake's
+  reflection now split too: about 1.5 ms there); fair cumulus and overcast
+  as before.
 - The towers' vertical streaks (pillars of billows) stay: their shape, with
   the anvils.
 
