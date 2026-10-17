@@ -14,6 +14,7 @@
 #include <QVector>
 #include <QHash>
 #include <memory>
+#include <tsre/trains/EngLights.h>
 
 class RenderQueue;
 
@@ -26,7 +27,7 @@ class PlayDriver;
 struct SoundValues;
 class TrainNetworkEng;
 class ContentHierarchyInfo;
-class EngLights;
+class CarLights;
 
 struct MapFeatures;
 
@@ -63,6 +64,8 @@ public:
     // Editor loads every car and needs none) and shared by every car of the
     // same file; null without one.
     const EngLights *getLights();
+    // The state its lights show, set by its consist.
+    EngLights::Train lightsTrain;
 
     QString engName;
     QString displayName;
@@ -163,6 +166,7 @@ private:
     QString lightsFile;
     QString lightsIncludePath;
     bool lightsRead = false;
+    CarLights *carLights = NULL;
     long long int resolveShapeIds();
     // Drawn between two places on the track (as getDrawPositionOnTrNode
     // gives them: x, y, z, angle, slope, tile x, tile z), its front and rear

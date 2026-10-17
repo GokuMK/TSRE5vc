@@ -136,6 +136,13 @@ public:
                                                      const QString &mstsIncludePath);
     static bool isOn(const Light &light, const Train &train);
     static bool holds(const Condition &condition, const Train &train);
+
+    // The scene's day (the sun up) and weather (Train::Weather) for the
+    // conditions on them: the editor sets them each frame, as Open Rails
+    // takes them from its sky and weather.
+    static void setEnvironment(bool day, int weather);
+    static bool environmentDay();
+    static int environmentWeather();
 };
 
 #endif

@@ -11,6 +11,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLights.h>
+#include <tsre/trains/CarLights.h>
 #include <tsre/map/MapFeatures.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -97,6 +98,7 @@ Eng::Eng(Eng *o) {
 }
 
 Eng::~Eng() {
+    delete carLights;
     delete ruch1;
     delete ruch2;
     delete cabSound;
@@ -1058,6 +1060,14 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
             queue.popTransform();
         }
+    }
+    // Its lamps (task renderer 34), once its shape shows.
+    const EngLights *carLightsData = getLights();
+    if (carLightsData != nullptr && shape.id[shapeLibId] >= 0
+            && Game::currentShapeLib->shape[shape.id[shapeLibId]]->isLoaded()) {
+        if (carLights == nullptr)
+            carLights = new CarLights();
+        carLights->push(queue, *carLightsData, lightsTrain, selectionId);
     }
     queue.setLayer(layer);
     if (selected)

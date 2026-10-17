@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <QVector>
 #include <tsre/GameObj.h>
+#include <tsre/trains/EngLights.h>
 
 class RenderQueue;
 
@@ -136,6 +137,11 @@ public:
     // properties' Show border, for every consist, not saved).
     static bool showBorder;
     void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId, bool outlined = false);
+    // The state vehicle's lights show (task renderer 34): its place in the
+    // consist (first, last, flipped, coupled, the leading locomotive), the
+    // scene's day and weather, the rest the test state until the
+    // simulation sets it (a train in service, headlights at Bright).
+    EngLights::Train lightsTrain(int vehicle) const;
     // A train of the simulation (task simulation 01), its vehicles placed by
     // the simulation's frames (Eng::placeOnTrack): its speed, the distance
     // it has travelled and its driver's throttle and brake (0 to 1) as the

@@ -26,6 +26,7 @@
 #include <tsre/world/TerrainMaterialMap.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/trains/EngLights.h>
 #include <tsre/world/Tile.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -787,6 +788,20 @@ void RouteEditorGLWidget::paintScene(){
     applyClouds();
     updateFog();
     applyFog();
+    // Train lights (task renderer 34): day while the sun is up; the
+    // weather's rain or snow at the camera.
+    {
+        int trainWeather = EngLights::Train::Clear;
+        if (const Weather *weather = currentWeather(); weather != nullptr && !weather->keyframes.isEmpty()) {
+            double east, north;
+            cameraWorldPosition(east, north);
+            const WeatherSurface s = WeatherDetail::precipitation(*weather, weather->frame(weatherHours()), east,
+                                                                  north, 0.0);
+            if (s.precipitationRate > 0.05f)
+                trainWeather = s.snowShare > 0.5f ? EngLights::Train::Snow : EngLights::Train::Rain;
+        }
+        EngLights::setEnvironment(skyState.sunElevation > 0.0f, trainWeather);
+    }
     applyTerrainShade();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);

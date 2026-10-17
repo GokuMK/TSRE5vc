@@ -5,6 +5,8 @@
 #include <cmath>
 #include <tsre/Game.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/trains/CarLights.h>
+#include <tsre/trains/Consist.h>
 #include <tsre/trains/EngLights.h>
 
 namespace {
@@ -81,6 +83,14 @@ Engine ( Test
 	Wagon ( Test )
 	Type ( Electric )
 	Name ( "Lights test" )
+)
+)";
+
+const char *const WagonFixture = R"(SIMISA@@@@@@@@@@JINX0D0t______
+
+Wagon ( W
+	Type ( Freight )
+	WagonShape ( w.s )
 )
 )";
 
@@ -245,6 +255,49 @@ int TsreTests::runEngLightsSuite(bool verbose) {
     Eng again(temp.path(), "test.eng");
     test.check(copy.getLights() == eng.getLights() && again.getLights() == eng.getLights(),
                "copies of a car and cars of the same file share its lights");
+
+    // A consist gives each car its place: a locomotive, a wagon, a
+    // locomotive turned round.
+    {
+        QFile file(temp.filePath("wagon.wag"));
+        test.check(file.open(QIODevice::WriteOnly) && file.write(WagonFixture) > 0, "write wagon fixture");
+    }
+    Eng wagon(temp.path(), "wagon.wag");
+    Consist consist;
+    consist.engItems.resize(3);
+    consist.engItems[0].engPointer = &eng;
+    consist.engItems[1].engPointer = &wagon;
+    consist.engItems[2].engPointer = &copy;
+    consist.engItems[2].flip = true;
+    const Train head = consist.lightsTrain(0), between = consist.lightsTrain(1), end = consist.lightsTrain(2);
+    test.check(wagon.getLights() == nullptr && head.first && !head.last && !head.reversed && !head.coupledFront
+                   && head.coupledRear && head.mu == -1,
+               "the first car: first, coupled at its rear, the leading locomotive");
+    test.check(!between.first && !between.last && between.coupledFront && between.coupledRear && between.mu == 0,
+               "a wagon between: coupled at both ends, no unit");
+    test.check(end.last && end.reversed && !end.coupledFront && end.coupledRear && end.mu == 1,
+               "the last car turned round: reversed, coupled at its own rear, running with the leading one");
+    EngLights::setEnvironment(false, Train::Snow);
+    const Train snowNight = consist.lightsTrain(0);
+    EngLights::setEnvironment(true, Train::Clear);
+    test.check(!snowNight.day && snowNight.weather == Train::Snow && consist.lightsTrain(0).day,
+               "the scene's day and weather");
+    test.check(standard.headlight == head.headlight && head.inService && head.player,
+               "the rest is the test state");
+
+    // Lenses on the car: the shape's root mirrors x; a glow is a square
+    // Radius wide, its lens a disc of half that, a centimetre out.
+    const std::vector<CarLights::Lens> lenses = CarLights::lenses(lights, standard);
+    test.check(lenses.size() == 4, "lenses of the lit glows (the beams and the night light are not)");
+    if (lenses.size() == 4) {
+        const CarLights::Lens &f = lenses[0], &tail = lenses[1];
+        test.check(near(f.position[0], -1.1f) && near(f.position[1], 1.7f) && near(f.position[2], 8.71f)
+                       && near(f.direction[2], 1.0f) && near(f.radius, 0.025f) && f.colour == 0x85fffddau,
+                   "a front lamp: x mirrored, a centimetre ahead, facing forward");
+        test.check(near(tail.position[0], 1.1f) && near(tail.position[2], -8.71f) && near(tail.direction[2], -1.0f)
+                       && near(tail.radius, 0.031f),
+                   "a tail lamp: a centimetre behind, facing backwards");
+    }
 
     // The CMK test train's locomotive, when the content is there.
     const QString vectron = Game::root + "/TRAINS/TRAINSET/PKOR_Vectron";

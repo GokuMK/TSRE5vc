@@ -188,6 +188,28 @@ Open Rails rules kept:
 | OpenGL | Plain discs in the light's colour, as signal lights. |
 | Code placement | Where it fits (also in `Eng` and `Consist`), no file splits made only for easier merges; merges with the parallel ENG work kept in mind. |
 
+## Implementation status (2026-10-17)
+
+| Step | Commit | Notes |
+|---|---|---|
+| Merge | `746de49` | `feature/simulation` merged first, so the lights build on its `Eng` and `Consist`. |
+| 1. Parser and state | `053234b`, `28af5fe` | `EngLights` (reader, conditions, test state); read on first use; suite `eng-lights`. |
+| 2. Lamps | this commit | `CarLights`; `Consist::lightsTrain` (place in the consist); day and weather set by the editor each frame. |
+
+- Lamps are placed through the shape's root, which both shape loaders draw
+  as an x mirror (matrix 0's own transform left out): a light at (x, y, z)
+  sits at (-x, y, z) in the shape's drawing space, 1 cm out along its
+  direction.
+- Merged per colour: the Vectron at Bright draws 2 packets (65 white
+  lenses, 92 red ones), 8 segments per LED dot.
+- Glow splats: one per 0.25 m cell of lenses of a colour, as bright as the
+  lenses' area, overlapping dots counted once (no more than the disc around
+  them).
+- Captures (CMK, `file0.act`, noon and 22:00, the two views and closer
+  ones): at night the three white lamps of the head signal at the front
+  and the red tail lamps at the back glow; by noon they show lit in their
+  housings; OpenGL draws the lamps' shapes in plain colour.
+
 ## Later
 
 - Lights attached to animated parts (`ShapeIndex`, `ShapeHierarchy`) and

@@ -845,10 +845,39 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
             scolor = SelectionIdCodec::withPart(selectionId, i);
         }
         if (engItems[i].engPointer != NULL)
+            engItems[i].engPointer->lightsTrain = lightsTrain(i);
+        if (engItems[i].engPointer != NULL)
             engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor,
                                                           showBorder && (outlined || selectedIdx == i));
         queue.popTransform();
     }
+}
+
+EngLights::Train Consist::lightsTrain(int vehicle) const {
+    EngLights::Train train;
+    const int count = engItems.size();
+    if (vehicle < 0 || vehicle >= count)
+        return train;
+    const bool flipped = engItems[vehicle].flip;
+    train.first = vehicle == 0;
+    train.last = vehicle == count - 1;
+    train.reversed = flipped;
+    // Coupled at its own front and rear, as Open Rails tells them.
+    train.coupledFront = count > 1 && (flipped ? vehicle != count - 1 : vehicle != 0);
+    train.coupledRear = count > 1 && (flipped ? vehicle != 0 : vehicle != count - 1);
+    // The first locomotive leads, the others run with it.
+    auto locomotive = [this](int i) {
+        const Eng *eng = engItems[i].engPointer;
+        return eng != NULL && eng->wagonTypeId >= 4;
+    };
+    int lead = -1;
+    for (int i = 0; i < count && lead < 0; i++)
+        if (locomotive(i))
+            lead = i;
+    train.mu = locomotive(vehicle) ? (vehicle == lead ? -1 : 1) : 0;
+    train.day = EngLights::environmentDay();
+    train.weather = EngLights::environmentWeather();
+    return train;
 }
 
 bool Consist::getWagonWorldPosition(int id, float *posTW){
