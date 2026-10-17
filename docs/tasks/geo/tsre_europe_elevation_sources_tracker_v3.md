@@ -1,7 +1,7 @@
 # TSRE high-resolution elevation sources — Europe tracker
 
 **Original research date:** 2026-09-17  
-**TSRE implementation sync:** 2026-09-23 — `feature/geo-terrain`; Sweden authenticated STAC/range COG follows the France numeric-WMS work
+**TSRE implementation sync:** 2026-10-17 — main worktree; Canada HRDEM Mosaic 1 m added, standalone/live-tested and user-confirmed working in the application. Earlier country validation dates are retained.
 **Scope:** high-resolution European national/regional terrain models, implemented non-European sources, and world-scale fallback/acquisition options.  
 **World fallback:** automatic catalogue-based HGT download is now implemented.
 
@@ -17,11 +17,12 @@ Current generic pieces include:
 
 - caller-side geographic point sampling (`getHeight(lat, lon)` conceptually);
 - a catalogue-driven source model shared by Settings, the elevation dialog and automatic terrain generation;
-- **25 configured datasets**, including 23 European entries, USGS 3DEP and the world HGT file source;
+- **31 configured datasets**, including 27 European entries, USGS 3DEP, Canada HRDEM 1 m and two world sources (HGT and GEDTM30);
 - deterministic persistent raster/service caching and stable user-managed directories for file sources;
 - `provider: "file"` with one-degree HGT grids, projected range COGs, single national range COGs, STAC-discovered GeoTIFF tiles, and indexed user-managed GeoTIFF directories;
-- catalogue-level `defaultFileSource`, currently `world-hgt`, used as the service fallback;
-- primary-source-first preparation: the world fallback is prepared/downloaded only for points unresolved by the selected WCS/ArcGIS source;
+- catalogue-level `defaultFileSource`, currently `world-hgt`, plus one selectable approved fallback (HGT or GEDTM30), with independent primary/fallback height offsets;
+- primary-source-first preparation: the selected fallback is prepared/downloaded only for points unresolved by the primary source; there is no third recursive source;
+- named STAC range assets via `download.assetKey` (Canada: `dtm`), with authoritative grid validation/clipping from COG headers and `updated`-aware range-cache revisions;
 - Arc/Info ASCII Grid decoding;
 - classic numeric GeoTIFF decoding for one-band `float32`, signed `int16` and unsigned `uint16`; range COG blocks additionally support `float64` conversion, LZW, Deflate, linked overviews and external block tables;
 - WCS 2.0.1 provider with separate subset/scaling axes and bounded opt-in handling of server-expanded grids;
@@ -49,6 +50,12 @@ Current generic pieces include:
 - EPSG:2169 — Luxembourg TM after the official LUREF2020 datum transformation;
 - EPSG:27700 — British National Grid with an injected OSTN15 Lite shift grid;
 - EPSG:3763 — Portugal PT-TM06 / ETRS89;
+- EPSG:3046 — ETRS89 / UTM 34N with northing/easting axis declaration;
+- EPSG:2154 — France Lambert-93;
+- EPSG:3301 — Estonia L-EST97;
+- EPSG:3765 — Croatia HTRS96/TM;
+- EPSG:3812 — Belgian Lambert 2008;
+- EPSG:3979 — NAD83(CSRS) / Canada Atlas Lambert; projection only, without epoch-dependent datum transformation;
 - EPSG:25828 … EPSG:25838 — generic ETRS89 / UTM zones 28N–38N.
 
 The lightweight projection code is intentionally bounded rather than a general PROJ replacement. Several recently added services avoid unsupported national projections by asking the server for a TSRE-supported CRS.
@@ -61,11 +68,11 @@ The earlier WCS/authentication blockers have largely been removed. The main rema
 - broader GeoTIFF / COG / BigTIFF profiles beyond the verified LZW/Deflate
   Float32/Float64 and Deflate Int32 cases;
 - generic ATOM / indexed-download / irregular catalogue acquisition;
-- local support for remaining national projections such as EPSG:28992, EPSG:2154, EPSG:3301 and EPSG:3812 when server-side reprojection is unavailable;
+- local support for remaining national projections such as EPSG:28992 when server-side reprojection is unavailable;
 - vertical datum conversion;
 - dynamic source-resolution discovery for heterogeneous/multi-resolution mosaics;
 - explicit coarse acquisition profiles and cache identities for distant terrain; detailed-service success does not make a source safe for ~32 km distant tiles;
-- selectable secondary online fallback beyond the current default file fallback.
+- additional approved fallback products beyond the selectable HGT and GEDTM30 sources.
 
 WCS 1.0, API-key handling and server-side reprojection through preconfigured endpoint/query parameters are **no longer** general blockers for the sources already integrated.
 
@@ -88,7 +95,8 @@ A dataset being present in `elevation-datasets.json` means it passes the catalog
 
 # 3. Implemented / tested baseline
 
-Current branch catalogue snapshot, updated 2026-09-23:
+Main-worktree catalogue snapshot, updated 2026-10-17. Existing source validation
+claims retain their original scope; only Canada was newly live-tested in this update.
 
 | Dataset ID | Area / product | Provider | EPSG / grid | Current status |
 |---|---|---|---:|---|
@@ -105,6 +113,10 @@ Current branch catalogue snapshot, updated 2026-09-23:
 | `cz.cuzk.dmr4g` | Czech DMR4G 5 m | WCS 2.0.1 | 3045 | ✅ |
 | `cz.cuzk.dmr5g` | Czech DMR5G 2 m request grid | ArcGIS ImageServer | 25833 | ✅ |
 | `us.usgs.3dep.conus` | USGS 3DEP CONUS 2 map m request grid | ArcGIS ImageServer | 3857 | ✅ architecture/live validation source |
+| `ca.nrcan.hrdem1` | Canada NRCan HRDEM Mosaic bare-earth terrain, 1 m | file / named STAC range COG | 3979 | ✅ standalone/full-grid/cache/seam/fallback probes + user-confirmed application test |
+| `sk.gku.dmr5.etrs89h` | Slovakia DMR 5.0 terrain, 1 m | file / national range COG | 3046 | ✅ bounded live block + cache probe; ellipsoidal heights |
+| `be.wallonia.spw.mnt1` | Wallonia SPW MNT, 1 m | file / national range COG | 3812 | ✅ bounded live block + cache probe |
+| `pt.dgt.mdt2m` | Portugal DGT MDT, 2 m | file / indexed local GeoTIFF directory | 3763 | 🟡 user-managed source implemented; automatic download login-gated |
 | `no.kartverket.nhm.dtm1` | Norway NHM DTM 1 m | ArcGIS ImageServer | 25833 | ✅ |
 | `es.ign.mdt05` | Spain MDT05 5 m | WCS 2.0.1 | 25830 | ✅ |
 | `si.gurs.dmr1` | Slovenia DMR1 1 m | ArcGIS ImageServer | 3794 | ✅ |
@@ -1133,7 +1145,52 @@ Important interpretation:
 - TSRE's sampler compensates Web Mercator footprint size by latitude when averaging finer source data;
 - this source was important architecture validation for the generic ArcGIS ImageServer path and server-side output CRS handling.
 
-No other non-European country-specific sources have yet been promoted into this tracker. Future additions can be listed here while `world-hgt` remains the universal fallback.
+## Canada — NRCan HRDEM Mosaic 1 m
+
+**Status: ✅ implemented, standalone/live-tested and user-confirmed in the application**
+
+- Dataset ID: `ca.nrcan.hrdem1`.
+- Product: bare-earth DTM at native 1 m spacing, CGVD2013 orthometric heights;
+  coverage exists where the mosaic has LiDAR terrain data, not throughout Canada.
+- Provider: `file`, `fileGrid: "stac"`, anonymous range COG downloads.
+- Discovery: `https://datacube.services.geo.ca/stac/api`, collection
+  `hrdem-mosaic-1m`, `download.assetKey: "dtm"`, `download.range: true`.
+- Native CRS: EPSG:3979, added using the existing Lambert Conformal Conic 2SP
+  implementation. Independent projection controls agree within 1 mm; this does
+  not establish WGS84/NAD83(CSRS) datum/epoch accuracy.
+- Files: Float32/LZW BigTIFF COGs, 512 x 512 internal blocks, NoData -32767.
+  Only needed blocks are fetched; a cold 500 km mosaic requires approximately
+  11 MiB of index tables. Valid zero and negative heights are preserved.
+- Licence: Open Government Licence - Canada 2.0, with NRCan/partner attribution.
+
+The generic named-asset option prevents DSM or hillshade substitution. Missing
+STAC GSD/projected bounds are handled by reading the actual COG grid; explicit
+metadata conflicts are rejected. STAC `updated` participates in range-cache
+identity so revised files at stable URLs use a separate cache revision.
+
+**Validation, 2026-10-17:** 475 focused Release checks passed. Ottawa and Vancouver
+point probes returned primary HRDEM heights. An approximately 2 km Ottawa area
+returned all 4,194,304 samples from HRDEM; its repeat reused 36 blocks with zero
+raster downloads. A 500 km mosaic seam used both adjacent files with no fallback.
+An uncovered Manitoba location reported two HRDEM NoData samples and resolved
+both through the existing HGT fallback, without unavailable samples or issues.
+STAC discovery still occurs on repeat calls; these are not fully offline probes.
+The user subsequently confirmed that the source works well in the application.
+
+**Scope decision:** do not add MRDEM 30 m; existing world sources already meet
+the coarse-coverage need. Keep the user's existing HGT/GEDTM30 fallback choice.
+No automatic vertical conversion is applied between CGVD2013 and the fallback
+datum. HRDEM has neither fallback nor distant-terrain approval; 2 m HRDEM and
+project-specific products are outside this integration.
+
+Canada's WCS advertises version 1.1.1, which TSRE does not implement, and the
+small WCS probe returned 1.01 m spacing for a 1 m request. The implemented route
+therefore uses native COGs rather than introducing WCS grid/protocol work.
+
+Sources and detailed evidence:
+
+- [NRCan HRDEM Mosaic product record](https://open.canada.ca/data/en/dataset/0fe65119-e96e-4a57-8bfe-9d9245fba06b)
+- [Canada implementation and live-probe report](canada-elevation-research.md)
 
 ---
 
@@ -1265,7 +1322,7 @@ This is now the clearest next step after `world-hgt`: predictable filenames, no 
 ## Tier C — compressed COG / range / STAC
 
 A narrow COG/range and STAC layer now supports GEDTM30, Austria, Luxembourg,
-Wales, Switzerland and authenticated Swedish assets. Verified profiles cover LZW Float32/Float64, Deflate
+Wales, Switzerland, authenticated Swedish assets and Canada's named DTM assets. Verified profiles cover LZW Float32/Float64, Deflate
 Float32 and signed Int32, projected/geographic overview selection, GDAL
 scale/offset, external block tables and separate OSTN15 preparation.
 Further extensions could unlock:
@@ -1342,6 +1399,7 @@ The generic design is holding up well. The current implementation demonstrates s
    official Copernicus AWS COGs
    France MNT LiDAR HD numeric WMS — implemented
    Sweden authenticated STAC/range COG — implemented
+   Canada HRDEM 1 m named STAC/range COG — implemented and standalone/live-tested
    Ireland and other catalogue-based sources
 ```
 
@@ -1358,7 +1416,7 @@ prepare + sample primary source
         +---- unresolved
                     |
                     v
-        default file source (`world-hgt`)
+        selected approved fallback (HGT or GEDTM30)
                     |
                     +---- valid --------> fallback height
                     |
@@ -1381,7 +1439,11 @@ Work remains intentionally split:
 - this tracker/research thread identifies data sources, records service/file quirks and keeps the acquisition landscape current;
 - implementation agents decide how reusable TSRE capabilities should be added and validated.
 
-Current short queue after the GEDTM30 milestone:
+Current short queue, including the Canada milestone:
+
+- **Canada HRDEM 1 m** — implemented, standalone/live-tested and user-confirmed
+  in the application. MRDEM 30 m is excluded; detailed-source distant acquisition
+  remains disabled.
 
 1. **Sweden** — implemented and user-confirmed in the application.
 2. **France** — implemented; retain a later full-terrain/coverage-edge application report when convenient.
@@ -1399,11 +1461,12 @@ mostly been exhausted.
 
 ## Notes
 
-- Implementation state was synchronized with the `feature/geo-terrain` working tree on 2026-09-23.
-- The current catalogue has **30 datasets**, including Slovakia DMR 5.0,
+- Canada and catalogue counts were synchronized with the main worktree on
+  2026-10-17; other source evidence retains its earlier validation dates.
+- The current catalogue has **31 datasets**, including Canada HRDEM 1 m, Slovakia DMR 5.0,
   Wallonia MNT, Sweden Markhöjdmodell, France MNT LiDAR HD, GEDTM30 and the
   Portugal user-managed file source.
-- `world-hgt` is both a selectable file source and the configured fallback for unresolved service samples; local files take precedence over automatic Mapzen downloads.
+- `world-hgt` is a selectable file source and the default fallback; GEDTM30 is also an approved selectable fallback. Local HGT files take precedence over automatic Mapzen downloads.
 - Resolution listed here means published/source spacing or TSRE request/cache spacing as explicitly stated; a dense request grid does not imply equivalent native survey accuracy.
 - Web Mercator “metres” are map metres. TSRE compensates footprint size by latitude for sampling, and several catalogue names explicitly say “request grid” to avoid implying uniform native resolution.
 - DTM/bare-earth products are preferred over DSM products for TSRE, but the global Mapzen fallback is a heterogeneous composite and should not be described as a uniform DTM survey.

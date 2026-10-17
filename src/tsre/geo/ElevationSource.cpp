@@ -732,6 +732,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.stacEndpoint = QUrl(download.value("endpoint").toString());
         d.stacCollection = download.value("collection").toString();
         d.stacResolutionProperty = download.value("resolutionProperty").toString();
+        d.stacAssetKey = download.value("assetKey").toString();
         d.stacAssetEpsg = download.value("assetCrs").toInt();
         d.stacSearchRoot = download.value("searchRoot").toBool();
         d.stacRange = download.value("range").toBool();
@@ -837,6 +838,9 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
             && (!d.stacSearchRoot || d.stacCollection.isEmpty())
             && (!download.contains("searchRoot") || download.value("searchRoot").isBool())
             && (!download.contains("range") || download.value("range").isBool())
+            && (!download.contains("assetKey")
+                || (d.stacRange && download.value("assetKey").isString()
+                    && safeName.match(d.stacAssetKey).hasMatch()))
             && (!download.contains("assetCrs")
                 || (download.value("assetCrs").isDouble() && d.stacAssetEpsg > 0))
             && (!download.contains("resolutionProperty")

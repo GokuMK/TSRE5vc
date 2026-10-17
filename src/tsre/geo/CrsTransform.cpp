@@ -116,6 +116,16 @@ CrsTransform::CrsTransform(int epsg)
         return;
     }
 
+    if (epsg == 3979) {
+        // NAD83(CSRS) / Canada Atlas Lambert, as published in NRCan's COGs.
+        // Geographic input is treated as NAD83(CSRS); no epoch/datum shift.
+        configureLambertConformalConic(
+            Grs80SemiMajorAxis, Grs80InverseFlattening,
+            49.0, -95.0, 49.0, 77.0, 0, 0,
+            38, 85, -142, -50);
+        return;
+    }
+
     if (epsg == 2154) {
         // RGF93 v1 / Lambert-93. RGF93 and ETRS89 use the GRS80 ellipsoid;
         // no horizontal datum grid is required for this elevation workflow.

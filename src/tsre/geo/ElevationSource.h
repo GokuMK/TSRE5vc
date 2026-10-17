@@ -12,7 +12,7 @@ struct Dataset {
     QString id, name, coverage, format, verticalDatum, axisX, axisY, style;
     QString requestFormat, scaleAxisX, scaleAxisY;
     QString directory, fileGrid, downloadUrlTemplate, downloadCompression;
-    QString stacCollection, stacResolutionProperty, fileRevision;
+    QString stacCollection, stacResolutionProperty, stacAssetKey, fileRevision;
     QString coordinateTransform, transformAssetPath, transformAssetEntry;
     QString attribution, license, information;
     QString provider = QStringLiteral("wcs-2.0.1");

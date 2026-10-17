@@ -205,6 +205,39 @@
       ]
     },
     {
+      "id": "ca.nrcan.hrdem1",
+      "name": "Canada - NRCan HRDEM Mosaic terrain 1 m (STAC/COG)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "stac",
+      "directory": "ca_nrcan_hrdem1",
+      "crs": 3979,
+      "verticalDatum": "CGVD2013 orthometric height",
+      "resolution": 1,
+      "bounds": [-2500000, -1000000, 3050000, 3000000],
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "download": {
+        "endpoint": "https://datacube.services.geo.ca/stac/api",
+        "collection": "hrdem-mosaic-1m",
+        "assetKey": "dtm",
+        "range": true
+      },
+      "attribution": "Natural Resources Canada and contributing elevation data partners - CanElevation HRDEM Mosaic",
+      "attributionUrl": "https://open.canada.ca/data/en/dataset/0fe65119-e96e-4a57-8bfe-9d9245fba06b",
+      "license": "Open Government Licence - Canada 2.0",
+      "information": "Bare-earth terrain at 1 m spacing where Canadian LiDAR coverage is available. TSRE downloads only the required COG blocks. Gaps use your selected global fallback, whose height datum may differ from CGVD2013. This source is not available for distant terrain.",
+      "informationUrl": "https://open.canada.ca/data/en/dataset/0fe65119-e96e-4a57-8bfe-9d9245fba06b",
+      "downloadPage": "https://datacube.services.geo.ca/en/viewer/elevation/index.html",
+      "notes": [
+        "STAC selects only the dtm asset from the 1 m mosaic collection; DSM and hillshade products are never substituted. A mosaic file's rectangular extent is not a valid-data coverage mask.",
+        "The inspected BigTIFF COGs use Float32, LZW and 512 x 512 blocks. A cold 500 km mosaic cache requires roughly 11 MiB of block index tables before fetching terrain blocks. Whole mosaic files are not downloaded.",
+        "The COG header supplies the authoritative native CRS, resolution and bounds. STAC update timestamps separate revised assets in the range cache.",
+        "EPSG:3979 uses the existing ellipsoidal Lambert Conformal Conic projection. Geographic input is treated as NAD83(CSRS) without an epoch-dependent horizontal datum transformation; no vertical datum conversion is applied.",
+        "The existing global fallback selection and its independent height offset remain in effect. Detailed-source distant terrain use remains disabled."
+      ]
+    },
+    {
       "id": "se.lantmateriet.markhojdmodell1",
       "name": "Sweden - Lantmäteriet Markhöjdmodell 1 m (authenticated STAC/COG)",
       "provider": "file",

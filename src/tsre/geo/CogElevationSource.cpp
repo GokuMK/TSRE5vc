@@ -462,7 +462,8 @@ private:
         }
         return loadCogTables(offsets,counts,asset.index,error);
     }
-    bool loadRangeAsset(Asset &asset,const QVector<XY> &points,std::atomic_bool &cancel,QString &error){
+    bool loadRangeAsset(Asset &asset,const QVector<XY> &points,std::atomic_bool &cancel,QString &error,
+                        bool clipToRaster=false){
         QByteArray indexBytes;
         if(QFileInfo(asset.localFile).isFile())indexBytes=read(asset.localFile,0,IndexBytes);
         else indexBytes=read(asset.parts+"/index.bin");
@@ -473,10 +474,23 @@ private:
             if(cancel)return false;if(response.isEmpty()||!response[0].error.isEmpty()){error=response.isEmpty()?QStringLiteral("Cannot read COG index"):response[0].error;return false;}
             indexBytes=response[0].bytes;if(!save(asset.parts+"/index.bin",indexBytes)){error=QStringLiteral("Cannot store COG index");return false;}
         }
-        if(!parseCogIndex(indexBytes,dataset.epsg,dataset.resolution,dataset.cogOverviewFactor,asset.index,error)
-                ||!ensureCogTables(asset,indexBytes,cancel,error))return false;
+        if(!parseCogIndex(indexBytes,dataset.epsg,dataset.resolution,dataset.cogOverviewFactor,asset.index,error))return false;
+        QVector<XY> window=points;
+        if(clipToRaster){
+            // STAC discovery supplies geographic footprints, but the COG is
+            // authoritative for projected bounds, resolution and registration.
+            PointBounds requested;for(XY xy:points)requested.include(xy);
+            const auto &t=asset.index.transform;
+            const double left=std::max(requested.minX,t[0]+t[1]*.5);
+            const double right=std::min(requested.maxX,t[0]+t[1]*(asset.index.width-.5));
+            const double bottom=std::max(requested.minY,t[3]+t[5]*(asset.index.height-.5));
+            const double top=std::min(requested.maxY,t[3]+t[5]*.5);
+            if(!requested.valid||left>right||bottom>top)return true;
+            window={{left,bottom},{right,top}};
+        }
+        if(!ensureCogTables(asset,indexBytes,cancel,error))return false;
         double minCol=std::numeric_limits<double>::infinity(),maxCol=-minCol,minRow=minCol,maxRow=-minCol;
-        for(XY xy:points){const double col=(xy.x-asset.index.transform[0])/asset.index.transform[1]-.5;
+        for(XY xy:window){const double col=(xy.x-asset.index.transform[0])/asset.index.transform[1]-.5;
             const double row=(xy.y-asset.index.transform[3])/asset.index.transform[5]-.5;
             if(col<0||row<0||col>asset.index.width-1||row>asset.index.height-1){
                 error=QStringLiteral("COG tile does not cover its configured grid cell");return false;}
@@ -741,45 +755,43 @@ private:
         }
         struct Remote{QString name,path;QUrl url;};QVector<Remote> remote;int prepared=0;
         for(const auto &feature:latest){
-            const auto properties=feature.value("properties").toObject();QJsonObject selected;
-            const auto object=feature.value("assets").toObject();
-            for(auto it=object.begin();it!=object.end();++it){const auto asset=it.value().toObject();
-                const double resolution=dataset.stacResolutionProperty.isEmpty()
-                    ?asset.value("eo:gsd").toDouble(-1)
-                    :properties.value(dataset.stacResolutionProperty).toDouble(-1);
-                const int expected=dataset.stacAssetEpsg?dataset.stacAssetEpsg:dataset.epsg;
-                const int assetEpsg=asset.value("proj:epsg").toInt(properties.value("proj:epsg").toInt());
-                if(std::abs(resolution-dataset.resolution)<1e-9&&assetEpsg==expected
-                        &&asset.value("type").toString().contains("profile=cloud-optimized")){
-                    selected=asset;break;}}
+            const auto properties=feature.value("properties").toObject();
+            const QJsonObject selected=selectStacElevationAsset(dataset,feature);
             if(selected.isEmpty())continue;
             const QUrl assetUrl(selected.value("href").toString());const QString fileName=QFileInfo(assetUrl.path()).fileName();
             if(assetUrl.scheme()!="https"||assetUrl.host().isEmpty()||fileName.isEmpty())continue;
             const QString localFile=QDir(root).filePath(dataset.directory+'/'+fileName);
             if(dataset.stacRange){
-                QJsonArray box=selected.value("proj:bbox").toArray();
-                if(box.size()!=4)box=properties.value("proj:bbox").toArray();
-                if(box.size()!=4)continue;
-                const double left=box[0].toDouble(std::numeric_limits<double>::quiet_NaN());
-                const double bottom=box[1].toDouble(std::numeric_limits<double>::quiet_NaN());
-                const double right=box[2].toDouble(std::numeric_limits<double>::quiet_NaN());
-                const double top=box[3].toDouble(std::numeric_limits<double>::quiet_NaN());
-                const double inset=dataset.resolution*.5;
-                PointBounds window;const double x0=std::max(requested.minX-margin,left+inset);
-                const double y0=std::max(requested.minY-margin,bottom+inset);
-                const double x1=std::min(requested.maxX+margin,right-inset);
-                const double y1=std::min(requested.maxY+margin,top-inset);
-                if(!std::isfinite(x0)||!std::isfinite(y0)||!std::isfinite(x1)||!std::isfinite(y1)
-                        ||x1<x0||y1<y0)continue;
-                window.include(XY{x0,y0});window.include(XY{x1,y1});
+                const bool headerGrid=!dataset.stacAssetKey.isEmpty();
+                PointBounds window;
+                if(headerGrid){
+                    window.include(XY{requested.minX-margin,requested.minY-margin});
+                    window.include(XY{requested.maxX+margin,requested.maxY+margin});
+                }else{
+                    QJsonArray box=selected.value("proj:bbox").toArray();
+                    if(box.size()!=4)box=properties.value("proj:bbox").toArray();
+                    if(box.size()!=4)continue;
+                    const double left=box[0].toDouble(std::numeric_limits<double>::quiet_NaN());
+                    const double bottom=box[1].toDouble(std::numeric_limits<double>::quiet_NaN());
+                    const double right=box[2].toDouble(std::numeric_limits<double>::quiet_NaN());
+                    const double top=box[3].toDouble(std::numeric_limits<double>::quiet_NaN());
+                    const double inset=dataset.resolution*.5;
+                    const double x0=std::max(requested.minX-margin,left+inset);
+                    const double y0=std::max(requested.minY-margin,bottom+inset);
+                    const double x1=std::min(requested.maxX+margin,right-inset);
+                    const double y1=std::min(requested.maxY+margin,top-inset);
+                    if(!std::isfinite(x0)||!std::isfinite(y0)||!std::isfinite(x1)||!std::isfinite(y1)
+                            ||x1<x0||y1<y0)continue;
+                    window.include(XY{x0,y0});window.include(XY{x1,y1});
+                }
                 Asset asset;asset.name=fileName;asset.url=assetUrl;asset.localFile=localFile;
-                const QByteArray revisionMaterial=assetUrl.toEncoded()+revisionTime(feature).toUtf8();
+                const QByteArray revisionMaterial=assetUrl.toEncoded()+stacElevationRevision(feature).toUtf8();
                 const QString revision=QString::fromLatin1(QCryptographicHash::hash(
                     revisionMaterial,QCryptographicHash::Sha256).toHex().left(16));
                 asset.parts=localFile+".parts/"+revision;
-                QString issue;if(!loadRangeAsset(asset,window.corners(),cancel,issue))
+                QString issue;if(!loadRangeAsset(asset,window.corners(),cancel,issue,headerGrid))
                     report.issue(QStringLiteral("%1: %2").arg(fileName,issue));
-                else assets.push_back(std::move(asset));
+                else if(asset.raster.width>0)assets.push_back(std::move(asset));
                 if(progress)progress(++prepared,latest.size(),QStringLiteral("Preparing STAC COG elevation files"));
                 continue;
             }
@@ -814,5 +826,37 @@ private:
 std::unique_ptr<Source> createCogElevationSource(const QString &root,
         const Dataset &dataset,Report &report,const QMap<QString,QString> &secrets){
     return std::make_unique<CogFileSource>(root,dataset,report,secrets);
+}
+
+QJsonObject selectStacElevationAsset(const Dataset &dataset,const QJsonObject &feature){
+    const auto properties=feature.value("properties").toObject();
+    const auto assets=feature.value("assets").toObject();
+    const int expected=dataset.stacAssetEpsg?dataset.stacAssetEpsg:dataset.epsg;
+    for(auto it=assets.begin();it!=assets.end();++it){
+        if(!dataset.stacAssetKey.isEmpty()&&it.key()!=dataset.stacAssetKey)continue;
+        const auto asset=it.value().toObject();
+        if(!asset.value("type").toString().contains("profile=cloud-optimized"))continue;
+        const int epsg=asset.value("proj:epsg").toInt(properties.value("proj:epsg").toInt());
+        if(epsg!=expected)continue;
+        const double resolution=dataset.stacResolutionProperty.isEmpty()
+            ?asset.value("eo:gsd").toDouble(-1)
+            :properties.value(dataset.stacResolutionProperty).toDouble(-1);
+        // Named range assets can omit GSD: parseCogIndex still requires the
+        // configured resolution and CRS in the actual raster before sampling.
+        const bool missingResolution=dataset.stacResolutionProperty.isEmpty()
+            ?!asset.contains("eo:gsd"):!properties.contains(dataset.stacResolutionProperty);
+        if(std::abs(resolution-dataset.resolution)<1e-9
+                ||(!dataset.stacAssetKey.isEmpty()&&dataset.stacRange&&missingResolution))return asset;
+    }
+    return {};
+}
+
+QString stacElevationRevision(const QJsonObject &feature){
+    const auto properties=feature.value("properties").toObject();
+    const QString created=properties.value("created").toString();
+    QString revision=created.isEmpty()?properties.value("datetime").toString():created;
+    const QString updated=properties.value("updated").toString();
+    if(!updated.isEmpty())revision+='|'+updated;
+    return revision;
 }
 }

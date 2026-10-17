@@ -1,6 +1,7 @@
 # Elevation: current implementation and review
 
-Updated 2026-09-23 for the current `feature/geo-terrain` working tree.
+Updated 2026-10-17 for Canada HRDEM in the main worktree; older milestones
+refer to the `feature/geo-terrain` working tree.
 Start with the [agent handoff guide](README.md) for reading order, code map and
 source-addition workflow. These follow-ups are committed together with the guide.
 
@@ -8,6 +9,24 @@ Newest follow-ups appear first. Sections headed as the original review retain
 historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
+
+## Canada HRDEM Mosaic 1 m, 2026-10-17
+
+- `ca.nrcan.hrdem1` adds NRCan's public bare-earth 1 m mosaic through STAC and
+  range COGs. The existing global source selection handles gaps; no MRDEM entry
+  is added. HRDEM remains unapproved for fallback and distant-terrain selection.
+- EPSG:3979 reuses the existing Lambert Conformal Conic implementation. Five
+  independent controls agree within 1 mm for the projection; no epoch-dependent
+  horizontal datum or vertical datum transformation is added.
+- Generic `download.assetKey` selects the DTM explicitly. Named range assets
+  obtain their grid from validated COG headers, avoiding missing STAC resolution
+  and projected bounds. The `updated` timestamp separates revised cached assets.
+- All 4,194,304 samples in an Ottawa terrain-sized probe came from HRDEM. Its
+  repeat used 36 cached blocks with zero raster downloads. A 500 km mosaic seam
+  used both adjacent files without fallback; a Manitoba void correctly used HGT.
+- **475 focused Release checks pass**, and the user confirmed the source works
+  well in the application. Full details are in
+  [the Canada report](canada-elevation-research.md).
 
 ## Distant-terrain source gate, 2026-09-23
 
