@@ -243,6 +243,17 @@ Open Rails rules kept:
 - To tune (user, later): the beams' strength (BeamLightAtReach) and the
   lamps' size and brightness.
 
+- Fog with moving or turning camera: the beams' (and every lamp's) light
+  dragged with the camera; fixed in the fog volume (task 33, "Lamps out of
+  the history", `328b2c5`).
+- Lights seen through the body (user, 2026-10-17, not reproduced since):
+  no local light has shadows, and the lamps' glow emitters light the fog
+  through the signals' fog grid at its 50 times gain, so a lamp behind the
+  car can light the fog in front of it. If seen again, the cheap fix: leave
+  the lamps out of the fog grid (the beams light the fog) or let them light
+  the fog in front of them only. Shadows from local lights are task 21's
+  later work.
+
 ## Later
 
 - Lights attached to animated parts (`ShapeIndex`, `ShapeHierarchy`) and
