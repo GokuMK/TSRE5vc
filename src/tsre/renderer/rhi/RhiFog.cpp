@@ -737,7 +737,7 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     const bool shadows = Game::shadowsEnabled > 0;
     const bool lamps = Game::localLightsEnabled && lightData != nullptr && lightCells != nullptr
             && lightIndices != nullptr && !lightGrid.empty();
-    prepareSignalGrid(updates);
+    // The signals' grid: prepared with the lamps (prepareLights).
     const bool signalLights = signalData != nullptr && signalCells != nullptr && signalIndices != nullptr
             && !signalGrid.empty();
     // The clouds' weather and near cover map, for the rain under them.

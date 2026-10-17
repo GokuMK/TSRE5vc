@@ -109,7 +109,9 @@ The script uses `xvfb-run` when no display is available. Cases files:
 Cases file keys: `width`, `height`, `output`, `pickGrid`, `timingFrames`,
 `diffTolerance`, `hud`, `compass`, `pointer`, `shadows`, `hideAll` (the
 editor's helpers off: TrackDB and section lines, track items, interactives,
-grids, markers, compass, pointer), `settle`
+grids, markers, compass, pointer), `probes` (default on; off leaves out
+the frames of the pick and pointer probes after each view, for views
+that move the camera frame by frame), `settle`
 (`minFrames`, `stableFrames`, `maxFrames`, `maxSeconds`), `thresholds`, and
 `views`. A view uses the route start position unless it gives `tile` and `pos`;
 `offset` moves the start position and `rot` is `[yaw, pitch]` in radians, with

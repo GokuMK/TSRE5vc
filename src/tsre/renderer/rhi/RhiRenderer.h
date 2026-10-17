@@ -1046,6 +1046,10 @@ private:
     Attachments selection;
     QByteArray selectionIds;
     bool selectionRead = false;
+    // The flush beginSelection makes of the view: no clouds' or fog's
+    // preparation in it, which would take their state (the fog's history,
+    // its signal grid) from a pass without the view's items.
+    bool selectionFlush = false;
     int selectionViewport[4] = {0, 0, 0, 0};
 
     TargetState targets[TargetCount];

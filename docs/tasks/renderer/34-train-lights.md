@@ -243,10 +243,11 @@ Open Rails rules kept:
 - To tune (user, later): the beams' strength (BeamLightAtReach) and the
   lamps' size and brightness.
 
-- Fog with moving or turning camera: the beams' (and every lamp's) light
-  drags with the camera (the fog volume's history, task 33). Open: three
-  fixes there made it worse and were reverted (see task 33, "Lamps' light
-  dragged by the camera").
+- Fog with moving or turning camera (user, 2026-10-17): the lamps' light in
+  the fog strobed or dragged with the camera. The lamps' glow emitters
+  light the fog through the signals' grid, which was gathered from a draw
+  queue already taken, so only now and then; now gathered with the lamps,
+  every frame (task 33, "Lamps' light in the fog strobing and dragged").
 - Lights seen through the body (user, 2026-10-17, not reproduced since):
   no local light has shadows, and the lamps' glow emitters light the fog
   through the signals' fog grid at its 50 times gain, so a lamp behind the

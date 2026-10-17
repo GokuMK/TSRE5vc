@@ -203,6 +203,11 @@ struct Options {
     bool fpsHud = false;
     bool compass = true;
     bool pointer = false;
+    // The pick and pointer probes after each view render frames of their
+    // own (a selection pass, a frame for the pointer's depth): off for
+    // sequences of views (the camera moved frame by frame), which they
+    // would interleave with frames the editor never draws.
+    bool probes = true;
     // -1 keeps the profile setting.
     int shadows = -1;
     // Editor view toggles that have no profile setting.
@@ -294,6 +299,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.fpsHud = root.value("fpsHud").toBool(options.fpsHud);
     options.compass = root.value("compass").toBool(options.compass);
     options.pointer = root.value("pointer").toBool(options.pointer);
+    options.probes = root.value("probes").toBool(options.probes);
     if (root.contains("shadows"))
         options.shadows = root.value("shadows").toBool() ? 1 : 0;
     options.pivotPoints = root.value("pivotPoints").toBool(options.pivotPoints);
@@ -850,9 +856,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             for (int column = 0; column < options.pickColumns; ++column)
                 points.push_back(QPoint((2 * column + 1) * image.width() / (2 * options.pickColumns),
                                         (2 * row + 1) * image.height() / (2 * options.pickRows)));
-        const QVector<quint32> picks = widget.probeSelectionIds(points);
+        // No selection pass without points to pick.
+        QVector<quint32> picks;
+        if (options.probes && !points.isEmpty())
+            picks = widget.probeSelectionIds(points);
         // The 3D pointer under the centre, from the depth read there.
-        const QVector3D pointer = widget.probePointer(QPoint(image.width() / 2, image.height() / 2));
+        QVector3D pointer;
+        if (options.probes)
+            pointer = widget.probePointer(QPoint(image.width() / 2, image.height() / 2));
 
         const QString imageName = spec.name + ".png";
         image.save(QDir(outputDir).filePath(imageName));

@@ -572,13 +572,11 @@ the terrain cannot explain.
   lamps do, bright halos lowered the exposure, shortened the reach, and the
   halos went.
 
-### Lamps' light dragged by the camera (open, user, 2026-10-17)
+### Lamps' light in the fog strobing and dragged (user, 2026-10-17)
 
 - Moving or turning the camera in fog with bright lamps (glTF lamps, the
-  train lights' beams of task 34) drags their lit fog with the camera:
-  the lamps' light goes into the cells with the sun's and the sky's and is
-  blended 95 % with last frame's cells moved with the camera, and a lamp
-  lights only a few cells. Signals are too dim to show it.
+  train lights' beams of task 34) broke the frame: the lit fog dragged with
+  the camera, parts of it dark.
 - Three fixes made it worse and were reverted (user, 2026-10-17):
   - `328b2c5`, the lamps' light in a volume of its own, outside the
     history, through the cells' averaged density: newly seen parts of the
@@ -586,12 +584,31 @@ the terrain cannot explain.
   - `1679e64`, through this frame's density: the lamps strobed.
   - `3dd9094`, through the density at sixteen fixed points: still
     strobing, everywhere.
-- The captures could show none of it: the capture harness renders
-  offscreen, each frame waited for and read back (about 10 a second), while
-  the editor runs 30 to 60 frames a second with frames in flight. Next:
-  make the harness see what the editor shows (on screen, frames not waited
-  for, the camera turned frame by frame, frames saved without stalling),
-  reproduce the drag, then fix it.
+- The cause, found once the capture harness stopped hiding it: the
+  signals' fog grid (the glow emitters of signal and train lamps,
+  `prepareSignalGrid`) was gathered in the fog's preparation, from the draw
+  queue the views drawn before it had already taken: empty in most frames,
+  full only in frames without those views first (the capture's pointer
+  read; in the editor the frames reading the pointer). So the fog had the
+  signals' and train lamps' light only now and then: through the history a
+  weak halo left behind, fresh each frame (`1679e64`, `3dd9094`) a strobe.
+  The glTF lamps' grid is gathered with the lamps (`prepareLights`) and
+  stayed steady (user: "in your fix, glb lamps doesn't blink").
+- Fix: the signals' grid gathered with the lamps' in `prepareLights`, every
+  frame. The flush `beginSelection` makes of the view no longer prepares
+  the clouds and the fog either: it took the fog's history from a pass
+  without the view's items.
+- Harness: a capture's probes (a selection pass and a pointer read per
+  view) are frames of their own between a sequence's views, and the only
+  ones that had the signals' grid; `"probes": false` leaves them out of
+  motion sequences.
+- Captures (CMK, 1:00, valley fog and ground mist, the user's profile, the
+  clock running): 40 frames from a still camera within 0.01 of 255 of each
+  other, probes on or off; at the user's view the camera turned 0.05 rad a
+  frame, 16 frames right and 32 back left: frames at the same angle from
+  the two directions within 0.4 of 255 on average (neighbouring angles 5),
+  no dark parts. On screen, with frames in flight: the user to confirm,
+  also whether the glTF lamps' drag first reported is gone.
 
 ## Step 5: patches and motion (2026-10-15)
 
