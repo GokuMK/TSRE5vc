@@ -1079,6 +1079,9 @@ int TsreTests::runSettingsSuite(bool verbose) {
           "extension-provider-contributes-definition");
 
     {
+        // Simulating startup copies core.system.consoleOutput (false by
+        // default) into Game; the test runner's console output is kept.
+        const QScopedValueRollback<bool> console(Game::consoleOutput);
         const int oldPatch=TerrainMaterialMap::OutputSide, oldBake=TerrainMaterialMap::BakedSide;
         const bool oldEnabled=TerrainMaterialMap::Enabled, oldValidation=TerrainMaterialMap::ValidateBakeOnLoad;
         QJsonObject document=applicationSettings.document();
