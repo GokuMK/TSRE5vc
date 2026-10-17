@@ -17,8 +17,6 @@
 class ReadFile {
 public:
     static FileBuffer* read(QFile* file);
-    // The file this thread read last (the units audit, ParserX.cpp).
-    static QString lastPath();
     static FileBuffer* readRAW(QFile* file);
 private:
     

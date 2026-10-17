@@ -59,7 +59,7 @@ public:
 
 private:
     static float ReadNumber(FileBuffer* bufor, bool inside, bool *ok, Units::Quantity quantity,
-                            QStringView defaultUnit, QString *unit);
+                            QStringView defaultUnit);
 };
 
 #endif	/* PARSERX_H */

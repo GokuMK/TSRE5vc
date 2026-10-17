@@ -82,7 +82,9 @@ and a proposed design for when the task is taken up.
     with typos the old reader hid: `Size ( 2.62mm ... )` (MSTS
     `SERIES2000`) and `( 3.3mm ... )` (OR_PSK `PKP_Rs` wagons) now read in
     millimetres, as Open Rails reads them. Every other difference is in
-    the last digits only (exact now).
+    the last digits only (exact now). The old reader and the audit were
+    removed after the check (they stay in commit 0649fec); `units-content`
+    stays, reading all content.
 - 2026-10-17: temperatures are held in °C (as Open Rails does).
 - Angles (proposed, to confirm): ENG/WAG files give some angles with a
   unit. Open Rails reads an angle without a unit as radians and converts
