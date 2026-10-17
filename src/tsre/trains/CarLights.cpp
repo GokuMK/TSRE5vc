@@ -11,6 +11,7 @@
 #include <tsre/trains/CarLights.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/DiscMesh.h>
+#include <tsre/renderer/LightGrid.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderContext.h>
 #include <tsre/renderer/RenderItem.h>
@@ -31,6 +32,14 @@ constexpr float TrainEmission = 4.0f;
 constexpr float FrontOffset = 0.01f;
 // Lenses of one colour within a cell this wide share a glow splat.
 constexpr float ClusterCell = 0.25f;
+// A beam's spot cone: full light within this share of the cone's
+// half-angle, none beyond the outer share; half at the cone's own edge, as
+// Open Rails' headlight falls off (the shader squares a ramp in the
+// cosine between the two).
+constexpr float BeamInner = 0.7f;
+constexpr float BeamOuter = 1.5f;
+// The size of a headlamp, softening surfaces close to it (metres).
+constexpr float BeamRadius = 0.1f;
 
 float toLinear(float c) {
     return std::pow(std::clamp(c, 0.0f, 1.0f), 2.2f);
@@ -136,6 +145,10 @@ void CarLights::release() {
     for (RenderItem *packet : packets)
         Renderer::retirePacket(packet);
     packets.clear();
+    if (beamPacket != nullptr)
+        Renderer::retirePacket(beamPacket);
+    beamPacket = nullptr;
+    beamReach = 0.0f;
     for (MeshHandle &mesh : meshes)
         Meshes::release(mesh);
     meshes.clear();
@@ -165,6 +178,47 @@ std::vector<CarLights::Lens> CarLights::lenses(const EngLights &lights, const En
         lens.radius = s.radius * 0.5f;
         lens.colour = s.colour;
         out.push_back(lens);
+    }
+    return out;
+}
+
+std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const EngLights::Train &train) {
+    std::vector<RenderItem::Light> out;
+    for (const EngLights::Light &light : lights.lights) {
+        if (light.type != EngLights::Cone || light.states.isEmpty() || !EngLights::isOn(light, train))
+            continue;
+        const EngLights::State &s = light.states[0];
+        const float reach = s.reach();
+        const float alpha = (s.colour >> 24) / 255.0f;
+        if (reach <= 0.0f || alpha <= 0.0f)
+            continue;
+        float d[3];
+        s.direction(d);
+        RenderItem::Light beam;
+        beam.type = RenderItem::Light::SPOT;
+        // The shape's root mirrors x, as for the lenses.
+        beam.position[0] = -s.position[0];
+        beam.position[1] = s.position[1];
+        beam.position[2] = s.position[2];
+        beam.direction[0] = -d[0];
+        beam.direction[1] = d[1];
+        beam.direction[2] = d[2];
+        const float rgb[3] = {toLinear(((s.colour >> 16) & 255) / 255.0f), toLinear(((s.colour >> 8) & 255) / 255.0f),
+                              toLinear((s.colour & 255) / 255.0f)};
+        const float peak = std::max({rgb[0], rgb[1], rgb[2]});
+        if (peak <= 0.0f)
+            continue;
+        for (int c = 0; c < 3; ++c)
+            beam.color[c] = rgb[c] / peak;
+        // Open Rails lights a surface facing the beam to alpha x colour x
+        // (1 - d / reach); matched at half the reach (task 21's units: I
+        // lights it to I / (pi d^2)).
+        beam.intensity = float(M_PI) * alpha * peak * reach * reach / 8.0f;
+        beam.range = std::min(reach, LightGrid::MaxReach);
+        beam.radius = BeamRadius;
+        beam.innerCone = BeamInner * s.halfAngle();
+        beam.outerCone = std::min(BeamOuter * s.halfAngle(), float(M_PI) * 0.5f);
+        out.push_back(beam);
     }
     return out;
 }
@@ -240,6 +294,17 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train) {
         }
         packets.push_back(r);
     }
+    // Beams light only with local lights (task 21).
+    if (emissive) {
+        const std::vector<RenderItem::Light> lit = beams(lights, train);
+        if (!lit.empty()) {
+            beamPacket = new RenderItem();
+            for (const RenderItem::Light &beam : lit) {
+                beamPacket->lights.push_back(beam);
+                beamReach = std::max(beamReach, beam.range);
+            }
+        }
+    }
 }
 
 void CarLights::push(RenderQueue &queue, const EngLights &lights, const EngLights::Train &train,
@@ -251,12 +316,17 @@ void CarLights::push(RenderQueue &queue, const EngLights &lights, const EngLight
         emissive = wantEmissive;
         build(lights, train);
     }
-    if (packets.isEmpty())
-        return;
     // Lamps cast no shadows.
     const bool casting = queue.shadowCastingEnabled();
     queue.setShadowCasting(false);
     for (RenderItem *packet : packets)
         queue.submit(packet, selectionId);
     queue.setShadowCasting(casting);
+    if (beamPacket != nullptr) {
+        // As far as the cones reach (the grid's default is 30 m).
+        const float reach = queue.lightReach();
+        queue.setLightReach(beamReach);
+        queue.submit(beamPacket, selectionId);
+        queue.setLightReach(reach);
+    }
 }

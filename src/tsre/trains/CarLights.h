@@ -12,20 +12,22 @@
 #define CARLIGHTS_H
 
 #include <tsre/renderer/MeshHandle.h>
+#include <tsre/renderer/RenderItem.h>
 #include <tsre/trains/EngLights.h>
 #include <QVector>
 #include <QtGlobal>
 #include <vector>
 
-class RenderItem;
 class RenderQueue;
 
 // The lamps of a car (task renderer 34): a lens for each lit glow light, at
 // its position on the car facing the way it shines, the lenses of one
 // colour merged into one mesh. On the QRhi renderer with local lights on
 // they are emissive, glow through the bloom and bring glow splats for the
-// distance (one per cluster of lenses, not one per LED dot); otherwise they
-// are plain discs in the light's colour.
+// distance (one per cluster of lenses, not one per LED dot), and the lit
+// cones are spot lights of the light grid (headlight beams lighting the
+// track and the mist); otherwise the lamps are plain discs in the light's
+// colour and there are no beams.
 class CarLights {
 public:
     CarLights() = default;
@@ -46,6 +48,9 @@ public:
     };
     // The lenses of the lit glow lights (their first state).
     static std::vector<Lens> lenses(const EngLights &lights, const EngLights::Train &train);
+    // The beams of the lit cones (their first state), in the car shape's
+    // drawing space.
+    static std::vector<RenderItem::Light> beams(const EngLights &lights, const EngLights::Train &train);
 
 private:
     const EngLights *builtLights = nullptr;
@@ -54,6 +59,10 @@ private:
     bool emissive = false;
     QVector<RenderItem *> packets;
     QVector<MeshHandle> meshes;
+    // The beams, on a packet without a mesh: gathered with the lights, never
+    // drawn, so a car out of view still lights the track ahead of it.
+    RenderItem *beamPacket = nullptr;
+    float beamReach = 0.0f;
     void build(const EngLights &lights, const EngLights::Train &train);
     void release();
 };

@@ -203,7 +203,8 @@ Open Rails rules kept:
 |---|---|---|
 | Merge | `746de49` | `feature/simulation` merged first, so the lights build on its `Eng` and `Consist`. |
 | 1. Parser and state | `053234b`, this change | `EngLights` (reader, conditions, test state); kept as text, read on first use (`28af5fe` read the file again, replaced); suite `eng-lights`. |
-| 2. Lamps | this commit | `CarLights`; `Consist::lightsTrain` (place in the consist); day and weather set by the editor each frame. |
+| 2. Lamps | `a08ec0b` | `CarLights`; `Consist::lightsTrain` (place in the consist); day and weather set by the editor each frame. |
+| 3. Beams | this commit | `CarLights::beams`: spot lights of the lit cones on a packet without a mesh, reaching the cones' reach. |
 
 - Lamps are placed through the shape's root, which both shape loaders draw
   as an x mirror (matrix 0's own transform left out): a light at (x, y, z)
@@ -218,6 +219,20 @@ Open Rails rules kept:
   ones): at night the three white lamps of the head signal at the front
   and the red tail lamps at the back glow; by noon they show lit in their
   housings; OpenGL draws the lamps' shapes in plain colour.
+- Beams: a spot light per lit cone at the cone's place (x mirrored), full
+  within 0.7 of its half-angle and none beyond 1.5 of it (half at the
+  cone's edge, as Open Rails' headlight); strength pi alpha D^2 / 8, reach
+  D (the car asks for it, at most 250 m). They are on a packet without a
+  mesh, submitted with the lamps: gathered with the lights, never drawn,
+  so a locomotive out of view still lights the track ahead. QRhi with
+  local lights only; the lamps' daylight rule (3 % by day).
+- Captures (CMK, 22:00 and 1:00 in ground mist): the Vectron's long beam
+  (135 m) lights the track from about 11 m ahead (the cone, 3.5 m up,
+  reaches the ground there) and shows as a cone of light in the mist,
+  from its place 2.3 m ahead of the cab (as the ENG file puts it).
+- To tune (user, later): the beam saturates the track white at night
+  (about the light of a street lamp under it at 20 m, more nearer); the
+  lamps' size and brightness.
 
 ## Later
 

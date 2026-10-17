@@ -300,6 +300,26 @@ int TsreTests::runEngLightsSuite(bool verbose) {
                    "a tail lamp: a centimetre behind, facing backwards");
     }
 
+    // Beams: spot lights of the lit cones, reaching as far as the cones,
+    // as bright as Open Rails' headlight at half the reach.
+    const std::vector<RenderItem::Light> beams = CarLights::beams(lights, standard);
+    test.check(beams.size() == 1, "one beam for the lit cone");
+    if (beams.size() == 1) {
+        const RenderItem::Light &b = beams[0];
+        const float half = float(M_PI) / 12.0f, reach = 35.0f / std::sin(half);
+        const float alpha = 0x85 / 255.0f;
+        test.check(b.type == RenderItem::Light::SPOT && near(b.position[0], -0.5f) && near(b.position[1], 3.5f)
+                       && near(b.position[2], 11.0f) && near(b.direction[1], -std::sin(5.0f * float(M_PI) / 180.0f))
+                       && b.direction[2] > 0.99f,
+                   "the beam at the cone's place (x mirrored), shining forward and a little down");
+        test.check(near(b.range, reach, 1e-2f) && near(b.intensity, float(M_PI) * alpha * reach * reach / 8.0f, 1.0f)
+                       && near(b.innerCone, 0.7f * half) && near(b.outerCone, 1.5f * half) && near(b.color[0], 1.0f),
+                   "its reach (135 m), strength and cone");
+    }
+    const std::vector<RenderItem::Light> back = CarLights::beams(lights, flipped);
+    test.check(back.size() == 1 && back[0].position[2] < -10.0f && back[0].direction[2] < -0.99f,
+               "flipped: the reversed cone's beam, backwards");
+
     // The CMK test train's locomotive, when the content is there.
     const QString vectron = Game::root + "/TRAINS/TRAINSET/PKOR_Vectron";
     if (QFile::exists(vectron + "/ID_6193-490_PL.eng")) {
@@ -328,6 +348,10 @@ int TsreTests::runEngLightsSuite(bool verbose) {
                            && count(flipped, 0, EngLights::Cone, false) == 1
                            && count(flipped, 0, EngLights::Cone, true) == 0,
                        "PKOR_Vectron flipped: the same the other way round");
+            const std::vector<RenderItem::Light> vectronBeams = CarLights::beams(*vectronLights, standard);
+            test.check(vectronBeams.size() == 1 && near(vectronBeams[0].range, 135.2f, 0.1f)
+                           && vectronBeams[0].position[2] > 10.0f,
+                       "PKOR_Vectron at Bright: the long beam (135 m) from the front");
         }
     } else if (verbose) {
         qInfo().noquote() << "[tests:eng-lights] no PKOR_Vectron under" << Game::root;
