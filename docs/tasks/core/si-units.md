@@ -17,6 +17,41 @@ and a proposed design for when the task is taken up.
   system, the locale's number formatting and the plain widgets.
 - 2026-10-17: the unit-suffix naming rule is recommended for new code;
   existing names are not refactored.
+- 2026-10-17 (task started): the readers switch to SI **all at once**,
+  not caller by caller. The change needs no GPU, so it is verified on the
+  headless server by reading the local content before and after the
+  switch and comparing every value.
+- 2026-10-17: files TSRE writes keep their own units: a value read with a
+  unit is written back in that unit, a value read without one is written
+  without one, in MSTS's default unit for that parameter. (The user would
+  rather write SI or the defaults, but not every user would like that.)
+- 2026-10-17: the units shown, by system:
+
+  | Quantity | Metric | Imperial US | Imperial UK |
+  |---|---|---|---|
+  | Length | m | ft | ft |
+  | Distance | km | mi | mi |
+  | Speed | km/h | mph | mph |
+  | Mass | t | short ton | long ton |
+  | Force | kN | lbf | lbf |
+  | Power | kW | hp | hp |
+  | Pressure | bar | psi | psi |
+  | Temperature | °C | °F | °C |
+
+- 2026-10-17: the setting is `core.system.units` (metric, imperial US,
+  imperial UK), its default from the system locale
+  (`QLocale::measurementSystem()`); it replaces the unread `useImperial`.
+- 2026-10-17: temperatures are held in °C (as Open Rails does).
+- Angles (proposed, to confirm): ENG/WAG files give some angles with a
+  unit. Open Rails reads an angle without a unit as radians and converts
+  `deg` (`STFReader`, `UNITS.Angle`: wheel flange angle, boiler angle,
+  steam cylinder crank angles); MSTS's own light `Angle` is in degrees
+  without a unit; local content has `Angle ( ...deg )` (an SD40 ENG) and
+  `MaxTilt ( ...deg )` (a wagon). So the default unit of an angle is the
+  parameter's: the reader converts `deg` and `rad` to radians where a
+  parameter is an angle, and the editors show degrees in every system.
+  TSRE's other angles (world rotations, dyntrack, terrain tools) are not
+  changed by this task.
 
 ## Goal
 
@@ -245,17 +280,19 @@ TSRE does it itself (decision above). What Qt offers as building blocks:
 ## Phases
 
 1. **The module, the setting and tests.** No callers yet.
-2. **The consist editor**, the biggest user. Its fields move to the helper
-   and the units setting. Vehicle values are read to SI. This meets the
-   ENG vehicle-definition refactor (one shared definition per ENG/WAG
-   file, read with `SimisTextReader`, used by the editor's `Eng` and the
-   simulation). That refactor is due before any driving task and should
-   read vehicle values with this converter.
+2. **The readers, all at once, and the consist editor.** `ParserX`'s
+   number readers give SI for every unit they meet, `MstsUnits` and
+   `SmsFile`'s tables become the module's, and every user of the old
+   bases (km/h for mph, kW for hp, tonnes) changes with them. Before the
+   switch, a suite dumps every value the local content gives through
+   TSRE's readers; after it, the same dump is compared, and every
+   difference must be one the switch intends. The consist editor shows
+   its fields through the helper in the user's units. The shapes
+   review's number bugs are fixed in the same pass. This meets the ENG
+   vehicle-definition refactor (driving task 01: one shared definition
+   per ENG/WAG file, read with `SimisTextReader`), which comes after and
+   reads with this converter.
 3. **The route editor's fields**, by the inventory above.
-4. **The readers.** `ParserX::NumberUnit`'s callers are reviewed and moved
-   to the one converter, which changes stored bases (for example km/h to
-   m/s). Each caller's users must be checked. The shapes review's number
-   bugs are fixed in the same pass.
 
 ## Related
 
