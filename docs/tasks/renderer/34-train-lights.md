@@ -145,9 +145,15 @@ Open Rails rules kept:
   light of the light grid at the cone's position and direction, outer
   half-angle `Angle` / 2, inner about 0.7 of it, reaching the cone's reach
   (the car asks for that reach with `setLightReach`, at most 250 m).
-- Strength matched to Open Rails' headlight at half the reach (it lights a
-  surface to alpha x colour x (1 - d / reach)): I = pi alpha D^2 / 8 in task
-  21's units, D the reach; tuned by eye at night.
+- Strength: TSRE's own, not Open Rails' (user, 2026-10-17: our lights are
+  adjusted for our engine): at its reach a beam lights a surface facing it
+  to a faint 0.01 (task 21's units, the sun's light 0.7), I = 0.01 pi D^2,
+  D the reach; shorter beams (dim, shunting) are weaker. Tuned by eye.
+- A cone placed beyond the car's end (half its ENG `Size` length) shines
+  from that end, moved back along the beam: content places cones ahead of
+  the car for Open Rails' headlight (the CMK Vectron's 1.5 m beyond its
+  end, 2.3 m ahead of its lamps), and a beam starting in the air looked
+  wrong in mist (user, 2026-10-17). No ENG change needed.
 - Every train's beams light the scene, not only the player's lead
   locomotive's as in Open Rails: terrain, MSTS shapes, PBR, and the fog
   volume, where lamps already light the mist (task 33), so beams show in
@@ -219,19 +225,22 @@ Open Rails rules kept:
   ones): at night the three white lamps of the head signal at the front
   and the red tail lamps at the back glow; by noon they show lit in their
   housings; OpenGL draws the lamps' shapes in plain colour.
-- Beams: a spot light per lit cone at the cone's place (x mirrored), full
-  within 0.7 of its half-angle and none beyond 1.5 of it (half at the
-  cone's edge, as Open Rails' headlight); strength pi alpha D^2 / 8, reach
-  D (the car asks for it, at most 250 m). They are on a packet without a
+- Beams: a spot light per lit cone at the cone's place (x mirrored), from
+  the car's end at the latest, full within 0.7 of its half-angle and none
+  beyond 1.5 of it (half at the cone's edge, as Open Rails' headlight);
+  strength 0.01 pi D^2 (faint at its reach D), reach D (the car asks for
+  it, at most 250 m). They are on a packet without a
   mesh, submitted with the lamps: gathered with the lights, never drawn,
   so a locomotive out of view still lights the track ahead. QRhi with
   local lights only; the lamps' daylight rule (3 % by day).
 - Captures (CMK, 22:00 and 1:00 in ground mist): the Vectron's long beam
-  (135 m) lights the track from about 11 m ahead (the cone, 3.5 m up,
-  reaches the ground there) and shows as a cone of light in the mist,
-  from its place 2.3 m ahead of the cab (as the ENG file puts it).
-- To tune (user, later): the beam saturates the track white at night
-  (about the light of a street lamp under it at 20 m, more nearer); the
+  (135 m) lights the track from about 10 m ahead of the cab (the cone,
+  3.5 m up, reaches the ground there), ballast and sleepers visible and
+  fading with the distance, and in the mist comes out of the cab's front
+  as a faint cone. The first version (Open Rails' strength, from the
+  cone's place) saturated the track white and started 2.3 m ahead of the
+  lamps in the air.
+- To tune (user, later): the beams' strength (BeamLightAtReach) and the
   lamps' size and brightness.
 
 ## Later

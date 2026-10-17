@@ -301,24 +301,29 @@ int TsreTests::runEngLightsSuite(bool verbose) {
     }
 
     // Beams: spot lights of the lit cones, reaching as far as the cones,
-    // as bright as Open Rails' headlight at half the reach.
-    const std::vector<RenderItem::Light> beams = CarLights::beams(lights, standard);
+    // from the car's end at the latest (the fixture's cone is 1 m beyond
+    // it).
+    const float halfLength = eng.sizez * 0.5f;
+    const std::vector<RenderItem::Light> beams = CarLights::beams(lights, standard, halfLength);
     test.check(beams.size() == 1, "one beam for the lit cone");
     if (beams.size() == 1) {
         const RenderItem::Light &b = beams[0];
         const float half = float(M_PI) / 12.0f, reach = 35.0f / std::sin(half);
-        const float alpha = 0x85 / 255.0f;
-        test.check(b.type == RenderItem::Light::SPOT && near(b.position[0], -0.5f) && near(b.position[1], 3.5f)
-                       && near(b.position[2], 11.0f) && near(b.direction[1], -std::sin(5.0f * float(M_PI) / 180.0f))
-                       && b.direction[2] > 0.99f,
-                   "the beam at the cone's place (x mirrored), shining forward and a little down");
-        test.check(near(b.range, reach, 1e-2f) && near(b.intensity, float(M_PI) * alpha * reach * reach / 8.0f, 1.0f)
+        const float down = 5.0f * float(M_PI) / 180.0f;
+        test.check(near(halfLength, 10.0f) && b.type == RenderItem::Light::SPOT && near(b.position[0], -0.5f)
+                       && near(b.position[2], 10.0f) && near(b.position[1], 3.5f + std::tan(down))
+                       && near(b.direction[1], -std::sin(down)) && b.direction[2] > 0.99f,
+                   "the beam from the car's end, moved back along it from the cone (x mirrored), a little down");
+        test.check(near(b.range, reach, 1e-2f) && near(b.intensity, 0.01f * float(M_PI) * reach * reach, 1.0f)
                        && near(b.innerCone, 0.7f * half) && near(b.outerCone, 1.5f * half) && near(b.color[0], 1.0f),
-                   "its reach (135 m), strength and cone");
+                   "its reach (135 m), its strength (faint at its reach) and cone");
+        const std::vector<RenderItem::Light> unmoved = CarLights::beams(lights, standard, 0.0f);
+        test.check(unmoved.size() == 1 && near(unmoved[0].position[2], 11.0f) && near(unmoved[0].position[1], 3.5f),
+                   "without the car's size, the beam at the cone's place");
     }
-    const std::vector<RenderItem::Light> back = CarLights::beams(lights, flipped);
-    test.check(back.size() == 1 && back[0].position[2] < -10.0f && back[0].direction[2] < -0.99f,
-               "flipped: the reversed cone's beam, backwards");
+    const std::vector<RenderItem::Light> back = CarLights::beams(lights, flipped, halfLength);
+    test.check(back.size() == 1 && near(back[0].position[2], -10.0f) && back[0].direction[2] < -0.99f,
+               "flipped: the reversed cone's beam, backwards from the other end");
 
     // The CMK test train's locomotive, when the content is there.
     const QString vectron = Game::root + "/TRAINS/TRAINSET/PKOR_Vectron";
@@ -348,10 +353,10 @@ int TsreTests::runEngLightsSuite(bool verbose) {
                            && count(flipped, 0, EngLights::Cone, false) == 1
                            && count(flipped, 0, EngLights::Cone, true) == 0,
                        "PKOR_Vectron flipped: the same the other way round");
-            const std::vector<RenderItem::Light> vectronBeams = CarLights::beams(*vectronLights, standard);
+            const std::vector<RenderItem::Light> vectronBeams = CarLights::beams(*vectronLights, standard, loco.sizez * 0.5f);
             test.check(vectronBeams.size() == 1 && near(vectronBeams[0].range, 135.2f, 0.1f)
-                           && vectronBeams[0].position[2] > 10.0f,
-                       "PKOR_Vectron at Bright: the long beam (135 m) from the front");
+                           && near(vectronBeams[0].position[2], 9.4525f, 1e-3f),
+                       "PKOR_Vectron at Bright: the long beam (135 m) from its front end (9.45 m, the cone 11 m)");
         }
     } else if (verbose) {
         qInfo().noquote() << "[tests:eng-lights] no PKOR_Vectron under" << Game::root;

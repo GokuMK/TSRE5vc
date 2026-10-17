@@ -1057,7 +1057,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             && Game::currentShapeLib->shape[shape.id[shapeLibId]]->isLoaded()) {
         if (carLights == nullptr)
             carLights = new CarLights();
-        carLights->push(queue, *carLightsData, lightsTrain, selectionId);
+        carLights->push(queue, *carLightsData, lightsTrain, sizez * 0.5f, selectionId);
     }
     queue.setLayer(layer);
     if (selected)

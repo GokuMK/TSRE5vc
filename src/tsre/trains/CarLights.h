@@ -36,8 +36,10 @@ public:
     ~CarLights();
     // Submits the lamps in the car shape's space (the queue's transform is
     // the car's); built again when the lights, the train's state or the
-    // material path change.
-    void push(RenderQueue &queue, const EngLights &lights, const EngLights::Train &train, quint32 selectionId);
+    // material path change. halfLength: half the car's length (its ENG
+    // Size), where its beams start at the latest.
+    void push(RenderQueue &queue, const EngLights &lights, const EngLights::Train &train, float halfLength,
+              quint32 selectionId);
 
     // A lens in the car shape's drawing space.
     struct Lens {
@@ -49,12 +51,15 @@ public:
     // The lenses of the lit glow lights (their first state).
     static std::vector<Lens> lenses(const EngLights &lights, const EngLights::Train &train);
     // The beams of the lit cones (their first state), in the car shape's
-    // drawing space.
-    static std::vector<RenderItem::Light> beams(const EngLights &lights, const EngLights::Train &train);
+    // drawing space; a cone placed beyond the car's end (halfLength, 0 for
+    // none) shines from that end.
+    static std::vector<RenderItem::Light> beams(const EngLights &lights, const EngLights::Train &train,
+                                                float halfLength);
 
 private:
     const EngLights *builtLights = nullptr;
     EngLights::Train builtTrain;
+    float builtHalfLength = 0.0f;
     bool built = false;
     bool emissive = false;
     QVector<RenderItem *> packets;
@@ -63,7 +68,7 @@ private:
     // drawn, so a car out of view still lights the track ahead of it.
     RenderItem *beamPacket = nullptr;
     float beamReach = 0.0f;
-    void build(const EngLights &lights, const EngLights::Train &train);
+    void build(const EngLights &lights, const EngLights::Train &train, float halfLength);
     void release();
 };
 

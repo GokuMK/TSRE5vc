@@ -40,6 +40,11 @@ constexpr float BeamInner = 0.7f;
 constexpr float BeamOuter = 1.5f;
 // The size of a headlamp, softening surfaces close to it (metres).
 constexpr float BeamRadius = 0.1f;
+// A beam's strength: at its reach it lights a surface facing it to this
+// (task 21's units, the sun's light 0.7), so shorter beams (dim, shunting)
+// are weaker. TSRE's own scale, not Open Rails' headlight; to be tuned by
+// eye.
+constexpr float BeamLightAtReach = 0.01f;
 
 float toLinear(float c) {
     return std::pow(std::clamp(c, 0.0f, 1.0f), 2.2f);
@@ -182,7 +187,8 @@ std::vector<CarLights::Lens> CarLights::lenses(const EngLights &lights, const En
     return out;
 }
 
-std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const EngLights::Train &train) {
+std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const EngLights::Train &train,
+                                                float halfLength) {
     std::vector<RenderItem::Light> out;
     for (const EngLights::Light &light : lights.lights) {
         if (light.type != EngLights::Cone || light.states.isEmpty() || !EngLights::isOn(light, train))
@@ -203,6 +209,17 @@ std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const E
         beam.direction[0] = -d[0];
         beam.direction[1] = d[1];
         beam.direction[2] = d[2];
+        // Cones are often placed ahead of the car (the CMK Vectron's 1.5 m
+        // beyond its end, for Open Rails' headlight); a beam starting in
+        // the air looks wrong in mist, so it starts at the car's end, moved
+        // back along the beam.
+        const float along = beam.position[2] * beam.direction[2];
+        if (halfLength > 0.0f && along > 0.0f && std::fabs(beam.direction[2]) > 0.1f
+                && std::fabs(beam.position[2]) > halfLength) {
+            const float back = (std::fabs(beam.position[2]) - halfLength) / std::fabs(beam.direction[2]);
+            for (int c = 0; c < 3; ++c)
+                beam.position[c] -= beam.direction[c] * back;
+        }
         const float rgb[3] = {toLinear(((s.colour >> 16) & 255) / 255.0f), toLinear(((s.colour >> 8) & 255) / 255.0f),
                               toLinear((s.colour & 255) / 255.0f)};
         const float peak = std::max({rgb[0], rgb[1], rgb[2]});
@@ -210,10 +227,8 @@ std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const E
             continue;
         for (int c = 0; c < 3; ++c)
             beam.color[c] = rgb[c] / peak;
-        // Open Rails lights a surface facing the beam to alpha x colour x
-        // (1 - d / reach); matched at half the reach (task 21's units: I
-        // lights it to I / (pi d^2)).
-        beam.intensity = float(M_PI) * alpha * peak * reach * reach / 8.0f;
+        // I lights a surface facing it at d to I / (pi d^2) (task 21).
+        beam.intensity = BeamLightAtReach * float(M_PI) * reach * reach * peak;
         beam.range = std::min(reach, LightGrid::MaxReach);
         beam.radius = BeamRadius;
         beam.innerCone = BeamInner * s.halfAngle();
@@ -223,11 +238,12 @@ std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const E
     return out;
 }
 
-void CarLights::build(const EngLights &lights, const EngLights::Train &train) {
+void CarLights::build(const EngLights &lights, const EngLights::Train &train, float halfLength) {
     release();
     built = true;
     builtLights = &lights;
     builtTrain = train;
+    builtHalfLength = halfLength;
     const std::vector<Lens> all = lenses(lights, train);
     std::map<quint32, std::vector<const Lens *>> byColour;
     for (const Lens &lens : all)
@@ -296,7 +312,7 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train) {
     }
     // Beams light only with local lights (task 21).
     if (emissive) {
-        const std::vector<RenderItem::Light> lit = beams(lights, train);
+        const std::vector<RenderItem::Light> lit = beams(lights, train, halfLength);
         if (!lit.empty()) {
             beamPacket = new RenderItem();
             for (const RenderItem::Light &beam : lit) {
@@ -308,13 +324,14 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train) {
 }
 
 void CarLights::push(RenderQueue &queue, const EngLights &lights, const EngLights::Train &train,
-                     quint32 selectionId) {
+                     float halfLength, quint32 selectionId) {
     const bool wantEmissive = RenderContext::rhi() && Game::localLightsEnabled;
-    if (!built || builtLights != &lights || builtTrain != train || wantEmissive != emissive) {
+    if (!built || builtLights != &lights || builtTrain != train || builtHalfLength != halfLength
+            || wantEmissive != emissive) {
         if (!RenderContext::ready())
             return;
         emissive = wantEmissive;
-        build(lights, train);
+        build(lights, train, halfLength);
     }
     // Lamps cast no shadows.
     const bool casting = queue.shadowCastingEnabled();
