@@ -817,6 +817,8 @@ private:
         QRhiShaderResourceBindings *skyBindings = nullptr;
         QRhiGraphicsPipeline *skyPipeline = nullptr;
         const QRhiTexture *skyViewColor = nullptr;
+        // A copy of the view, which the sky's pass reads under the fog.
+        QRhiTexture *skyUnder = nullptr;
         // This frame's volume is filled; the sky has its fog; the volume
         // has been filled once (until then the lit shaders take none).
         bool ready = false;

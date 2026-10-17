@@ -642,6 +642,33 @@ the terrain cannot explain.
   behind dark (only signals further on that face the camera show); the
   locomotive's red lamps, which glowed through the car's end when seen
   from its head, are gone there; its head lamps' halos narrower.
+- A beam seen from afar lay in slabs moving with the camera (user,
+  2026-10-17, CMK, 0:00, valley fog): a lamp's fade, cone and phase were
+  taken at the slice's point nearest to it, so a spot's narrow cone was in
+  or out for all of a slice tens of metres deep (the history had blurred
+  it while the camera moved). Now each lamp's part of the slice is cut to
+  its reach and its cone (a ray against a cone of up to 90 degrees), and
+  the fade, the cone's soft edge and the phase are taken at four points
+  over it, each standing for an even share of the inverse square
+  (equiangular, as seen from the lamp). Captures, the camera coming 1 m a
+  frame towards the beam: an even cone in every frame, its middle's
+  brightness changing smoothly (before, the part by the lamp jumped
+  between 14 and 25 of 255); brighter, the cone no longer missed. Left: by
+  the lamp, surfaces next to it take the fog between the volume's slices,
+  which move with the camera, a few levels from frame to frame.
+- The sky's fog in linear light (user, 2026-10-17, CMK, 3:10, ground mist,
+  the headlights shining at the camera: far roofs and a tower flat grey
+  against a dark sky, a sharp line). The lit shaders add the fog's light
+  in linear light; the sky's pass mixed the fog's own colour by its share
+  in display colours, which for a thin fog lit brightly adds a fifth as
+  much: the roofs took the headlights' light in the mist, the sky over
+  them hardly any. It now reads a copy of the view and adds the fog as the
+  lit shaders do. The roofs and the sky over them meet softly in the mist;
+  dawn fog (valley fog at 5:00 and 6:00, ground mist at 7:00) as before
+  (mean below 1 of 255).
+- Cost (Steam Deck, offscreen, 1280 x 800, four views of these): within
+  the runs' spread (medians within 1 ms, the same build's runs 1.5 ms
+  apart).
 
 ## Step 5: patches and motion (2026-10-15)
 

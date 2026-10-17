@@ -320,12 +320,70 @@ int gridIndex(sampler2D indices, int slot) {
 // ends, with the sun's phase: halos about lamps in fog, light pooled under
 // them, the cones of spot lights. Each lamp's inverse square is summed along
 // the slice exactly (taken at one point of it, a slice 30 m deep missed the
-// few bright metres by a lamp: its halo a thousandth of what it is); its
-// fade, cone and phase at the slice's point nearest to it. (The grid's cell
-// at one point of the slice left out lamps the slice passes in the next
-// one: halos cut straight along the cells' edges.)
+// few bright metres by a lamp: its halo a thousandth of what it is), over
+// the part of the slice within its reach and its cone; its fade, cone and
+// phase at points over that part, each standing for an even share of the
+// sum (equiangular, as seen from the lamp). (Taken at the slice's point
+// nearest to the lamp, a spot's cone was in or out for all of a slice tens
+// of metres deep: a headlight's beam seen from afar lay in slabs, which
+// moved with the camera; the user, 2026-10-17.) (The grid's cell at one
+// point of the slice left out lamps the slice passes in the next one: halos
+// cut straight along the cells' edges.)
 // The signals' too, from a grid of their own (their glow splats' emitters):
 // lenses, spots facing the way they shine, none behind them.
+const int LightPoints = 4;
+
+// The part of the ray o + d t, t0 to t1, inside a cone from p along a, the
+// cosine of its half-angle c (90 degrees at most: the cone is convex, the
+// part one span); false for none.
+bool coneSpan(vec3 o, vec3 d, vec3 p, vec3 a, float c, inout float t0, inout float t1) {
+    vec3 w = o - p;
+    float wa = dot(w, a), da = dot(d, a);
+    // In front of the apex: wa + da t >= 0.
+    if (abs(da) < 1e-6) {
+        if (wa < 0.0)
+            return false;
+    } else if (da > 0.0) {
+        t0 = max(t0, -wa / da);
+    } else {
+        t1 = min(t1, -wa / da);
+    }
+    if (c > 1e-4) {
+        // Within the half-angle: (wa + da t)^2 >= c^2 |w + d t|^2.
+        float c2 = c * c;
+        float qa = da * da - c2, qb = wa * da - c2 * dot(w, d), qc = wa * wa - c2 * dot(w, w);
+        float disc = qb * qb - qa * qc;
+        if (abs(qa) < 1e-6) {
+            if (abs(qb) < 1e-9) {
+                if (qc < 0.0)
+                    return false;
+            } else if (qb > 0.0) {
+                t0 = max(t0, -qc / (2.0 * qb));
+            } else {
+                t1 = min(t1, -qc / (2.0 * qb));
+            }
+        } else if (disc < 0.0) {
+            if (qa < 0.0)
+                return false;
+        } else {
+            float root = sqrt(disc);
+            float r1 = (-qb - root) / qa, r2 = (-qb + root) / qa;
+            float lo = min(r1, r2), hi = max(r1, r2);
+            if (qa < 0.0) {
+                // Crossing the cone: between the roots.
+                t0 = max(t0, lo);
+                t1 = min(t1, hi);
+            } else if (da > 0.0) {
+                // Along the cone: past the far root in front of the apex.
+                t0 = max(t0, hi);
+            } else {
+                t1 = min(t1, lo);
+            }
+        }
+    }
+    return t1 > t0;
+}
+
 vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, vec4 layers,
                vec3 o, vec3 d, float t0, float t1) {
     if (layers.y <= 0.0)
@@ -350,30 +408,48 @@ vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, ve
         vec4 placement = texelFetch(data, ivec2(0, light), 0);
         vec3 toLamp = placement.xyz - o;
         float along = dot(toLamp, d);
-        vec3 nearest = o + d * clamp(along, t0, t1);
-        vec3 toLight = placement.xyz - nearest;
-        float squared = dot(toLight, toLight);
-        if (squared >= placement.w * placement.w)
+        vec3 across = toLamp - d * along;
+        float aside = dot(across, across);
+        float reach = placement.w * placement.w;
+        if (aside >= reach)
+            continue;
+        // The slice's part within the lamp's reach, and within its cone (one
+        // wider than 90 degrees is not cut).
+        float chord = sqrt(reach - aside);
+        float s0 = max(t0, along - chord), s1 = min(t1, along + chord);
+        vec4 spot = texelFetch(data, ivec2(2, light), 0);
+        vec4 cone = vec4(0.0);
+        if (spot.w > 0.5) {
+            cone = texelFetch(data, ivec2(3, light), 0);
+            if (cone.x > -1e-4 && !coneSpan(o, d, placement.xyz, spot.xyz, cone.x, s0, s1))
+                continue;
+        }
+        if (s1 <= s0)
             continue;
         vec4 colour = texelFetch(data, ivec2(1, light), 0);
-        // 1 / (s^2 + b^2) from t0 to t1, b the ray's distance from the lamp
-        // softened by the emitter's size, over the slice's length.
-        vec3 across = toLamp - d * along;
-        float b = sqrt(dot(across, across) + colour.w);
-        float mean = (atan((t1 - along) / b) - atan((t0 - along) / b)) / (b * (t1 - t0));
-        // Fading to nothing at the range.
-        float ratio = squared / (placement.w * placement.w);
-        float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
-        float attenuation = window * window * mean;
-        vec3 l = toLight * inversesqrt(max(squared, 1e-8));
-        vec4 spot = texelFetch(data, ivec2(2, light), 0);
-        if (spot.w > 0.5) {
-            vec4 cone = texelFetch(data, ivec2(3, light), 0);
-            float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
-            attenuation *= inside * inside;
+        // 1 / (s^2 + b^2) from s0 to s1, b the ray's distance from the lamp
+        // softened by the emitter's size, over the slice's length; the angle
+        // the span covers as seen from the lamp, split evenly.
+        float b = sqrt(aside + colour.w);
+        float a0 = atan((s0 - along) / b), a1 = atan((s1 - along) / b);
+        float shares = 0.0;
+        for (int k = 0; k < LightPoints; ++k) {
+            float t = along + b * tan(mix(a0, a1, (float(k) + 0.5) / float(LightPoints)));
+            vec3 toLight = placement.xyz - (o + d * t);
+            float squared = dot(toLight, toLight);
+            // Fading to nothing at the range.
+            float ratio = squared / reach;
+            float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
+            float share = window * window;
+            vec3 l = toLight * inversesqrt(max(squared, 1e-8));
+            if (spot.w > 0.5) {
+                float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
+                share *= inside * inside;
+            }
+            float phase = mix(henyeyGreenstein(dot(d, l), 0.85), 1.0 / (4.0 * 3.14159265), 0.3) * 4.0 * 3.14159265;
+            shares += share * phase;
         }
-        float phase = mix(henyeyGreenstein(dot(d, l), 0.85), 1.0 / (4.0 * 3.14159265), 0.3) * 4.0 * 3.14159265;
-        sum += colour.rgb * (attenuation * phase);
+        sum += colour.rgb * ((a1 - a0) / (b * (t1 - t0)) * shares / float(LightPoints));
     }
     return sum * (layers.z * 0.8);
 }
@@ -520,8 +596,13 @@ void main() {
 }
 )";
 
-// The sky and the clouds behind the fog: the far end of each column, mixed
-// over them (premultiplied: colour + view * a).
+// The sky and the clouds behind the fog: the far end of each column over
+// them, as the lit shaders take their fog (Haze.glsl): what the fog lets
+// through of their light and its own light added, in linear light, from a
+// copy of the view (display colours). (Mixed in display colours by its
+// share, a thin fog lit brightly, as by headlights at night, added a fifth
+// of what it adds to the surfaces before the sky: far roofs grey in it, the
+// sky over them dark, a sharp line between; the user, 2026-10-17.)
 const char *SkyFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
@@ -530,18 +611,17 @@ layout(std140, binding = 0) uniform Sky {
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 layout(binding = 2) uniform sampler3D sums;
+layout(binding = 3) uniform sampler2D under;
 
 void main() {
-    if (textureLod(sceneDepth, uv, 0.0).r < params.x) {
-        result = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    if (textureLod(sceneDepth, uv, 0.0).r < params.x)
+        discard;
     vec4 f = textureLod(sums, vec3(uv, 1.0), 0.0);
     f.rgb *= params.y;
     float through = clamp(f.a, 0.0, 1.0);
-    // The fog's own colour, mixed by its share (display colours).
-    vec3 own = through < 0.999 ? pow(max(f.rgb / (1.0 - through), vec3(0.0)), vec3(1.0 / 2.2)) : vec3(0.0);
-    result = vec4(own * (1.0 - through), through);
+    vec4 view = texelFetch(under, ivec2(gl_FragCoord.xy), 0);
+    vec3 linear = pow(max(view.rgb, vec3(0.0)), vec3(2.2)) * through + max(f.rgb, vec3(0.0));
+    result = vec4(pow(linear, vec3(1.0 / 2.2)), view.a);
 }
 )";
 
@@ -622,6 +702,7 @@ void RhiRenderer::releaseFog() {
     delete f.skyPass;
     delete f.skyBindings;
     delete f.skyPipeline;
+    delete f.skyUnder;
     const bool unsupported = f.unsupported;
     f = FogResources();
     f.unsupported = unsupported;
@@ -1092,17 +1173,26 @@ void RhiRenderer::applySkyFog() {
         return;
     f.skyApplied = true;
     flushTarget();
-    if (f.skyPipeline == nullptr || f.skyViewColor != view.color) {
+    if (f.skyPipeline == nullptr || f.skyViewColor != view.color || f.skyUnder == nullptr
+            || f.skyUnder->pixelSize() != view.size || f.skyUnder->format() != view.color->format()) {
         delete f.skyPipeline;
         delete f.skyBindings;
         delete f.skyTarget;
         delete f.skyPass;
+        delete f.skyUnder;
         f.skyPipeline = nullptr;
         f.skyBindings = nullptr;
         f.skyViewColor = view.color;
         if (f.skyUniforms == nullptr) {
             f.skyUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
             f.skyUniforms->create();
+        }
+        // The view so far, which the pass reads under the fog.
+        f.skyUnder = rhi->newTexture(view.color->format(), view.size, 1);
+        if (!f.skyUnder->create()) {
+            delete f.skyUnder;
+            f.skyUnder = nullptr;
+            return;
         }
         f.skyTarget = rhi->newTextureRenderTarget({QRhiColorAttachment(view.color)},
                                                   QRhiTextureRenderTarget::PreserveColorContents);
@@ -1114,7 +1204,9 @@ void RhiRenderer::applySkyFog() {
         f.skyBindings->setBindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, f.skyUniforms),
                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, view.depth,
                                                                               sampler(false, true, true)),
-                                    QRhiShaderResourceBinding::sampledTexture(2, fragment, f.integrated, f.linear)});
+                                    QRhiShaderResourceBinding::sampledTexture(2, fragment, f.integrated, f.linear),
+                                    QRhiShaderResourceBinding::sampledTexture(3, fragment, f.skyUnder,
+                                                                              sampler(false, true, true))});
         f.skyBindings->create();
         static QShader vertex, sky;
         if (!vertex.isValid()) {
@@ -1123,13 +1215,8 @@ void RhiRenderer::applySkyFog() {
         }
         QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();
         ps->setShaderStages({{QRhiShaderStage::Vertex, vertex}, {QRhiShaderStage::Fragment, sky}});
-        QRhiGraphicsPipeline::TargetBlend b;
-        b.enable = true;
-        b.srcColor = QRhiGraphicsPipeline::One;
-        b.dstColor = QRhiGraphicsPipeline::SrcAlpha;
-        b.srcAlpha = QRhiGraphicsPipeline::Zero;
-        b.dstAlpha = QRhiGraphicsPipeline::One;
-        ps->setTargetBlends({b});
+        // Replacing the sky's pixels (the rest discarded).
+        ps->setTargetBlends({QRhiGraphicsPipeline::TargetBlend()});
         ps->setShaderResourceBindings(f.skyBindings);
         ps->setRenderPassDescriptor(f.skyPass);
         if (!ps->create()) {
@@ -1143,6 +1230,7 @@ void RhiRenderer::applySkyFog() {
     const float params[4] = {0.99f, fogLightScale(), 0.0f, 0.0f};
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
     batch->updateDynamicBuffer(f.skyUniforms, 0, sizeof(params), params);
+    batch->copyTexture(f.skyUnder, view.color);
     QRhiCommandBuffer *cb = surfaceNow->frame().commandBuffer;
     cb->beginPass(f.skyTarget, Qt::black, {1.0f, 0}, batch);
     cb->setGraphicsPipeline(f.skyPipeline);
