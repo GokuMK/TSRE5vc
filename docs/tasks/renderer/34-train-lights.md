@@ -265,3 +265,10 @@ Open Rails rules kept:
   own glow textures (`ORTSGraphic`): unused in our content.
 - Lamps in the Shape Viewer and the Consist Editor.
 - Shadows from headlights.
+- The content's one combined cone (user, 2026-10-17): ENGs give the
+  headlight one cone per switch position, the whole locomotive's beam
+  between its lamps (the CMK Vectron's `Lights_1.inc`: shunting, short
+  and long cones on Headlight 1, 2 and 3, one lit at a time), as MSTS and
+  Open Rails light the scene with one headlight. In fog the beam shows,
+  and the simplification with it; to be changed in the data (cones from
+  the lamps), not by TSRE guessing. Left for now.
