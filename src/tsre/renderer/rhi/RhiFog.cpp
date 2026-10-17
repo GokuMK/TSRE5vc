@@ -476,12 +476,12 @@ void main() {
     // left their light where it had been for many frames (user, 2026-10-17:
     // lit fog moving with the camera, parts of it dark).
     vec3 lamps = vec3(0.0);
-    if (current.a > 0.0)
+    if (sigma > 0.0)
         lamps = (gridLight(localLightData, localLightCells, localLightIndices, lightGrid, lightLayers,
                            camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0))
                  + gridLight(signalLightData, signalLightCells, signalLightIndices, signalGrid, signalLayers,
                              camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0)))
-                * current.a;
+                * sigma;
     imageStore(lampCells, id, vec4(min(lamps * scale.x, vec3(60000.0)), 0.0));
 }
 )";

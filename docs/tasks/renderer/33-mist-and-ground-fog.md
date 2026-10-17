@@ -584,11 +584,24 @@ the terrain cannot explain.
   moved history is close; a lamp's lights a few cells, and the history
   kept its light where it had been for many frames, while cells newly lit
   started from a dark history.
-- Now the injection writes the lamps' and signals' light, through the
-  cell's averaged density, into a volume of its own (`FogResources::lamps`,
-  RGBA16F, this frame's only); the integration adds it to the cells. Summed
-  along each slice exactly (step 4), it needs no averaging over frames. The
-  sun's and the sky's light keep the history.
+- Now the injection writes the lamps' and signals' light, through this
+  frame's density of the cell, into a volume of its own
+  (`FogResources::lamps`, RGBA16F, this frame's only); the integration adds
+  it to the cells. Summed along each slice exactly (step 4), it needs no
+  averaging over frames. The sun's and the sky's light keep the history.
+- First through the cells' averaged density (`328b2c5`): newly seen parts
+  came in black and lit up over about a second (user, 2026-10-17, CMK
+  00:01, valley fog, the camera by the train; signals too). The averaged
+  density is the history's, moved with the camera: still, it is the
+  frame's; turning or moving, the moved history brings density from the
+  cells about it (a haze over the train's side, where this view has no fog
+  by the camera), while newly seen cells, without history, have their own
+  (none there); the haze then spread into them over the history's frames.
+  This frame's density is the same for old and new cells; it does not
+  flicker (6 still frames the same).
+- Reproduced only with the user's clock running and the camera close by
+  the train (the earlier captures stopped the clock); confirmed by the
+  turning captures at the user's views.
 - CMK at 1:00, ground mist, the train lights' beam, the camera moving 1.5 m
   a frame towards the locomotive for 12 frames, its last frame against the
   same view settled: with auto exposure a mean of 0.78, at most 33 (of 255)
