@@ -584,8 +584,9 @@ the terrain cannot explain.
   moved history is close; a lamp's lights a few cells, and the history
   kept its light where it had been for many frames, while cells newly lit
   started from a dark history.
-- Now the injection writes the lamps' and signals' light, through this
-  frame's density of the cell, into a volume of its own
+- Now the injection writes the lamps' and signals' light, through the
+  cell's density at sixteen fixed points of its slice, into a volume of its
+  own
   (`FogResources::lamps`, RGBA16F, this frame's only); the integration adds
   it to the cells. Summed along each slice exactly (step 4), it needs no
   averaging over frames. The sun's and the sky's light keep the history.
@@ -597,8 +598,19 @@ the terrain cannot explain.
   cells about it (a haze over the train's side, where this view has no fog
   by the camera), while newly seen cells, without history, have their own
   (none there); the haze then spread into them over the history's frames.
-  This frame's density is the same for old and new cells; it does not
-  flicker (6 still frames the same).
+- Then through this frame's density (`1679e64`): the lamps flashed like a
+  strobe where fog was present and their light in it was mostly gone
+  (user, 2026-10-17). The frame's density is the mean of four points
+  jittered along the slice: lamps lie at a thin fog's top, where a part of
+  the slice is in the fog, and four points catch it in some frames, miss
+  it in others (the history's average over frames had it). Sixteen fixed
+  points (the quarters' middles of each quarter) are the same in every
+  frame and for old and new cells, and measure that part; only cells some
+  lamp reaches take them. CMK at 1:00, ground mist, by the train, the
+  exposure fixed: against the old code (the lamps in the history) a mean
+  of 0.66, at most 19; frames steady; turning at the user's view with the
+  clock running, no bands and no haze; frame times within their spread
+  (median 35.8 to 35.9 ms against 35.1 to 35.6).
 - Reproduced only with the user's clock running and the camera close by
   the train (the earlier captures stopped the clock); confirmed by the
   turning captures at the user's views.

@@ -470,18 +470,34 @@ void main() {
         }
     }
     imageStore(cells, id, current);
-    // The lamps and signals as this frame has them, through the fog's
-    // averaged density: summed along the slice exactly, they need no
-    // averaging over frames, and in the history a turning or moving camera
-    // left their light where it had been for many frames (user, 2026-10-17:
-    // lit fog moving with the camera, parts of it dark).
+    // The lamps and signals as this frame has them: summed along the slice
+    // exactly, they need no averaging over frames, and in the history a
+    // turning or moving camera left their light where it had been for many
+    // frames (user, 2026-10-17: lit fog moving with the camera, parts of it
+    // dark). Through the cell's density at fixed points of its slice,
+    // steady from frame to frame: this frame's jittered density made them
+    // flash, the averaged one is the history's, moved with the camera, and
+    // newly seen cells came in black (user, 2026-10-17).
     vec3 lamps = vec3(0.0);
-    if (sigma > 0.0)
-        lamps = (gridLight(localLightData, localLightCells, localLightIndices, lightGrid, lightLayers,
-                           camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0))
-                 + gridLight(signalLightData, signalLightCells, signalLightIndices, signalGrid, signalLayers,
-                             camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0)))
-                * sigma;
+    if (low < range.z || sigmaRain > 0.0) {
+        vec3 lampLight = gridLight(localLightData, localLightCells, localLightIndices, lightGrid, lightLayers,
+                                   camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0))
+                + gridLight(signalLightData, signalLightCells, signalLightIndices, signalGrid, signalLayers,
+                            camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0));
+        if (max(lampLight.r, max(lampLight.g, lampLight.b)) > 0.0) {
+            // Sixteen points: lamps lie at a thin fog's top, where a part
+            // of the slice is in the fog (four left their halos out).
+            const int Steady = 16;
+            float steady = 0.0;
+            for (int k = 0; k < Steady && low < range.z; ++k) {
+                float a, sa;
+                float along = (float(k) + 0.5) / float(Steady);
+                steady += density(camera.xyz + d * sliceDistance(float(id.z) + along), mix(ends.x, ends.y, along),
+                                  a, sa);
+            }
+            lamps = lampLight * (steady / float(Steady) + sigmaRain);
+        }
+    }
     imageStore(lampCells, id, vec4(min(lamps * scale.x, vec3(60000.0)), 0.0));
 }
 )";
