@@ -11,9 +11,6 @@
 #include <tsre/trains/EngLights.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ParserX.h>
-#include <tsre/fileFunctions/ReadFile.h>
-#include <QFile>
-#include <QHash>
 #include <cmath>
 
 namespace {
@@ -186,62 +183,24 @@ void EngLights::read(FileBuffer *data) {
             lights.push_back(reversedCone(lights[i]));
 }
 
-std::shared_ptr<const EngLights> EngLights::fromFile(const QString &file, const QString &includePath,
-                                                     const QString &mstsIncludePath) {
-    // Cars of one file share it; variants of a locomotive often include one
-    // large block (the Vectron's has 1101 lights).
-    static QHash<QString, std::shared_ptr<const EngLights>> read;
-    const QString key = file + QLatin1Char('|') + includePath;
-    const auto found = read.constFind(key);
-    if (found != read.constEnd())
-        return *found;
-    std::shared_ptr<const EngLights> out;
-    QFile source(file);
-    if (source.open(QIODevice::ReadOnly)) {
-        FileBuffer *data = ReadFile::read(&source);
-        source.close();
-        data->toUtf16();
-        data->skipBOM();
-        auto include = [&]() {
-            const QString path = ParserX::GetStringInside(data);
-            ParserX::SkipToken(data);
-            data->insertFile(includePath + "/" + path, mstsIncludePath + "/" + path);
-        };
-        // The walk of Eng::load, keeping only the Wagon section's lights.
-        bool named = false;
-        QString sh;
-        while (!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
-            if (sh.startsWith("simisa"))
-                continue;
-            if (sh == "include") {
-                include();
-                continue;
-            }
-            if (sh == "wagon") {
-                if (!named)
-                    ParserX::GetString(data);
-                named = true;
-                while (!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
-                    if (sh == "include") {
-                        include();
-                        continue;
-                    }
-                    if (sh == "lights") {
-                        // A later block replaces an earlier one; Open Rails
-                        // refuses one without lights.
-                        auto block = std::make_shared<EngLights>();
-                        block->read(data);
-                        out = block->lights.isEmpty() ? nullptr : block;
-                    }
-                    ParserX::SkipToken(data);
-                }
-            }
-            ParserX::SkipToken(data);
-        }
-        delete data;
+EngLightsBlock::EngLightsBlock(QString text) : text(std::move(text)) {
+}
+
+const EngLights *EngLightsBlock::lights() {
+    if (parsed)
+        return read.get();
+    parsed = true;
+    FileBuffer *data = FileBuffer::fromText(text);
+    // The kept block starts with its token.
+    if (ParserX::NextTokenInside(data).toLower() == "lights") {
+        auto block = std::make_unique<EngLights>();
+        block->read(data);
+        if (!block->lights.isEmpty())
+            read = std::move(block);
     }
-    read.insert(key, out);
-    return out;
+    delete data;
+    text = QString();
+    return read.get();
 }
 
 bool EngLights::holds(const Condition &c, const Train &t) {

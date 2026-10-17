@@ -253,8 +253,9 @@ int TsreTests::runEngLightsSuite(bool verbose) {
 
     Eng copy(&eng);
     Eng again(temp.path(), "test.eng");
-    test.check(copy.getLights() == eng.getLights() && again.getLights() == eng.getLights(),
-               "copies of a car and cars of the same file share its lights");
+    test.check(copy.getLights() == eng.getLights() && again.getLights() != eng.getLights()
+                   && again.getLights() != nullptr && again.getLights()->lights.size() == 7,
+               "copies of a car share its kept block and its lights; another load keeps its own");
 
     // A consist gives each car its place: a locomotive, a wagon, a
     // locomotive turned round.

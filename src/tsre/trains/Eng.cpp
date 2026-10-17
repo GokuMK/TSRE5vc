@@ -50,10 +50,7 @@ Eng::Eng(Eng *o) {
     filePaths.append(o->filePaths);
     shape = o->shape;
     freightanimShape.append(o->freightanimShape);
-    lights = o->lights;
-    lightsFile = o->lightsFile;
-    lightsIncludePath = o->lightsIncludePath;
-    lightsRead = o->lightsRead;
+    lightsBlock = o->lightsBlock;
     
     name = o->name;
     path = o->path;
@@ -288,9 +285,7 @@ Eng::Eng(QString src, QString p, QString n) {
 
 void Eng::load(){
     filePaths.clear();
-    lights.reset();
-    lightsFile.clear();
-    lightsRead = false;
+    lightsBlock.reset();
     QString mstsincpath = path;
     QString incpath = orpath;
     QString sh;
@@ -524,10 +519,9 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("lights")) {
-                    // Read on first use (getLights).
-                    lightsFile = file->fileName();
-                    lightsIncludePath = incpath;
-                    ParserX::SkipToken(data);
+                    // Kept as it is, read on first use (getLights); a
+                    // later block replaces an earlier one.
+                    lightsBlock = std::make_shared<EngLightsBlock>(ParserX::KeepBlock(data, sh));
                     continue;
                 }
                 ParserX::SkipToken(data);
@@ -849,11 +843,7 @@ void Eng::updateSim(float deltaTime){
 }
 
 const EngLights *Eng::getLights() {
-    if (!lightsRead && !lightsFile.isEmpty()) {
-        lightsRead = true;
-        lights = EngLights::fromFile(lightsFile, lightsIncludePath, path);
-    }
-    return lights.get();
+    return lightsBlock != nullptr ? lightsBlock->lights() : nullptr;
 }
 
 float Eng::getCurrentSpeed(){

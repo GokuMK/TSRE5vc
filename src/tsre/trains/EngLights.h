@@ -128,12 +128,6 @@ public:
     // Reads the block from just inside its parenthesis (after ParserX
     // returned "lights") to its end; the reversed cones follow the others.
     void read(FileBuffer *data);
-    // The Lights block of an ENG or WAG file's Wagon section, includes
-    // resolved as Eng::load resolves them (in includePath, else
-    // mstsIncludePath); the last block when there are several, null without
-    // one. Read once per file and include path, then shared.
-    static std::shared_ptr<const EngLights> fromFile(const QString &file, const QString &includePath,
-                                                     const QString &mstsIncludePath);
     static bool isOn(const Light &light, const Train &train);
     static bool holds(const Condition &condition, const Train &train);
 
@@ -143,6 +137,22 @@ public:
     static void setEnvironment(bool day, int weather);
     static bool environmentDay();
     static int environmentWeather();
+};
+
+// A Lights block kept as the file has it (ParserX::KeepBlock) and read into
+// lights when they are first wanted: the Consist Editor loads every car and
+// draws none. A car's copies in consists share it.
+class EngLightsBlock {
+public:
+    explicit EngLightsBlock(QString text);
+    // Read on the first call, the text dropped then; null without lights
+    // (Open Rails refuses such a block).
+    const EngLights *lights();
+
+private:
+    QString text;
+    std::unique_ptr<EngLights> read;
+    bool parsed = false;
 };
 
 #endif

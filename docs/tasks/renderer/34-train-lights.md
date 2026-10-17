@@ -76,18 +76,22 @@ Open Rails rules kept:
   section in `Eng::load`. A later `Lights` block replaces an earlier one.
 - Everything Open Rails reads is kept, also what the first version does not
   use, so later steps need no parser work.
-- Read on first use (`Eng::getLights`): `Eng::load` only notes where the
-  block is and skips it as before; the first draw reads it from the file,
-  includes resolved as `Eng::load` resolves them (`EngLights::fromFile`).
-  Read-only once read and shared by every car of the same file (the cars of
-  a consist are copies of the library's `Eng`).
+- Kept as text, read on first use: `Eng::load` keeps the block as the file
+  has it (`ParserX::KeepBlock`, `EngLightsBlock`); the first draw reads it
+  (`Eng::getLights`). A car's copies in consists share the block and what
+  is read from it (user, 2026-10-17: no second reading of the ENG file,
+  which an earlier version of this step did).
 - Why (measured 2026-10-17, C:/trainsim, 3597 cars, 1397 with lights): the
-  Consist Editor loads every ENG and WAG file (`EngLib::loadAll`), and
-  reading the lights there made its load 37 % longer (about 1.4 s), as the
-  variants of a locomotive each read the same large include (the Vectron's
-  24,000 lines). Read on first use, its load is unchanged (4.5 to 4.7 s
-  both ways, alternating runs); reading the lights of all 1397 cars would
-  take 2.7 s, the route editor reads only those of the cars it draws.
+  Consist Editor loads every ENG and WAG file (`EngLib::loadAll`) and draws
+  none; reading the lights there made its load 37 % longer (about 1.4 s),
+  as the variants of a locomotive each read the same large include (the
+  Vectron's 24,000 lines). Kept as text, its load stays about 5 s (runs
+  scattered from 3.6 to 6.1 s either way); the kept texts take 116 MB
+  there (336 distinct texts, 13 MB). Reading every kept block would take
+  1.4 s; the route editor reads only those of the cars it draws.
+- For the ENG parser's rework (moving ENG to `SimisTextReader`, user,
+  2026-10-17): read each include file once and share it, which also
+  removes the duplicated light blocks; no workaround here meanwhile.
 - Other work on ENG goes on in parallel. Code goes where it belongs (in
   `Eng` and `Consist` where it fits them), with merges kept in mind: no
   refactoring of their code on the way.
@@ -193,7 +197,7 @@ Open Rails rules kept:
 | Step | Commit | Notes |
 |---|---|---|
 | Merge | `746de49` | `feature/simulation` merged first, so the lights build on its `Eng` and `Consist`. |
-| 1. Parser and state | `053234b`, `28af5fe` | `EngLights` (reader, conditions, test state); read on first use; suite `eng-lights`. |
+| 1. Parser and state | `053234b`, this change | `EngLights` (reader, conditions, test state); kept as text, read on first use (`28af5fe` read the file again, replaced); suite `eng-lights`. |
 | 2. Lamps | this commit | `CarLights`; `Consist::lightsTrain` (place in the consist); day and weather set by the editor each frame. |
 
 - Lamps are placed through the shape's root, which both shape loaders draw
