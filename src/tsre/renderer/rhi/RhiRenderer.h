@@ -782,8 +782,6 @@ private:
         // The cells of this frame and the last (alternating), the sums.
         QRhiTexture *scatter[2] = {};
         QRhiTexture *integrated = nullptr;
-        // The lamps' and signals' light in the cells, this frame's only.
-        QRhiTexture *lamps = nullptr;
         QRhiTexture *floor = nullptr;
         quint64 floorRevision = ~0ull;
         // The highest fog top on the map, for the map and depth it was found for.

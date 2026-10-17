@@ -572,58 +572,6 @@ the terrain cannot explain.
   lamps do, bright halos lowered the exposure, shortened the reach, and the
   halos went.
 
-### Lamps out of the history (user, 2026-10-17)
-
-- Moving or turning the camera in fog with bright lamps (glTF lamps, the
-  train lights' headlight beams of task 34) broke the picture: lit fog
-  dragged with the camera, parts dark. The sun's light had been fixed
-  (the history's scale above); signals are too dim to show it.
-- The cause: the lamps' and signals' light went into each cell with the
-  sun's and the sky's and was blended 95 % with last frame's cell, moved
-  with the camera. The sun's light changes slowly across the cells, so the
-  moved history is close; a lamp's lights a few cells, and the history
-  kept its light where it had been for many frames, while cells newly lit
-  started from a dark history.
-- Now the injection writes the lamps' and signals' light, through the
-  cell's density at sixteen fixed points of its slice, into a volume of its
-  own
-  (`FogResources::lamps`, RGBA16F, this frame's only); the integration adds
-  it to the cells. Summed along each slice exactly (step 4), it needs no
-  averaging over frames. The sun's and the sky's light keep the history.
-- First through the cells' averaged density (`328b2c5`): newly seen parts
-  came in black and lit up over about a second (user, 2026-10-17, CMK
-  00:01, valley fog, the camera by the train; signals too). The averaged
-  density is the history's, moved with the camera: still, it is the
-  frame's; turning or moving, the moved history brings density from the
-  cells about it (a haze over the train's side, where this view has no fog
-  by the camera), while newly seen cells, without history, have their own
-  (none there); the haze then spread into them over the history's frames.
-- Then through this frame's density (`1679e64`): the lamps flashed like a
-  strobe where fog was present and their light in it was mostly gone
-  (user, 2026-10-17). The frame's density is the mean of four points
-  jittered along the slice: lamps lie at a thin fog's top, where a part of
-  the slice is in the fog, and four points catch it in some frames, miss
-  it in others (the history's average over frames had it). Sixteen fixed
-  points (each in the middle of its sixteenth) are the same in every
-  frame and for old and new cells, and measure that part; only cells some
-  lamp reaches take them. CMK at 1:00, ground mist, by the train, the
-  exposure fixed: against the old code (the lamps in the history) a mean
-  of 0.66, at most 19; frames steady; turning at the user's view with the
-  clock running, no bands and no haze; frame times within their spread
-  (median 35.8 to 35.9 ms against 35.1 to 35.6).
-- Reproduced only with the user's clock running and the camera close by
-  the train (the earlier captures stopped the clock); confirmed by the
-  turning captures at the user's views.
-- CMK at 1:00, ground mist, the train lights' beam, the camera moving 1.5 m
-  a frame towards the locomotive for 12 frames, its last frame against the
-  same view settled: with auto exposure a mean of 0.78, at most 33 (of 255)
-  before, 0.08 and 4 now; with a fixed exposure 0.28 and 11 before, 0.04
-  and 2 now. Before, the beam smeared into a broad glow behind the camera's
-  motion; now it stays a cone in its place. Settled views are the same
-  (mean 0.2 to 0.5). One more volume (about 8 MB at High at 1280 x 800, a
-  quarter of that at Low); frame times the same (median 35.8 ms against
-  35.8 to 36.2 ms in night mist at High on the Steam Deck).
-
 ## Step 5: patches and motion (2026-10-15)
 
 - **Patches:** value noise at 600, 240 and 90 m (weights 0.55, 0.3, 0.15)

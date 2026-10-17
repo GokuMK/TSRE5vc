@@ -244,8 +244,9 @@ Open Rails rules kept:
   lamps' size and brightness.
 
 - Fog with moving or turning camera: the beams' (and every lamp's) light
-  dragged with the camera; fixed in the fog volume (task 33, "Lamps out of
-  the history", `328b2c5`).
+  drags with the camera (the fog volume's history, task 33). Open: three
+  fixes there made it worse and were reverted (see task 33, "Lamps' light
+  dragged by the camera").
 - Lights seen through the body (user, 2026-10-17, not reproduced since):
   no local light has shadows, and the lamps' glow emitters light the fog
   through the signals' fog grid at its 50 times gain, so a lamp behind the
