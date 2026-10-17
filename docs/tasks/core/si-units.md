@@ -267,3 +267,6 @@ TSRE does it itself (decision above). What Qt offers as building blocks:
   `MstsUnits` and `Eng`'s SI fields.
 - Open Rails `Docs/Contributing.md`, "Physics requirements": the naming
   convention.
+- `docs/tasks/driving/00-task-roadmap.md`: task 01, the vehicle
+  definitions (the ENG refactor) that read vehicle values with this
+  converter.

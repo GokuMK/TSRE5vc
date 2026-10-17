@@ -32,6 +32,23 @@ model as the first operating policy, and threading.
   (paused with it, at its speed; runs as fast as possible leave it until
   they pause); the controls are in the activity panel below Play's
   new place, the trains' states and Follow in the Timetable window.
+- 2026-10-17: the simulation steps at one fixed step a run, its size by
+  what drives the trains: 0.1 s when only AI trains run (Timetable
+  Simulate, previews: ten times faster), 0.01 s when a train is driven by
+  the player, a script or an external app. Today's steps vary (a tick's
+  remainder); a fixed step carries the remainder to the next tick. Why
+  fixed: runs repeat with the same inputs, stiff parts (couplers, wheel
+  slip, brake pipes) stay stable without sub-steps (Open Rails' axle
+  model sub-steps up to 100 times a frame, `Axle.cs`), and scripts see
+  one `dt`. Cost estimated from the suites' per-step measurements: in
+  real time nothing (steps are already about 16 ms); runs as fast as
+  possible about ten times slower at 0.01 s.
+- 2026-10-17: the simulation never waits for an external app or a script
+  that supplies values: it uses the last value received (an external
+  train's speed, a loco's force). More in `docs/tasks/driving/`.
+- 2026-10-17: next come activity events (06), then coupling and trains
+  changing (07); the player's driving is a task set of its own
+  (`docs/tasks/driving/00-task-roadmap.md`).
 
 ## Execution Order
 - [x] `01-simulation-thread-and-train-motion.md`: the simulation thread and
@@ -74,8 +91,88 @@ model as the first operating policy, and threading.
   aspects trains see agree with Open Rails' at 62 to 100 % of samples,
   the rest where signals are cleared, task 02). Open Rails' script
   additions later.
+- [ ] `06-activity-events.md` (to design): the activity's events run in
+  the simulation. Agreed so far (2026-10-17):
+  - Events are checks on the world, as in Open Rails
+    (`Activity.cs`, `EventCategoryActionWrapper`): AssembleTrain fires
+    when any train holds exactly the listed cars (in order or reversed),
+    DropOffWagonsAtLocation when the cars stand as a standing consist
+    inside the siding (whoever left them), PickUpWagons,
+    AssembleTrainAtLocation and ReachSpeed look at the player's train
+    only, PickUpPassengers never fires; AllStops, location events (with
+    Open Rails' AI train trigger, `triggeringService`) and time events;
+    outcomes (events activated, restored, cancelled; messages; the
+    activity's end).
+  - Shown: each event's firing time in the Timetable window's event list
+    and on the map; events that never fire warned; outcome messages at
+    the time they would show in game. Reused: TSRE's `ActivityEvent`
+    parser, the simulation's event list, the map's Events layer, the
+    Event window.
+  - AI trains could carry out work-order events too (user). Open
+    decision: the player's work orders, messages only (as Open Rails'
+    autopilot, which asks the player to shunt) or TSRE's autopilot doing
+    them (TSRE's own; it would make an activity checkable end to end).
+  - Wagon events work fully only after 07; time, location, station and
+    speed events need only 06.
+- [ ] `07-coupling-and-train-changes.md` (to design): trains that meet,
+  couple and split.
+  - Open Rails' AI shunts only where the author coded it in the path
+    (`AITrain.cs`): waiting point 4NNSS / 5NNSS uncouples keeping the
+    first / last NN cars and waits SS s (the cars left become a standing
+    consist), 60001 attaches to the next train, 60002 asks permission to
+    pass a signal at red, 3HHMM waits until HH:MM. An AI train meeting a
+    standing train at the end of a path part (a reversal or its end)
+    couples: a loose consist is picked up and taken along
+    (`CoupleAIToStatic`), another train has cars taken from it or left
+    with it, at the path's end it merges into it. Activities written for
+    Open Rails then run unchanged.
+  - Today: a train's vehicles are fixed in the input (`TrainPlan`:
+    `vehicles`, `length`, summed `performance`), its state is a rigid
+    line (`TrainState`: front on its route, speed, reversed), a loose
+    consist only holds its sections for the whole run (`StaticConsist`),
+    and the core works in whole sections: a train stops a section short
+    of another train or a loose consist (it never passes through, it
+    never meets either).
+  - Needed: one table of the activity's vehicles (trains' and loose
+    consists') with stable ids, so events' wagon lists name them (Open
+    Rails' CarID from the UiD); each train's own vehicle list in its
+    state, its performance summed again when it changes; loose consists
+    as standing trains of the simulation; frames carry each train's
+    vehicles and the controller makes its consist copy again when they
+    change; the activity's own loose consist objects hidden while a
+    simulation draws them. Places inside a section: a train enters an
+    occupied section at restricted speed when it is to couple (Open
+    Rails: the other train stands within about 50 m, at a path part's end
+    or after 60001), stops at contact and couples. Unplanned contact
+    stops both and is reported (no damage).
+  - The editor's `Consist` has no split or join (an editing list:
+    append, delete, reverse, move, flip); the simulation does not need
+    them (its copies are made from frames). The player's driving with
+    real consists will.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
-  passing paths, curve resistance, activity events, the player driving,
-  the Play mode and sounds on the simulation; Open Rails' slower AI
-  pre-run as a compatibility setting.
+  passing paths, curve resistance; Open Rails' slower AI pre-run as a
+  compatibility setting. The player's driving: `docs/tasks/driving/`.
+
+## Open items
+- Aspects: Open Rails shows the signal after next uncleared where ours
+  clears it (JAPAN1 APP3/CLR2, task 05: propagation only while the block
+  is reserved or in the train's route, to study).
+- Stopping at a red signal: Open Rails' AI stands about 30 m short with 10
+  cars or more but 15 to 20 m with fewer (it aims 5 m short); ours 30 m
+  for all.
+- Open Rails' script additions to `sigscr.dat` (task 05, later).
+- Offered, not decided: Jump To going to where a simulated train is; the
+  efficiency after a train's last stop.
+
+## Flagged refactors (user, 2026-10-17)
+- `Sim::TrackGeometry` repeats `TDB::getDrawPositionOnTrNode`'s section
+  walk on its own copy (the geometry maths reused, `TSection`). A TDB copy
+  would need no new class, but the full TDB class would make the
+  simulation less portable: a common interface both use, or a TDB
+  snapshot taken when a simulation starts (the editor edits the TDB).
+- `Sim::Vehicle` copies a few `Eng` fields (length, type, the summed
+  performance). Open Rails-style loco physics needs the whole ENG file:
+  replaced by the shared vehicle definitions of driving task 01.
+- Accepted as they are: `RouteTrack` beside `Ruch` (task 01's decision),
+  `ParserX::GetToken` beside `GetString`.
