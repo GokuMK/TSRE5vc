@@ -31,7 +31,7 @@ public:
     TSection(int index, int t, float a, float r);
     TSection(const TSection& orig);
     virtual ~TSection();
-    float getDlugosc();
+    float getDlugosc() const;
     int getLineBufferSize(int pointSize, int step = 0);
     void drawSection(float* &ptr, float* matrix, float height);
     void drawSection(float* &ptr, float* matrix, float height, int idx, int vidx);
@@ -42,10 +42,10 @@ public:
     void setDrawPosition(float metry);
     float getAngle();
     int getHash();
-    void getDrawPosition(Vector3f *out, float metry);
+    void getDrawPosition(Vector3f *out, float metry) const;
     void setCamPosition(float metry, float ob);
     void setCamRotation(float metry, float ob);
-    float getDrawAngle(float metry);
+    float getDrawAngle(float metry) const;
     void saveToStream(QTextStream &out);
     void loadUtf16Data(FileBuffer *data);
 private:

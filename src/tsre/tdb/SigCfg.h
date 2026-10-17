@@ -42,6 +42,8 @@ public:
     // ORTSNormalSubtypes, upper case.
     QStringList normalSubtypes;
     QStringList scriptFiles;
+    // The file read (its scripts are beside it).
+    QString path;
     bool loaded = false;
     bool sourceFileExists = false;
     // Problems met while reading; the blocks concerned were skipped.

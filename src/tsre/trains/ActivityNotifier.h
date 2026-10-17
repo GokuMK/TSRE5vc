@@ -8,6 +8,11 @@ class ActivityNotifier : public QObject {
     Q_OBJECT
 public:
     static ActivityNotifier *instance();
+    // While a simulation exists the activity data is not edited (task
+    // simulation 01): the windows and tools show it but do not change it,
+    // and undo leaves activity steps alone.
+    static bool editingLocked() { return instance()->locked; }
+    void setEditingLocked(bool on);
 signals:
     void restoring();
     void restored();
@@ -15,4 +20,7 @@ signals:
     void pathFollowed(const QString &path, const QStringList &lines);
     // Saving an activity renamed the overlay merged into it.
     void overlayRenamed(const QString &path);
+    void editingLockChanged(bool locked);
+private:
+    bool locked = false;
 };

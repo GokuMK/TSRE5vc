@@ -52,7 +52,7 @@ TSection::TSection(const TSection& orig) {
 TSection::~TSection() {
 }
 
-float TSection::getDlugosc() {
+float TSection::getDlugosc() const {
     if (type == 0) {
         return size;
     } else if (type == 1) {
@@ -299,7 +299,7 @@ void TSection::setDrawPosition(float metry) {
          }*/
 }
 
-void TSection::getDrawPosition(Vector3f *out, float metry) {
+void TSection::getDrawPosition(Vector3f *out, float metry) const {
 
     if (metry > this->getDlugosc())
         metry = this->getDlugosc();
@@ -327,7 +327,7 @@ void TSection::getDrawPosition(Vector3f *out, float metry) {
     return;
 }
 
-float TSection::getDrawAngle(float metry) {
+float TSection::getDrawAngle(float metry) const {
 
     if (metry > this->getDlugosc())
         metry = this->getDlugosc();

@@ -782,6 +782,8 @@ private:
         // The cells of this frame and the last (alternating), the sums.
         QRhiTexture *scatter[2] = {};
         QRhiTexture *integrated = nullptr;
+        // The lamps' and signals' light in the cells, this frame's only.
+        QRhiTexture *lamps = nullptr;
         QRhiTexture *floor = nullptr;
         quint64 floorRevision = ~0ull;
         // The highest fog top on the map, for the map and depth it was found for.
@@ -815,6 +817,8 @@ private:
         QRhiShaderResourceBindings *skyBindings = nullptr;
         QRhiGraphicsPipeline *skyPipeline = nullptr;
         const QRhiTexture *skyViewColor = nullptr;
+        // A copy of the view, which the sky's pass reads under the fog.
+        QRhiTexture *skyUnder = nullptr;
         // This frame's volume is filled; the sky has its fog; the volume
         // has been filled once (until then the lit shaders take none).
         bool ready = false;
@@ -1046,6 +1050,10 @@ private:
     Attachments selection;
     QByteArray selectionIds;
     bool selectionRead = false;
+    // The flush beginSelection makes of the view: no clouds' or fog's
+    // preparation in it, which would take their state (the fog's history,
+    // its signal grid) from a pass without the view's items.
+    bool selectionFlush = false;
     int selectionViewport[4] = {0, 0, 0, 0};
 
     TargetState targets[TargetCount];

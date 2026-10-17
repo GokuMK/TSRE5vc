@@ -80,6 +80,8 @@
 #include <tsre/geo/GeoPresetData.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Trk.h>
+#include <routeEditor/activity/ActivityEditLock.h>
+#include <tsre/map/TrackItemMapLayer.h>
 
 namespace {
 bool routeStartLatitudeLongitude(Route *route,
@@ -201,6 +203,10 @@ RouteEditorWindow::RouteEditorWindow() {
     objProperties["TrackItem"] = new PropertiesTrackItem;
     objProperties["ActivityPath"] = new PropertiesActivityPath;
     objProperties["ActivityConsist"] = new PropertiesConsist;
+    // Activity data shows but is not edited while a simulation exists (a
+    // consist's properties stay on: its camera buttons; a simulated train's
+    // speed is not edited).
+    ActivityEditLock::Follow(this, {objProperties["ActivityObject"], objProperties["ActivityPath"]});
     // last 
     objProperties["Undefined"] = new PropertiesUndefined;
     
@@ -479,8 +485,8 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.junctions"), MapLayer::Junctions},
         {//% "Track &Ends"
          qtTrId("route.editor.route.editor.window.action.map.ends"), MapLayer::Ends},
-        {//% "Track &Objects"
-         qtTrId("route.editor.route.editor.window.action.map.track.objects"),
+        {//% "Track &Database"
+         qtTrId("route.editor.route.editor.window.action.map.track.database"),
          MapLayer::TrackObjects},
         {//% "Pat&hs"
          qtTrId("route.editor.route.editor.window.action.map.paths"), MapLayer::Paths},
@@ -523,6 +529,74 @@ RouteEditorWindow::RouteEditorWindow() {
         if (layer == MapLayer::Weather)
             mapWeatherAction = action;
         mapMenu->addAction(action);
+        // Under Track Database and Activity: their kinds, each on its own,
+        // off with them.
+        QMenu *kinds = nullptr;
+        if (layer == MapLayer::TrackObjects) {
+            kinds = mapMenu->addMenu(
+                //% "Track &Objects"
+                qtTrId("route.editor.route.editor.window.menu.map.track.objects"));
+            const struct { QString text; int kind; } trackKinds[] = {
+                {//% "&Signals"
+                 qtTrId("route.editor.route.editor.window.action.map.track.signals"), TrackItemMapLayer::Signal},
+                {//% "Speed &Posts"
+                 qtTrId("route.editor.route.editor.window.action.map.track.speed.posts"), TrackItemMapLayer::SpeedPost},
+                {//% "P&latforms"
+                 qtTrId("route.editor.route.editor.window.action.map.track.platforms"), TrackItemMapLayer::Platform},
+                {//% "Si&dings"
+                 qtTrId("route.editor.route.editor.window.action.map.track.sidings"), TrackItemMapLayer::Siding},
+                {//% "&Car Spawners"
+                 qtTrId("route.editor.route.editor.window.action.map.track.car.spawners"), TrackItemMapLayer::CarSpawner},
+                {//% "Level &Crossings"
+                 qtTrId("route.editor.route.editor.window.action.map.track.level.crossings"), TrackItemMapLayer::LevelCrossing},
+                {//% "&Hazards"
+                 qtTrId("route.editor.route.editor.window.action.map.track.hazards"), TrackItemMapLayer::Hazard},
+                {//% "Pic&kups"
+                 qtTrId("route.editor.route.editor.window.action.map.track.pickups"), TrackItemMapLayer::Pickup},
+                {//% "Sound &Regions"
+                 qtTrId("route.editor.route.editor.window.action.map.track.sound.regions"), TrackItemMapLayer::SoundRegion}};
+            for (const auto &entry : trackKinds) {
+                QAction *kindAction = GuiFunct::newMenuCheckAction(entry.text, this, true);
+                const int kind = entry.kind;
+                QObject::connect(kindAction, &QAction::triggered, this, [this, kind](bool visible) {
+                    glWidget->setMapTrackObjectKind(kind, visible);
+                });
+                kinds->addAction(kindAction);
+            }
+        } else if (layer == MapLayer::Activity) {
+            kinds = mapMenu->addMenu(
+                //% "Activity O&bjects"
+                qtTrId("route.editor.route.editor.window.menu.map.activity.objects"));
+            const struct { QString text; MapActivityKind kind; } activityKinds[] = {
+                {//% "&Player's Path"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.player.path"), MapActivityKind::PlayerPath},
+                {//% "&AI Trains' Paths"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.ai.paths"), MapActivityKind::AIPaths},
+                {//% "&Trains"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.trains"), MapActivityKind::Trains},
+                {//% "&Loose Consists"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.loose.consists"), MapActivityKind::LooseConsists},
+                {//% "&Speed Zones"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.speed.zones"), MapActivityKind::SpeedZones},
+                {//% "&Failed Signals"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.failed.signals"), MapActivityKind::FailedSignals},
+                {//% "&Events"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.events"), MapActivityKind::Events},
+                {//% "Track &Use and Signal Aspects"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.simulated.track"), MapActivityKind::SimulatedTrack}};
+            for (const auto &entry : activityKinds) {
+                QAction *kindAction = GuiFunct::newMenuCheckAction(entry.text, this, true);
+                const MapActivityKind kind = entry.kind;
+                QObject::connect(kindAction, &QAction::triggered, this, [this, kind](bool visible) {
+                    glWidget->setMapActivityKind(kind, visible);
+                });
+                kinds->addAction(kindAction);
+            }
+        }
+        if (kinds != nullptr) {
+            kinds->setEnabled(action->isChecked());
+            QObject::connect(action, &QAction::toggled, kinds, &QMenu::setEnabled);
+        }
     }
     // Window
     windowMenu = menuBar()->addMenu(
@@ -800,6 +874,8 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(objProperties["ActivityConsist"], SIGNAL(cameraObject(GameObj*)),
                       glWidget, SLOT(setCameraObject(GameObj*)));
+    QObject::connect(objProperties["ActivityConsist"], SIGNAL(releaseCamera()),
+                      glWidget, SLOT(releaseCameraObject()));
     
     QObject::connect(objProperties["TrackObj"], SIGNAL(setMoveStep(float)),
                       glWidget, SLOT(setMoveStep(float)));

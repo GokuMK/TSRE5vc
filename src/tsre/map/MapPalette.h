@@ -57,6 +57,13 @@ struct MapPalette {
     QColor speedZone = QColor(255, 0, 102);
     QColor failedSignal = QColor(204, 51, 204);
     QColor event = QColor(255, 0, 0);
+    // A simulation's track: stood on (by a train or a consist), reserved
+    // ahead of a train; its signals by aspect.
+    QColor occupied = QColor(220, 30, 30);
+    QColor reserved = QColor(240, 150, 0);
+    QColor aspectStop = QColor(220, 30, 30);
+    QColor aspectCaution = QColor(245, 200, 0);
+    QColor aspectClear = QColor(0, 170, 60);
     // How much Map > Faded Overlay blends terrain and OSM data towards the
     // background. Files may still name it terrainFade, its former name.
     float overlayFade = 0.55f;

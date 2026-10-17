@@ -15,6 +15,7 @@
 #include <QVector>
 
 class TDB;
+class TRnode;
 
 // Activity paths on the track database (task editor 06): the nodes of a
 // path as its file lists them, the track between them, and the edits of
@@ -172,10 +173,26 @@ Result rebuild(TDB *tdb, const QVector<Node> &nodes, bool repair);
 // The output each facing junction of the path is left by, as Ruch takes
 // it: 0 for the junction's first output pin, 1 for the next.
 QMap<int, int> junctionChoices(TDB *tdb, const QVector<Node> &nodes, const QVector<Leg> &legs);
+// The track from distance `from` along vector node `track` in direction
+// `forward`, for up to `length` metres: the main route at facing junctions,
+// as `complete` goes. It stops short at a track end, where the track
+// database is broken, or before a track it already followed the same way.
+// The legs in the order travelled; `ended` tells whether a track end (or a
+// break) stopped it.
+QVector<Leg> follow(TDB *tdb, int track, float from, bool forward, float length, bool *ended = nullptr);
 // Removes halfway nodes that are not between two junction nodes.
 void dropStrayHalfways(QVector<Node> &nodes);
 // The number of vector nodes joining two junctions.
 int tracksBetween(TDB *tdb, int junctionA, int junctionB);
+
+// Junctions as the path code takes them (the simulation's track network uses
+// them too): the pin of a junction that links vector node `track` at the
+// vector's end `end` (a vector joining it at both ends has its end 0 at the
+// first such pin), -1 none; the end of a vector node at a junction's pin;
+// the output pin of a junction's main route (tsection.dat's MainRoute).
+int junctionPin(const TRnode *junction, int track, int end);
+int endOfJunctionPin(const TRnode *junction, int junctionId, int pin, const TRnode *vector);
+int junctionMainPin(TDB *tdb, const TRnode *junction);
 
 }
 

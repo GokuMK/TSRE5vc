@@ -28,6 +28,7 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
+#include <tsre/sim/SimulationController.h>
 #include <algorithm>
 
 Activity::Activity() {
@@ -551,48 +552,6 @@ bool ActivityServiceDefinition::isModified(){
     return modified;
 }
 
-void ActivityServiceDefinition::calculateTimetable(){
-    ActivityTimetable *t = trafficDefinition;
-
-    Service *srv = ActLib::GetServiceByName(name, routePath);
-    if(srv == NULL)
-        return;
-    Consist *con = ConLib::con[ConLib::addCon(Game::root+"/TRAINS/CONSISTS/", srv->trainConfig+".con")];
-    if(con == NULL)
-        return;
-    qDebug() << con->maxVelocity[0] << con->maxVelocity[1];
-    float speed = con->maxVelocity[0];
-    float acceleration = con->maxVelocity[1];
-    float tdist = 0, ldist = 0, performance = 1;
-    unsigned int sTime = t->time;
-    
-    for(int i = 0; i < t->platformStartID.size(); i++){
-        tdist = t->distanceDownPath[i] - ldist;
-        ldist = t->distanceDownPath[i];
-        performance = efficiency[i];
-        
-        float accelerationTime = speed/(acceleration*performance);
-        float accelerationDistance = 0.5*accelerationTime*accelerationTime*acceleration*performance;
-        tdist /= 2.0;
-        
-        if(tdist <= accelerationDistance){
-            sTime += 2*sqrt((2*tdist)/(acceleration*performance));
-        } else {
-            sTime += 2*accelerationTime + 2*(tdist-accelerationDistance)/(speed);
-        }
-        
-        //sTime += tdist/(speed*performance);
-        if(t->arrivalTime[i] > sTime)
-            sTime = t->arrivalTime[i];
-        t->setArrival(i, sTime);
-        if(t->departTime[i] > sTime)
-            sTime = t->departTime[i];
-        t->setDepart(i, sTime);
-        
-    }
-    modified = true;
-}
-
 void ActivityServiceDefinition::setTimetableEfficiency(int id, float val){
     if(id < 0)
         return;
@@ -1047,10 +1006,14 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
         event[i]->pushRenderItem(queue, playerT, playerRot, renderMode);
     }
 
+    // While a simulation runs the activity, its trains are where the
+    // simulation has them (SimulationController), not at their starts.
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const bool atStart = !simulation->shows(this);
     if (Service *player = playerService()) {
         const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
                 ? SelectionIdCodec::activityService(0) : 0;
-        player->pushRenderItems(queue, playerT, selectionId);
+        player->pushRenderItems(queue, playerT, selectionId, 0, atStart);
     }
 
     for (int i : shownAITrains()) {
@@ -1058,8 +1021,10 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
         const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
                 ? SelectionIdCodec::activityService(i + 1) : 0;
         service->pushRenderItems(queue, playerT, selectionId,
-                                 i == shownAITrain ? Path::LineChosenTrain : Path::LineAITrain);
+                                 i == shownAITrain ? Path::LineChosenTrain : Path::LineAITrain, atStart);
     }
+    if (!atStart)
+        simulation->pushRenderItems(queue, playerT, renderMode);
 }
 
 QVector<int> Activity::shownAITrains(){

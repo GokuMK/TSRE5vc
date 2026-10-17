@@ -628,6 +628,11 @@ const QVector<Node> &Path::nodes() {
     return mainNodes;
 }
 
+const QVector<PathSnapshot::Passing> &Path::passingPaths() {
+    resolve();
+    return passing;
+}
+
 const QVector<PathTrack::Leg> &Path::legs() {
     resolve();
     return mainLegs;

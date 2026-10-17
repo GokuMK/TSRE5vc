@@ -41,13 +41,18 @@ constexpr int MaxBloomLevels = 6;
 // sliver a pixel or two high. The total is the glow of the emitter seen as
 // a sphere of its area and radiance (task 21): pi I (f/d)^2 in pixels,
 // faded by fog. It hands over to the surface's own glow while the emitter's
-// radius grows from 16 to 32 pixels (PbrShading.glsl).
-constexpr int GlowSplatStride = 8 * sizeof(float);
+// radius grows from 16 to 32 pixels (PbrShading.glsl). A lens's emitter (a
+// spot: signal and train lamps) glows the way it faces only: by a ramp in
+// the cosine off its axis, between its cone's two, as a flat lens's area
+// seen (90 degrees: the cosine), none from behind.
+constexpr int GlowSplatStride = 16 * sizeof(float);
 constexpr int GlowSplatUniformBytes = 256;
 
 const char *GlowSplatVertex = R"(#version 440
 layout(location = 0) in vec4 emitter; // position, radius
 layout(location = 1) in vec4 power;   // colour times intensity
+layout(location = 2) in vec4 axis;    // a lens's: the way it faces, on
+layout(location = 3) in vec4 cone;    // cosine of the outer half-angle, 1 / (inner's - outer's)
 layout(location = 0) out vec2 offset;
 layout(location = 1) out vec3 glow;
 layout(location = 2) flat out float tentArea;
@@ -97,12 +102,13 @@ void main() {
         vec3 sigma = vec3(5.802e-3, 13.558e-3, 33.1e-3) * mean.x + vec3(4.44e-3 * mean.y + haze.y * mean.z);
         through = exp(-sigma * distance / 1000.0);
     }
-    glow = power.rgb * day * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * through;
+    float facing = axis.w > 0.5 ? clamp((dot(axis.xyz, -toEmitter / distance) - cone.x) * cone.y, 0.0, 1.0) : 1.0;
+    glow = power.rgb * day * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * through * facing;
     offset = corner;
     // Depth at the emitter's front, so its own housing does not hide it.
     vec3 front = emitter.xyz - toEmitter / distance * min(emitter.w, distance * 0.5);
     vec4 clip = projection * vec4(front, 1.0);
-    if (share <= 0.0 || clip.w <= 0.0) {
+    if (share <= 0.0 || facing <= 0.0 || clip.w <= 0.0) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         return;
     }
@@ -751,14 +757,21 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
             return false;
         }
     }
-    std::vector<float> data(size_t(count) * 8);
+    std::vector<float> data(size_t(count) * 16);
     for (quint32 i = 0; i < count; ++i) {
         const LightGrid::Light &e = g.emitters[i];
-        float *out = data.data() + i * 8;
+        float *out = data.data() + i * 16;
         std::copy(e.position, e.position + 3, out);
         out[3] = e.radius;
         std::copy(e.color, e.color + 3, out + 4);
         out[7] = !g.enclosed ? 1.0f : e.signal ? gluu->signalLightAdaptation : gluu->localLightAdaptation;
+        // A lens's cone, as the lights' grid has a spot's.
+        std::copy(e.direction, e.direction + 3, out + 8);
+        out[11] = e.spot ? 1.0f : 0.0f;
+        const float spread = e.cosInner - e.cosOuter;
+        out[12] = e.cosOuter;
+        out[13] = spread > 1e-4f ? 1.0f / spread : 1e4f;
+        out[14] = out[15] = 0.0f;
     }
     batch->updateDynamicBuffer(g.instances, 0, bytes, data.data());
     if (g.uniforms == nullptr) {
@@ -813,7 +826,9 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
         QRhiVertexInputLayout layout;
         layout.setBindings({{GlowSplatStride, QRhiVertexInputBinding::PerInstance}});
         layout.setAttributes({{0, 0, QRhiVertexInputAttribute::Float4, 0},
-                              {0, 1, QRhiVertexInputAttribute::Float4, 4 * sizeof(float)}});
+                              {0, 1, QRhiVertexInputAttribute::Float4, 4 * sizeof(float)},
+                              {0, 2, QRhiVertexInputAttribute::Float4, 8 * sizeof(float)},
+                              {0, 3, QRhiVertexInputAttribute::Float4, 12 * sizeof(float)}});
         g.pipeline->setVertexInputLayout(layout);
         g.pipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
         // Behind the scene's surfaces they are hidden; they add to the glow

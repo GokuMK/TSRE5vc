@@ -164,6 +164,24 @@ float* CameraFree::getPos() {
     return pos;
 }
 
+void CameraFree::releaseObject() {
+    if (cameraObject == NULL)
+        return;
+    const float *at = getPos();
+    const float place[3] = {at[0], at[1], at[2]};
+    playerRot[0] = getRotX();
+    playerRot[1] = getRotY();
+    cameraObject = NULL;
+    for (int i = 0; i < 3; i++) {
+        relativePos[i] = 0;
+        relativeRot[i] = 0;
+    }
+    playerPos[0] = place[0];
+    playerPos[1] = place[1];
+    playerPos[2] = place[2];
+    check_coords();
+}
+
 float CameraFree::getRotX() {
     return playerRot[0] + relativeRot[0];
 }
@@ -177,7 +195,9 @@ Vector3f Camera::getUp() {
 
 void CameraFree::update(float fps) {
     if(cameraObject != NULL){
-        float cpos[8];
+        // As it is, where the object gives no place (not on the track).
+        float cpos[8] = {pozT[0], pozT[1], relativePos[0], relativePos[1], relativePos[2],
+                         relativeRot[0], relativeRot[1], relativeRot[2]};
         cameraObject->getCameraPosition((float*)cpos);
         pozT[0] = cpos[0];
         pozT[1] = cpos[1];

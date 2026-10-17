@@ -9,6 +9,7 @@
  */
 
 #include "ActivityTrafficWindow.h"
+#include <routeEditor/activity/ActivityEditLock.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include "ActivityTrafficProperties.h"
 #include <tsre/world/Route.h>
@@ -66,8 +67,10 @@ ActivityTrafficWindow::ActivityTrafficWindow(QWidget* parent) : QWidget(parent) 
     v->setSpacing(2);
     v->setContentsMargins(1,1,1,1);
     v->addItem(actionListLayout);
-    v->addWidget(trafficProperties);
+    QWidget *editor = ActivityEditLock::Box(trafficProperties);
+    v->addWidget(editor);
     this->setLayout(v);
+    ActivityEditLock::Follow(this, {editor, bNew, bDelete});
     
     QObject::connect(&lTraffic, SIGNAL(itemClicked(QTreeWidgetItem*, int)),
                       this, SLOT(lTrafficSelected(QTreeWidgetItem*, int)));

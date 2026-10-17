@@ -1,0 +1,21 @@
+{
+  "notes": "Simulated trains (docs/tasks/simulation/01-simulation-thread-and-train-motion.md, phase 3) on EUROPE1's lclsrvce, run to 09:03 (it starts at 09:00): the player's train (train 5; the trains are numbered by start time) has left its start and is drawn where the simulation has it, outlined as the train chosen; the trains standing at their starts are not drawn. 3D and map by the player's train (the camera behind it, as Follow places it), and by an AI train running at that time (train 3, 08:20's Local Service (Traffic)).",
+  "output": "build/renderer-simulation-trains",
+  "activity": "lclsrvce.act",
+  "aiTrains": "all",
+  "simulateTo": "09:03:00",
+  "simulationChosen": 5,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "player-3d", "train": 5},
+    {"name": "player-map", "mode": "map", "train": 5, "metresPerPixel": 0.5},
+    {"name": "ai-3d", "train": 3},
+    {"name": "ai-map", "mode": "map", "train": 3, "metresPerPixel": 1}
+  ]
+}

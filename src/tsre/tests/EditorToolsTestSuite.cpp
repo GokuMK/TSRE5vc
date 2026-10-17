@@ -1,6 +1,13 @@
 #include <tsre/tests/EditorToolsTestSuite.h>
 
 #include <QAction>
+#include <memory>
+#include <QApplication>
+#include <QComboBox>
+#include <QStyleFactory>
+#include <QWheelEvent>
+#include <tsre/gui/TsreStyle.h>
+#include <cmath>
 #include <QDebug>
 #include <QKeyEvent>
 #include <QMenu>
@@ -367,6 +374,47 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     ToolButtons::applyMode({{"proceduralPickTool", &aliased}}, ViewMode::Map);
     check(aliased.isEnabled(), "panel buttons: a button follows the tool it starts");
     ToolButtons::setRegistry(nullptr);
+
+    // TSRE's application style: a combo box lists its items below it, and
+    // the mouse wheel leaves it as it is (the event goes on to what is
+    // behind it); Fusion's own changes it.
+    {
+        TsreStyle style;
+        std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+        const auto wheeled = [](QStyle *with, bool *accepted) {
+            QComboBox combo;
+            combo.setStyle(with);
+            combo.addItems({"a", "b", "c"});
+            combo.setCurrentIndex(1);
+            QWheelEvent wheel(QPointF(5, 5), QPointF(5, 5), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier,
+                              Qt::NoScrollPhase, false);
+            wheel.setAccepted(true);
+            QApplication::sendEvent(&combo, &wheel);
+            *accepted = wheel.isAccepted();
+            return combo.currentIndex();
+        };
+        bool tsreAccepted = true, fusionAccepted = false;
+        const int tsreIndex = wheeled(&style, &tsreAccepted);
+        const int fusionIndex = wheeled(fusion.get(), &fusionAccepted);
+        QComboBox popup;
+        QStyleOptionComboBox option;
+        option.editable = false;
+        check(tsreIndex == 1 && !tsreAccepted && fusionIndex == 2 && fusionAccepted
+                  && style.styleHint(QStyle::SH_ComboBox_Popup, &option, &popup) == 0
+                  && fusion->styleHint(QStyle::SH_ComboBox_Popup, &option, &popup) != 0,
+              "TSRE's style: combo boxes list below, the mouse wheel passes them by");
+        // As the application's style, under a box's own style sheet too.
+        QApplication::setStyle(new TsreStyle);
+        QComboBox sheeted;
+        sheeted.setStyleSheet("combobox-popup: 0;");
+        sheeted.addItems({"a", "b", "c"});
+        sheeted.setCurrentIndex(1);
+        QWheelEvent wheel(QPointF(5, 5), QPointF(5, 5), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier,
+                          Qt::NoScrollPhase, false);
+        QApplication::sendEvent(&sheeted, &wheel);
+        check(sheeted.currentIndex() == 1, "TSRE's style as the application's: a box with its own style sheet too");
+        QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+    }
 
     qInfo().noquote() << "[tests:editor-tools] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

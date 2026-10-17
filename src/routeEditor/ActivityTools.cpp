@@ -33,6 +33,8 @@
 #include <tsre/trains/ActivityCheck.h>
 #include <tsre/trains/ActivityOverlay.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/sim/SimulationController.h>
+#include <tsre/environment/WorldClock.h>
 #include <QDialog>
 #include <QEvent>
 #include <QDialogButtonBox>
@@ -42,6 +44,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QRegularExpression>
+#include <cmath>
 
 ActivityTools::ActivityTools(QString name)
     : QWidget(){
@@ -112,6 +115,7 @@ ActivityTools::ActivityTools(QString name)
         qtTrId("route.editor.activity.tools.button.new.act.button"), this);
     //advancedPlacenentButton->setCheckable(true);
     QObject::connect(newActButton, SIGNAL(released()), this, SLOT(newActButtonEnabled()));
+    editing << newActButton;
 
     //radio1->setChecked(true);
     QGridLayout *vlist1 = NULL;
@@ -138,6 +142,7 @@ ActivityTools::ActivityTools(QString name)
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&cService);
+    editing << &cService;
     cService.setStyleSheet("combobox-popup: 0;");
     cService.setMaxVisibleItems(35);
     cService.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -154,6 +159,7 @@ ActivityTools::ActivityTools(QString name)
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&cTraffic);
+    editing << &cTraffic;
     cTraffic.setStyleSheet("combobox-popup: 0;");
     cTraffic.setMaxVisibleItems(35);
     cTraffic.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -208,6 +214,7 @@ ActivityTools::ActivityTools(QString name)
     vlist1->addWidget(actPathsEdit,0,1);
     vlist1->addWidget(actPathsClone,0,2);
     vlist1->addWidget(actPathsDelete,0,3);
+    editing << actPathsNew << actPathsEdit << actPathsClone << actPathsDelete;
     QPushButton *actPathsRefreshList = new QPushButton(
         //% "Refresh List"
         qtTrId("route.editor.activity.tools.button.act.paths.refresh.list"));
@@ -251,6 +258,7 @@ ActivityTools::ActivityTools(QString name)
     vlist1->addWidget(actConsistJump,0,0);
     vlist1->addWidget(actConsistDelete,0,1);
     vlist1->addWidget(buttonTools["actNewLooseConsistTool"],0,2,1,2);
+    editing << actConsistDelete << buttonTools["actNewLooseConsistTool"] << &conFilesShow;
     label = new QLabel(
         //% "Consist:"
         qtTrId("route.editor.activity.tools.label.label.7"));
@@ -298,6 +306,7 @@ ActivityTools::ActivityTools(QString name)
     vlist1->addWidget(buttonTools["actNewSpeedZoneTool"],0,1);
     vlist1->addWidget(actZoneDelete,0,2);
     vlist1->addWidget(actZoneDeleteAll,0,3);
+    editing << buttonTools["actNewSpeedZoneTool"] << actZoneDelete << actZoneDeleteAll;
     vbox->addItem(vlist1);
     
     label = new QLabel(
@@ -333,6 +342,7 @@ ActivityTools::ActivityTools(QString name)
     vlist1->addWidget(actFailedSignalTool,0,1);
     vlist1->addWidget(actFailedSignalDelete,0,2);
     vlist1->addWidget(actFailedSignalDeleteAll,0,3);
+    editing << actFailedSignalTool << actFailedSignalDelete << actFailedSignalDeleteAll;
     vbox->addItem(vlist1);
     
     label = new QLabel(
@@ -375,18 +385,6 @@ ActivityTools::ActivityTools(QString name)
     }
     
     label = new QLabel(
-        //% "Experimental:"
-        qtTrId("route.editor.activity.tools.label.label.12"));
-    label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
-    label->setContentsMargins(3,0,0,0);
-    vbox->addWidget(label);
-    QPushButton *actPlayButton = new QPushButton(
-        //% "Play: Don't use!"
-        qtTrId("route.editor.activity.tools.button.act.play.button"));
-    QObject::connect(actPlayButton, SIGNAL(released()), this, SLOT(actPlayEnabled()));
-    vbox->addWidget(actPlayButton);
-    
-    label = new QLabel(
         //% "General:"
         qtTrId("route.editor.activity.tools.label.label.13"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
@@ -402,6 +400,96 @@ ActivityTools::ActivityTools(QString name)
         qtTrId("route.editor.activity.tools.button.act.save.button"));
     QObject::connect(actSaveButton, SIGNAL(released()), this, SLOT(actSaveEnabled()));
     vbox->addWidget(actSaveButton);
+
+    // The simulation (task simulation 01): it runs the activity as it is
+    // when started; the activity is not edited until it stops.
+    label = new QLabel(
+        //% "Simulation:"
+        qtTrId("route.editor.activity.tools.label.simulation"));
+    label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    label->setContentsMargins(3,0,0,0);
+    vbox->addWidget(label);
+    {
+        simPlay = new QPushButton(
+            //% "Play"
+            qtTrId("route.editor.activity.tools.button.simulation.play"));
+        simPlay->setToolTip(
+            //% "Runs the activity's trains at the speed chosen (real time at 1×); the activity is not edited until Stop."
+            qtTrId("route.editor.activity.tools.button.simulation.play.tooltip"));
+        simPause = new QPushButton(
+            //% "Pause"
+            qtTrId("route.editor.activity.tools.button.simulation.pause"));
+        simStop = new QPushButton(
+            //% "Stop"
+            qtTrId("route.editor.activity.tools.button.simulation.stop"));
+        simReset = new QPushButton(
+            //% "Reset"
+            qtTrId("route.editor.activity.tools.button.simulation.reset"));
+        simReset->setToolTip(
+            //% "Back to the activity's start time."
+            qtTrId("route.editor.activity.tools.button.simulation.reset.tooltip"));
+        simRunTo = new QPushButton(
+            //% "Run"
+            qtTrId("route.editor.activity.tools.button.simulation.run.to"));
+        simRunTo->setToolTip(
+            //% "As fast as possible to the time, then paused; an earlier time is reached again from the start."
+            qtTrId("route.editor.activity.tools.button.simulation.run.to.tooltip"));
+        simPlay->setObjectName("simulationPlay");
+        simPause->setObjectName("simulationPause");
+        simStop->setObjectName("simulationStop");
+        simReset->setObjectName("simulationReset");
+        simRunTo->setObjectName("simulationRunTo");
+        simSpeed.setObjectName("simulationSpeed");
+        simRunToTime.setObjectName("simulationRunToTime");
+        simTime.setObjectName("simulationTime");
+        simStatus.setObjectName("simulationStatus");
+        for(double speed : Sim::SimulationController::Speeds())
+            simSpeed.addItem(speed > 0 ?
+                //% "%1×"
+                qtTrId("route.editor.activity.tools.simulation.speed").arg(speed) :
+                //% "As fast as possible"
+                qtTrId("route.editor.activity.tools.simulation.speed.fastest"), speed);
+        simSpeed.setStyleSheet("combobox-popup: 0;");
+        simRunToTime.setDisplayFormat("HH:mm:ss");
+        simStatus.setWordWrap(true);
+        simStatus.setContentsMargins(3,0,0,0);
+        QGridLayout *grid = new QGridLayout;
+        grid->setSpacing(2);
+        grid->setContentsMargins(0,0,1,0);
+        grid->addWidget(simPlay, 0, 0);
+        grid->addWidget(simPause, 0, 1);
+        grid->addWidget(simStop, 0, 2);
+        grid->addWidget(simReset, 0, 3);
+        grid->addWidget(new QLabel(
+            //% "Speed:"
+            qtTrId("route.editor.activity.tools.label.simulation.speed")), 1, 0);
+        grid->addWidget(&simSpeed, 1, 1, 1, 3);
+        grid->addWidget(new QLabel(
+            //% "Time:"
+            qtTrId("route.editor.activity.tools.label.simulation.time")), 2, 0);
+        grid->addWidget(&simTime, 2, 1, 1, 3);
+        grid->addWidget(new QLabel(
+            //% "Run to:"
+            qtTrId("route.editor.activity.tools.label.simulation.run.to")), 3, 0);
+        grid->addWidget(&simRunToTime, 3, 1, 1, 2);
+        grid->addWidget(simRunTo, 3, 3);
+        vbox->addItem(grid);
+        vbox->addWidget(&simStatus);
+        QObject::connect(simPlay, SIGNAL(released()), this, SLOT(actPlayEnabled()));
+        QObject::connect(simPause, SIGNAL(released()), this, SLOT(simPauseEnabled()));
+        QObject::connect(simStop, SIGNAL(released()), this, SLOT(simStopEnabled()));
+        QObject::connect(simReset, SIGNAL(released()), this, SLOT(simResetEnabled()));
+        QObject::connect(simRunTo, SIGNAL(released()), this, SLOT(simRunToEnabled()));
+        QObject::connect(&simSpeed, SIGNAL(activated(int)), this, SLOT(simSpeedSelected(int)));
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        QObject::connect(simulation, &Sim::SimulationController::stateChanged, this, &ActivityTools::showSimulation);
+        QObject::connect(simulation, &Sim::SimulationController::frameUpdated, this, &ActivityTools::showSimulation);
+        QObject::connect(simulation, &Sim::SimulationController::eventsAdded, this, &ActivityTools::simulationEvents);
+        QObject::connect(WorldClock::instance(), &WorldClock::changed, this, &ActivityTools::showSimulation);
+        QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged,
+                         this, &ActivityTools::lockEditing);
+        showSimulation();
+    }
     
     QHBoxLayout *vbox1 = new QHBoxLayout;
     int row = 0;
@@ -733,15 +821,133 @@ void ActivityTools::conFilesShowEnabled(QString val){
     a->editorConListSelected = file;
 }
 
+// Play: the simulation of the activity chosen runs (started when there is
+// none).
 void ActivityTools::actPlayEnabled(){
-    if(actShow.currentIndex() < 0)
-        return;
-    Activity *a = currentActivity();
-    if(a == NULL)
-        return;
+    QString error;
+    if(!Sim::SimulationController::instance()->play(currentActivity(), &error))
+        QMessageBox::warning(this,
+            //% "Simulation"
+            qtTrId("route.editor.activity.tools.simulation.title"), error);
+}
 
-    a->initToPlay();
+void ActivityTools::simPauseEnabled(){
+    Sim::SimulationController::instance()->pause();
+}
 
+void ActivityTools::simStopEnabled(){
+    Sim::SimulationController::instance()->stop();
+}
+
+void ActivityTools::simResetEnabled(){
+    Sim::SimulationController::instance()->reset();
+}
+
+void ActivityTools::simRunToEnabled(){
+    QString error;
+    const int time = simRunToTime.time().msecsSinceStartOfDay() / 1000;
+    if(!Sim::SimulationController::instance()->runTo(currentActivity(), time, &error))
+        QMessageBox::warning(this, qtTrId("route.editor.activity.tools.simulation.title"), error);
+}
+
+// The world's clock's speed (WorldClock): the simulation's, or the speed the
+// next one starts at, as the environment window shows it.
+void ActivityTools::simSpeedSelected(int index){
+    WorldClock::instance()->setSpeed(simSpeed.itemData(index).toDouble());
+}
+
+// The controls as the simulation is: what can be done, its time, its
+// trains.
+void ActivityTools::showSimulation(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const bool exists = simulation->exists();
+    const bool runs = simulation->runs();
+    const bool chosen = currentActivity() != NULL;
+    simPlay->setEnabled(chosen && !runs);
+    simPause->setEnabled(runs);
+    simStop->setEnabled(exists);
+    simReset->setEnabled(exists);
+    simRunTo->setEnabled(chosen);
+    const double pace = WorldClock::instance()->speed();
+    int speed = simSpeed.findData(pace);
+    if(speed < 0){
+        // One the list lacks (the environment window's): in its place.
+        speed = 0;
+        while(speed < simSpeed.count() && simSpeed.itemData(speed).toDouble() > 0
+              && (pace <= 0 || simSpeed.itemData(speed).toDouble() < pace))
+            speed++;
+        simSpeed.insertItem(speed, pace > 0 ?
+            qtTrId("route.editor.activity.tools.simulation.speed").arg(pace) :
+            qtTrId("route.editor.activity.tools.simulation.speed.fastest"), pace);
+    }
+    if(speed != simSpeed.currentIndex())
+        simSpeed.setCurrentIndex(speed);
+    if(!exists){
+        simTime.setText("--:--:--");
+        simStatus.clear();
+        simStatus.setToolTip(QString());
+        simStatus.hide();
+        return;
+    }
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+    const int seconds = (int(std::floor(frame->time)) % 86400 + 86400) % 86400;
+    QString time = QTime::fromMSecsSinceStartOfDay(seconds * 1000).toString("HH:mm:ss");
+    // Short of the speed asked (or as fast as possible): the speed reached.
+    if(runs && frame->rate > 0 && (frame->speed <= 0 || frame->rate < 0.9 * frame->speed))
+        //% "%1 (%2×)"
+        time = qtTrId("route.editor.activity.tools.simulation.time.rate").arg(time).arg(frame->rate, 0, 'f', 0);
+    simTime.setText(time);
+    simStatus.setText(simulation->statusText());
+    simStatus.show();
+}
+
+// Trains in a deadlock wait for good: the user is told which (once a ring),
+// to change their times or paths; the simulation goes on.
+void ActivityTools::simulationEvents(int first){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const std::vector<Sim::TrainEvent> &events = simulation->events();
+    if(first == 0){
+        // A new run: what was told is of the one before.
+        deadlocked.clear();
+        if(deadlockBox)
+            deadlockBox->close();
+    }
+    QStringList fresh;
+    for(size_t i = size_t(std::max(0, first)); i < events.size(); i++){
+        if(events[i].kind != Sim::TrainEvent::Deadlock)
+            continue;
+        const QString name = simulation->trainName(events[i].train);
+        if(!deadlocked.contains(name) && !fresh.contains(name))
+            fresh << name;
+    }
+    if(fresh.isEmpty())
+        return;
+    deadlocked << fresh;
+    if(!deadlockBox){
+        deadlockBox = new QMessageBox(QMessageBox::Warning, qtTrId("route.editor.activity.tools.simulation.title"),
+                                      QString(), QMessageBox::Ok, this);
+        deadlockBox->setAttribute(Qt::WA_DeleteOnClose);
+        deadlockBox->setModal(false);
+    }
+    //% "These trains wait for each other and will not move again (a deadlock): %1. The simulation goes on. Change their times or paths so they meet where one can pass the other, then reset the simulation."
+    deadlockBox->setText(qtTrId("route.editor.activity.tools.simulation.deadlock").arg(deadlocked.join(", ")));
+    deadlockBox->show();
+}
+
+// While a simulation exists the activity is shown, not edited: its choice,
+// settings and editing buttons are off.
+void ActivityTools::lockEditing(bool locked){
+    for(QWidget *widget : editing)
+        widget->setEnabled(!locked);
+    actShow.setEnabled(!locked);
+    settingsWidget.setEnabled(!locked && currentActivity() != NULL);
+    if(locked)
+        for(QPushButton *tool : {buttonTools["trackPathTool"], buttonTools["actNewLooseConsistTool"],
+                                 buttonTools["actNewSpeedZoneTool"]})
+            if(tool->isChecked())
+                tool->setChecked(false);
+    showOverlay();
+    showSimulation();
 }
 
 void ActivityTools::showOverlay(){
@@ -753,7 +959,7 @@ void ActivityTools::showOverlay(){
     QPushButton *merge = overlayLine.findChild<QPushButton*>("overlayMerge");
     const bool merged = a->mergedOverlay == path;
     if(merge != NULL)
-        merge->setEnabled(!merged);
+        merge->setEnabled(!merged && !ActivityNotifier::editingLocked());
     overlayLabel.setText(merged ?
         //% "The overlay %1 is merged; it is renamed when the activity is saved."
         qtTrId("route.editor.activity.tools.overlay.merged").arg(QFileInfo(path).fileName()) :
@@ -911,8 +1117,10 @@ void ActivityTools::activitySelected(QString n){
     emit showEvents(a);
     emit showServices(route);
     emit showTraffic(route);
-    // The settings edit the activity chosen: nothing without one.
-    settingsWidget.setEnabled(a != NULL);
+    // The settings edit the activity chosen: nothing without one (nor
+    // while a simulation runs it).
+    settingsWidget.setEnabled(a != NULL && !ActivityNotifier::editingLocked());
+    showSimulation();
     if(a == NULL)
         return;
 
@@ -1541,7 +1749,7 @@ void ActivityTools::eDisplayNameEnabled(QString val){
     // The list shows the new name; the same activity stays chosen.
     reloadActivityList();
     actShow.setCurrentIndex(actShow.findData(id));
-    settingsWidget.setEnabled(currentActivity() != NULL);
+    settingsWidget.setEnabled(currentActivity() != NULL && !ActivityNotifier::editingLocked());
 }
 
 void ActivityTools::cDifficultyEnabled(int val){

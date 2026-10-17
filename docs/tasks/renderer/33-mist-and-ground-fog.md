@@ -572,6 +572,104 @@ the terrain cannot explain.
   lamps do, bright halos lowered the exposure, shortened the reach, and the
   halos went.
 
+### Lamps' light in the fog strobing and dragged (user, 2026-10-17)
+
+- Moving or turning the camera in fog with bright lamps (glTF lamps, the
+  train lights' beams of task 34) broke the frame: the lit fog dragged with
+  the camera, parts of it dark.
+- Three fixes made it worse and were reverted (user, 2026-10-17):
+  - `328b2c5`, the lamps' light in a volume of its own, outside the
+    history, through the cells' averaged density: newly seen parts of the
+    view came in black and lit up over about a second.
+  - `1679e64`, through this frame's density: the lamps strobed.
+  - `3dd9094`, through the density at sixteen fixed points: still
+    strobing, everywhere.
+- The cause, found once the capture harness stopped hiding it: the
+  signals' fog grid (the glow emitters of signal and train lamps,
+  `prepareSignalGrid`) was gathered in the fog's preparation, from the draw
+  queue the views drawn before it had already taken: empty in most frames,
+  full only in frames without those views first (the capture's pointer
+  read; in the editor the frames reading the pointer). So the fog had the
+  signals' and train lamps' light only now and then: through the history a
+  weak halo left behind, fresh each frame (`1679e64`, `3dd9094`) a strobe.
+  The glTF lamps' grid is gathered with the lamps (`prepareLights`) and
+  stayed steady (user: "in your fix, glb lamps doesn't blink").
+- Fix: the signals' grid gathered with the lamps' in `prepareLights`, every
+  frame. The flush `beginSelection` makes of the view no longer prepares
+  the clouds and the fog either: it took the fog's history from a pass
+  without the view's items.
+- Harness: a capture's probes (a selection pass and a pointer read per
+  view) are frames of their own between a sequence's views, and the only
+  ones that had the signals' grid; `"probes": false` leaves them out of
+  motion sequences.
+- Captures (CMK, 1:00, valley fog and ground mist, the user's profile, the
+  clock running): 40 frames from a still camera within 0.01 of 255 of each
+  other, probes on or off; at the user's view the camera turned 0.05 rad a
+  frame, 16 frames right and 32 back left: frames at the same angle from
+  the two directions within 0.4 of 255 on average (neighbouring angles 5),
+  no dark parts.
+- The blinking gone, the user (2026-10-17) still saw new stripes not
+  matching the old part when moving the camera up (CMK, 0:01, valley fog,
+  at the train's head, the headlights shining at the camera); the sun the
+  same, but only with the clock running fast. The lamps' light scattered
+  towards the camera depends on the direction it is seen from (the
+  phase's 0.85: mostly forward), and the history keeps a point's light as
+  seen from where the camera was. A turn leaves the directions from the
+  camera to every point as they were (the turns above showed nothing);
+  moving changes them, the more the nearer the point. Captures, the camera
+  rising 0.3 m a frame there: each moving frame against the same view
+  settled, mean 16 of 255, at most 114 (a column of lit fog under the
+  lamp, from the fog in front of the camera).
+- Fix: the lamps' and signals' light out of the history again (`328b2c5`
+  brought back), this frame's, through the cells' averaged density, in a
+  volume of its own that the integration adds; the sun and the sky keep
+  the history. The same captures: rising mean 1.6 at most 3 (the
+  exposure's lag in the first frames), at most 1 from the tenth frame;
+  turning at most 2 (19 before); a still camera steady (0.01); settled
+  views as before (at most 2). The newly seen black parts the user saw
+  with `328b2c5` the first time did not show in these runs; then the
+  signals' grid was filled only now and then. The user to confirm on
+  screen.
+- Lamps shining their own way (user, 2026-10-17): a lamp's glow lit the
+  fog all about it, behind the car's body too, and a signal seen from
+  behind showed its aspect from afar like one facing the camera. The
+  emitters of signal and train lamps are spots now, facing the way their
+  lenses do with a cone of 90 degrees: in fog by the cosine squared off
+  their axis, none behind (`gridLight` takes spots already); their glow
+  splats by the cosine, a flat lens's area seen (`RhiImage.cpp`). A train
+  lamp's emitter takes its lenses' direction. Captures (CMK, 1:00, ground
+  mist): two signals from 25 m in front glow and light the fog, from 25 m
+  behind dark (only signals further on that face the camera show); the
+  locomotive's red lamps, which glowed through the car's end when seen
+  from its head, are gone there; its head lamps' halos narrower.
+- A beam seen from afar lay in slabs moving with the camera (user,
+  2026-10-17, CMK, 0:00, valley fog): a lamp's fade, cone and phase were
+  taken at the slice's point nearest to it, so a spot's narrow cone was in
+  or out for all of a slice tens of metres deep (the history had blurred
+  it while the camera moved). Now each lamp's part of the slice is cut to
+  its reach and its cone (a ray against a cone of up to 90 degrees), and
+  the fade, the cone's soft edge and the phase are taken at four points
+  over it, each standing for an even share of the inverse square
+  (equiangular, as seen from the lamp). Captures, the camera coming 1 m a
+  frame towards the beam: an even cone in every frame, its middle's
+  brightness changing smoothly (before, the part by the lamp jumped
+  between 14 and 25 of 255); brighter, the cone no longer missed. Left: by
+  the lamp, surfaces next to it take the fog between the volume's slices,
+  which move with the camera, a few levels from frame to frame.
+- The sky's fog in linear light (user, 2026-10-17, CMK, 3:10, ground mist,
+  the headlights shining at the camera: far roofs and a tower flat grey
+  against a dark sky, a sharp line). The lit shaders add the fog's light
+  in linear light; the sky's pass mixed the fog's own colour by its share
+  in display colours, which for a thin fog lit brightly adds a fifth as
+  much: the roofs took the headlights' light in the mist, the sky over
+  them hardly any. It now reads a copy of the view and adds the fog as the
+  lit shaders do. The roofs and the sky over them meet softly in the mist;
+  dawn fog (valley fog at 5:00 and 6:00, ground mist at 7:00) as before
+  (mean below 1 of 255).
+- Cost (Steam Deck, offscreen, 1280 x 800, four views of these): within
+  the runs' spread (medians within 1 ms, the same build's runs 1.5 ms
+  apart).
+
 ## Step 5: patches and motion (2026-10-15)
 
 - **Patches:** value noise at 600, 240 and 90 m (weights 0.55, 0.3, 0.15)
@@ -642,6 +740,21 @@ the terrain cannot explain.
 - On the way: within a slice a surface's fog falls exponentially (it was
   blended evenly, up to a third out in a thick fog's slice); the patches'
   noise is continuous along each ray (blended between the slice's ends).
+- **Still at dawn (open, user, 2026-10-17):** CMK, ground mist, from 435 m
+  up looking down (`-5355,14852,-815.77,435.28,-378.95,-1331.48,-26.12`):
+  rings at 5:00, weaker at 6:00, none at 3:30; the same before the day's
+  fog changes (`22e3c30`, at most 1 of 255 apart). High's per-pixel fog
+  takes its share per pixel but its light from the volume. Drawn alone:
+  the sky's light no rings, the sun's strong ones (with or without the
+  shadows), the sun with its share through the fog above taken as 1 none,
+  one even light everywhere none. So the sun's share through the fog
+  above, which a low sun makes change steeply with the height in a thin
+  fog, carried by the slices. Not cured by taking each cell's light where
+  its fog lies, nor by averaging the share over the density points
+  (weighted by what the ground hides or by what the slice lets through),
+  nor by a seventh of its extinction (as multiple scattering): about 1 of
+  255 each. Likely cure: the sun's share per pixel along the steps the
+  per-pixel fog takes already.
 
 ### Ground mist; none deep in the ground (user, 2026-10-15)
 

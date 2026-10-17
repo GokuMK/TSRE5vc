@@ -16,6 +16,7 @@
 #include <QDoubleSpinBox>
 #include <QGridLayout>
 #include <tsre/Game.h>
+#include <tsre/environment/WorldClock.h>
 #include <tsre/gui/GuiFunct.h>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -217,13 +218,14 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     row(Time,
         //% "Solar time:"
         qtTrId("route.editor.environment.window.time"), line({timeEdit, timeSlider}))->load = [this] {
-        const QTime time = timeOfHours(settings().runtimeFloat(Time));
-        quietly(timeSlider, &QSlider::setValue, time.hour() * 60 + time.minute());
-        quietly(timeEdit, &QTimeEdit::setTime, time);
+        showClock();
     };
-    connect(timeSlider, &QSlider::valueChanged, this, [this](int minutes) { set(Time, minutes / 60.0); });
+    // The world's clock (WorldClock): the editor's, or a simulation's while
+    // one exists, which then runs to the time.
+    connect(timeSlider, &QSlider::valueChanged, this,
+            [](int minutes) { WorldClock::instance()->setTime(minutes / 60.0); });
     connect(timeEdit, &QTimeEdit::timeChanged, this,
-            [this](QTime time) { set(Time, time.hour() + time.minute() / 60.0); });
+            [](QTime time) { WorldClock::instance()->setTime(time.hour() + time.minute() / 60.0); });
     dateEdit = new QDateEdit(this);
     dateEdit->setObjectName(QString::fromLatin1(Date));
     dateEdit->setDisplayFormat("yyyy-MM-dd");
@@ -236,15 +238,16 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     row(Date,
         //% "Date:"
         qtTrId("route.editor.environment.window.date"), line({dateEdit, today}))->load = [this] {
-        const QDate date = QDate::fromString(settings().runtimeString(Date).trimmed(), "yyyy-MM-dd");
+        const QDate date = QDate::fromString(WorldClock::instance()->date().trimmed(), "yyyy-MM-dd");
         quietly(dateEdit, &QDateEdit::setDate, date.isValid() ? date : QDate(2026, 6, 21));
     };
     connect(dateEdit, &QDateEdit::dateChanged, this,
-            [this](QDate date) { set(Date, date.toString("yyyy-MM-dd")); });
+            [](QDate date) { WorldClock::instance()->setDate(date.toString("yyyy-MM-dd")); });
     connect(today, &QToolButton::clicked, this, [this] { dateEdit->setDate(QDate::currentDate()); });
     // The clock: the time of day and the weather run on at a speed (seconds
     // of the day a real second; this session only), real time first; Stop
-    // keeps the time.
+    // keeps the time. While a simulation exists it is the simulation's: Stop
+    // pauses it, a speed is its speed.
     clockSpeed = new QComboBox(this);
     clockSpeed->setObjectName("clockSpeed");
     clockSpeed->setStyleSheet("combobox-popup: 0;");
@@ -270,20 +273,20 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
         grid->addWidget(line({clockSpeed, clockButton}), r, 1);
     }
     connect(clockSpeed, QOverload<int>::of(&QComboBox::activated), this,
-            [this](int index) { emit clockSpeedChanged(clockSpeed->itemData(index).toDouble()); });
-    connect(clockButton, &QToolButton::clicked, this, [this] {
-        if (settings().runtimeBool(Running)) {
-            // The time where it stopped, also for the panel and the profile.
-            set(Time, double(Game::timeOfDayHours));
-            set(Running, false);
-        } else {
-            set(Running, true);
-        }
+            [this](int index) { WorldClock::instance()->setSpeed(clockSpeed->itemData(index).toDouble()); });
+    connect(clockButton, &QToolButton::clicked, this, [] {
+        WorldClock *clock = WorldClock::instance();
+        clock->setRunning(!clock->running());
     });
-    // While the time runs, the panel shows it a few times a second.
+    // The panel shows the clock a few times a second, whoever runs it.
     clockDisplay = new QTimer(this);
     clockDisplay->setInterval(250);
     connect(clockDisplay, &QTimer::timeout, this, &EnvironmentWindow::showClock);
+    clockDisplay->start();
+    connect(WorldClock::instance(), &WorldClock::changed, this, [this] {
+        showRunning();
+        showClock();
+    });
     sun = new QCheckBox(this);
     row(Sun,
         //% "Sun:"
@@ -384,26 +387,43 @@ QToolButton *EnvironmentWindow::resetButtonFor(const QString &key) {
     return button;
 }
 
+// The clock's time and date, but not into a field being edited.
 void EnvironmentWindow::showClock() {
-    const QTime time = timeOfHours(Game::timeOfDayHours);
-    quietly(timeSlider, &QSlider::setValue, time.hour() * 60 + time.minute());
-    quietly(timeEdit, &QTimeEdit::setTime, time);
-    const QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
-    if (date.isValid())
+    WorldClock *clock = WorldClock::instance();
+    const QTime time = timeOfHours(clock->hours());
+    if (!timeSlider->isSliderDown() && timeSlider->value() != time.hour() * 60 + time.minute())
+        quietly(timeSlider, &QSlider::setValue, time.hour() * 60 + time.minute());
+    if (!timeEdit->hasFocus() && timeEdit->time() != time)
+        quietly(timeEdit, &QTimeEdit::setTime, time);
+    const QDate date = QDate::fromString(clock->date().trimmed(), "yyyy-MM-dd");
+    if (date.isValid() && !dateEdit->hasFocus() && dateEdit->date() != date)
         quietly(dateEdit, &QDateEdit::setDate, date);
 }
 
+// Stop or Resume, and the speed (one the list lacks, a simulation's, added).
 void EnvironmentWindow::showRunning() {
-    const bool running = settings().runtimeBool(Running);
-    clockButton->setText(running ?
+    WorldClock *clock = WorldClock::instance();
+    clockButton->setText(clock->running() ?
         //% "Stop"
         qtTrId("route.editor.environment.window.clock.stop") :
         //% "Resume"
         qtTrId("route.editor.environment.window.clock.resume"));
-    if (running)
-        clockDisplay->start();
-    else
-        clockDisplay->stop();
+    const double speed = clock->speed();
+    int index = clockSpeed->findData(speed);
+    if (index < 0) {
+        index = 0;
+        while (index < clockSpeed->count() && clockSpeed->itemData(index).toDouble() > 0.0
+               && (speed <= 0.0 || clockSpeed->itemData(index).toDouble() < speed))
+            ++index;
+        clockSpeed->insertItem(index, speed <= 0.0 ?
+            //% "As fast as possible"
+            qtTrId("route.editor.environment.window.clock.fastest") :
+            speed >= 60.0 && std::fmod(speed, 60.0) == 0.0 ?
+            qtTrId("route.editor.environment.window.clock.minutes").arg(speed / 60.0) :
+            qtTrId("route.editor.environment.window.clock.seconds").arg(speed), speed);
+    }
+    if (clockSpeed->currentIndex() != index)
+        quietly(clockSpeed, &QComboBox::setCurrentIndex, index);
 }
 
 void EnvironmentWindow::set(const QString &key, const QVariant &value) {

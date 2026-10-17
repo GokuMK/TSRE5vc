@@ -129,6 +129,16 @@ public:
     // Selects an activity and a path by file name, as the activity tools
     // do; empty names leave them as they are.
     void setDiagnosticActivity(const QString &activity, const QString &path);
+    // The camera by a simulated train (task simulation 01): behind it and
+    // above, looking at it, or on the map centred on it; false when the
+    // train is not on the track.
+    bool viewTrain(int train);
+    // The camera riding a simulated train's consist (Follow; keys 1 to 3):
+    // at its leading cab's window (the consist camera's own place), ahead
+    // of its front looking back at it, or behind its back, as it runs;
+    // false when the train is not on the track.
+    enum class RideView { Cab, Front, Back };
+    bool rideTrain(int train, RideView view);
     // The current activity's AI trains shown: "all", an AI train's place in
     // its traffic (the one chosen), or both ("all,3").
     void setDiagnosticAITrains(const QString &trains);
@@ -144,14 +154,6 @@ public:
     // Stops simulation updates (traffic, animation, the clock) so separate
     // processes render the same scene. Content loading continues.
     void setSimulationPaused(bool paused);
-    // The clock's step: seconds of the editor at speed seconds of the day a
-    // second run the time of day (hours) on; past midnight the date
-    // (yyyy-MM-dd) moves on, and it returns true. A stalled editor goes on
-    // from where it was (at most a second's step).
-    static bool advanceClock(double seconds, double speed, double &hours, QString &date);
-    // The clock's speed: seconds of the day a real second (1 real time; this
-    // session only).
-    void setClockSpeed(double secondsPerSecond);
     Route *currentRoute() const override { return route; }
     // The view mode (task editor 04): the 3D scene, or the map from straight
     // above. Switching moves to the pointer's place in the other mode; tools
@@ -159,6 +161,10 @@ public:
     void setViewMode(ViewMode mode);
     // Shows or hides a layer of the map mode (the Map menu).
     void setMapLayerVisible(MapLayer layer, bool visible);
+    // Within Track Objects and Activity, one kind drawn or not (the Map
+    // menu's Track Objects and Activity Objects).
+    void setMapTrackObjectKind(int kind, bool visible);
+    void setMapActivityKind(MapActivityKind kind, bool visible);
     // Before Map > OSM Data is switched on: checks the OSM directory and the route's
     // geographic reference (telling the user what is missing) and offers to convert the
     // downloads covering the view. False when the layer cannot be shown.
@@ -257,6 +263,8 @@ public slots:
     void reloadTrackProfiles();
     void refreshMarkerList();
     void setCameraObject(GameObj* obj);
+    // The camera off the object it rides, where it is (Follow ends).
+    void releaseCameraObject();
     void setMoveStep(float val);
     void setTerrainToObj();
     void adjustObjPositionToTerrainMenu();
@@ -509,6 +517,19 @@ private:
     float mousex, mousey;
     QVector<QPoint> selectionProbePoints;
     bool simulationPaused = false;
+    // Follow (task simulation 01): the train the camera follows, how it
+    // rides it in 3D (keys 1 to 3: cab, front, back), and where the train
+    // was last frame for the map (tile and place in the camera's space).
+    int followedTrain = -1;
+    RideView followedView = RideView::Cab;
+    bool followedKnown = false;
+    int followedTile[2] = {0, 0};
+    float followedPlace[3] = {0, 0, 0};
+    void followTrain();
+    // The free camera off a simulated train's consist it rides.
+    void stopRiding();
+    // Tools that change the activity, refused while a simulation exists.
+    static bool editsActivity(const QString &tool);
     // The first view, and the view after a camera jump, are shown with their
     // shapes loaded (loadWholeView()); after a jump the wait ends after
     // limitMs and the rest loads while the view is shown. The camera's
@@ -521,12 +542,6 @@ private:
     // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),
     // kept from the settings as they change: frames read no settings.
     int lampsByDay = 0;
-    // The clock: core.rendering.timeOfDay.running, kept as lampsByDay; its
-    // speed for this session only (the Environment panel); the time it runs
-    // on, finer than Game::timeOfDayHours.
-    bool timeRuns = true;
-    double timeSpeed = 1.0;
-    double clockHours = 0.0;
     // Auto exposure (task 29): this frame's control, set by applyTimeOfDay
     // and handed over once camera jumps are known.
     Renderer::ExposureControl exposure;

@@ -989,7 +989,9 @@ bool RhiRenderer::beginSelection(int width, int height) {
     beginFrameIfNeeded();
     if (!targetReady() && currentTarget == TARGET_VIEW)
         return false;
+    selectionFlush = true;
     flushTarget();
+    selectionFlush = false;
     const QSize size(std::max(1, width), std::max(1, height));
     if ((!selection.valid() || selection.size != size)
             && !createAttachments(selection, QRhiTexture::R32UI, size,
@@ -2336,7 +2338,7 @@ void RhiRenderer::flushTarget() {
     }
     // The clouds' maps (cover, shadow) before the main view's geometry,
     // which samples the shadow.
-    if (state.clearColor && currentTarget == TARGET_VIEW && !secondaryView) {
+    if (state.clearColor && currentTarget == TARGET_VIEW && !secondaryView && !selectionFlush) {
         prepareClouds(cb, frameBatch);
         // The fog volume after the cloud shadow map, which it reads.
         prepareFog(cb, frameBatch);
@@ -2690,6 +2692,16 @@ void RhiRenderer::prepareLights() {
     if (lightsPrepared)
         return;
     lightsPrepared = true;
+    // The signals' grid for the fog (signal and train lamps' glow
+    // emitters), from the same queue as the lamps: gathered in the fog's
+    // own preparation it came from a queue the views drawn before had
+    // already taken, empty but in frames without them (the user,
+    // 2026-10-17: train lamps strobing in fog, their light in it mostly
+    // gone, dragged with the camera).
+    // (Whether the view's sky takes fog is not known yet: the fog's own.)
+    if ((fogFogged() || fog.rain > 0.05f) && !fogResources.unsupported)
+        if (QRhiResourceUpdateBatch *uploads = RhiTextures::updates())
+            prepareSignalGrid(uploads);
     // Programs take the grid of this frame whatever happens below.
     struct Write {
         RhiRenderer *renderer;

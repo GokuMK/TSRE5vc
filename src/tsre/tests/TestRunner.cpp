@@ -17,6 +17,7 @@
 #include <tsre/tests/ActivityEditTestSuite.h>
 #include <tsre/tests/ActivityCheckTestSuite.h>
 #include <tsre/tests/ActivityExportTestSuite.h>
+#include <tsre/tests/SimulationTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
@@ -80,6 +81,7 @@
 #include <tsre/tests/PaintTexTestSuite.h>
 #include <tsre/tests/SignalSelectionTestSuite.h>
 #include <tsre/tests/SigCfgTestSuite.h>
+#include <tsre/tests/EngLightsTestSuite.h>
 #include <tsre/tests/EnvironmentWindowTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
 #include <tsre/tests/TokenIdTestSuite.h>
@@ -4138,6 +4140,7 @@ QStringList TsreTests::listSuites() {
         "paint-text",
         "signal-selection",
         "sigcfg",
+        "eng-lights",
         "environment-window",
         "tokens",
         "content-path",
@@ -4156,6 +4159,11 @@ QStringList TsreTests::listSuites() {
         "activity-check",
         "activity-check-route",
         "activity-export",
+        "simulation-core",
+        "simulation-route",
+        "simulation-host",
+        "simulation-ui",
+        "simulation-scaling",
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
@@ -4260,6 +4268,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "sigcfg")
         return runSigCfgSuite(opts.casesFile, opts.verbose);
 
+    if (suite == "eng-lights")
+        return runEngLightsSuite(opts.verbose);
+
     if (suite == "environment-window")
         return runEnvironmentWindowSuite(opts.casesFile, opts.verbose);
 
@@ -4330,6 +4341,21 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "activity-export")
         return runActivityExportSuite(opts.verbose);
+
+    if (suite == "simulation-core")
+        return runSimulationCoreSuite(opts.verbose);
+
+    if (suite == "simulation-route")
+        return runSimulationRouteSuite(opts.verbose);
+
+    if (suite == "simulation-host")
+        return runSimulationHostSuite(opts.verbose);
+
+    if (suite == "simulation-ui")
+        return runSimulationUiSuite(opts.verbose);
+
+    if (suite == "simulation-scaling")
+        return runSimulationScalingSuite(opts.verbose);
 
     if (suite == "new-route")
         return runNewRouteSuite(opts.verbose);

@@ -120,16 +120,25 @@ void Undo::Clear(){
     UndoBuffer::pump();
 }
 
-void Undo::UndoLast(){
+bool Undo::LastChangesActivity(){
+    const UndoState *state = currentState != NULL ? currentState
+            : undoStates.isEmpty() ? NULL : undoStates.back();
+    return state != NULL && (!state->activityData.isEmpty() || !state->serviceData.isEmpty()
+            || !state->trafficData.isEmpty() || !state->pathData.isEmpty());
+}
+
+bool Undo::UndoLast(){
     if(!Undo::UndoEnabled)
-        return;
+        return false;
+    if(ActivityNotifier::editingLocked() && LastChangesActivity())
+        return false;
     
     if(currentState != NULL)
         StateEnd();
     
     if(undoStates.length() == 0){
         qDebug() << "nothing to undo";
-        return;
+        return false;
     }
     UndoState *state = undoStates.back();
 
@@ -214,6 +223,7 @@ void Undo::UndoLast(){
     
     delete state;
     undoStates.removeLast();
+    return true;
 }
 
 void Undo::StateBeginIfNotExist(){

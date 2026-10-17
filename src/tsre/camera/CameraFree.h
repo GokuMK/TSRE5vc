@@ -31,6 +31,7 @@ public:
     void scalPosRot();*/
     float* getPos();
     void setPos(float* pos);
+    void releaseObject();
     void setPos(float x, float y, float z);
     float getRotX();
     float getRotY();

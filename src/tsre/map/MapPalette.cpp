@@ -46,6 +46,11 @@ MapPalette MapPalette::dark() {
     palette.marker = QColor(255, 96, 192);
     palette.place = QColor(180, 182, 190);
     palette.osmStation = QColor(110, 160, 240);
+    palette.occupied = QColor(255, 90, 90);
+    palette.reserved = QColor(255, 175, 50);
+    palette.aspectStop = QColor(255, 90, 90);
+    palette.aspectCaution = QColor(255, 215, 60);
+    palette.aspectClear = QColor(60, 210, 100);
     return palette;
 }
 
@@ -91,6 +96,11 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("speedZone", palette.speedZone);
     read("failedSignal", palette.failedSignal);
     read("event", palette.event);
+    read("occupied", palette.occupied);
+    read("reserved", palette.reserved);
+    read("aspectStop", palette.aspectStop);
+    read("aspectCaution", palette.aspectCaution);
+    read("aspectClear", palette.aspectClear);
     read("selection", palette.selection);
     read("label", palette.label);
     read("labelHalo", palette.labelHalo);

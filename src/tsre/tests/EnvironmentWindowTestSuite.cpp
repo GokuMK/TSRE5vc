@@ -1,17 +1,20 @@
 #include "EnvironmentWindowTestSuite.h"
 #include "TokenTestSupport.h"
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDateEdit>
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QTemporaryDir>
+#include <QTimeEdit>
 #include <QToolButton>
 #include <cmath>
 #include <routeEditor/EnvironmentWindow.h>
 #include <routeEditor/RouteEditorGLWidget.h>
 #include <settings/SettingsManager.h>
 #include <tsre/Game.h>
+#include <tsre/environment/WorldClock.h>
 
 namespace {
 QByteArray contents(const QString &path) {
@@ -98,11 +101,11 @@ int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose)
                "the clock's speeds, real time first, in TSRE's combo box style");
     if (!speeds || !clockButton)
         return test.finish();
-    double told = 0.0;
-    QObject::connect(&window, &EnvironmentWindow::clockSpeedChanged, [&told](double value) { told = value; });
+    WorldClock *clock = WorldClock::instance();
     emit speeds->activated(7);
-    test.check(std::abs(told - 240.0) < 1e-9 && settings.registry().definition("core.rendering.timeOfDay.speed") == nullptr,
-               "a speed goes to the editor for the session, not into the settings");
+    test.check(std::abs(clock->speed() - 240.0) < 1e-9
+                   && settings.registry().definition("core.rendering.timeOfDay.speed") == nullptr,
+               "a speed goes to the world's clock for the session, not into the settings");
     settings.setSessionValue(running, true);
     Game::timeOfDayHours = 15.5f;
     clockButton->click();
@@ -114,11 +117,28 @@ int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose)
     test.check(settings.runtimeBool(running) && clockButton->text() != stopped, "Resume runs it on");
     double hours = 23.96;
     QString day = "2026-06-21";
-    const bool nextDay = RouteEditorGLWidget::advanceClock(0.75, 240.0, hours, day);
+    const bool nextDay = WorldClock::advance(0.75, 240.0, hours, day);
     test.check(nextDay && std::abs(hours - 0.01) < 1e-9 && day == "2026-06-22",
                QString("4 minutes a second run into the next day (%1 h, %2)").arg(hours).arg(day));
-    RouteEditorGLWidget::advanceClock(30.0, 240.0, hours, day);
+    WorldClock::advance(30.0, 240.0, hours, day);
     test.check(std::abs(hours - (0.01 + 4.0 / 60.0)) < 1e-9, "after a stall the clock goes on from where it was");
+    // The editor's frame loop runs the clock on; the panel shows it while
+    // stopped too, and its fields set it.
+    Game::timeOfDayHours = 10.0f;
+    clock->tick(1.0);
+    test.check(clock->running() && std::abs(Game::timeOfDayHours - (10.0 + 240.0 / 3600.0)) < 1e-4,
+               "a second of the editor runs the clock 4 minutes on");
+    clockButton->click();
+    auto *timeField = window.findChild<QTimeEdit *>(time);
+    if (timeField != nullptr)
+        timeField->setTime(QTime(14, 30));
+    clock->tick(1.0);
+    QApplication::processEvents();
+    test.check(!clock->running() && std::abs(Game::timeOfDayHours - 14.5) < 1e-4 && timeField != nullptr
+                   && std::abs(settings.runtimeFloat(time) - 14.5) < 1e-6,
+               "stopped, the time field sets the clock, which stays there");
+    clockButton->click();
+    clock->setSpeed(1.0);
 
     window.resetAll();
     bool sessionLeft = false;
