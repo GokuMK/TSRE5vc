@@ -38,9 +38,19 @@ and a proposed design for when the task is taken up.
   | Pressure | bar | psi | psi |
   | Temperature | °C | °F | °C |
 
-- 2026-10-17: the setting is `core.system.units` (metric, imperial US,
-  imperial UK), its default from the system locale
-  (`QLocale::measurementSystem()`); it replaces the unread `useImperial`.
+- 2026-10-17: the setting (metric, imperial US, imperial UK), its
+  default from the system locale (`QLocale::measurementSystem()`); it
+  replaces the unread `useImperial`. Made as `core.interface.units`
+  (Interface > Appearance, beside `core.interface.language`), with the
+  choices System / Automatic (the locale's), Metric, Imperial (US) and
+  Imperial (UK): a default that follows the machine's locale would make
+  the built-in defaults differ from machine to machine.
+
+## Progress
+- Phase 1 done (2026-10-18): `src/tsre/units/Units` (files' units to SI
+  and back, by quantity or by the unit alone; the units shown by system;
+  `format`, `parse`; the setting cached and `Units::Notifier`, made at
+  startup), the setting, suite `units`.
 - 2026-10-17: temperatures are held in °C (as Open Rails does).
 - Angles (proposed, to confirm): ENG/WAG files give some angles with a
   unit. Open Rails reads an angle without a unit as radians and converts
