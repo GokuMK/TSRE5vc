@@ -572,6 +572,27 @@ the terrain cannot explain.
   lamps do, bright halos lowered the exposure, shortened the reach, and the
   halos went.
 
+### Lamps' light dragged by the camera (open, user, 2026-10-17)
+
+- Moving or turning the camera in fog with bright lamps (glTF lamps, the
+  train lights' beams of task 34) drags their lit fog with the camera:
+  the lamps' light goes into the cells with the sun's and the sky's and is
+  blended 95 % with last frame's cells moved with the camera, and a lamp
+  lights only a few cells. Signals are too dim to show it.
+- Three fixes made it worse and were reverted (user, 2026-10-17):
+  - `328b2c5`, the lamps' light in a volume of its own, outside the
+    history, through the cells' averaged density: newly seen parts of the
+    view came in black and lit up over about a second.
+  - `1679e64`, through this frame's density: the lamps strobed.
+  - `3dd9094`, through the density at sixteen fixed points: still
+    strobing, everywhere.
+- The captures could show none of it: the capture harness renders
+  offscreen, each frame waited for and read back (about 10 a second), while
+  the editor runs 30 to 60 frames a second with frames in flight. Next:
+  make the harness see what the editor shows (on screen, frames not waited
+  for, the camera turned frame by frame, frames saved without stalling),
+  reproduce the drag, then fix it.
+
 ## Step 5: patches and motion (2026-10-15)
 
 - **Patches:** value noise at 600, 240 and 90 m (weights 0.55, 0.3, 0.15)
