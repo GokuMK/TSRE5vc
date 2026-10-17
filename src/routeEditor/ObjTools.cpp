@@ -180,20 +180,18 @@ ObjTools::ObjTools(QString name)
         //% "Separation:"
         qtTrId("route.editor.obj.tools.label.separation")), 1, 0);
     continuousFlexSeparation.setDecimals(3);
-    continuousFlexSeparation.setRange(1.0, 20.0);
+    continuousFlexSeparation.setRangeSi(1.0, 20.0);
     continuousFlexSeparation.setSingleStep(0.25);
-    continuousFlexSeparation.setSuffix(" m");
-    continuousFlexSeparation.setValue(4.0);
+    continuousFlexSeparation.setSi(4.0);
     continuousFlexSeparation.setEnabled(false);
     continuousFlexOptionsLayout->addWidget(&continuousFlexSeparation, 1, 1);
     continuousFlexOptionsLayout->addWidget(new QLabel(
         //% "Minimum radius:"
         qtTrId("route.editor.obj.tools.label.minimum.radius")), 2, 0);
     continuousFlexMinimumRadius.setDecimals(2);
-    continuousFlexMinimumRadius.setRange(5.0, 10000.0);
+    continuousFlexMinimumRadius.setRangeSi(5.0, 10000.0);
     continuousFlexMinimumRadius.setSingleStep(0.5);
-    continuousFlexMinimumRadius.setSuffix(" m");
-    continuousFlexMinimumRadius.setValue(continuousFlexTrackMinimumRadius);
+    continuousFlexMinimumRadius.setSi(continuousFlexTrackMinimumRadius);
     continuousFlexMinimumRadius.setToolTip(
             //% "Raised when necessary to keep inner companion tracks or lanes valid."
             qtTrId("route.editor.obj.tools.tooltip.raised.when.necessary.keep.inner.companion.tracks"));
@@ -756,16 +754,16 @@ void ObjTools::enableContinuousTool(ContinuousToolMode mode, bool enabled){
         QSignalBlocker separationBlocker(&continuousFlexSeparation);
         QSignalBlocker radiusBlocker(&continuousFlexMinimumRadius);
         if(continuousToolMode == ContinuousToolMode::Road)
-            continuousFlexRoadMinimumRadius = continuousFlexMinimumRadius.value();
+            continuousFlexRoadMinimumRadius = continuousFlexMinimumRadius.si();
         else if(continuousToolMode == ContinuousToolMode::Track)
-            continuousFlexTrackMinimumRadius = continuousFlexMinimumRadius.value();
+            continuousFlexTrackMinimumRadius = continuousFlexMinimumRadius.si();
         if(mode == ContinuousToolMode::Road)
-            continuousFlexTrackSeparation = continuousFlexSeparation.value();
+            continuousFlexTrackSeparation = continuousFlexSeparation.si();
         continuousToolMode = mode;
         if(!ruler) {
-            continuousFlexSeparation.setValue(
+            continuousFlexSeparation.setSi(
                     road ? 3.0 : continuousFlexTrackSeparation);
-            continuousFlexMinimumRadius.setValue(road
+            continuousFlexMinimumRadius.setSi(road
                     ? continuousFlexRoadMinimumRadius
                     : continuousFlexTrackMinimumRadius);
         }
@@ -976,15 +974,15 @@ void ObjTools::continuousFlexOptionsChanged(){
             ? "Fixed to the 3 m width of the default road lane profiles."
             : "");
     if(!road)
-        continuousFlexTrackSeparation = continuousFlexSeparation.value();
+        continuousFlexTrackSeparation = continuousFlexSeparation.si();
     if(road)
-        continuousFlexRoadMinimumRadius = continuousFlexMinimumRadius.value();
+        continuousFlexRoadMinimumRadius = continuousFlexMinimumRadius.si();
     else
-        continuousFlexTrackMinimumRadius = continuousFlexMinimumRadius.value();
+        continuousFlexTrackMinimumRadius = continuousFlexMinimumRadius.si();
     emit sendMsg("continuousFlexLeft", continuousFlexLeft.isChecked());
     emit sendMsg("continuousFlexRight", continuousFlexRight.isChecked());
-    emit sendMsg("continuousFlexSeparation", (float)continuousFlexSeparation.value());
-    emit sendMsg("continuousFlexMinimumRadius", (float)continuousFlexMinimumRadius.value());
+    emit sendMsg("continuousFlexSeparation", (float)continuousFlexSeparation.si());
+    emit sendMsg("continuousFlexMinimumRadius", (float)continuousFlexMinimumRadius.si());
     emit sendMsg("continuousFlexProfile",
             continuousProfile.currentData().toString());
 }

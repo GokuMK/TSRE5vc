@@ -15,6 +15,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Ref.h>
 #include <deque>
+#include <tsre/gui/UnitSpinBox.h>
 
 class ObjTools : public QWidget{
     Q_OBJECT
@@ -108,8 +109,8 @@ private:
     QComboBox continuousRulerNodeShape;
     QCheckBox continuousFlexLeft;
     QCheckBox continuousFlexRight;
-    QDoubleSpinBox continuousFlexSeparation;
-    QDoubleSpinBox continuousFlexMinimumRadius;
+    UnitSpinBox continuousFlexSeparation{Units::Quantity::Length};
+    UnitSpinBox continuousFlexMinimumRadius{Units::Quantity::Length};
     ContinuousToolMode continuousToolMode = ContinuousToolMode::Track;
     double continuousFlexTrackSeparation = 4.0;
     double continuousFlexTrackMinimumRadius = 15.0;

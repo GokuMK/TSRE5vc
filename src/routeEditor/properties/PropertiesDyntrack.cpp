@@ -249,19 +249,19 @@ PropertiesDyntrack::PropertiesDyntrack() {
     
     for(int i=0; i<5; i++){
         if(i%2 == 0){
+            sSectA[i].setQuantity(Units::Quantity::Length);
             sSectA[i].setDecimals(2);
-            sSectA[i].setMinimum(0);
-            sSectA[i].setMaximum(250);
+            sSectA[i].setRangeSi(0, 250);
             sSectA[i].setSingleStep(1.0);
         } else {
-            sSectA[i].setDecimals(3);
-            sSectA[i].setMinimum(-3.14);
-            sSectA[i].setMaximum(3.14);
-            sSectA[i].setSingleStep(0.01);
+            sSectA[i].setQuantity(Units::Quantity::Angle);
+            sSectA[i].setDecimals(2);
+            sSectA[i].setRangeSi(-3.14, 3.14);
+            sSectA[i].setSingleStep(0.5);
         }
+        sSectR[i].setQuantity(Units::Quantity::Length);
         sSectR[i].setDecimals(2);
-        sSectR[i].setMinimum(15);
-        sSectR[i].setMaximum(5000);
+        sSectR[i].setRangeSi(15, 5000);
         sSectR[i].setSingleStep(1.0);
         sSectA[i].setKeyboardTracking(false);
         sSectR[i].setKeyboardTracking(false);
@@ -510,15 +510,15 @@ void PropertiesDyntrack::updateSectionValues(){
 
         // Live Flex can validly exceed the panel's normal manual-edit ranges.
         // Expand only as needed so the displayed value is never clamped.
-        if(dobj->sections[i].a > sSectA[i].maximum())
-            sSectA[i].setMaximum(dobj->sections[i].a);
-        if(dobj->sections[i].r > sSectR[i].maximum())
-            sSectR[i].setMaximum(dobj->sections[i].r);
+        if(dobj->sections[i].a > sSectA[i].maximumSi())
+            sSectA[i].setMaximumSi(dobj->sections[i].a);
+        if(dobj->sections[i].r > sSectR[i].maximumSi())
+            sSectR[i].setMaximumSi(dobj->sections[i].r);
 
         if(!sSectA[i].hasFocus())
-            sSectA[i].setValue(dobj->sections[i].a);
+            sSectA[i].setSi(dobj->sections[i].a);
         if(!sSectR[i].hasFocus())
-            sSectR[i].setValue(dobj->sections[i].r);
+            sSectR[i].setSi(dobj->sections[i].r);
     }
 }
 
@@ -546,8 +546,8 @@ void PropertiesDyntrack::chSectEnabled(int idx){
         }
         this->sSectA[idx].blockSignals(true);
         this->sSectR[idx].blockSignals(true);
-        this->sSectA[idx].setValue(dobj->sections[idx].a);
-        this->sSectR[idx].setValue(dobj->sections[idx].r);
+        this->sSectA[idx].setSi(dobj->sections[idx].a);
+        this->sSectR[idx].setSi(dobj->sections[idx].r);
         this->sSectA[idx].blockSignals(false);
         this->sSectR[idx].blockSignals(false);
     } else {
@@ -566,13 +566,13 @@ void PropertiesDyntrack::sSectEnabled(int idx){
             qtTrId("route.editor.properties.dyntrack.text.null.3"));
         return;
     }
-    if(idx%2 == 1 && fabs(this->sSectA[idx].value()) < 0.0001 )
+    if(idx%2 == 1 && fabs(this->sSectA[idx].si()) < 0.0001 )
         return;
 
     Undo::SinglePushWorldObjData(worldObj);
-    dobj->sections[idx].a = this->sSectA[idx].value();
+    dobj->sections[idx].a = this->sSectA[idx].si();
     if(idx%2 == 1)
-        dobj->sections[idx].r = this->sSectR[idx].value();
+        dobj->sections[idx].r = this->sSectR[idx].si();
     dobj->modified = true;
     dobj->box.loaded = false;
     dobj->deleteVBO();

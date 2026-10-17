@@ -12,6 +12,7 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/objects/StaticObj.h>
 #include <tsre/fileFunctions/ParserX.h>
+#include <tsre/units/Units.h>
 #include <tsre/renderer/LightGrid.h>
 #include <routeEditor/properties/EditFileNameDialog.h>
 #include <tsre/Game.h>
@@ -193,20 +194,29 @@ PropertiesStatic::PropertiesStatic(){
     detailLevelView->addWidget(&customDetailLevel, 1, 1);
     vbox->addItem(detailLevelView);
 
-    label = new QLabel(
-        //% "Light Reach (m):"
-        qtTrId("route.editor.properties.static.label.light.reach"));
+    // In the units the editors show (task core si-units).
+    label = new QLabel();
+    QLabel *lightReachLabel = label;
+    const auto lightReachTexts = [this, lightReachLabel] {
+        //% "Light Reach (%1):"
+        lightReachLabel->setText(qtTrId("route.editor.properties.static.label.light.reach.unit")
+                                 .arg(Units::unit(Units::Quantity::Length)));
+        this->lightRange.setPlaceholderText(
+            //% "Default: %1"
+            qtTrId("route.editor.properties.static.placeholder.light.reach")
+                .arg(Units::formatNumber(LightGrid::DefaultReach, Units::Quantity::Length)));
+        this->lightRange.setToolTip(
+            //% "How far the lights of this object reach. Empty for the default, which suits most lamps; set more only where this object should light a larger area (up to %1). Any more reach costs drawing time wherever its light reaches."
+            qtTrId("route.editor.properties.static.tooltip.light.reach.limit")
+                .arg(Units::format(LightGrid::MaxReach, Units::Quantity::Length)));
+    };
+    lightReachTexts();
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, this, lightReachTexts);
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     this->lightRange.setAlignment(Qt::AlignCenter);
-    this->lightRange.setPlaceholderText(
-        //% "Default: %1"
-        qtTrId("route.editor.properties.static.placeholder.light.reach").arg(LightGrid::DefaultReach));
-    this->lightRange.setToolTip(
-        //% "How far the lights of this object reach. Empty for the default, which suits most lamps; set more only where this object should light a larger area (up to %1 m). Each metre more costs drawing time wherever its light reaches."
-        qtTrId("route.editor.properties.static.tooltip.light.reach").arg(LightGrid::MaxReach));
-    this->lightRange.setValidator(new QDoubleValidator(0, LightGrid::MaxReach, 1, this));
+    this->lightRange.setValidator(new QDoubleValidator(0, 1e6, 1, this));
     QObject::connect(&lightRange, SIGNAL(textEdited(QString)),
                       this, SLOT(lightRangeEdited(QString)));
     vbox->addWidget(&this->lightRange);
@@ -355,7 +365,8 @@ void PropertiesStatic::showObj(GameObj* obj){
         customDetailLevel.setEnabled(false);
     }
     enableCustomDetailLevel.blockSignals(false);
-    lightRange.setText(worldObj->tsreLightRange > 0.0f ? QString::number(worldObj->tsreLightRange) : QString());
+    lightRange.setText(worldObj->tsreLightRange > 0.0f
+                       ? Units::formatNumber(worldObj->tsreLightRange, Units::Quantity::Length) : QString());
     
     this->flags.setText(ParserX::MakeFlagsString(worldObj->staticFlags));
     this->checkboxAnim.blockSignals(true);
@@ -471,12 +482,11 @@ void PropertiesStatic::customDetailLevelEdited(QString val){
 void PropertiesStatic::lightRangeEdited(QString val){
     if(worldObj == NULL)
         return;
-    bool ok = false;
-    float metres = val.trimmed().isEmpty() ? 0.0f : val.toFloat(&ok);
-    if(!val.trimmed().isEmpty() && !ok)
+    double metres = 0;
+    if(!val.trimmed().isEmpty() && !Units::parse(val, Units::Quantity::Length, metres))
         return;
     Undo::SinglePushWorldObjData(worldObj);
-    worldObj->tsreLightRange = std::clamp(metres, 0.0f, LightGrid::MaxReach);
+    worldObj->tsreLightRange = std::clamp(float(metres), 0.0f, LightGrid::MaxReach);
     worldObj->setModified();
 }
 

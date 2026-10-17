@@ -14,6 +14,7 @@
 #include <QtWidgets>
 #include <QMap>
 #include <tsre/trains/ActivityEvent.h>
+#include <tsre/gui/UnitSpinBox.h>
 
 class PreciseTileCoordinate;
 
@@ -102,7 +103,8 @@ private:
     //QPushButton bActionStationId;
     QLineEdit eActionSiding;
     QPushButton bActionSiding;
-    QSpinBox eActionSpeed;
+    // In the units the editors show (task core si-units).
+    UnitSpinBox eActionSpeed{Units::Quantity::Speed};
     QTimeEdit eTime;
     //QLineEdit eOutcomeEvent;
     QCheckBox cReversable;
@@ -118,6 +120,9 @@ private:
     QPushButton *bSoundAtEvent = NULL;
     QCheckBox cWeatherSet[4];
     QDoubleSpinBox eWeatherValue[4];
+    // The fog's distance, in place of eWeatherValue[1] (a length shown in the
+    // editors' units).
+    UnitSpinBox eFog{Units::Quantity::Length};
     QSpinBox eWeatherTime[4];
     QComboBox cRestartTrain;
     QSpinBox eRestartDelay;

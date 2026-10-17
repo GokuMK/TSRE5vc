@@ -205,7 +205,8 @@ public:
     void setUntriggeredText(QString val);
     void setLocation(int X, int Z, float x, float z);
     void setNotes(QString val);
-    void setSpeed(int val);
+    // m/s.
+    void setSpeed(float val);
     void setLocationRadius(int val);
     void setLocationStop(bool val);
     void setReversable(bool val);

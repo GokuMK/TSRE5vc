@@ -9,6 +9,7 @@
  */
 
 #include "PropertiesRuler.h"
+#include <tsre/units/Units.h>
 #include <tsre/world/objects/RulerObj.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Ref.h>
@@ -57,8 +58,8 @@ PropertiesRuler::PropertiesRuler() {
     vlist->setContentsMargins(3,0,3,0);
 
     vlist->addRow(
-        //% "Meters: "
-        qtTrId("route.editor.properties.ruler.label.meters"),&this->lengthM);
+        //% "Length: "
+        qtTrId("route.editor.properties.ruler.label.length"),&this->lengthM);
     vbox->addItem(vlist);
     
     label = new QLabel(
@@ -72,8 +73,8 @@ PropertiesRuler::PropertiesRuler() {
     vlist->setContentsMargins(3,0,3,0);
 
     vlist->addRow(
-        //% "Meters: "
-        qtTrId("route.editor.properties.ruler.label.meters.2"),&this->lengthGM);
+        //% "Geo length: "
+        qtTrId("route.editor.properties.ruler.label.geo.length"),&this->lengthGM);
     vbox->addItem(vlist);
     
     
@@ -419,8 +420,8 @@ void PropertiesRuler::showObj(GameObj* obj){
     this->uid.setText(QString::number(robj->UiD, 10));
     this->tX.setText(QString::number(robj->x, 10));
     this->tY.setText(QString::number(-robj->y, 10));
-    lengthM.setText(QString::number(robj->getLength(), 'G', 4));
-    lengthGM.setText(QString::number(robj->getGeoLength(), 'G', 4));
+    lengthM.setText(Units::format(robj->getLength(), Units::Quantity::Length));
+    lengthGM.setText(Units::format(robj->getGeoLength(), Units::Quantity::Length));
     
     updateTemplateValue();
     
@@ -446,9 +447,9 @@ void PropertiesRuler::updateObj(GameObj* obj){
     updateNodeShapeValue();
 
     if(!lengthM.hasFocus())
-        lengthM.setText(QString::number(robj->getLength(), 'G', 4));
+        lengthM.setText(Units::format(robj->getLength(), Units::Quantity::Length));
     if(!lengthGM.hasFocus())
-        lengthGM.setText(QString::number(robj->getGeoLength(), 'G', 4));
+        lengthGM.setText(Units::format(robj->getGeoLength(), Units::Quantity::Length));
     updateTemplateValue();
     
     float elev = sin(robj->getElevation())*1000;

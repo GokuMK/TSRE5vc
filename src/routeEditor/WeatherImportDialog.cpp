@@ -25,6 +25,8 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <cmath>
+#include <tsre/gui/UnitSpinBox.h>
+#include <tsre/units/Units.h>
 
 WeatherImportDialog::WeatherImportDialog(RouteEditorGLWidget *view, QWidget *parent)
     : QDialog(parent), view(view) {
@@ -72,17 +74,17 @@ WeatherImportDialog::WeatherImportDialog(RouteEditorGLWidget *view, QWidget *par
     //% "Model's grid, 4 km at least"
     spacing->addItem(qtTrId("route.editor.weather.import.spacing.model"), 0.0);
     for (int km : {2, 4, 8, 16})
-        spacing->addItem(QString("%1 km").arg(km), km * 1000.0);
+        spacing->addItem(Units::format(km * 1000.0, Units::Quantity::Distance, 1), km * 1000.0);
     spacing->setToolTip(
         //% "Points sampled from the model; each counts towards Open-Meteo's free 10000 a day."
         qtTrId("route.editor.weather.import.spacing.tooltip"));
     form->addRow(
         //% "Samples:"
         qtTrId("route.editor.weather.import.spacing"), spacing);
-    margin = new QSpinBox(this);
-    margin->setRange(0, 300);
-    margin->setValue(30);
-    margin->setSuffix(" km");
+    margin = new UnitSpinBox(Units::Quantity::Distance, this);
+    margin->setDecimals(0);
+    margin->setRangeSi(0, 300000);
+    margin->setSi(30000);
     margin->setToolTip(
         //% "Around the route's track: clouds an hour's wind away still drift over it."
         qtTrId("route.editor.weather.import.margin.tooltip"));
@@ -111,8 +113,10 @@ WeatherImportDialog::WeatherImportDialog(RouteEditorGLWidget *view, QWidget *par
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(importButton, &QPushButton::clicked, this, &WeatherImportDialog::import);
-    for (QSpinBox *box : {startHour, hours, margin})
+    for (QSpinBox *box : {startHour, hours})
         connect(box, QOverload<int>::of(&QSpinBox::valueChanged), this, &WeatherImportDialog::updateSummary);
+    connect(margin, &UnitSpinBox::siChanged, this, &WeatherImportDialog::updateSummary);
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, this, &WeatherImportDialog::updateSummary);
     connect(model, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &WeatherImportDialog::updateSummary);
     connect(cellSize, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &WeatherImportDialog::updateSummary);
     connect(spacing, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &WeatherImportDialog::updateSummary);
@@ -137,7 +141,7 @@ bool WeatherImportDialog::request(WeatherImport::Request &out, QString *error) c
         south = n - 10000.0;
         north = n + 10000.0;
     }
-    const double m = margin->value() * 1000.0;
+    const double m = margin->si();
     out.west = west - m;
     out.east = east + m;
     out.south = south - m;
@@ -159,9 +163,10 @@ void WeatherImportDialog::updateSummary() {
     const double step = WeatherImport::spacing(sized);
     const int points = (int(std::ceil((r.east - r.west) / step)) + 1)
             * (int(std::ceil((r.north - r.south) / step)) + 1);
-    //% "Area %1 x %2 km, %3 sample points, %4 keyframes."
-    summary->setText(qtTrId("route.editor.weather.import.summary")
-                     .arg((r.east - r.west) / 1000.0, 0, 'f', 0).arg((r.north - r.south) / 1000.0, 0, 'f', 0)
+    //% "Area %1 x %2, %3 sample points, %4 keyframes."
+    summary->setText(qtTrId("route.editor.weather.import.summary.area")
+                     .arg(Units::formatNumber(r.east - r.west, Units::Quantity::Distance, 0))
+                     .arg(Units::format(r.north - r.south, Units::Quantity::Distance, 0))
                      .arg(points).arg(r.hours + 1));
 }
 

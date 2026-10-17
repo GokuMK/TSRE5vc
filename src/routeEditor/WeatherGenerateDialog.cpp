@@ -21,6 +21,8 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <cmath>
+#include <tsre/gui/UnitSpinBox.h>
+#include <tsre/units/Units.h>
 
 namespace {
 
@@ -63,10 +65,10 @@ WeatherGenerateDialog::WeatherGenerateDialog(RouteEditorGLWidget *view, QWidget 
     form->addRow(
         //% "Moving towards:"
         qtTrId("route.editor.weather.generate.heading"), heading);
-    speed = new QSpinBox(this);
-    speed->setRange(5, 90);
-    speed->setValue(35);
-    speed->setSuffix(" km/h");
+    speed = new UnitSpinBox(Units::Quantity::Speed, this);
+    speed->setDecimals(0);
+    speed->setRangeSi(5 / 3.6, 90 / 3.6);
+    speed->setSi(35 / 3.6);
     form->addRow(
         //% "Speed:"
         qtTrId("route.editor.weather.generate.speed"), speed);
@@ -88,10 +90,10 @@ WeatherGenerateDialog::WeatherGenerateDialog(RouteEditorGLWidget *view, QWidget 
     form->addRow(
         //% "Seed:"
         qtTrId("route.editor.weather.generate.seed"), seed);
-    margin = new QSpinBox(this);
-    margin->setRange(0, 300);
-    margin->setValue(40);
-    margin->setSuffix(" km");
+    margin = new UnitSpinBox(Units::Quantity::Distance, this);
+    margin->setDecimals(0);
+    margin->setRangeSi(0, 300000);
+    margin->setSi(40000);
     form->addRow(
         //% "Margin:"
         qtTrId("route.editor.weather.import.margin"), margin);
@@ -112,8 +114,10 @@ WeatherGenerateDialog::WeatherGenerateDialog(RouteEditorGLWidget *view, QWidget 
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(generateButton, &QPushButton::clicked, this, &WeatherGenerateDialog::generate);
-    for (QSpinBox *box : {heading, speed, margin})
-        connect(box, QOverload<int>::of(&QSpinBox::valueChanged), this, &WeatherGenerateDialog::updateSummary);
+    connect(heading, QOverload<int>::of(&QSpinBox::valueChanged), this, &WeatherGenerateDialog::updateSummary);
+    for (UnitSpinBox *box : {speed, margin})
+        connect(box, &UnitSpinBox::siChanged, this, &WeatherGenerateDialog::updateSummary);
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, this, &WeatherGenerateDialog::updateSummary);
     connect(arrival, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
             &WeatherGenerateDialog::updateSummary);
     connect(scenario, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -126,7 +130,8 @@ WeatherGenerateDialog::WeatherGenerateDialog(RouteEditorGLWidget *view, QWidget 
 void WeatherGenerateDialog::settings(WeatherGenerator::Settings &out) const {
     out.scenario = WeatherGenerator::Scenario(scenario->currentData().toInt());
     out.heading = heading->value();
-    out.speed = speed->value();
+    // The generator takes km/h.
+    out.speed = speed->si() * 3.6;
     out.arrival = arrival->value();
     out.seed = quint32(seed->value());
     out.cellSize = cellSize->currentData().toInt();
@@ -139,7 +144,7 @@ void WeatherGenerateDialog::settings(WeatherGenerator::Settings &out) const {
         south = n - 10000.0;
         north = n + 10000.0;
     }
-    const double m = margin->value() * 1000.0;
+    const double m = margin->si();
     out.west = west - m;
     out.east = east + m;
     out.south = south - m;
@@ -153,9 +158,10 @@ void WeatherGenerateDialog::updateSummary() {
     // How long the line takes to cross the area along its motion.
     const double h = s.heading * M_PI / 180.0;
     const double across = std::abs(width * std::sin(h)) + std::abs(height * std::cos(h));
-    //% "Area %1 x %2 km. The front comes from the %3 and moves towards the %4; its line takes about %5 h to cross the area."
-    summary->setText(qtTrId("route.editor.weather.generate.summary")
-                     .arg(width, 0, 'f', 0).arg(height, 0, 'f', 0)
+    //% "Area %1 x %2. The front comes from the %3 and moves towards the %4; its line takes about %5 h to cross the area."
+    summary->setText(qtTrId("route.editor.weather.generate.summary.area")
+                     .arg(Units::formatNumber(width * 1000.0, Units::Quantity::Distance, 0))
+                     .arg(Units::format(height * 1000.0, Units::Quantity::Distance, 0))
                      .arg(compassPoint(int(s.heading) + 180)).arg(compassPoint(int(s.heading)))
                      .arg(across / std::max(1.0, s.speed), 0, 'f', 1));
 }

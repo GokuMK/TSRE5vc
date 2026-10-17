@@ -612,6 +612,9 @@ int main(int argc, char *argv[]){
     if (consoleArgs["TEST"] == "TRUE") {
         Game::gui = false;
         Game::consoleOutput = true;
+        // Metric units, whatever the machine's locale (for this run only):
+        // the suites check texts with units.
+        settings.setSessionValue("core.interface.units", int(Units::Choice::Metric));
         TsreTests::TestRunOptions opts;
         opts.suite = consoleArgs["TEST_SUITE"];
         opts.casesFile = consoleArgs["TEST_CASES"];

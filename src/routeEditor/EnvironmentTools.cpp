@@ -30,6 +30,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <cmath>
+#include <tsre/units/Units.h>
 
 namespace {
 
@@ -355,15 +356,18 @@ void EnvironmentTools::refresh() {
                 lines << qtTrId("route.editor.environment.tools.layer.none").arg(names[l]);
                 continue;
             }
-            //% "%1: %2 %3%, %4-%5 m"
-            lines << qtTrId("route.editor.environment.tools.layer.values").arg(names[l])
+            // Heights, speeds, distances and temperatures in the units the
+            // editors show (task core si-units).
+            //% "%1: %2 %3%, %4-%5"
+            lines << qtTrId("route.editor.environment.tools.layer.heights").arg(names[l])
                          .arg(typeName(l, mix(a.type, c.type))).arg(int(std::lround(coverage * 100)))
-                         .arg(int(std::lround(mix(a.base, c.base)))).arg(int(std::lround(mix(a.top, c.top))));
+                         .arg(Units::formatNumber(mix(a.base, c.base), Units::Quantity::Length, 0))
+                         .arg(Units::format(mix(a.top, c.top), Units::Quantity::Length, 0));
         }
         const WeatherWind wind = weather->wind(hours, WeatherLayer::Low);
-        //% "Wind (low): from %1°, %2 m/s"
-        lines << qtTrId("route.editor.environment.tools.wind").arg(int(std::lround(wind.direction)))
-                     .arg(wind.speed, 0, 'f', 1);
+        //% "Wind (low): from %1°, %2"
+        lines << qtTrId("route.editor.environment.tools.wind.speed").arg(int(std::lround(wind.direction)))
+                     .arg(Units::format(wind.speed, Units::Quantity::Speed));
         const WeatherKeyframe &near = w < 0.5f ? ka : kb;
         const float rate = mix(ka.precipitationRate, kb.precipitationRate);
         if (near.precipitation == WeatherPrecipitation::None || rate < 0.05f)
@@ -377,25 +381,28 @@ void EnvironmentTools::refresh() {
                          qtTrId("route.editor.environment.tools.snow") :
                          //% "rain"
                          qtTrId("route.editor.environment.tools.rain")).arg(rate, 0, 'f', 1);
-        //% "Visibility: %1 km"
-        lines << qtTrId("route.editor.environment.tools.visibility")
-                     .arg(mix(ka.visibility, kb.visibility) / 1000.0, 0, 'f', 1);
+        //% "Visibility: %1"
+        lines << qtTrId("route.editor.environment.tools.visibility.distance")
+                     .arg(Units::format(mix(ka.visibility, kb.visibility), Units::Quantity::Distance, 1));
         const WeatherAir air = weather->air(hours);
-        //% "Air: %1 °C, dew point %2 °C"
-        lines << qtTrId("route.editor.environment.tools.air")
-                     .arg(air.temperature, 0, 'f', 1).arg(air.dewPoint, 0, 'f', 1);
+        //% "Air: %1, dew point %2"
+        lines << qtTrId("route.editor.environment.tools.air.temperatures")
+                     .arg(Units::format(air.temperature, Units::Quantity::Temperature))
+                     .arg(Units::format(air.dewPoint, Units::Quantity::Temperature));
         const WeatherFog::State fog = view->weatherFog();
         if (fog.amount < 0.01f)
             //% "Fog: none"
             lines << qtTrId("route.editor.environment.tools.fog.none");
         else if (near.fog.mode == WeatherFogSetting::Set)
-            //% "Fog (set by the weather): %1%, %2 m deep, %3 m visibility in it"
-            lines << qtTrId("route.editor.environment.tools.fog.set").arg(int(std::lround(fog.amount * 100)))
-                         .arg(int(std::lround(fog.depth))).arg(int(std::lround(fog.visibility)));
+            //% "Fog (set by the weather): %1%, %2 deep, %3 visibility in it"
+            lines << qtTrId("route.editor.environment.tools.fog.set.lengths").arg(int(std::lround(fog.amount * 100)))
+                         .arg(Units::format(fog.depth, Units::Quantity::Length, 0))
+                         .arg(Units::format(fog.visibility, Units::Quantity::Length, 0));
         else
-            //% "Fog: %1%, %2 m deep, %3 m visibility in it"
-            lines << qtTrId("route.editor.environment.tools.fog").arg(int(std::lround(fog.amount * 100)))
-                         .arg(int(std::lround(fog.depth))).arg(int(std::lround(fog.visibility)));
+            //% "Fog: %1%, %2 deep, %3 visibility in it"
+            lines << qtTrId("route.editor.environment.tools.fog.lengths").arg(int(std::lround(fog.amount * 100)))
+                         .arg(Units::format(fog.depth, Units::Quantity::Length, 0))
+                         .arg(Units::format(fog.visibility, Units::Quantity::Length, 0));
     }
     info->setText(lines.join('\n'));
 }

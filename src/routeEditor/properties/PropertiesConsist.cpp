@@ -12,6 +12,7 @@
 #include <tsre/Game.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/units/Units.h>
 
 PropertiesConsist::PropertiesConsist() {
     QVBoxLayout *vbox = new QVBoxLayout;
@@ -88,7 +89,7 @@ void PropertiesConsist::showObj(GameObj* obj){
     infoLabel->setText(
         //% "Object: Activity Consist"
         qtTrId("route.editor.properties.consist.text.object.activity.consist"));
-    eSpeed.setText(QString::number(floor(conObj->getTrainSpeed()*3.6)));
+    eSpeed.setText(Units::format(conObj->getTrainSpeed(), Units::Quantity::Speed, 0));
     showBorder.setChecked(Consist::showBorder);
     showSimulated();
 }
@@ -114,7 +115,7 @@ void PropertiesConsist::updateObj(GameObj* obj){
     }
     conObj = (Consist*)obj;
     if(!eSpeed.hasFocus())
-        eSpeed.setText(QString::number(floor(conObj->getTrainSpeed()*3.6)));
+        eSpeed.setText(Units::format(conObj->getTrainSpeed(), Units::Quantity::Speed, 0));
     showSimulated();
     //conObj = (Consist*)obj;
 }
@@ -143,8 +144,8 @@ void PropertiesConsist::showBorderEnabled(bool val){
 void PropertiesConsist::eSpeedEnabled(QString val){
     if(conObj == NULL)
         return;
-    bool ok = false;
-    float speed = val.toFloat(&ok);
-    if(ok)
-        conObj->setTrainSpeed(speed/3.6);
+    // Typed in the units the editors show, or with a unit.
+    double speed = 0;
+    if(Units::parse(val, Units::Quantity::Speed, speed))
+        conObj->setTrainSpeed(speed);
 }

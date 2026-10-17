@@ -85,6 +85,46 @@ and a proposed design for when the task is taken up.
     the last digits only (exact now). The old reader and the audit were
     removed after the check (they stay in commit 0649fec); `units-content`
     stays, reading all content.
+- Phase 3 done (2026-10-18): the editors' fields in the user's units.
+  - `UnitSpinBox` (`src/tsre/gui`): a spin box holding its value in SI,
+    showing it in the units shown with the unit as its suffix, again when
+    they change; the value given is kept until the user edits it (other
+    units shown never change it). Text fields and labels use
+    `Units::format` and `Units::parse` (a typed value may carry a unit);
+    labels that name a unit take it as an argument. The properties panel
+    shown is shown again when the units change (`RouteEditorWindow`).
+  - Moved: TRK speed limits and wire height; the activity's event speed
+    (Reach Speed, now any speed, not whole m/s) and weather fog; service
+    start and end speeds and stop distances; timetable top and average
+    speeds; the Consist properties' speed; simulation texts ("running 72
+    km/h"); platform, siding, car spawner and telepole lengths; ruler
+    lengths; level crossing distances; static objects' light reach;
+    dyntrack straights, curves (now degrees) and radii; flex tool
+    separation and minimum radius; the map's scale bar (m and km, or ft
+    and mi) and measure tool; the environment status (cloud heights,
+    wind, visibility, temperatures, fog); the weather dialogs' speed,
+    margin, model spacing and areas.
+  - Left in metres on purpose: the terrain brushes' size and radius
+    (whole metres on sliders, the terrain grid's) and the elevation
+    sources' offsets (corrections to data in metres); positions and
+    tiles (MSTS's grid); the play mode HUD (km, km/h: game UI, for the
+    RmlUi work). Content units stay the designer's: speed posts, the
+    route's milepost units.
+  - Tests run in metric units whatever the machine's locale (`main.cpp`,
+    a session value): suites check texts with units. The units suite
+    checks `UnitSpinBox`.
+  - On a machine whose locale is en_US (as the dev box), System /
+    Automatic shows imperial US units: choose Metric in Settings >
+    Interface > Appearance > Units.
+- Files keep their units: needed only where TSRE writes a value it read
+  with a unit. The phase 2 audit found units only in ENG/WAG files
+  (which TSRE does not write) and `forests.dat` (a unit not known, kept
+  as written), so no writer changed; `Units::toFile` is there for one
+  that needs it.
+- Still not SI inside (later, the whole project's goal): the weather
+  generator's front speed (km/h; its dialog converts at the boundary),
+  sound controls compare brake pressures in psi (MSTS's sounds), the
+  play mode HUD.
 - 2026-10-17: temperatures are held in °C (as Open Rails does).
 - Angles (proposed, to confirm): ENG/WAG files give some angles with a
   unit. Open Rails reads an angle without a unit as radians and converts

@@ -5,6 +5,7 @@
 #include <settings/SettingsManager.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ParserX.h>
+#include <tsre/gui/UnitSpinBox.h>
 #include <tsre/tests/TokenTestSupport.h>
 #include <tsre/units/Units.h>
 
@@ -176,7 +177,35 @@ int TsreTests::runUnitsSuite(bool verbose) {
     typed = typed && !Units::parse("abc", Quantity::Speed, si) && !Units::parse("10 kg", Quantity::Speed, si);
     test.check(typed, "typed values: the shown unit, other units, a comma, refused text");
 
+    // A spin box holds its value in SI: other units shown never change it,
+    // the user's value does.
+    {
+        Units::setChoice(Units::Choice::Metric);
+        UnitSpinBox box(Quantity::Speed);
+        box.setDecimals(1);
+        box.setRangeSi(0, 100);
+        int edits = 0;
+        QObject::connect(&box, &UnitSpinBox::siChanged, [&edits](double) { ++edits; });
+        box.setSi(100 / 3.6);
+        const bool metric = box.suffix() == " km/h" && std::fabs(box.value() - 100.0) < 1e-9;
+        Units::setChoice(Units::Choice::ImperialUS);
+        const bool us = box.suffix() == " mph" && std::fabs(box.value() - 62.1) < 1e-9 && box.si() == 100 / 3.6
+                && std::fabs(box.maximum() - 223.7) < 0.05;
+        Units::setChoice(Units::Choice::Metric);
+        const bool kept = box.si() == 100 / 3.6 && edits == 0;
+        box.setValue(80.0);
+        const bool edited = std::fabs(box.si() - 80 / 3.6) < 1e-9 && edits == 1;
+        UnitSpinBox angle;
+        angle.setQuantity(Quantity::Angle);
+        angle.setRangeSi(-3.14, 3.14);
+        angle.setSi(3.14159265358979323846 / 4);
+        const bool degrees = angle.suffix() == QString::fromUtf8("\u00b0") && std::fabs(angle.value() - 45.0) < 1e-9;
+        test.check(metric && us && kept && edited && degrees,
+                   "a spin box in the units shown: the value held in SI through other units, the user's edit");
+    }
+
     // Fields hear of a change; the setting chooses.
+    Units::setChoice(Units::Choice::ImperialUS);
     int heard = 0;
     const QMetaObject::Connection hearing = QObject::connect(Units::Notifier::instance(), &Units::Notifier::changed,
                                                              [&heard] { ++heard; });

@@ -16,6 +16,7 @@
 #include <vector>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/units/Units.h>
 
 namespace {
 
@@ -45,22 +46,31 @@ MapScaleBar::MapScaleBar()
 
 MapScaleBar::~MapScaleBar() = default;
 
+namespace {
+
+// The scale in the units the editors show (task core si-units): the short
+// unit (m, ft) up to one long unit (km, mi), the long unit from it.
+bool longUnit(double metres) {
+    const double shortPerLong = Units::toShown(Units::fromShown(1.0, Units::Quantity::Distance), Units::Quantity::Length);
+    return Units::toShown(metres, Units::Quantity::Length) >= shortPerLong * (1.0 - 1e-9);
+}
+
+}
+
 double MapScaleBar::roundLength(double metres) {
     if (!(metres > 0.0))
         return 0.0;
-    const double power = std::pow(10.0, std::floor(std::log10(metres)));
+    const Units::Quantity unit = longUnit(metres) ? Units::Quantity::Distance : Units::Quantity::Length;
+    const double shown = Units::toShown(metres, unit);
+    const double power = std::pow(10.0, std::floor(std::log10(shown)));
     for (double step : {5.0, 2.0, 1.0})
-        if (step * power <= metres * (1.0 + 1e-9))
-            return step * power;
-    return power;
+        if (step * power <= shown * (1.0 + 1e-9))
+            return Units::fromShown(step * power, unit);
+    return Units::fromShown(power, unit);
 }
 
 QString MapScaleBar::text(double metres) {
-    if (metres >= 1000.0)
-        //% "%1 km"
-        return qtTrId("route.editor.map.scale.kilometres").arg(metres / 1000.0);
-    //% "%1 m"
-    return qtTrId("route.editor.map.scale.metres").arg(metres);
+    return Units::format(metres, longUnit(metres) ? Units::Quantity::Distance : Units::Quantity::Length);
 }
 
 void MapScaleBar::pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,

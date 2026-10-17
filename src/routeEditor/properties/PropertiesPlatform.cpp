@@ -9,6 +9,7 @@
  */
 
 #include "PropertiesPlatform.h"
+#include <tsre/units/Units.h>
 #include <tsre/world/objects/PlatformObj.h>
 #include <tsre/Game.h>
 
@@ -144,7 +145,7 @@ void PropertiesPlatform::showObj(GameObj* obj){
     this->uid.setText(QString::number(pobj->UiD, 10));
     this->tX.setText(QString::number(pobj->x, 10));
     this->tY.setText(QString::number(-pobj->y, 10));
-    this->lengthPlatform.setText(QString::number(pobj->getLength())+" m");
+    this->lengthPlatform.setText(Units::format(pobj->getLength(), Units::Quantity::Length));
     this->nameStation.setText(pobj->getStationName());
     this->namePlatform.setText(pobj->getPlatformName());
     int sec = pobj->getPlatformMinWaitingTime();

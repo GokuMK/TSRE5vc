@@ -275,7 +275,7 @@ void ActivityEvent::setNotes(QString val){
     modified = true;
 }
 
-void ActivityEvent::setSpeed(int val){
+void ActivityEvent::setSpeed(float val){
     speed = val;
     modified = true;
 }

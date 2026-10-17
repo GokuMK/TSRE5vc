@@ -9,6 +9,7 @@
  */
 
 #include "PropertiesCarspawner.h"
+#include <tsre/units/Units.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/objects/CarSpawnerObj.h>
 #include <tsre/Game.h>
@@ -115,7 +116,7 @@ void PropertiesCarspawner::showObj(GameObj* obj){
     this->tY.setText(QString::number(-worldObj->y, 10));
     
     cobj = (CarSpawnerObj*)obj;
-    this->lengthPlatform.setText(QString::number(cobj->getLength())+" m");
+    this->lengthPlatform.setText(Units::format(cobj->getLength(), Units::Quantity::Length));
     this->carNumber.setText(QString::number(cobj->getCarNumber()));
     this->carSpeed.setText(QString::number(cobj->getCarSpeed()));
     

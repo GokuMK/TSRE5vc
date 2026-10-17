@@ -13,6 +13,8 @@
 
 #include <QDialog>
 
+class UnitSpinBox;
+
 class RouteEditorGLWidget;
 class QComboBox;
 class QDateEdit;
@@ -35,7 +37,8 @@ private:
     QSpinBox *hours = nullptr;
     QComboBox *model = nullptr;
     QComboBox *spacing = nullptr;
-    QSpinBox *margin = nullptr;
+    // In the units the editors show (task core si-units).
+    UnitSpinBox *margin = nullptr;
     QComboBox *cellSize = nullptr;
     QLabel *summary = nullptr;
     bool request(WeatherImport::Request &out, QString *error) const;

@@ -18,6 +18,7 @@
 #include <vector>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/units/Units.h>
 
 MapMeasureLayer::MapMeasureLayer() : line(std::make_unique<OglObj>()), halo(std::make_unique<OglObj>()) {}
 
@@ -55,14 +56,16 @@ double MapMeasureLayer::geoLength(GeoWorldCoordinateConverter *converter) const 
 }
 
 QString MapMeasureLayer::text(double gameMetres, double geoMetres) {
-    const qint64 game = qint64(std::llround(gameMetres));
+    // In the units the editors show (task core si-units), whole ones.
+    const Units::Quantity length = Units::Quantity::Length;
+    const QString game = Units::format(gameMetres, length, 0);
     // Both only when they differ by the precision shown: rounding alone would make
     // the label switch between one and two values while dragging.
-    if (geoMetres < 0.0 || !std::isfinite(geoMetres) || std::abs(geoMetres - gameMetres) < 1.0)
-        //% "%1 m"
-        return qtTrId("route.editor.map.measure.length").arg(game);
-    //% "%1 m (geo %2 m)"
-    return qtTrId("route.editor.map.measure.length.geo").arg(game).arg(qint64(std::llround(geoMetres)));
+    if (geoMetres < 0.0 || !std::isfinite(geoMetres)
+            || std::abs(Units::toShown(geoMetres, length) - Units::toShown(gameMetres, length)) < 1.0)
+        return game;
+    //% "%1 (geo %2)"
+    return qtTrId("route.editor.map.measure.length.both").arg(game, Units::format(geoMetres, length, 0));
 }
 
 MapLabel MapMeasureLayer::label(GeoWorldCoordinateConverter *converter) const {
