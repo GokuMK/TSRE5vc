@@ -89,27 +89,32 @@ void appendLens(std::vector<float> &out, RenderItem::VertexAttr layout, const Ca
     }
 }
 
-// Glow splats of a colour's lenses: one per cluster, at its centre, as
-// bright as the lenses' area, which overlapping LED dots count once (no more
-// than the disc around them).
+// Glow splats of a colour's lenses: one per cluster of lenses facing about
+// the same way, at its centre, as bright as the lenses' area, which
+// overlapping LED dots count once (no more than the disc around them).
 void addEmitters(RenderItem *r, const std::vector<const CarLights::Lens *> &group, const float *emission) {
     const float peak = std::max({emission[0], emission[1], emission[2]});
     if (peak <= 0.0f)
         return;
     struct Cell {
         double sum[3] = {0.0, 0.0, 0.0};
+        double facing[3] = {0.0, 0.0, 0.0};
         double area = 0.0;
         std::vector<const CarLights::Lens *> members;
     };
-    std::map<std::tuple<int, int, int>, Cell> cells;
+    std::map<std::tuple<int, int, int, int, int, int>, Cell> cells;
     for (const CarLights::Lens *lens : group) {
-        const std::tuple<int, int, int> key(int(std::floor(lens->position[0] / ClusterCell)),
-                                            int(std::floor(lens->position[1] / ClusterCell)),
-                                            int(std::floor(lens->position[2] / ClusterCell)));
+        const float *d = lens->direction;
+        const std::tuple<int, int, int, int, int, int> key(
+                int(std::floor(lens->position[0] / ClusterCell)), int(std::floor(lens->position[1] / ClusterCell)),
+                int(std::floor(lens->position[2] / ClusterCell)), int(std::lround(d[0])), int(std::lround(d[1])),
+                int(std::lround(d[2])));
         Cell &cell = cells[key];
         const double area = M_PI * lens->radius * lens->radius;
-        for (int c = 0; c < 3; ++c)
+        for (int c = 0; c < 3; ++c) {
             cell.sum[c] += lens->position[c] * area;
+            cell.facing[c] += d[c] * area;
+        }
         cell.area += area;
         cell.members.push_back(lens);
     }
@@ -136,6 +141,18 @@ void addEmitters(RenderItem *r, const std::vector<const CarLights::Lens *> &grou
         emitter.radius = float(std::sqrt(lit / (4.0 * M_PI)));
         for (int c = 0; c < 3; ++c)
             emitter.color[c] = emission[c] / peak;
+        // Shining the way its lenses face only, as signal lights: its glow
+        // splat and its light in fog none from behind (a head lamp's in
+        // fog showed about the cab's back and through the car).
+        const double facing = std::sqrt(cell.facing[0] * cell.facing[0] + cell.facing[1] * cell.facing[1]
+                                        + cell.facing[2] * cell.facing[2]);
+        if (facing > 0.0) {
+            emitter.type = RenderItem::Light::SPOT;
+            for (int c = 0; c < 3; ++c)
+                emitter.direction[c] = float(cell.facing[c] / facing);
+            emitter.innerCone = 0.0f;
+            emitter.outerCone = float(M_PI / 2.0);
+        }
         r->lights.push_back(emitter);
     }
 }

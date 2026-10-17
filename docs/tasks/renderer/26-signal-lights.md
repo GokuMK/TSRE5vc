@@ -103,7 +103,11 @@ index.
   an emitter, so distant signals keep a steady glow (glow splats, task 24).
   Its glow is scaled by the signal daylight scale: 50% by day, 100% at
   night, with the same transition as the lamps' (`Daylight`), and 100%
-  when time of day is off.
+  when time of day is off. The emitter faces the way the lens does (a
+  spot with a cone of 90 degrees): its glow splat fades by the cosine off
+  the lens's axis and its light in fog (task 33) by the cosine squared,
+  none from behind (user, 2026-10-17: signals seen from behind showed
+  their aspect from afar).
 - **OpenGL, or local lights off**: an unlit disc in the light's colour.
 
 ## Steps

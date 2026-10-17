@@ -165,6 +165,15 @@ void SignalLights::makePackets() {
                 for (int c = 0; c < 3; ++c)
                     emitter.color[c] = p.emissive[c] / peak;
                 emitter.radius = 0.5f;
+                // Shining the way the lens faces (-z) only: its glow splat
+                // and its light in fog none from behind (the user,
+                // 2026-10-17: signals seen from behind showed their aspect
+                // as from the front).
+                emitter.type = RenderItem::Light::SPOT;
+                emitter.direction[0] = emitter.direction[1] = 0.0f;
+                emitter.direction[2] = -1.0f;
+                emitter.innerCone = 0.0f;
+                emitter.outerCone = float(M_PI / 2.0);
                 r->lights.push_back(emitter);
             }
         } else {

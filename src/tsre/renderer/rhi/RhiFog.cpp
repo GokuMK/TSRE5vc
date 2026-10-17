@@ -324,7 +324,8 @@ int gridIndex(sampler2D indices, int slot) {
 // fade, cone and phase at the slice's point nearest to it. (The grid's cell
 // at one point of the slice left out lamps the slice passes in the next
 // one: halos cut straight along the cells' edges.)
-// The signals' too, from a grid of their own (their glow splats' emitters).
+// The signals' too, from a grid of their own (their glow splats' emitters):
+// lenses, spots facing the way they shine, none behind them.
 vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, vec4 layers,
                vec3 o, vec3 d, float t0, float t1) {
     if (layers.y <= 0.0)

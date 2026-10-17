@@ -607,8 +607,41 @@ the terrain cannot explain.
   other, probes on or off; at the user's view the camera turned 0.05 rad a
   frame, 16 frames right and 32 back left: frames at the same angle from
   the two directions within 0.4 of 255 on average (neighbouring angles 5),
-  no dark parts. On screen, with frames in flight: the user to confirm,
-  also whether the glTF lamps' drag first reported is gone.
+  no dark parts.
+- The blinking gone, the user (2026-10-17) still saw new stripes not
+  matching the old part when moving the camera up (CMK, 0:01, valley fog,
+  at the train's head, the headlights shining at the camera); the sun the
+  same, but only with the clock running fast. The lamps' light scattered
+  towards the camera depends on the direction it is seen from (the
+  phase's 0.85: mostly forward), and the history keeps a point's light as
+  seen from where the camera was. A turn leaves the directions from the
+  camera to every point as they were (the turns above showed nothing);
+  moving changes them, the more the nearer the point. Captures, the camera
+  rising 0.3 m a frame there: each moving frame against the same view
+  settled, mean 16 of 255, at most 114 (a column of lit fog under the
+  lamp, from the fog in front of the camera).
+- Fix: the lamps' and signals' light out of the history again (`328b2c5`
+  brought back), this frame's, through the cells' averaged density, in a
+  volume of its own that the integration adds; the sun and the sky keep
+  the history. The same captures: rising mean 1.6 at most 3 (the
+  exposure's lag in the first frames), at most 1 from the tenth frame;
+  turning at most 2 (19 before); a still camera steady (0.01); settled
+  views as before (at most 2). The newly seen black parts the user saw
+  with `328b2c5` the first time did not show in these runs; then the
+  signals' grid was filled only now and then. The user to confirm on
+  screen.
+- Lamps shining their own way (user, 2026-10-17): a lamp's glow lit the
+  fog all about it, behind the car's body too, and a signal seen from
+  behind showed its aspect from afar like one facing the camera. The
+  emitters of signal and train lamps are spots now, facing the way their
+  lenses do with a cone of 90 degrees: in fog by the cosine squared off
+  their axis, none behind (`gridLight` takes spots already); their glow
+  splats by the cosine, a flat lens's area seen (`RhiImage.cpp`). A train
+  lamp's emitter takes its lenses' direction. Captures (CMK, 1:00, ground
+  mist): two signals from 25 m in front glow and light the fog, from 25 m
+  behind dark (only signals further on that face the camera show); the
+  locomotive's red lamps, which glowed through the car's end when seen
+  from its head, are gone there; its head lamps' halos narrower.
 
 ## Step 5: patches and motion (2026-10-15)
 

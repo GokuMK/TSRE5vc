@@ -247,14 +247,17 @@ Open Rails rules kept:
   the fog strobed or dragged with the camera. The lamps' glow emitters
   light the fog through the signals' grid, which was gathered from a draw
   queue already taken, so only now and then; now gathered with the lamps,
-  every frame (task 33, "Lamps' light in the fog strobing and dragged").
-- Lights seen through the body (user, 2026-10-17, not reproduced since):
-  no local light has shadows, and the lamps' glow emitters light the fog
-  through the signals' fog grid at its 50 times gain, so a lamp behind the
-  car can light the fog in front of it. If seen again, the cheap fix: leave
-  the lamps out of the fog grid (the beams light the fog) or let them light
-  the fog in front of them only. Shadows from local lights are task 21's
-  later work.
+  every frame. Moving the camera still left stripes: the lamps' light in
+  fog depends on the direction it is seen from, which the fog's history
+  kept; their light is out of the history now (task 33, "Lamps' light in
+  the fog strobing and dragged").
+- Lights seen through the body (user, 2026-10-17): no local light has
+  shadows, and the lamps' glow emitters lit the fog all about them at the
+  signals' 50 times gain, so a lamp at one end lit the fog about the
+  other. The cheap fix taken: the emitters are spots facing their lenses'
+  way (a cone of 90 degrees), lighting the fog in front of them only, and
+  their glow splats seen from the front only (task 33). Shadows from local
+  lights are task 21's later work.
 
 ## Later
 
