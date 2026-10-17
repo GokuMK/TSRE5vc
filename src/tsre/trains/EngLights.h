@@ -11,6 +11,7 @@
 #ifndef ENGLIGHTS_H
 #define ENGLIGHTS_H
 
+#include <QByteArray>
 #include <QString>
 #include <QVector>
 #include <QtGlobal>
@@ -139,18 +140,18 @@ public:
     static int environmentWeather();
 };
 
-// A Lights block kept as the file has it (ParserX::KeepBlock) and read into
-// lights when they are first wanted: the Consist Editor loads every car and
-// draws none. A car's copies in consists share it.
+// A Lights block kept as the file has it (ParserX::KeepBlock), compressed,
+// and read into lights when they are first wanted: the Consist Editor loads
+// every car and draws none. A car's copies in consists share it.
 class EngLightsBlock {
 public:
-    explicit EngLightsBlock(QString text);
+    explicit EngLightsBlock(const QString &text);
     // Read on the first call, the text dropped then; null without lights
     // (Open Rails refuses such a block).
     const EngLights *lights();
 
 private:
-    QString text;
+    QByteArray compressed;
     std::unique_ptr<EngLights> read;
     bool parsed = false;
 };

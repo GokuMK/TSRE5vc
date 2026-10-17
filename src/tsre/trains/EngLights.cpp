@@ -183,14 +183,17 @@ void EngLights::read(FileBuffer *data) {
             lights.push_back(reversedCone(lights[i]));
 }
 
-EngLightsBlock::EngLightsBlock(QString text) : text(std::move(text)) {
+EngLightsBlock::EngLightsBlock(const QString &text) {
+    // Blocks of many small lights repeat themselves: the fastest level
+    // already shrinks them much.
+    compressed = qCompress(text.toUtf8(), 1);
 }
 
 const EngLights *EngLightsBlock::lights() {
     if (parsed)
         return read.get();
     parsed = true;
-    FileBuffer *data = FileBuffer::fromText(text);
+    FileBuffer *data = FileBuffer::fromText(QString::fromUtf8(qUncompress(compressed)));
     // The kept block starts with its token.
     if (ParserX::NextTokenInside(data).toLower() == "lights") {
         auto block = std::make_unique<EngLights>();
@@ -199,7 +202,7 @@ const EngLights *EngLightsBlock::lights() {
             read = std::move(block);
     }
     delete data;
-    text = QString();
+    compressed = QByteArray();
     return read.get();
 }
 
