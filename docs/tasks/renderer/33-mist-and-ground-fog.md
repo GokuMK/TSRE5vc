@@ -740,6 +740,21 @@ the terrain cannot explain.
 - On the way: within a slice a surface's fog falls exponentially (it was
   blended evenly, up to a third out in a thick fog's slice); the patches'
   noise is continuous along each ray (blended between the slice's ends).
+- **Still at dawn (open, user, 2026-10-17):** CMK, ground mist, from 435 m
+  up looking down (`-5355,14852,-815.77,435.28,-378.95,-1331.48,-26.12`):
+  rings at 5:00, weaker at 6:00, none at 3:30; the same before the day's
+  fog changes (`22e3c30`, at most 1 of 255 apart). High's per-pixel fog
+  takes its share per pixel but its light from the volume. Drawn alone:
+  the sky's light no rings, the sun's strong ones (with or without the
+  shadows), the sun with its share through the fog above taken as 1 none,
+  one even light everywhere none. So the sun's share through the fog
+  above, which a low sun makes change steeply with the height in a thin
+  fog, carried by the slices. Not cured by taking each cell's light where
+  its fog lies, nor by averaging the share over the density points
+  (weighted by what the ground hides or by what the slice lets through),
+  nor by a seventh of its extinction (as multiple scattering): about 1 of
+  255 each. Likely cure: the sun's share per pixel along the steps the
+  per-pixel fog takes already.
 
 ### Ground mist; none deep in the ground (user, 2026-10-15)
 
