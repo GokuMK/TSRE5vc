@@ -15,6 +15,7 @@
 #include <QXmlStreamReader>
 #include <algorithm>
 #include <cmath>
+#include <tsre/units/UnitConversion.h>
 
 QString OrtsTrackProfileCatalog::loadedRoutePath;
 QMap<QString, QSharedPointer<OrtsTrackProfile>> OrtsTrackProfileCatalog::profiles;
@@ -142,18 +143,12 @@ float numberValue(QString value, bool *ok = nullptr) {
         return 0;
     }
     bool parsed = false;
-    float result = match.captured(1).toFloat(&parsed);
-    const QString unit = match.captured(2).toLower();
-    if(unit == "cm")
-        result *= 0.01f;
-    else if(unit == "mm")
-        result *= 0.001f;
-    else if(unit == "km")
-        result *= 1000.0f;
-    else if(unit == "ft")
-        result *= 0.3048f;
-    else if(!unit.isEmpty() && unit != "m")
+    const double number = match.captured(1).toDouble(&parsed);
+    // Lengths, in metres (task core si-units); another unit refused.
+    double metres = number;
+    if(!Units::fromFile(number, match.captured(2), Units::Quantity::Length, metres))
         parsed = false;
+    const float result = float(metres);
     if(ok != nullptr)
         *ok = parsed;
     return parsed ? result : 0;

@@ -51,6 +51,38 @@ and a proposed design for when the task is taken up.
   and back, by quantity or by the unit alone; the units shown by system;
   `format`, `parse`; the setting cached and `Units::Notifier`, made at
   startup), the setting, suite `units`.
+- Phase 2 done (2026-10-18): the readers in SI, all at once.
+  - `ParserX::GetNumber` and `GetNumberInside` read the digits exactly
+    (`std::from_chars`; they were added up in a float, and a fraction of
+    ten digits or more overflowed its counter) and the whole unit written
+    after the number, and give SI through `Units::fromFile` (with an
+    optional quantity and the parameter's default unit). The units module
+    is split: `UnitConversion` (the conversions and the units shown for a
+    system given; Qt Core only, in every target that reads files) and
+    `Units` (the setting, the current units, `Notifier`).
+  - Every table moved to the module: `MstsUnits` removed, `SmsFile`'s
+    table (pressures still in psi, as sounds compare them), `SigCfg`'s
+    SpeedMPH, SpeedKPH and PositionYD, the track profiles' lengths.
+  - `Eng` keeps only its SI fields (`massKg`, `maxSpeedMps`, `powerW`,
+    `forceN`; the old `mass`, `maxSpeed`, `maxPower`, `maxForce` gone);
+    `Consist` sums `massKg` and `engineMassKg`, and its CON velocity comes
+    from the SI fields (an ENG speed without a unit was taken as km/h).
+    Train lights' `Angle`: degrees without a unit, radians inside
+    (`angleRad`). The consist editor and the Shape Viewer's info show
+    their values through `Units::format` and again when the setting
+    changes.
+  - Checked by reading the local content (MSTS, TS_STARTER_ROUTE, OR_PSK,
+    tsdata: 4,900 ENG/WAG, 450 CON, 70 activities, ten routes, the
+    simulation's inputs) with the old reader and the new one side by side
+    (`TSRE_UNITS_AUDIT`, suite `units-content`): every difference was
+    meant. Units to SI: masses in t and lb, speeds in mph, kmh and km/h,
+    powers in kW and hp, Friction's speeds in mph. Fixed on the way: half
+    inches (`in/2`, 573 wheel radii) were read as inches, `mm` as metres,
+    `250000lb` as tonnes; long fractions in TDBs (up to 1e-5 off). Content
+    with typos the old reader hid: `Size ( 2.62mm ... )` (MSTS
+    `SERIES2000`) and `( 3.3mm ... )` (OR_PSK `PKP_Rs` wagons) now read in
+    millimetres, as Open Rails reads them. Every other difference is in
+    the last digits only (exact now).
 - 2026-10-17: temperatures are held in °C (as Open Rails does).
 - Angles (proposed, to confirm): ENG/WAG files give some angles with a
   unit. Open Rails reads an angle without a unit as radians and converts

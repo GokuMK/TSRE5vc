@@ -14,6 +14,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <QString>
 #include <QStringList>
+#include <tsre/units/Quantity.h>
 
 class QTextStream;
 
@@ -33,8 +34,15 @@ public:
     // The next value inside a block as written (a number with its unit,
     // "-1mph"), up to a space or the block's end; empty at the end.
     static QString GetToken(FileBuffer* bufor);
-    static float GetNumber(FileBuffer* bufor);
-    static float GetNumberInside(FileBuffer* bufor, bool *ok = NULL);
+    // A number as files write it, with the unit written after it, in SI
+    // (task core si-units): the unit as `quantity` takes it, with Any as the
+    // unit alone tells (Units::fromFile); a unit not known leaves the number
+    // as written; a number without a unit is in `defaultUnit`, the
+    // parameter's own (none: SI). A '+' after it adds the next number.
+    static float GetNumber(FileBuffer* bufor, Units::Quantity quantity = Units::Quantity::Any,
+                           QStringView defaultUnit = {});
+    static float GetNumberInside(FileBuffer* bufor, bool *ok = NULL,
+                                 Units::Quantity quantity = Units::Quantity::Any, QStringView defaultUnit = {});
     static unsigned int GetUInt(FileBuffer* bufor);
     static unsigned int GetHex(FileBuffer* bufor);
     static int SkipToken(FileBuffer* bufor);
@@ -50,7 +58,8 @@ public:
     static QString SplitToMultiline(QString n, QString woff = "");
 
 private:
-    static float NumberUnit(float x, unsigned short int &b, FileBuffer* bufor);
+    static float ReadNumber(FileBuffer* bufor, bool inside, bool *ok, Units::Quantity quantity,
+                            QStringView defaultUnit, QString *unit);
 };
 
 #endif	/* PARSERX_H */

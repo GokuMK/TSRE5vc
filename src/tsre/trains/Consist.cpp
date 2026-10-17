@@ -84,8 +84,8 @@ Consist::Consist(Consist * con, bool fullCopy) {
         nextWagonUID = con->nextWagonUID;
         durability = con->durability;
         conLength = con->conLength;
-        mass = con->mass;
-        emass = con->emass;
+        massKg = con->massKg;
+        engineMassKg = con->engineMassKg;
         loaded = con->loaded;
         isOnTrack = false;
         kierunek = con->kierunek;
@@ -295,8 +295,8 @@ void Consist::refreshEngData(){
 void Consist::initPos(){
     float length = 0;
     conLength = 0;
-    mass = 0;
-    emass = 0;
+    massKg = 0;
+    engineMassKg = 0;
     if(engItems.size() == 0) {
         posInit = true;
         return;
@@ -314,23 +314,22 @@ void Consist::initPos(){
         engItems[i].pos = length;
         length += size / 2.0;
         conLength += size;
-        mass += Game::currentEngLib->eng[engItems[i].eng]->mass;
+        massKg += Game::currentEngLib->eng[engItems[i].eng]->massKg;
         if(Game::currentEngLib->eng[engItems[i].eng]->wagonTypeId >= 4){
-            if(Game::currentEngLib->eng[engItems[i].eng]->maxSpeed > tmaxspeed)
-                tmaxspeed = Game::currentEngLib->eng[engItems[i].eng]->maxSpeed;
-            emass += Game::currentEngLib->eng[engItems[i].eng]->mass;
-            maxForce += Game::currentEngLib->eng[engItems[i].eng]->maxForce;
+            if(Game::currentEngLib->eng[engItems[i].eng]->maxSpeedMps > tmaxspeed)
+                tmaxspeed = Game::currentEngLib->eng[engItems[i].eng]->maxSpeedMps;
+            engineMassKg += Game::currentEngLib->eng[engItems[i].eng]->massKg;
+            maxForce += Game::currentEngLib->eng[engItems[i].eng]->forceN;
         }
     }
 
 
     // Without the cars' data (missing files) the file's values stay.
-    if(!maxVelocityFixed && mass > 0){
-        //qDebug() << "mv "<< this->maxVelocity[0] <<" "<< this->maxVelocity[1];
-        this->maxVelocity[0] = tmaxspeed / 3.6;
-        //this->maxVelocity[1] = emass / mass;
-        //qDebug() << maxForce*0.001 << " "<< mass;
-        this->maxVelocity[1] = 0.8*maxForce*0.001 / mass;
+    // The engines' top speed (m/s), and 0.8 of their force over the mass
+    // (N/kg: kN/t as before).
+    if(!maxVelocityFixed && massKg > 0){
+        this->maxVelocity[0] = tmaxspeed;
+        this->maxVelocity[1] = 0.8*maxForce / massKg;
         if(this->maxVelocity[1] > 1) this->maxVelocity[1] = 1;
         if(this->maxVelocity[1] < 0.001) this->maxVelocity[1] = 0.001;
     }

@@ -62,8 +62,8 @@ public:
         float azimuth[3] = {0.0f, 0.0f, 0.0f};
         float elevation[3] = {0.0f, 0.0f, 0.0f};
         bool transition = false;
-        // A cone's full angle, degrees.
-        float angle = 0.0f;
+        // A cone's full angle, radians.
+        float angleRad = 0.0f;
         // The way it shines in the car shape's space, as Open Rails turns
         // forward by the azimuth (to the right) and the elevation (down).
         void direction(float *out) const;

@@ -14,7 +14,16 @@
 
 //unsigned char* ReadFile::out = new unsigned char[10000000];
 
+namespace {
+thread_local QString lastRead;
+}
+
+QString ReadFile::lastPath() {
+    return lastRead;
+}
+
 FileBuffer* ReadFile::read(QFile* file) {
+    lastRead = file->fileName();
     int size = file->size();
     unsigned char* in = new unsigned char[size];
     file->read((char*)in, size);

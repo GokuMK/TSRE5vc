@@ -21,6 +21,13 @@ float number(FileBuffer *data, float fallback = 0.0f) {
     return ok ? value : fallback;
 }
 
+// An angle: degrees without a unit (MSTS's lights), radians in TSRE.
+float angle(FileBuffer *data) {
+    bool ok = true;
+    const float value = ParserX::GetNumberInside(data, &ok, Units::Quantity::Angle, u"deg");
+    return ok ? value : 0.0f;
+}
+
 void numbers(FileBuffer *data, float *out, int count) {
     for (int i = 0; i < count; ++i)
         out[i] = number(data);
@@ -72,7 +79,7 @@ void readState(FileBuffer *data, EngLights::State &s) {
         else if (sh == "transition")
             s.transition = number(data) >= 1.0f;
         else if (sh == "angle")
-            s.angle = number(data);
+            s.angleRad = angle(data);
         ParserX::SkipToken(data);
     }
 }
@@ -145,7 +152,7 @@ void EngLights::State::direction(float *out) const {
 }
 
 float EngLights::State::halfAngle() const {
-    return angle * float(M_PI) / 360.0f;
+    return angleRad / 2.0f;
 }
 
 float EngLights::State::reach() const {

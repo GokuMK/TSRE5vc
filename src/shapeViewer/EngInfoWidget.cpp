@@ -11,9 +11,11 @@
 #include <shapeViewer/EngInfoWidget.h>
 #include <tsre/Game.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/units/Units.h>
 
 EngInfoWidget::EngInfoWidget(QWidget* parent) : QWidget(parent) {
     setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, this, [this] { setInfo(shown); });
     
     QGridLayout *engInfoForm = new QGridLayout;
     engInfoForm->setSpacing(2);
@@ -80,6 +82,8 @@ EngInfoWidget::~EngInfoWidget() {
 void EngInfoWidget::setInfo(Eng* eng){
     if(eng == NULL)
         return;
+    shown = eng;
+    using Units::Quantity;
 
     eName.setText(eng->displayName);
     eFileName.setText(eng->name);
@@ -90,18 +94,20 @@ void EngInfoWidget::setInfo(Eng* eng){
     eType.setText(ttype);
     //eBrakes;
     //eCouplings;
-    eMass.setText(QString::number(eng->mass) + " t");
+    eMass.setText(Units::format(eng->massKg, Quantity::Mass));
     if(eng->wagonTypeId >= 4){
-        eMaxSpeed.setText(QString::number((int)eng->maxSpeed) + " km/h");
-        eMaxForce.setText(QString::number((int)eng->maxForce / 1000.0) + " kN");
-        eMaxPower.setText(QString::number((int)eng->maxPower ) + " kW");
+        eMaxSpeed.setText(Units::format(eng->maxSpeedMps, Quantity::Speed, 0));
+        eMaxForce.setText(Units::format(eng->forceN, Quantity::Force));
+        eMaxPower.setText(Units::format(eng->powerW, Quantity::Power));
     } else {
         eMaxSpeed.setText("--");
         eMaxForce.setText("--");
         eMaxPower.setText("--");
     }
     eShape.setText(eng->shape.name);
-    eSize.setText(QString::number(eng->sizex)+" "+QString::number(eng->sizey)+" "+QString::number(eng->sizez)+" ");
+    eSize.setText(Units::formatNumber(eng->sizex, Quantity::Length) + " "
+                  + Units::formatNumber(eng->sizey, Quantity::Length) + " "
+                  + Units::format(eng->sizez, Quantity::Length));
     eCouplings.setText(eng->getCouplingsName());
     eBrakes.setText(eng->brakeSystemType);
 }

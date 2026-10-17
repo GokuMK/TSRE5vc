@@ -3,6 +3,8 @@
 #include <QObject>
 #include <cmath>
 #include <settings/SettingsManager.h>
+#include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/fileFunctions/ParserX.h>
 #include <tsre/tests/TokenTestSupport.h>
 #include <tsre/units/Units.h>
 
@@ -91,6 +93,45 @@ int TsreTests::runUnitsSuite(bool verbose) {
             back = false;
     }
     test.check(back, "SI back to each file's unit");
+
+    // Numbers in files as ParserX reads them: in SI, the unit written after
+    // them (quotes, comments written on, a sum), the parameter's default unit.
+    {
+        const auto read = [](const QString &text, Quantity quantity, bool *ok = nullptr,
+                             QStringView defaultUnit = {}) {
+            FileBuffer *data = FileBuffer::fromText("Value ( " + text + " )");
+            const float value = ParserX::GetNumberInside(data, ok, quantity, defaultUnit);
+            delete data;
+            return double(value);
+        };
+        const auto close = [](double a, double b) { return std::fabs(a - b) <= 1e-5 * std::max(1.0, std::fabs(b)); };
+        bool ok = false, unknown = false, empty = true;
+        const bool files = close(read("39.19t", Quantity::Mass), 39190.0)
+                && close(read("\"117.57t #368000lbs\"", Quantity::Mass), 117570.0)
+                && close(read("166.9t#368000lbs", Quantity::Mass), 166900.0)
+                && close(read("230kN#est", Quantity::Force), 230000.0)
+                && close(read("1400kW", Quantity::Power), 1400000.0)
+                && close(read("4000hp", Quantity::Any), 4000.0 * 745.69987158227022)
+                && close(read("74.56mph", Quantity::Speed), 74.56 * 0.44704)
+                && close(read("100km/h", Quantity::Any), 100.0 / 3.6)
+                && close(read("-1mph", Quantity::Speed), -0.44704)
+                && close(read("150N/m/s", Quantity::Resistance), 150.0)
+                && close(read("36in/2", Quantity::Length), 0.4572)
+                && close(read("12*(ft^3)", Quantity::Volume), 12 * 0.028316846592)
+                && close(read("2t+500kg", Quantity::Mass), 2500.0)
+                && close(read("1e3", Quantity::Force, &ok), 1000.0) && ok
+                && close(read("45", Quantity::Angle, nullptr, u"deg"), 45 * 3.14159265358979323846 / 180)
+                && close(read("0.5deg", Quantity::Angle, nullptr, u"deg"), 0.5 * 3.14159265358979323846 / 180)
+                && close(read("80furlongs", Quantity::Mass, &unknown), 80.0) && unknown;
+        read("", Quantity::Mass, &empty);
+        // The digits read exactly (they were added up in a float; a long
+        // fraction overflowed its counter).
+        const bool exact = float(read("-0.00043262792", Quantity::Any)) == -0.00043262792f
+                && float(read("1234.56789012345", Quantity::Any)) == 1234.56789012345f;
+        test.check(files && !empty && exact,
+                   "numbers in files: in SI with their unit (quotes, comments, a sum), the parameter's default unit, "
+                   "an unknown unit left as written, the digits exact");
+    }
 
     // The units shown, by system.
     Units::setChoice(Units::Choice::Metric);

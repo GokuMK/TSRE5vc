@@ -40,6 +40,9 @@ private:
     QLineEdit eMaxPower;
     QLineEdit eShape;
     QLineEdit eSize;
+    // The vehicle shown, for showing its values again when the units the
+    // editors show change.
+    Eng *shown = NULL;
 };
 
 #endif	/* ENGINFOWIDGET_H */
