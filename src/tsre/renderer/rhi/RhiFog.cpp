@@ -130,6 +130,8 @@ layout(binding = 13) uniform sampler2D signalLightCells;
 layout(binding = 14) uniform sampler2D signalLightIndices;
 layout(binding = 15) uniform sampler2D rainWeatherTexture;
 layout(binding = 16) uniform sampler2D rainNearCover;
+// The lamps' and signals' light in each cell, this frame's (not blended).
+layout(binding = 17, rgba16f) uniform writeonly image3D lampCells;
 
 // Rain (or snow) at a point (extinction, 1/m): the weather's under the low
 // clouds' base, as the clouds' march has it beyond the volume (RhiClouds.cpp,
@@ -447,11 +449,7 @@ void main() {
         float rainShare = sigmaRain / sigma;
         skyLight *= mix(1.0, (0.6 + 0.4 * rainThrough) * mix(1.0, 1.8, snow), rainShare);
         sunLight *= mix(1.0, rainThrough, rainShare);
-        scattered = (skyLight + sunLight
-                     + gridLight(localLightData, localLightCells, localLightIndices, lightGrid, lightLayers,
-                                 camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0))
-                     + gridLight(signalLightData, signalLightCells, signalLightIndices, signalGrid, signalLayers,
-                                 camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0))) * sigma;
+        scattered = (skyLight + sunLight) * sigma;
     }
     // Scaled into the half floats' even range (RhiRenderer::prepareFog);
     // next to a lamp at night past it (white anyway).
@@ -472,6 +470,19 @@ void main() {
         }
     }
     imageStore(cells, id, current);
+    // The lamps and signals as this frame has them, through the fog's
+    // averaged density: summed along the slice exactly, they need no
+    // averaging over frames, and in the history a turning or moving camera
+    // left their light where it had been for many frames (user, 2026-10-17:
+    // lit fog moving with the camera, parts of it dark).
+    vec3 lamps = vec3(0.0);
+    if (current.a > 0.0)
+        lamps = (gridLight(localLightData, localLightCells, localLightIndices, lightGrid, lightLayers,
+                           camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0))
+                 + gridLight(signalLightData, signalLightCells, signalLightIndices, signalGrid, signalLayers,
+                             camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0)))
+                * current.a;
+    imageStore(lampCells, id, vec4(min(lamps * scale.x, vec3(60000.0)), 0.0));
 }
 )";
 
@@ -481,6 +492,7 @@ const char *IntegrateCompute = R"(
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 layout(binding = 1) uniform sampler3D cells;
 layout(binding = 2, rgba16f) uniform writeonly image3D sums;
+layout(binding = 3) uniform sampler3D lampCells;
 
 void main() {
     ivec2 id = ivec2(gl_GlobalInvocationID.xy);
@@ -494,7 +506,7 @@ void main() {
         float end = sliceDistance(float(i + 1));
         float dt = end - start;
         vec4 cell = texelFetch(cells, ivec3(id, i), 0);
-        cell.rgb *= scale.z;
+        cell.rgb = (cell.rgb + texelFetch(lampCells, ivec3(id, i), 0).rgb) * scale.z;
         float sigma = max(cell.a, 0.0);
         float slice = exp(-sigma * dt);
         // The light scattered over the slice, as it dims along it.
@@ -598,6 +610,7 @@ void RhiRenderer::releaseFog() {
     for (QRhiTexture *t : f.scatter)
         delete t;
     delete f.integrated;
+    delete f.lamps;
     delete f.floor;
     delete f.uniforms;
     delete f.linear;
@@ -641,11 +654,12 @@ bool RhiRenderer::createFog(int quality, const QSize &viewSize) {
     for (QRhiTexture *&t : f.scatter)
         t = rhi->newTexture(QRhiTexture::RGBA16F, width, height, slices, 1, volume);
     f.integrated = rhi->newTexture(QRhiTexture::RGBA16F, width, height, slices, 1, volume);
+    f.lamps = rhi->newTexture(QRhiTexture::RGBA16F, width, height, slices, 1, volume);
     f.floor = rhi->newTexture(QRhiTexture::RGBA16F, QSize(std::max(fog.size, 1), std::max(fog.size, 1)));
     f.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(FogParameters));
     f.linear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
-    bool ok = f.integrated->create() && f.floor->create() && f.uniforms->create() && f.linear->create();
+    bool ok = f.integrated->create() && f.lamps->create() && f.floor->create() && f.uniforms->create() && f.linear->create();
     for (QRhiTexture *t : f.scatter)
         ok = ok && t->create();
     if (!ok) {
@@ -663,7 +677,8 @@ bool RhiRenderer::createFog(int quality, const QSize &viewSize) {
         f.integrateBindings[i] = rhi->newShaderResourceBindings();
         f.integrateBindings[i]->setBindings({QRhiShaderResourceBinding::uniformBuffer(0, compute, f.uniforms),
                                              QRhiShaderResourceBinding::sampledTexture(1, compute, f.scatter[i], f.linear),
-                                             QRhiShaderResourceBinding::imageStore(2, compute, f.integrated, 0)});
+                                             QRhiShaderResourceBinding::imageStore(2, compute, f.integrated, 0),
+                                             QRhiShaderResourceBinding::sampledTexture(3, compute, f.lamps, f.linear)});
         f.integrateBindings[i]->create();
     }
     // The injection's bindings follow the maps (prepareFog); a first set for
@@ -685,7 +700,8 @@ bool RhiRenderer::createFog(int quality, const QSize &viewSize) {
                                       QRhiShaderResourceBinding::sampledTexture(13, compute, dummy2D, sampler(false, true, true)),
                                       QRhiShaderResourceBinding::sampledTexture(14, compute, dummy2D, sampler(false, true, true)),
                                       QRhiShaderResourceBinding::sampledTexture(15, compute, dummy2D, f.linear),
-                                      QRhiShaderResourceBinding::sampledTexture(16, compute, dummy2D, f.linear)});
+                                      QRhiShaderResourceBinding::sampledTexture(16, compute, dummy2D, f.linear),
+                                      QRhiShaderResourceBinding::imageStore(17, compute, f.lamps, 0)});
     f.injectBindings[0]->create();
     f.inject = rhi->newComputePipeline();
     f.inject->setShaderStage({QRhiShaderStage::Compute, inject});
@@ -790,7 +806,8 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
                  QRhiShaderResourceBinding::sampledTexture(14, compute, const_cast<QRhiTexture *>(maps[10]),
                                                            sampler(false, true, true)),
                  QRhiShaderResourceBinding::sampledTexture(15, compute, const_cast<QRhiTexture *>(maps[11]), f.linear),
-                 QRhiShaderResourceBinding::sampledTexture(16, compute, const_cast<QRhiTexture *>(maps[12]), f.linear)});
+                 QRhiShaderResourceBinding::sampledTexture(16, compute, const_cast<QRhiTexture *>(maps[12]), f.linear),
+                 QRhiShaderResourceBinding::imageStore(17, compute, f.lamps, 0)});
         f.injectBindings[i]->create();
     }
     std::copy(maps, maps + 13, f.boundMaps);
