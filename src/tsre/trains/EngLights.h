@@ -143,6 +143,9 @@ public:
 // A Lights block kept as the file has it (ParserX::KeepBlock), compressed,
 // and read into lights when they are first wanted: the Consist Editor loads
 // every car and draws none. A car's copies in consists share it.
+// A workaround, not the real solution: the ENG parser's rework should read
+// each include file once and share it (a locomotive's variants mostly
+// include the same large block).
 class EngLightsBlock {
 public:
     explicit EngLightsBlock(const QString &text);

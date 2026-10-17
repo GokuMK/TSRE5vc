@@ -87,8 +87,12 @@ Open Rails rules kept:
   as the variants of a locomotive each read the same large include (the
   Vectron's 24,000 lines). Kept as text, its load stays about 5 s (runs
   scattered from 3.6 to 6.1 s either way). Kept compressed (`qCompress`,
-  level 1; user, 2026-10-17): 3 MB instead of 116 MB of text there, the
-  load within its noise. Reading every kept block would take
+  level 1; user, 2026-10-17): 3 MB instead of 116 MB of text there. In
+  time it is about the same as reading every block at load (both about
+  1 to 1.5 s over skipping them, within the runs' scatter); it saves the
+  read lights of every car (estimated 30 MB) and their reading where no
+  car is drawn.
+- A workaround, not the real solution (user, 2026-10-17). Reading every kept block would take
   1.4 s; the route editor reads only those of the cars it draws.
 - For the ENG parser's rework (moving ENG to `SimisTextReader`, user,
   2026-10-17): read each include file once and share it, which also
