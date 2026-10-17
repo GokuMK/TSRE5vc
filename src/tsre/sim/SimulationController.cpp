@@ -220,6 +220,9 @@ bool SimulationController::runToTime(double target, bool thenRun, QString *error
     }
     asked = RunMode::RunningTo;
     const unsigned long long seq = ++sequence;
+    runToSeq = seq;
+    runToTarget = target;
+    runToThenRun = thenRun;
     SimulationHost *h = host;
     QMetaObject::invokeMethod(host, [h, target, seq, thenRun] { h->runTo(target, seq, thenRun); },
                               Qt::QueuedConnection);
@@ -326,6 +329,15 @@ void SimulationController::poll() {
     }
     if (!changed)
         return;
+    // A run to a time the host had passed when it took the command (running
+    // as fast as possible, a day can go by while the command waits): from
+    // the start again to that time, as for a time behind.
+    if (runToSeq != 0 && latest->acknowledged >= runToSeq) {
+        const bool passed = latest->acknowledged == runToSeq && latest->time > runToTarget + 1e-6;
+        runToSeq = 0;
+        if (passed && runToTime(runToTarget, runToThenRun, nullptr))
+            return;
+    }
     // Every command taken: the host's mode is the one (a run to a time ends
     // paused).
     if (latest->acknowledged >= sequence && latest->mode != asked) {
