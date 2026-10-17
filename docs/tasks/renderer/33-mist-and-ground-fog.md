@@ -604,7 +604,7 @@ the terrain cannot explain.
   jittered along the slice: lamps lie at a thin fog's top, where a part of
   the slice is in the fog, and four points catch it in some frames, miss
   it in others (the history's average over frames had it). Sixteen fixed
-  points (the quarters' middles of each quarter) are the same in every
+  points (each in the middle of its sixteenth) are the same in every
   frame and for old and new cells, and measure that part; only cells some
   lamp reaches take them. CMK at 1:00, ground mist, by the train, the
   exposure fixed: against the old code (the lamps in the history) a mean
