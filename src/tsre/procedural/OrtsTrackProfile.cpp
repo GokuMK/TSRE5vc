@@ -133,25 +133,15 @@ QString firstValue(const StfNode &node, const QString &name,
 }
 
 float numberValue(QString value, bool *ok = nullptr) {
-    value = value.trimmed();
-    static const QRegularExpression numberPattern(
-            "^([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?)([a-zA-Z]*)$");
-    const QRegularExpressionMatch match = numberPattern.match(value);
-    if(!match.hasMatch()){
-        if(ok != nullptr)
-            *ok = false;
-        return 0;
-    }
-    bool parsed = false;
-    const double number = match.captured(1).toDouble(&parsed);
-    // Lengths, in metres (task core si-units); another unit refused.
-    double metres = number;
-    if(!Units::fromFile(number, match.captured(2), Units::Quantity::Length, metres))
-        parsed = false;
-    const float result = float(metres);
+    // A length, in metres, as every reader reads numbers with units (task
+    // core si-units); another unit or anything after it refused.
+    Units::FileNumber read;
+    double metres = 0.0;
+    const bool parsed = Units::fromFileToken(value, Units::Quantity::Length, metres, {}, &read)
+            && read.whole && read.unitKnown;
     if(ok != nullptr)
         *ok = parsed;
-    return parsed ? result : 0;
+    return parsed ? float(metres) : 0;
 }
 
 float floatValue(const StfNode &node, const QString &name, float fallback) {

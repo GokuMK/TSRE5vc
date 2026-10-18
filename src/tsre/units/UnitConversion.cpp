@@ -240,6 +240,58 @@ Quantity quantityOf(QStringView unit) {
     return lookup(unit.trimmed(), Quantity::Any, &found) != nullptr ? found : Quantity::Any;
 }
 
+namespace {
+
+// A text as readFileNumberFrom reads it.
+struct TextSource {
+    QStringView text;
+    int at = 0;
+    char16_t peek(int ahead = 0) const {
+        return at + ahead < text.size() ? text[at + ahead].unicode() : char16_t(0);
+    }
+    void next() { ++at; }
+};
+
+}
+
+void convertFileNumber(FileNumber &read, const char16_t *unit, int length, Quantity quantity,
+                       QStringView defaultUnit) {
+    if (length > 32 || !fromFile(read.number, QStringView(unit, length), quantity, read.si, defaultUnit)) {
+        read.si = read.number;
+        read.unitKnown = false;
+    }
+}
+
+FileNumber readFileNumber(QStringView text, Quantity quantity, QStringView defaultUnit) {
+    TextSource source{text};
+    FileNumber read = readFileNumberFrom(source, quantity, defaultUnit);
+    read.length = source.at;
+    return read;
+}
+
+bool fromFileToken(QStringView token, Quantity quantity, double &si, QStringView defaultUnit, FileNumber *read) {
+    QStringView text = token.trimmed();
+    if (text.startsWith(u'"'))
+        text = text.mid(1);
+    if (text.endsWith(u'"'))
+        text.chop(1);
+    const qsizetype comment = text.indexOf(u'#');
+    if (comment >= 0)
+        text = text.left(comment);
+    text = text.trimmed();
+    while (text.endsWith(u','))
+        text.chop(1);
+    while (text.startsWith(u',') || text.startsWith(u'+'))
+        text = text.mid(1);
+    const FileNumber number = readFileNumber(text, quantity, defaultUnit);
+    si = number.found ? number.si : 0.0;
+    if (read != nullptr) {
+        *read = number;
+        read->whole = number.found && number.length == text.size();
+    }
+    return number.found;
+}
+
 QString unit(Quantity quantity, System inSystem) {
     return QString::fromUtf8(shownUnit(quantity, inSystem).symbol);
 }

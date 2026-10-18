@@ -173,6 +173,33 @@ int TsreTests::runUnitsSuite(bool verbose) {
                    "an unknown unit left as written, the digits exact");
     }
 
+    // The shared reading of a number with its unit: tokens as readers on
+    // SimisTextReader have them, and where in a text a number ends.
+    {
+        const auto token = [](const char *text, Quantity quantity, Units::FileNumber *read = nullptr) {
+            double si = -1;
+            Units::FileNumber local;
+            const bool found = Units::fromFileToken(QString::fromUtf8(text), quantity, si, {}, read ? read : &local);
+            return found ? si : std::nan("");
+        };
+        const auto close = [](double a, double b) { return std::fabs(a - b) <= 1e-9 * std::max(1.0, std::fabs(b)); };
+        Units::FileNumber unknown, extra, plain, quoted;
+        const bool tokens = close(token("80t", Quantity::Mass, &plain), 80000.0) && plain.whole && plain.hasUnit
+                && close(token("\"117.57t #368000lbs\"", Quantity::Mass, &quoted), 117570.0) && quoted.whole
+                && close(token("0.0,", Quantity::Any), 0.0) && close(token("+5", Quantity::Any), 5.0)
+                && close(token("2t+500kg", Quantity::Mass), 2500.0) && close(token("1,5", Quantity::Any), 1.5)
+                && close(token("-1mph", Quantity::Speed), -0.44704) && std::isnan(token("abc", Quantity::Any))
+                && close(token("5x", Quantity::Length, &unknown), 5.0) && unknown.hasUnit && !unknown.unitKnown
+                && close(token("12m extra", Quantity::Length, &extra), 12.0) && !extra.whole;
+        const Units::FileNumber radius = Units::readFileNumber(u"36in/2) ", Quantity::Length);
+        const Units::FileNumber volume = Units::readFileNumber(u"2.5*(ft^3)) ", Quantity::Volume);
+        const Units::FileNumber list = Units::readFileNumber(u"0.5, 0.25", Quantity::Any);
+        const bool ends = radius.length == 6 && close(radius.si, 0.4572) && volume.length == 10
+                && close(volume.si, 2.5 * 0.028316846592) && list.length == 3 && close(list.si, 0.5);
+        test.check(tokens && ends, "the shared reading: tokens (quotes, comments, commas, sums, unknown units, "
+                                   "text after), and where a number with its unit ends");
+    }
+
     // The units shown, by system.
     Units::setChoice(Units::Choice::Metric);
     const bool metric = Units::system() == System::Metric && Units::format(100 / 3.6, Quantity::Speed) == "100 km/h"

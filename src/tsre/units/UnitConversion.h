@@ -1,6 +1,7 @@
 #pragma once
 #include <QString>
 #include <QStringView>
+#include <tsre/units/FileNumberReader.h>
 #include <tsre/units/Quantity.h>
 
 // Task core si-units: values between SI, the units of MSTS's files and the
@@ -25,6 +26,15 @@ bool fromFile(double number, QStringView unit, Quantity quantity, double &si,
 bool toFile(double si, QStringView unit, Quantity quantity, double &number);
 // The quantity a unit belongs to as Quantity::Any reads it; Any for none.
 Quantity quantityOf(QStringView unit);
+
+// readFileNumberFrom (FileNumberReader.h) on a text: a number at its start.
+FileNumber readFileNumber(QStringView text, Quantity quantity, QStringView defaultUnit = {});
+// A token as a reader has it ("80t", "\"117.57t #368000lbs\"", "0.0,",
+// "+5"): quotes, a comment written on after '#', commas and spaces around
+// it and a leading '+' dropped, then readFileNumber. False when no number
+// starts it; `si` is then 0.
+bool fromFileToken(QStringView token, Quantity quantity, double &si, QStringView defaultUnit = {},
+                   FileNumber *read = nullptr);
 
 // The unit a quantity is shown in, in `system`.
 QString unit(Quantity quantity, System system);

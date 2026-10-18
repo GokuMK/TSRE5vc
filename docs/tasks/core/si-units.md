@@ -116,6 +116,19 @@ and a proposed design for when the task is taken up.
   - On a machine whose locale is en_US (as the dev box), System /
     Automatic shows imperial US units: choose Metric in Settings >
     Interface > Appearance > Units.
+- One reading of numbers with units for every reader (2026-10-18, for
+  moving files to `SimisTextReader`): the grammar is a template over a
+  source of characters, `Units::readFileNumberFrom`
+  (`src/tsre/units/FileNumberReader.h`): sign, digits read exactly
+  (Clinger's fast path, else `std::from_chars`), a comma followed by a
+  digit as the point, exponent, unit, a '+' sum. `ParserX` runs it on its
+  `FileBuffer`; `Units::readFileNumber` on a text, `Units::fromFileToken`
+  on a token as `SimisTextReader` gives it (quotes, a comment after '#',
+  commas, spaces and a leading '+' dropped; whether the token held
+  nothing else). `SmsFile` and the track profiles use `fromFileToken`
+  instead of their own patterns. Measured in the TSRE binary: plain
+  numbers 26 ns (the old reader 24 ns, which was not exact), numbers with
+  a unit 85 ns.
 - Files keep their units: needed only where TSRE writes a value it read
   with a unit. The phase 2 audit found units only in ENG/WAG files
   (which TSRE does not write) and `forests.dat` (a unit not known, kept

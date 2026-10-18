@@ -158,22 +158,16 @@ private:
         if (reader.peekKind() != Kind::Atom)
             return fallback;
         const QString token = own(reader.peek());
-        static const QRegularExpression pattern("^([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)(.*)$");
-        const QRegularExpressionMatch match = pattern.match(token);
-        SimisTextReader::Token digits;
-        digits.kind = Kind::Atom;
-        digits.text = match.captured(1);
-        double value = 0.0;
-        if (!match.hasMatch() || !SimisTextReader::number(digits, value))
+        // The number and its unit as every reader reads them (MSTS lists
+        // numbers with commas too: "0.0, 0.4,").
+        Units::FileNumber read;
+        double si = 0.0;
+        if (!Units::fromFileToken(token, units, si, {}, &read))
             return fallback;
         reader.next();
-        // MSTS lists numbers with commas too ("0.0, 0.4,").
-        QString suffix = match.captured(2);
-        while (suffix.startsWith(','))
-            suffix.remove(0, 1);
-        if (!suffix.isEmpty()) {
-            double si = value;
-            if (units == Units::Quantity::Any || !Units::fromFile(value, suffix, units, si))
+        double value = read.number;
+        if (read.hasUnit) {
+            if (units == Units::Quantity::Any || !read.unitKnown)
                 warn("unknown unit " + token);
             else if (units == Units::Quantity::Pressure)
                 Units::toFile(si, u"psi", units, value);

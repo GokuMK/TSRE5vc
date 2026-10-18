@@ -13,9 +13,8 @@
 #include <QTextStream>
 #include <QtEndian>
 #include <math.h>
-#include <charconv>
 #include <cmath>
-#include <tsre/units/UnitConversion.h>
+#include <tsre/units/FileNumberReader.h>
 
 QString ParserX::AddComIfReq(QString n){
     if(n.length() == 0)
@@ -409,6 +408,21 @@ float ParserX::GetNumberInside(FileBuffer* bufor, bool *ok, Units::Quantity quan
     return ReadNumber(bufor, true, ok, quantity, defaultUnit);
 }
 
+namespace {
+
+// A FileBuffer's UTF-16 text as Units::readFileNumberFrom reads it.
+struct BufferSource {
+    FileBuffer *buffer;
+    int end;
+    char16_t peek(int ahead = 0) const {
+        const int at = buffer->off + 2 * ahead;
+        return at + 2 <= end ? char16_t(qFromLittleEndian<quint16>(buffer->data + at)) : char16_t(0);
+    }
+    void next() { buffer->off += 2; }
+};
+
+}
+
 // Skips to the number (GetNumber: "nan" is NaN; GetNumberInside: none
 // before the block ends), reads its digits exactly and the unit written
 // after it, and gives it in SI.
@@ -432,122 +446,15 @@ float ParserX::ReadNumber(FileBuffer* bufor, bool inside, bool *ok, Units::Quant
             }
         }
     }
-    // The digits, kept for an exact reading. Up to 19 significant digits
-    // also make an integer with a decimal exponent: scaled by an exact power
-    // of ten when that is exact too (Clinger's fast path), correctly
-    // rounded as std::from_chars would give it.
-    char digits[96];
-    int n = 0;
-    unsigned long long mantissa = 0;
-    int significant = 0, scale = 0;
-    bool fits = true;
-    auto keep = [&](unsigned short int c, bool fraction) {
-        if (n < int(sizeof(digits)))
-            digits[n++] = char(c);
-        if (fraction)
-            --scale;
-        if (mantissa == 0 && c == '0')
-            return;
-        if (significant < 19) {
-            mantissa = mantissa * 10 + (c - '0');
-            ++significant;
-        } else {
-            fits = false;
-        }
-    };
-    bool negative = false;
-    if (b == 45) {
-        negative = true;
-        if (n < int(sizeof(digits)))
-            digits[n++] = '-';
-        b = bufor->getShort();
-    }
-    if (b != 46) {
-        while (b > 47 && b < 58) {
-            keep(b, false);
-            b = bufor->getShort();
-        }
-    }
-    // A comma for the point, as MSTS reads it.
-    if (b == 46 || b == 44) {
-        if (n < int(sizeof(digits)))
-            digits[n++] = '.';
-        b = bufor->getShort();
-        while (b > 47 && b < 58) {
-            keep(b, true);
-            b = bufor->getShort();
-        }
-    }
-    int exponent = 0;
-    if (b == 69 || b == 101) {
-        bool below = false;
-        if (n < int(sizeof(digits)))
-            digits[n++] = 'e';
-        b = bufor->getShort();
-        if (b == 45) {
-            below = true;
-            if (n < int(sizeof(digits)))
-                digits[n++] = '-';
-            b = bufor->getShort();
-        } else if (b == '+') {
-            b = bufor->getShort();
-        }
-        while (b > 47 && b < 58) {
-            if (n < int(sizeof(digits)))
-                digits[n++] = char(b);
-            if (exponent < 10000)
-                exponent = exponent * 10 + (b - '0');
-            b = bufor->getShort();
-        }
-        if (below)
-            exponent = -exponent;
-    }
-    static const double Powers[23] = {1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11,
-                                      1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
-    const int power = scale + exponent;
-    double value = 0.0;
-    if (fits && mantissa <= (1ULL << 53) && power >= -22 && power <= 22) {
-        value = power >= 0 ? double(mantissa) * Powers[power] : double(mantissa) / Powers[-power];
-        if (negative)
-            value = -value;
-    } else {
-        // As far as the digits make a number ("1e", "-" alone: what is before).
-        std::from_chars(digits, digits + n, value);
-    }
-    // The unit written after it: "t", "km/h", "t-uk", "in/2", "*(ft^3)",
-    // "lbf/mph^2"; not the block's closing bracket.
-    char16_t unit[32];
-    int u = 0, depth = 0;
-    bool overlong = false;
-    for (;;) {
-        const bool letter = (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z');
-        const bool inUnit = u > 0
-                && ((b >= '0' && b <= '9') || b == '/' || b == '^' || b == '-' || b == '*' || b == '('
-                    || (b == ')' && depth > 0));
-        if (!letter && !inUnit && !(u == 0 && b == '*'))
-            break;
-        if (b == '(')
-            ++depth;
-        else if (b == ')')
-            --depth;
-        if (u < 32)
-            unit[u++] = char16_t(b);
-        else
-            overlong = true;
-        b = bufor->getShort();
-    }
-    double si = value;
-    if ((u > 0 || !defaultUnit.isEmpty()) && !overlong
-            && !Units::fromFile(value, QStringView(unit, u), quantity, si, defaultUnit))
-        si = value;
-    float x = float(si);
-    if (b == '+')
-        x += GetNumberInside(bufor, NULL, quantity, defaultUnit);
-    else
-        bufor->off -= 2;
+    // The number, its unit and a sum as every reader reads them
+    // (Units::readFileNumberFrom), straight from the buffer, from the
+    // number's first character; the place left after what it took.
+    bufor->off -= 2;
+    BufferSource source{bufor, bufor->readEnd()};
+    const Units::FileNumber read = Units::readFileNumberFrom(source, quantity, defaultUnit);
     if (inside && ok != NULL)
         *ok = true;
-    return x;
+    return float(read.si);
 }
 //-----------------------------------
 // Parsowanie liczby uint
