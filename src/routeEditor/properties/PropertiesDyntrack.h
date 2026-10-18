@@ -47,8 +47,8 @@ signals:
     
 private:
     QCheckBox chSect[5];
-    // Straights' lengths (even), curves' angles (odd) and radii, in the
-    // units the editors show (task core si-units; angles in degrees).
+    // Straights' lengths (even) and curves' radii in the units the editors
+    // show (task core si-units); curves' angles (odd) in radians.
     UnitSpinBox sSectA[5];
     UnitSpinBox sSectR[5];
     QFormLayout vSect[5];

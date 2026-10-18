@@ -99,7 +99,7 @@ and a proposed design for when the task is taken up.
     speeds; the Consist properties' speed; simulation texts ("running 72
     km/h"); platform, siding, car spawner and telepole lengths; ruler
     lengths; level crossing distances; static objects' light reach;
-    dyntrack straights, curves (now degrees) and radii; flex tool
+    dyntrack straights and radii (curve angles stay in radians); flex tool
     separation and minimum radius; the map's scale bar (m and km, or ft
     and mi) and measure tool; the environment status (cloud heights,
     wind, visibility, temperatures, fog); the weather dialogs' speed,
@@ -126,7 +126,7 @@ and a proposed design for when the task is taken up.
   sound controls compare brake pressures in psi (MSTS's sounds), the
   play mode HUD.
 - 2026-10-17: temperatures are held in °C (as Open Rails does).
-- Angles (proposed, to confirm): ENG/WAG files give some angles with a
+- Angles (proposed; dyntrack decided 2026-10-18): ENG/WAG files give some angles with a
   unit. Open Rails reads an angle without a unit as radians and converts
   `deg` (`STFReader`, `UNITS.Angle`: wheel flange angle, boiler angle,
   steam cylinder crank angles); MSTS's own light `Angle` is in degrees
@@ -135,7 +135,9 @@ and a proposed design for when the task is taken up.
   parameter's: the reader converts `deg` and `rad` to radians where a
   parameter is an angle, and the editors show degrees in every system.
   TSRE's other angles (world rotations, dyntrack, terrain tools) are not
-  changed by this task.
+  changed by this task. The user (2026-10-18): the dyntrack panel's curve
+  angles stay in radians, as the dyntrack data holds them; its straights
+  and radii follow the units setting.
 
 ## Goal
 

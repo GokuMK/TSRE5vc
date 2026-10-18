@@ -254,10 +254,11 @@ PropertiesDyntrack::PropertiesDyntrack() {
             sSectA[i].setRangeSi(0, 250);
             sSectA[i].setSingleStep(1.0);
         } else {
-            sSectA[i].setQuantity(Units::Quantity::Angle);
-            sSectA[i].setDecimals(2);
+            // Radians, as the dyntrack data holds them (user, 2026-10-18).
+            sSectA[i].setQuantity(Units::Quantity::Any);
+            sSectA[i].setDecimals(3);
             sSectA[i].setRangeSi(-3.14, 3.14);
-            sSectA[i].setSingleStep(0.5);
+            sSectA[i].setSingleStep(0.01);
         }
         sSectR[i].setQuantity(Units::Quantity::Length);
         sSectR[i].setDecimals(2);
