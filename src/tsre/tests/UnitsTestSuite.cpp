@@ -1,6 +1,8 @@
 #include <tsre/tests/UnitsTestSuite.h>
 
 #include <QObject>
+#include <charconv>
+#include <cstring>
 #include <cmath>
 #include <settings/SettingsManager.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -129,6 +131,43 @@ int TsreTests::runUnitsSuite(bool verbose) {
         // fraction overflowed its counter).
         const bool exact = float(read("-0.00043262792", Quantity::Any)) == -0.00043262792f
                 && float(read("1234.56789012345", Quantity::Any)) == 1234.56789012345f;
+        // The integer fast path reads as std::from_chars does, bit for bit:
+        // numbers of 1 to 22 digits, points anywhere, exponents.
+        quint64 seed = 12345;
+        const auto next = [&seed] { seed = seed * 6364136223846793005ULL + 1442695040888963407ULL; return seed >> 33; };
+        QString text;
+        QStringList written;
+        for (int i = 0; i < 100000; ++i) {
+            const int length = 1 + int(next() % 22);
+            QString number = next() % 4 == 0 ? QStringLiteral("-") : QString();
+            const int point = int(next() % (length + 1));
+            for (int d = 0; d < length; ++d) {
+                if (d == point && d > 0)
+                    number += '.';
+                number += QChar('0' + int(next() % 10));
+            }
+            if (next() % 5 == 0)
+                number += QString("e%1").arg(int(next() % 41) - 20);
+            written << number;
+            text += number + ' ';
+        }
+        FileBuffer *many = FileBuffer::fromText(text + " 0 ");
+        int mismatches = 0;
+        QString first;
+        for (const QString &number : written) {
+            const float read = ParserX::GetNumber(many);
+            const QByteArray latin = number.toLatin1();
+            double expected = 0.0;
+            std::from_chars(latin.constData(), latin.constData() + latin.size(), expected);
+            const float wanted = float(expected);
+            if (std::memcmp(&read, &wanted, sizeof(float)) != 0) {
+                if (mismatches++ == 0)
+                    first = QString("%1: %2, not %3").arg(number).arg(read, 0, 'g', 9).arg(wanted, 0, 'g', 9);
+            }
+        }
+        delete many;
+        test.check(mismatches == 0, QString("100000 numbers read as std::from_chars reads them (%1 differ) %2")
+                                        .arg(mismatches).arg(first));
         test.check(files && !empty && exact,
                    "numbers in files: in SI with their unit (quotes, comments, a sum), the parameter's default unit, "
                    "an unknown unit left as written, the digits exact");

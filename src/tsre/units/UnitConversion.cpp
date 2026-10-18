@@ -1,5 +1,6 @@
 #include <tsre/units/UnitConversion.h>
 
+#include <QHash>
 #include <QRegularExpression>
 #include <cmath>
 #include <initializer_list>
@@ -101,30 +102,49 @@ const Table *tableOf(Quantity quantity) {
     return nullptr;
 }
 
-const Unit *find(const Table *table, QStringView name) {
-    if (table == nullptr)
-        return nullptr;
-    for (const Unit &unit : table->units)
-        if (name.compare(QLatin1String(unit.name), Qt::CaseInsensitive) == 0)
-            return &unit;
-    return nullptr;
+// The units by name (lower case): each quantity's, and for Any the first
+// quantity in AnyOrder that takes a name. Made once.
+struct Index {
+    QHash<int, QHash<QString, const Unit *>> byQuantity;
+    QHash<QString, QPair<const Unit *, Quantity>> any;
+};
+
+const Index &index() {
+    static const Index made = [] {
+        Index built;
+        for (const Table &table : Tables)
+            for (const Unit &unit : table.units)
+                built.byQuantity[int(table.quantity)].insert(QString::fromLatin1(unit.name), &unit);
+        for (Quantity candidate : AnyOrder)
+            for (const Unit &unit : tableOf(candidate)->units) {
+                const QString name = QString::fromLatin1(unit.name);
+                if (!built.any.contains(name))
+                    built.any.insert(name, qMakePair(&unit, candidate));
+            }
+        return built;
+    }();
+    return made;
 }
 
-// The unit `name` in `quantity`'s table, or in the first table that has it
-// for Any (`found` then tells which).
+// The unit `name` (any case) in `quantity`'s table, or in the first table
+// that has it for Any (`found` then tells which).
 const Unit *lookup(QStringView name, Quantity quantity, Quantity *found = nullptr) {
-    if (quantity != Quantity::Any) {
+    const QString key = name.toString().toLower();
+    const Index &units = index();
+    if (quantity == Quantity::Any) {
+        const auto it = units.any.constFind(key);
+        if (it == units.any.constEnd())
+            return nullptr;
         if (found != nullptr)
-            *found = quantity;
-        return find(tableOf(quantity), name);
+            *found = it->second;
+        return it->first;
     }
-    for (Quantity candidate : AnyOrder)
-        if (const Unit *unit = find(tableOf(candidate), name)) {
-            if (found != nullptr)
-                *found = candidate;
-            return unit;
-        }
-    return nullptr;
+    if (quantity == Quantity::Distance)
+        quantity = Quantity::Length;
+    if (found != nullptr)
+        *found = quantity;
+    const auto table = units.byQuantity.constFind(int(quantity));
+    return table == units.byQuantity.constEnd() ? nullptr : table->value(key, nullptr);
 }
 
 // A unit shown in the editors: its symbol and its factor and offset to SI.
