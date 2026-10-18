@@ -1,5 +1,6 @@
 #include <tsre/tests/UnitsTestSuite.h>
 
+#include <QLineEdit>
 #include <QObject>
 #include <charconv>
 #include <cstring>
@@ -268,6 +269,28 @@ int TsreTests::runUnitsSuite(bool verbose) {
         const bool degrees = angle.suffix() == QString::fromUtf8("\u00b0") && std::fabs(angle.value() - 45.0) < 1e-9;
         test.check(metric && us && kept && edited && degrees,
                    "a spin box in the units shown: the value held in SI through other units, the user's edit");
+        // A value typed with its own unit where feet are shown: held as typed.
+        Units::setChoice(Units::Choice::ImperialUS);
+        UnitSpinBox separation(Quantity::Length);
+        separation.setDecimals(3);
+        separation.setRangeSi(1, 20);
+        separation.setSi(4.0);
+        QLineEdit *edit = separation.findChild<QLineEdit *>();
+        if (edit != nullptr)
+            edit->setText("4.985 m");
+        QString partial = "4.98 k", wrong = "4.9x5", plain = "16.5";
+        int pos = 0;
+        const bool typedUnit = edit != nullptr && separation.si() == 4.985 && std::fabs(separation.value() - 16.355) < 1e-4
+                && separation.validate(partial, pos) == QValidator::Intermediate
+                && separation.validate(wrong, pos) == QValidator::Invalid
+                && separation.validate(plain, pos) == QValidator::Acceptable
+                && std::fabs(separation.valueFromText("16.5 ft") - 16.5) < 1e-9;
+        if (edit != nullptr)
+            edit->setText("16.5");
+        const bool typedShown = std::fabs(separation.si() - 16.5 * 0.3048) < 1e-9;
+        Units::setChoice(Units::Choice::Metric);
+        test.check(typedUnit && typedShown, QString("a value typed with its unit, held as typed (%1 m); "
+                                                    "one without, in the units shown").arg(separation.si(), 0, 'g', 12));
     }
 
     // Fields hear of a change; the setting chooses.
