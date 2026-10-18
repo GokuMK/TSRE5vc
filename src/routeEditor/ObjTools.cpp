@@ -26,6 +26,7 @@
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/world/TelepoleData.h>
+#include <tsre/units/Units.h>
 #include <QMapIterator>
 
 namespace {
@@ -185,6 +186,16 @@ ObjTools::ObjTools(QString name)
     continuousFlexSeparation.setSi(4.0);
     continuousFlexSeparation.setEnabled(false);
     continuousFlexOptionsLayout->addWidget(&continuousFlexSeparation, 1, 1);
+    continuousFlexSeparationPresets.setText(QString(QChar(0x25BE)));
+    continuousFlexSeparationPresets.setPopupMode(QToolButton::InstantPopup);
+    continuousFlexSeparationPresets.setToolTip(
+            //% "Separations of the route's double track shapes, the most used first."
+            qtTrId("route.editor.obj.tools.tooltip.separation.presets"));
+    continuousFlexSeparationPresets.setMenu(new QMenu(&continuousFlexSeparationPresets));
+    QObject::connect(continuousFlexSeparationPresets.menu(), &QMenu::aboutToShow,
+            this, &ObjTools::fillSeparationPresets);
+    continuousFlexSeparationPresets.setEnabled(false);
+    continuousFlexOptionsLayout->addWidget(&continuousFlexSeparationPresets, 1, 2);
     continuousFlexOptionsLayout->addWidget(new QLabel(
         //% "Minimum radius:"
         qtTrId("route.editor.obj.tools.label.minimum.radius")), 2, 0);
@@ -426,6 +437,16 @@ void ObjTools::routeLoaded(Route* a){
     const QString routePath = Game::root + "/ROUTES/" + Game::route;
     route->ref->ensureTelepoleItems(TelepoleData::routeData(routePath));
     continuousRulerNodeShapeRef = nullptr;
+    // The separations new track can line up with; the most used one is the
+    // default until another is chosen.
+    continuousFlexTrackSeparations.clear();
+    if(route->tsection != NULL)
+        continuousFlexTrackSeparations = route->tsection->parallelSeparations(false);
+    if(!continuousFlexTrackSeparations.isEmpty() && continuousFlexTrackSeparation == 4.0){
+        continuousFlexTrackSeparation = continuousFlexTrackSeparations.front().first;
+        if(continuousToolMode == ContinuousToolMode::Track)
+            continuousFlexSeparation.setSi(continuousFlexTrackSeparation);
+    }
     refreshContinuousProfiles();
     refreshContinuousRulerNodeShapes();
             
@@ -970,8 +991,10 @@ void ObjTools::continuousFlexOptionsChanged(){
     const bool companions =
             continuousFlexLeft.isChecked() || continuousFlexRight.isChecked();
     continuousFlexSeparation.setEnabled(companions && !road);
+    continuousFlexSeparationPresets.setEnabled(companions && !road);
     continuousFlexSeparation.setToolTip(road
-            ? "Fixed to the 3 m width of the default road lane profiles."
+            ? QString("Fixed to the %1 width of the default road lane profiles.")
+                  .arg(Units::format(3.0, Units::Quantity::Length))
             : "");
     if(!road)
         continuousFlexTrackSeparation = continuousFlexSeparation.si();
@@ -985,6 +1008,34 @@ void ObjTools::continuousFlexOptionsChanged(){
     emit sendMsg("continuousFlexMinimumRadius", (float)continuousFlexMinimumRadius.si());
     emit sendMsg("continuousFlexProfile",
             continuousProfile.currentData().toString());
+}
+
+// The separations, in metres as the shapes have them (and in the units
+// the editors show when those are not metres), with their shapes.
+void ObjTools::fillSeparationPresets(){
+    QMenu *menu = continuousFlexSeparationPresets.menu();
+    menu->clear();
+    const bool metric = Units::system() == Units::System::Metric;
+    for(int i = 0; i < continuousFlexTrackSeparations.size() && i < 12; i++){
+        const double metres = continuousFlexTrackSeparations[i].first;
+        QString value = Units::format(metres, Units::Quantity::Length, Units::System::Metric, 4);
+        if(!metric)
+            value += QString(" (%1)").arg(Units::format(metres, Units::Quantity::Length, 4));
+        QAction *action = menu->addAction(
+                //% "%1, %2 shapes"
+                qtTrId("route.editor.obj.tools.separation.preset")
+                    .arg(value).arg(continuousFlexTrackSeparations[i].second));
+        QObject::connect(action, &QAction::triggered, this, [this, metres] {
+            continuousFlexSeparation.setSi(metres);
+            continuousFlexOptionsChanged();
+        });
+    }
+    if(menu->isEmpty()){
+        QAction *none = menu->addAction(
+                //% "No shapes with parallel tracks"
+                qtTrId("route.editor.obj.tools.separation.presets.none"));
+        none->setEnabled(false);
+    }
 }
 
 void ObjTools::autoPlacementButtonEnabled(bool val){

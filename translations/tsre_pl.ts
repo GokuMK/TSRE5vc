@@ -2342,294 +2342,309 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>ID nazwy:</translation>
     </message>
     <message id="route.editor.obj.tools.button.select">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="50"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="51"/>
         <source>Select</source>
         <translation>Zaznacz</translation>
     </message>
     <message id="route.editor.obj.tools.button.place.new">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="53"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="54"/>
         <source>Place New</source>
         <translation>Umieść nowy</translation>
     </message>
     <message id="route.editor.obj.tools.button.flex.track">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="56"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="57"/>
         <source>FLEX TRACK</source>
         <translation>TOR FLEX</translation>
     </message>
     <message id="route.editor.obj.tools.button.flex.road">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="59"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="60"/>
         <source>FLEX ROAD</source>
         <translation>DROGA FLEX</translation>
     </message>
     <message id="route.editor.obj.tools.button.ruler">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="62"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="63"/>
         <source>RULER</source>
         <translation>LINIJKA</translation>
     </message>
     <message id="route.editor.obj.tools.button.auto.placement">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="65"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="66"/>
         <source>Auto Placement</source>
         <translation>Automatyczne rozmieszczanie</translation>
     </message>
     <message id="route.editor.obj.tools.button.reset.rotation.button">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="77"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="78"/>
         <source>Reset Place Rot</source>
         <translation>Resetuj obrót umieszczania</translation>
     </message>
     <message id="route.editor.obj.tools.button.auto.placement.delete.last">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="84"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="85"/>
         <source>Delete last placed objects</source>
         <translation>Usuń ostatnio umieszczone obiekty</translation>
     </message>
     <message id="route.editor.obj.tools.label.label1">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="95"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="96"/>
         <source>Objects:</source>
         <translation>Obiekty:</translation>
     </message>
     <message id="route.editor.obj.tools.label.ref.file">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="104"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="105"/>
         <source>Ref file:</source>
         <translation>Plik REF:</translation>
     </message>
     <message id="route.editor.obj.tools.label.tracks">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="107"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="108"/>
         <source>Tracks:</source>
         <translation>Tory:</translation>
     </message>
     <message id="route.editor.obj.tools.label.roads">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="110"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="111"/>
         <source>Roads:</source>
         <translation>Drogi:</translation>
     </message>
     <message id="route.editor.obj.tools.label.other">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="113"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="114"/>
         <source>Other:</source>
         <translation>Inne:</translation>
     </message>
     <message id="route.editor.obj.tools.label.search">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="116"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="117"/>
         <source>Search:</source>
         <translation>Szukaj:</translation>
     </message>
     <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.continuous.objects">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="138"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="139"/>
         <source>Procedural profile used for newly placed continuous objects.</source>
         <translation>Profil proceduralny używany dla nowo umieszczanych obiektów ciągłych.</translation>
     </message>
     <message id="route.editor.ruler.node.shape.tooltip">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="146"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="147"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="216"/>
         <source>Optional additional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</source>
         <translation>Opcjonalny dodatkowy model trasy renderowany w każdym węźle linijki. Geometria węzłów szablonu pozostaje dostępna i jest dodawana niezależnie.</translation>
     </message>
     <message id="route.editor.ruler.node.shape.none">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="935"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="956"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="307"/>
         <source>No additional node shape</source>
         <translation>Bez dodatkowego modelu węzła</translation>
     </message>
     <message id="route.editor.obj.tools.text.track.on.left">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="173"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="174"/>
         <source>Track on left</source>
         <translation>Tor po lewej</translation>
     </message>
     <message id="route.editor.obj.tools.text.track.on.right">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="176"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="177"/>
         <source>Track on right</source>
         <translation>Tor po prawej</translation>
     </message>
     <message id="route.editor.obj.tools.label.separation">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="181"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="182"/>
         <source>Separation:</source>
         <translation>Odstęp:</translation>
     </message>
+    <message id="route.editor.obj.tools.tooltip.separation.presets">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="193"/>
+        <source>Separations of the route&apos;s double track shapes, the most used first.</source>
+        <translation>Odstępy torów w kształtach toru podwójnego tej trasy, najczęstsze najpierw.</translation>
+    </message>
     <message id="route.editor.obj.tools.label.minimum.radius">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="190"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="201"/>
         <source>Minimum radius:</source>
         <translation>Minimalny promień:</translation>
     </message>
     <message id="route.editor.obj.tools.tooltip.raised.when.necessary.keep.inner.companion.tracks">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="197"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="208"/>
         <source>Raised when necessary to keep inner companion tracks or lanes valid.</source>
         <translation>W razie potrzeby zwiększane, aby zachować poprawność wewnętrznych równoległych torów lub pasów.</translation>
     </message>
     <message id="route.editor.obj.tools.label.rotation.type">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="226"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="237"/>
         <source>Rotation Type:</source>
         <translation>Typ obrotu:</translation>
     </message>
     <message id="route.editor.obj.tools.item.two.point.rotation">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="233"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="244"/>
         <source>Two Point Rotation</source>
         <translation>Obrót dwupunktowy</translation>
     </message>
     <message id="route.editor.obj.tools.item.one.point.rotation">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="236"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="247"/>
         <source>One Point Rotation</source>
         <translation>Obrót jednopunktowy</translation>
     </message>
     <message id="route.editor.obj.tools.label.target">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="239"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="250"/>
         <source>Target:</source>
         <translation>Cel:</translation>
     </message>
     <message id="route.editor.obj.tools.item.tracks">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="246"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="257"/>
         <source>Tracks</source>
         <translation>Tory</translation>
     </message>
     <message id="route.editor.obj.tools.item.roads">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="249"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="260"/>
         <source>Roads</source>
         <translation>Drogi</translation>
     </message>
     <message id="route.editor.obj.tools.item.tracks.roads">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="252"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="263"/>
         <source>Tracks &amp; Roads</source>
         <translation>Tory i drogi</translation>
     </message>
     <message id="route.editor.obj.tools.item.snapable">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="255"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="266"/>
         <source>Snapable</source>
         <translation>Przyciągalne</translation>
     </message>
     <message id="route.editor.obj.tools.label.translate.offset">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="258"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="269"/>
         <source>Translate Offset</source>
         <translation>Przesunięcie położenia</translation>
     </message>
     <message id="route.editor.obj.tools.label.x">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="261"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="272"/>
         <source>X:</source>
         <translation>X:</translation>
     </message>
     <message id="route.editor.obj.tools.label.y">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="267"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="278"/>
         <source>Y:</source>
         <translation>Y:</translation>
     </message>
     <message id="route.editor.obj.tools.label.z">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="273"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="284"/>
         <source>Z:</source>
         <translation>Z:</translation>
     </message>
     <message id="route.editor.obj.tools.label.rotate.offset">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="279"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="290"/>
         <source>Rotate Offset</source>
         <translation>Przesunięcie obrotu</translation>
     </message>
     <message id="route.editor.obj.tools.label.x.2">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="282"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="293"/>
         <source>X:</source>
         <translation>X:</translation>
     </message>
     <message id="route.editor.obj.tools.label.y.2">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="288"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="299"/>
         <source>Y:</source>
         <translation>Y:</translation>
     </message>
     <message id="route.editor.obj.tools.label.z.2">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="294"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="305"/>
         <source>Z:</source>
         <translation>Z:</translation>
     </message>
     <message id="route.editor.obj.tools.label.snapable.max.radius">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="300"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="311"/>
         <source>Snapable max radius:</source>
         <translation>Maks. promień przyciągania:</translation>
     </message>
     <message id="route.editor.obj.tools.text.only.rot">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="307"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="318"/>
         <source>Only Rot </source>
         <translation>Tylko obrót </translation>
     </message>
     <message id="route.editor.obj.tools.text.stick.target">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="324"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="335"/>
         <source>Stick To Target</source>
         <translation>Przyciągaj do celu</translation>
     </message>
     <message id="route.editor.obj.tools.label.label2">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="329"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="340"/>
         <source>Recent items:</source>
         <translation>Ostatnio używane:</translation>
     </message>
     <message id="route.editor.obj.tools.item.signals">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="610"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="631"/>
         <source>Signals</source>
         <translation>Sygnalizatory</translation>
     </message>
     <message id="route.editor.obj.tools.item.forests">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="613"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="634"/>
         <source>Forests</source>
         <translation>Lasy</translation>
     </message>
     <message id="route.editor.obj.tools.item.sound.sources">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="616"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="637"/>
         <source>Sound Sources</source>
         <translation>Źródła dźwięku</translation>
     </message>
     <message id="route.editor.obj.tools.item.sound.regions">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="619"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="640"/>
         <source>Sound Regions</source>
         <translation>Regiony dźwięku</translation>
     </message>
     <message id="route.editor.obj.tools.item.speed.sign">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="622"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="643"/>
         <source>SpeedSign</source>
         <translation>Wskaźnik prędkości</translation>
     </message>
     <message id="route.editor.obj.tools.item.speed.resume">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="625"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="646"/>
         <source>SpeedResume</source>
         <translation>Odwołanie ograniczenia prędkości</translation>
     </message>
     <message id="route.editor.obj.tools.item.speed.warning">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="628"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="649"/>
         <source>SpeedWarning</source>
         <translation>Ostrzeżenie o prędkości</translation>
     </message>
     <message id="route.editor.obj.tools.item.milepost">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="631"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="652"/>
         <source>Milepost</source>
         <translation>Znacznik kilometrażu</translation>
     </message>
     <message id="route.editor.obj.tools.item.tsre.tools">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="638"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="659"/>
         <source>TSRE Tools</source>
         <translation>Narzędzia TSRE</translation>
     </message>
     <message id="route.flex.road.lane.left">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="782"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="803"/>
         <source>Lane on left</source>
         <translation>Pas po lewej</translation>
     </message>
     <message id="route.flex.track.left">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="785"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="806"/>
         <source>Track on left</source>
         <translation>Tor po lewej</translation>
     </message>
     <message id="route.flex.road.lane.right">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="789"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="810"/>
         <source>Lane on right</source>
         <translation>Pas po prawej</translation>
     </message>
     <message id="route.flex.track.right">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="792"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="813"/>
         <source>Track on right</source>
         <translation>Tor po prawej</translation>
     </message>
     <message id="route.editor.obj.tools.item.built.in.dynamic.track">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="838"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="859"/>
         <source>Built-in dynamic track</source>
         <translation>Wbudowany tor dynamiczny</translation>
     </message>
     <message id="route.editor.obj.tools.item.plain.ruler">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="835"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="856"/>
         <source>Plain ruler</source>
         <translation>Zwykła linijka</translation>
     </message>
+    <message id="route.editor.obj.tools.separation.preset">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="1026"/>
+        <source>%1, %2 shapes</source>
+        <translation>%1, kształtów: %2</translation>
+    </message>
+    <message id="route.editor.obj.tools.separation.presets.none">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="1036"/>
+        <source>No shapes with parallel tracks</source>
+        <translation>Brak kształtów z równoległymi torami</translation>
+    </message>
     <message id="route.editor.obj.tools.action.find.similar">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="1159"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="1210"/>
         <source>Find similar</source>
         <translation>Znajdź podobne</translation>
     </message>
@@ -5837,7 +5852,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="common.value.not.set">
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="84"/>
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="419"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="420"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="192"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="360"/>
         <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="96"/>
@@ -5847,7 +5862,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="common.value.default">
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="87"/>
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="422"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="423"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="195"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="363"/>
         <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="99"/>
@@ -5857,7 +5872,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="common.value.disabled">
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="90"/>
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="425"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="426"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="198"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="366"/>
         <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="102"/>
@@ -5981,34 +5996,34 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>Krok:</translation>
     </message>
     <message id="route.editor.properties.dyntrack.text.null">
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="323"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="324"/>
         <source>NULL</source>
         <translation>NULL</translation>
     </message>
     <message id="route.properties.dynamic.track.object.type">
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="330"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="331"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.properties.dyntrack.database.road">
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="343"/>
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="385"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="344"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="386"/>
         <source>Road (RDB)</source>
         <translation>Droga (RDB)</translation>
     </message>
     <message id="route.properties.dyntrack.database.rail">
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="346"/>
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="388"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="347"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="389"/>
         <source>Rail (TDB)</source>
         <translation>Tor (TDB)</translation>
     </message>
     <message id="route.editor.properties.dyntrack.text.null.2">
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="530"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="531"/>
         <source>NULL</source>
         <translation>NULL</translation>
     </message>
     <message id="route.editor.properties.dyntrack.text.null.3">
-        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="566"/>
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="567"/>
         <source>NULL</source>
         <translation>NULL</translation>
     </message>
@@ -13045,7 +13060,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>[QT] Odtworzony QuadTree terenu odległego</translation>
     </message>
     <message id="route.editor.obj.tools.item.telepoles">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="635"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="656"/>
         <source>Telepoles</source>
         <translation>Słupy telegraficzne</translation>
     </message>

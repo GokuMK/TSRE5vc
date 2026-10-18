@@ -17,6 +17,10 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include <QSet>
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 TSectionDAT::TSectionDAT(bool autoFix, bool loadRouteNow) {
     loadGlobal();
@@ -460,4 +464,48 @@ void TSectionDAT::getShapeData(int id) {
 
 
 
+}
+
+QVector<QPair<float, int>> TSectionDAT::parallelSeparations(bool road) const {
+    QHash<qint64, int> shapes;
+    for (const auto &entry : shape) {
+        const TrackShape *track = entry.second;
+        if (track == NULL || track->numpaths < 2 || track->roadshape != road || track->crossovershape
+                || track->mainroute >= 0 || track->dyntrack || track->path == NULL)
+            continue;
+        // Every path straight, all the same way and starting level.
+        bool parallel = true;
+        std::vector<float> offsets;
+        for (int p = 0; p < track->numpaths && parallel; ++p) {
+            const TrackShape::SectionIdx &path = track->path[p];
+            if (std::fabs(path.rotDeg - track->path[0].rotDeg) > 1e-3f
+                    || std::fabs(path.pos[2] - track->path[0].pos[2]) > 1e-3f || path.n < 1)
+                parallel = false;
+            for (int k = 0; k < path.n && parallel; ++k) {
+                const auto section = sekcja.find(int(path.sect[k]));
+                if (section == sekcja.end() || section->second == NULL || section->second->type != 0)
+                    parallel = false;
+            }
+            offsets.push_back(path.pos[0]);
+        }
+        if (!parallel)
+            continue;
+        std::sort(offsets.begin(), offsets.end());
+        // Each distance once a shape (to 0.1 mm).
+        QSet<qint64> distances;
+        for (size_t i = 1; i < offsets.size(); ++i) {
+            const qint64 key = qRound64(double(offsets[i] - offsets[i - 1]) * 10000.0);
+            if (key >= 5000)
+                distances.insert(key);
+        }
+        for (const qint64 key : distances)
+            ++shapes[key];
+    }
+    QVector<QPair<float, int>> separations;
+    for (auto it = shapes.constBegin(); it != shapes.constEnd(); ++it)
+        separations.append(qMakePair(float(it.key() / 10000.0), it.value()));
+    std::sort(separations.begin(), separations.end(), [](const QPair<float, int> &a, const QPair<float, int> &b) {
+        return a.second != b.second ? a.second > b.second : a.first < b.first;
+    });
+    return separations;
 }

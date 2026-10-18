@@ -8,6 +8,8 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
+#include <tsre/tdb/TSectionDAT.h>
+#include <tsre/units/UnitConversion.h>
 
 // The files are found by their extension in any folder, any case: content
 // spells TRAINS, Trains and trains (the libraries' loadAll take MSTS's).
@@ -39,5 +41,18 @@ int TsreTests::runUnitsContentSuite(bool verbose) {
     for (const QString &path : activities)
         ActLib::AddAct(QFileInfo(path).path(), QFileInfo(path).fileName());
     test.check(activities.isEmpty() || !ActLib::Act.isEmpty(), QString("activities read: %1").arg(ActLib::Act.size()));
+    // The separations of the global tsection.dat's shapes with parallel
+    // tracks and lanes (the flex tool's presets), the most used first.
+    TSectionDAT tsection(false, false);
+    for (const bool road : {false, true}) {
+        QStringList listed;
+        const QVector<QPair<float, int>> separations = tsection.parallelSeparations(road);
+        for (int i = 0; i < separations.size() && i < 8; ++i)
+            listed << QString("%1 (%2)").arg(Units::format(separations[i].first, Units::Quantity::Length,
+                                                           Units::System::Metric, 4))
+                                         .arg(separations[i].second);
+        qInfo().noquote() << "[tests:units-content]" << (road ? "road lanes:" : "track separations:")
+                          << listed.join(", ");
+    }
     return test.finish();
 }

@@ -129,6 +129,16 @@ and a proposed design for when the task is taken up.
   instead of their own patterns. Measured in the TSRE binary: plain
   numbers 26 ns (the old reader 24 ns, which was not exact), numbers with
   a unit 85 ns.
+- Values that must match MSTS geometry (user, 2026-10-18): track shapes
+  are built in metres (a double track's 4.985 m), hard to type in feet.
+  - Every `UnitSpinBox` takes a value typed with any unit of its
+    quantity ("4.985 m" where feet are shown) and holds it as typed.
+  - The flex tool offers the separations of the loaded `tsection.dat`'s
+    shapes with straight parallel paths (`TSectionDAT::
+    parallelSeparations`), the most used first, shown in metres (and the
+    user's units); the most used is the default (4.985 m in every local
+    tsection, build 54 and the PL builds) instead of 4.0 m. No radius
+    presets: dyntrack and flex radii are free values.
 - Files keep their units: needed only where TSRE writes a value it read
   with a unit. The phase 2 audit found units only in ENG/WAG files
   (which TSRE does not write) and `forests.dat` (a unit not known, kept

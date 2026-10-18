@@ -110,6 +110,12 @@ private:
     QCheckBox continuousFlexLeft;
     QCheckBox continuousFlexRight;
     UnitSpinBox continuousFlexSeparation{Units::Quantity::Length};
+    // The separations of the route's shapes with parallel tracks
+    // (TSectionDAT::parallelSeparations), the most used first, offered by
+    // the button beside the separation.
+    QToolButton continuousFlexSeparationPresets;
+    QVector<QPair<float, int>> continuousFlexTrackSeparations;
+    void fillSeparationPresets();
     UnitSpinBox continuousFlexMinimumRadius{Units::Quantity::Length};
     ContinuousToolMode continuousToolMode = ContinuousToolMode::Track;
     double continuousFlexTrackSeparation = 4.0;
