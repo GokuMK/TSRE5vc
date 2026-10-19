@@ -647,7 +647,7 @@ void WorldObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
 
     Mat4::multiply(queue.transform(), queue.transform(), matrix);
     queue.setLightReach(tsreLightRange);
-    if (ShapeLod::apply(*shapeToRender, shapeState, lod))
+    if (ShapeLod::apply(*shapeToRender, shapeState, {lod, position[1] - playerW[1]}))
         shapeToRender->pushRenderItem(queue, selectionId, shapeState);
     queue.setLightReach(0.0f);
     if (selected)

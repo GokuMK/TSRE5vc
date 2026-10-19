@@ -402,6 +402,10 @@ struct GltfNode {
     QVector<float> translation;
     QVector<float> rotation;
     QVector<float> scale;
+    // MSFT_lod: the nodes standing in for this one at lower detail, and
+    // extras.MSFT_screencoverage, the least screen coverage of each level.
+    QVector<int> lodIds;
+    QVector<float> screenCoverage;
 };
 
 struct GltfScene {
@@ -421,6 +425,7 @@ struct GltfModel {
     QVector<GltfScene> scenes;
     QVector<GltfLight> lights;
     int defaultScene = 0;
+    QStringList extensionsUsed;
 };
 
 static bool makeAccessorView(const GltfModel& model, int accessorIndex, AccessorView& out, QString& outError) {
@@ -575,6 +580,142 @@ static void computeSceneWorldMatrices(const GltfModel& model, const QVector<int>
     }
 }
 
+// MSFT_lod: which nodes are drawn, at which levels of detail. A node with
+// the extension is level 0 of its group; the nodes it names (ids) stand in
+// for it, under its parent, at levels 1, 2... Nodes in no group draw at every
+// level. A group naming invalid nodes (out of range, itself, nodes of the
+// scene or of another group, or with a cycle) is drawn at level 0 only, as by
+// a client unaware of the extension; the nodes it names outside the scene are
+// not drawn. Other nodes outside the scene draw as before.
+struct LodLayout {
+    QVector<int> level;     // -1: every level
+    QVector<int> lastLevel; // the last level of the node's group
+    QVector<int> parent;    // in the drawn hierarchy
+    QVector<char> drawn;
+    QVector<int> order;     // the drawn nodes, parents first
+    int levels = 0;         // 0 without a valid group
+    QVector<float> coverage;
+};
+
+// Open Rails' screen coverages for a group without MSFT_screencoverage.
+static const float DefaultScreenCoverage[] = {0.2f, 0.05f, 0.001f};
+
+static LodLayout layoutLods(const GltfModel &model, const QVector<int> &roots,
+                            const QVector<int> &nodeParents, const QString &pathid) {
+    const int count = model.nodes.size();
+    LodLayout layout;
+    layout.level.fill(-1, count);
+    layout.lastLevel.fill(0, count);
+    layout.parent.fill(-1, count);
+    layout.drawn.fill(0, count);
+    auto valid = [count](int node) { return node >= 0 && node < count; };
+    auto mark = [&](QVector<char> &flags, int start) {
+        QVector<int> stack{start};
+        while (!stack.isEmpty()) {
+            const int node = stack.takeLast();
+            if (!valid(node) || flags[node])
+                continue;
+            flags[node] = 1;
+            for (int child : model.nodes[node].children)
+                stack.push_back(child);
+        }
+    };
+    // The nodes groups name, with all below them.
+    QVector<char> named(count, 0);
+    for (const GltfNode &node : model.nodes)
+        for (int id : node.lodIds)
+            mark(named, id);
+    // The ordinary hierarchy: the scene, then parentless nodes outside it.
+    QVector<int> starts = roots;
+    for (int i = 0; i < count; ++i)
+        if (nodeParents.value(i, -1) < 0 && !named[i] && !starts.contains(i))
+            starts.push_back(i);
+    QVector<char> ordinary(count, 0);
+    for (int start : starts)
+        mark(ordinary, start);
+
+    const bool lodUsed = model.extensionsUsed.contains("MSFT_lod");
+    QVector<char> claimed(count, 0);
+    // Why a group's references are invalid; empty when they are not.
+    auto problem = [&](int group) -> QString {
+        QVector<char> seen(count, 0);
+        for (int id : model.nodes[group].lodIds) {
+            if (!valid(id))
+                return QString("names node %1, out of range").arg(id);
+            QVector<int> stack{id};
+            while (!stack.isEmpty()) {
+                const int node = stack.takeLast();
+                if (!valid(node))
+                    continue;
+                if (node == group)
+                    return QString("names itself (node %1)").arg(id);
+                if (ordinary[node])
+                    return QString("names node %1 of the scene").arg(node);
+                if (claimed[node])
+                    return QString("names node %1 of another group").arg(node);
+                if (seen[node])
+                    return QString("reaches node %1 twice (a cycle)").arg(node);
+                seen[node] = 1;
+                for (int child : model.nodes[node].children)
+                    stack.push_back(child);
+            }
+        }
+        return {};
+    };
+
+    struct Visit {
+        int node, parent, level, lastLevel;
+    };
+    QVector<Visit> stack;
+    for (int i = starts.size() - 1; i >= 0; --i)
+        stack.push_back({starts[i], -1, -1, 0});
+    while (!stack.isEmpty()) {
+        const Visit visit = stack.takeLast();
+        if (!valid(visit.node) || layout.drawn[visit.node])
+            continue;
+        layout.drawn[visit.node] = 1;
+        layout.order.push_back(visit.node);
+        layout.level[visit.node] = visit.level;
+        layout.lastLevel[visit.node] = visit.lastLevel;
+        layout.parent[visit.node] = visit.parent;
+        int childLevel = visit.level;
+        int childLast = visit.lastLevel;
+        const GltfNode &node = model.nodes[visit.node];
+        if (!node.lodIds.isEmpty()) {
+            const QString invalid = !lodUsed ? QString("MSFT_lod is not in extensionsUsed")
+                    : visit.level >= 0 ? QString("is inside a level of another group")
+                                       : problem(visit.node);
+            if (invalid.isEmpty()) {
+                const int last = node.lodIds.size();
+                layout.level[visit.node] = childLevel = 0;
+                layout.lastLevel[visit.node] = childLast = last;
+                for (int j = last - 1; j >= 0; --j) {
+                    mark(claimed, node.lodIds[j]);
+                    stack.push_back({node.lodIds[j], visit.parent, j + 1, last});
+                }
+                if (layout.levels == 0) {
+                    // The first group's coverages decide (Open Rails reads
+                    // the scene's root), Open Rails' defaults where missing;
+                    // above 0, which marks levels chosen by distance.
+                    for (int i = 0; i <= last; ++i) {
+                        const float fallback = i < 3 ? DefaultScreenCoverage[i] : 0.0f;
+                        layout.coverage.push_back(std::max(node.screenCoverage.value(i, fallback), 1e-6f));
+                    }
+                }
+                layout.levels = std::max(layout.levels, last + 1);
+                while (layout.coverage.size() < layout.levels)
+                    layout.coverage.push_back(1e-6f);
+            } else {
+                qWarning() << "glTF:" << pathid << "MSFT_lod of node" << visit.node << invalid
+                           << "- drawn at full detail only";
+            }
+        }
+        for (int c = node.children.size() - 1; c >= 0; --c)
+            stack.push_back({node.children[c], visit.node, childLevel, childLast});
+    }
+    return layout;
+}
+
 static bool parseJsonFile(const QString& path, QByteArray& outBytes, QString& outError) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -606,6 +747,8 @@ static bool parseGltfJson(const QByteArray& jsonBytes, QJsonObject& outRoot, QSt
 
 static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
     model.defaultScene = root.value("scene").toInt(0);
+    for (const QJsonValue &name : root.value("extensionsUsed").toArray())
+        model.extensionsUsed.push_back(name.toString());
 
     const QJsonArray buffers = root.value("buffers").toArray();
     model.buffers.resize(buffers.size());
@@ -796,6 +939,10 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         if (o.contains("translation")) model.nodes[i].translation = jsonFloatArray(o.value("translation").toArray());
         if (o.contains("rotation")) model.nodes[i].rotation = jsonFloatArray(o.value("rotation").toArray());
         if (o.contains("scale")) model.nodes[i].scale = jsonFloatArray(o.value("scale").toArray());
+        model.nodes[i].lodIds = jsonIntArray(o.value("extensions").toObject().value("MSFT_lod")
+                .toObject().value("ids").toArray());
+        model.nodes[i].screenCoverage = jsonFloatArray(o.value("extras").toObject()
+                .value("MSFT_screencoverage").toArray());
     }
 
     const QJsonArray lights = root.value("extensions").toObject().value("KHR_lights_punctual")
@@ -1020,6 +1167,8 @@ void GltfShape::adopt(ComplexShape &copy) {
     std::swap(nodeNames, o->nodeNames);
     std::swap(nodeParents, o->nodeParents);
     std::swap(punctualLights, o->punctualLights);
+    std::swap(lodLevels, o->lodLevels);
+    std::swap(lodCoverage, o->lodCoverage);
     std::swap(size, o->size);
     std::swap(bound, o->bound);
     loaded = 1;
@@ -1052,6 +1201,20 @@ void GltfShape::setAnimated(unsigned int stateId, bool animated) {
     state[stateId].animated = animated;
 }
 
+void GltfShape::setCurrentDistanceLevel(unsigned int stateId, int level) {
+    if (stateId >= (unsigned int)state.size())
+        return;
+    state[stateId].level = level >= 0 && level < lodLevels ? level : 0;
+}
+
+int GltfShape::distanceLevelCount() const {
+    return loaded == 1 && lodLevels > 1 ? lodLevels : 0;
+}
+
+float GltfShape::distanceLevelCoverage(int level) const {
+    return level >= 0 && level < lodCoverage.size() ? lodCoverage[level] : 0.0f;
+}
+
 void GltfShape::updateSim(float deltaTime, unsigned int stateId) {
     (void)deltaTime;
     (void)stateId;
@@ -1082,11 +1245,17 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             return;
     }
 
-    const unsigned int key = 0;
+    // A packet set per level of detail, shared by the states drawing it.
+    const int level = lodLevels > 1 ? std::clamp(state[stateId].level, 0, lodLevels - 1) : 0;
+    const unsigned int key = unsigned(level);
     if (selectionId == 0) {
         syncTextureAddresses();
         const unsigned long long textureStateHash = getTextureStateHash();
-        if (renderItemsTextureHash.value(key, 0ULL) != textureStateHash) {
+        // Only a built set whose textures changed: a level not built yet
+        // must not drop the sets of the others (levels alternate between
+        // objects).
+        const auto built = renderItemsTextureHash.constFind(key);
+        if (built != renderItemsTextureHash.constEnd() && built.value() != textureStateHash) {
             requiresUpdate = true;
         }
     }
@@ -1099,7 +1268,7 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
 
         for (int u = 0; u < drawUnits.size(); u++) {
             const DrawUnit& unit = drawUnits[u];
-            if (!unit.enabled) continue;
+            if (!unit.enabled || !unit.drawnAt(level)) continue;
             if (unit.nodeIndex < 0 || unit.nodeIndex >= nodeWorldMatrices.size()) continue;
             if (unit.meshIndex < 0 || unit.meshIndex >= meshes.size()) continue;
 
@@ -1256,9 +1425,11 @@ void GltfShape::fillShapeTextureInfo(QHash<int, ShapeTextureInfo*>& list, unsign
 }
 
 void GltfShape::fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int stateId) {
-    (void)stateId;
     if (info == nullptr) return;
     if (!isLoaded()) return;
+    // The parts of the level shown.
+    const int level = stateId < (unsigned int)state.size() && lodLevels > 1
+            ? std::clamp(state[stateId].level, 0, lodLevels - 1) : 0;
 
     info->hierarchy.clear();
     info->matrices.clear();
@@ -1276,7 +1447,7 @@ void GltfShape::fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int st
 
     for (int u = 0; u < drawUnits.size(); u++) {
         const DrawUnit& unit = drawUnits[u];
-        if (unit.nodeIndex < 0) continue;
+        if (unit.nodeIndex < 0 || !unit.drawnAt(level)) continue;
         if (unit.meshIndex < 0 || unit.meshIndex >= meshes.size()) continue;
         MeshGpu* mesh = meshes[unit.meshIndex];
         if (mesh == nullptr) continue;
@@ -1310,6 +1481,18 @@ void GltfShape::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, i
     info->shape = this;
     info->type = "shape";
     list.push_back(info);
+    parent = list.size() - 1;
+
+    // Its levels of detail (MSFT_lod), to show each.
+    for (int i = 0; i < lodLevels && lodLevels > 1; ++i) {
+        ContentHierarchyInfo *level = new ContentHierarchyInfo();
+        level->parent = parent;
+        level->name = QString("LOD %1: screen coverage %2").arg(i).arg(lodCoverage.value(i));
+        level->distanceLevelId = i;
+        level->shape = this;
+        level->type = "shape";
+        list.push_back(level);
+    }
 }
 
 void GltfShape::cleanupGpu() {
@@ -1326,6 +1509,8 @@ void GltfShape::cleanupGpu() {
 
     meshes.clear();
     drawUnits.clear();
+    lodLevels = 0;
+    lodCoverage.clear();
 }
 
 void GltfShape::cleanupNodeMatrices() {
@@ -1443,6 +1628,19 @@ bool GltfShape::parseAndBuild() {
 
     // Compute world matrices (shape-local).
     computeSceneWorldMatrices(model, roots, nodeWorldMatrices);
+    // Levels of detail (MSFT_lod): the nodes standing in for others take
+    // their place, under the same parent.
+    const LodLayout lods = layoutLods(model, roots, nodeParents, pathid);
+    for (int node : lods.order) {
+        float local[16];
+        buildNodeLocalMatrix(model.nodes[node], local);
+        if (lods.parent[node] < 0)
+            std::memcpy(nodeWorldMatrices[node], local, sizeof(local));
+        else
+            Mat4::multiply(nodeWorldMatrices[node], nodeWorldMatrices[lods.parent[node]], local);
+    }
+    lodLevels = lods.levels;
+    lodCoverage = lods.coverage;
 
     // Texture caching per glTF texture index.
     QVector<int> textureToTexLibId;
@@ -1979,8 +2177,10 @@ bool GltfShape::parseAndBuild() {
 
     // Punctual lights in shape space: at the node's origin, spots pointing
     // along its -Z. glTF intensity is in candela; see RenderItem::Light.
+    // Those of the most detailed level stay at every level.
     punctualLights.clear();
     for (int ni = 0; ni < model.nodes.size(); ni++) {
+        if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
         const int index = model.nodes[ni].light;
         if (index < 0 || index >= model.lights.size() || !model.lights[index].supported
                 || ni >= nodeWorldMatrices.size() || nodeWorldMatrices[ni] == nullptr)
@@ -2002,9 +2202,10 @@ bool GltfShape::parseAndBuild() {
         punctualLights.push_back(light);
     }
 
-    // Build draw units from nodes referencing meshes.
+    // Build draw units from the drawn nodes referencing meshes.
     drawUnits.clear();
     for (int ni = 0; ni < model.nodes.size(); ni++) {
+        if (!lods.drawn[ni]) continue;
         const int meshIndex = model.nodes[ni].mesh;
         if (meshIndex < 0 || meshIndex >= meshes.size()) continue;
         MeshGpu* mesh = meshes[meshIndex];
@@ -2015,16 +2216,20 @@ bool GltfShape::parseAndBuild() {
             unit.meshIndex = meshIndex;
             unit.primitiveIndex = pi;
             unit.enabled = true;
+            unit.level = lods.level[ni];
+            unit.lastLevel = lods.lastLevel[ni];
             drawUnits.push_back(unit);
         }
     }
 
-    // Compute world-space (shape-local) bounds by transforming mesh AABB corners by node world matrices.
+    // Compute world-space (shape-local) bounds by transforming mesh AABB corners by node world matrices;
+    // of the most detailed level, which the screen coverage measures.
     float globalMin[3] = {1e30f, 1e30f, 1e30f};
     float globalMax[3] = {-1e30f, -1e30f, -1e30f};
     bool hasAnyBounds = false;
 
     for (int ni = 0; ni < model.nodes.size(); ni++) {
+        if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
         const int meshIndex = model.nodes[ni].mesh;
         if (meshIndex < 0 || meshIndex >= meshes.size()) continue;
         MeshGpu* mesh = meshes[meshIndex];

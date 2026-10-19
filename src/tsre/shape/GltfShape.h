@@ -15,6 +15,7 @@
 #include <QMap>
 #include <QString>
 #include <QVector>
+#include <algorithm>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/shape/ComplexShape.h>
@@ -49,6 +50,9 @@ public:
 
     unsigned int newState() override;
     void setAnimated(unsigned int stateId, bool animated) override;
+    void setCurrentDistanceLevel(unsigned int stateId, int level) override;
+    int distanceLevelCount() const override;
+    float distanceLevelCoverage(int level) const override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
 
     void pushRenderItem(RenderQueue &queue) override;
@@ -65,6 +69,8 @@ public:
 private:
     struct State {
         bool animated = false;
+        // The level of detail drawn (MSFT_lod), set by ShapeLod.
+        int level = 0;
     };
 
     struct MaterialRuntime {
@@ -105,6 +111,13 @@ private:
         int meshIndex = -1;
         int primitiveIndex = -1;
         bool enabled = true;
+        // MSFT_lod: the level its node belongs to (-1 every level) and the
+        // last level of its node's group, drawn for the levels past it.
+        int level = -1;
+        int lastLevel = 0;
+        bool drawnAt(int shapeLevel) const {
+            return level < 0 || level == std::min(shapeLevel, lastLevel);
+        }
     };
 
     QString pathid;
@@ -126,6 +139,10 @@ private:
     QVector<int> nodeParents;
     // KHR_lights_punctual lights in shape space.
     QVector<RenderItem::Light> punctualLights;
+    // MSFT_lod: the levels of detail (0 without them) and the least screen
+    // coverage of each (MSFT_screencoverage).
+    int lodLevels = 0;
+    QVector<float> lodCoverage;
 
     bool requiresUpdate = false;
 

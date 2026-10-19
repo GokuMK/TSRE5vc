@@ -805,14 +805,14 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
                     && shape->distanceLevelDistance(1) == 1500.0f,
                 backend + ": its distance levels");
         const float radius = shape->getSize() * 0.5f;
-        t.check(ShapeLod::level(*shape, 0.0f) == 0 && ShapeLod::level(*shape, 199.0f + radius) == 0,
+        t.check(ShapeLod::level(*shape, {0.0f, 0.0f}) == 0 && ShapeLod::level(*shape, {199.0f + radius, 0.0f}) == 0,
                 backend + ": level 0 within its distance and radius");
-        t.check(ShapeLod::level(*shape, 201.0f + radius) == 1 && ShapeLod::level(*shape, 1499.0f + radius) == 1,
+        t.check(ShapeLod::level(*shape, {201.0f + radius, 0.0f}) == 1 && ShapeLod::level(*shape, {1499.0f + radius, 0.0f}) == 1,
                 backend + ": level 1 past level 0's");
         if (ShapeLod::mode() == ShapeLod::Mode::Levels)
-            t.check(ShapeLod::level(*shape, 5000.0f) == 1, backend + ": the last level past them all");
+            t.check(ShapeLod::level(*shape, {5000.0f, 0.0f}) == 1, backend + ": the last level past them all");
     }
-    t.check(ShapeLod::level(firstCompact, 5000.0f) == 0 || ShapeLod::mode() == ShapeLod::Mode::Cull,
+    t.check(ShapeLod::level(firstCompact, {5000.0f, 0.0f}) == 0 || ShapeLod::mode() == ShapeLod::Mode::Cull,
             "one level kept: always that one");
     write(path + "d", "SIMISA@@@@@@@@@@JINX0t1t______\nshape ( fixture.s esd_detail_level ( 4 ) "
                       "extra ( \"a)b\" ) )");

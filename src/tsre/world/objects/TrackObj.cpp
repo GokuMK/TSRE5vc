@@ -498,7 +498,7 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     }*/
     if(!procedural) {
         if(shapePointer != NULL){
-            if (ShapeLod::apply(*shapePointer, 0, lod))
+            if (ShapeLod::apply(*shapePointer, 0, {lod, position[1] - playerW[1]}))
                 shapePointer->pushRenderItem(queue, selectionId, 0);
         }
     } else {

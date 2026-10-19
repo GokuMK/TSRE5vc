@@ -201,7 +201,7 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
     
     if(shapePointer != NULL){
         queue.setLightReach(tsreLightRange);
-        if (ShapeLod::apply(*shapePointer, shapeState, lod))
+        if (ShapeLod::apply(*shapePointer, shapeState, {lod, position[1] - playerW[1]}))
             shapePointer->pushRenderItem(queue, selectionId, shapeState);
         queue.setLightReach(0.0f);
     }
