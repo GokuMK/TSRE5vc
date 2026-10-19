@@ -1,7 +1,7 @@
 # Task 10 - Native glTF mesh LODs
 
-Status: steps 1, 2 and 4 implemented on `feature/gltf-lod`; step 3's metric
-defined, its values still to tune. Updated 2026-10-19.
+Status: steps 1 to 4 implemented, merged from `feature/gltf-lod`; coverages
+measured and proposed for tree-gen to export. Updated 2026-10-20.
 Both asset layouts are supplied; this task covers engine work only.
 
 ## Engine scope

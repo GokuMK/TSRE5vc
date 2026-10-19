@@ -1,7 +1,8 @@
 # Task 36 - glTF diffuse transmission for foliage
 
-Status: glTF materials implemented on `feature/gltf-lod`; impostor STF fields
-not yet (impostors are not loaded). Updated 2026-10-19.
+Status: glTF materials and the impostors' `BacklightTexture` implemented,
+merged from `feature/gltf-lod`; crowns seen from below stay dark (see below).
+Updated 2026-10-20.
 Asset bindings are already supplied by tree-gen.
 
 ## Implementation (feature/gltf-lod, 2026-10-19)
@@ -28,8 +29,9 @@ Asset bindings are already supplied by tree-gen.
   the sun behind the camera nothing changes (no glow). About 1-2 ms more
   looking at the sun, none measurable otherwise.
 
-Open: the impostors' `BacklightTexture`; night and overcast captures; the
-texture traffic; tuning against real leaves.
+Open: night and overcast captures; the texture traffic; tuning against real
+leaves. The impostors' `BacklightTexture` drives their diffuse transmission
+(amount and colour, `BacklightStrength` the factor).
 
 Crowns stay dark seen from below at noon. The undersides do receive the
 transmitted sun, but the shadow map holds leaves opaque: almost every leaf

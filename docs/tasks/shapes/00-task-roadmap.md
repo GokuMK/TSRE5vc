@@ -15,7 +15,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [x] [11-msts-distance-levels.md](11-msts-distance-levels.md) — MSTS distance levels chosen per object as Open Rails does (the default; `TSRE_SHAPE_LOD`); Prudnik measurements.
 
-- [ ] [10-gltf-native-lod.md](10-gltf-native-lod.md) — native glTF levels of detail, internal (MSFT_lod) and external (`_lod01` files), chosen by screen coverage; on `feature/gltf-lod`. Open: tuning, instance scale, instance profiles. Recommended first vegetation experiment before Forest/STF impostors or terrain scattering.
+- [ ] [10-gltf-native-lod.md](10-gltf-native-lod.md) — native glTF levels of detail, internal (MSFT_lod) and external (`_lod01` files), chosen by screen coverage, with tree impostors, the LOD bias and coverage-preserving mipmaps for trees; merged from `feature/gltf-lod`. Coverages proposed for tree-gen: [0.444, 0.167, 0.060]. Open: instance scale, instance profiles, mipmaps for other content. Recommended first vegetation experiment before Forest/STF impostors or terrain scattering.
 
 ## Ground Rules For All Tasks
 

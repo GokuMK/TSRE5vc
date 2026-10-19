@@ -43,8 +43,9 @@ New vegetation drafts (2026-10-18):
 [36 - Optional diffuse foliage backlighting](36-foliage-backlighting.md), and
 the generic bulk-instance milestone in
 [terrain vegetation scattering](../terrain/terrain-vegetation-scattering.md).
-Backlighting is implemented for glTF materials on `feature/gltf-lod` (impostors
-not yet); the scattering milestone is not. Backlighting does not block the
+Backlighting is implemented for glTF materials and tree impostors, merged from
+`feature/gltf-lod` (crowns seen from below stay dark: the shadow map holds
+leaves opaque); the scattering milestone is not. Backlighting does not block the
 grass submission experiment.
 
 Renderer work continues on Windows hardware; software rendering (llvmpipe,
