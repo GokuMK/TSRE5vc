@@ -76,6 +76,10 @@ public:
         // Detail texture blended over the base texture; scale 0 disables it.
         unsigned int detailTextureObject = 0;
         float detailScale = 0.0f;
+        // MSTS night texture (task 35): a TexLib texture resolved when
+        // drawing, whose light is added to the lit day texture as the
+        // daylight fades; -1 for none.
+        int nightTextureId = -1;
         // Drawn on terrain at equal depth, without writing depth.
         bool decal = false;
         // Pixels; 0 uses the default.

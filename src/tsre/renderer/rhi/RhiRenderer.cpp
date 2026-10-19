@@ -30,6 +30,7 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/WaterWaves.h>
+#include <tsre/shape/NightTextures.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
@@ -437,6 +438,11 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     // With auto exposure lamps keep one scale (gathered at it), enclosed or
     // not: the exposure finds the tunnel dark.
     program->setFloat("localLightDay", enclosed && !exposureActive() ? gluu->localLightAdaptation : 1.0f);
+    // MSTS night textures (task 35): the scale of their light, set by the
+    // view with the lamps' rule.
+    const NightTextures::Frame &night = NightTextures::frame();
+    program->setFloat("nightScale", night.scale);
+    program->setFloat("nightEnclosedScale", night.enclosedScale);
     program->setFloat("isAlpha", gluu->alpha);
     program->setFloat("alphaTest", gluu->alphaTest);
     program->setFloat("textureEnabled", 1.0f);
@@ -1867,6 +1873,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                         item->material.color[2], item->material.color[3]);
     }
     const unsigned int baseHandle = item->material.textureId < 0 ? item->material.textureObject : 0;
+    // The night texture (task 35), with the day texture drawn.
+    QRhiTexture *night = nullptr;
+    bool nightMipmapped = false;
+    if (base != nullptr && item->material.nightTextureId >= 0 && NightTextures::frame().wanted)
+        night = libraryTexture(item->material.nightTextureId, nightMipmapped);
+    program->setFloat("nightTextureEnabled", night != nullptr ? 1.0f : 0.0f);
     QRhiTexture *detail = nullptr;
     if (item->material.textured && selectionId == 0 && item->material.detailScale != 0.0f)
         detail = RhiTextures::texture(item->material.detailTextureObject);
@@ -1989,6 +2001,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             break;
         default:
             texture = dummy2D;
+            if (slot.binding == RhiShaderSource::NightTextureBinding) {
+                if (night != nullptr) {
+                    texture = night;
+                    slotSampler = sampler(nightMipmapped, false);
+                }
+                break;
+            }
             if (slot.binding == RhiShaderSource::SkyEnclosureBinding) {
                 if (enclosureMap.valid() && enclosureDrawn) {
                     texture = enclosureMap.depth;

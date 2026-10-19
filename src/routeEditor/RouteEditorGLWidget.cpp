@@ -73,6 +73,7 @@
 #include <tsre/geo/MoonPosition.h>
 #include <settings/SettingsManager.h>
 #include <tsre/world/Daylight.h>
+#include <tsre/shape/NightTextures.h>
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
@@ -1179,6 +1180,9 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         std::fill(moonLight, moonLight + 3, 0.0f);
         std::copy(gluu->skyColor, gluu->skyColor + 3, skyState.skyColor);
         reportEnvironment(skyState.sunElevation, std::nanf(""), std::nanf(""), std::nanf(""));
+        // No night textures under the fixed daytime light (task 35): at the
+        // lamps' full strength they would light every building up.
+        NightTextures::setFrame({});
         if (state.applied) {
             std::copy(state.sunDirection, state.sunDirection + 3, Game::sunLightDirection);
             std::copy(state.sky, state.sky + 4, gluu->skyColor);
@@ -1279,6 +1283,24 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         exposure.curvePoints = Daylight::adaptationCurve(exposure.curveLuminance, exposure.curveExposure,
                                                          Renderer::ExposureControl::CurveSize);
         exposure.biasStops = Daylight::exposureBias(sun.elevation);
+    }
+    // Night textures (task 35): loaded from the sun 20 degrees up, shining as
+    // the lamps do: at the lamps' constant scale with auto exposure, less its
+    // bias (by night 1.75 stops brighter: a night texture copying the day one
+    // came out three times its own brightness, paler than in the sun; user,
+    // 2026-10-19, Prudnik ZB1), so that by night it shows as authored;
+    // otherwise with the lamps' fade (also with lamps at full strength by day,
+    // which would light every building up); under cover in full without auto
+    // exposure.
+    {
+        NightTextures::Frame night;
+        night.wanted = NightTextures::wantedForSun(sun.elevation, NightTextures::frame().wanted);
+        if (night.wanted) {
+            night.scale = exposure.enabled ? Daylight::DayLocalLights * std::exp2(-exposure.biasStops)
+                                           : light.localLights;
+            night.enclosedScale = exposure.enabled ? night.scale : 1.0f;
+        }
+        NightTextures::setFrame(night);
     }
     sunCastsShadows = light.sunUp || moonLit;
     // The sun and the moon on the sky.

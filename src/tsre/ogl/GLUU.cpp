@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/WaterWaves.h>
+#include <tsre/shape/NightTextures.h>
 #include <tsre/math3d/Vector4f.h>
 #include <QDebug>
 #include <QFile>
@@ -238,6 +239,8 @@ void GLUU::initShader() {
         currentShader->shaderSpecularColor = currentShader->uniformLocation("specularColor");
         currentShader->shaderLightDirection = currentShader->uniformLocation("lightDirection");
         currentShader->shaderSecondTexEnabled = currentShader->uniformLocation("secondTexEnabled");
+        currentShader->nightTextureEnabled = currentShader->uniformLocation("nightTextureEnabled");
+        currentShader->nightScale = currentShader->uniformLocation("nightScale");
         currentShader->terrainTextureRemap = currentShader->uniformLocation("terrainTextureRemap");
         currentShader->shaderShadowsEnabled = currentShader->uniformLocation("shadowsEnabled");
         currentShader->shaderBrightness = currentShader->uniformLocation("colorBrightness");
@@ -359,6 +362,10 @@ void GLUU::initShader() {
             if (location >= 0 && sampler.unit < unitCount)
                 currentShader->setUniformValue(location, sampler.unit);
         }
+        // The MSTS night texture (task 35).
+        const int nightSampler = currentShader->uniformLocation("uNightSampler");
+        if (nightSampler >= 0 && NightTextures::TextureUnit < unitCount)
+            currentShader->setUniformValue(nightSampler, NightTextures::TextureUnit);
         if (currentShader->instanced >= 0)
             currentShader->setUniformValue(currentShader->instanced, 0);
         if (currentShader->terrainMaterialEnabled >= 0)
@@ -404,6 +411,9 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->shaderEnableNormals, 1.0f);
     currentShader->setUniformValue(currentShader->shaderSecondTexEnabled, 0.0f);
     currentShader->setUniformValue(currentShader->terrainTextureRemap, QVector3D());
+    // MSTS night textures (task 35): off until a packet has one.
+    currentShader->setUniformValue(currentShader->nightTextureEnabled, 0.0f);
+    currentShader->setUniformValue(currentShader->nightScale, NightTextures::frame().scale);
     currentShader->setUniformValue(currentShader->shaderShadowsEnabled, Game::shadowsEnabled);
     currentShader->setUniformValue(currentShader->shaderBrightness, currentBrightness);
     currentShader->setUniformValue(currentShader->shaderFogDensity, fogDensity);
