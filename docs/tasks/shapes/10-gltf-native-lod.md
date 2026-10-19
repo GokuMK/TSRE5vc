@@ -108,18 +108,22 @@ tree's box (negative: darker or denser). Shadows off change nothing.
 - Level 1 to 2 at 0.167: a slight darkening, about 5 of 255 over the tree's
   box; acceptable for 22,308 to 1,580 triangles.
 - Level 2 to the impostor at 0.060: the impostor is much denser (2.5 to 3.3
-  times level 0's dark pixels at 0.11 to 0.06). The meshes' cutout foliage
-  loses coverage in plain averaged mipmaps (`glGenerateMipmap`): at 48 px
-  even level 0 is a trunk with a few needles, while the impostor, captured
-  from a full resolution render, stays a full cone. The impostor is right;
-  the meshes need coverage-preserving mipmaps for cutout textures. Until
-  then the switch shows as the tree filling in.
+  times level 0's dark pixels at 0.11 to 0.06): at 48 px even level 0 is a
+  trunk with a few needles, while the impostor, captured from a full
+  resolution render, stays a full cone. Shape textures (MSTS and glTF) are
+  uploaded without mipmaps (only terrain textures get them), so far away a
+  pixel samples the full foliage atlas at one point and thin needles mostly
+  fall under the cutout (likely; not yet tested). The impostor is right;
+  the meshes need mipmaps for cutout textures, with coverage-preserving
+  alpha (plain ones would thin foliage further). Until then the switch shows
+  as the tree filling in.
 - The black locust (TREES) agrees above 0.11; below it other trees of the
   forest stand between the camera and the target.
 
 Proposal: `[0.444, 0.167, 0.060]` with Append, for tree-gen's exporter; in
-TSRE, coverage-preserving mipmaps for cutout textures (MSTS alpha-tested
-content thins out the same way), then the last switch captured again.
+TSRE, mipmaps with coverage-preserving alpha for glTF cutout textures, then
+the last switch captured again. MSTS content (no mipmaps either) is a
+separate decision, with captures before and after.
 
 ## Supplied fixtures
 

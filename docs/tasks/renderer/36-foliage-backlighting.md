@@ -20,8 +20,9 @@ Asset bindings are already supplied by tree-gen.
   none; specular transmission takes its share first. No refraction, scene
   copy, blending or emission. Two-sided surfaces turn their normal to the
   viewer, so the far side is a light behind the leaf.
-- Mipmaps: TSRE builds them with `glGenerateMipmap` and scales no alpha for
-  coverage, so the amount's mipmaps are plain averages.
+- Mipmaps: shape textures are uploaded without them (only terrain textures
+  get mipmaps), so the amount is sampled from the full texture; nothing
+  rescales its alpha.
 - TREES captures: toward a low sun, the outer leaves the sun passes through
   turn green instead of black and the inner ones stay in their shadow; with
   the sun behind the camera nothing changes (no glow). About 1-2 ms more
