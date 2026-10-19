@@ -11,6 +11,7 @@
 #include <tsre/world/objects/StaticObj.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/shape/ShapeLod.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <math.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -200,7 +201,8 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
     
     if(shapePointer != NULL){
         queue.setLightReach(tsreLightRange);
-        shapePointer->pushRenderItem(queue, selectionId, shapeState);
+        if (ShapeLod::apply(*shapePointer, shapeState, lod))
+            shapePointer->pushRenderItem(queue, selectionId, shapeState);
         queue.setLightReach(0.0f);
     }
 

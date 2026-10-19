@@ -63,6 +63,8 @@ class SFileComplex final : public ComplexShape {
     void setAnimated(unsigned int, bool) override;
     void setEnabledSubObjs(unsigned int, unsigned int) override;
     void setCurrentDistanceLevel(unsigned int, int) override;
+    int distanceLevelCount() const override;
+    float distanceLevelDistance(int) const override;
     void enableSubObjByName(unsigned int, const QString &, bool) override;
     void enableSubObjByNameQueue(unsigned int, const QString &, bool) override;
     void updateSim(float, unsigned int = 0) override;

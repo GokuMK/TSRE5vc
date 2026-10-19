@@ -263,6 +263,8 @@ public:
     void setAnimated(unsigned int stateId, bool animated) override;
     void setEnabledSubObjs(unsigned int stateId, unsigned int enabledSubObjs) override;
     void setCurrentDistanceLevel(unsigned int stateId, int level) override;
+    int distanceLevelCount() const override;
+    float distanceLevelDistance(int level) const override;
     void enableSubObjByName(unsigned int stateId, const QString& name, bool val) override;
     void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val) override;
     void fillShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list, unsigned int stateId = 0) override;

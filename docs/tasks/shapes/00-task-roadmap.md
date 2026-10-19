@@ -13,6 +13,8 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 - [ ] [08-threaded-shape-loading.md](08-threaded-shape-loading.md) — MSTS and glTF shapes load on worker threads into detached copies the main thread adopts; the first view loads before it is shown; editor review of synchronous expectations.
 - [ ] [09-shape-seasonal-textures.md](09-shape-seasonal-textures.md) — seasonal texture directory of MSTS shapes: clear and rain seasons fixed; the rule is still to compare with Open Rails (small fixes only, no seasonal rework).
 
+- [x] [11-msts-distance-levels.md](11-msts-distance-levels.md) — MSTS distance levels chosen per object as Open Rails does (the default; `TSRE_SHAPE_LOD`); Prudnik measurements.
+
 New draft: [10 - Native glTF mesh LODs](10-gltf-native-lod.md). Recommended first
 vegetation experiment: validate generated pine/birch LODs in the generic shape
 path before Forest/STF impostors or terrain scattering. Not implemented.

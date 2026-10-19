@@ -908,6 +908,14 @@ void SFileLegacy::setCurrentDistanceLevel(unsigned int stateId, int level){
     state[stateId].distanceLevel = level;
 }
 
+int SFileLegacy::distanceLevelCount() const {
+    return loaded == 1 && distancelevel ? iloscd : 0;
+}
+
+float SFileLegacy::distanceLevelDistance(int level) const {
+    return level >= 0 && level < distanceLevelCount() ? float(distancelevel[level].levelSelection) : 0.0f;
+}
+
 void SFileLegacy::clearRenderItems(quint64 key) {
     for (RenderItem *item : renderItems[key])
         Renderer::retirePacket(item);

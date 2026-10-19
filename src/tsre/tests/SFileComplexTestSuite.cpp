@@ -38,6 +38,7 @@
 #include <tsre/shape/SFileLegacy.h>
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileDocument.h>
+#include <tsre/shape/ShapeLod.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
 #include <tsre/texture/ImageLib.h>
@@ -781,6 +782,38 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
             "packed Compact tables respect pre-load first-LOD selection");
     t.check(partial.reloadComplete() && partial.statistics().lods == 2,
             "Complete reload restores skipped LODs");
+    // Distance levels (ShapeLod): the most detailed one whose distance, with
+    // the shape's radius, reaches the camera; past them all the last one.
+    // SFileLegacy wants an image for its prim_state.
+    SFileDetail::Document levelled;
+    levelled.readBytes(QByteArray(triangle).replace(
+            "images ( 0 ) textures ( 0 )", "images ( 1 image ( unused.ace ) ) textures ( 1 texture ( 0 0 0 0 ) )"));
+    auto levelledLevels = levelled.root.child("lod_controls")->child("lod_control")->child("distance_levels");
+    levelledLevels.appendCopy(levelledLevels.children().front());
+    levelledLevels.setScalar(0, "2");
+    levelledLevels.children("distance_level")[0].child("distance_level_header").child("dlevel_selection").setScalar(0, "200");
+    levelledLevels.children("distance_level")[1].child("distance_level_header").child("dlevel_selection").setScalar(0, "1500");
+    QString levelledPath = tmp.filePath("levelled.s");
+    write(levelledPath, levelled.encode(false, false, error));
+    SFileComplex levelledComplex(levelledPath, "levelled", tmp.path());
+    SFileLegacy levelledLegacy(levelledPath, "levelled", tmp.path());
+    t.check(levelledComplex.loadData() && levelledLegacy.loadData(), "load a shape with two distance levels");
+    for (const ComplexShape *shape : {static_cast<const ComplexShape *>(&levelledComplex),
+                                      static_cast<const ComplexShape *>(&levelledLegacy)}) {
+        const QString backend = shape == &levelledComplex ? "SFileComplex" : "SFileLegacy";
+        t.check(shape->distanceLevelCount() == 2 && shape->distanceLevelDistance(0) == 200.0f
+                    && shape->distanceLevelDistance(1) == 1500.0f,
+                backend + ": its distance levels");
+        const float radius = shape->getSize() * 0.5f;
+        t.check(ShapeLod::level(*shape, 0.0f) == 0 && ShapeLod::level(*shape, 199.0f + radius) == 0,
+                backend + ": level 0 within its distance and radius");
+        t.check(ShapeLod::level(*shape, 201.0f + radius) == 1 && ShapeLod::level(*shape, 1499.0f + radius) == 1,
+                backend + ": level 1 past level 0's");
+        if (ShapeLod::mode() == ShapeLod::Mode::Levels)
+            t.check(ShapeLod::level(*shape, 5000.0f) == 1, backend + ": the last level past them all");
+    }
+    t.check(ShapeLod::level(firstCompact, 5000.0f) == 0 || ShapeLod::mode() == ShapeLod::Mode::Cull,
+            "one level kept: always that one");
     write(path + "d", "SIMISA@@@@@@@@@@JINX0t1t______\nshape ( fixture.s esd_detail_level ( 4 ) "
                       "extra ( \"a)b\" ) )");
     SFileComplex metadata(path, "fixture", tmp.path());

@@ -64,6 +64,11 @@ public:
     virtual void setAnimated(unsigned int stateId, bool animated) = 0;
     virtual void setEnabledSubObjs(unsigned int stateId, unsigned int enabledSubObjs);
     virtual void setCurrentDistanceLevel(unsigned int stateId, int level);
+    // Its distance levels (see ShapeLod): how many (0 without any), and the
+    // distance (metres, dlevel_selection) each is drawn to, the most
+    // detailed first.
+    virtual int distanceLevelCount() const;
+    virtual float distanceLevelDistance(int level) const;
     virtual void enableSubObjByName(unsigned int stateId, const QString& name, bool val);
     virtual void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val);
     virtual void updateSim(float deltaTime, unsigned int stateId = 0) = 0;
@@ -124,6 +129,15 @@ inline void ComplexShape::setEnabledSubObjs(unsigned int stateId, unsigned int e
 inline void ComplexShape::setCurrentDistanceLevel(unsigned int stateId, int level) {
     (void)stateId;
     (void)level;
+}
+
+inline int ComplexShape::distanceLevelCount() const {
+    return 0;
+}
+
+inline float ComplexShape::distanceLevelDistance(int level) const {
+    (void)level;
+    return 0.0f;
 }
 
 inline void ComplexShape::enableSubObjByName(unsigned int stateId, const QString& name, bool val) {

@@ -44,7 +44,7 @@ The original `SFile` class with its `SFileC`/`SFileX` readers has been removed; 
 2) a **renderable asset** with one renderer-owned mesh per subobject (`MeshHandle`) that can submit draw packets.
 
 Key capabilities embedded in `SFileLegacy`:
-- **Multiple distance levels (LOD):** `distancelevel[]` plus `state[stateId].distanceLevel`.
+- **Multiple distance levels (LOD):** `distancelevel[]` plus `state[stateId].distanceLevel`, set per object by `ShapeLod` (section 3.2).
 - **Subobjects and parts:** each distance level has `subobiekty[]` with `czesci[]` parts, each part has `offset`, `iloscv`, `prim_state_idx`.
 - **Matrix/node hierarchy and toggles:** matrix list `macierz[]` and per-instance `enabledSubObjs` mask (see `enableSubObjByName` queue usage).
 - **Animations:** parsed into `animations[]` and advanced by `updateSim(deltaTime, stateId)`.
@@ -129,7 +129,7 @@ See `src/tsre/world/objects/WorldObj.h:82`.
 ### 3.2 Common Render Submission Path
 The base implementation `WorldObj::pushRenderItems(queue, ...)` targets the `ComplexShape` contract:
 1) resolve `shapePointer` or lookup `Game::currentShapeLib->shape[shape]`
-2) compute size/LOD cull
+2) compute size/LOD cull; `ShapeLod::apply()` sets the distance level for the object's distance (Open Rails' selection; `TSRE_SHAPE_LOD=0` always draws level 0, `2` also hides objects past their last level's distance; [task 11](../tasks/shapes/11-msts-distance-levels.md))
 3) multiply instance transform into `queue.transform()`
 4) call `shapeToRender->pushRenderItem(queue, selectionId, shapeState)`
 

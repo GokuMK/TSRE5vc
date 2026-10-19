@@ -12,6 +12,7 @@
 #include <tsre/world/objects/TelepoleObj.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/shape/ShapeLod.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <math.h>
@@ -646,7 +647,8 @@ void WorldObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
 
     Mat4::multiply(queue.transform(), queue.transform(), matrix);
     queue.setLightReach(tsreLightRange);
-    shapeToRender->pushRenderItem(queue, selectionId, shapeState);
+    if (ShapeLod::apply(*shapeToRender, shapeState, lod))
+        shapeToRender->pushRenderItem(queue, selectionId, shapeState);
     queue.setLightReach(0.0f);
     if (selected)
         pushRenderBox(queue);

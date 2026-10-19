@@ -670,11 +670,27 @@ void SFileComplex::setCurrentDistanceLevel(unsigned int id, int level) {
     if (id >= d->states.size())
         return;
     auto &s = d->states[id];
+    level = level >= 0 && level < int(d->lods.size()) ? level : 0;
+    // Set per object and frame by ShapeLod: nothing to redo when it holds.
+    if (level == s.lod)
+        return;
     s.namesDirty = true;
     s.disabledSubs.clear();
-    s.lod = level >= 0 && level < int(d->lods.size()) ? level : 0;
+    s.lod = level;
     s.dirty = true;
     s.packets.clear();
+}
+int SFileComplex::distanceLevelCount() const {
+    if (!d->loaded || d->lods.empty())
+        return 0;
+    // The first LOD control's levels (pushRenderItem() draws one level).
+    int count = 0;
+    while (count < int(d->lods.size()) && d->lods[count].control == d->lods[0].control)
+        ++count;
+    return count;
+}
+float SFileComplex::distanceLevelDistance(int level) const {
+    return level >= 0 && level < int(d->lods.size()) ? d->lods[level].distance : 0.0f;
 }
 void SFileComplex::enableSubObjByNameQueue(unsigned int id, const QString &name, bool val) {
     if (id < d->states.size()) {

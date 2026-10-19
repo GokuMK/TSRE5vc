@@ -11,6 +11,7 @@
 #include <tsre/world/objects/TrackObj.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/shape/ShapeLod.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Flex.h>
 #include <math.h>
@@ -497,7 +498,8 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     }*/
     if(!procedural) {
         if(shapePointer != NULL){
-            shapePointer->pushRenderItem(queue, selectionId, 0);
+            if (ShapeLod::apply(*shapePointer, 0, lod))
+                shapePointer->pushRenderItem(queue, selectionId, 0);
         }
     } else {
         for(int i = 0; i < procShape.size(); i++){
