@@ -148,6 +148,7 @@ void main() {
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
             float isSecondTexEnabled = sign(secondTexEnabled);
             fragColor = fragColor*(1-isSecondTexEnabled) + fragColor*tex2*2.0*isSecondTexEnabled;
+            vec3 dayTexel = fragColor.rgb;
 #ifdef TSRE_TERRAIN
             if(terrainMaterialEnabled != 0)
                 fragColor = terrainMaterialColor();
@@ -212,8 +213,20 @@ void main() {
 #else
                 float nightLight = nightScale;
 #endif
-                vec3 night = pow(texture(uNightSampler, vTextureCoord).rgb, vec3(2.2)) * (nightLight * colorBrightness);
+                vec3 nightTexel = pow(texture(uNightSampler, vTextureCoord).rgb, vec3(2.2));
+                vec3 night = nightTexel * (nightLight * colorBrightness);
                 fragColor.rgb = pow(max(pow(max(fragColor.rgb, vec3(0.0)), vec3(2.2)), night), vec3(1.0 / 2.2));
+#ifdef TSRE_RHI
+                // The glow (a bonus): where the night texture is painted
+                // brighter than the day one (lit windows, lamps), it shines past
+                // white and feeds the bloom. Night textures keep the parts lit
+                // by lamps at their day brightness (whole fronts in black
+                // masks, copies): those are self-lit, not glowing.
+                vec3 glow = max(nightTexel - pow(max(dayTexel, vec3(0.0)), vec3(2.2)) * 1.25, vec3(0.0))
+                        * (nightLight * colorBrightness * 2.0);
+                fragColor.rgb = pow(pow(fragColor.rgb, vec3(2.2)) + glow, vec3(1.0 / 2.2));
+                glowOut.rgb += glow * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor));
+#endif
             }
 #endif
 

@@ -65,20 +65,14 @@ Also: MSTS night sub-objects.
   (before the lamps' fade begins) until it is that high again in the
   morning, with a margin against switching back and forth; always under
   cover (sky enclosure, task 27). Released by day.
-- k, the night texture's darkening of the day texture, estimated once at
-  load: the ratio of night to day luminance at the same places (the day
-  texture at the night texture's size), a low percentile (the 25th, to
-  start with) over the places the day texture is not dark. Masks give
-  about 0, darkened copies about 0.3, unchanged copies about 1. Both
-  textures decoded on the CPU for it (TSRE's DXT codec), on the loader
-  threads.
+- (Dropped in step 3: k, the night texture's darkening of the day
+  texture, estimated once per texture; see the glow.)
 
 ### Shading (QRhi)
 
-The MSTS shape material gets an optional night texture and its numbers
-(on, k):
+The MSTS shape material gets an optional night texture:
 
-    colour = max(lit(day), L x N x night) + L x G x max(night - k x day, 0)
+    colour = max(lit(day), L x N x night) + L x G x max(night - 1.25 x day, 0)
 
 - L, lights on, as the lamps have it: with tone mapping off the lamps'
   fade (`Daylight` `localLights`: full at night, `DayLocalLights` by day);
@@ -94,12 +88,13 @@ The MSTS shape material gets an optional night texture and its numbers
   wall, so under auto exposure they are invisible by day except in deep
   shadow, and clear at night (as an emitter, as signal lenses at 4 times
   their colour, windows would glow at noon).
-- G, the glow (a bonus): somewhat more for the parts brighter than the
-  darkened day texture, so they pass white at night and the bloom picks
-  them up. The hiker and the signs (k about 1) get the base only: bright,
-  not glowing; darkened copies show practically no effect. If the textures
-  do not fit it (k ill defined, noisy masks), G is dropped and the raw night
-  texture alone remains.
+- G, the glow (a bonus, QRhi): where the night texture is painted brighter
+  than the day one (lit windows, lamps), twice that light more, past white
+  and into the bloom. Copies (the hiker, signs, whole fronts kept at their
+  day brightness) and darkened copies get the base only: bright, not
+  glowing. (Planned against the night texture's darkening k instead:
+  masks, k about 0, keep whole street fronts at day brightness, lit by
+  lamps, and the fronts glowed whole; step 3.)
 - No offset per object (user: a station's signs would switch on at
   different times); everything brightens together as the daylight goes.
 - The night texture's colour only; coverage (alpha test, blending) stays
@@ -124,13 +119,11 @@ lights' geometry (perhaps fake light cones, see below).
 - Memory: one more texture per night-textured material, often half the
   size, only from dusk to dawn.
 - GPU: one more texture sample on those materials.
-- Load: k per texture (both decoded at the night texture's size).
 
 ## Steps
 
-1. Loading: the night bit, the night textures' lookup and lifetime, k; unit
-   tests (the lookup on CMK and Prudnik paths, seasonal ones too; k of the
-   known pairs).
+1. Loading: the night bit, the night textures' lookup and lifetime; unit
+   tests (the lookup on CMK and Prudnik paths, seasonal ones too).
 2. QRhi: the self-lit base with L; captures at dusk and night, auto
    exposure and tone mapping off.
 3. The glow (bonus): G, judged on captures; dropped if the data does not
@@ -145,7 +138,7 @@ lights' geometry (perhaps fake light cones, see below).
   hiker on its platform; a street in shadow at dusk (the windows' light
   showing); day views against before (only deep shadows may change under
   auto exposure; how much measured).
-- Unit: the lookup, k, the material's night slot.
+- Unit: the lookup, the load and release elevations.
 - Memory: textures loaded at noon and at night.
 - Steam Deck: frame time in a town at night.
 
@@ -161,19 +154,25 @@ lights' geometry (perhaps fake light cones, see below).
   with auto exposure, at the level of a lamp-lit surface.
 - No offset per object.
 
-Proposed, to confirm: OpenGL with the self-lit base (step 4); night
-sub-objects (step 5).
-
-### Step 4: OpenGL (2026-10-19)
-
-- GLUU gives `uNightSampler` its unit and caches `nightTextureEnabled` and
-  `nightScale`, the scale per frame (the lamps' fade: no auto exposure
-  there); `OpenGL3Renderer` binds a packet's night texture while the frame
-  wants them. No glow (no HDR).
-- Captures (the CMK row houses, `core.rendering.backend=opengl`): noon as
-  before, at 20:00 and 22:00 lit windows and street fronts as on QRhi.
+- (2026-10-19) OpenGL with the self-lit base (step 4). The glow tried
+  (step 3). Night sub-objects left for later: no ugly light cones seen,
+  so those presumably use them.
 
 ## Related, later
+
+- **Editing .sd values in the editor** (user, 2026-10-19): assets' night
+  textures are often unfinished or odd (Prudnik `ZB1`: the facade's night
+  texture a copy of the day one, the whole signal box lit by night; CMK
+  `CMK-centralny1`, an underground station: night textures for 9 of its 14
+  textures, but no night bit in its .sd, so neither MSTS nor Open Rails
+  uses them; by night the station is black here, dim in Open Rails, which
+  darkens day textures by a fixed share at night). Fixed easily if the
+  editor edits ESD_Alternative_Texture and the other .sd values.
+- **Under cover by day** (open): tunnels and underground stations by day
+  have no night textures loaded. Keeping them loaded all day costs up to
+  their share of the textures (in `TEXTURES/NIGHT`: CMK 379 MB against
+  1264, Prudnik 408 against 2838); loading them by day only when the view
+  is under cover is the cheaper alternative.
 
 - **Light materials** (`vtx_state` light material): Open Rails maps -5
   normal, -6 and -7 specular 25 and 750, -8 full bright, -9 and -10
@@ -234,3 +233,28 @@ Design (2026-10-19), on `feature/night-textures`.
   street fronts lit as authored, darkened sides dark, far roofs with copied
   night textures bright, as in Open Rails. Legacy and Compact pixel for
   pixel the same (noon, 20:00, 22:00).
+
+### Step 4: OpenGL (2026-10-19)
+
+- GLUU gives `uNightSampler` its unit and caches `nightTextureEnabled` and
+  `nightScale`, the scale per frame (the lamps' fade: no auto exposure
+  there); `OpenGL3Renderer` binds a packet's night texture while the frame
+  wants them. No glow (no HDR).
+- Captures (the CMK row houses, `core.rendering.backend=opengl`): noon as
+  before, at 20:00 and 22:00 lit windows and street fronts as on QRhi.
+
+### Step 3: the glow (2026-10-19)
+
+- Tried against k first (estimated per texture on a worker): on 76 CMK
+  pairs k came out cleanly two-sided (31 masks about 0, 39 copies about 1,
+  5 darkened), but masks keep whole street fronts at their day brightness
+  (lit by lamps), and the CMK row houses' fronts glowed whole, haloed in
+  the bloom. Dropped.
+- Instead: where the night texture is more than 1.25 times the day one
+  (painted lit: 16 of the 76 have such texels, most a few percent of them:
+  lit windows, lamps; a lit shelter and a tunnel wall more), twice that
+  light added and written to the glow output for the bloom (fogged as the
+  surface). QRhi only. No CPU decoding, no k.
+- Captures (the CMK row houses): the windows of the right block and far
+  houses' lights glow slightly; fronts kept at day brightness and copies
+  do not; one front painted brighter by night glows; noon identical.
