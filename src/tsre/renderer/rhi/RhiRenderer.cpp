@@ -565,6 +565,8 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
                         sceneCopyLevels);
         program->setVec("pbrAttenuationColor", p.attenuationColor[0], p.attenuationColor[1],
                         p.attenuationColor[2]);
+        program->setVec("pbrDiffuseTransmission", p.diffuseTransmissionColor[0], p.diffuseTransmissionColor[1],
+                        p.diffuseTransmissionColor[2], p.diffuseTransmission);
         int texCoords = 0;
         int transformed = 0;
         float transforms[RenderItem::Pbr::MAP_COUNT * 6];
@@ -1901,7 +1903,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     // PBR maps on the units the OpenGL renderer uses, with the glTF wrap
     // modes; the frame copy on unit 1 while the transmission pass draws.
     static const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6, 7,
-                                                               15, 16, 17};
+                                                               15, 16, 17, 21, 33};
     auto wrapMode = [](unsigned short mode) {
         return mode == 0x812F ? 1 : mode == 0x8370 ? 2 : 0;  // clamp, mirror, repeat
     };

@@ -100,7 +100,7 @@ public:
         enum Map {MAP_BASE_COLOR = 0, MAP_METALLIC_ROUGHNESS, MAP_NORMAL, MAP_OCCLUSION,
                   MAP_EMISSIVE, MAP_CLEARCOAT, MAP_CLEARCOAT_ROUGHNESS, MAP_CLEARCOAT_NORMAL,
                   MAP_SPECULAR, MAP_SPECULAR_COLOR, MAP_TRANSMISSION, MAP_THICKNESS,
-                  MAP_COUNT};
+                  MAP_DIFFUSE_TRANSMISSION, MAP_DIFFUSE_TRANSMISSION_COLOR, MAP_COUNT};
         bool enabled = false;
         // Shaded with the base colour only (KHR_materials_unlit).
         bool unlit = false;
@@ -132,11 +132,16 @@ public:
         float thickness = 0.0f;
         float attenuationDistance = 0.0f;
         float attenuationColor[3] = {1.0f, 1.0f, 1.0f};
+        // KHR_materials_diffuse_transmission: the share of diffuse light
+        // passing through thin surfaces (leaves), lighting them from behind,
+        // and its colour (not multiplied by the base colour); 0 has none.
+        float diffuseTransmission = 0.0f;
+        float diffuseTransmissionColor[3] = {1.0f, 1.0f, 1.0f};
         // The daylight scale the glow follows: the lamps' (task 21), the
         // signal lights' (task 26), or none, for the sun (task editor 05).
         enum Glow : unsigned char {GLOW_LAMP = 0, GLOW_SIGNAL, GLOW_FULL};
         unsigned char glow = GLOW_LAMP;
-        int textures[MAP_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+        int textures[MAP_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
         // Texture coordinate set (0 or 1) of each map.
         unsigned char texCoords[MAP_COUNT] = {};
         // KHR_texture_transform of each map: rows of a 2 x 3 matrix applied

@@ -213,6 +213,38 @@ int TsreTests::runGltfLodSuite(bool verbose) {
                    "no MSFT_lod: every node drawn as before");
     }
 
+    // The trees' foliage: KHR_materials_diffuse_transmission reaches the
+    // packets; without it, none.
+    {
+        QString nodes = R"([{"mesh": 0}, {"mesh": 1}])";
+        QByteArray json = gltf(nodes, R"(["KHR_materials_diffuse_transmission"])");
+        json.replace(R"({"primitives": [{"attributes": {"POSITION": 0}}]})",
+                     R"({"primitives": [{"attributes": {"POSITION": 0}, "material": 0}]})");
+        json.replace(R"({"primitives": [{"attributes": {"POSITION": 1}}]})",
+                     R"({"primitives": [{"attributes": {"POSITION": 1}, "material": 1}]})");
+        json.replace(R"( "meshes": [)", R"( "materials": [
+  {"extensions": {"KHR_materials_diffuse_transmission": {"diffuseTransmissionFactor": 0.75,
+   "diffuseTransmissionColorFactor": [0.5, 1, 0.25]}}},
+  {}
+ ],
+ "meshes": [)");
+        Loaded shape = load(dir, "foliage.gltf", json);
+        PacketRecorder recorder;
+        shape.shape->pushRenderItem(recorder, 0, shape.state);
+        bool leaf = false, plain = false;
+        for (const RenderItem *item : recorder.packets) {
+            const RenderItem::Pbr &p = item->pbr;
+            if (item->mesh.count == 3)
+                leaf = p.diffuseTransmission == 0.75f && p.diffuseTransmissionColor[0] == 0.5f
+                        && p.diffuseTransmissionColor[1] == 1.0f && p.diffuseTransmissionColor[2] == 0.25f
+                        && p.textures[RenderItem::Pbr::MAP_DIFFUSE_TRANSMISSION] < 0;
+            if (item->mesh.count == 6)
+                plain = p.diffuseTransmission == 0.0f && p.diffuseTransmissionColor[0] == 1.0f;
+        }
+        test.check(leaf, "diffuse transmission: factor and colour reach the packet");
+        test.check(plain, "no diffuse transmission: none");
+    }
+
     // Levels by screen coverage: the bounds (level 0 and the common node) are
     // 10 m high; with a 55 degree view, coverage 0.3 is reached within 32 m,
     // 0.1 within 96 m.

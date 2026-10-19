@@ -361,6 +361,12 @@ struct GltfMaterial {
     GltfTextureRef thicknessTexture;
     float attenuationDistance = 0.0f;
     float attenuationColor[3] = {1.0f, 1.0f, 1.0f};
+    // KHR_materials_diffuse_transmission: the amount (alpha of its
+    // texture) and the colour (sRGB colour of its texture).
+    float diffuseTransmissionFactor = 0.0f;
+    GltfTextureRef diffuseTransmissionTexture;
+    float diffuseTransmissionColorFactor[3] = {1.0f, 1.0f, 1.0f};
+    GltfTextureRef diffuseTransmissionColorTexture;
 };
 
 struct GltfPrimitive {
@@ -890,6 +896,13 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject transmission = extensions.value("KHR_materials_transmission").toObject();
         material.transmissionFactor = float(transmission.value("transmissionFactor").toDouble(0.0));
         material.transmissionTexture = textureRef(transmission.value("transmissionTexture").toObject());
+        const QJsonObject diffuse = extensions.value("KHR_materials_diffuse_transmission").toObject();
+        material.diffuseTransmissionFactor = float(diffuse.value("diffuseTransmissionFactor").toDouble(0.0));
+        material.diffuseTransmissionTexture = textureRef(diffuse.value("diffuseTransmissionTexture").toObject());
+        const QVector<float> diffuseColor = jsonFloatArray(diffuse.value("diffuseTransmissionColorFactor").toArray());
+        for (int c = 0; c < 3 && c < diffuseColor.size(); ++c)
+            material.diffuseTransmissionColorFactor[c] = diffuseColor[c];
+        material.diffuseTransmissionColorTexture = textureRef(diffuse.value("diffuseTransmissionColorTexture").toObject());
         const QJsonObject volume = extensions.value("KHR_materials_volume").toObject();
         material.thicknessFactor = float(volume.value("thicknessFactor").toDouble(0.0));
         material.thicknessTexture = textureRef(volume.value("thicknessTexture").toObject());
@@ -1903,13 +1916,17 @@ bool GltfShape::parseAndBuild() {
                 pbr.attenuationDistance = srcMat.attenuationDistance;
                 std::copy(srcMat.attenuationColor, srcMat.attenuationColor + 3,
                           pbr.attenuationColor);
+                pbr.diffuseTransmission = srcMat.diffuseTransmissionFactor;
+                std::copy(srcMat.diffuseTransmissionColorFactor, srcMat.diffuseTransmissionColorFactor + 3,
+                          pbr.diffuseTransmissionColor);
                 const GltfTextureRef *maps[RenderItem::Pbr::MAP_COUNT] = {
                     &srcMat.baseColorTexture, &srcMat.metallicRoughnessTexture,
                     &srcMat.normalTexture, &srcMat.occlusionTexture, &srcMat.emissiveTexture,
                     &srcMat.clearcoatTexture, &srcMat.clearcoatRoughnessTexture,
                     &srcMat.clearcoatNormalTexture, &srcMat.specularTexture,
                     &srcMat.specularColorTexture, &srcMat.transmissionTexture,
-                    &srcMat.thicknessTexture};
+                    &srcMat.thicknessTexture, &srcMat.diffuseTransmissionTexture,
+                    &srcMat.diffuseTransmissionColorTexture};
                 for (int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map) {
                     pbr.texCoords[map] = maps[map]->texCoord == 1 ? 1 : 0;
                     std::copy(maps[map]->transform, maps[map]->transform + 6,

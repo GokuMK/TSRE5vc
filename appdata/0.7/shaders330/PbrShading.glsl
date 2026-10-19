@@ -27,13 +27,14 @@ uniform float emissiveScale;
 #endif
 // Bit per map present: 1 metallic-roughness, 2 normal, 4 occlusion, 8 emissive,
 // 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal, 128 specular,
-// 256 specular colour, 512 transmission, 1024 thickness.
+// 256 specular colour, 512 transmission, 1024 thickness, 2048 diffuse
+// transmission, 4096 diffuse transmission colour.
 uniform int pbrTextures;
 // Bit per map (RenderItem::Pbr::Map order) read with the second texture coordinates.
 uniform int pbrTexCoords;
 // KHR_texture_transform: bit per transformed map, and two rows per map.
 uniform int pbrUvTransforms;
-uniform vec3 pbrUvTransform[24];
+uniform vec3 pbrUvTransform[28];
 // Clearcoat strength, roughness and normal scale; strength 0 has no layer.
 uniform vec3 pbrClearcoat;
 // KHR_materials_specular colour (rgb) and strength (a), and KHR_materials_ior.
@@ -47,6 +48,11 @@ uniform vec3 pbrAttenuationColor;
 uniform sampler2D pbrSceneColor;
 uniform sampler2D pbrTransmissionMap;
 uniform sampler2D pbrThicknessMap;
+// KHR_materials_diffuse_transmission: colour (rgb) and amount (a); the
+// amount map's alpha (linear) and the colour map's colour (sRGB).
+uniform vec4 pbrDiffuseTransmission;
+uniform sampler2D pbrDiffuseTransmissionMap;
+uniform sampler2D pbrDiffuseTransmissionColorMap;
 uniform mat4 uPMatrix;
 uniform sampler2D pbrMetallicRoughnessMap;
 uniform sampler2D pbrNormalMap;
@@ -124,6 +130,19 @@ vec3 transmittedLight(vec3 n, vec3 v, float roughness) {
     return behind;
 }
 
+// Diffuse light passing through a thin surface from behind (a light at l on
+// the far side): Lambert on that side, less what the surface reflects, with
+// the Fresnel of the light mirrored to the viewer's side (as the Khronos
+// sample viewer does).
+vec3 transmittedDiffuse(vec3 n, vec3 v, vec3 l, vec3 albedo, vec3 f0, vec3 f90) {
+    float backNDotL = max(-dot(n, l), 0.0);
+    if (backNDotL <= 0.0)
+        return vec3(0.0);
+    vec3 h = normalize(l - 2.0 * n * dot(n, l) + v);
+    vec3 fresnel = f0 + (f90 - f0) * pow(1.0 - clamp(dot(v, h), 0.0, 1.0), 5.0);
+    return (1.0 - fresnel) * albedo / PbrPi * backNDotL;
+}
+
 vec4 pbrShade() {
     vec4 base = textureEnabled != 0.0 ? texture(uSampler, pbrUv(0)) : shapeColor;
     base.rgb = toLinear(base.rgb);
@@ -175,12 +194,28 @@ vec4 pbrShade() {
     vec3 f0 = mix(dielectricF0, base.rgb, metallic);
     vec3 f90 = vec3(mix(specularWeight, 1.0, metallic));
     vec3 diffuseAlbedo = base.rgb * (1.0 - metallic);
+    // Diffuse transmission (KHR_materials_diffuse_transmission): thin
+    // surfaces such as leaves pass that share of the diffuse light through,
+    // in their own colour, lighting them from behind.
+    float diffuseTransmission = pbrDiffuseTransmission.a;
+    if ((pbrTextures & 2048) != 0)
+        diffuseTransmission *= texture(pbrDiffuseTransmissionMap, pbrUv(12)).a;
+    vec3 transmittedAlbedo = vec3(0.0);
+    if (diffuseTransmission > 0.0) {
+        vec3 tint = pbrDiffuseTransmission.rgb;
+        if ((pbrTextures & 4096) != 0)
+            tint *= toLinear(texture(pbrDiffuseTransmissionColorMap, pbrUv(13)).rgb);
+        transmittedAlbedo = tint * diffuseTransmission * (1.0 - metallic);
+        diffuseAlbedo *= 1.0 - diffuseTransmission;
+    }
     float transmission = pbrTransmission.x;
     if ((pbrTextures & 512) != 0)
         transmission *= texture(pbrTransmissionMap, pbrUv(10)).r;
     // Light passing through is not scattered diffusely.
-    if (transmission > 0.0)
+    if (transmission > 0.0) {
         diffuseAlbedo *= 1.0 - transmission;
+        transmittedAlbedo *= 1.0 - transmission;
+    }
 
     // The sun. Its irradiance matches the legacy diffuse light, so a white
     // matte surface facing it is as bright as in the legacy shading.
@@ -218,6 +253,8 @@ vec4 pbrShade() {
         vec3 diffuse = (1.0 - fresnel) * diffuseAlbedo / PbrPi;
         color += (diffuse + specular) * sun * nDotL;
     }
+    if (diffuseTransmission > 0.0)
+        color += transmittedDiffuse(n, v, l, transmittedAlbedo, f0, f90) * sun;
 #ifdef TSRE_RHI
     float lamps = lampScale(shade);
     // Lamps and glowing surfaces, shaded as the sun is.
@@ -234,6 +271,8 @@ vec4 pbrShade() {
             vec3 specular = ggxSpecular(n, v, lightDir, roughness, f0, f90, fresnel);
             color += ((1.0 - fresnel) * diffuseAlbedo / PbrPi + specular) * radiance * lightNDotL;
         }
+        if (diffuseTransmission > 0.0)
+            color += transmittedDiffuse(n, v, lightDir, transmittedAlbedo, f0, f90) * radiance;
         float lightCoatNDotL = max(dot(coatNormal, lightDir), 0.0);
         if (coat > 0.0 && lightCoatNDotL > 0.0) {
             vec3 fresnel;
@@ -265,6 +304,9 @@ vec4 pbrShade() {
     vec3 reflected = environmentRadiance(reflect(-v, n), roughness);
     vec3 environment = diffuseAlbedo * irradiance * ambientScale
             + reflected * environmentBrdf(f0, f90, roughness, nDotV);
+    // The sky and surroundings behind a thin surface shine through it.
+    if (diffuseTransmission > 0.0)
+        environment += transmittedAlbedo * environmentRadiance(-n, 1.0) * ambientScale;
     if (coat > 0.0) {
         vec3 coatReflected = environmentRadiance(reflect(-v, coatNormal), coatRoughness);
         environment = environment * (1.0 - coatFresnel)

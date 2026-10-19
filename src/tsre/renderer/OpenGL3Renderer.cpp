@@ -73,9 +73,10 @@ bool resolveTexture(const RenderItem *item, unsigned int &address){
 // Texture unit of each PBR map: the base colour is the packet texture, the
 // clearcoat and specular maps use units that only terrain and water programs
 // use otherwise. That takes all 16 units OpenGL 3.3 guarantees; the
-// transmission and thickness maps use units 16 and 17 where the driver has
-// them (current drivers have 32) and are left out otherwise.
-const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6, 7, 15, 16, 17};
+// transmission and thickness maps use units 16 and 17, the diffuse
+// transmission maps 21 and 20, where the driver has them (current drivers
+// have 32) and are left out otherwise.
+const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6, 7, 15, 16, 17, 21, 20};
 // The frame copy transmissive surfaces see through, on unit 1 (the detail
 // texture unit, unused by the PBR program).
 const int SceneCopyUnit = 1;
@@ -125,6 +126,8 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
                        sceneCopyLevels);
     s->setUniformValue(s->pbrAttenuationColor, p.attenuationColor[0], p.attenuationColor[1],
                        p.attenuationColor[2]);
+    s->setUniformValue(s->pbrDiffuseTransmission, p.diffuseTransmissionColor[0], p.diffuseTransmissionColor[1],
+                       p.diffuseTransmissionColor[2], p.diffuseTransmission);
     int present = 0;
     int texCoords = 0;
     int transformed = 0;
@@ -575,7 +578,7 @@ void OpenGL3Renderer::bindWrapSampler(int unit, quint32 wrap){
 }
 
 void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
-    static_assert(17 < SamplerUnits, "sampler bookkeeping covers the PBR units");
+    static_assert(21 < SamplerUnits, "sampler bookkeeping covers the PBR units");
     const int *units = PbrMapUnits;
     for(int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map){
         quint32 wrap = 0;
