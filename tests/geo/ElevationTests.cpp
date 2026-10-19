@@ -505,6 +505,66 @@ int main(int argc, char **argv) {
         && wales.transformAssetPath == "assets/geo/OSTN15_OSGM15_Lite_DataFile.txt"
         && wales.transformAssetUrl.host() == "www.ordnancesurvey.co.uk",
         "Wales catalogue defines a single range COG and on-demand OSTN15 Lite asset");
+    const auto canada=byId.value("ca.nrcan.hrdem1");
+    check(canada.provider=="file"&&canada.fileGrid=="stac"&&canada.epsg==3979
+        &&canada.resolution==1&&canada.stacRange&&canada.stacAssetKey=="dtm"
+        &&canada.stacCollection=="hrdem-mosaic-1m"
+        &&!canada.fallbackApproved&&!canada.distantTerrainApproved&&!canada.zeroIsNoData,
+        "Canada offers only the detailed 1 m DTM with valid zero and existing global fallback choices");
+    for(const QJsonValue &key:QJsonArray{QJsonValue(7),QJsonValue(""),QJsonValue("../dtm")}){
+        auto definition=canada.definition;auto download=definition["download"].toObject();
+        download["assetKey"]=key;definition["download"]=download;
+        check(parseEntries(QJsonArray{definition}).isEmpty(),"STAC rejects malformed explicit asset keys");
+    }
+    auto wholeFileCanada=canada.definition;auto canadaDownload=wholeFileCanada["download"].toObject();
+    canadaDownload["range"]=false;wholeFileCanada["download"]=canadaDownload;
+    check(parseEntries(QJsonArray{wholeFileCanada}).isEmpty(),
+        "named STAC assets require bounded range access rather than whole-file downloads");
+    const QJsonObject terrainAsset{{"href","https://example.test/terrain.tif"},
+        {"type","image/tiff; application=geotiff; profile=cloud-optimized"}};
+    QJsonObject surfaceAsset=terrainAsset;surfaceAsset["href"]="https://example.test/surface.tif";
+    QJsonObject canadaProperties{{"proj:epsg",3979},{"created","2024-02-06T19:38:05Z"},
+        {"datetime","2025-05-05T12:00:00Z"},{"updated","2026-05-26T16:54:44Z"}};
+    const QJsonObject canadaFeature{{"properties",canadaProperties},
+        {"assets",QJsonObject{{"dsm",surfaceAsset},{"dtm",terrainAsset},{"hillshade-dtm",surfaceAsset}}}};
+    check(selectStacElevationAsset(canada,canadaFeature)==terrainAsset,
+        "Canada selects DTM with no GSD or projected bbox; COG header will validate its grid");
+    auto missingDtm=canadaFeature;auto otherAssets=missingDtm["assets"].toObject();
+    otherAssets.remove("dtm");missingDtm["assets"]=otherAssets;
+    check(selectStacElevationAsset(canada,missingDtm).isEmpty(),
+        "missing named terrain asset never substitutes DSM or hillshade");
+    for(const QJsonObject &badAsset:QVector<QJsonObject>{
+            QJsonObject{{"type",terrainAsset["type"]},{"proj:epsg",3857}},
+            QJsonObject{{"type",terrainAsset["type"]},{"eo:gsd",2}},
+            QJsonObject{{"type",terrainAsset["type"]},{"eo:gsd","invalid"}},
+            QJsonObject{{"type","image/png"}}}){
+        auto badFeature=canadaFeature;badFeature["assets"]=QJsonObject{{"dtm",badAsset}};
+        check(selectStacElevationAsset(canada,badFeature).isEmpty(),
+            "named STAC selection rejects explicit CRS/resolution conflicts and non-COG assets");
+    }
+    auto noCrs=canadaFeature;noCrs["properties"]=QJsonObject{};
+    check(selectStacElevationAsset(canada,noCrs).isEmpty(),"STAC still requires a declared expected CRS");
+    const QString oldRevision=stacElevationRevision(canadaFeature);
+    auto updatedFeature=canadaFeature;canadaProperties["updated"]="2026-10-17T12:00:00Z";
+    updatedFeature["properties"]=canadaProperties;
+    check(stacElevationRevision(updatedFeature)!=oldRevision,
+        "STAC update at an unchanged asset URL invalidates cached range revision");
+    canadaProperties.remove("updated");updatedFeature["properties"]=canadaProperties;
+    check(stacElevationRevision(updatedFeature)=="2024-02-06T19:38:05Z",
+        "STAC without updated retains existing created-based cache identity");
+    canadaProperties.remove("created");updatedFeature["properties"]=canadaProperties;
+    check(stacElevationRevision(updatedFeature)=="2025-05-05T12:00:00Z",
+        "STAC revision falls back to acquisition datetime when creation time is absent");
+    auto swissAsset=terrainAsset;swissAsset["eo:gsd"]=2;swissAsset["proj:epsg"]=2056;
+    check(selectStacElevationAsset(switzerland,QJsonObject{{"assets",QJsonObject{{"data",swissAsset}}}})==swissAsset,
+        "Swiss legacy STAC selection retains asset GSD and CRS matching");
+    swissAsset.remove("eo:gsd");
+    check(selectStacElevationAsset(switzerland,QJsonObject{{"assets",QJsonObject{{"data",swissAsset}}}}).isEmpty(),
+        "legacy STAC does not relax missing resolution without an explicit asset key");
+    const QJsonObject swedishFeature{{"properties",QJsonObject{{"proj:epsg",5845},{"geometriskupplosning",1}}},
+        {"assets",QJsonObject{{"data",terrainAsset}}}};
+    check(selectStacElevationAsset(sweden,swedishFeature)==terrainAsset,
+        "Swedish STAC retains item resolution property and compound asset CRS");
     check(sweden.provider == "file" && sweden.format == "geotiff"
         && sweden.fileGrid == "stac" && sweden.epsg == 3006
         && sweden.resolution == 1 && sweden.stacSearchRoot && sweden.stacRange
@@ -640,6 +700,22 @@ int main(int argc, char **argv) {
     check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid rejects rotation");
     r = expanded; r.transform[0] = std::numeric_limits<double>::quiet_NaN();
     check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid rejects non-finite transforms");
+    const Geo::CrsTransform canadaProjection(3979);
+    // Esri GeometryServer/project, inSR=4617, outSR=3979, 2026-10-17.
+    // These controls verify the projection, not a WGS84/NAD83 epoch transform.
+    const double canadaControls[][4]={
+        {49.28,-123.12,-1977901.8864741861,475596.65091474215},
+        {45.41,-75.7,1510790.4106173634,-171116.00155409425},
+        {44.65,-63.57,2438790.0205190387,127090.63489703741},
+        {62.45,-114.38,-955435.59482395032,1616029.7387510673},
+        {49,-95,0,0}
+    };
+    bool canadaMatches=Geo::CrsTransform::supports(3979);
+    for(const auto &control:canadaControls)
+        canadaMatches &= canadaProjection.forward({control[0],control[1]},p)
+            && near(p.x,control[2],.001) && near(p.y,control[3],.001);
+    check(canadaMatches,"Canada Atlas Lambert agrees with independent western/eastern/northern controls within 1 mm");
+    check(!canadaProjection.forward({0,0},p),"Canada projection rejects locations outside its supported geographic extent");
     const Geo::CrsTransform finlandProjection(3067);
     const Geo::CrsTransform europeProjection(3035);
     const Geo::CrsTransform swissProjection(2056);

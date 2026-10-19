@@ -36,6 +36,10 @@ read the [design and implementation status](osm-data-design.md), then the
      This records the authenticated Swedish STAC path, Wallonia's original bulk
      delivery limitation and later COG integration, and the French MNT LiDAR HD
      numeric-WMS route.
+   - Canada: [NRCan HRDEM Mosaic 1 m](canada-elevation-research.md).
+     This records the detailed DTM integration, EPSG:3979 support, explicit STAC
+     asset selection and live probes. Existing global sources provide fallback;
+     the researched 30 m MRDEM product is not added.
    - Extracted national BigTIFF research: [Slovakia and Wallonia](slovakia-wallonia-bigtiff-review.md).
      This records bounded server-range and raster-layout probes, the completed
      COG conversions, and their generic TSRE range-COG integrations.
@@ -284,6 +288,11 @@ Five file-source profiles are implemented:
   block caching; GEDTM30, Luxembourg and Wales are verified profiles;
 - `format: "geotiff"`, `fileGrid: "stac"`: STAC discovery with resolution/CRS
   asset selection and preserved complete source TIFFs; Switzerland is the first.
+  Sweden and Canada use `download.range: true` for bounded COG reads. Optional
+  `download.assetKey` selects a named asset (Canada: `dtm`) and requires range
+  mode. Named assets may omit GSD and projected bounds: the COG header validates
+  CRS/resolution and supplies bounds. Explicit metadata conflicts are rejected.
+  Range-cache revisions include STAC `updated` when present.
 - `format: "geotiff"`, `fileGrid: "directory"`: recursively indexed local
   GeoTIFF collections with arbitrary filenames; Portugal DGT MDT-2m is the first.
   `.tsre-elevation-index.json` caches bounds and georeferencing so only files
