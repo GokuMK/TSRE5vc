@@ -41,7 +41,7 @@ alpha mip coverage and atlas bleed in supported backends. Exercise missing
 resources, malformed STF and mesh-only objects. Compare fixed-path captures and
 CPU/GPU time, draw calls, triangles and memory with/without impostors.
 
-[Diffuse transmission](../renderer/35-foliage-backlighting.md) is separate.
+[Diffuse transmission](../renderer/36-foliage-backlighting.md) is separate.
 STF BacklightTexture/BacklightStrength now reference a supplied whole-tree
 RGBA atlas (sRGB tint in RGB, linear amount in A). Route it through that material
 feature when supported; an absent/unsupported optional binding must still work.

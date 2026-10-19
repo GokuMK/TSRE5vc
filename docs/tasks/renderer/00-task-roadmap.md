@@ -40,7 +40,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [ ] `35-night-textures.md` (MSTS night textures over the lit day texture: the brighter of the two as the daylight fades, at the lamps' scale (less the exposure's bias), by night as authored, lit windows at dusk; loaded below the sun at 20 degrees; a glow where they are painted brighter than the day ones (QRhi); both shape backends, QRhi and OpenGL; merged from `feature/night-textures`; later: night sub-objects, under cover by day, fake light cones, editing .sd values)
 
 New vegetation drafts (2026-10-18):
-[35 - Optional diffuse foliage backlighting](35-foliage-backlighting.md), and
+[36 - Optional diffuse foliage backlighting](36-foliage-backlighting.md), and
 the generic bulk-instance milestone in
 [terrain vegetation scattering](../terrain/terrain-vegetation-scattering.md).
 Backlighting is implemented for glTF materials on `feature/gltf-lod` (impostors

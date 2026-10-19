@@ -61,7 +61,7 @@ Both asset layouts are supplied; this task covers engine work only.
 - Tests: suite `gltf-lod` (34): internal groups in glTF and GLB, invalid
   references, default coverages, the level by coverage, the external file
   rules, the TREES_EXT spruce loaded as on a worker; diffuse transmission's
-  parsing ([task 35](../renderer/35-foliage-backlighting.md)).
+  parsing ([task 36](../renderer/36-foliage-backlighting.md)).
 - Steam Deck, 1280x800, QRhi: TREES, 479 black locusts (levels of 23,472,
   10,552 and 452 triangles), 74-101 ms to 34-43 ms a frame (before, all
   three levels drawn); the TREES_EXT spruce line, 19.1 to 17.4 ms; the levels
@@ -100,7 +100,7 @@ at equal thresholds, with no pivot jump or premature disappearance. Exercise
 FOV/scale changes, malformed references and companion gaps; keep ordinary glTF
 and MSTS shapes working. Check real PBR, cutout mips, normals, shadows and texture
 sharing on supported backends. Unsupported optional diffuse transmission must
-retain the core-PBR fallback until [task 35](../renderer/35-foliage-backlighting.md).
+retain the core-PBR fallback until [task 36](../renderer/36-foliage-backlighting.md).
 
 Capture pine/birch and profile one tree, 100 and 1,000 instances on target
 hardware. Record selected levels, draw calls, triangles, CPU submission/GPU time

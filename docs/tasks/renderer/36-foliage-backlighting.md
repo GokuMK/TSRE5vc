@@ -1,4 +1,4 @@
-# Task 35 - glTF diffuse transmission for foliage
+# Task 36 - glTF diffuse transmission for foliage
 
 Status: glTF materials implemented on `feature/gltf-lod`; impostor STF fields
 not yet (impostors are not loaded). Updated 2026-10-19.
@@ -29,6 +29,16 @@ Asset bindings are already supplied by tree-gen.
 
 Open: the impostors' `BacklightTexture`; night and overcast captures; the
 texture traffic; tuning against real leaves.
+
+Crowns stay dark seen from below at noon. The undersides do receive the
+transmitted sun, but the shadow map holds leaves opaque: almost every leaf
+seen from below lies in the shadow of others, so it gets none, where real
+light passes several layers (without the shadow on it the whole crown turns
+an even green, losing its depth). The fixtures also transmit little: the
+black locust's leaves average sRGB 73 95 38 (about 0.1 linear) and pass
+that colour at 0.55 (alpha 140), about 5 %. To try: leaves in the shadow
+map passing a share of the light for transmission, a brighter transmitted
+colour in the assets (tree-gen).
 
 ## Engine scope
 
