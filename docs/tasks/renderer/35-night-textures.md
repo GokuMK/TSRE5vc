@@ -202,9 +202,15 @@ Design (2026-10-19), on `feature/night-textures`.
   the packets carry `RenderItem::Material::nightTextureId`, resolved when
   drawing as the day texture. Under cover by day not loaded (yet).
 - The view (`RouteEditorGLWidget`): scale the lamps' constant
-  `DayLocalLights` with auto exposure, else the lamps' fade `localLights`
-  (also with lamps at full strength by day); under cover 1 without auto
-  exposure; time of day off: none.
+  `DayLocalLights` with auto exposure, less the exposure's bias, else the
+  lamps' fade `localLights` (also with lamps at full strength by day);
+  under cover 1 without auto exposure; time of day off: none.
+- The exposure's bias (user, 2026-10-19, Prudnik `ZB1`, a signal box whose
+  facade's night texture copies the day one, its roof's darkened): by night
+  the view is 1.75 stops brighter (at sunset 1.5), and the night texture
+  came out three times its own brightness, paler than in the sun (the
+  facade 226, 205, 150). Less the bias it shows as authored (182, 155, 94),
+  as Open Rails shows it: the whole box lit by night, the asset's choice.
 - The shared shader (`StandardFog.fs`): the night texture on unit 8, the
   brighter of it and the lit day texture, before the haze. The QRhi
   renderer binds it while the frame wants night textures. OpenGL compiles it

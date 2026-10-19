@@ -1285,15 +1285,19 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         exposure.biasStops = Daylight::exposureBias(sun.elevation);
     }
     // Night textures (task 35): loaded from the sun 20 degrees up, shining as
-    // the lamps do: at the lamps' constant scale with auto exposure, otherwise
-    // with the lamps' fade (also with lamps at full strength by day, which
-    // would light every building up); under cover in full without auto
+    // the lamps do: at the lamps' constant scale with auto exposure, less its
+    // bias (by night 1.75 stops brighter: a night texture copying the day one
+    // came out three times its own brightness, paler than in the sun; user,
+    // 2026-10-19, Prudnik ZB1), so that by night it shows as authored;
+    // otherwise with the lamps' fade (also with lamps at full strength by day,
+    // which would light every building up); under cover in full without auto
     // exposure.
     {
         NightTextures::Frame night;
         night.wanted = NightTextures::wantedForSun(sun.elevation, NightTextures::frame().wanted);
         if (night.wanted) {
-            night.scale = exposure.enabled ? Daylight::DayLocalLights : light.localLights;
+            night.scale = exposure.enabled ? Daylight::DayLocalLights * std::exp2(-exposure.biasStops)
+                                           : light.localLights;
             night.enclosedScale = exposure.enabled ? night.scale : 1.0f;
         }
         NightTextures::setFrame(night);
