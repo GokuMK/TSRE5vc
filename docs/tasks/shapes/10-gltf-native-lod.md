@@ -54,6 +54,8 @@ Both asset layouts are supplied; this task covers engine work only.
   defaults 0.2, 0.05, 0.001 without it; past them all the last level, so the
   final threshold hides nothing (`TSRE_SHAPE_LOD=2` does). The view's field
   of view is `core.camera.fieldOfView`; instance scale is not included yet.
+  `TSRE_SHAPE_COVERAGE_SCALE` scales the coverages, bringing the switches
+  nearer for checking them.
 - Sharing (step 4): packets per level, shared by the objects drawing it, so
   instances of a level stay instanced. Pivots and transforms kept; the
   selection box and the coverage use level 0. The Shape Viewer lists the
@@ -68,8 +70,8 @@ Both asset layouts are supplied; this task covers engine work only.
   differ by a few pixels at their switch.
 
 Open: tune the coverages after captures; instance scale; the 1, 100 and 1,000
-instance profiles with GPU time and memory; an impostor after the final
-level (world task).
+instance profiles with GPU time and memory. The impostor after the final level
+is drawn ([world task](../world/vegetation-objects.md)).
 
 ## Supplied fixtures
 
