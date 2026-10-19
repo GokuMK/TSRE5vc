@@ -11,6 +11,8 @@
 #include <tsre/shape/ShapeLod.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
+#include <settings/SettingsManager.h>
 #include <QtGlobal>
 #include <algorithm>
 #include <cmath>
@@ -41,21 +43,55 @@ float coverage(const ComplexShape &shape, const Place &place, float fieldOfView)
     return view > 1e-6f ? extent / view : 1e6f;
 }
 
-float coverageScale() {
-    static const float scale = [] {
+namespace {
+
+const char *const LodBiasKey = "core.rendering.lodBias";
+int bias = 0;
+bool biasRead = false;
+
+int readBias() {
+    return std::clamp(Settings::integer(LodBiasKey), -100, 100);
+}
+
+}
+
+int lodBias() {
+    // Read once, then as the profile changes: never per object.
+    if (!biasRead) {
+        biasRead = true;
+        bias = readBias();
+        QObject::connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged,
+                         [](const QStringList &keys) {
+            if (keys.contains(QString::fromLatin1(LodBiasKey)))
+                bias = readBias();
+        });
+    }
+    return bias;
+}
+
+int forcedLevel() {
+    static const int forced = [] {
         bool ok = false;
-        const float value = qEnvironmentVariable("TSRE_SHAPE_COVERAGE_SCALE").toFloat(&ok);
-        return ok && value > 0.0f ? value : 1.0f;
+        const int value = qEnvironmentVariable("TSRE_SHAPE_LEVEL").toInt(&ok);
+        return ok && value >= 0 ? value : -1;
     }();
-    return scale;
+    return forced;
 }
 
 int level(const ComplexShape &shape, const Place &place) {
     const int count = shape.distanceLevelCount();
     if (count <= 0)
         return 0;
+    if (forcedLevel() >= 0)
+        return std::min(forcedLevel(), count - 1);
+    // The LOD bias's ends: always the most detailed level, or the least.
+    if (lodBias() >= 100)
+        return 0;
+    if (lodBias() <= -100)
+        return count - 1;
+    const float detail = 1.0f + lodBias() / 100.0f;
     if (shape.distanceLevelCoverage(0) > 0.0f) {
-        const float covered = coverage(shape, place, Game::cameraFov) / coverageScale();
+        const float covered = coverage(shape, place, Game::cameraFov) * detail;
         for (int i = 0; i < count - 1; ++i)
             if (covered > shape.distanceLevelCoverage(i))
                 return i;
@@ -64,7 +100,7 @@ int level(const ComplexShape &shape, const Place &place) {
     // The shape's size is its bounding box's diagonal.
     const float radius = shape.getSize() * 0.5f;
     for (int i = 0; i < count; ++i)
-        if (place.distance < shape.distanceLevelDistance(i) + radius)
+        if (place.distance < shape.distanceLevelDistance(i) * detail + radius)
             return i;
     return mode() == Mode::Cull ? -1 : count - 1;
 }

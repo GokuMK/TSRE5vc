@@ -54,8 +54,10 @@ Both asset layouts are supplied; this task covers engine work only.
   defaults 0.2, 0.05, 0.001 without it; past them all the last level, so the
   final threshold hides nothing (`TSRE_SHAPE_LOD=2` does). The view's field
   of view is `core.camera.fieldOfView`; instance scale is not included yet.
-  `TSRE_SHAPE_COVERAGE_SCALE` scales the coverages, bringing the switches
-  nearer for checking them.
+  The LOD bias (`core.rendering.lodBias`, -100 to 100, as Open Rails')
+  divides the coverages (and scales MSTS distances) by 1 + bias / 100; 100
+  always draws level 0, -100 the last level. `TSRE_SHAPE_LEVEL` forces one
+  level everywhere, to compare levels in captures.
 - Sharing (step 4): packets per level, shared by the objects drawing it, so
   instances of a level stay instanced. Pivots and transforms kept; the
   selection box and the coverage use level 0. The Shape Viewer lists the

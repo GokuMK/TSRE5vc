@@ -37,9 +37,15 @@ namespace ShapeLod {
 enum class Mode { Off, Levels, Cull };
 Mode mode();
 
-// TSRE_SHAPE_COVERAGE_SCALE (read once, 1 unset): the glTF coverages scaled,
-// to bring the levels' switches nearer (above 1) for checking them.
-float coverageScale();
+// The level of detail bias (core.rendering.lodBias, -100 to 100), as Open
+// Rails' LOD bias: distances scaled and coverages divided by 1 + bias / 100,
+// so above 0 the detailed levels reach farther, below 0 less far (weaker
+// hardware); 100 always draws the most detailed level, -100 the least
+// detailed (tree impostors). Read once and when the profile changes.
+int lodBias();
+// TSRE_SHAPE_LEVEL (read once, -1 unset): every shape with levels draws this
+// one (its last when it has fewer), to compare the levels in captures.
+int forcedLevel();
 
 // Where an object is from the camera: the horizontal distance to its origin
 // and the height of its origin above the camera (metres); for impostors, the

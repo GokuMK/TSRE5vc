@@ -30,9 +30,9 @@ Prerequisite: [native glTF LOD loading](../shapes/10-gltf-native-lod.md).
 - Quads are not turned to the camera: a frame is within about 15 degrees of
   the view; the frame switches as the view goes round. Shadows: the quad of
   the frame seen by the camera. The selection box stays the meshes'.
-- Checking: `TSRE_SHAPE_COVERAGE_SCALE` scales the glTF coverages; the
-  fixtures' 0.001 starts impostors some 17 km away for an 18 m tree. TREES_EXT
-  with scale 60 and 1000: impostors in place, size and outline of the meshes,
+- Checking: the fixtures' placeholder 0.001 starts impostors some 17 km away
+  for an 18 m tree. With the coverages scaled 60 and 1000 times (now the LOD
+  bias, -100 for impostors everywhere, or `TSRE_SHAPE_LEVEL`) on TREES_EXT: impostors in place, size and outline of the meshes,
   not mirrored, casting shadows; fuller than level 2's clusters. The near
   spruce view: 21.7 ms with meshes, 15.6 ms all impostors.
 - Tests: suite `gltf-lod` (41): Append after internal levels, the frame by

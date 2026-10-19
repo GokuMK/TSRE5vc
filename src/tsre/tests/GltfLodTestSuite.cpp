@@ -5,6 +5,8 @@
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/shape/GltfShape.h>
 #include <tsre/shape/ShapeLod.h>
+#include <settings/SettingsManager.h>
+#include <QScopeGuard>
 #include <QFile>
 #include <QScopedValueRollback>
 #include <QTemporaryDir>
@@ -395,6 +397,10 @@ Impostor (
     // 10 m high; with a 55 degree view, coverage 0.3 is reached within 32 m,
     // 0.1 within 96 m.
     {
+        // The LOD bias pinned, the profile's back after.
+        auto pinLodBias = [](int value) { SettingsManager::instance().setSessionValue("core.rendering.lodBias", value); };
+        const auto unpinLodBias = qScopeGuard([] { SettingsManager::instance().clearSessionValue("core.rendering.lodBias"); });
+        pinLodBias(0);
         QScopedValueRollback<float> fov(Game::cameraFov, 55.0f);
         Loaded shape = load(dir, "select.gltf", gltf(lodNodes("[2, 3]")));
         // The bounds' middle at the camera's height.
@@ -405,6 +411,10 @@ Impostor (
                    "levels by coverage: 0 within 32 m, 1 within 96 m, then 2");
         if (ShapeLod::mode() == ShapeLod::Mode::Levels)
             test.check(level(5000.0f) == 2, "the last level past them all");
+        // Coverages divided by 1 + bias / 100: at 45 m, level 1 at 0, level 0 at 50.
+        const int unbiased = level(45.0f);
+        pinLodBias(50);
+        test.check(unbiased == 1 && level(45.0f) == 0, "LOD bias 50: level 0 half as far again");
     }
     return test.finish();
 }
