@@ -23,6 +23,11 @@ class ObjTools : public QWidget{
 
 public:
     ObjTools(QString name);
+    // A separation as the flex tool offers it: in metres (and in the units
+    // the editors show when those are not metres) with its shape families,
+    // "4.985 m: A, SR, eb...", the families at most FamiliesText characters.
+    static constexpr int FamiliesText = 20;
+    static QString separationText(const TSectionDAT::Separation &separation);
     virtual ~ObjTools();
     
 public slots:

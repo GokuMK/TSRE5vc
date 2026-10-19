@@ -8,6 +8,7 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
+#include <routeEditor/ObjTools.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/units/UnitConversion.h>
 
@@ -42,18 +43,22 @@ int TsreTests::runUnitsContentSuite(bool verbose) {
         ActLib::AddAct(QFileInfo(path).path(), QFileInfo(path).fileName());
     test.check(activities.isEmpty() || !ActLib::Act.isEmpty(), QString("activities read: %1").arg(ActLib::Act.size()));
     // The separations of the global tsection.dat's shapes with parallel
-    // tracks and lanes (the flex tool's presets), the most used first.
+    // tracks and lanes, as the flex tool offers them (the most used first,
+    // the families' text limited).
     TSectionDAT tsection(false, false);
+    bool short_ = true;
     for (const bool road : {false, true}) {
         QStringList listed;
         const QVector<TSectionDAT::Separation> separations = tsection.parallelSeparations(road);
-        for (int i = 0; i < separations.size() && i < 8; ++i)
-            listed << QString("%1 (%2 shapes: %3)")
-                          .arg(Units::format(separations[i].metres, Units::Quantity::Length, Units::System::Metric, 4))
-                          .arg(separations[i].shapes)
-                          .arg(QStringList(separations[i].families.mid(0, 4)).join(" "));
+        for (int i = 0; i < separations.size() && i < 12; ++i) {
+            const QString text = ObjTools::separationText(separations[i]);
+            const qsizetype colon = text.indexOf(": ");
+            short_ = short_ && (colon < 0 || text.size() - colon - 2 <= ObjTools::FamiliesText);
+            listed << text;
+        }
         qInfo().noquote() << "[tests:units-content]" << (road ? "road lanes:" : "track separations:")
-                          << listed.join(", ");
+                          << listed.join(" | ");
     }
+    test.check(short_, "the separations' families at most ObjTools::FamiliesText characters");
     return test.finish();
 }

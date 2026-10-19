@@ -1010,27 +1010,44 @@ void ObjTools::continuousFlexOptionsChanged(){
             continuousProfile.currentData().toString());
 }
 
-// The separations, in metres as the shapes have them (and in the units
-// the editors show when those are not metres), with the shape families
-// that have them ("4.985 m: A, SR, eb, tunnel..."); how many shapes, and
-// one, in the tooltip.
+QString ObjTools::separationText(const TSectionDAT::Separation &separation){
+    QString value = Units::format(separation.metres, Units::Quantity::Length, Units::System::Metric, 4);
+    if(Units::system() != Units::System::Metric)
+        value += QString(" (%1)").arg(Units::format(separation.metres, Units::Quantity::Length, 4));
+    // As many families as fit with the "..." after them when more follow,
+    // the most used first; a first one too long cut.
+    const QChar more(0x2026);
+    QStringList named;
+    for(const QString &family : separation.families)
+        if(!family.isEmpty())
+            named << family;
+    QString families;
+    for(int i = 0; i < named.size(); i++){
+        const QString next = families.isEmpty() ? named[i] : families + ", " + named[i];
+        const bool last = i + 1 == named.size();
+        if(next.size() + (last ? 0 : 1) <= FamiliesText){
+            families = next;
+            continue;
+        }
+        families = families.isEmpty() ? named[i].left(FamiliesText - 1) + more : families + more;
+        break;
+    }
+    if(families.isEmpty())
+        return value;
+    //% "%1: %2"
+    return qtTrId("route.editor.obj.tools.separation.preset.families").arg(value, families);
+}
+
+// The separations, the most used first, with their families
+// (separationText); how many shapes, and one, in the tooltip.
 void ObjTools::fillSeparationPresets(){
     QMenu *menu = continuousFlexSeparationPresets.menu();
     menu->clear();
     menu->setToolTipsVisible(true);
-    const bool metric = Units::system() == Units::System::Metric;
     for(int i = 0; i < continuousFlexTrackSeparations.size() && i < 12; i++){
         const TSectionDAT::Separation &separation = continuousFlexTrackSeparations[i];
         const double metres = separation.metres;
-        QString value = Units::format(metres, Units::Quantity::Length, Units::System::Metric, 4);
-        if(!metric)
-            value += QString(" (%1)").arg(Units::format(metres, Units::Quantity::Length, 4));
-        QString families = QStringList(separation.families.mid(0, 4)).join(", ");
-        if(separation.families.size() > 4)
-            families += QString::fromUtf8("\u2026");
-        QAction *action = menu->addAction(
-                //% "%1: %2"
-                qtTrId("route.editor.obj.tools.separation.preset.families").arg(value, families));
+        QAction *action = menu->addAction(separationText(separation));
         action->setToolTip(
                 //% "%1 shapes, such as %2"
                 qtTrId("route.editor.obj.tools.separation.preset.shapes")
