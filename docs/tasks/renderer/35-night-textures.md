@@ -78,14 +78,18 @@ Also: MSTS night sub-objects.
 The MSTS shape material gets an optional night texture and its numbers
 (on, k):
 
-    colour = lit(day) + L x (N x night + G x max(night - k x day, 0))
+    colour = max(lit(day), L x N x night) + L x G x max(night - k x day, 0)
 
 - L, lights on, as the lamps have it: with tone mapping off the lamps'
   fade (`Daylight` `localLights`: full at night, `DayLocalLights` by day);
   with auto exposure 1, constant, the exposure hiding it by day and showing
   it as the sun weakens (lamps' fade is off there too). 1 under cover.
 - N, the self-lit base: the level that shows the raw night texture at its
-  own brightness at night, as Open Rails does. The scale of a surface lit
+  own brightness at night, as Open Rails does; the brighter of it and the
+  lit day texture (in linear terms). Added, a night texture copying the day
+  one doubled a facade still lit by the dusk (the lamps' scale is full from
+  sunset; CMK at 20:00, the facade nearly white): the brighter of the two
+  never exceeds either. The scale of a surface lit
   by a lamp, not of an emitter: real lit windows are about 1 % of a sunlit
   wall, so under auto exposure they are invisible by day except in deep
   shadow, and clear at night (as an emitter, as signal lenses at 4 times
@@ -176,12 +180,42 @@ sub-objects (step 5).
   task's added night light.
 - **Fake light cones** (user, 2026-10-19): MSTS content fakes lamps' light
   with translucent cone geometry, which looks awful with TSRE's real lamps
-  and fog. Idea: leave out primitives with alpha under 255; to review
-  later. Glass, foliage, smoke and water are translucent too: cones need
-  telling apart (a texture without an opaque texel on additive or blended
-  geometry, its shape, its name). The road cars' night sub-objects may be
-  such cones.
+  and fog. Idea: in shapes with night textures (foliage, smoke and water do
+  not use them), leave out blended texels with alpha under 0.9 (not 1:
+  alpha-tested cutouts stay); to review later. The road cars' night
+  sub-objects may be such cones.
 
 ## Implementation status
 
 Design (2026-10-19), on `feature/night-textures`.
+
+### Steps 1 and 2: loading and the self-lit base (2026-10-19)
+
+- `NightTextures` (shape): the lookup (a `Night` folder in any case next to
+  the texture, else one level up; an .ace name finds the .dds), looked up
+  once per folder; the frame's state (wanted, scale, under cover) set by the
+  view; loaded below the sun at 20 degrees, released above 23.
+- Both MSTS shape backends: `SFileLegacy` (the editor's for now) and
+  `SFileComplex` (Compact, the editor's next; user: prepare both). The
+  night bit read with the season bits; a shape holds its night textures
+  while the frame wants them (TexLib references) and releases them by day;
+  the packets carry `RenderItem::Material::nightTextureId`, resolved when
+  drawing as the day texture. Under cover by day not loaded (yet).
+- The view (`RouteEditorGLWidget`): scale the lamps' constant
+  `DayLocalLights` with auto exposure, else the lamps' fade `localLights`
+  (also with lamps at full strength by day); under cover 1 without auto
+  exposure; time of day off: none.
+- The shared shader (`StandardFog.fs`): the night texture on unit 8, the
+  brighter of it and the lit day texture, before the haze. The QRhi
+  renderer binds it while the frame wants night textures. OpenGL compiles it
+  and leaves it off (step 4).
+- Suite `night-textures` (12): the lookup (TEXTURES/NIGHT, from SPRING one
+  level up, none, .dds, any case), the load and release elevations, CMK's
+  textures.
+- Captures (CMK, tile -5310 -14961, the u79haus row houses, clear, auto
+  exposure): noon unchanged (night textures not loaded); from 19:00 the
+  windows' light faint, at sunset (20:00 in that date) facades whose night
+  textures copy the day ones lit, at 22:00 the night look: lit windows,
+  street fronts lit as authored, darkened sides dark, far roofs with copied
+  night textures bright, as in Open Rails. Legacy and Compact pixel for
+  pixel the same (noon, 20:00, 22:00).

@@ -43,6 +43,8 @@ constexpr int FogVolumeBinding = 30;
 constexpr int FogFloorBinding = 31;
 // The terrain's shade of a low sun past the shadow maps (TerrainShade).
 constexpr int TerrainShadeBinding = 32;
+// MSTS night textures (task 35): a unit no program uses otherwise.
+constexpr int NightTextureBinding = 8;
 
 // Vertex attribute locations (as GLUU binds them), and the per-instance
 // matrix columns the QRhi renderer adds.

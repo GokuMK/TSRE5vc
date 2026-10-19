@@ -45,6 +45,12 @@ uniform sampler2DShadow shadow1;
 uniform sampler2DShadow shadow2;
 uniform sampler2DShadow shadow0;
 uniform float secondTexEnabled;
+// MSTS night texture (task 35): 1 when the packet has one; its light's scale
+// (linear, as the lamps'), and under cover.
+uniform sampler2D uNightSampler;
+uniform float nightTextureEnabled;
+uniform float nightScale;
+uniform float nightEnclosedScale;
 uniform mat4 uMVMatrix;
 flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
@@ -187,6 +193,21 @@ void main() {
                               fragColor.a);
 #endif
             fragColor.xyz *= color*colorBrightness;
+            // The night texture's light (task 35) over the lit day texture, the
+            // brighter of the two in linear terms: by night the shape as its
+            // author made it, lit windows at dusk and in shadow; under cover as
+            // the lamps. (Added, a night texture copying the day one doubled a
+            // facade still lit by the dusk: the lamps' scale is full from
+            // sunset.)
+            if (nightTextureEnabled != 0.0) {
+#ifdef TSRE_RHI
+                float nightLight = mix(nightScale, nightEnclosedScale, enclosed);
+#else
+                float nightLight = nightScale;
+#endif
+                vec3 night = pow(texture(uNightSampler, vTextureCoord).rgb, vec3(2.2)) * (nightLight * colorBrightness);
+                fragColor.rgb = pow(max(pow(max(fragColor.rgb, vec3(0.0)), vec3(2.2)), night), vec3(1.0 / 2.2));
+            }
 
             // Fog tints the colour only; mixing alpha towards the sky's 1 made
             // translucent surfaces turn opaque with distance.

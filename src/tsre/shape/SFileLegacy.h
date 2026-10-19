@@ -111,6 +111,11 @@ public:
         QString name;
         int tex = 0;
         int texAddr = -1;
+        // Night texture (task 35): its file (looked up once: 0 not yet, 1
+        // found, -1 none) and its TexLib texture while held.
+        QString nightFile;
+        signed char night = 0;
+        int nightTex = -1;
     };
 
     struct fpoint {
@@ -285,6 +290,10 @@ private:
     void clearAnimatedPackets();
     unsigned char gatherSurface(int primState) const;
     void setGatherTexture(RenderItem *item, int primState, bool texEnabled);
+    // Night textures (task 35): held while the frame wants them, released by
+    // day; the packets are rebuilt when that changes.
+    bool nightHeld = false;
+    void releaseNightTextures();
     void clearData();
     void releaseMeshes();
 public:
