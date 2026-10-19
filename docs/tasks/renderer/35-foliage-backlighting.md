@@ -1,7 +1,34 @@
 # Task 35 - glTF diffuse transmission for foliage
 
-Status: TSRE implementation draft, not started. Updated 2026-10-19.
+Status: glTF materials implemented on `feature/gltf-lod`; impostor STF fields
+not yet (impostors are not loaded). Updated 2026-10-19.
 Asset bindings are already supplied by tree-gen.
+
+## Implementation (feature/gltf-lod, 2026-10-19)
+
+- Parsed: both factors and both texture infos (texture coordinates,
+  KHR_texture_transform and sampler wrap as for the other maps) into
+  `RenderItem::Pbr` (`diffuseTransmission`, `diffuseTransmissionColor`,
+  `MAP_DIFFUSE_TRANSMISSION` and `_COLOR`), on OpenGL units 21 and 20 (where
+  the driver has them) and QRhi bindings 21 and 33.
+- Shading (`PbrShading.glsl`, both renderers): amount = factor x the map's
+  alpha (linear); colour = factor x the map's colour (sRGB), not multiplied
+  by the base colour. The front diffuse keeps 1 - amount; the far side gets
+  Lambert on -N from the sun (with its shadow), the lamps (QRhi) and the
+  environment's irradiance from -N, each less the Fresnel of the light
+  mirrored to the viewer's side (as the Khronos sample viewer). Metals get
+  none; specular transmission takes its share first. No refraction, scene
+  copy, blending or emission. Two-sided surfaces turn their normal to the
+  viewer, so the far side is a light behind the leaf.
+- Mipmaps: TSRE builds them with `glGenerateMipmap` and scales no alpha for
+  coverage, so the amount's mipmaps are plain averages.
+- TREES captures: toward a low sun, the outer leaves the sun passes through
+  turn green instead of black and the inner ones stay in their shadow; with
+  the sun behind the camera nothing changes (no glow). About 1-2 ms more
+  looking at the sun, none measurable otherwise.
+
+Open: the impostors' `BacklightTexture`; night and overcast captures; the
+texture traffic; tuning against real leaves.
 
 ## Engine scope
 

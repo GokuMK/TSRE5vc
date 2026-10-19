@@ -1,6 +1,7 @@
 # Task 10 - Native glTF mesh LODs
 
-Status: TSRE implementation draft, not started. Updated 2026-10-19.
+Status: steps 1, 2 and 4 implemented on `feature/gltf-lod`; step 3's metric
+defined, its values still to tune. Updated 2026-10-19.
 Both asset layouts are supplied; this task covers engine work only.
 
 ## Engine scope
@@ -23,6 +24,52 @@ Both asset layouts are supplied; this task covers engine work only.
    while batching compatible instances. Preserve pivots, transforms and bounds.
    Keep the final mesh end boundary available to a future appended impostor;
    do not make it an unconditional whole-object visibility cutoff.
+
+## Implementation (feature/gltf-lod, 2026-10-19)
+
+- Internal (step 2): `GltfShape` reads `MSFT_lod.ids` (with `MSFT_lod` in
+  `extensionsUsed`) and `extras.MSFT_screencoverage` per node. From the
+  scene's roots each node is common (drawn at every level) or of one level;
+  the nodes a group names stand in for it under its parent. A group naming
+  invalid nodes (out of range, itself, nodes of the scene or of another
+  group, a cycle), nested in a level, or without the extension in
+  `extensionsUsed` draws level 0 only, with a warning; the nodes it names
+  outside the scene are not drawn. Before, every node with a mesh was drawn:
+  all levels on top of each other.
+- External (step 1): beside `tree.gltf` (or `tree_LOD00.gltf`, the same level
+  0) the files `tree_lod01.gltf`, `tree_lod02.gltf`... of the entry's format
+  (`.glb` beside `.glb`). Their names are not referenced, so by TSRE's file
+  name rules the part TSRE adds is lowercase (the referenced stem kept, as an
+  `.sd` beside its `.s`) and no other spelling is looked for: the supplied
+  `_LOD01` fixtures open on Windows only, an asset defect to report to
+  tree-gen. Consecutive from 1: a missing number or a file that does not load
+  ends them, with a warning. Internal levels take precedence over level
+  files. Level files load on the worker into the same shape.
+- Selection (step 3): `ShapeLod` (shared with the MSTS distance levels,
+  [task 11](11-msts-distance-levels.md)) picks each object's level by screen
+  coverage: the largest extent of level 0's bounds over the height the view
+  spans at the 3D distance to the bounds' middle, `2 d tan(fov / 2)` (Unity's
+  relative height, which Open Rails says it follows; it projects the box's
+  corners). Level i draws above `MSFT_screencoverage[i]`, Open Rails'
+  defaults 0.2, 0.05, 0.001 without it; past them all the last level, so the
+  final threshold hides nothing (`TSRE_SHAPE_LOD=2` does). The view's field
+  of view is `core.camera.fieldOfView`; instance scale is not included yet.
+- Sharing (step 4): packets per level, shared by the objects drawing it, so
+  instances of a level stay instanced. Pivots and transforms kept; the
+  selection box and the coverage use level 0. The Shape Viewer lists the
+  levels.
+- Tests: suite `gltf-lod` (34): internal groups in glTF and GLB, invalid
+  references, default coverages, the level by coverage, the external file
+  rules, the TREES_EXT spruce loaded as on a worker; diffuse transmission's
+  parsing ([task 35](../renderer/35-foliage-backlighting.md)).
+- Steam Deck, 1280x800, QRhi: TREES, 479 black locusts (levels of 23,472,
+  10,552 and 452 triangles), 74-101 ms to 34-43 ms a frame (before, all
+  three levels drawn); the TREES_EXT spruce line, 19.1 to 17.4 ms; the levels
+  differ by a few pixels at their switch.
+
+Open: tune the coverages after captures; instance scale; the 1, 100 and 1,000
+instance profiles with GPU time and memory; an impostor after the final
+level (world task).
 
 ## Supplied fixtures
 
