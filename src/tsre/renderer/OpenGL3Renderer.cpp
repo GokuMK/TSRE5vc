@@ -17,6 +17,7 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/RenderSurface.h>
+#include <tsre/shape/NightTextures.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLFunctions>
 #include <QOpenGLContext>
@@ -185,6 +186,17 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
     if(item->material.textured && resolveTexture(item, address)){
         gluu->enableTextures();
         gluu->bindTexture(f, address);
+        // Its night texture (task 35) while the frame wants them.
+        unsigned int night = 0;
+        const bool nightOn = selectionId == 0 && item->material.nightTextureId >= 0
+                && NightTextures::frame().wanted && NightTextures::TextureUnit < textureUnitCount()
+                && resolveTexLibTexture(item->material.nightTextureId, night);
+        if(nightOn){
+            f->glActiveTexture(GL_TEXTURE0 + NightTextures::TextureUnit);
+            f->glBindTexture(GL_TEXTURE_2D, night);
+            f->glActiveTexture(GL_TEXTURE0);
+        }
+        gluu->currentShader->setUniformValue(gluu->currentShader->nightTextureEnabled, nightOn ? 1.0f : 0.0f);
     } else if(item->material.textured){
         gluu->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
     } else {

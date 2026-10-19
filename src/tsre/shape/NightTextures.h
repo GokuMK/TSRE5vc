@@ -17,11 +17,16 @@
 // night bit in ESD_Alternative_Texture has, for each of its textures, a night
 // texture of the same name in a Night folder. MSTS and Open Rails draw it
 // instead of the day texture after sunset, fully bright; TSRE keeps the day
-// texture lit and adds the night texture's light as the daylight fades.
+// texture lit and draws the brighter of it and the night texture's light,
+// which grows as the daylight fades.
 namespace NightTextures {
 
 // The night bit of ESD_Alternative_Texture.
 constexpr int AlternativeFlag = 0x100;
+// The texture unit of the night texture (uNightSampler) in both renderers:
+// one no variant of the main program uses otherwise (8 is OpenGL's instance
+// matrices).
+constexpr int TextureUnit = 13;
 
 // The night texture of a texture (the folder it is loaded from, its file
 // name) as Open Rails finds it: in a Night folder next to it, else in one

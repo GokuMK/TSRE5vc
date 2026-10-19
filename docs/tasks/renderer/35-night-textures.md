@@ -164,6 +164,15 @@ lights' geometry (perhaps fake light cones, see below).
 Proposed, to confirm: OpenGL with the self-lit base (step 4); night
 sub-objects (step 5).
 
+### Step 4: OpenGL (2026-10-19)
+
+- GLUU gives `uNightSampler` its unit and caches `nightTextureEnabled` and
+  `nightScale`, the scale per frame (the lamps' fade: no auto exposure
+  there); `OpenGL3Renderer` binds a packet's night texture while the frame
+  wants them. No glow (no HDR).
+- Captures (the CMK row houses, `core.rendering.backend=opengl`): noon as
+  before, at 20:00 and 22:00 lit windows and street fronts as on QRhi.
+
 ## Related, later
 
 - **Light materials** (`vtx_state` light material): Open Rails maps -5
@@ -211,10 +220,10 @@ Design (2026-10-19), on `feature/night-textures`.
   came out three times its own brightness, paler than in the sun (the
   facade 226, 205, 150). Less the bias it shows as authored (182, 155, 94),
   as Open Rails shows it: the whole box lit by night, the asset's choice.
-- The shared shader (`StandardFog.fs`): the night texture on unit 8, the
-  brighter of it and the lit day texture, before the haze. The QRhi
-  renderer binds it while the frame wants night textures. OpenGL compiles it
-  and leaves it off (step 4).
+- The shared shader (`StandardFog.fs`, the main program only): the night
+  texture on unit 13 (`NightTextures::TextureUnit`; 8 is OpenGL's instance
+  matrices), the brighter of it and the lit day texture, before the haze.
+  The QRhi renderer binds it while the frame wants night textures.
 - Suite `night-textures` (12): the lookup (TEXTURES/NIGHT, from SPRING one
   level up, none, .dds, any case), the load and release elevations, CMK's
   textures.
