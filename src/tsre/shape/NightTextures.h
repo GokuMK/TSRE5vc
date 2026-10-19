@@ -29,10 +29,11 @@ constexpr int AlternativeFlag = 0x100;
 constexpr int TextureUnit = 13;
 
 // The night texture of a texture (the folder it is loaded from, its file
-// name) as Open Rails finds it: in a Night folder next to it, else in one
+// name) as Open Rails finds it: in a NIGHT folder next to it, else in one
 // a level up (TEXTURES/NIGHT for a seasonal TEXTURES/SPRING texture), the
-// folder's name in any case; an .ace name also finds the .dds, as the day
-// textures do. Empty when there is none. Folders are looked up once.
+// folder spelt NIGHT as TSRE's file name rules spell season directories;
+// an .ace name also finds the .dds, as the day textures do. Empty when
+// there is none.
 QString find(const QString &textureFolder, const QString &name);
 
 // This frame's night textures, set by the view before it draws.
