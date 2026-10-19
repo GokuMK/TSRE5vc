@@ -41,12 +41,21 @@ float coverage(const ComplexShape &shape, const Place &place, float fieldOfView)
     return view > 1e-6f ? extent / view : 1e6f;
 }
 
+float coverageScale() {
+    static const float scale = [] {
+        bool ok = false;
+        const float value = qEnvironmentVariable("TSRE_SHAPE_COVERAGE_SCALE").toFloat(&ok);
+        return ok && value > 0.0f ? value : 1.0f;
+    }();
+    return scale;
+}
+
 int level(const ComplexShape &shape, const Place &place) {
     const int count = shape.distanceLevelCount();
     if (count <= 0)
         return 0;
     if (shape.distanceLevelCoverage(0) > 0.0f) {
-        const float covered = coverage(shape, place, Game::cameraFov);
+        const float covered = coverage(shape, place, Game::cameraFov) / coverageScale();
         for (int i = 0; i < count - 1; ++i)
             if (covered > shape.distanceLevelCoverage(i))
                 return i;
@@ -61,6 +70,20 @@ int level(const ComplexShape &shape, const Place &place) {
 }
 
 bool apply(ComplexShape &shape, unsigned int stateId, const Place &place) {
+    if (place.transform != nullptr) {
+        // Into the shape's space: the transform's rotation, transposed.
+        const float *m = place.transform;
+        const float *t = place.toCamera;
+        float local[3];
+        for (int i = 0; i < 3; ++i)
+            local[i] = m[i * 4] * t[0] + m[i * 4 + 1] * t[1] + m[i * 4 + 2] * t[2];
+        const float length = std::sqrt(local[0] * local[0] + local[1] * local[1] + local[2] * local[2]);
+        if (length > 1e-6f) {
+            for (float &c : local)
+                c /= length;
+            shape.setCameraDirection(stateId, local);
+        }
+    }
     if (mode() == Mode::Off)
         return true;
     const int chosen = level(shape, place);

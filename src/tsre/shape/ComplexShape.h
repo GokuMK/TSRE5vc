@@ -71,6 +71,12 @@ public:
     virtual int distanceLevelCount() const;
     virtual float distanceLevelDistance(int level) const;
     virtual float distanceLevelCoverage(int level) const;
+    // The direction from the object to the camera in the shape's space (unit),
+    // set each frame (ShapeLod): impostors pick their view by it.
+    virtual void setCameraDirection(unsigned int stateId, const float direction[3]) {
+        (void)stateId;
+        (void)direction;
+    }
     virtual void enableSubObjByName(unsigned int stateId, const QString& name, bool val);
     virtual void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val);
     virtual void updateSim(float deltaTime, unsigned int stateId = 0) = 0;

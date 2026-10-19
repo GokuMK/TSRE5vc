@@ -53,6 +53,7 @@ public:
     void setCurrentDistanceLevel(unsigned int stateId, int level) override;
     int distanceLevelCount() const override;
     float distanceLevelCoverage(int level) const override;
+    void setCameraDirection(unsigned int stateId, const float direction[3]) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
 
     void pushRenderItem(RenderQueue &queue) override;
@@ -71,6 +72,8 @@ private:
         bool animated = false;
         // The level of detail drawn (MSFT_lod), set by ShapeLod.
         int level = 0;
+        // The impostor's frame facing the camera, set by ShapeLod.
+        int frame = 0;
     };
 
     struct MaterialRuntime {
@@ -115,6 +118,8 @@ private:
         // last level of its node's group, drawn for the levels past it.
         int level = -1;
         int lastLevel = 0;
+        // The impostor's frame it draws (-1 for meshes).
+        int frame = -1;
         bool drawnAt(int shapeLevel) const {
             return level < 0 || level == std::min(shapeLevel, lastLevel);
         }
@@ -148,6 +153,10 @@ private:
     QVector<float> rootCoverage;
     // Whether external levels are looked for (not in a level file itself).
     bool discoverLevels = true;
+    // The impostor's level (-1 without one) and its frames' directions
+    // (three values each): only its quads draw at that level.
+    int impostorLevel = -1;
+    QVector<float> impostorDirections;
 
     bool requiresUpdate = false;
 
@@ -178,6 +187,10 @@ private:
     // and appended (appendLevel()) as levels 1, 2...
     void loadExternalLevels();
     void appendLevel(GltfShape &level, int index, int lastLevel);
+    // The impostor beside the shape ("tree.impostor"): a quad per frame, in
+    // the frame's capture plane, after the last mesh level (Append) or
+    // instead of it (ReplaceLast).
+    void loadImpostor();
     void syncTextureAddresses();
     unsigned long long getTextureStateHash() const;
 };

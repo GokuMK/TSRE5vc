@@ -266,6 +266,73 @@ int TsreTests::runGltfLodSuite(bool verbose) {
                    "external levels without MSFT_screencoverage: Open Rails' defaults");
     }
 
+    // Impostors: "tree.impostor" beside the shape, a quad per frame.
+    {
+        auto write = [&](const QString &name, const QByteArray &bytes) {
+            QDir().mkpath(QFileInfo(dir.filePath(name)).path());
+            QFile file(dir.filePath(name));
+            if (file.open(QIODevice::WriteOnly))
+                file.write(bytes);
+        };
+        auto stf = [](const QString &binding, int version = 1) {
+            return QString(R"(SIMISA@@@@@@@@@@JINX0t1t______
+
+Impostor (
+	Version ( %1 )
+	ColorTexture ( "tree-impostor-color.png" )
+	NormalTexture ( "tree-impostor-normal.png" )
+	BacklightTexture ( "tree-impostor-diffuse-transmission.png" )
+	BacklightStrength ( 1 )
+	AlphaCutoff ( 0.5 )
+	LodBinding ( %2 )
+	Pivot ( 0 0 0 )
+	Bounds ( -1 0 -1 1 10 1 )
+	Frames (
+		Frame ( Direction ( 0 0 1 ) UVRect ( 0 0 0.5 1 ) Extent ( -1 1 0 10 ) )
+		Frame ( Direction ( 1 0 0 ) UVRect ( 0.5 0 1 1 ) Extent ( -1 1 0 10 ) )
+	)
+)
+)").arg(version).arg(binding).toUtf8();
+        };
+        write("imp/tree.impostor", stf("Append"));
+        Loaded tree = load(dir, "imp/tree.gltf", gltf(lodNodes("[2, 3]")));
+        test.check(tree.shape->distanceLevelCount() == 4 && tree.shape->distanceLevelCoverage(2) == 0.01f,
+                   "impostor appended: a level after the last mesh level, from its coverage");
+        auto impostorPacket = [&](Loaded &shape, int level, const float *direction) -> const RenderItem * {
+            PacketRecorder recorder;
+            shape.shape->setCurrentDistanceLevel(shape.state, level);
+            shape.shape->setCameraDirection(shape.state, direction);
+            shape.shape->pushRenderItem(recorder, 0, shape.state);
+            return recorder.packets.size() == 1 && recorder.packets[0]->mesh.count == 6 ? recorder.packets[0] : nullptr;
+        };
+        const float front[3] = {0.0f, 0.0f, 1.0f}, side[3] = {0.8f, 0.0f, 0.6f};
+        const RenderItem *facing = impostorPacket(tree, 3, front);
+        const RenderItem *turned = impostorPacket(tree, 3, side);
+        test.check(facing != nullptr && turned != nullptr && facing != turned,
+                   "impostor: one quad, of the frame nearest to the camera's direction");
+        test.check(facing != nullptr && facing->material.surface == RenderItem::SURFACE_ALPHA_TEST
+                       && facing->pbr.textures[RenderItem::Pbr::MAP_NORMAL] >= 0
+                       && facing->pbr.textures[RenderItem::Pbr::MAP_DIFFUSE_TRANSMISSION] >= 0
+                       && facing->pbr.diffuseTransmission == 1.0f,
+                   "impostor: cutout, normal map and backlight");
+        test.check(drawn(tree, 2).counts == Counts{9, 12}, "impostor appended: the meshes stay at their levels");
+
+        write("replace/tree.impostor", stf("ReplaceLast"));
+        Loaded replaced = load(dir, "replace/tree.gltf", gltf(lodNodes("[2, 3]")));
+        test.check(replaced.shape->distanceLevelCount() == 3 && impostorPacket(replaced, 2, front) != nullptr,
+                   "impostor replacing the last level: drawn at it, without the meshes");
+
+        write("single/tree.impostor", stf("Append"));
+        Loaded single = load(dir, "single/tree.gltf", gltf(R"([{"mesh": 0}])", "[]"));
+        test.check(single.shape->distanceLevelCount() == 2 && single.shape->distanceLevelCoverage(0) == 0.001f
+                       && drawn(single, 0).counts == Counts{3},
+                   "impostor of a shape without levels: after its mesh, from Open Rails' last default");
+
+        write("version/tree.impostor", stf("Append", 2));
+        test.check(load(dir, "version/tree.gltf", gltf(R"([{"mesh": 0}])", "[]")).shape->distanceLevelCount() == 0,
+                   "an impostor of another version: none");
+    }
+
     // The supplied spruce (TREES_EXT under the game root): external levels
     // loaded as on a worker, their textures registered when adopted.
     const QString spruce = Game::root + "/ROUTES/TREES_EXT/SHAPES/norway-spruce-v2-edge.gltf";
@@ -276,18 +343,18 @@ int TsreTests::runGltfLodSuite(bool verbose) {
         shape.adopt(*copy);
         Loaded loaded;
         loaded.state = shape.newState();
-        bool levels = shape.distanceLevelCount() == 3, textures = true;
-        for (int level = 0; level < 3; ++level) {
+        bool levels = shape.distanceLevelCount() == 4, textures = true;
+        for (int level = 0; level < 4; ++level) {
             PacketRecorder recorder;
             shape.setCurrentDistanceLevel(loaded.state, level);
             shape.pushRenderItem(recorder, 0, loaded.state);
-            levels = levels && recorder.packets.size() >= 2;
+            levels = levels && recorder.packets.size() >= (level < 3 ? 2 : 1);
             for (const RenderItem *item : recorder.packets)
                 for (int texture : item->pbr.textures)
                     textures = textures && texture < (1 << 30);
         }
-        test.check(levels, "the spruce: three external levels, each drawn");
-        test.check(textures, "the spruce: every level's textures registered on adoption");
+        test.check(levels, "the spruce: three external levels and its impostor, each drawn");
+        test.check(textures, "the spruce: every level's and the impostor's textures registered on adoption");
     } else if (verbose) {
         qInfo().noquote() << "[tests:gltf-lod] no TREES_EXT under" << Game::root;
     }

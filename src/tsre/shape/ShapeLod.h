@@ -37,11 +37,18 @@ namespace ShapeLod {
 enum class Mode { Off, Levels, Cull };
 Mode mode();
 
+// TSRE_SHAPE_COVERAGE_SCALE (read once, 1 unset): the glTF coverages scaled,
+// to bring the levels' switches nearer (above 1) for checking them.
+float coverageScale();
+
 // Where an object is from the camera: the horizontal distance to its origin
-// and the height of its origin above the camera (metres).
+// and the height of its origin above the camera (metres); for impostors, the
+// direction from it to the camera and its transform (shape to world).
 struct Place {
     float distance = 0.0f;
     float height = 0.0f;
+    float toCamera[3] = {0.0f, 0.0f, 0.0f};
+    const float *transform = nullptr;
 };
 
 // An object's screen coverage at this place: its largest extent over the
@@ -52,8 +59,9 @@ float coverage(const ComplexShape &shape, const Place &place, float fieldOfView)
 // mode).
 int level(const ComplexShape &shape, const Place &place);
 
-// The level for this object, set on its shape state; false when it draws
-// none. Nothing is set while the mode is Off.
+// The level for this object, set on its shape state with the direction to
+// the camera in the shape's space; false when it draws none. No level is set
+// while the mode is Off.
 bool apply(ComplexShape &shape, unsigned int stateId, const Place &place);
 
 }
