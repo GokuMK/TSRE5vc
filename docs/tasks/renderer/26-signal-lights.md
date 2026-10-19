@@ -151,6 +151,24 @@ index.
 
 ## Future work
 
+- **Signals' light, a rework** (user, 2026-10-19; to come back to):
+  - By day not visible enough.
+  - The glow's size should scale with the distance.
+  - Light on the surroundings: today a signal lights nothing (its emitter
+    is skipped for the lamps' grid); it lights the fog only, through a grid
+    of its own (task 33) at 50 times the lens's even emitter (a lens
+    gathers its light into a beam along the track), at the signal scale
+    (the exposure undone: halos alike by day and by night). By night a real
+    signal tints what is close in front of it: its hood, the mast or
+    gantry, the ballast and rails some metres ahead. Reviewed: the lamps'
+    grid takes spot lights (cones) already; a signal as a spot along its
+    lens's axis (the fog's 90 degree cone, the cosine squared), at the
+    beam's gain, would light a surface 1 m in front with about a tenth of
+    the sun's light, 1 % at 3 m; at the lamps' scale (none by day). The
+    signals keep their own grid (user: it needs more work anyway), so the
+    surface light goes to the lamps' grid with the fog leaving it out
+    there, or the lit shaders read the signals' grid too. Train lamps'
+    emitters, signal-like, the same.
 - Flashing lights (`SigFlashDuration`, `FLASHING` draw lights).
 - Fading on and off (`ORTSOnOffTimes`).
 - Semaphore arms posed and animated by draw state (`SemaphorePos`,
