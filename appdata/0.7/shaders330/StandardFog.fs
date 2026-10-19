@@ -45,6 +45,18 @@ uniform sampler2DShadow shadow1;
 uniform sampler2DShadow shadow2;
 uniform sampler2DShadow shadow0;
 uniform float secondTexEnabled;
+// MSTS night texture (task 35), shapes' only (the main program): 1 when the
+// packet has one; its light's scale (linear, as the lamps'), and under cover.
+#ifndef TSRE_TERRAIN
+#ifndef TSRE_PBR
+#ifndef TSRE_WATER
+uniform sampler2D uNightSampler;
+uniform float nightTextureEnabled;
+uniform float nightScale;
+uniform float nightEnclosedScale;
+#endif
+#endif
+#endif
 uniform mat4 uMVMatrix;
 flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
@@ -136,6 +148,7 @@ void main() {
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
             float isSecondTexEnabled = sign(secondTexEnabled);
             fragColor = fragColor*(1-isSecondTexEnabled) + fragColor*tex2*2.0*isSecondTexEnabled;
+            vec3 dayTexel = fragColor.rgb;
 #ifdef TSRE_TERRAIN
             if(terrainMaterialEnabled != 0)
                 fragColor = terrainMaterialColor();
@@ -187,6 +200,35 @@ void main() {
                               fragColor.a);
 #endif
             fragColor.xyz *= color*colorBrightness;
+            // The night texture's light (task 35) over the lit day texture, the
+            // brighter of the two in linear terms: by night the shape as its
+            // author made it, lit windows at dusk and in shadow; under cover as
+            // the lamps. (Added, a night texture copying the day one doubled a
+            // facade still lit by the dusk: the lamps' scale is full from
+            // sunset.)
+#ifndef TSRE_TERRAIN
+            if (nightTextureEnabled != 0.0) {
+#ifdef TSRE_RHI
+                float nightLight = mix(nightScale, nightEnclosedScale, enclosed);
+#else
+                float nightLight = nightScale;
+#endif
+                vec3 nightTexel = pow(texture(uNightSampler, vTextureCoord).rgb, vec3(2.2));
+                vec3 night = nightTexel * (nightLight * colorBrightness);
+                fragColor.rgb = pow(max(pow(max(fragColor.rgb, vec3(0.0)), vec3(2.2)), night), vec3(1.0 / 2.2));
+#ifdef TSRE_RHI
+                // The glow (a bonus): where the night texture is painted
+                // brighter than the day one (lit windows, lamps), it shines past
+                // white and feeds the bloom. Night textures keep the parts lit
+                // by lamps at their day brightness (whole fronts in black
+                // masks, copies): those are self-lit, not glowing.
+                vec3 glow = max(nightTexel - pow(max(dayTexel, vec3(0.0)), vec3(2.2)) * 1.25, vec3(0.0))
+                        * (nightLight * colorBrightness * 2.0);
+                fragColor.rgb = pow(pow(fragColor.rgb, vec3(2.2)) + glow, vec3(1.0 / 2.2));
+                glowOut.rgb += glow * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor));
+#endif
+            }
+#endif
 
             // Fog tints the colour only; mixing alpha towards the sky's 1 made
             // translucent surfaces turn opaque with distance.

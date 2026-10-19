@@ -32,6 +32,11 @@ struct SFileComplex::Data {
         int address = -1;
         // TextureAlpha::Class of the texture once loaded.
         unsigned char alpha = 0;
+        // Night texture (task 35): its file (looked up once: 0 not yet, 1
+        // found, -1 none) and its TexLib texture while held.
+        QString nightFile;
+        signed char night = 0;
+        int nightTex = -1;
     };
     struct Material {
         int image = -1, matrix = 0, light = 0;
@@ -111,6 +116,8 @@ struct SFileComplex::Data {
     Health health = Health::Valid;
     GpuState gpuState = GpuState::NotInitialized;
     int detail = -1, alternative = 0;
+    // Night textures held (task 35): while the frame wants them.
+    bool nightHeld = false;
     float size = 0;
     float bound[6] = {};
     std::vector<std::array<float, 6>> boxes;

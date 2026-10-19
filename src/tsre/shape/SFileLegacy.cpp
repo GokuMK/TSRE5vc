@@ -18,6 +18,7 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <tsre/world/TerrainSeason.h>
+#include <tsre/shape/NightTextures.h>
 #include <tsre/texture/Texture.h>
 #include <QDebug>
 #include <QtCore>
@@ -1018,10 +1019,31 @@ void SFileLegacy::setGatherTexture(RenderItem *item, int primState, bool texEnab
     auto &img = image[texture[textureIndex].image];
     if (img.tex == -1)
         img.tex = TexLib::addTex(texPath, img.name);
-    if (img.tex < 0)
+    if (img.tex < 0) {
         item->disableTextures(1.0, 0.0, 1.0, 1.0);
-    else
-        item->enableTextureId(img.tex);
+        return;
+    }
+    item->enableTextureId(img.tex);
+    // Its night texture (task 35) while the shape holds them.
+    if (nightHeld) {
+        if (img.night == 0) {
+            img.nightFile = NightTextures::find(texPath, img.name);
+            img.night = img.nightFile.isEmpty() ? -1 : 1;
+        }
+        if (img.night > 0) {
+            if (img.nightTex < 0)
+                img.nightTex = TexLib::addTex(img.nightFile);
+            item->material.nightTextureId = img.nightTex;
+        }
+    }
+}
+
+void SFileLegacy::releaseNightTextures() {
+    for (int i = 0; image != nullptr && i < ilosci; ++i)
+        if (image[i].nightTex >= 0) {
+            TexLib::delRef(image[i].nightTex);
+            image[i].nightTex = -1;
+        }
 }
 
 void SFileLegacy::pushRenderItem(RenderQueue &queue){
@@ -1043,6 +1065,16 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
         }
         if (loaded != 1)
             return;
+    }
+
+    // Night textures (task 35): held while the frame wants them; the packets
+    // pick them up or drop them.
+    if (esdAlternativeTexture > 0 && (esdAlternativeTexture & NightTextures::AlternativeFlag) != 0
+            && NightTextures::frame().wanted != nightHeld) {
+        nightHeld = !nightHeld;
+        if (!nightHeld)
+            releaseNightTextures();
+        requiresUpdate = true;
     }
 
     if(state[stateId].enableSubObjQueue.size() > 0){
@@ -2253,6 +2285,8 @@ void SFileLegacy::releaseMeshes() {
 void SFileLegacy::clearData() {
     invalidateRenderState();
     clearAnimatedPackets();
+    releaseNightTextures();
+    nightHeld = false;
     releaseMeshes();
     for (int j = 0; distancelevel && j < iloscd; ++j) {
         auto &level = distancelevel[j];

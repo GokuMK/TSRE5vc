@@ -67,7 +67,11 @@ void SFileComplex::releaseTextures() {
         if (image.id >= 0)
             TexLib::delRef(image.id);
         image.id = image.address = -1;
+        if (image.nightTex >= 0)
+            TexLib::delRef(image.nightTex);
+        image.nightTex = -1;
     }
+    d->nightHeld = false;
 }
 const QString &SFileComplex::getPathId() const { return d->path; }
 const QString &SFileComplex::getTexPath() const { return d->texturePath; }

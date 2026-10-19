@@ -9,6 +9,7 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <tsre/shape/NightTextures.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
@@ -187,6 +188,27 @@ bool SFileComplex::prepare(unsigned int id) {
     }
     updateMatrices(id);
     syncTextures();
+    // Night textures (task 35): held while the frame wants them, released by
+    // day; the packets take them as they are filled.
+    const bool night = (d->alternative & NightTextures::AlternativeFlag) != 0 && NightTextures::frame().wanted;
+    if (night != d->nightHeld) {
+        d->nightHeld = night;
+        if (!night)
+            for (auto &image : d->images)
+                if (image.nightTex >= 0) {
+                    TexLib::delRef(image.nightTex);
+                    image.nightTex = -1;
+                }
+    }
+    if (d->nightHeld)
+        for (auto &image : d->images) {
+            if (image.night == 0) {
+                image.nightFile = NightTextures::find(d->texturePath, image.name);
+                image.night = image.nightFile.isEmpty() ? -1 : 1;
+            }
+            if (image.night > 0 && image.nightTex < 0)
+                image.nightTex = TexLib::addTex(image.nightFile);
+        }
     return true;
 }
 void SFileComplex::pushRenderItem(RenderQueue &queue) { pushRenderItem(queue, 0, 0); }
@@ -238,10 +260,13 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
                     : mat.alphaTest ? RenderItem::SURFACE_ALPHA_TEST
                                     : RenderItem::SURFACE_BLENDED;
             int addr = mat.image >= 0 ? d->images[mat.image].address : -1;
+            item->material.nightTextureId = -1;
             if (addr >= 0 && !s.disabledParts.contains(p.uid) &&
                 TexLib::disabledTextures.value(addr) != 1) {
                 item->enableTextures(addr);
                 item->material.textureAlpha = d->images[mat.image].alpha;
+                if (d->nightHeld)
+                    item->material.nightTextureId = d->images[mat.image].nightTex;
             } else {
                 item->disableTextures(1, 0, 1, 1);
             }
