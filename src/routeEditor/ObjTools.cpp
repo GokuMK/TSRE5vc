@@ -443,7 +443,7 @@ void ObjTools::routeLoaded(Route* a){
     if(route->tsection != NULL)
         continuousFlexTrackSeparations = route->tsection->parallelSeparations(false);
     if(!continuousFlexTrackSeparations.isEmpty() && continuousFlexTrackSeparation == 4.0){
-        continuousFlexTrackSeparation = continuousFlexTrackSeparations.front().first;
+        continuousFlexTrackSeparation = continuousFlexTrackSeparations.front().metres;
         if(continuousToolMode == ContinuousToolMode::Track)
             continuousFlexSeparation.setSi(continuousFlexTrackSeparation);
     }
@@ -1011,20 +1011,30 @@ void ObjTools::continuousFlexOptionsChanged(){
 }
 
 // The separations, in metres as the shapes have them (and in the units
-// the editors show when those are not metres), with their shapes.
+// the editors show when those are not metres), with the shape families
+// that have them ("4.985 m: A, SR, eb, tunnel..."); how many shapes, and
+// one, in the tooltip.
 void ObjTools::fillSeparationPresets(){
     QMenu *menu = continuousFlexSeparationPresets.menu();
     menu->clear();
+    menu->setToolTipsVisible(true);
     const bool metric = Units::system() == Units::System::Metric;
     for(int i = 0; i < continuousFlexTrackSeparations.size() && i < 12; i++){
-        const double metres = continuousFlexTrackSeparations[i].first;
+        const TSectionDAT::Separation &separation = continuousFlexTrackSeparations[i];
+        const double metres = separation.metres;
         QString value = Units::format(metres, Units::Quantity::Length, Units::System::Metric, 4);
         if(!metric)
             value += QString(" (%1)").arg(Units::format(metres, Units::Quantity::Length, 4));
+        QString families = QStringList(separation.families.mid(0, 4)).join(", ");
+        if(separation.families.size() > 4)
+            families += QString::fromUtf8("\u2026");
         QAction *action = menu->addAction(
-                //% "%1, %2 shapes"
-                qtTrId("route.editor.obj.tools.separation.preset")
-                    .arg(value).arg(continuousFlexTrackSeparations[i].second));
+                //% "%1: %2"
+                qtTrId("route.editor.obj.tools.separation.preset.families").arg(value, families));
+        action->setToolTip(
+                //% "%1 shapes, such as %2"
+                qtTrId("route.editor.obj.tools.separation.preset.shapes")
+                    .arg(separation.shapes).arg(separation.example));
         QObject::connect(action, &QAction::triggered, this, [this, metres] {
             continuousFlexSeparation.setSi(metres);
             continuousFlexOptionsChanged();

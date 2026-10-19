@@ -136,7 +136,10 @@ and a proposed design for when the task is taken up.
   - The flex tool offers the separations of the loaded `tsection.dat`'s
     shapes with straight parallel paths (`TSectionDAT::
     parallelSeparations`), the most used first, shown in metres (and the
-    user's units); the most used is the default (4.985 m in every local
+    user's units) with the shape families that have them, the file
+    names' leading letters ("4.985 m: A, SR, eb, tunnel..."; how many
+    shapes and one of them in the tooltip; user: families, not counts,
+    in the text); the most used is the default (4.985 m in every local
     tsection, build 54 and the PL builds) instead of 4.0 m. No radius
     presets: dyntrack and flex radii are free values.
 - Files keep their units: needed only where TSRE writes a value it read

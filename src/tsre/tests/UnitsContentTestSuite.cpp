@@ -46,11 +46,12 @@ int TsreTests::runUnitsContentSuite(bool verbose) {
     TSectionDAT tsection(false, false);
     for (const bool road : {false, true}) {
         QStringList listed;
-        const QVector<QPair<float, int>> separations = tsection.parallelSeparations(road);
+        const QVector<TSectionDAT::Separation> separations = tsection.parallelSeparations(road);
         for (int i = 0; i < separations.size() && i < 8; ++i)
-            listed << QString("%1 (%2)").arg(Units::format(separations[i].first, Units::Quantity::Length,
-                                                           Units::System::Metric, 4))
-                                         .arg(separations[i].second);
+            listed << QString("%1 (%2 shapes: %3)")
+                          .arg(Units::format(separations[i].metres, Units::Quantity::Length, Units::System::Metric, 4))
+                          .arg(separations[i].shapes)
+                          .arg(QStringList(separations[i].families.mid(0, 4)).join(" "));
         qInfo().noquote() << "[tests:units-content]" << (road ? "road lanes:" : "track separations:")
                           << listed.join(", ");
     }

@@ -16,6 +16,7 @@
 #include <tsre/world/Ref.h>
 #include <deque>
 #include <tsre/gui/UnitSpinBox.h>
+#include <tsre/tdb/TSectionDAT.h>
 
 class ObjTools : public QWidget{
     Q_OBJECT
@@ -114,7 +115,7 @@ private:
     // (TSectionDAT::parallelSeparations), the most used first, offered by
     // the button beside the separation.
     QToolButton continuousFlexSeparationPresets;
-    QVector<QPair<float, int>> continuousFlexTrackSeparations;
+    QVector<TSectionDAT::Separation> continuousFlexTrackSeparations;
     void fillSeparationPresets();
     UnitSpinBox continuousFlexMinimumRadius{Units::Quantity::Length};
     ContinuousToolMode continuousToolMode = ContinuousToolMode::Track;

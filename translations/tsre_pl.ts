@@ -2628,23 +2628,28 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <source>Built-in dynamic track</source>
         <translation>Wbudowany tor dynamiczny</translation>
     </message>
+    <message id="route.editor.obj.tools.separation.preset.families">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="1033"/>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message id="route.editor.obj.tools.separation.preset.shapes">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="1036"/>
+        <source>%1 shapes, such as %2</source>
+        <translation>Kształtów: %1, na przykład %2</translation>
+    </message>
     <message id="route.editor.obj.tools.item.plain.ruler">
         <location filename="../src/routeEditor/ObjTools.cpp" line="856"/>
         <source>Plain ruler</source>
         <translation>Zwykła linijka</translation>
     </message>
-    <message id="route.editor.obj.tools.separation.preset">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="1026"/>
-        <source>%1, %2 shapes</source>
-        <translation>%1, kształtów: %2</translation>
-    </message>
     <message id="route.editor.obj.tools.separation.presets.none">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="1036"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="1046"/>
         <source>No shapes with parallel tracks</source>
         <translation>Brak kształtów z równoległymi torami</translation>
     </message>
     <message id="route.editor.obj.tools.action.find.similar">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="1210"/>
+        <location filename="../src/routeEditor/ObjTools.cpp" line="1220"/>
         <source>Find similar</source>
         <translation>Znajdź podobne</translation>
     </message>

@@ -466,8 +466,14 @@ void TSectionDAT::getShapeData(int id) {
 
 }
 
-QVector<QPair<float, int>> TSectionDAT::parallelSeparations(bool road) const {
-    QHash<qint64, int> shapes;
+QVector<TSectionDAT::Separation> TSectionDAT::parallelSeparations(bool road) const {
+    struct Found {
+        int shapes = 0;
+        QHash<QString, int> families;
+        QHash<QString, QString> spelling;
+        QString example;
+    };
+    QHash<qint64, Found> found;
     for (const auto &entry : shape) {
         const TrackShape *track = entry.second;
         if (track == NULL || track->numpaths < 2 || track->roadshape != road || track->crossovershape
@@ -498,14 +504,39 @@ QVector<QPair<float, int>> TSectionDAT::parallelSeparations(bool road) const {
             if (key >= 5000)
                 distances.insert(key);
         }
-        for (const qint64 key : distances)
-            ++shapes[key];
+        // The family: the file name's leading letters.
+        int letters = 0;
+        while (letters < track->filename.size() && track->filename[letters].isLetter())
+            ++letters;
+        const QString family = track->filename.left(letters);
+        for (const qint64 key : distances) {
+            Found &separation = found[key];
+            ++separation.shapes;
+            if (separation.example.isEmpty())
+                separation.example = track->filename;
+            if (!family.isEmpty()) {
+                ++separation.families[family.toLower()];
+                separation.spelling.insert(family.toLower(), family);
+            }
+        }
     }
-    QVector<QPair<float, int>> separations;
-    for (auto it = shapes.constBegin(); it != shapes.constEnd(); ++it)
-        separations.append(qMakePair(float(it.key() / 10000.0), it.value()));
-    std::sort(separations.begin(), separations.end(), [](const QPair<float, int> &a, const QPair<float, int> &b) {
-        return a.second != b.second ? a.second > b.second : a.first < b.first;
+    QVector<Separation> separations;
+    for (auto it = found.constBegin(); it != found.constEnd(); ++it) {
+        Separation separation;
+        separation.metres = float(it.key() / 10000.0);
+        separation.shapes = it->shapes;
+        separation.example = it->example;
+        QList<QString> families = it->families.keys();
+        std::sort(families.begin(), families.end(), [&it](const QString &a, const QString &b) {
+            return it->families.value(a) != it->families.value(b) ? it->families.value(a) > it->families.value(b)
+                                                                  : a < b;
+        });
+        for (const QString &family : families)
+            separation.families << it->spelling.value(family);
+        separations.append(separation);
+    }
+    std::sort(separations.begin(), separations.end(), [](const Separation &a, const Separation &b) {
+        return a.shapes != b.shapes ? a.shapes > b.shapes : a.metres < b.metres;
     });
     return separations;
 }
