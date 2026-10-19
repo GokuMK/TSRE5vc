@@ -666,10 +666,17 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
           "as fast as possible the world keeps its time");
     runToTime->setTime(QTime(7, 59, 0));
     runTo->click();
-    f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
-            return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 20000, pump);
+    // As fast as possible the run can pass that time before the host takes
+    // the command (a day of this activity takes well under a second): the
+    // controller then runs to it from the start again, a second command.
+    const auto paused = [&](const Sim::SimulationFrame &x) {
+        return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; };
+    f = waitFor(frame, paused, 20000, pump);
     pump();
-    check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-6 && std::fabs(clock->hours() - (7 + 59.0 / 60)) < 1e-6
+    f = waitFor(frame, paused, 20000, pump);
+    pump();
+    // A day of 0.1 s steps from the start ends a few microseconds off.
+    check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-4 && std::fabs(clock->hours() - (7 + 59.0 / 60)) < 1e-6
               && clock->date() == "2026-10-16",
           QString("Run to 07:59, before the start: the next day; the world's clock there (%1 %2)").arg(clock->hours()).arg(clock->date()));
 

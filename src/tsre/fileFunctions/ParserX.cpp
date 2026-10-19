@@ -13,6 +13,8 @@
 #include <QTextStream>
 #include <QtEndian>
 #include <math.h>
+#include <cmath>
+#include <tsre/units/FileNumberReader.h>
 
 QString ParserX::AddComIfReq(QString n){
     if(n.length() == 0)
@@ -398,235 +400,61 @@ QString ParserX::GetAlternativeTokenName(FileBuffer* bufor){
 //-----------------------------------
 // Parsowanie liczby rzeczywistej
 //-----------------------------------
-float ParserX::GetNumber(FileBuffer* bufor){
-    unsigned short int b = 0;
-    int j;
-    float x, t;
-    int liczba = 1, ujemna = 0;
+float ParserX::GetNumber(FileBuffer* bufor, Units::Quantity quantity, QStringView defaultUnit){
+    return ReadNumber(bufor, false, NULL, quantity, defaultUnit);
+}
 
+float ParserX::GetNumberInside(FileBuffer* bufor, bool *ok, Units::Quantity quantity, QStringView defaultUnit){
+    return ReadNumber(bufor, true, ok, quantity, defaultUnit);
+}
+
+namespace {
+
+// A FileBuffer's UTF-16 text as Units::readFileNumberFrom reads it.
+struct BufferSource {
+    FileBuffer *buffer;
+    int end;
+    char16_t peek(int ahead = 0) const {
+        const int at = buffer->off + 2 * ahead;
+        return at + 2 <= end ? char16_t(qFromLittleEndian<quint16>(buffer->data + at)) : char16_t(0);
+    }
+    void next() { buffer->off += 2; }
+};
+
+}
+
+// Skips to the number (GetNumber: "nan" is NaN; GetNumberInside: none
+// before the block ends), reads its digits exactly and the unit written
+// after it, and gives it in SI.
+float ParserX::ReadNumber(FileBuffer* bufor, bool inside, bool *ok, Units::Quantity quantity,
+                          QStringView defaultUnit){
+    unsigned short int b = 0;
     while (b < 45 || (b > 46 && b < 48) || b > 57) {
         b = bufor->getShort();
-        if(b == 110){
+        if (inside) {
+            if (b == 41) {
+                bufor->off = bufor->off - 2;
+                if (ok != NULL) *ok = false;
+                return 0;
+            }
+        } else if (b == 110) {
             b = bufor->getShort();
-            if(b == 97){
+            if (b == 97) {
                 b = bufor->getShort();
-                if(b == 110){
+                if (b == 110)
                     return NAN;
-                }
             }
         }
     }
-    x = 0;
-    liczba = 1;
-    ujemna = 0;
-    if (b == 45) {
-        ujemna = 1;
-        b = bufor->getShort();
-        //bufor->off++;
-    }
-    if (b != 46) {
-        while (b > 47 && b < 58) {
-            x = x * 10.0 + b - 48;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    }
-    if (b == 46 || b == 44) {
-        b = bufor->getShort();
-        //bufor->off++;
-        while (b > 47 && b < 58) {
-            liczba = liczba * 10;
-            t = b;
-            x = x + (t - 48) / liczba;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    }
-    if (ujemna == 1) x = -x;
-    if (b == 69 || b == 101) {
-        b = bufor->getShort();
-        //bufor->off++;
-        if (b == 45) {
-            ujemna = 1;
-            b = bufor->getShort();
-            //bufor->off++;
-        } else {
-            ujemna = 0;
-            if (b == '+')
-                b = bufor->getShort();
-        }
-        liczba = 0;
-        while (b > 47 && b < 58) {
-            liczba = liczba * 10.0 + b - 48;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-        if (ujemna == 1) {
-            for (j = 0; j < liczba; j++) {
-                x = x / 10.0;
-            }
-        } else {
-            for (j = 0; j < liczba; j++) {
-                x = x * 10.0;
-            }
-        }
-    }
-    x = NumberUnit(x, b, bufor);
-    if(b == '+')
-        x += GetNumberInside(bufor);
-    else 
-        bufor->off -= 2;
-    return x;
-}
-//-----------------------------------
-// Parsowanie liczby rzeczywistej
-//-----------------------------------
-float ParserX::GetNumberInside(FileBuffer* bufor, bool *ok){
-    unsigned short int b = 0;
-    int j;
-    float x, t;
-    int liczba = 1, ujemna = 0;
-    while (b < 45 || (b > 46 && b < 48) || b > 57) {
-        b = bufor->getShort();
-        //ufor->off++;
-        if (b == 41){
-            bufor->off = bufor->off - 2;
-            if(ok != NULL) *ok = false;
-            return 0;
-        }
-    }
-    x = 0;
-    liczba = 1;
-    ujemna = 0;
-    if (b == 45) {
-        ujemna = 1;
-        b = bufor->getShort();
-        //bufor->off++;
-    }
-    if (b != 46) {
-        while (b > 47 && b < 58) {
-            x = x * 10.0 + b - 48;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    }
-    if (b == 46 || b == 44) {
-        b = bufor->getShort();
-        //bufor->off++;
-        while (b > 47 && b < 58) {
-            liczba = liczba * 10;
-            t = b;
-            x = x + (t - 48) / liczba;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    }
-    if (ujemna == 1) x = -x;
-    if (b == 69 || b == 101) {
-        b = bufor->getShort();
-        //bufor->off++;
-        if (b == 45) {
-            ujemna = 1;
-            b = bufor->getShort();
-            //bufor->off++;
-        } else {
-            ujemna = 0;
-            if (b == '+')
-                b = bufor->getShort();
-        }
-        liczba = 0;
-        while (b > 47 && b < 58) {
-            liczba = liczba * 10.0 + b - 48;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-        if (ujemna == 1) {
-            for (j = 0; j < liczba; j++) {
-                x = x / 10.0;
-            }
-        } else {
-            for (j = 0; j < liczba; j++) {
-                x = x * 10.0;
-            }
-        }
-    }    
-    x = NumberUnit(x, b, bufor);
-    if(b == '+')
-        x += GetNumberInside(bufor);
-    else 
-        bufor->off -= 2;
-    if(ok != NULL) *ok = true;
-    return x;
-}
-
-float ParserX::NumberUnit(float x, unsigned short int &b, FileBuffer* bufor){
-    if(b == 'c' || b == 'C'){
-        b = bufor->getShort();
-        //bufor->off++;
-        if(b == 'm' || b == 'M'){
-            x = x/100.0;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    } else if(b == 'm' || b == 'M'){
-        b = bufor->getShort();
-        //bufor->off++;
-        if(b == 'p' || b == 'P'){
-            b = bufor->getShort();
-            //bufor->off++;
-            if(b == 'h' || b == 'H'){
-                x = x*1.609344;
-                b = bufor->getShort();
-                //bufor->off++;
-            }
-        }
-    } else if(b == 'l' || b == 'L'){
-        b = bufor->getShort();
-        //bufor->off++;
-        if(b == 'b' || b == 'B'){
-            b = bufor->getShort();
-            //bufor->off++;
-            if(b == 'f' || b == 'F'){
-                x = x*4.448221615;
-                b = bufor->getShort();
-                //bufor->off++;
-            }
-        }
-    } else if(b == 'k' || b == 'K'){
-        b = bufor->getShort();
-        //bufor->off++;
-        if(b == 'n' || b == 'N'){
-            x = x*1000;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    } else if(b == 'f' || b == 'F'){
-        b = bufor->getShort();
-        //bufor->off++;
-        if(b == 't' || b == 'T'){
-            x = x*0.3048;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    } else if(b == 'i' || b == 'I'){
-        b = bufor->getShort();
-        //bufor->off++;
-        if(b == 'n' || b == 'N'){
-            x = x*0.0254;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    } else if(b == 'h' || b == 'H'){
-        b = bufor->getShort();
-        //bufor->off++;
-        if(b == 'p' || b == 'P'){
-            x = x*0.745699872;
-            b = bufor->getShort();
-            //bufor->off++;
-        }
-    }
-        
-    return x;
+    // The number, its unit and a sum as every reader reads them
+    // (Units::readFileNumberFrom), straight from the buffer, from the
+    // number's first character; the place left after what it took.
+    bufor->off -= 2;
+    BufferSource source{bufor, bufor->readEnd()};
+    const Units::FileNumber read = Units::readFileNumberFrom(source, quantity, defaultUnit);
+    if (inside && ok != NULL)
+        *ok = true;
+    return float(read.si);
 }
 //-----------------------------------
 // Parsowanie liczby uint

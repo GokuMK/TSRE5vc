@@ -81,6 +81,8 @@
 #include <tsre/tests/PaintTexTestSuite.h>
 #include <tsre/tests/SignalSelectionTestSuite.h>
 #include <tsre/tests/SigCfgTestSuite.h>
+#include <tsre/tests/UnitsTestSuite.h>
+#include <tsre/tests/UnitsContentTestSuite.h>
 #include <tsre/tests/EngLightsTestSuite.h>
 #include <tsre/tests/EnvironmentWindowTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
@@ -4140,6 +4142,8 @@ QStringList TsreTests::listSuites() {
         "paint-text",
         "signal-selection",
         "sigcfg",
+        "units",
+        "units-content",
         "eng-lights",
         "environment-window",
         "tokens",
@@ -4265,6 +4269,10 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "signal-selection")
         return runSignalSelectionSuite(opts.casesFile, opts.verbose);
 
+    if (suite == "units-content")
+        return runUnitsContentSuite(opts.verbose);
+    if (suite == "units")
+        return runUnitsSuite(opts.verbose);
     if (suite == "sigcfg")
         return runSigCfgSuite(opts.casesFile, opts.verbose);
 

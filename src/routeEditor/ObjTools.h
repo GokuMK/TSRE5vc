@@ -15,12 +15,19 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Ref.h>
 #include <deque>
+#include <tsre/gui/UnitSpinBox.h>
+#include <tsre/tdb/TSectionDAT.h>
 
 class ObjTools : public QWidget{
     Q_OBJECT
 
 public:
     ObjTools(QString name);
+    // A separation as the flex tool offers it: in metres (and in the units
+    // the editors show when those are not metres) with its shape families,
+    // "4.985 m: A, SR, eb...", the families at most FamiliesText characters.
+    static constexpr int FamiliesText = 20;
+    static QString separationText(const TSectionDAT::Separation &separation);
     virtual ~ObjTools();
     
 public slots:
@@ -108,8 +115,14 @@ private:
     QComboBox continuousRulerNodeShape;
     QCheckBox continuousFlexLeft;
     QCheckBox continuousFlexRight;
-    QDoubleSpinBox continuousFlexSeparation;
-    QDoubleSpinBox continuousFlexMinimumRadius;
+    UnitSpinBox continuousFlexSeparation{Units::Quantity::Length};
+    // The separations of the route's shapes with parallel tracks
+    // (TSectionDAT::parallelSeparations), the most used first, offered by
+    // the button beside the separation.
+    QToolButton continuousFlexSeparationPresets;
+    QVector<TSectionDAT::Separation> continuousFlexTrackSeparations;
+    void fillSeparationPresets();
+    UnitSpinBox continuousFlexMinimumRadius{Units::Quantity::Length};
     ContinuousToolMode continuousToolMode = ContinuousToolMode::Track;
     double continuousFlexTrackSeparation = 4.0;
     double continuousFlexTrackMinimumRadius = 15.0;

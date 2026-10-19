@@ -3,6 +3,7 @@
 #include <QTime>
 #include <cmath>
 #include <tsre/sim/TrackNetwork.h>
+#include <tsre/units/Units.h>
 
 namespace Sim {
 
@@ -31,8 +32,8 @@ QString StateText(const SimulationInput &in, const TrainState &s, double time, i
         //% "starts at %1"
         return qtTrId("simulation.state.waiting").arg(clock(plan.startTime));
     case TrainStatus::Running:
-        //% "running %1 km/h"
-        return qtTrId("simulation.state.running").arg(int(std::lround(s.speed * 3.6f)));
+        //% "running %1"
+        return qtTrId("simulation.state.running.speed").arg(Units::format(s.speed, Units::Quantity::Speed, 0));
     case TrainStatus::Finished:
         //% "finished"
         return qtTrId("simulation.state.finished");

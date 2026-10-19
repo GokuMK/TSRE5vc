@@ -1,5 +1,6 @@
 /* This file is part of TSRE5. Licensed under GPL-3.0-or-later; see LICENSE.md. */
 #include <routeEditor/properties/PropertiesTelepole.h>
+#include <tsre/units/Units.h>
 
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
@@ -119,9 +120,9 @@ void PropertiesTelepole::showObj(GameObj *object) {
     uid.setText(QString::number(telepole->UiD));
     tX.setText(QString::number(telepole->x));
     tY.setText(QString::number(-telepole->y));
-    length.setText(QString::number(telepole->spanLength(), 'f', 3) + " m");
+    length.setText(Units::format(telepole->spanLength(), Units::Quantity::Length, 3));
     population.setText(QString::number(telepole->populationValue()));
-    spacing.setText(QString::number(telepole->separation(), 'f', 3) + " m");
+    spacing.setText(Units::format(telepole->separation(), Units::Quantity::Length, 3));
     const int index = configList.findData(telepole->configIndex());
     configList.setCurrentIndex(index >= 0 ? index : 0);
 }
@@ -131,11 +132,11 @@ void PropertiesTelepole::updateObj(GameObj *object) {
         return;
     TelepoleObj *telepole = static_cast<TelepoleObj*>(object);
     if(!length.hasFocus())
-        length.setText(QString::number(telepole->spanLength(), 'f', 3) + " m");
+        length.setText(Units::format(telepole->spanLength(), Units::Quantity::Length, 3));
     if(!population.hasFocus())
         population.setText(QString::number(telepole->populationValue()));
     if(!spacing.hasFocus())
-        spacing.setText(QString::number(telepole->separation(), 'f', 3) + " m");
+        spacing.setText(Units::format(telepole->separation(), Units::Quantity::Length, 3));
     const int index = configList.findData(telepole->configIndex());
     if(index >= 0 && configList.currentIndex() != index){
         const QSignalBlocker blocker(&configList);

@@ -12,6 +12,7 @@
 #define	PROPERTIESDYNTRACK_H
 
 #include <routeEditor/properties/PropertiesAbstract.h>
+#include <tsre/gui/UnitSpinBox.h>
 
 class DynTrackObj;
 
@@ -46,8 +47,10 @@ signals:
     
 private:
     QCheckBox chSect[5];
-    QDoubleSpinBox sSectA[5];
-    QDoubleSpinBox sSectR[5];
+    // Straights' lengths (even) and curves' radii in the units the editors
+    // show (task core si-units); curves' angles (odd) in radians.
+    UnitSpinBox sSectA[5];
+    UnitSpinBox sSectR[5];
     QFormLayout vSect[5];
     QWidget wSect[5];
     DynTrackObj* dobj;

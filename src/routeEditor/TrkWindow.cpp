@@ -86,11 +86,11 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
         //% "Other"
         qtTrId("route.editor.trk.window.label.other")), row++, 0);
     settings->addWidget(new QLabel(
-        //% "Speed Limit (km/h): "
-        qtTrId("route.editor.trk.window.label.speed.limit.km.h")), row++, 0);
+        //% "Speed Limit: "
+        qtTrId("route.editor.trk.window.label.speed.limit")), row++, 0);
     settings->addWidget(new QLabel(
-        //% "Restricted Speed (km/h): "
-        qtTrId("route.editor.trk.window.label.restricted.speed.km.h")), row++, 0);
+        //% "Restricted Speed: "
+        qtTrId("route.editor.trk.window.label.restricted.speed")), row++, 0);
     settings->addWidget(new QLabel(
         //% "Speed in Miles: "
         qtTrId("route.editor.trk.window.label.speed.in.miles")), row++, 0);
@@ -129,7 +129,7 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
         //% "Yes"
         qtTrId("route.editor.trk.window.item.yes"), 1);
     settings->addWidget(&overheadWireHeight, row++, 1);
-    overheadWireHeight.setRange(0, 10000);
+    overheadWireHeight.setRangeSi(0, 10000);
     overheadWireHeight.setSingleStep(0.5);
     settings->addWidget(&maxLineVoltage, row++, 1);
     maxLineVoltage.setRange(0, 100000);
@@ -141,10 +141,10 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
     settings->addWidget(&startpZ, row++, 1);
     row++;
     settings->addWidget(&speedLimit, row++, 1);
-    speedLimit.setRange(0, 1000);
+    speedLimit.setRangeSi(0, 300);
     speedLimit.setSingleStep(5);
     settings->addWidget(&tempRestrictedSpeed, row++, 1);
-    tempRestrictedSpeed.setRange(0, 1000);
+    tempRestrictedSpeed.setRangeSi(0, 300);
     tempRestrictedSpeed.setSingleStep(5);
     settings->addWidget(&milepostUnitsKilometers, row++, 1);
     milepostUnitsKilometers.setStyleSheet("combobox-popup: 0;");
@@ -243,9 +243,9 @@ int TrkWindow::exec() {
     this->routeName.setText(trk->routeName);
     this->displayName.setText(trk->displayName);
     this->maxLineVoltage.setValue(trk->maxLineVoltage);
-    this->speedLimit.setValue(trk->speedLimit*3.6);
-    this->tempRestrictedSpeed.setValue(trk->tempRestrictedSpeed*3.6);
-    this->overheadWireHeight.setValue(trk->overheadWireHeight);
+    this->speedLimit.setSi(trk->speedLimit);
+    this->tempRestrictedSpeed.setSi(trk->tempRestrictedSpeed);
+    this->overheadWireHeight.setSi(trk->overheadWireHeight);
     if(trk->electrified){
         this->electrified.setCurrentIndex(1);
     }else{
@@ -320,15 +320,15 @@ void TrkWindow::bokEnabled(){
     trk->description.replace("\n","\\n");
     
     trk->electrified = electrified.currentIndex();
-    trk->overheadWireHeight = overheadWireHeight.value();
+    trk->overheadWireHeight = overheadWireHeight.si();
     trk->maxLineVoltage = maxLineVoltage.value();
     if(milepostUnitsKilometers.currentIndex() == 1)
         trk->milepostUnitsKilometers = false;
     else
         trk->milepostUnitsKilometers = true;
     
-    trk->tempRestrictedSpeed = tempRestrictedSpeed.value()/3.6;
-    trk->speedLimit = speedLimit.value()/3.6;
+    trk->tempRestrictedSpeed = tempRestrictedSpeed.si();
+    trk->speedLimit = speedLimit.si();
     trk->terrainLodLevels = pendingTerrainLodLevels;
     trk->tsreEnclosedAmbient = enclosedAmbient.value() < 0.0 ? -1.0f : float(enclosedAmbient.value());
     accept();

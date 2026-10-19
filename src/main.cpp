@@ -41,6 +41,7 @@
 #include <TranslationManager.h>
 #include <tsre/world/RouteCreator.h>
 #include <tsre/world/Trk.h>
+#include <tsre/units/Units.h>
 
 QFile logFile;
 QTextStream logFileOut;
@@ -513,6 +514,8 @@ int main(int argc, char *argv[]){
         return 1;
     }
     Game::applyRuntimeSettings();
+    // The units the editors show: read now, and again when they change.
+    Units::Notifier::instance();
 
     QSurfaceFormat format;
 //#ifdef __APPLE__
@@ -609,6 +612,9 @@ int main(int argc, char *argv[]){
     if (consoleArgs["TEST"] == "TRUE") {
         Game::gui = false;
         Game::consoleOutput = true;
+        // Metric units, whatever the machine's locale (for this run only):
+        // the suites check texts with units.
+        settings.setSessionValue("core.interface.units", int(Units::Choice::Metric));
         TsreTests::TestRunOptions opts;
         opts.suite = consoleArgs["TEST_SUITE"];
         opts.casesFile = consoleArgs["TEST_CASES"];

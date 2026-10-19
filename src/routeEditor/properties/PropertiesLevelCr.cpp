@@ -9,6 +9,7 @@
  */
 
 #include "PropertiesLevelCr.h"
+#include <tsre/units/Units.h>
 #include <tsre/world/objects/LevelCrObj.h>
 #include <tsre/gui/GuiFunct.h>
 #include <tsre/Game.h>
@@ -89,9 +90,16 @@ PropertiesLevelCr::PropertiesLevelCr() {
     vbox->addWidget(&eActivateLevelCrossing);
     eActivateLevelCrossing.setValidator(doubleValidator);
     QObject::connect(&eActivateLevelCrossing, SIGNAL(textEdited(QString)), this, SLOT(eActivateLevelCrossingEnabled(QString)));
-    vbox->addWidget(new QLabel(
-        //% "Min activation distance [m]:"
-        qtTrId("route.editor.properties.level.cr.label.min.activation.distance.m")));
+    // Lengths in the units the editors show (task core si-units).
+    QLabel *minActDistLabel = new QLabel();
+    const auto minActDistText = [minActDistLabel] {
+        //% "Min activation distance [%1]:"
+        minActDistLabel->setText(qtTrId("route.editor.properties.level.cr.label.min.activation.distance")
+                                 .arg(Units::unit(Units::Quantity::Length)));
+    };
+    minActDistText();
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, minActDistLabel, minActDistText);
+    vbox->addWidget(minActDistLabel);
     vbox->addWidget(&eMinActDist);
     eMinActDist.setValidator(doubleValidator);
     QObject::connect(&eMinActDist, SIGNAL(textEdited(QString)), this, SLOT(eMinActDistEnabled(QString)));
@@ -194,9 +202,15 @@ PropertiesLevelCr::PropertiesLevelCr() {
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    vbox->addWidget(new QLabel(
-        //% "Max placing radius:"
-        qtTrId("route.editor.properties.level.cr.label.max.placing.radius")));
+    QLabel *maxPlacingLabel = new QLabel();
+    const auto maxPlacingText = [maxPlacingLabel] {
+        //% "Max placing radius [%1]:"
+        maxPlacingLabel->setText(qtTrId("route.editor.properties.level.cr.label.max.placing.radius.unit")
+                                 .arg(Units::unit(Units::Quantity::Length)));
+    };
+    maxPlacingText();
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, maxPlacingLabel, maxPlacingText);
+    vbox->addWidget(maxPlacingLabel);
     vbox->addWidget(&eMaxPlacingDistance);
     eMaxPlacingDistance.setValidator(doubleValidator);
     QObject::connect(&eMaxPlacingDistance, SIGNAL(textEdited(QString)), this, SLOT(eMaxPlacingDistanceEnabled(QString)));
@@ -238,12 +252,12 @@ void PropertiesLevelCr::showObj(GameObj* obj){
             );
     
     this->eActivateLevelCrossing.setText(QString::number(lobj->getSensitivityActivateLevel()));
-    this->eMinActDist.setText(QString::number(lobj->getSensitivityMinimunDistance()));
+    this->eMinActDist.setText(Units::formatNumber(lobj->getSensitivityMinimunDistance(), Units::Quantity::Length));
     this->eInitialWarning.setText(QString::number(lobj->getTimingInitialWarning()));
     this->eMoreWarning.setText(QString::number(lobj->getTimingSeriousWarning()));
     this->eGateAnimLength.setText(QString::number(lobj->getTimingAnimationLength()));
     this->eCrashProbability.setText(QString::number(lobj->getCrashProbability()));
-    this->eMaxPlacingDistance.setText(QString::number(lobj->MaxPlacingDistance));
+    this->eMaxPlacingDistance.setText(Units::formatNumber(lobj->MaxPlacingDistance, Units::Quantity::Length));
     this->chInvisible.blockSignals(true);
     this->chInvisible.setChecked(lobj->isInvisibleEnabled());
     this->chInvisible.blockSignals(false);
@@ -323,23 +337,19 @@ void PropertiesLevelCr::eMaxPlacingDistanceEnabled(QString val){
     if(lobj == NULL){
         return;
     }
-    bool ok = false;
-    float fval = val.toFloat(&ok);
-    if(ok){
-        if(fval > 0)
-            lobj->MaxPlacingDistance = fval;
-    }
+    double metres = 0;
+    if(Units::parse(val, Units::Quantity::Length, metres) && metres > 0)
+        lobj->MaxPlacingDistance = metres;
 }
 
 void PropertiesLevelCr::eMinActDistEnabled(QString val){
     if(lobj == NULL){
         return;
     }
-    bool ok = false;
-    float fval = val.toFloat(&ok);
-    if(ok){
+    double metres = 0;
+    if(Units::parse(val, Units::Quantity::Length, metres)){
         Undo::SinglePushWorldObjData(worldObj);
-        lobj->setSensitivityMinimunDistance(fval);
+        lobj->setSensitivityMinimunDistance(metres);
     }
 }
 

@@ -182,6 +182,12 @@ private:
     unsigned long long sequence = 0;
     double pace = 1.0;
     RunMode asked = RunMode::Paused;
+    // The last run to a time until the host takes it: its command, target
+    // and whether it runs on after (poll: a time the host has passed by
+    // then starts again from the start).
+    unsigned long long runToSeq = 0;
+    double runToTarget = 0.0;
+    bool runToThenRun = false;
     int chosenTrain = -1;
     int followedTrain = -1;
     qint64 inputMs = 0;

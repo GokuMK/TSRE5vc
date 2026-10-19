@@ -22,6 +22,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/sim/TimetableCalculation.h>
 #include <algorithm>
+#include <tsre/units/Units.h>
 
 namespace {
 
@@ -46,6 +47,12 @@ QString change(int now, int before){
 
 ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWidget(parent) {
     setMinimumWidth(450);
+    // The speeds in the units the editors show (task core si-units), again
+    // when they change.
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, this, [this] {
+        if(service != NULL)
+            showTimetable(service, activity);
+    });
     setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
         
     QVBoxLayout *vbox = new QVBoxLayout;
@@ -264,10 +271,11 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s, Ac
     if(con == NULL || con->engItems.isEmpty())
         return;
     eMainEng.setText(con->engItems[0].ename);
-    eMaxSpeed.setText(QString::number((int)(con->maxVelocity[0]*3.6)) + " km/h");
+    eMaxSpeed.setText(Units::format(con->maxVelocity[0], Units::Quantity::Speed, 0));
     eTime.setTime(QTime::fromMSecsSinceStartOfDay((t->time*1000)));
     if(stops > 1 && !t->distanceDownPath.isEmpty() && t->arrivalTime.last() > t->time)
-        eAvgSpeed.setText(QString::number(3.6*(t->distanceDownPath.last()/(t->arrivalTime.last()-t->time))) + " km/h");
+        eAvgSpeed.setText(Units::format(t->distanceDownPath.last()/(t->arrivalTime.last()-t->time),
+                                        Units::Quantity::Speed));
     else
         eAvgSpeed.setText(
             //% "NONE"

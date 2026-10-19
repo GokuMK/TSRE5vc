@@ -13,6 +13,8 @@
 
 #include <QDialog>
 
+class UnitSpinBox;
+
 class RouteEditorGLWidget;
 class QComboBox;
 class QDoubleSpinBox;
@@ -33,10 +35,11 @@ private:
     RouteEditorGLWidget *view;
     QComboBox *scenario = nullptr;
     QSpinBox *heading = nullptr;
-    QSpinBox *speed = nullptr;
+    // In the units the editors show (task core si-units).
+    UnitSpinBox *speed = nullptr;
     QDoubleSpinBox *arrival = nullptr;
     QSpinBox *seed = nullptr;
-    QSpinBox *margin = nullptr;
+    UnitSpinBox *margin = nullptr;
     QComboBox *cellSize = nullptr;
     QLabel *summary = nullptr;
     void settings(WeatherGenerator::Settings &out) const;

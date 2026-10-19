@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
+#include <tsre/units/UnitConversion.h>
 
 #include <QDebug>
 #include <QFile>
@@ -25,57 +26,29 @@ namespace {
 using namespace Sms;
 using Kind = SimisTextReader::Kind;
 
-// The unit a number is in when it has none, and the suffixes it may have.
-enum class Units { None, Distance, Speed, Pressure, Force, Power };
-
-Units unitsOf(Control control) {
+// The quantity of a control's values, the units its numbers may have (task
+// core si-units): SI, but brake pressures in psi, as MSTS's sounds compare
+// them; a number without a unit is in those already.
+Units::Quantity unitsOf(Control control) {
     switch (control) {
     case Control::Distance:
     case Control::CarDistanceTrack:
     case Control::CarTunnelDistance:
-        return Units::Distance;
+        return Units::Quantity::Distance;
     case Control::Speed:
-        return Units::Speed;
+        return Units::Quantity::Speed;
     case Control::BrakeCyl:
     case Control::BackPressure:
-        return Units::Pressure;
+        return Units::Quantity::Pressure;
     case Control::TractiveEffort:
     case Control::CurveForce:
-        return Units::Force;
+        return Units::Quantity::Force;
     case Control::TractivePower:
     case Control::EnginePower:
-        return Units::Power;
+        return Units::Quantity::Power;
     default:
-        return Units::None;
+        return Units::Quantity::Any;
     }
-}
-
-// The factor of a unit suffix to metres, m/s, psi, N or W; 0 for one this
-// kind of value does not take.
-double unitFactor(Units units, const QString &suffix) {
-    if (suffix.isEmpty())
-        return 1.0;
-    static const QHash<QString, double> distance = {{"m", 1.0}, {"cm", 0.01}, {"mm", 0.001}, {"km", 1000.0},
-                                                    {"ft", 0.3048}, {"in", 0.0254}, {"yd", 0.9144},
-                                                    {"mi", 1609.344}};
-    static const QHash<QString, double> speed = {{"m/s", 1.0}, {"mps", 1.0}, {"km/h", 1.0 / 3.6},
-                                                 {"kph", 1.0 / 3.6}, {"kmh", 1.0 / 3.6},
-                                                 {"kmph", 1.0 / 3.6}, {"mph", 0.44704}};
-    static const QHash<QString, double> pressure = {{"psi", 1.0}, {"bar", 14.5037738}, {"kpa", 0.145037738},
-                                                    {"inhg", 0.4911541}, {"kgf/cm^2", 14.2233433}};
-    static const QHash<QString, double> force = {{"n", 1.0}, {"kn", 1000.0}, {"lbf", 4.44822162},
-                                                 {"klbf", 4448.22162}};
-    static const QHash<QString, double> power = {{"w", 1.0}, {"kw", 1000.0}, {"hp", 745.699872}};
-    const QHash<QString, double> *table = nullptr;
-    switch (units) {
-    case Units::Distance: table = &distance; break;
-    case Units::Speed: table = &speed; break;
-    case Units::Pressure: table = &pressure; break;
-    case Units::Force: table = &force; break;
-    case Units::Power: table = &power; break;
-    case Units::None: break;
-    }
-    return table != nullptr ? table->value(suffix.toLower(), 0.0) : 0.0;
 }
 
 // A token's text as a string of its own (atoms borrow the reader's text).
@@ -179,30 +152,28 @@ private:
     }
 
     // A number with an optional unit suffix ("50m", "30mph").
-    float number(Units units, float fallback, bool *ok = nullptr) {
+    float number(Units::Quantity units, float fallback, bool *ok = nullptr) {
         if (ok != nullptr)
             *ok = false;
         if (reader.peekKind() != Kind::Atom)
             return fallback;
         const QString token = own(reader.peek());
-        static const QRegularExpression pattern("^([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)(.*)$");
-        const QRegularExpressionMatch match = pattern.match(token);
-        SimisTextReader::Token digits;
-        digits.kind = Kind::Atom;
-        digits.text = match.captured(1);
-        double value = 0.0;
-        if (!match.hasMatch() || !SimisTextReader::number(digits, value))
+        // The number and its unit as every reader reads them (MSTS lists
+        // numbers with commas too: "0.0, 0.4,").
+        Units::FileNumber read;
+        double si = 0.0;
+        if (!Units::fromFileToken(token, units, si, {}, &read))
             return fallback;
         reader.next();
-        // MSTS lists numbers with commas too ("0.0, 0.4,").
-        QString suffix = match.captured(2);
-        while (suffix.startsWith(','))
-            suffix.remove(0, 1);
-        const double factor = unitFactor(units, suffix);
-        if (factor == 0.0)
-            warn("unknown unit " + token);
-        else
-            value *= factor;
+        double value = read.number;
+        if (read.hasUnit) {
+            if (units == Units::Quantity::Any || !read.unitKnown)
+                warn("unknown unit " + token);
+            else if (units == Units::Quantity::Pressure)
+                Units::toFile(si, u"psi", units, value);
+            else
+                value = si;
+        }
         if (ok != nullptr)
             *ok = true;
         return float(value);
@@ -210,11 +181,11 @@ private:
 
     int integer(int fallback) {
         bool ok = false;
-        const float value = number(Units::None, float(fallback), &ok);
+        const float value = number(Units::Quantity::Any, float(fallback), &ok);
         return ok ? int(std::lround(value)) : fallback;
     }
 
-    float floatBlock(Units units, float fallback) {
+    float floatBlock(Units::Quantity units, float fallback) {
         if (!open())
             return fallback;
         const float value = number(units, fallback);
@@ -257,7 +228,7 @@ private:
                 g.hasStreams = true;
                 streams(g.streams);
             } else if (t == "volume") {
-                g.volume = floatBlock(Units::None, 1.0f);
+                g.volume = floatBlock(Units::Quantity::Any, 1.0f);
             } else if (t == "stereo") {
                 g.stereo = boolBlock();
             } else if (t == "ignore3d") {
@@ -286,7 +257,7 @@ private:
             else if (t == "passengercam")
                 a.passengerCam = boolBlock();
             else if (t == "distance")
-                a.distance = floatBlock(Units::Distance, a.distance);
+                a.distance = floatBlock(Units::Quantity::Distance, a.distance);
             else if (t == "tracktype")
                 a.trackType = intBlock(-1);
             else
@@ -330,7 +301,7 @@ private:
             } else if (t == "frequencycurve") {
                 s.frequencyCurve = curve();
             } else if (t == "volume") {
-                s.volume = floatBlock(Units::None, s.volume);
+                s.volume = floatBlock(Units::Quantity::Any, s.volume);
             } else if (t == "ortstimeofday") {
                 if (open()) {
                     const int from = integer(0);
@@ -375,17 +346,17 @@ private:
         }
         block([this, &c](const QString &t) {
             if (t == "granularity") {
-                c.granularity = floatBlock(Units::None, 1.0f);
+                c.granularity = floatBlock(Units::Quantity::Any, 1.0f);
             } else if (t == "curvepoints") {
                 if (!open())
                     return true;
                 const int count = integer(0);
-                const Units units = unitsOf(c.control);
+                const Units::Quantity units = unitsOf(c.control);
                 for (int i = 0; i < count; ++i) {
                     bool okX = false;
                     bool okY = false;
                     float x = number(units, 0.0f, &okX);
-                    const float y = number(Units::None, 0.0f, &okY);
+                    const float y = number(Units::Quantity::Any, 0.0f, &okY);
                     if (!okX || !okY) {
                         warn("curve points missing");
                         break;
@@ -469,7 +440,7 @@ private:
             }
             const QString lower = word().toLower();
             if (lower == "delay_min_max" || lower == "dist_min_max" || lower == "volume_min_max") {
-                const Units units = lower == "dist_min_max" ? Units::Distance : Units::None;
+                const Units::Quantity units = lower == "dist_min_max" ? Units::Quantity::Distance : Units::Quantity::Any;
                 if (open()) {
                     const float a = number(units, 0.0f);
                     const float b = number(units, a);
@@ -483,7 +454,7 @@ private:
                     skipRest();
                 }
             } else if (lower == "car_camera_dist") {
-                t.cameraDistance = floatBlock(Units::Distance, t.cameraDistance);
+                t.cameraDistance = floatBlock(Units::Quantity::Distance, t.cameraDistance);
             } else if (command(lower, t.command)) {
                 if (++commands > 1)
                     warn("a trigger's command replaced");
@@ -553,7 +524,7 @@ private:
             skipRest();
             break;
         case Command::Type::SetStreamVolume:
-            c.volume = number(Units::None, 1.0f);
+            c.volume = number(Units::Quantity::Any, 1.0f);
             skipRest();
             break;
         default:

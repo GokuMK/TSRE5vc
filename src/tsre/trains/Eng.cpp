@@ -15,7 +15,6 @@
 #include <tsre/map/MapFeatures.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
-#include <tsre/fileFunctions/MstsUnits.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/ComplexShape.h>
@@ -66,13 +65,9 @@ Eng::Eng(Eng *o) {
     type = o->type;
     brakeSystemType = o->brakeSystemType;
     wagonTypeId = o->wagonTypeId;
-    mass = o->mass;
     sizex = o->sizex;
     sizey = o->sizey;
     sizez = o->sizez;
-    maxSpeed = o->maxSpeed;
-    maxForce = o->maxForce;
-    maxPower = o->maxPower;
     maxCurrent = o->maxCurrent;
     massKg = o->massKg;
     forceN = o->forceN;
@@ -142,11 +137,9 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
     values.set(Sms::Control::BrakeCyl, brake * 50.0f);
     // Curve squeal: smoothed over a second, as the wheels settle.
     const float radius = ruch1->curveRadius();
-    float massKg = std::isfinite(mass) && mass > 0 ? mass : 50;
-    if (massKg < 1000)
-        massKg *= 1000;
+    const float kilograms = std::isfinite(massKg) && massKg > 0 ? float(massKg) : 50000.0f;
     const float k = std::min(seconds, 1.0f);
-    curveForceHeard += (TrainMotion::curveForce(massKg, absSpeed, radius) - curveForceHeard) * k;
+    curveForceHeard += (TrainMotion::curveForce(kilograms, absSpeed, radius) - curveForceHeard) * k;
     angleOfAttackHeard += (TrainMotion::angleOfAttack(radius) - angleOfAttackHeard) * k;
     values.set(Sms::Control::CurveForce, curveForceHeard);
     values.set(Sms::Control::AngleOfAttack, angleOfAttackHeard);
@@ -356,9 +349,9 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("size")) {
-                    sizex = ParserX::GetNumberInside(data);
-                    sizey = ParserX::GetNumberInside(data);
-                    sizez = ParserX::GetNumberInside(data);
+                    sizex = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
+                    sizey = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
+                    sizez = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
                     //qDebug() << "wymiary taboru: " << sizex << " " << sizey << " " << sizez;
                     ParserX::SkipToken(data);
                     continue;
@@ -372,31 +365,28 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("mass")) {
-                    const int at = data->off;
-                    mass = ParserX::GetNumberInside(data);
-                    data->off = at;
-                    massKg = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Mass);
+                    massKg = ParserX::GetNumberInside(data, NULL, Units::Quantity::Mass);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("ortsdavis_a") || sh == ("ortsdavis_b") || sh == ("ortsdavis_c")) {
                     const int k = sh.back().toLatin1() - 'a';
-                    const MstsUnits::Kind kinds[3] = {MstsUnits::Kind::Force, MstsUnits::Kind::Resistance,
-                                                      MstsUnits::Kind::ResistanceSquared};
+                    const Units::Quantity kinds[3] = {Units::Quantity::Force, Units::Quantity::Resistance,
+                                                      Units::Quantity::ResistanceSquared};
                     bool ok = false;
-                    davis[k] = MstsUnits::value(ParserX::GetToken(data), kinds[k], &ok);
+                    davis[k] = ParserX::GetNumberInside(data, &ok, kinds[k]);
                     hasDavis = hasDavis || ok;
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("friction")) {
-                    const MstsUnits::Kind kinds[5] = {MstsUnits::Kind::Resistance, MstsUnits::Kind::None,
-                                                      MstsUnits::Kind::Speed, MstsUnits::Kind::Resistance,
-                                                      MstsUnits::Kind::None};
+                    const Units::Quantity kinds[5] = {Units::Quantity::Resistance, Units::Quantity::Any,
+                                                      Units::Quantity::Speed, Units::Quantity::Resistance,
+                                                      Units::Quantity::Any};
                     bool all = true;
                     for (int k = 0; k < 5; ++k) {
                         bool ok = false;
-                        friction[k] = MstsUnits::value(ParserX::GetToken(data), kinds[k], &ok);
+                        friction[k] = ParserX::GetNumberInside(data, &ok, kinds[k]);
                         all = all && ok;
                     }
                     hasFriction = all;
@@ -414,7 +404,7 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("wheelradius")) {
-                    wheelRadius = ParserX::GetNumberInside(data);
+                    wheelRadius = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -562,33 +552,24 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("maxvelocity")) {
-                    const int at = data->off;
-                    maxSpeed = ParserX::GetNumberInside(data);
-                    data->off = at;
-                    maxSpeedMps = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Speed);
+                    maxSpeedMps = ParserX::GetNumberInside(data, NULL, Units::Quantity::Speed);
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("maxpower")) {
-                    const int at = data->off;
-                    maxPower = ParserX::GetNumberInside(data);
-                    data->off = at;
-                    powerW = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Power);
+                    powerW = ParserX::GetNumberInside(data, NULL, Units::Quantity::Power);
                     //qDebug() << "maxPower "<<maxPower;
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("maxcurrent")) {
-                    maxCurrent = ParserX::GetNumberInside(data);
+                    maxCurrent = ParserX::GetNumberInside(data, NULL, Units::Quantity::Current);
                     //qDebug() << "maxCurrent "<<maxCurrent;
                     ParserX::SkipToken(data);
                     continue;
                 }
                 if (sh == ("maxforce")) {
-                    const int at = data->off;
-                    maxForce = ParserX::GetNumberInside(data);
-                    data->off = at;
-                    forceN = MstsUnits::value(ParserX::GetToken(data), MstsUnits::Kind::Force);
+                    forceN = ParserX::GetNumberInside(data, NULL, Units::Quantity::Force);
                     //qDebug() << "maxForce "<<maxForce / 1000;
                     ParserX::SkipToken(data);
                     continue;
@@ -604,7 +585,7 @@ void Eng::load(){
                     continue;
                 }
                 if (sh == ("wheelradius")) {
-                    driverWheelRadius = ParserX::GetNumberInside(data);
+                    driverWheelRadius = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
                     ParserX::SkipToken(data);
                     continue;
                 }

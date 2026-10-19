@@ -16,6 +16,7 @@
 #include <tsre/trains/Path.h>
 #include <tsre/trains/ActLib.h>
 #include <routeEditor/activity/ActivityEdit.h>
+#include <tsre/units/Units.h>
 
 ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(parent) {
     //this->setMinimumHeight(400);
@@ -96,10 +97,18 @@ ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(
     list.append(qtTrId("activity.service.station.header.stop"));
     //% "Station Name:"
     list.append(qtTrId("activity.service.station.header.name"));
-    //% "Distance (km):"
-    list.append(qtTrId("activity.service.station.header.distance"));
+    //% "Distance (%1):"
+    list.append(qtTrId("activity.service.station.header.distance.unit").arg(Units::unit(Units::Quantity::Distance)));
     stationList.setColumnCount(3);
     stationList.setHeaderLabels(list);
+    // The speeds and distances in the units the editors show (task core
+    // si-units), again when they change.
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, this, [this] {
+        stationList.headerItem()->setText(2, qtTrId("activity.service.station.header.distance.unit")
+                                                   .arg(Units::unit(Units::Quantity::Distance)));
+        if(service != NULL)
+            showService(service);
+    });
     stationList.setRootIsDecorated(false);
     stationList.header()->resizeSection(0,30);
     stationList.header()->resizeSection(1,150);    
@@ -184,8 +193,8 @@ void ActivityServiceProperties::showService(Service *s){
     eFileName.setText(s->nameId);
     eDisplayName.setText(s->displayName);
     ePlayerPerformance.setText(QString::number(s->efficiency));
-    eStartSpeed.setText(QString::number(s->startingSpeed));
-    eEndSpeed.setText(QString::number(s->endingSpeed));
+    eStartSpeed.setText(Units::format(s->startingSpeed, Units::Quantity::Speed));
+    eEndSpeed.setText(Units::format(s->endingSpeed, Units::Quantity::Speed));
     
     if(cPath.currentIndex() >= 0)
         setStationList();
@@ -231,17 +240,23 @@ void ActivityServiceProperties::ePlayerPerformanceEnabled(QString val){
 void ActivityServiceProperties::eStartSpeedEnabled(QString val){
     if(service == NULL)
         return;
+    double speed = 0;
+    if(!Units::parse(val, Units::Quantity::Speed, speed))
+        return;
     ActivityEdit edit(service, true);
     edit.alsoUsersOf(service);
-    service->setStartSpeed(val.toFloat());
+    service->setStartSpeed(speed);
 }
 
 void ActivityServiceProperties::eEndSpeedEnabled(QString val){
     if(service == NULL)
         return;
+    double speed = 0;
+    if(!Units::parse(val, Units::Quantity::Speed, speed))
+        return;
     ActivityEdit edit(service, true);
     edit.alsoUsersOf(service);
-    service->setEndSpeed(val.toFloat());
+    service->setEndSpeed(speed);
 }
     
 void ActivityServiceProperties::cConFilesEnabled(int val){
@@ -302,9 +317,7 @@ void ActivityServiceProperties::setStationList(){
         list.append(pass > 1 ? QString(
             //% "%1 (pass %2)"
             qtTrId("route.editor.activity.service.properties.platform.pass")).arg(i->name).arg(pass) : i->name);
-        float dist = i->distanceDownPath;
-        dist = 0.01*((int)(dist/10));
-        list.append(QString::number(dist));
+        list.append(Units::formatNumber(i->distanceDownPath, Units::Quantity::Distance, 2));
         QTreeWidgetItem *item = new QTreeWidgetItem((QTreeWidget*)0, list, count );
         item->setCheckState(0, Qt::Unchecked);
         for(int ii = 0; ii < service->stationStop.size(); ii++ ){

@@ -75,16 +75,14 @@ public:
     QString type;
     QString brakeSystemType;
     int wagonTypeId = 0;
-    float mass = 0;
     float sizex;
     float sizey;
     float sizez;
-    float maxSpeed = 0;
-    float maxForce = 0;
-    float maxPower = 0;
+    // Amperes.
     float maxCurrent = 0;
-    // For the simulation's driving (task simulation 03), in SI units: the
-    // mass (kg), the engine's force (N), power (W) and top speed (m/s);
+    // In SI units, as read (task core si-units; the simulation's driving,
+    // task simulation 03, the consist editor): the mass (kg), the engine's
+    // force (N), power (W) and top speed (m/s);
     // the resistance as Open Rails' Davis A, B, C (N, N/(m/s), N/(m/s)²)
     // where given, else MSTS's Friction (C1, E1, V2, C2, E2); a passenger
     // capacity (an EMU's power car).

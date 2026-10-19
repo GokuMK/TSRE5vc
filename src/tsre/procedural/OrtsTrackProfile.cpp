@@ -15,6 +15,7 @@
 #include <QXmlStreamReader>
 #include <algorithm>
 #include <cmath>
+#include <tsre/units/UnitConversion.h>
 
 QString OrtsTrackProfileCatalog::loadedRoutePath;
 QMap<QString, QSharedPointer<OrtsTrackProfile>> OrtsTrackProfileCatalog::profiles;
@@ -132,31 +133,15 @@ QString firstValue(const StfNode &node, const QString &name,
 }
 
 float numberValue(QString value, bool *ok = nullptr) {
-    value = value.trimmed();
-    static const QRegularExpression numberPattern(
-            "^([-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?)([a-zA-Z]*)$");
-    const QRegularExpressionMatch match = numberPattern.match(value);
-    if(!match.hasMatch()){
-        if(ok != nullptr)
-            *ok = false;
-        return 0;
-    }
-    bool parsed = false;
-    float result = match.captured(1).toFloat(&parsed);
-    const QString unit = match.captured(2).toLower();
-    if(unit == "cm")
-        result *= 0.01f;
-    else if(unit == "mm")
-        result *= 0.001f;
-    else if(unit == "km")
-        result *= 1000.0f;
-    else if(unit == "ft")
-        result *= 0.3048f;
-    else if(!unit.isEmpty() && unit != "m")
-        parsed = false;
+    // A length, in metres, as every reader reads numbers with units (task
+    // core si-units); another unit or anything after it refused.
+    Units::FileNumber read;
+    double metres = 0.0;
+    const bool parsed = Units::fromFileToken(value, Units::Quantity::Length, metres, {}, &read)
+            && read.whole && read.unitKnown;
     if(ok != nullptr)
         *ok = parsed;
-    return parsed ? result : 0;
+    return parsed ? float(metres) : 0;
 }
 
 float floatValue(const StfNode &node, const QString &name, float fallback) {

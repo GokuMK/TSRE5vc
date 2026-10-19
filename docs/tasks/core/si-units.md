@@ -17,6 +17,153 @@ and a proposed design for when the task is taken up.
   system, the locale's number formatting and the plain widgets.
 - 2026-10-17: the unit-suffix naming rule is recommended for new code;
   existing names are not refactored.
+- 2026-10-17 (task started): the readers switch to SI **all at once**,
+  not caller by caller. The change needs no GPU, so it is verified on the
+  headless server by reading the local content before and after the
+  switch and comparing every value.
+- 2026-10-17: files TSRE writes keep their own units: a value read with a
+  unit is written back in that unit, a value read without one is written
+  without one, in MSTS's default unit for that parameter. (The user would
+  rather write SI or the defaults, but not every user would like that.)
+- 2026-10-17: the units shown, by system:
+
+  | Quantity | Metric | Imperial US | Imperial UK |
+  |---|---|---|---|
+  | Length | m | ft | ft |
+  | Distance | km | mi | mi |
+  | Speed | km/h | mph | mph |
+  | Mass | t | short ton | long ton |
+  | Force | kN | lbf | lbf |
+  | Power | kW | hp | hp |
+  | Pressure | bar | psi | psi |
+  | Temperature | °C | °F | °C |
+
+- 2026-10-17: the setting (metric, imperial US, imperial UK), its
+  default from the system locale (`QLocale::measurementSystem()`); it
+  replaces the unread `useImperial`. Made as `core.interface.units`
+  (Interface > Appearance, beside `core.interface.language`), with the
+  choices System / Automatic (the locale's), Metric, Imperial (US) and
+  Imperial (UK): a default that follows the machine's locale would make
+  the built-in defaults differ from machine to machine.
+
+## Progress
+- Phase 1 done (2026-10-18): `src/tsre/units/Units` (files' units to SI
+  and back, by quantity or by the unit alone; the units shown by system;
+  `format`, `parse`; the setting cached and `Units::Notifier`, made at
+  startup), the setting, suite `units`.
+- Phase 2 done (2026-10-18): the readers in SI, all at once.
+  - `ParserX::GetNumber` and `GetNumberInside` read the digits exactly
+    (`std::from_chars`; they were added up in a float, and a fraction of
+    ten digits or more overflowed its counter) and the whole unit written
+    after the number, and give SI through `Units::fromFile` (with an
+    optional quantity and the parameter's default unit). The units module
+    is split: `UnitConversion` (the conversions and the units shown for a
+    system given; Qt Core only, in every target that reads files) and
+    `Units` (the setting, the current units, `Notifier`).
+  - Every table moved to the module: `MstsUnits` removed, `SmsFile`'s
+    table (pressures still in psi, as sounds compare them), `SigCfg`'s
+    SpeedMPH, SpeedKPH and PositionYD, the track profiles' lengths.
+  - `Eng` keeps only its SI fields (`massKg`, `maxSpeedMps`, `powerW`,
+    `forceN`; the old `mass`, `maxSpeed`, `maxPower`, `maxForce` gone);
+    `Consist` sums `massKg` and `engineMassKg`, and its CON velocity comes
+    from the SI fields (an ENG speed without a unit was taken as km/h).
+    Train lights' `Angle`: degrees without a unit, radians inside
+    (`angleRad`). The consist editor and the Shape Viewer's info show
+    their values through `Units::format` and again when the setting
+    changes.
+  - Checked by reading the local content (MSTS, TS_STARTER_ROUTE, OR_PSK,
+    tsdata: 4,900 ENG/WAG, 450 CON, 70 activities, ten routes, the
+    simulation's inputs) with the old reader and the new one side by side
+    (`TSRE_UNITS_AUDIT`, suite `units-content`): every difference was
+    meant. Units to SI: masses in t and lb, speeds in mph, kmh and km/h,
+    powers in kW and hp, Friction's speeds in mph. Fixed on the way: half
+    inches (`in/2`, 573 wheel radii) were read as inches, `mm` as metres,
+    `250000lb` as tonnes; long fractions in TDBs (up to 1e-5 off). Content
+    with typos the old reader hid: `Size ( 2.62mm ... )` (MSTS
+    `SERIES2000`) and `( 3.3mm ... )` (OR_PSK `PKP_Rs` wagons) now read in
+    millimetres, as Open Rails reads them. Every other difference is in
+    the last digits only (exact now). The old reader and the audit were
+    removed after the check (they stay in commit 0649fec); `units-content`
+    stays, reading all content.
+- Phase 3 done (2026-10-18): the editors' fields in the user's units.
+  - `UnitSpinBox` (`src/tsre/gui`): a spin box holding its value in SI,
+    showing it in the units shown with the unit as its suffix, again when
+    they change; the value given is kept until the user edits it (other
+    units shown never change it). Text fields and labels use
+    `Units::format` and `Units::parse` (a typed value may carry a unit);
+    labels that name a unit take it as an argument. The properties panel
+    shown is shown again when the units change (`RouteEditorWindow`).
+  - Moved: TRK speed limits and wire height; the activity's event speed
+    (Reach Speed, now any speed, not whole m/s) and weather fog; service
+    start and end speeds and stop distances; timetable top and average
+    speeds; the Consist properties' speed; simulation texts ("running 72
+    km/h"); platform, siding, car spawner and telepole lengths; ruler
+    lengths; level crossing distances; static objects' light reach;
+    dyntrack straights and radii (curve angles stay in radians); flex tool
+    separation and minimum radius; the map's scale bar (m and km, or ft
+    and mi) and measure tool; the environment status (cloud heights,
+    wind, visibility, temperatures, fog); the weather dialogs' speed,
+    margin, model spacing and areas.
+  - Left in metres on purpose: the terrain brushes' size and radius
+    (whole metres on sliders, the terrain grid's) and the elevation
+    sources' offsets (corrections to data in metres); positions and
+    tiles (MSTS's grid); the play mode HUD (km, km/h: game UI, for the
+    RmlUi work). Content units stay the designer's: speed posts, the
+    route's milepost units.
+  - Tests run in metric units whatever the machine's locale (`main.cpp`,
+    a session value): suites check texts with units. The units suite
+    checks `UnitSpinBox`.
+  - On a machine whose locale is en_US (as the dev box), System /
+    Automatic shows imperial US units: choose Metric in Settings >
+    Interface > Appearance > Units.
+- One reading of numbers with units for every reader (2026-10-18, for
+  moving files to `SimisTextReader`): the grammar is a template over a
+  source of characters, `Units::readFileNumberFrom`
+  (`src/tsre/units/FileNumberReader.h`): sign, digits read exactly
+  (Clinger's fast path, else `std::from_chars`), a comma followed by a
+  digit as the point, exponent, unit, a '+' sum. `ParserX` runs it on its
+  `FileBuffer`; `Units::readFileNumber` on a text, `Units::fromFileToken`
+  on a token as `SimisTextReader` gives it (quotes, a comment after '#',
+  commas, spaces and a leading '+' dropped; whether the token held
+  nothing else). `SmsFile` and the track profiles use `fromFileToken`
+  instead of their own patterns. Measured in the TSRE binary: plain
+  numbers 26 ns (the old reader 24 ns, which was not exact), numbers with
+  a unit 85 ns.
+- Values that must match MSTS geometry (user, 2026-10-18): track shapes
+  are built in metres (a double track's 4.985 m), hard to type in feet.
+  - Every `UnitSpinBox` takes a value typed with any unit of its
+    quantity ("4.985 m" where feet are shown) and holds it as typed.
+  - The flex tool offers the separations of the loaded `tsection.dat`'s
+    shapes with straight parallel paths (`TSectionDAT::
+    parallelSeparations`), the most used first, shown in metres (and the
+    user's units) with the shape families that have them, the file
+    names' leading letters ("4.985 m: A, SR, eb, tunnel..."; how many
+    shapes and one of them in the tooltip; user: families, not counts,
+    in the text); the most used is the default (4.985 m in every local
+    tsection, build 54 and the PL builds) instead of 4.0 m. No radius
+    presets: dyntrack and flex radii are free values.
+- Files keep their units: needed only where TSRE writes a value it read
+  with a unit. The phase 2 audit found units only in ENG/WAG files
+  (which TSRE does not write) and `forests.dat` (a unit not known, kept
+  as written), so no writer changed; `Units::toFile` is there for one
+  that needs it.
+- Still not SI inside (later, the whole project's goal): the weather
+  generator's front speed (km/h; its dialog converts at the boundary),
+  sound controls compare brake pressures in psi (MSTS's sounds), the
+  play mode HUD.
+- 2026-10-17: temperatures are held in °C (as Open Rails does).
+- Angles (proposed; dyntrack decided 2026-10-18): ENG/WAG files give some angles with a
+  unit. Open Rails reads an angle without a unit as radians and converts
+  `deg` (`STFReader`, `UNITS.Angle`: wheel flange angle, boiler angle,
+  steam cylinder crank angles); MSTS's own light `Angle` is in degrees
+  without a unit; local content has `Angle ( ...deg )` (an SD40 ENG) and
+  `MaxTilt ( ...deg )` (a wagon). So the default unit of an angle is the
+  parameter's: the reader converts `deg` and `rad` to radians where a
+  parameter is an angle, and the editors show degrees in every system.
+  TSRE's other angles (world rotations, dyntrack, terrain tools) are not
+  changed by this task. The user (2026-10-18): the dyntrack panel's curve
+  angles stay in radians, as the dyntrack data holds them; its straights
+  and radii follow the units setting.
 
 ## Goal
 
@@ -245,17 +392,19 @@ TSRE does it itself (decision above). What Qt offers as building blocks:
 ## Phases
 
 1. **The module, the setting and tests.** No callers yet.
-2. **The consist editor**, the biggest user. Its fields move to the helper
-   and the units setting. Vehicle values are read to SI. This meets the
-   ENG vehicle-definition refactor (one shared definition per ENG/WAG
-   file, read with `SimisTextReader`, used by the editor's `Eng` and the
-   simulation). That refactor is due before any driving task and should
-   read vehicle values with this converter.
+2. **The readers, all at once, and the consist editor.** `ParserX`'s
+   number readers give SI for every unit they meet, `MstsUnits` and
+   `SmsFile`'s tables become the module's, and every user of the old
+   bases (km/h for mph, kW for hp, tonnes) changes with them. Before the
+   switch, a suite dumps every value the local content gives through
+   TSRE's readers; after it, the same dump is compared, and every
+   difference must be one the switch intends. The consist editor shows
+   its fields through the helper in the user's units. The shapes
+   review's number bugs are fixed in the same pass. This meets the ENG
+   vehicle-definition refactor (driving task 01: one shared definition
+   per ENG/WAG file, read with `SimisTextReader`), which comes after and
+   reads with this converter.
 3. **The route editor's fields**, by the inventory above.
-4. **The readers.** `ParserX::NumberUnit`'s callers are reviewed and moved
-   to the one converter, which changes stored bases (for example km/h to
-   m/s). Each caller's users must be checked. The shapes review's number
-   bugs are fixed in the same pass.
 
 ## Related
 

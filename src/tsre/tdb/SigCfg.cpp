@@ -22,11 +22,20 @@
 #include <QFileInfo>
 #include <QtEndian>
 #include <algorithm>
+#include <tsre/units/UnitConversion.h>
 
 namespace {
 
 using Kind = SimisTextReader::Kind;
 constexpr qint64 MaxFileBytes = 64 * 1024 * 1024;
+
+// A number in the unit its block's name gives (SpeedMPH, PositionYD), in SI
+// (task core si-units).
+float inUnit(float number, QStringView unit, Units::Quantity quantity) {
+    double si = number;
+    Units::fromFile(number, {}, quantity, si, unit);
+    return float(si);
+}
 
 QByteArray utf16(const char *text) {
     QByteArray bytes;
@@ -453,9 +462,9 @@ private:
             QString child;
             while (nextBlock(child)) {
                 if (child == "speedmph") {
-                    entry.speedMpS = numberBlock(0.0f) * 0.44704f;
+                    entry.speedMpS = inUnit(numberBlock(0.0f), u"mph", Units::Quantity::Speed);
                 } else if (child == "speedkph") {
-                    entry.speedMpS = numberBlock(0.0f) / 3.6f;
+                    entry.speedMpS = inUnit(numberBlock(0.0f), u"kph", Units::Quantity::Speed);
                 } else if (child == "signalflags") {
                     for (const QString &flag : words()) {
                         if (flag == "asap") entry.asap = true;
@@ -481,9 +490,12 @@ private:
             if (block == "positionmiles") type.approachControlPositionM = numberBlock(0.0f) * 1609.344f;
             else if (block == "positionkm") type.approachControlPositionM = numberBlock(0.0f) * 1000.0f;
             else if (block == "positionm") type.approachControlPositionM = numberBlock(0.0f);
-            else if (block == "positionyd") type.approachControlPositionM = numberBlock(0.0f) * 0.9144f;
-            else if (block == "speedmph") type.approachControlSpeedMpS = numberBlock(0.0f) * 0.44704f;
-            else if (block == "speedkph") type.approachControlSpeedMpS = numberBlock(0.0f) / 3.6f;
+            else if (block == "positionyd")
+                type.approachControlPositionM = inUnit(numberBlock(0.0f), u"yd", Units::Quantity::Length);
+            else if (block == "speedmph")
+                type.approachControlSpeedMpS = inUnit(numberBlock(0.0f), u"mph", Units::Quantity::Speed);
+            else if (block == "speedkph")
+                type.approachControlSpeedMpS = inUnit(numberBlock(0.0f), u"kph", Units::Quantity::Speed);
             else if (block == "speedmps") type.approachControlSpeedMpS = numberBlock(0.0f);
             else unknown(block);
         }

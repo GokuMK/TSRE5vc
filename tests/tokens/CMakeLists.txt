@@ -67,6 +67,7 @@ qt_add_executable(tsre_quadtree_tests
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/FileBuffer.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ReadFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ParserX.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/units/UnitConversion.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/SimisTextReader.cpp"
 )
 target_compile_definitions(tsre_quadtree_tests PRIVATE TSRE_QUADTREE_CORE_ONLY)

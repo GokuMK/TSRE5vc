@@ -97,6 +97,10 @@ protected:
 private:
     void setCurrentEng(int id, int engSetId = -1);
     void fillCurrentEng(int engSetId);
+    // The values in the units the editors show (task core si-units), again
+    // when the units change.
+    void showEngValues();
+    void showConValues();
     void saveCurrentConsist();
     void saveCurrentActivity();
     EngListWidget *eng1;

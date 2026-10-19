@@ -34,12 +34,17 @@
 #include <tsre/trains/Activity.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QVector>
+#include <tsre/units/Units.h>
 
 ConEditorWindow::ConEditorWindow() : QMainWindow() {
     Game::shadowsEnabled = 0;
     Game::fogDensity = 0;
     Vec3::set((float*)Game::sunLightDirection,-1.0,0.0,0.0);
     aboutWindow = new AboutWindow(this);
+    connect(Units::Notifier::instance(), &Units::Notifier::changed, this, [this] {
+        showEngValues();
+        showConValues();
+    });
     englib = new EngLib();
     englib->loadAll(Game::root, true);
     Game::currentEngLib = englib;
@@ -823,20 +828,29 @@ void ConEditorWindow::fillCurrentEng(int engSetId){
     eType.setText(ttype);
     //eBrakes;
     //eCouplings;
-    eMass.setText(QString::number(currentEng->mass) + " t");
+    showEngValues();
+    eShape.setText(currentEng->shape.name);
+    eCouplings.setText(currentEng->getCouplingsName());
+    eBrakes.setText(currentEng->brakeSystemType);
+}
+
+void ConEditorWindow::showEngValues(){
+    if(currentEng == NULL)
+        return;
+    using Units::Quantity;
+    eMass.setText(Units::format(currentEng->massKg, Quantity::Mass));
     if(currentEng->wagonTypeId >= 4){
-        eMaxSpeed.setText(QString::number((int)currentEng->maxSpeed) + " km/h");
-        eMaxForce.setText(QString::number((int)currentEng->maxForce / 1000.0) + " kN");
-        eMaxPower.setText(QString::number((int)currentEng->maxPower ) + " kW");
+        eMaxSpeed.setText(Units::format(currentEng->maxSpeedMps, Quantity::Speed, 0));
+        eMaxForce.setText(Units::format(currentEng->forceN, Quantity::Force));
+        eMaxPower.setText(Units::format(currentEng->powerW, Quantity::Power));
     } else {
         eMaxSpeed.setText("--");
         eMaxForce.setText("--");
         eMaxPower.setText("--");
     }
-    eShape.setText(currentEng->shape.name);
-    eSize.setText(QString::number(currentEng->sizex)+" "+QString::number(currentEng->sizey)+" "+QString::number(currentEng->sizez)+" ");
-    eCouplings.setText(currentEng->getCouplingsName());
-    eBrakes.setText(currentEng->brakeSystemType);
+    eSize.setText(Units::formatNumber(currentEng->sizex, Quantity::Length) + " "
+                  + Units::formatNumber(currentEng->sizey, Quantity::Length) + " "
+                  + Units::format(currentEng->sizez, Quantity::Length));
 }
 
 void ConEditorWindow::engSetAddSelected(){
@@ -996,12 +1010,19 @@ void ConEditorWindow::refreshCurrentCon(){
         conSlider->setValue(conSlider->maximum());
     cFileName.setText(currentCon->conName);
     cDisplayName.setText(currentCon->displayName);
-    cMass.setText(QString::number(currentCon->mass) + " t");
-    cEmass.setText(QString::number(currentCon->emass) + " t");
-    cWmass.setText(QString::number(currentCon->mass - currentCon->emass) + " t");
-    cLength.setText(QString::number(currentCon->conLength) + " m");
+    showConValues();
     cUnits.setText(QString::number(currentCon->engItems.size()));
     cDurability.setValue(currentCon->durability);
+}
+
+void ConEditorWindow::showConValues(){
+    if(currentCon == NULL)
+        return;
+    using Units::Quantity;
+    cMass.setText(Units::format(currentCon->massKg, Quantity::Mass));
+    cEmass.setText(Units::format(currentCon->engineMassKg, Quantity::Mass));
+    cWmass.setText(Units::format(currentCon->massKg - currentCon->engineMassKg, Quantity::Mass));
+    cLength.setText(Units::format(currentCon->conLength, Quantity::Length));
 }
 
 void ConEditorWindow::conSliderValueChanged(int val){

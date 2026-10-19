@@ -187,6 +187,10 @@ private:
     ShapeViewWindow* shapeViewWindow;
     PropertiesGroup* groupProperties = NULL;
     GameObj* pinnedPropertiesObj = NULL;
+    // The properties panel shown and its object, shown again when the units
+    // the editors show change (task core si-units).
+    PropertiesAbstract *shownProperties = NULL;
+    GameObj *shownPropertiesObj = NULL;
     GameObj* pinnedSelectionObj = NULL;
 };
 //! [0]

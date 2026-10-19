@@ -13,6 +13,7 @@
 
 #include <QtWidgets>
 #include <tsre/world/TerrainLod.h>
+#include <tsre/gui/UnitSpinBox.h>
 
 class Trk;
 
@@ -49,8 +50,9 @@ private:
     QLineEdit routeName;
     QComboBox electrified;
     //d int mountains;
-    QDoubleSpinBox overheadWireHeight;
-    QDoubleSpinBox speedLimit;
+    // In the units the editors show (task core si-units).
+    UnitSpinBox overheadWireHeight{Units::Quantity::Length};
+    UnitSpinBox speedLimit{Units::Quantity::Speed};
     QDoubleSpinBox terrainErrorScale;
     QDoubleSpinBox enclosedAmbient;
     QLineEdit startTileX;
@@ -59,7 +61,7 @@ private:
     QLineEdit startpZ;
     QComboBox milepostUnitsKilometers;
     QDoubleSpinBox maxLineVoltage;
-    QDoubleSpinBox tempRestrictedSpeed;
+    UnitSpinBox tempRestrictedSpeed{Units::Quantity::Speed};
     QComboBox envName;
     QLineEdit envValue;
     QComboBox iList;

@@ -28,7 +28,6 @@
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/SignalType.h>
 #include <tsre/tdb/TSectionDAT.h>
-#include <tsre/fileFunctions/MstsUnits.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ActivityObject.h>
@@ -202,26 +201,6 @@ int TsreTests::runSimulationCoreSuite(bool verbose) {
         else { ++failed; qWarning().noquote() << "[tests:simulation-core] FAIL" << name; }
     };
 
-    // Values with MSTS units (task 03), as the physics driving reads them.
-    {
-        using MstsUnits::Kind;
-        const auto near = [](double a, double b) { return std::fabs(a - b) <= 1e-6 * std::max(1.0, std::fabs(b)); };
-        bool ok = true, unknown = true;
-        const bool units = near(MstsUnits::value("39.19t", Kind::Mass), 39190.0)
-                && near(MstsUnits::value("\"117.57t #368000lbs\"", Kind::Mass), 117570.0)
-                && near(MstsUnits::value("166.9t#368000lbs", Kind::Mass), 166900.0)
-                && near(MstsUnits::value("230kN#est", Kind::Force), 230000.0)
-                && near(MstsUnits::value("1400kW", Kind::Power), 1400000.0)
-                && near(MstsUnits::value("4000hp", Kind::Power), 4000.0 * 745.6999)
-                && near(MstsUnits::value("74.56mph", Kind::Speed), 74.56 * 0.44704)
-                && near(MstsUnits::value("100km/h", Kind::Speed), 100.0 / 3.6)
-                && near(MstsUnits::value("-1mph", Kind::Speed), -0.44704)
-                && near(MstsUnits::value("150N/m/s", Kind::Resistance), 150.0)
-                && near(MstsUnits::value("1e3", Kind::Force, &ok), 1000.0) && ok;
-        MstsUnits::value("80furlongs", Kind::Mass, &unknown);
-        check(units && !unknown, "MSTS units: masses, forces, powers, speeds and resistances in SI; comments and quotes "
-                                 "dropped; an unknown unit refused");
-    }
     // Signal scripts (task 05): read and run as MSTS's grammar defines them.
     {
         const QString text = R"(// heading comment

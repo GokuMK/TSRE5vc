@@ -182,7 +182,8 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->addWidget(label, row, 0);
     eActionSpeed.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     vlist->addWidget(&eActionSpeed, row++, 1);
-    eActionSpeed.setRange(0,1000);
+    eActionSpeed.setRangeSi(0, 300);
+    eActionSpeed.setDecimals(1);
     QObject::connect(&eActionSpeed, SIGNAL(editingFinished()),
                       this, SLOT(eActionSpeedSelected()));
     actionWidgetSpeed.setLayout(vlist);
@@ -517,14 +518,18 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     const QString weatherNames[4] = {
         //% "Overcast (0-1):"
         qtTrId("route.editor.activity.event.properties.weather.overcast"),
-        //% "Fog (m):"
-        qtTrId("route.editor.activity.event.properties.weather.fog"),
+        //% "Fog:"
+        qtTrId("route.editor.activity.event.properties.weather.fog.distance"),
         //% "Precipitation (0-0.02):"
         qtTrId("route.editor.activity.event.properties.weather.intensity"),
         //% "Rain (1) or snow (0):"
         qtTrId("route.editor.activity.event.properties.weather.liquidity")};
     const double weatherMax[4] = {1, 100000, 0.02, 1};
     const int weatherDecimals[4] = {2, 0, 4, 2};
+    eFog.setRangeSi(0, weatherMax[1]);
+    eFog.setDecimals(0);
+    eFog.setSingleStep(100);
+    QObject::connect(&eFog, SIGNAL(siChanged(double)), this, SLOT(weatherEdited()));
     for(int i = 0; i < 4; i++){
         cWeatherSet[i].setText(weatherNames[i]);
         eWeatherValue[i].setRange(0, weatherMax[i]);
@@ -533,7 +538,7 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
         eWeatherTime[i].setRange(0, 86400);
         eWeatherTime[i].setSuffix(" s");
         vlist->addWidget(&cWeatherSet[i], row, 0);
-        vlist->addWidget(&eWeatherValue[i], row, 1);
+        vlist->addWidget(i == 1 ? static_cast<QWidget *>(&eFog) : &eWeatherValue[i], row, 1);
         vlist->addWidget(&eWeatherTime[i], row++, 2);
         QObject::connect(&cWeatherSet[i], SIGNAL(toggled(bool)), this, SLOT(weatherEdited()));
         QObject::connect(&eWeatherValue[i], SIGNAL(valueChanged(double)), this, SLOT(weatherEdited()));
@@ -653,7 +658,7 @@ void ActivityEventProperties::showEvent(ActivityEvent *e){
         
         if(event->eventType == ActivityEvent::EventTypeReachSpeed){
             actionWidgetSpeed.show();
-            eActionSpeed.setValue(event->speed);
+            eActionSpeed.setSi(event->speed);
         }
         if(event->eventType == ActivityEvent::EventTypePickupPassengers){
             actionWidgetStation.show();
@@ -864,11 +869,14 @@ void ActivityEventProperties::outcomeListSelected(QListWidgetItem* item){
         int index = cWeatherChange.findData(outcome->value.toString());
         cWeatherChange.setCurrentIndex(index);
         for(int i = 0; i < 4; i++){
-            QSignalBlocker set(cWeatherSet[i]), value(eWeatherValue[i]), time(eWeatherTime[i]);
+            QSignalBlocker set(cWeatherSet[i]), value(eWeatherValue[i]), fog(eFog), time(eWeatherTime[i]);
             cWeatherSet[i].setChecked(outcome->weather[i] >= 0);
-            eWeatherValue[i].setValue(std::max(0.0f, outcome->weather[i]));
+            if(i == 1)
+                eFog.setSi(std::max(0.0f, outcome->weather[i]));
+            else
+                eWeatherValue[i].setValue(std::max(0.0f, outcome->weather[i]));
             eWeatherTime[i].setValue(std::max(0, outcome->weatherTime[i]));
-            eWeatherValue[i].setEnabled(outcome->weather[i] >= 0);
+            (i == 1 ? static_cast<QWidget &>(eFog) : eWeatherValue[i]).setEnabled(outcome->weather[i] >= 0);
             eWeatherTime[i].setEnabled(outcome->weather[i] >= 0);
         }
     }
@@ -1037,9 +1045,10 @@ void ActivityEventProperties::weatherEdited(){
     ActivityEdit edit(eventActivity(), true);
     for(int i = 0; i < 4; i++){
         const bool set = cWeatherSet[i].isChecked();
-        eWeatherValue[i].setEnabled(set);
+        (i == 1 ? static_cast<QWidget &>(eFog) : eWeatherValue[i]).setEnabled(set);
         eWeatherTime[i].setEnabled(set);
-        outcome->setWeather(i, set ? eWeatherValue[i].value() : -1, eWeatherTime[i].value());
+        const double value = i == 1 ? eFog.si() : eWeatherValue[i].value();
+        outcome->setWeather(i, set ? value : -1, eWeatherTime[i].value());
     }
 }
 
@@ -1146,7 +1155,7 @@ void ActivityEventProperties::eActionSpeedSelected(){
         return;
     
     ActivityEdit edit(eventActivity());
-    event->setSpeed(eActionSpeed.value());
+    event->setSpeed(eActionSpeed.si());
 }
 
 void ActivityEventProperties::eNotesSelected(QString val){

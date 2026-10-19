@@ -9,6 +9,7 @@
  */
 
 #include "PropertiesSiding.h"
+#include <tsre/units/Units.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/objects/PlatformObj.h>
 #include <tsre/Game.h>
@@ -89,7 +90,7 @@ void PropertiesSiding::showObj(GameObj* obj){
     this->infoLabel->setText(qtTrId("route.properties.siding.object.type")
                              .arg(worldObj->type));
     pobj = (PlatformObj*)obj;
-    this->lengthPlatform.setText(QString::number(pobj->getLength())+" m");
+    this->lengthPlatform.setText(Units::format(pobj->getLength(), Units::Quantity::Length));
     this->namePlatform.setText(pobj->getPlatformName());
     this->disablePlatform.setChecked(pobj->getDisabled());
 }

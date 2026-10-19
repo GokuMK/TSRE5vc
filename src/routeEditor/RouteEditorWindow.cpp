@@ -82,6 +82,7 @@
 #include <tsre/world/Trk.h>
 #include <routeEditor/activity/ActivityEditLock.h>
 #include <tsre/map/TrackItemMapLayer.h>
+#include <tsre/units/Units.h>
 
 namespace {
 bool routeStartLatitudeLongitude(Route *route,
@@ -908,6 +909,10 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(glWidget, SIGNAL(updateProperties(GameObj*)),
                       this, SLOT(updateProperties(GameObj*)));
+    QObject::connect(Units::Notifier::instance(), &Units::Notifier::changed, this, [this] {
+        if(shownProperties != NULL && shownPropertiesObj != NULL && shownProperties->isVisible())
+            shownProperties->showObj(shownPropertiesObj);
+    });
     
     QObject::connect(this, SIGNAL(exitNow()),
                       aboutWindow, SLOT(exitNow())); 
@@ -1419,6 +1424,8 @@ void RouteEditorWindow::showProperties(GameObj* obj){
         if(it == NULL) continue;
         it->hide();
     }
+    shownProperties = NULL;
+    shownPropertiesObj = NULL;
     if(obj == NULL) return;
     // show 
     //qDebug() << obj->typeObj;
@@ -1429,6 +1436,8 @@ void RouteEditorWindow::showProperties(GameObj* obj){
         if(!it->support(obj)) continue;
         it->show();
         it->showObj(obj);
+        shownProperties = it;
+        shownPropertiesObj = obj;
         return;
     }
 }

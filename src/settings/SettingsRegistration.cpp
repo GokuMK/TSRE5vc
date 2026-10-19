@@ -351,6 +351,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Polski"
                 QT_TRID_NOOP("settings.core.interface.language.option.pl")}})).inGroup("interface").inSubgroup("appearance"),
         "", "", "TranslationManager", false, "startup");
+    ADD(SettingsDefinition::enumeration("core.interface.units", 0)
+            .withNameId(
+                //% "Units"
+                QT_TRID_NOOP("settings.core.interface.units.name")).withDescriptionId(
+                //% "Units the editors' fields show values in: speeds, lengths, masses, forces, power, pressures and temperatures. System follows the operating system's measurement system. Values the route itself shows, such as speed posts and mileposts, keep the units the route's designer chose."
+                QT_TRID_NOOP("settings.core.interface.units.description")).withOptions(numericChoices({{0,
+                //% "System / Automatic"
+                QT_TRID_NOOP("settings.core.interface.units.option.system")}, {1,
+                //% "Metric"
+                QT_TRID_NOOP("settings.core.interface.units.option.metric")}, {2,
+                //% "Imperial (US)"
+                QT_TRID_NOOP("settings.core.interface.units.option.imperial.us")}, {3,
+                //% "Imperial (UK)"
+                QT_TRID_NOOP("settings.core.interface.units.option.imperial.uk")}})).inGroup("interface").inSubgroup("appearance"),
+        "", "", "Units", true, "cached");
     ADD(SettingsDefinition::boolean("core.interface.routeEditor.startMaximized", false)
             .withNameId(
                 //% "Start Route Editor maximized"
