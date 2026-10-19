@@ -2569,6 +2569,14 @@ bool GltfShape::parseFile() {
     return true;
 }
 
+// Mipmaps of glTF shapes' textures, under test (TSRE_GLTF_MIPMAPS, read
+// once): 0 or unset none (as MSTS shapes), 1 plain, 2 cutout colour textures
+// keeping their coverage (Texture::coverageCutoff).
+static int gltfMipmaps() {
+    static const int mode = qBound(0, qEnvironmentVariableIntValue("TSRE_GLTF_MIPMAPS"), 2);
+    return mode;
+}
+
 void GltfShape::syncTextureAddresses() {
     if (loaded != 1) {
         return;
@@ -2601,7 +2609,10 @@ void GltfShape::syncTextureAddresses() {
             }
 
             if (!t->glLoaded) {
-                t->GLTextures();
+                // A cutout colour texture keeps its coverage in its mipmaps.
+                if (gltfMipmaps() == 2 && prim->material.surface == RenderItem::SURFACE_ALPHA_TEST)
+                    t->coverageCutoff = prim->material.pbr.alphaCutoff;
+                t->GLTextures(gltfMipmaps() > 0);
                 requiresUpdate = true;
             }
 
@@ -2614,6 +2625,17 @@ void GltfShape::syncTextureAddresses() {
             }
         }
     }
+    // The other maps with mipmaps too (the renderer uploads them without).
+    if (gltfMipmaps() == 0)
+        return;
+    for (MeshGpu *mesh : meshes)
+        for (MeshPrimitiveGpu *prim : mesh->primitives)
+            for (int id : prim->material.pbr.textures) {
+                const auto it = TexLib::mtex.find(id);
+                if (id >= 0 && it != TexLib::mtex.end() && it->second != nullptr && it->second->loaded
+                        && !it->second->glLoaded)
+                    it->second->GLTextures(true);
+            }
 }
 
 unsigned long long GltfShape::getTextureStateHash() const {

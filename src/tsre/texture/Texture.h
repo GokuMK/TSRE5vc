@@ -54,6 +54,10 @@ class Texture {
     std::shared_ptr<AceDocument> aceDocument; // Only requested document preservation.
     bool gpuMipmaps = false;
     int gpuMipLevels = 1;
+    // A cutout colour texture's cutoff (0..1): its mipmaps keep as many
+    // texels at or above it as the full size has (QRhi). Negative: plain
+    // mipmaps.
+    float coverageCutoff = -1.0f;
     QString errorMessage;
     unsigned int *tex = nullptr;
     QString pathid;

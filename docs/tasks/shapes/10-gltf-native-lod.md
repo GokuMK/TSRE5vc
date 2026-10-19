@@ -125,6 +125,26 @@ TSRE, mipmaps with coverage-preserving alpha for glTF cutout textures, then
 the last switch captured again. MSTS content (no mipmaps either) is a
 separate decision, with captures before and after.
 
+Mipmaps tested (2026-10-20, `TSRE_GLTF_MIPMAPS`, glTF shapes only, QRhi):
+0 none (as before), 1 plain for every map, 2 plain and the cutout colour
+textures keeping their coverage: each level's alpha scaled so as many texels
+reach the material's cutoff as at full size (Castano's method, built on the
+CPU, `Texture::coverageCutoff`). The spruce's dark pixels per level:
+
+| Coverage | None: level 0, 2, impostor | Plain | Coverage-preserving |
+|---|---|---|---|
+| 0.11 | 700, 1181, 1741 | 685, 1172, 1768 | 1148, 1536, 1813 |
+| 0.06 | 157, 210, 518 | 157, 211, 535 | 379, 412, 553 |
+| 0.033 | 39, 29, 156 | 42, 28, 156 | 153, 117, 161 |
+
+Plain mipmaps change nothing; coverage-preserving ones fill the meshes in,
+level 0 at 48 px from a trunk with a few needles to a cone. The switch from
+level 2 to the impostor at 0.060 halves (luminance shift over the tree's box
+-10.6 to -5.0; -4.3 at 0.045 and 0.033); level 2 stays a little sparser
+than the impostor. The others are as before (0 to 1 unchanged, 1 to 2 about
+-5 at 0.167). Off by default until decided; the OpenGL renderer gets plain
+mipmaps only.
+
 ## Supplied fixtures
 
 [Catalogue](../../../../tree-gen/docs/runtime-catalogue.md) and
