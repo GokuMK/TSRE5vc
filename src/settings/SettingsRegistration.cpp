@@ -701,6 +701,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Far clipping and culling distance for ordinary route objects and terrain patches."
                 QT_TRID_NOOP("settings.core.rendering.object.lod.distance.description")).withRange(100, 200000, 100).withUnit("m").inGroup("rendering").inSubgroup("visibility"),
         "objectLod", "Game::objectLod", "RouteEditor renderer", true, "hot-cache");
+    ADD(SettingsDefinition::integer("core.rendering.lodBias", 0)
+            .withNameId(
+                //% "Level of detail bias"
+                QT_TRID_NOOP("settings.core.rendering.lod.bias.name")).withDescriptionId(
+                //% "Where shapes change their level of detail, as Open Rails' LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors)."
+                QT_TRID_NOOP("settings.core.rendering.lod.bias.description")).withRange(-100, 100, 1).withUnit("%").inGroup("rendering").inSubgroup("visibility"),
+        "", "", "ShapeLod", false, "hot-cache");
     ADD(SettingsDefinition::integer("core.rendering.objectLoading.targetTokens", 10)
             .withNameId(
                 //% "Object loading budget target"

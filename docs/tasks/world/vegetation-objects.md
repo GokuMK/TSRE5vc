@@ -1,7 +1,46 @@
 # Forest/Static shape and impostor integration
 
-Status: engine implementation draft, not started. Updated 2026-10-19.
+Status: impostors of glTF shapes drawn (steps 3 to 5, simplified), merged from
+`feature/gltf-lod`; Forest and the world-file fields not started. Updated
+2026-10-20.
 Prerequisite: [native glTF LOD loading](../shapes/10-gltf-native-lod.md).
+
+## Implementation (feature/gltf-lod, 2026-10-19)
+
+- Found beside the shape, not referenced: "tree.gltf" has "tree.impostor"
+  (the stem and a lowercase suffix, by TSRE's file name rules), loaded with
+  the shape on the worker. No world-file field yet, so MSTS and Open Rails
+  readers see no new token; a Static/Forest `Impostor` field can come when
+  an object needs another one.
+- `Impostor` reads version 1 through the common SIMIS reader (`EnvText`)
+  and validates it: unit directions, cells inside the atlas, extents and
+  bounds; another version or invalid values leave the meshes alone, with a
+  warning. Textures are file names in the route's textures.
+- Each frame is a quad in its capture plane (pivot + R x + U y, UVs with v
+  down). Its tangent frame is the capture basis (normal D, tangent R,
+  bitangent U), so the PBR program's normal mapping decodes the baked
+  normals; colour with its cutout, roughness, specular, metallic 0, and the
+  `BacklightTexture` as diffuse transmission ([task 36](../renderer/36-foliage-backlighting.md)).
+- The impostor is a level of the shape (`ShapeLod`): after the last mesh
+  level from its end coverage (Append; a shape without levels: its own
+  MSFT_screencoverage, else 0.001), or in its place (ReplaceLast). At that
+  level only the quad of the frame captured nearest to the camera's
+  direction in the shape's space draws (instance rotation included); each
+  frame's packet is shared, so instances showing it stay instanced.
+- Quads are not turned to the camera: a frame is within about 15 degrees of
+  the view; the frame switches as the view goes round. Shadows: the quad of
+  the frame seen by the camera. The selection box stays the meshes'.
+- Checking: the fixtures' placeholder 0.001 starts impostors some 17 km away
+  for an 18 m tree. With the coverages scaled 60 and 1000 times (now the LOD
+  bias, -100 for impostors everywhere, or `TSRE_SHAPE_LEVEL`) on TREES_EXT: impostors in place, size and outline of the meshes,
+  not mirrored, casting shadows; fuller than level 2's clusters. The near
+  spruce view: 21.7 ms with meshes, 15.6 ms all impostors.
+- Tests: suite `gltf-lod` (41): Append after internal levels, the frame by
+  direction, cutout and maps, ReplaceLast, a shape without levels, another
+  version; the TREES_EXT spruce with its impostor on a worker.
+
+Open: Forest; world-file fields; atlas bleeding at coarse mipmaps (no cell
+inset yet); the shadow pass's frame; crossfades; impostors of MSTS shapes.
 
 ## Engine changes
 
@@ -41,7 +80,7 @@ alpha mip coverage and atlas bleed in supported backends. Exercise missing
 resources, malformed STF and mesh-only objects. Compare fixed-path captures and
 CPU/GPU time, draw calls, triangles and memory with/without impostors.
 
-[Diffuse transmission](../renderer/35-foliage-backlighting.md) is separate.
+[Diffuse transmission](../renderer/36-foliage-backlighting.md) is separate.
 STF BacklightTexture/BacklightStrength now reference a supplied whole-tree
 RGBA atlas (sRGB tint in RGB, linear amount in A). Route it through that material
 feature when supported; an absent/unsupported optional binding must still work.

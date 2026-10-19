@@ -15,6 +15,7 @@
 #include <QMap>
 #include <QString>
 #include <QVector>
+#include <algorithm>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/shape/ComplexShape.h>
@@ -49,6 +50,10 @@ public:
 
     unsigned int newState() override;
     void setAnimated(unsigned int stateId, bool animated) override;
+    void setCurrentDistanceLevel(unsigned int stateId, int level) override;
+    int distanceLevelCount() const override;
+    float distanceLevelCoverage(int level) const override;
+    void setCameraDirection(unsigned int stateId, const float direction[3]) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
 
     void pushRenderItem(RenderQueue &queue) override;
@@ -65,6 +70,10 @@ public:
 private:
     struct State {
         bool animated = false;
+        // The level of detail drawn (MSFT_lod), set by ShapeLod.
+        int level = 0;
+        // The impostor's frame facing the camera, set by ShapeLod.
+        int frame = 0;
     };
 
     struct MaterialRuntime {
@@ -105,6 +114,15 @@ private:
         int meshIndex = -1;
         int primitiveIndex = -1;
         bool enabled = true;
+        // MSFT_lod: the level its node belongs to (-1 every level) and the
+        // last level of its node's group, drawn for the levels past it.
+        int level = -1;
+        int lastLevel = 0;
+        // The impostor's frame it draws (-1 for meshes).
+        int frame = -1;
+        bool drawnAt(int shapeLevel) const {
+            return level < 0 || level == std::min(shapeLevel, lastLevel);
+        }
     };
 
     QString pathid;
@@ -126,6 +144,19 @@ private:
     QVector<int> nodeParents;
     // KHR_lights_punctual lights in shape space.
     QVector<RenderItem::Light> punctualLights;
+    // Levels of detail, internal (MSFT_lod) or external (companion files):
+    // how many (0 without them) and the least screen coverage of each
+    // (MSFT_screencoverage).
+    int lodLevels = 0;
+    QVector<float> lodCoverage;
+    // The scene root's MSFT_screencoverage, for external levels.
+    QVector<float> rootCoverage;
+    // Whether external levels are looked for (not in a level file itself).
+    bool discoverLevels = true;
+    // The impostor's level (-1 without one) and its frames' directions
+    // (three values each): only its quads draw at that level.
+    int impostorLevel = -1;
+    QVector<float> impostorDirections;
 
     bool requiresUpdate = false;
 
@@ -150,6 +181,16 @@ private:
     void cleanupRenderItems();
 
     bool parseAndBuild();
+    // The file of the shape alone, without its external levels.
+    bool parseFile();
+    // External levels: "tree_LOD01.gltf" ... beside "tree.gltf", loaded
+    // and appended (appendLevel()) as levels 1, 2...
+    void loadExternalLevels();
+    void appendLevel(GltfShape &level, int index, int lastLevel);
+    // The impostor beside the shape ("tree.impostor"): a quad per frame, in
+    // the frame's capture plane, after the last mesh level (Append) or
+    // instead of it (ReplaceLast).
+    void loadImpostor();
     void syncTextureAddresses();
     unsigned long long getTextureStateHash() const;
 };

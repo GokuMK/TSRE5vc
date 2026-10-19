@@ -37,6 +37,7 @@ const QHash<QString, int> &samplerBindings() {
         {"pbrEmissiveMap", 14}, {"pbrClearcoatMap", 4}, {"pbrClearcoatRoughnessMap", 5},
         {"pbrClearcoatNormalMap", 6}, {"pbrSpecularMap", 7}, {"pbrSpecularColorMap", 15},
         {"pbrSceneColor", 1}, {"pbrTransmissionMap", 16}, {"pbrThicknessMap", 17},
+        {"pbrDiffuseTransmissionMap", 21}, {"pbrDiffuseTransmissionColorMap", 33},
         {"waterBottomMap", 4}, {"waterMiddleMap", 5}, {"waterReflectionMap", 6},
         {"waterWaveMap", 15}, {"waterSceneColor", 11}, {"waterSceneDepth", 12}, {"uSampler4", 18}, {"environmentSource", 0},
         {"localLightData", 22}, {"localLightCells", 23}, {"localLightIndices", 24},

@@ -94,6 +94,7 @@ public:
     int pbrIor = -1;
     int pbrTransmission = -1;
     int pbrAttenuationColor = -1;
+    int pbrDiffuseTransmission = -1;
     int cameraPosition = -1;
     int environmentMapLevels = -1;
     int waterTime = -1;

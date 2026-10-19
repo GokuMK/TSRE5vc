@@ -202,9 +202,9 @@ cover by day, fake light cones, editing .sd values in the editor.
 
 ### Steps 1 and 2: loading and the self-lit base (2026-10-19)
 
-- `NightTextures` (shape): the lookup (a `Night` folder in any case next to
-  the texture, else one level up; an .ace name finds the .dds), looked up
-  once per folder; the frame's state (wanted, scale, under cover) set by the
+- `NightTextures` (shape): the lookup (a `NIGHT` folder next to the texture,
+  else one level up; an .ace name finds the .dds; `NIGHT` spelt as TSRE's
+  file name rules spell season directories, no other spelling looked for); the frame's state (wanted, scale, under cover) set by the
   view; loaded below the sun at 20 degrees, released above 23.
 - Both MSTS shape backends: `SFileLegacy` (the editor's for now) and
   `SFileComplex` (Compact, the editor's next; user: prepare both). The
@@ -226,8 +226,8 @@ cover by day, fake light cones, editing .sd values in the editor.
   texture on unit 13 (`NightTextures::TextureUnit`; 8 is OpenGL's instance
   matrices), the brighter of it and the lit day texture, before the haze.
   The QRhi renderer binds it while the frame wants night textures.
-- Suite `night-textures` (12): the lookup (TEXTURES/NIGHT, from SPRING one
-  level up, none, .dds, any case), the load and release elevations, CMK's
+- Suite `night-textures` (11): the lookup (TEXTURES/NIGHT, from SPRING one
+  level up, none, .dds, spelt NIGHT), the load and release elevations, CMK's
   textures.
 - Captures (CMK, tile -5310 -14961, the u79haus row houses, clear, auto
   exposure): noon unchanged (night textures not loaded); from 19:00 the

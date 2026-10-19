@@ -9744,6 +9744,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Far clipping and culling distance for ordinary route objects and terrain patches.</source>
         <translation>Far clipping and culling distance for ordinary route objects and terrain patches.</translation>
     </message>
+    <message id="settings.core.rendering.lod.bias.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="707"/>
+        <source>Level of detail bias</source>
+        <translation>Level of detail bias</translation>
+    </message>
+    <message id="settings.core.rendering.lod.bias.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="709"/>
+        <source>Where shapes change their level of detail, as Open Rails&apos; LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors).</source>
+        <translation>Where shapes change their level of detail, as Open Rails&apos; LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors).</translation>
+    </message>
     <message id="settings.core.rendering.object.loading.target.tokens.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="707"/>
         <source>Object loading budget target</source>

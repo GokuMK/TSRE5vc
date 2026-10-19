@@ -39,6 +39,7 @@
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileDocument.h>
 #include <tsre/shape/ShapeLod.h>
+#include <settings/SettingsManager.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
 #include <tsre/texture/ImageLib.h>
@@ -798,6 +799,10 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
     SFileComplex levelledComplex(levelledPath, "levelled", tmp.path());
     SFileLegacy levelledLegacy(levelledPath, "levelled", tmp.path());
     t.check(levelledComplex.loadData() && levelledLegacy.loadData(), "load a shape with two distance levels");
+    // The LOD bias pinned for these checks, the profile's back after.
+    auto pinLodBias = [](int value) { SettingsManager::instance().setSessionValue("core.rendering.lodBias", value); };
+    const auto unpinLodBias = qScopeGuard([] { SettingsManager::instance().clearSessionValue("core.rendering.lodBias"); });
+    pinLodBias(0);
     for (const ComplexShape *shape : {static_cast<const ComplexShape *>(&levelledComplex),
                                       static_cast<const ComplexShape *>(&levelledLegacy)}) {
         const QString backend = shape == &levelledComplex ? "SFileComplex" : "SFileLegacy";
@@ -805,15 +810,28 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
                     && shape->distanceLevelDistance(1) == 1500.0f,
                 backend + ": its distance levels");
         const float radius = shape->getSize() * 0.5f;
-        t.check(ShapeLod::level(*shape, 0.0f) == 0 && ShapeLod::level(*shape, 199.0f + radius) == 0,
+        t.check(ShapeLod::level(*shape, {0.0f, 0.0f}) == 0 && ShapeLod::level(*shape, {199.0f + radius, 0.0f}) == 0,
                 backend + ": level 0 within its distance and radius");
-        t.check(ShapeLod::level(*shape, 201.0f + radius) == 1 && ShapeLod::level(*shape, 1499.0f + radius) == 1,
+        t.check(ShapeLod::level(*shape, {201.0f + radius, 0.0f}) == 1 && ShapeLod::level(*shape, {1499.0f + radius, 0.0f}) == 1,
                 backend + ": level 1 past level 0's");
         if (ShapeLod::mode() == ShapeLod::Mode::Levels)
-            t.check(ShapeLod::level(*shape, 5000.0f) == 1, backend + ": the last level past them all");
+            t.check(ShapeLod::level(*shape, {5000.0f, 0.0f}) == 1, backend + ": the last level past them all");
     }
-    t.check(ShapeLod::level(firstCompact, 5000.0f) == 0 || ShapeLod::mode() == ShapeLod::Mode::Cull,
+    t.check(ShapeLod::level(firstCompact, {5000.0f, 0.0f}) == 0 || ShapeLod::mode() == ShapeLod::Mode::Cull,
             "one level kept: always that one");
+    // The LOD bias: distances times 1 + bias / 100; 100 and -100 the ends.
+    {
+        const float radius = static_cast<const ComplexShape &>(levelledLegacy).getSize() * 0.5f;
+        pinLodBias(50);
+        t.check(ShapeLod::level(levelledLegacy, {299.0f + radius, 0.0f}) == 0
+                    && ShapeLod::level(levelledLegacy, {301.0f + radius, 0.0f}) == 1,
+                "LOD bias 50: level 0 half as far again");
+        pinLodBias(100);
+        t.check(ShapeLod::level(levelledLegacy, {5000.0f, 0.0f}) == 0, "LOD bias 100: always the most detailed level");
+        pinLodBias(-100);
+        t.check(ShapeLod::level(levelledLegacy, {0.0f, 0.0f}) == 1, "LOD bias -100: always the least detailed level");
+    }
+    pinLodBias(0);
     write(path + "d", "SIMISA@@@@@@@@@@JINX0t1t______\nshape ( fixture.s esd_detail_level ( 4 ) "
                       "extra ( \"a)b\" ) )");
     SFileComplex metadata(path, "fixture", tmp.path());

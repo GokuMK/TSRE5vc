@@ -38,10 +38,9 @@ int TsreTests::runNightTexturesSuite(bool verbose) {
     test.check(!NightTextures::find(textures, "sign.ace").isEmpty(), "an .ace name finds the .dds");
     test.check(NightTextures::find(textures, "").isEmpty(), "no name: none");
 
-    // The folder's name in any case (content has NIGHT, Night, night, nIGHT).
-    const QString other = temp.filePath("OTHER");
-    test.check(touch(other + "/nIGHT/lamp.ace"), "write a folder spelt nIGHT");
-    test.check(!NightTextures::find(other, "lamp.ace").isEmpty(), "a Night folder in any case");
+    // The folder spelt NIGHT, as TSRE's file name rules spell season
+    // directories (content spelt otherwise opens on Windows only).
+    test.check(NightTextures::find(textures, "house.ace").endsWith("/NIGHT/house.ace"), "the folder spelt NIGHT");
 
     // Loaded below 20 degrees, released above 23.
     test.check(NightTextures::wantedForSun(19.0, false) && !NightTextures::wantedForSun(21.0, false),

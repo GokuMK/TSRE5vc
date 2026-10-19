@@ -64,11 +64,19 @@ public:
     virtual void setAnimated(unsigned int stateId, bool animated) = 0;
     virtual void setEnabledSubObjs(unsigned int stateId, unsigned int enabledSubObjs);
     virtual void setCurrentDistanceLevel(unsigned int stateId, int level);
-    // Its distance levels (see ShapeLod): how many (0 without any), and the
-    // distance (metres, dlevel_selection) each is drawn to, the most
-    // detailed first.
+    // Its distance levels (see ShapeLod): how many (0 without any), the
+    // distance (metres, MSTS dlevel_selection) each is drawn to, or instead
+    // the least screen coverage (glTF MSFT_screencoverage, above 0) each is
+    // drawn at; the most detailed first.
     virtual int distanceLevelCount() const;
     virtual float distanceLevelDistance(int level) const;
+    virtual float distanceLevelCoverage(int level) const;
+    // The direction from the object to the camera in the shape's space (unit),
+    // set each frame (ShapeLod): impostors pick their view by it.
+    virtual void setCameraDirection(unsigned int stateId, const float direction[3]) {
+        (void)stateId;
+        (void)direction;
+    }
     virtual void enableSubObjByName(unsigned int stateId, const QString& name, bool val);
     virtual void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val);
     virtual void updateSim(float deltaTime, unsigned int stateId = 0) = 0;
@@ -136,6 +144,11 @@ inline int ComplexShape::distanceLevelCount() const {
 }
 
 inline float ComplexShape::distanceLevelDistance(int level) const {
+    (void)level;
+    return 0.0f;
+}
+
+inline float ComplexShape::distanceLevelCoverage(int level) const {
     (void)level;
     return 0.0f;
 }

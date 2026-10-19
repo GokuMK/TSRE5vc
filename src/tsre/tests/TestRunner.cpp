@@ -85,6 +85,7 @@
 #include <tsre/tests/UnitsContentTestSuite.h>
 #include <tsre/tests/EngLightsTestSuite.h>
 #include <tsre/tests/NightTexturesTestSuite.h>
+#include <tsre/tests/GltfLodTestSuite.h>
 #include <tsre/tests/EnvironmentWindowTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
 #include <tsre/tests/TokenIdTestSuite.h>
@@ -4147,6 +4148,7 @@ QStringList TsreTests::listSuites() {
         "units-content",
         "eng-lights",
         "night-textures",
+        "gltf-lod",
         "environment-window",
         "tokens",
         "content-path",
@@ -4282,6 +4284,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runEngLightsSuite(opts.verbose);
     if (suite == "night-textures")
         return runNightTexturesSuite(opts.verbose);
+    if (suite == "gltf-lod")
+        return runGltfLodSuite(opts.verbose);
 
     if (suite == "environment-window")
         return runEnvironmentWindowSuite(opts.casesFile, opts.verbose);

@@ -1,6 +1,7 @@
 # Task 10 - Native glTF mesh LODs
 
-Status: TSRE implementation draft, not started. Updated 2026-10-19.
+Status: steps 1 to 4 implemented, merged from `feature/gltf-lod`; coverages
+measured and proposed for tree-gen to export. Updated 2026-10-20.
 Both asset layouts are supplied; this task covers engine work only.
 
 ## Engine scope
@@ -23,6 +24,131 @@ Both asset layouts are supplied; this task covers engine work only.
    while batching compatible instances. Preserve pivots, transforms and bounds.
    Keep the final mesh end boundary available to a future appended impostor;
    do not make it an unconditional whole-object visibility cutoff.
+
+## Implementation (feature/gltf-lod, 2026-10-19)
+
+- Internal (step 2): `GltfShape` reads `MSFT_lod.ids` (with `MSFT_lod` in
+  `extensionsUsed`) and `extras.MSFT_screencoverage` per node. From the
+  scene's roots each node is common (drawn at every level) or of one level;
+  the nodes a group names stand in for it under its parent. A group naming
+  invalid nodes (out of range, itself, nodes of the scene or of another
+  group, a cycle), nested in a level, or without the extension in
+  `extensionsUsed` draws level 0 only, with a warning; the nodes it names
+  outside the scene are not drawn. Before, every node with a mesh was drawn:
+  all levels on top of each other.
+- External (step 1): beside `tree.gltf` (or `tree_LOD00.gltf`, the same level
+  0) the files `tree_lod01.gltf`, `tree_lod02.gltf`... of the entry's format
+  (`.glb` beside `.glb`). Their names are not referenced, so by TSRE's file
+  name rules the part TSRE adds is lowercase (the referenced stem kept, as an
+  `.sd` beside its `.s`) and no other spelling is looked for: the supplied
+  `_LOD01` fixtures open on Windows only, an asset defect to report to
+  tree-gen. Consecutive from 1: a missing number or a file that does not load
+  ends them, with a warning. Internal levels take precedence over level
+  files. Level files load on the worker into the same shape.
+- Selection (step 3): `ShapeLod` (shared with the MSTS distance levels,
+  [task 11](11-msts-distance-levels.md)) picks each object's level by screen
+  coverage: the largest extent of level 0's bounds over the height the view
+  spans at the 3D distance to the bounds' middle, `2 d tan(fov / 2)` (Unity's
+  relative height, which Open Rails says it follows; it projects the box's
+  corners). Level i draws above `MSFT_screencoverage[i]`, Open Rails'
+  defaults 0.2, 0.05, 0.001 without it; past them all the last level, so the
+  final threshold hides nothing (`TSRE_SHAPE_LOD=2` does). The view's field
+  of view is `core.camera.fieldOfView`; instance scale is not included yet.
+  The LOD bias (`core.rendering.lodBias`, -100 to 100, as Open Rails')
+  divides the coverages (and scales MSTS distances) by 1 + bias / 100; 100
+  always draws level 0, -100 the last level. `TSRE_SHAPE_LEVEL` forces one
+  level everywhere, to compare levels in captures.
+- Sharing (step 4): packets per level, shared by the objects drawing it, so
+  instances of a level stay instanced. Pivots and transforms kept; the
+  selection box and the coverage use level 0. The Shape Viewer lists the
+  levels.
+- Tests: suite `gltf-lod` (34): internal groups in glTF and GLB, invalid
+  references, default coverages, the level by coverage, the external file
+  rules, the TREES_EXT spruce loaded as on a worker; diffuse transmission's
+  parsing ([task 36](../renderer/36-foliage-backlighting.md)).
+- Steam Deck, 1280x800, QRhi: TREES, 479 black locusts (levels of 23,472,
+  10,552 and 452 triangles), 74-101 ms to 34-43 ms a frame (before, all
+  three levels drawn); the TREES_EXT spruce line, 19.1 to 17.4 ms; the levels
+  differ by a few pixels at their switch.
+
+Open: tune the coverages after captures; instance scale; the 1, 100 and 1,000
+instance profiles with GPU time and memory. The impostor after the final level
+is drawn ([world task](../world/vegetation-objects.md)).
+
+## Coverage tuning (2026-10-20)
+
+The coverages belong in the asset (`MSFT_screencoverage` on level 0's root
+node, also read by Open Rails), written by tree-gen; TSRE measures and
+proposes them. The LOD bias adjusts them per hardware.
+
+TSRE's metric is tree-gen's intent: projected height over view height (the
+largest extent of level 0's bounds, the height for trees). Its intended
+transitions at 1080p, 480, 180 and 65 pixels, need no conversion:
+`[0.444, 0.167, 0.060]`. The exported `[0.2, 0.05, 0.001]` were Open Rails
+placeholders (impostors some 17 km away).
+
+Measured on the spruce (TREES_EXT): each level forced (`TSRE_SHAPE_LEVEL`),
+one tree against an empty background at coverages 0.6 to 0.01 (480 to 8 px
+of 800), neighbouring levels compared by 4 x 4 pixel blocks: the share of
+blocks changing by more than 6 of 255, and the mean luminance shift over the
+tree's box (negative: darker or denser). Shadows off change nothing.
+
+| Coverage (px) | Level 0 to 1 | 1 to 2 | 2 to impostor |
+|---|---|---|---|
+| 0.45 (360) | 16 %, +0.8 | 29 %, -0.5 | 28 %, +1.6 |
+| 0.2 (160) | 15 %, +0.6 | 29 %, -3.8 | 28 %, -3.2 |
+| 0.15 (120) | 15 %, +1.2 | 27 %, -6.7 | 26 %, -4.9 |
+| 0.11 (88) | 11 %, +0.5 | 25 %, -9.3 | 30 %, -7.7 |
+| 0.06 (48) | 8 %, +0.1 | 13 %, -3.2 | 26 %, -10.6 |
+| 0.033 (26) | 8 %, +0.1 | 8 %, +1.0 | 24 %, -11.8 |
+| 0.018 (14) | 7 %, 0.0 | 5 %, +0.1 | 17 %, -3.6 |
+
+- Level 0 to 1 at 0.444: no change of brightness at any size, only leaf by
+  leaf; fine (54,040 to 22,308 triangles).
+- Level 1 to 2 at 0.167: a slight darkening, about 5 of 255 over the tree's
+  box; acceptable for 22,308 to 1,580 triangles.
+- Level 2 to the impostor at 0.060: the impostor is much denser (2.5 to 3.3
+  times level 0's dark pixels at 0.11 to 0.06): at 48 px even level 0 is a
+  trunk with a few needles, while the impostor, captured from a full
+  resolution render, stays a full cone. Shape textures (MSTS and glTF) are
+  uploaded without mipmaps (only terrain textures get them), so far away a
+  pixel samples the full foliage atlas at one point and thin needles mostly
+  fall under the cutout (likely; not yet tested). The impostor is right;
+  the meshes need mipmaps for cutout textures, with coverage-preserving
+  alpha (plain ones would thin foliage further). Until then the switch shows
+  as the tree filling in.
+- The black locust (TREES) agrees above 0.11; below it other trees of the
+  forest stand between the camera and the target.
+
+Proposal: `[0.444, 0.167, 0.060]` with Append, for tree-gen's exporter; in
+TSRE, mipmaps with coverage-preserving alpha for glTF cutout textures, then
+the last switch captured again. MSTS content (no mipmaps either) is a
+separate decision, with captures before and after.
+
+Mipmaps tested (2026-10-20, `TSRE_GLTF_MIPMAPS`, glTF shapes only, QRhi):
+0 none (as before), 1 plain for every map, 2 plain and the cutout colour
+textures keeping their coverage: each level's alpha scaled so as many texels
+reach the material's cutoff as at full size (Castano's method, built on the
+CPU, `Texture::coverageCutoff`). The spruce's dark pixels per level:
+
+| Coverage | None: level 0, 2, impostor | Plain | Coverage-preserving |
+|---|---|---|---|
+| 0.11 | 700, 1181, 1741 | 685, 1172, 1768 | 1148, 1536, 1813 |
+| 0.06 | 157, 210, 518 | 157, 211, 535 | 379, 412, 553 |
+| 0.033 | 39, 29, 156 | 42, 28, 156 | 153, 117, 161 |
+
+Plain mipmaps change nothing; coverage-preserving ones fill the meshes in,
+level 0 at 48 px from a trunk with a few needles to a cone. The switch from
+level 2 to the impostor at 0.060 halves (luminance shift over the tree's box
+-10.6 to -5.0; -4.3 at 0.045 and 0.033); level 2 stays a little sparser
+than the impostor. The others are as before (0 to 1 unchanged, 1 to 2 about
+-5 at 0.167). Shapes with an impostor (trees) get coverage-preserving
+mipmaps by default: their foliage and quads face the view, so mipmaps cost
+no blur at grazing angles (TSRE has no anisotropic filtering for shapes,
+which is why plain mipmaps looked soft on ground and track), and near ones
+still sample the full texture. Other glTF and MSTS shapes keep none until
+decided; `TSRE_GLTF_MIPMAPS` sets one mode for all glTF shapes. The OpenGL
+renderer gets plain mipmaps only.
 
 ## Supplied fixtures
 
@@ -53,7 +179,7 @@ at equal thresholds, with no pivot jump or premature disappearance. Exercise
 FOV/scale changes, malformed references and companion gaps; keep ordinary glTF
 and MSTS shapes working. Check real PBR, cutout mips, normals, shadows and texture
 sharing on supported backends. Unsupported optional diffuse transmission must
-retain the core-PBR fallback until [task 35](../renderer/35-foliage-backlighting.md).
+retain the core-PBR fallback until [task 36](../renderer/36-foliage-backlighting.md).
 
 Capture pine/birch and profile one tree, 100 and 1,000 instances on target
 hardware. Record selected levels, draw calls, triangles, CPU submission/GPU time

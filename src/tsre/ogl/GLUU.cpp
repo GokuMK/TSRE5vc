@@ -287,6 +287,7 @@ void GLUU::initShader() {
         currentShader->pbrIor = currentShader->uniformLocation("pbrIor");
         currentShader->pbrTransmission = currentShader->uniformLocation("pbrTransmission");
         currentShader->pbrAttenuationColor = currentShader->uniformLocation("pbrAttenuationColor");
+        currentShader->pbrDiffuseTransmission = currentShader->uniformLocation("pbrDiffuseTransmission");
         currentShader->cameraPosition = currentShader->uniformLocation("cameraPosition");
         currentShader->environmentMapLevels = currentShader->uniformLocation("environmentMapLevels");
         currentShader->waterTime = currentShader->uniformLocation("waterTime");
@@ -352,6 +353,7 @@ void GLUU::initShader() {
             {"pbrClearcoatRoughnessMap", 5}, {"pbrClearcoatNormalMap", 6},
             {"pbrSpecularMap", 7}, {"pbrSpecularColorMap", 15}, {"pbrSceneColor", 1},
             {"pbrTransmissionMap", 16}, {"pbrThicknessMap", 17},
+            {"pbrDiffuseTransmissionMap", 21}, {"pbrDiffuseTransmissionColorMap", 20},
             {"waterBottomMap", 4}, {"waterMiddleMap", 5}, {"waterReflectionMap", 6},
             {"waterWaveMap", 15}, {"waterSceneColor", 11}, {"waterSceneDepth", 12}};
         GLint unitCount = 16;

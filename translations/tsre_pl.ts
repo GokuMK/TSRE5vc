@@ -9749,6 +9749,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Far clipping and culling distance for ordinary route objects and terrain patches.</source>
         <translation>Odległość dalekiego odcinania i pomijania zwykłych obiektów trasy oraz fragmentów terenu.</translation>
     </message>
+    <message id="settings.core.rendering.lod.bias.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="707"/>
+        <source>Level of detail bias</source>
+        <translation>Przesunięcie poziomu szczegółów</translation>
+    </message>
+    <message id="settings.core.rendering.lod.bias.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="709"/>
+        <source>Where shapes change their level of detail, as Open Rails&apos; LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors).</source>
+        <translation>Gdzie kształty zmieniają poziom szczegółów, jak LOD bias w Open Rails: powyżej 0 więcej szczegółów dalej, poniżej 0 mniej szczegółów bliżej (dla słabszego sprzętu). 100: zawsze najbardziej szczegółowy poziom; -100: zawsze najmniej szczegółowy (impostory drzew).</translation>
+    </message>
     <message id="settings.core.rendering.object.loading.target.tokens.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="707"/>
         <source>Object loading budget target</source>

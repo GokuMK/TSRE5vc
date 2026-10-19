@@ -5,6 +5,6 @@ The full generation brief is maintained in
 
 TSRE implementation work: [native glTF LODs](../shapes/10-gltf-native-lod.md),
 [Forest/Static and impostors](../world/vegetation-objects.md), and
-[diffuse transmission](../renderer/35-foliage-backlighting.md).
+[diffuse transmission](../renderer/36-foliage-backlighting.md).
 
 This file is a navigation pointer, not an asset-generation task for TSRE.

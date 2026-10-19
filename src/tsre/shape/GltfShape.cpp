@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/shape/GltfShape.h>
+#include <tsre/shape/Impostor.h>
 
 #include <QCryptographicHash>
 #include <QDebug>
@@ -19,6 +20,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QSet>
 
 #include <shapeViewer/ContentHierarchyInfo.h>
@@ -42,6 +44,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <memory>
 
 #ifndef __APPLE__
 #include <GL/gl.h>
@@ -361,6 +364,12 @@ struct GltfMaterial {
     GltfTextureRef thicknessTexture;
     float attenuationDistance = 0.0f;
     float attenuationColor[3] = {1.0f, 1.0f, 1.0f};
+    // KHR_materials_diffuse_transmission: the amount (alpha of its
+    // texture) and the colour (sRGB colour of its texture).
+    float diffuseTransmissionFactor = 0.0f;
+    GltfTextureRef diffuseTransmissionTexture;
+    float diffuseTransmissionColorFactor[3] = {1.0f, 1.0f, 1.0f};
+    GltfTextureRef diffuseTransmissionColorTexture;
 };
 
 struct GltfPrimitive {
@@ -402,6 +411,10 @@ struct GltfNode {
     QVector<float> translation;
     QVector<float> rotation;
     QVector<float> scale;
+    // MSFT_lod: the nodes standing in for this one at lower detail, and
+    // extras.MSFT_screencoverage, the least screen coverage of each level.
+    QVector<int> lodIds;
+    QVector<float> screenCoverage;
 };
 
 struct GltfScene {
@@ -421,6 +434,7 @@ struct GltfModel {
     QVector<GltfScene> scenes;
     QVector<GltfLight> lights;
     int defaultScene = 0;
+    QStringList extensionsUsed;
 };
 
 static bool makeAccessorView(const GltfModel& model, int accessorIndex, AccessorView& out, QString& outError) {
@@ -575,6 +589,175 @@ static void computeSceneWorldMatrices(const GltfModel& model, const QVector<int>
     }
 }
 
+// MSFT_lod: which nodes are drawn, at which levels of detail. A node with
+// the extension is level 0 of its group; the nodes it names (ids) stand in
+// for it, under its parent, at levels 1, 2... Nodes in no group draw at every
+// level. A group naming invalid nodes (out of range, itself, nodes of the
+// scene or of another group, or with a cycle) is drawn at level 0 only, as by
+// a client unaware of the extension; the nodes it names outside the scene are
+// not drawn. Other nodes outside the scene draw as before.
+struct LodLayout {
+    QVector<int> level;     // -1: every level
+    QVector<int> lastLevel; // the last level of the node's group
+    QVector<int> parent;    // in the drawn hierarchy
+    QVector<char> drawn;
+    QVector<int> order;     // the drawn nodes, parents first
+    int levels = 0;         // 0 without a valid group
+    QVector<float> coverage;
+};
+
+// Open Rails' screen coverages for a group without MSFT_screencoverage.
+static const float DefaultScreenCoverage[] = {0.2f, 0.05f, 0.001f};
+
+static LodLayout layoutLods(const GltfModel &model, const QVector<int> &roots,
+                            const QVector<int> &nodeParents, const QString &pathid) {
+    const int count = model.nodes.size();
+    LodLayout layout;
+    layout.level.fill(-1, count);
+    layout.lastLevel.fill(0, count);
+    layout.parent.fill(-1, count);
+    layout.drawn.fill(0, count);
+    auto valid = [count](int node) { return node >= 0 && node < count; };
+    auto mark = [&](QVector<char> &flags, int start) {
+        QVector<int> stack{start};
+        while (!stack.isEmpty()) {
+            const int node = stack.takeLast();
+            if (!valid(node) || flags[node])
+                continue;
+            flags[node] = 1;
+            for (int child : model.nodes[node].children)
+                stack.push_back(child);
+        }
+    };
+    // The nodes groups name, with all below them.
+    QVector<char> named(count, 0);
+    for (const GltfNode &node : model.nodes)
+        for (int id : node.lodIds)
+            mark(named, id);
+    // The ordinary hierarchy: the scene, then parentless nodes outside it.
+    QVector<int> starts = roots;
+    for (int i = 0; i < count; ++i)
+        if (nodeParents.value(i, -1) < 0 && !named[i] && !starts.contains(i))
+            starts.push_back(i);
+    QVector<char> ordinary(count, 0);
+    for (int start : starts)
+        mark(ordinary, start);
+
+    const bool lodUsed = model.extensionsUsed.contains("MSFT_lod");
+    QVector<char> claimed(count, 0);
+    // Why a group's references are invalid; empty when they are not.
+    auto problem = [&](int group) -> QString {
+        QVector<char> seen(count, 0);
+        for (int id : model.nodes[group].lodIds) {
+            if (!valid(id))
+                return QString("names node %1, out of range").arg(id);
+            QVector<int> stack{id};
+            while (!stack.isEmpty()) {
+                const int node = stack.takeLast();
+                if (!valid(node))
+                    continue;
+                if (node == group)
+                    return QString("names itself (node %1)").arg(id);
+                if (ordinary[node])
+                    return QString("names node %1 of the scene").arg(node);
+                if (claimed[node])
+                    return QString("names node %1 of another group").arg(node);
+                if (seen[node])
+                    return QString("reaches node %1 twice (a cycle)").arg(node);
+                seen[node] = 1;
+                for (int child : model.nodes[node].children)
+                    stack.push_back(child);
+            }
+        }
+        return {};
+    };
+
+    struct Visit {
+        int node, parent, level, lastLevel;
+    };
+    QVector<Visit> stack;
+    for (int i = starts.size() - 1; i >= 0; --i)
+        stack.push_back({starts[i], -1, -1, 0});
+    while (!stack.isEmpty()) {
+        const Visit visit = stack.takeLast();
+        if (!valid(visit.node) || layout.drawn[visit.node])
+            continue;
+        layout.drawn[visit.node] = 1;
+        layout.order.push_back(visit.node);
+        layout.level[visit.node] = visit.level;
+        layout.lastLevel[visit.node] = visit.lastLevel;
+        layout.parent[visit.node] = visit.parent;
+        int childLevel = visit.level;
+        int childLast = visit.lastLevel;
+        const GltfNode &node = model.nodes[visit.node];
+        if (!node.lodIds.isEmpty()) {
+            const QString invalid = !lodUsed ? QString("MSFT_lod is not in extensionsUsed")
+                    : visit.level >= 0 ? QString("is inside a level of another group")
+                                       : problem(visit.node);
+            if (invalid.isEmpty()) {
+                const int last = node.lodIds.size();
+                layout.level[visit.node] = childLevel = 0;
+                layout.lastLevel[visit.node] = childLast = last;
+                for (int j = last - 1; j >= 0; --j) {
+                    mark(claimed, node.lodIds[j]);
+                    stack.push_back({node.lodIds[j], visit.parent, j + 1, last});
+                }
+                if (layout.levels == 0) {
+                    // The first group's coverages decide (Open Rails reads
+                    // the scene's root), Open Rails' defaults where missing;
+                    // above 0, which marks levels chosen by distance.
+                    for (int i = 0; i <= last; ++i) {
+                        const float fallback = i < 3 ? DefaultScreenCoverage[i] : 0.0f;
+                        layout.coverage.push_back(std::max(node.screenCoverage.value(i, fallback), 1e-6f));
+                    }
+                }
+                layout.levels = std::max(layout.levels, last + 1);
+                while (layout.coverage.size() < layout.levels)
+                    layout.coverage.push_back(1e-6f);
+            } else {
+                qWarning() << "glTF:" << pathid << "MSFT_lod of node" << visit.node << invalid
+                           << "- drawn at full detail only";
+            }
+        }
+        for (int c = node.children.size() - 1; c >= 0; --c)
+            stack.push_back({node.children[c], visit.node, childLevel, childLast});
+    }
+    return layout;
+}
+
+// The external levels of a glTF shape, numbered as Open Rails numbers them:
+// beside the entry "tree.gltf" (or "tree_LOD00.gltf", the same level 0) the
+// files "tree_lod01.gltf", "tree_lod02.gltf"... with two digits, of the
+// entry's format (.glb ones too, a TSRE extension). Their names are not
+// referenced, so by TSRE's file name rules the part TSRE adds is lowercase
+// (as an .sd beside its .s): the entry's stem as referenced, "_lod" and the
+// number, and its extension in lowercase; no other spelling is looked for.
+// Consecutive from 1: a missing number ends them. None for an entry that is
+// itself a lower level ("tree_LOD01.gltf").
+static QStringList externalLevelFiles(const QString &entry) {
+    // The entry's own name is referenced: its suffix in any spelling.
+    static const QRegularExpression levelSuffix("_LOD(\\d\\d)$", QRegularExpression::CaseInsensitiveOption);
+    const QFileInfo info(ContentPath::normalize(entry));
+    QString base = info.completeBaseName();
+    const QRegularExpressionMatch own = levelSuffix.match(base);
+    if (own.hasMatch()) {
+        if (own.captured(1).toInt() != 0)
+            return {};
+        base.chop(own.capturedLength());
+    }
+    auto level = [&](int number) {
+        return ContentPath::join(info.path(), QString("%1_lod%2.%3").arg(base)
+                                 .arg(number, 2, 10, QLatin1Char('0')).arg(info.suffix().toLower()));
+    };
+    QStringList files;
+    for (int number = 1; number < 100 && ContentPath::readable(level(number)); ++number)
+        files.push_back(level(number));
+    if (files.size() < 99 && ContentPath::readable(level(files.size() + 2)))
+        qWarning() << "glTF:" << entry << "external level" << files.size() + 1
+                   << "is missing: the levels after it are not loaded";
+    return files;
+}
+
 static bool parseJsonFile(const QString& path, QByteArray& outBytes, QString& outError) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -606,6 +789,8 @@ static bool parseGltfJson(const QByteArray& jsonBytes, QJsonObject& outRoot, QSt
 
 static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
     model.defaultScene = root.value("scene").toInt(0);
+    for (const QJsonValue &name : root.value("extensionsUsed").toArray())
+        model.extensionsUsed.push_back(name.toString());
 
     const QJsonArray buffers = root.value("buffers").toArray();
     model.buffers.resize(buffers.size());
@@ -747,6 +932,13 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject transmission = extensions.value("KHR_materials_transmission").toObject();
         material.transmissionFactor = float(transmission.value("transmissionFactor").toDouble(0.0));
         material.transmissionTexture = textureRef(transmission.value("transmissionTexture").toObject());
+        const QJsonObject diffuse = extensions.value("KHR_materials_diffuse_transmission").toObject();
+        material.diffuseTransmissionFactor = float(diffuse.value("diffuseTransmissionFactor").toDouble(0.0));
+        material.diffuseTransmissionTexture = textureRef(diffuse.value("diffuseTransmissionTexture").toObject());
+        const QVector<float> diffuseColor = jsonFloatArray(diffuse.value("diffuseTransmissionColorFactor").toArray());
+        for (int c = 0; c < 3 && c < diffuseColor.size(); ++c)
+            material.diffuseTransmissionColorFactor[c] = diffuseColor[c];
+        material.diffuseTransmissionColorTexture = textureRef(diffuse.value("diffuseTransmissionColorTexture").toObject());
         const QJsonObject volume = extensions.value("KHR_materials_volume").toObject();
         material.thicknessFactor = float(volume.value("thicknessFactor").toDouble(0.0));
         material.thicknessTexture = textureRef(volume.value("thicknessTexture").toObject());
@@ -796,6 +988,10 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         if (o.contains("translation")) model.nodes[i].translation = jsonFloatArray(o.value("translation").toArray());
         if (o.contains("rotation")) model.nodes[i].rotation = jsonFloatArray(o.value("rotation").toArray());
         if (o.contains("scale")) model.nodes[i].scale = jsonFloatArray(o.value("scale").toArray());
+        model.nodes[i].lodIds = jsonIntArray(o.value("extensions").toObject().value("MSFT_lod")
+                .toObject().value("ids").toArray());
+        model.nodes[i].screenCoverage = jsonFloatArray(o.value("extras").toObject()
+                .value("MSFT_screencoverage").toArray());
     }
 
     const QJsonArray lights = root.value("extensions").toObject().value("KHR_lights_punctual")
@@ -1020,6 +1216,10 @@ void GltfShape::adopt(ComplexShape &copy) {
     std::swap(nodeNames, o->nodeNames);
     std::swap(nodeParents, o->nodeParents);
     std::swap(punctualLights, o->punctualLights);
+    std::swap(lodLevels, o->lodLevels);
+    std::swap(lodCoverage, o->lodCoverage);
+    std::swap(impostorLevel, o->impostorLevel);
+    std::swap(impostorDirections, o->impostorDirections);
     std::swap(size, o->size);
     std::swap(bound, o->bound);
     loaded = 1;
@@ -1052,6 +1252,37 @@ void GltfShape::setAnimated(unsigned int stateId, bool animated) {
     state[stateId].animated = animated;
 }
 
+void GltfShape::setCurrentDistanceLevel(unsigned int stateId, int level) {
+    if (stateId >= (unsigned int)state.size())
+        return;
+    state[stateId].level = level >= 0 && level < lodLevels ? level : 0;
+}
+
+int GltfShape::distanceLevelCount() const {
+    return loaded == 1 && lodLevels > 1 ? lodLevels : 0;
+}
+
+float GltfShape::distanceLevelCoverage(int level) const {
+    return level >= 0 && level < lodCoverage.size() ? lodCoverage[level] : 0.0f;
+}
+
+void GltfShape::setCameraDirection(unsigned int stateId, const float direction[3]) {
+    if (impostorLevel < 0 || stateId >= (unsigned int)state.size())
+        return;
+    // The frame captured nearest to the view; the first of equals.
+    int best = 0;
+    float bestDot = -2.0f;
+    for (int i = 0; i * 3 + 2 < impostorDirections.size(); ++i) {
+        const float *d = impostorDirections.constData() + i * 3;
+        const float dot = d[0] * direction[0] + d[1] * direction[1] + d[2] * direction[2];
+        if (dot > bestDot) {
+            bestDot = dot;
+            best = i;
+        }
+    }
+    state[stateId].frame = best;
+}
+
 void GltfShape::updateSim(float deltaTime, unsigned int stateId) {
     (void)deltaTime;
     (void)stateId;
@@ -1082,11 +1313,21 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             return;
     }
 
-    const unsigned int key = 0;
+    // A packet set per level of detail, shared by the states drawing it.
+    const int level = lodLevels > 1 ? std::clamp(state[stateId].level, 0, lodLevels - 1) : 0;
+    // At the impostor's level, one per frame: only the frame facing the
+    // camera, no mesh.
+    const bool impostorView = level == impostorLevel;
+    const int frame = impostorView ? std::clamp(state[stateId].frame, 0, int(impostorDirections.size() / 3) - 1) : -1;
+    const unsigned int key = unsigned(level) | (unsigned(frame + 1) << 8);
     if (selectionId == 0) {
         syncTextureAddresses();
         const unsigned long long textureStateHash = getTextureStateHash();
-        if (renderItemsTextureHash.value(key, 0ULL) != textureStateHash) {
+        // Only a built set whose textures changed: a level not built yet
+        // must not drop the sets of the others (levels alternate between
+        // objects).
+        const auto built = renderItemsTextureHash.constFind(key);
+        if (built != renderItemsTextureHash.constEnd() && built.value() != textureStateHash) {
             requiresUpdate = true;
         }
     }
@@ -1099,7 +1340,8 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
 
         for (int u = 0; u < drawUnits.size(); u++) {
             const DrawUnit& unit = drawUnits[u];
-            if (!unit.enabled) continue;
+            if (!unit.enabled || !unit.drawnAt(level)) continue;
+            if (impostorView ? unit.frame != frame : unit.frame >= 0) continue;
             if (unit.nodeIndex < 0 || unit.nodeIndex >= nodeWorldMatrices.size()) continue;
             if (unit.meshIndex < 0 || unit.meshIndex >= meshes.size()) continue;
 
@@ -1256,9 +1498,11 @@ void GltfShape::fillShapeTextureInfo(QHash<int, ShapeTextureInfo*>& list, unsign
 }
 
 void GltfShape::fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int stateId) {
-    (void)stateId;
     if (info == nullptr) return;
     if (!isLoaded()) return;
+    // The parts of the level shown.
+    const int level = stateId < (unsigned int)state.size() && lodLevels > 1
+            ? std::clamp(state[stateId].level, 0, lodLevels - 1) : 0;
 
     info->hierarchy.clear();
     info->matrices.clear();
@@ -1276,7 +1520,7 @@ void GltfShape::fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int st
 
     for (int u = 0; u < drawUnits.size(); u++) {
         const DrawUnit& unit = drawUnits[u];
-        if (unit.nodeIndex < 0) continue;
+        if (unit.nodeIndex < 0 || !unit.drawnAt(level)) continue;
         if (unit.meshIndex < 0 || unit.meshIndex >= meshes.size()) continue;
         MeshGpu* mesh = meshes[unit.meshIndex];
         if (mesh == nullptr) continue;
@@ -1310,6 +1554,19 @@ void GltfShape::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, i
     info->shape = this;
     info->type = "shape";
     list.push_back(info);
+    parent = list.size() - 1;
+
+    // Its levels of detail (MSFT_lod), to show each.
+    for (int i = 0; i < lodLevels && lodLevels > 1; ++i) {
+        ContentHierarchyInfo *level = new ContentHierarchyInfo();
+        level->parent = parent;
+        level->name = i == impostorLevel ? QString("LOD %1: impostor").arg(i)
+                                         : QString("LOD %1: screen coverage %2").arg(i).arg(lodCoverage.value(i));
+        level->distanceLevelId = i;
+        level->shape = this;
+        level->type = "shape";
+        list.push_back(level);
+    }
 }
 
 void GltfShape::cleanupGpu() {
@@ -1326,6 +1583,10 @@ void GltfShape::cleanupGpu() {
 
     meshes.clear();
     drawUnits.clear();
+    lodLevels = 0;
+    lodCoverage.clear();
+    impostorLevel = -1;
+    impostorDirections.clear();
 }
 
 void GltfShape::cleanupNodeMatrices() {
@@ -1348,7 +1609,213 @@ bool GltfShape::parseAndBuild() {
     cleanupRenderItems();
     cleanupGpu();
     cleanupNodeMatrices();
+    if (!parseFile())
+        return false;
+    if (discoverLevels) {
+        loadExternalLevels();
+        loadImpostor();
+    }
+    return true;
+}
 
+void GltfShape::loadImpostor() {
+    const QString file = Impostor::besideShape(pathid);
+    if (!ContentPath::readable(file))
+        return;
+    Impostor impostor;
+    QString error;
+    if (!Impostor::read(file, impostor, error)) {
+        qWarning() << "glTF:" << pathid << "impostor" << file << error << "- not used";
+        return;
+    }
+    // Its textures by file name, as the route's textures; without a texture
+    // folder, TEXTURES beside SHAPES.
+    const QString folder = !texPath.isEmpty() ? texPath
+            : ContentPath::join(ContentPath::parentDirectory(QFileInfo(pathid).path()), "TEXTURES");
+    auto texture = [&](const QString &name) {
+        return name.isEmpty() ? -1 : addTexture(ContentPath::join(folder, name), nullptr);
+    };
+    MaterialRuntime material;
+    material.debugName = "impostor";
+    material.texId = texture(impostor.colorTexture);
+    material.hasTexture = material.texId >= 0;
+    material.alphaAttr = -impostor.alphaCutoff;
+    material.surface = RenderItem::SURFACE_ALPHA_TEST;
+    material.doubleSided = true;
+    RenderItem::Pbr &pbr = material.pbr;
+    pbr.metallic = 0.0f;
+    pbr.roughness = impostor.roughness;
+    pbr.specular = impostor.specular;
+    pbr.alphaCutoff = impostor.alphaCutoff;
+    pbr.textures[RenderItem::Pbr::MAP_NORMAL] = texture(impostor.normalTexture);
+    if (!impostor.backlightTexture.isEmpty()) {
+        // As the meshes' binding: colour in RGB, amount in A.
+        const int backlight = texture(impostor.backlightTexture);
+        pbr.textures[RenderItem::Pbr::MAP_DIFFUSE_TRANSMISSION] = backlight;
+        pbr.textures[RenderItem::Pbr::MAP_DIFFUSE_TRANSMISSION_COLOR] = backlight;
+        pbr.diffuseTransmission = impostor.backlightStrength;
+    }
+
+    // A quad per frame in its capture plane: right R, up U and facing D, the
+    // tangent frame decoding the normal map in the capture's basis.
+    MeshGpu *mesh = new MeshGpu();
+    const int stride = RenderItem::PBR;
+    for (const Impostor::Frame &frame : impostor.frames) {
+        float right[3], up[3];
+        frame.axes(right, up);
+        const float *e = frame.extent;
+        const float *uv = frame.uv;
+        // Bottom left, bottom right, top right, top left (v down).
+        const float corners[4][4] = {{e[0], e[2], uv[0], uv[3]}, {e[1], e[2], uv[2], uv[3]},
+                                     {e[1], e[3], uv[2], uv[1]}, {e[0], e[3], uv[0], uv[1]}};
+        const int order[6] = {0, 1, 2, 0, 2, 3};
+        std::vector<float> vertices(size_t(6) * stride, 0.0f);
+        for (int v = 0; v < 6; ++v) {
+            const float *c = corners[order[v]];
+            float *vertex = &vertices[size_t(v) * stride];
+            for (int i = 0; i < 3; ++i) {
+                vertex[i] = impostor.pivot[i] + right[i] * c[0] + up[i] * c[1];
+                vertex[3 + i] = frame.direction[i];
+                vertex[9 + i] = right[i];
+            }
+            vertex[6] = c[2];
+            vertex[7] = c[3];
+            vertex[8] = material.alphaAttr;
+            vertex[12] = 1.0f;
+            for (int i = 15; i < 19; ++i)
+                vertex[i] = 1.0f;
+        }
+        MeshPrimitiveGpu *prim = new MeshPrimitiveGpu();
+        prim->material = material;
+        prim->vertCount = 6;
+        float low[3], high[3];
+        for (int i = 0; i < 3; ++i) {
+            low[i] = std::min({vertices[i], vertices[stride + i], vertices[2 * stride + i], vertices[5 * stride + i]});
+            high[i] = std::max({vertices[i], vertices[stride + i], vertices[2 * stride + i], vertices[5 * stride + i]});
+            prim->boundCenter[i] = 0.5f * (low[i] + high[i]);
+        }
+        prim->boundRadius = 0.5f * std::sqrt((high[0] - low[0]) * (high[0] - low[0])
+                                             + (high[1] - low[1]) * (high[1] - low[1])
+                                             + (high[2] - low[2]) * (high[2] - low[2]));
+        MeshData meshData;
+        meshData.layout = RenderItem::PBR;
+        meshData.vertices = std::move(vertices);
+        prim->mesh = Meshes::create(std::move(meshData));
+        mesh->primitives.push_back(prim);
+    }
+    const int meshIndex = meshes.size();
+    meshes.push_back(mesh);
+    const int node = nodeWorldMatrices.size();
+    float *identity = new float[16];
+    Mat4::identity(identity);
+    nodeWorldMatrices.push_back(identity);
+    nodeNames.push_back("impostor");
+    nodeParents.push_back(-1);
+
+    // After the last mesh level, from where it ends; or in its place.
+    const int meshLevels = std::max(lodLevels, 1);
+    if (impostor.replaceLast && meshLevels > 1) {
+        impostorLevel = meshLevels - 1;
+    } else {
+        impostorLevel = meshLevels;
+        lodLevels = meshLevels + 1;
+        // Without levels, the mesh ends at its own MSFT_screencoverage, else
+        // at Open Rails' last default.
+        if (lodCoverage.isEmpty())
+            lodCoverage.push_back(std::max(rootCoverage.value(0, DefaultScreenCoverage[2]), 1e-6f));
+        lodCoverage.push_back(1e-6f);
+    }
+    impostorDirections.clear();
+    for (int i = 0; i < impostor.frames.size(); ++i) {
+        DrawUnit unit;
+        unit.nodeIndex = node;
+        unit.meshIndex = meshIndex;
+        unit.primitiveIndex = i;
+        unit.level = impostorLevel;
+        unit.lastLevel = impostorLevel;
+        unit.frame = i;
+        drawUnits.push_back(unit);
+        for (float c : impostor.frames[i].direction)
+            impostorDirections.push_back(c);
+    }
+}
+
+void GltfShape::loadExternalLevels() {
+    const QStringList files = externalLevelFiles(pathid);
+    if (files.isEmpty())
+        return;
+    if (lodLevels > 1) {
+        qWarning() << "glTF:" << pathid << "has levels of its own (MSFT_lod): its external levels are not loaded";
+        return;
+    }
+    std::vector<std::unique_ptr<GltfShape>> levels;
+    for (const QString &file : files) {
+        auto level = std::make_unique<GltfShape>(file, QFileInfo(file).fileName(), texPath);
+        level->deferTextures = deferTextures;
+        level->discoverLevels = false;
+        if (!level->parseFile() || level->drawUnits.isEmpty()) {
+            qWarning() << "glTF:" << pathid << "external level" << int(levels.size()) + 1 << file
+                       << "does not load: the levels end before it";
+            break;
+        }
+        levels.push_back(std::move(level));
+    }
+    if (levels.empty())
+        return;
+    const int last = int(levels.size());
+    for (DrawUnit &unit : drawUnits) {
+        unit.level = 0;
+        unit.lastLevel = last;
+    }
+    for (int i = 0; i < last; ++i)
+        appendLevel(*levels[i], i + 1, last);
+    lodLevels = last + 1;
+    // The entry's coverages decide (its scene root's MSFT_screencoverage,
+    // with or without MSFT_lod), Open Rails' defaults where missing.
+    lodCoverage.clear();
+    for (int i = 0; i <= last; ++i)
+        lodCoverage.push_back(std::max(rootCoverage.value(i, i < 3 ? DefaultScreenCoverage[i] : 0.0f), 1e-6f));
+}
+
+void GltfShape::appendLevel(GltfShape &level, int index, int lastLevel) {
+    const int nodeBase = nodeWorldMatrices.size();
+    const int meshBase = meshes.size();
+    // Textures waiting for the main thread (a worker's load) are numbered
+    // in the list they join.
+    const int textureBase = pendingTextures.size();
+    auto shift = [textureBase](int &id) {
+        if (id >= PendingTextureBase)
+            id += textureBase;
+    };
+    for (MeshGpu *mesh : level.meshes)
+        for (MeshPrimitiveGpu *prim : mesh->primitives) {
+            shift(prim->material.texId);
+            for (int &texture : prim->material.pbr.textures)
+                shift(texture);
+        }
+    pendingTextures += level.pendingTextures;
+    level.pendingTextures.clear();
+    meshes += level.meshes;
+    level.meshes.clear();
+    nodeWorldMatrices += level.nodeWorldMatrices;
+    level.nodeWorldMatrices.clear();
+    for (const QString &name : level.nodeNames)
+        nodeNames.push_back(QString("LOD %1: %2").arg(index).arg(name));
+    for (int parent : level.nodeParents)
+        nodeParents.push_back(parent < 0 ? -1 : parent + nodeBase);
+    // Its own level 0; lights stay those of the entry.
+    for (DrawUnit unit : level.drawUnits) {
+        if (!unit.drawnAt(0))
+            continue;
+        unit.nodeIndex += nodeBase;
+        unit.meshIndex += meshBase;
+        unit.level = index;
+        unit.lastLevel = lastLevel;
+        drawUnits.push_back(unit);
+    }
+}
+
+bool GltfShape::parseFile() {
     const QString ext = pathid.section('.', -1, -1).toLower();
     const QString assetDir = QFileInfo(pathid).absolutePath();
 
@@ -1441,8 +1908,24 @@ bool GltfShape::parseAndBuild() {
         roots.push_back(0);
     }
 
+    rootCoverage = !roots.isEmpty() && roots[0] >= 0 && roots[0] < model.nodes.size()
+            ? model.nodes[roots[0]].screenCoverage : QVector<float>();
+
     // Compute world matrices (shape-local).
     computeSceneWorldMatrices(model, roots, nodeWorldMatrices);
+    // Levels of detail (MSFT_lod): the nodes standing in for others take
+    // their place, under the same parent.
+    const LodLayout lods = layoutLods(model, roots, nodeParents, pathid);
+    for (int node : lods.order) {
+        float local[16];
+        buildNodeLocalMatrix(model.nodes[node], local);
+        if (lods.parent[node] < 0)
+            std::memcpy(nodeWorldMatrices[node], local, sizeof(local));
+        else
+            Mat4::multiply(nodeWorldMatrices[node], nodeWorldMatrices[lods.parent[node]], local);
+    }
+    lodLevels = lods.levels;
+    lodCoverage = lods.coverage;
 
     // Texture caching per glTF texture index.
     QVector<int> textureToTexLibId;
@@ -1705,13 +2188,17 @@ bool GltfShape::parseAndBuild() {
                 pbr.attenuationDistance = srcMat.attenuationDistance;
                 std::copy(srcMat.attenuationColor, srcMat.attenuationColor + 3,
                           pbr.attenuationColor);
+                pbr.diffuseTransmission = srcMat.diffuseTransmissionFactor;
+                std::copy(srcMat.diffuseTransmissionColorFactor, srcMat.diffuseTransmissionColorFactor + 3,
+                          pbr.diffuseTransmissionColor);
                 const GltfTextureRef *maps[RenderItem::Pbr::MAP_COUNT] = {
                     &srcMat.baseColorTexture, &srcMat.metallicRoughnessTexture,
                     &srcMat.normalTexture, &srcMat.occlusionTexture, &srcMat.emissiveTexture,
                     &srcMat.clearcoatTexture, &srcMat.clearcoatRoughnessTexture,
                     &srcMat.clearcoatNormalTexture, &srcMat.specularTexture,
                     &srcMat.specularColorTexture, &srcMat.transmissionTexture,
-                    &srcMat.thicknessTexture};
+                    &srcMat.thicknessTexture, &srcMat.diffuseTransmissionTexture,
+                    &srcMat.diffuseTransmissionColorTexture};
                 for (int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map) {
                     pbr.texCoords[map] = maps[map]->texCoord == 1 ? 1 : 0;
                     std::copy(maps[map]->transform, maps[map]->transform + 6,
@@ -1979,8 +2466,10 @@ bool GltfShape::parseAndBuild() {
 
     // Punctual lights in shape space: at the node's origin, spots pointing
     // along its -Z. glTF intensity is in candela; see RenderItem::Light.
+    // Those of the most detailed level stay at every level.
     punctualLights.clear();
     for (int ni = 0; ni < model.nodes.size(); ni++) {
+        if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
         const int index = model.nodes[ni].light;
         if (index < 0 || index >= model.lights.size() || !model.lights[index].supported
                 || ni >= nodeWorldMatrices.size() || nodeWorldMatrices[ni] == nullptr)
@@ -2002,9 +2491,10 @@ bool GltfShape::parseAndBuild() {
         punctualLights.push_back(light);
     }
 
-    // Build draw units from nodes referencing meshes.
+    // Build draw units from the drawn nodes referencing meshes.
     drawUnits.clear();
     for (int ni = 0; ni < model.nodes.size(); ni++) {
+        if (!lods.drawn[ni]) continue;
         const int meshIndex = model.nodes[ni].mesh;
         if (meshIndex < 0 || meshIndex >= meshes.size()) continue;
         MeshGpu* mesh = meshes[meshIndex];
@@ -2015,16 +2505,20 @@ bool GltfShape::parseAndBuild() {
             unit.meshIndex = meshIndex;
             unit.primitiveIndex = pi;
             unit.enabled = true;
+            unit.level = lods.level[ni];
+            unit.lastLevel = lods.lastLevel[ni];
             drawUnits.push_back(unit);
         }
     }
 
-    // Compute world-space (shape-local) bounds by transforming mesh AABB corners by node world matrices.
+    // Compute world-space (shape-local) bounds by transforming mesh AABB corners by node world matrices;
+    // of the most detailed level, which the screen coverage measures.
     float globalMin[3] = {1e30f, 1e30f, 1e30f};
     float globalMax[3] = {-1e30f, -1e30f, -1e30f};
     bool hasAnyBounds = false;
 
     for (int ni = 0; ni < model.nodes.size(); ni++) {
+        if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
         const int meshIndex = model.nodes[ni].mesh;
         if (meshIndex < 0 || meshIndex >= meshes.size()) continue;
         MeshGpu* mesh = meshes[meshIndex];
@@ -2075,6 +2569,18 @@ bool GltfShape::parseAndBuild() {
     return true;
 }
 
+// Mipmaps of glTF shapes' textures: 0 none (as MSTS shapes), 1 plain, 2 also
+// cutout colour textures keeping their coverage (Texture::coverageCutoff).
+// Shapes with an impostor (trees) get 2: their foliage faces the view, so
+// mipmaps cost no blur at grazing angles and keep it from thinning out far
+// away; the others none, until decided. TSRE_GLTF_MIPMAPS (read once) sets
+// one mode for every glTF shape, for comparisons.
+static int gltfMipmaps(bool impostor) {
+    static const int forced = qEnvironmentVariableIsSet("TSRE_GLTF_MIPMAPS")
+            ? qBound(0, qEnvironmentVariableIntValue("TSRE_GLTF_MIPMAPS"), 2) : -1;
+    return forced >= 0 ? forced : impostor ? 2 : 0;
+}
+
 void GltfShape::syncTextureAddresses() {
     if (loaded != 1) {
         return;
@@ -2107,7 +2613,10 @@ void GltfShape::syncTextureAddresses() {
             }
 
             if (!t->glLoaded) {
-                t->GLTextures();
+                // A cutout colour texture keeps its coverage in its mipmaps.
+                if (gltfMipmaps(impostorLevel >= 0) == 2 && prim->material.surface == RenderItem::SURFACE_ALPHA_TEST)
+                    t->coverageCutoff = prim->material.pbr.alphaCutoff;
+                t->GLTextures(gltfMipmaps(impostorLevel >= 0) > 0);
                 requiresUpdate = true;
             }
 
@@ -2120,6 +2629,17 @@ void GltfShape::syncTextureAddresses() {
             }
         }
     }
+    // The other maps with mipmaps too (the renderer uploads them without).
+    if (gltfMipmaps(impostorLevel >= 0) == 0)
+        return;
+    for (MeshGpu *mesh : meshes)
+        for (MeshPrimitiveGpu *prim : mesh->primitives)
+            for (int id : prim->material.pbr.textures) {
+                const auto it = TexLib::mtex.find(id);
+                if (id >= 0 && it != TexLib::mtex.end() && it->second != nullptr && it->second->loaded
+                        && !it->second->glLoaded)
+                    it->second->GLTextures(true);
+            }
 }
 
 unsigned long long GltfShape::getTextureStateHash() const {

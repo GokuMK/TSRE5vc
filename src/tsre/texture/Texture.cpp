@@ -757,6 +757,65 @@ static bool uploadCompressedForRhi(Texture &t, bool mipmaps) {
     return true;
 }
 
+// The mipmap levels below an RGBA image, each filtered from the level above
+// it, its alpha scaled so as many texels reach the cutoff as in the image:
+// cutout foliage keeps its coverage far away instead of falling under the
+// cutoff as averaging blurs it (Castano's coverage-preserving mipmaps).
+static QVector<QByteArray> coverageMipmaps(const QByteArray &image, int width, int height, float cutoff) {
+    const float limit = cutoff * 255.0f;
+    auto coverage = [limit](const QByteArray &rgba, float scale) {
+        const unsigned char *p = reinterpret_cast<const unsigned char *>(rgba.constData());
+        const qsizetype count = rgba.size() / 4;
+        qsizetype passed = 0;
+        for (qsizetype i = 0; i < count; ++i)
+            if (p[i * 4 + 3] * scale >= limit)
+                ++passed;
+        return count > 0 ? double(passed) / double(count) : 0.0;
+    };
+    const double target = coverage(image, 1.0f);
+    QVector<QByteArray> levels;
+    QByteArray above = image;  // unscaled
+    int w = width, h = height;
+    while (w > 1 || h > 1) {
+        const int levelW = std::max(1, w / 2), levelH = std::max(1, h / 2);
+        QByteArray level(qsizetype(levelW) * levelH * 4, 0);
+        const unsigned char *src = reinterpret_cast<const unsigned char *>(above.constData());
+        unsigned char *dst = reinterpret_cast<unsigned char *>(level.data());
+        for (int y = 0; y < levelH; ++y)
+            for (int x = 0; x < levelW; ++x) {
+                const int x0 = std::min(2 * x, w - 1), x1 = std::min(2 * x + 1, w - 1);
+                const int y0 = std::min(2 * y, h - 1), y1 = std::min(2 * y + 1, h - 1);
+                for (int c = 0; c < 4; ++c) {
+                    const int sum = src[(qsizetype(y0) * w + x0) * 4 + c] + src[(qsizetype(y0) * w + x1) * 4 + c]
+                            + src[(qsizetype(y1) * w + x0) * 4 + c] + src[(qsizetype(y1) * w + x1) * 4 + c];
+                    dst[(qsizetype(y) * levelW + x) * 4 + c] = static_cast<unsigned char>((sum + 2) / 4);
+                }
+            }
+        // The alpha scale reaching the image's coverage, by bisection.
+        float scale = 1.0f;
+        if (target > 0.0) {
+            float low = 0.0f, high = 8.0f;
+            for (int i = 0; i < 16; ++i) {
+                const float middle = 0.5f * (low + high);
+                if (coverage(level, middle) < target)
+                    low = middle;
+                else
+                    high = middle;
+            }
+            scale = high;
+        }
+        QByteArray scaled = level;
+        unsigned char *out = reinterpret_cast<unsigned char *>(scaled.data());
+        for (qsizetype i = 0; i < scaled.size() / 4; ++i)
+            out[i * 4 + 3] = static_cast<unsigned char>(std::min(255.0f, out[i * 4 + 3] * scale + 0.5f));
+        levels.push_back(scaled);
+        above = level;
+        w = levelW;
+        h = levelH;
+    }
+    return levels;
+}
+
 bool Texture::uploadForRhi(bool mipmaps) {
     if (!loaded || width <= 0 || height <= 0 || (bytesPerPixel != 3 && bytesPerPixel != 4))
         return false;
@@ -795,7 +854,9 @@ bool Texture::uploadForRhi(bool mipmaps) {
     };
     QVector<QByteArray> levels;
     levels.push_back(toRgba(imageData, width, height));
-    if (mipmaps) {
+    if (mipmaps && coverageCutoff >= 0.0f && bytesPerPixel == 4) {
+        levels += coverageMipmaps(levels.first(), width, height, coverageCutoff);
+    } else if (mipmaps) {
         int previousW = width, previousH = height;
         for (const TextureMip &mip : std::as_const(sourceMipmaps)) {
             if (mip.width != std::max(1, previousW / 2) || mip.height != std::max(1, previousH / 2))
