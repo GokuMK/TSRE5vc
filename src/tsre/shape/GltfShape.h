@@ -139,10 +139,15 @@ private:
     QVector<int> nodeParents;
     // KHR_lights_punctual lights in shape space.
     QVector<RenderItem::Light> punctualLights;
-    // MSFT_lod: the levels of detail (0 without them) and the least screen
-    // coverage of each (MSFT_screencoverage).
+    // Levels of detail, internal (MSFT_lod) or external (companion files):
+    // how many (0 without them) and the least screen coverage of each
+    // (MSFT_screencoverage).
     int lodLevels = 0;
     QVector<float> lodCoverage;
+    // The scene root's MSFT_screencoverage, for external levels.
+    QVector<float> rootCoverage;
+    // Whether external levels are looked for (not in a level file itself).
+    bool discoverLevels = true;
 
     bool requiresUpdate = false;
 
@@ -167,6 +172,12 @@ private:
     void cleanupRenderItems();
 
     bool parseAndBuild();
+    // The file of the shape alone, without its external levels.
+    bool parseFile();
+    // External levels: "tree_LOD01.gltf" ... beside "tree.gltf", loaded
+    // and appended (appendLevel()) as levels 1, 2...
+    void loadExternalLevels();
+    void appendLevel(GltfShape &level, int index, int lastLevel);
     void syncTextureAddresses();
     unsigned long long getTextureStateHash() const;
 };

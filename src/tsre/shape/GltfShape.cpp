@@ -19,6 +19,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QSet>
 
 #include <shapeViewer/ContentHierarchyInfo.h>
@@ -42,6 +43,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <memory>
 
 #ifndef __APPLE__
 #include <GL/gl.h>
@@ -720,6 +722,39 @@ static LodLayout layoutLods(const GltfModel &model, const QVector<int> &roots,
             stack.push_back({node.children[c], visit.node, childLevel, childLast});
     }
     return layout;
+}
+
+// The external levels of a glTF shape, numbered as Open Rails numbers them:
+// beside the entry "tree.gltf" (or "tree_LOD00.gltf", the same level 0) the
+// files "tree_lod01.gltf", "tree_lod02.gltf"... with two digits, of the
+// entry's format (.glb ones too, a TSRE extension). Their names are not
+// referenced, so by TSRE's file name rules the part TSRE adds is lowercase
+// (as an .sd beside its .s): the entry's stem as referenced, "_lod" and the
+// number, and its extension in lowercase; no other spelling is looked for.
+// Consecutive from 1: a missing number ends them. None for an entry that is
+// itself a lower level ("tree_LOD01.gltf").
+static QStringList externalLevelFiles(const QString &entry) {
+    // The entry's own name is referenced: its suffix in any spelling.
+    static const QRegularExpression levelSuffix("_LOD(\\d\\d)$", QRegularExpression::CaseInsensitiveOption);
+    const QFileInfo info(ContentPath::normalize(entry));
+    QString base = info.completeBaseName();
+    const QRegularExpressionMatch own = levelSuffix.match(base);
+    if (own.hasMatch()) {
+        if (own.captured(1).toInt() != 0)
+            return {};
+        base.chop(own.capturedLength());
+    }
+    auto level = [&](int number) {
+        return ContentPath::join(info.path(), QString("%1_lod%2.%3").arg(base)
+                                 .arg(number, 2, 10, QLatin1Char('0')).arg(info.suffix().toLower()));
+    };
+    QStringList files;
+    for (int number = 1; number < 100 && ContentPath::readable(level(number)); ++number)
+        files.push_back(level(number));
+    if (files.size() < 99 && ContentPath::readable(level(files.size() + 2)))
+        qWarning() << "glTF:" << entry << "external level" << files.size() + 1
+                   << "is missing: the levels after it are not loaded";
+    return files;
 }
 
 static bool parseJsonFile(const QString& path, QByteArray& outBytes, QString& outError) {
@@ -1546,7 +1581,89 @@ bool GltfShape::parseAndBuild() {
     cleanupRenderItems();
     cleanupGpu();
     cleanupNodeMatrices();
+    if (!parseFile())
+        return false;
+    if (discoverLevels)
+        loadExternalLevels();
+    return true;
+}
 
+void GltfShape::loadExternalLevels() {
+    const QStringList files = externalLevelFiles(pathid);
+    if (files.isEmpty())
+        return;
+    if (lodLevels > 1) {
+        qWarning() << "glTF:" << pathid << "has levels of its own (MSFT_lod): its external levels are not loaded";
+        return;
+    }
+    std::vector<std::unique_ptr<GltfShape>> levels;
+    for (const QString &file : files) {
+        auto level = std::make_unique<GltfShape>(file, QFileInfo(file).fileName(), texPath);
+        level->deferTextures = deferTextures;
+        level->discoverLevels = false;
+        if (!level->parseFile() || level->drawUnits.isEmpty()) {
+            qWarning() << "glTF:" << pathid << "external level" << int(levels.size()) + 1 << file
+                       << "does not load: the levels end before it";
+            break;
+        }
+        levels.push_back(std::move(level));
+    }
+    if (levels.empty())
+        return;
+    const int last = int(levels.size());
+    for (DrawUnit &unit : drawUnits) {
+        unit.level = 0;
+        unit.lastLevel = last;
+    }
+    for (int i = 0; i < last; ++i)
+        appendLevel(*levels[i], i + 1, last);
+    lodLevels = last + 1;
+    // The entry's coverages decide (its scene root's MSFT_screencoverage,
+    // with or without MSFT_lod), Open Rails' defaults where missing.
+    lodCoverage.clear();
+    for (int i = 0; i <= last; ++i)
+        lodCoverage.push_back(std::max(rootCoverage.value(i, i < 3 ? DefaultScreenCoverage[i] : 0.0f), 1e-6f));
+}
+
+void GltfShape::appendLevel(GltfShape &level, int index, int lastLevel) {
+    const int nodeBase = nodeWorldMatrices.size();
+    const int meshBase = meshes.size();
+    // Textures waiting for the main thread (a worker's load) are numbered
+    // in the list they join.
+    const int textureBase = pendingTextures.size();
+    auto shift = [textureBase](int &id) {
+        if (id >= PendingTextureBase)
+            id += textureBase;
+    };
+    for (MeshGpu *mesh : level.meshes)
+        for (MeshPrimitiveGpu *prim : mesh->primitives) {
+            shift(prim->material.texId);
+            for (int &texture : prim->material.pbr.textures)
+                shift(texture);
+        }
+    pendingTextures += level.pendingTextures;
+    level.pendingTextures.clear();
+    meshes += level.meshes;
+    level.meshes.clear();
+    nodeWorldMatrices += level.nodeWorldMatrices;
+    level.nodeWorldMatrices.clear();
+    for (const QString &name : level.nodeNames)
+        nodeNames.push_back(QString("LOD %1: %2").arg(index).arg(name));
+    for (int parent : level.nodeParents)
+        nodeParents.push_back(parent < 0 ? -1 : parent + nodeBase);
+    // Its own level 0; lights stay those of the entry.
+    for (DrawUnit unit : level.drawUnits) {
+        if (!unit.drawnAt(0))
+            continue;
+        unit.nodeIndex += nodeBase;
+        unit.meshIndex += meshBase;
+        unit.level = index;
+        unit.lastLevel = lastLevel;
+        drawUnits.push_back(unit);
+    }
+}
+
+bool GltfShape::parseFile() {
     const QString ext = pathid.section('.', -1, -1).toLower();
     const QString assetDir = QFileInfo(pathid).absolutePath();
 
@@ -1638,6 +1755,9 @@ bool GltfShape::parseAndBuild() {
     } else if (!model.nodes.isEmpty()) {
         roots.push_back(0);
     }
+
+    rootCoverage = !roots.isEmpty() && roots[0] >= 0 && roots[0] < model.nodes.size()
+            ? model.nodes[roots[0]].screenCoverage : QVector<float>();
 
     // Compute world matrices (shape-local).
     computeSceneWorldMatrices(model, roots, nodeWorldMatrices);

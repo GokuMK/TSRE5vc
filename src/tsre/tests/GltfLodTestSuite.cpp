@@ -213,6 +213,85 @@ int TsreTests::runGltfLodSuite(bool verbose) {
                    "no MSFT_lod: every node drawn as before");
     }
 
+    // External levels: "x_LOD01.gltf"... beside the entry, each a level.
+    {
+        auto write = [&](const QString &name, const QByteArray &bytes) {
+            QDir().mkpath(QFileInfo(dir.filePath(name)).path());
+            QFile file(dir.filePath(name));
+            if (file.open(QIODevice::WriteOnly))
+                file.write(bytes);
+        };
+        const QString entry = R"([{"mesh": 0, "extras": {"MSFT_screencoverage": [0.3, 0.1, 0.01]}}])";
+        const QString level1 = R"([{"mesh": 1}])", level2 = R"([{"mesh": 2}])";
+        write("ext/ext_lod01.gltf", gltf(level1, "[]"));
+        write("ext/ext_lod02.gltf", gltf(level2, "[]"));
+        Loaded ext = load(dir, "ext/ext.gltf", gltf(entry, "[]"));
+        test.check(ext.shape->distanceLevelCount() == 3 && ext.shape->distanceLevelCoverage(1) == 0.1f,
+                   "external levels: the companions spelt as the entry; the entry's coverages");
+        test.check(drawn(ext, 0).counts == Counts{3} && drawn(ext, 1).counts == Counts{6}
+                       && drawn(ext, 2).counts == Counts{9},
+                   "external levels: each draws its file");
+
+        write("glb/tree_lod01.glb", glb(level1));
+        test.check(load(dir, "glb/tree.glb", glb(entry)).shape->distanceLevelCount() == 2,
+                   "external levels of a GLB: GLB companions");
+        write("mix/tree_lod01.glb", glb(level1));
+        test.check(load(dir, "mix/tree.gltf", gltf(entry, "[]")).shape->distanceLevelCount() == 0,
+                   "external levels: the entry's extension only");
+
+        write("gap/gap_lod01.gltf", gltf(level1, "[]"));
+        write("gap/gap_lod03.gltf", gltf(level2, "[]"));
+        test.check(load(dir, "gap/gap.gltf", gltf(entry, "[]")).shape->distanceLevelCount() == 2,
+                   "external levels: a missing number ends them");
+
+        write("zero/tree_lod01.gltf", gltf(level1, "[]"));
+        test.check(load(dir, "zero/tree_LOD00.gltf", gltf(entry, "[]")).shape->distanceLevelCount() == 2,
+                   "external levels: an entry named _LOD00 is level 0");
+        test.check(load(dir, "zero/tree_lod01.gltf", gltf(level1, "[]")).shape->distanceLevelCount() == 0,
+                   "external levels: none for a lower level itself");
+
+        write("both/both_lod01.gltf", gltf(level2, "[]"));
+        Loaded both = load(dir, "both/both.gltf", gltf(lodNodes("[2, 3]")));
+        test.check(both.shape->distanceLevelCount() == 3 && drawn(both, 1).counts == Counts{6, 12},
+                   "internal levels take precedence over external ones");
+
+        write("bad/bad_lod01.gltf", "not glTF");
+        Loaded bad = load(dir, "bad/bad.gltf", gltf(entry, "[]"));
+        test.check(bad.shape->distanceLevelCount() == 0 && drawn(bad, 0).counts == Counts{3},
+                   "external levels: a broken first level, none");
+
+        write("plain/plain_lod01.gltf", gltf(level1, "[]"));
+        Loaded plain = load(dir, "plain/plain.gltf", gltf(R"([{"mesh": 0}])", "[]"));
+        test.check(plain.shape->distanceLevelCoverage(0) == 0.2f && plain.shape->distanceLevelCoverage(1) == 0.05f,
+                   "external levels without MSFT_screencoverage: Open Rails' defaults");
+    }
+
+    // The supplied spruce (TREES_EXT under the game root): external levels
+    // loaded as on a worker, their textures registered when adopted.
+    const QString spruce = Game::root + "/ROUTES/TREES_EXT/SHAPES/norway-spruce-v2-edge.gltf";
+    if (QFileInfo::exists(spruce)) {
+        GltfShape shape(spruce, "norway-spruce-v2-edge.gltf", QFileInfo(spruce).path() + "/../TEXTURES");
+        std::unique_ptr<ComplexShape> copy(shape.detachedCopy());
+        copy->loadDetached();
+        shape.adopt(*copy);
+        Loaded loaded;
+        loaded.state = shape.newState();
+        bool levels = shape.distanceLevelCount() == 3, textures = true;
+        for (int level = 0; level < 3; ++level) {
+            PacketRecorder recorder;
+            shape.setCurrentDistanceLevel(loaded.state, level);
+            shape.pushRenderItem(recorder, 0, loaded.state);
+            levels = levels && recorder.packets.size() >= 2;
+            for (const RenderItem *item : recorder.packets)
+                for (int texture : item->pbr.textures)
+                    textures = textures && texture < (1 << 30);
+        }
+        test.check(levels, "the spruce: three external levels, each drawn");
+        test.check(textures, "the spruce: every level's textures registered on adoption");
+    } else if (verbose) {
+        qInfo().noquote() << "[tests:gltf-lod] no TREES_EXT under" << Game::root;
+    }
+
     // The trees' foliage: KHR_materials_diffuse_transmission reaches the
     // packets; without it, none.
     {
