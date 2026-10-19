@@ -168,8 +168,9 @@ lights' geometry (perhaps fake light cones, see below).
   uses them; by night the station is black here, dim in Open Rails, which
   darkens day textures by a fixed share at night). Fixed easily if the
   editor edits ESD_Alternative_Texture and the other .sd values.
-- **Under cover by day** (open): tunnels and underground stations by day
-  have no night textures loaded. Keeping them loaded all day costs up to
+- **Under cover by day** (later; user, 2026-10-19: to be thought through
+  well): tunnels and underground stations by day have no night textures
+  loaded. Keeping them loaded all day costs up to
   their share of the textures (in `TEXTURES/NIGHT`: CMK 379 MB against
   1264, Prudnik 408 against 2838); loading them by day only when the view
   is under cover is the cheaper alternative.
@@ -195,7 +196,9 @@ lights' geometry (perhaps fake light cones, see below).
 
 ## Implementation status
 
-Design (2026-10-19), on `feature/night-textures`.
+Design (2026-10-19), on `feature/night-textures`. Steps 1 to 4 done and
+merged into main (2026-10-19); later: night sub-objects (step 5), under
+cover by day, fake light cones, editing .sd values in the editor.
 
 ### Steps 1 and 2: loading and the self-lit base (2026-10-19)
 
