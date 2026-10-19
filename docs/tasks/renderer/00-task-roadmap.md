@@ -38,6 +38,13 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [ ] `33-mist-and-ground-fog.md` (fog from the weather and the terrain: radiation and valley fog on calm clear mornings, pooled by a floor map around the camera; a froxel volume near the camera, High's per-pixel fog over it, lamps and signals lighting it, patches drifting with the wind, the terrain's shade of a low sun; pooling and a Ground mist preset; wrong terrain tiles left out of the floor map; merged from `feature/mist` with `feature/storms`; with `feature/train-lights`: the signals' and lamps' light out of the fog's history and every frame, lamps shining their own way, beams integrated over the slices, the sky's fog in linear light; open: step 6 (panel control, docs, timing), rings seen from above at dawn)
 - [ ] `34-train-lights.md` (lamps and headlight beams of rolling stock from the ENG/WAG `Lights` block, lit by the train's state as Open Rails does; emissive lenses with glow splats facing their way, beams as spot lights from the car's end lighting the track and the fog; steps 1 to 3 merged from `feature/train-lights` (with `feature/simulation`); open: step 4 (flashing and fading), the beams' strength and the lamps' size, the content's one combined cone)
 
+New vegetation drafts (2026-10-18):
+[35 - Optional diffuse foliage backlighting](35-foliage-backlighting.md), and
+the generic bulk-instance milestone in
+[terrain vegetation scattering](../terrain/terrain-vegetation-scattering.md).
+Neither is implemented. Backlighting follows real tree material validation and
+does not block the grass submission experiment.
+
 Renderer work continues on Windows hardware; software rendering (llvmpipe,
 lavapipe) no longer shows the remaining problems. Measurement and
 RenderDoc scripts: `scripts/hardware/`.

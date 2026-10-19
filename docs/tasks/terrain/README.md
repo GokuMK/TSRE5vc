@@ -15,6 +15,11 @@ intentionally unchanged after reviewing its current callers.
 
 ## Current tasks
 
+New draft (2026-10-18): [terrain painting, vegetation scattering and bulk
+instance submission](terrain-vegetation-scattering.md). Optional scatter presets
+on existing materials, deterministic terrain-fitted instance cells and a generic
+renderer bulk path. No implementation or performance acceptance is claimed.
+
 The [B-key creation status](../../features/terrain-tile-creation-status.md)
 shows terrain descriptor presence/layout independently of QuadTree population,
 including files on disk that are not registered in the tree.
