@@ -75,6 +75,52 @@ Open: tune the coverages after captures; instance scale; the 1, 100 and 1,000
 instance profiles with GPU time and memory. The impostor after the final level
 is drawn ([world task](../world/vegetation-objects.md)).
 
+## Coverage tuning (2026-10-20)
+
+The coverages belong in the asset (`MSFT_screencoverage` on level 0's root
+node, also read by Open Rails), written by tree-gen; TSRE measures and
+proposes them. The LOD bias adjusts them per hardware.
+
+TSRE's metric is tree-gen's intent: projected height over view height (the
+largest extent of level 0's bounds, the height for trees). Its intended
+transitions at 1080p, 480, 180 and 65 pixels, need no conversion:
+`[0.444, 0.167, 0.060]`. The exported `[0.2, 0.05, 0.001]` were Open Rails
+placeholders (impostors some 17 km away).
+
+Measured on the spruce (TREES_EXT): each level forced (`TSRE_SHAPE_LEVEL`),
+one tree against an empty background at coverages 0.6 to 0.01 (480 to 8 px
+of 800), neighbouring levels compared by 4 x 4 pixel blocks: the share of
+blocks changing by more than 6 of 255, and the mean luminance shift over the
+tree's box (negative: darker or denser). Shadows off change nothing.
+
+| Coverage (px) | Level 0 to 1 | 1 to 2 | 2 to impostor |
+|---|---|---|---|
+| 0.45 (360) | 16 %, +0.8 | 29 %, -0.5 | 28 %, +1.6 |
+| 0.2 (160) | 15 %, +0.6 | 29 %, -3.8 | 28 %, -3.2 |
+| 0.15 (120) | 15 %, +1.2 | 27 %, -6.7 | 26 %, -4.9 |
+| 0.11 (88) | 11 %, +0.5 | 25 %, -9.3 | 30 %, -7.7 |
+| 0.06 (48) | 8 %, +0.1 | 13 %, -3.2 | 26 %, -10.6 |
+| 0.033 (26) | 8 %, +0.1 | 8 %, +1.0 | 24 %, -11.8 |
+| 0.018 (14) | 7 %, 0.0 | 5 %, +0.1 | 17 %, -3.6 |
+
+- Level 0 to 1 at 0.444: no change of brightness at any size, only leaf by
+  leaf; fine (54,040 to 22,308 triangles).
+- Level 1 to 2 at 0.167: a slight darkening, about 5 of 255 over the tree's
+  box; acceptable for 22,308 to 1,580 triangles.
+- Level 2 to the impostor at 0.060: the impostor is much denser (2.5 to 3.3
+  times level 0's dark pixels at 0.11 to 0.06). The meshes' cutout foliage
+  loses coverage in plain averaged mipmaps (`glGenerateMipmap`): at 48 px
+  even level 0 is a trunk with a few needles, while the impostor, captured
+  from a full resolution render, stays a full cone. The impostor is right;
+  the meshes need coverage-preserving mipmaps for cutout textures. Until
+  then the switch shows as the tree filling in.
+- The black locust (TREES) agrees above 0.11; below it other trees of the
+  forest stand between the camera and the target.
+
+Proposal: `[0.444, 0.167, 0.060]` with Append, for tree-gen's exporter; in
+TSRE, coverage-preserving mipmaps for cutout textures (MSTS alpha-tested
+content thins out the same way), then the last switch captured again.
+
 ## Supplied fixtures
 
 [Catalogue](../../../../tree-gen/docs/runtime-catalogue.md) and
