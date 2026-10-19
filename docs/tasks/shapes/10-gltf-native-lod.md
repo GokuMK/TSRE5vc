@@ -142,8 +142,13 @@ level 0 at 48 px from a trunk with a few needles to a cone. The switch from
 level 2 to the impostor at 0.060 halves (luminance shift over the tree's box
 -10.6 to -5.0; -4.3 at 0.045 and 0.033); level 2 stays a little sparser
 than the impostor. The others are as before (0 to 1 unchanged, 1 to 2 about
--5 at 0.167). Off by default until decided; the OpenGL renderer gets plain
-mipmaps only.
+-5 at 0.167). Shapes with an impostor (trees) get coverage-preserving
+mipmaps by default: their foliage and quads face the view, so mipmaps cost
+no blur at grazing angles (TSRE has no anisotropic filtering for shapes,
+which is why plain mipmaps looked soft on ground and track), and near ones
+still sample the full texture. Other glTF and MSTS shapes keep none until
+decided; `TSRE_GLTF_MIPMAPS` sets one mode for all glTF shapes. The OpenGL
+renderer gets plain mipmaps only.
 
 ## Supplied fixtures
 

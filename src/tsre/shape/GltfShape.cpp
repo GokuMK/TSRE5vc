@@ -2569,12 +2569,16 @@ bool GltfShape::parseFile() {
     return true;
 }
 
-// Mipmaps of glTF shapes' textures, under test (TSRE_GLTF_MIPMAPS, read
-// once): 0 or unset none (as MSTS shapes), 1 plain, 2 cutout colour textures
-// keeping their coverage (Texture::coverageCutoff).
-static int gltfMipmaps() {
-    static const int mode = qBound(0, qEnvironmentVariableIntValue("TSRE_GLTF_MIPMAPS"), 2);
-    return mode;
+// Mipmaps of glTF shapes' textures: 0 none (as MSTS shapes), 1 plain, 2 also
+// cutout colour textures keeping their coverage (Texture::coverageCutoff).
+// Shapes with an impostor (trees) get 2: their foliage faces the view, so
+// mipmaps cost no blur at grazing angles and keep it from thinning out far
+// away; the others none, until decided. TSRE_GLTF_MIPMAPS (read once) sets
+// one mode for every glTF shape, for comparisons.
+static int gltfMipmaps(bool impostor) {
+    static const int forced = qEnvironmentVariableIsSet("TSRE_GLTF_MIPMAPS")
+            ? qBound(0, qEnvironmentVariableIntValue("TSRE_GLTF_MIPMAPS"), 2) : -1;
+    return forced >= 0 ? forced : impostor ? 2 : 0;
 }
 
 void GltfShape::syncTextureAddresses() {
@@ -2610,9 +2614,9 @@ void GltfShape::syncTextureAddresses() {
 
             if (!t->glLoaded) {
                 // A cutout colour texture keeps its coverage in its mipmaps.
-                if (gltfMipmaps() == 2 && prim->material.surface == RenderItem::SURFACE_ALPHA_TEST)
+                if (gltfMipmaps(impostorLevel >= 0) == 2 && prim->material.surface == RenderItem::SURFACE_ALPHA_TEST)
                     t->coverageCutoff = prim->material.pbr.alphaCutoff;
-                t->GLTextures(gltfMipmaps() > 0);
+                t->GLTextures(gltfMipmaps(impostorLevel >= 0) > 0);
                 requiresUpdate = true;
             }
 
@@ -2626,7 +2630,7 @@ void GltfShape::syncTextureAddresses() {
         }
     }
     // The other maps with mipmaps too (the renderer uploads them without).
-    if (gltfMipmaps() == 0)
+    if (gltfMipmaps(impostorLevel >= 0) == 0)
         return;
     for (MeshGpu *mesh : meshes)
         for (MeshPrimitiveGpu *prim : mesh->primitives)
