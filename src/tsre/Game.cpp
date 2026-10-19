@@ -398,6 +398,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     string("core.rendering.timeOfDay.date", timeOfDayDate, SettingType::String);
     // Kept by RouteEditorGLWidget, which runs the time on (the clock).
     claim("core.rendering.timeOfDay.running", SettingType::Bool);
+    // Read by ShapeLod, cached and refreshed as the profile changes.
+    claim("core.rendering.lodBias", SettingType::Int);
     // Read by SkySatellites each frame (task editor 05).
     claim("core.rendering.sky.sun", SettingType::Bool);
     claim("core.rendering.sky.moon", SettingType::Bool);

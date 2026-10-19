@@ -8,6 +8,7 @@
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <tsre/renderer/rhi/RhiRenderer.h>
 #include <tsre/renderer/rhi/RhiShaderSource.h>
+#include <tsre/renderer/RenderItem.h>
 
 namespace {
 
@@ -89,8 +90,9 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
                 // std140 arrays: 16 bytes per element. Reflection gives the
                 // whole array's size (its stride stays 0).
                 const QShaderDescription::BlockVariable *transforms = member(program.fragment, "pbrUvTransform");
-                check(transforms != nullptr && transforms->size == 24 * 16
-                      && transforms->arrayDims == QList<int>({24}),
+                const int rows = RenderItem::Pbr::MAP_COUNT * 2;
+                check(transforms != nullptr && transforms->size == rows * 16
+                      && transforms->arrayDims == QList<int>({rows}),
                       name + " lays out uniform arrays with a 16-byte stride");
             }
             if (QString(variant.fragment) == "StandardFog")
