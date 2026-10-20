@@ -261,6 +261,23 @@ public:
     ActivityEnd activityEnd() const { return ended; }
     double activityEndedAt() const { return endedAt; }
     unsigned long long eventSerial() const { return eventChanges; }
+    // Standing trains (task 07): the activity's loose consists and, later,
+    // cars cut off trains; gone when a train couples to them. Their track
+    // runs from their first vehicle's end to their last's.
+    struct Standing {
+        QString name;
+        // Its place among the activity's objects (a loose consist), -1.
+        int object = -1;
+        std::vector<Vehicle> vehicles;
+        double length = 0.0;
+        std::vector<RouteInterval> track;
+        bool gone = false;
+    };
+    const std::vector<Standing> &standingTrains() const { return standing; }
+    // A train's vehicles now (task 07: they change as it couples and cuts),
+    // and its length.
+    const std::vector<Vehicle> &vehiclesOf(int train) const { return runtime[size_t(train)].vehicles; }
+    double lengthOf(int train) const { return runtime[size_t(train)].length; }
     // Open Rails' limits: standing is at most this speed (a location event
     // on stopping, m/s); PickUpWagons needs the train at most this fast.
     static constexpr double StandingSpeed = 0.032;
@@ -290,8 +307,10 @@ private:
     std::vector<EventState> eventState;
     unsigned long long eventChanges = 0;
     int playerTrain = -1;
-    // Its cars' ids (they do not change in a run yet).
-    std::vector<unsigned int> playerCars;
+    // Standing trains (task 07), and per section the standing train holding
+    // it (-1 none; the holder is StandingConsist).
+    std::vector<Standing> standing;
+    std::vector<int> standingAt;
     ActivityEnd ended = ActivityEnd::None;
     double endedAt = -1.0;
     double holdUntil = -1.0;
@@ -401,6 +420,16 @@ private:
         double triedAt = -1.0;
         unsigned long long triedHold = 0;
         unsigned long long triedClaims = 0;
+        // Its consist (task 07): its vehicles and what they make of it (its
+        // length, performance, kind, rates, driving), as its plan has them
+        // until they change (refreshConsist).
+        std::vector<Vehicle> vehicles;
+        double length = 0.0;
+        Performance performance;
+        bool passenger = false;
+        float acceleration = 1.0f;
+        float deceleration = 1.0f;
+        Driving driving = Driving::Simple;
         // Activity events (task 06), for a train location events look at:
         // where their points lie on its parts (the event, the part, the
         // route distance; sorted by event), and in the step being taken the
@@ -425,6 +454,8 @@ private:
 
     // All trains from `now` on by one step.
     void stepOnce();
+    // A train's consist worked out again from its vehicles (task 07).
+    void refreshConsist(int train);
     // Activity events (task 06): checked after a step as Open Rails checks
     // them each frame, events firing one after another (each at most once)
     // until none does; whether an event's condition holds now (the train
@@ -456,7 +487,7 @@ private:
     void sweep(int train, double from, double to);
     // Its front, or its rear, within the siding (the event's).
     bool inSiding(const EventPlan &plan, int train) const;
-    bool inSiding(const EventPlan &plan, const StaticConsist &consist) const;
+    bool inSiding(const EventPlan &plan, const Standing &consist) const;
     // One train from `from` to `to` (seconds after midnight, at most
     // MaxStep apart), once it has started.
     void advance(int train, double from, double to);

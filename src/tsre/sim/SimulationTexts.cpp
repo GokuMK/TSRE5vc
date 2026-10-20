@@ -152,7 +152,8 @@ QString carPlace(const SimulationInput &in, unsigned int car) {
                 //% "car %1 in %2"
                 return qtTrId("simulation.why.car.train").arg(name, TrainName(in, plan.id));
     for (const StaticConsist &consist : in.staticConsists)
-        if (std::find(consist.cars.begin(), consist.cars.end(), car) != consist.cars.end())
+        if (std::any_of(consist.vehicles.begin(), consist.vehicles.end(),
+                        [car](const Vehicle &vehicle) { return vehicle.id == car; }))
             //% "car %1 in the loose consist %2"
             return qtTrId("simulation.why.car.loose").arg(name, consist.name);
     //% "car %1 in no train"

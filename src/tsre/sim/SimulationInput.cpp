@@ -104,11 +104,40 @@ bool sameName(const QString &a, const QString &b) {
     return a.compare(b, Qt::CaseInsensitive) == 0;
 }
 
-float vehicleLength(int engId) {
+Eng *engOf(int engId) {
     if (engId < 0 || Game::currentEngLib == nullptr)
-        return 0.0f;
+        return nullptr;
     auto e = Game::currentEngLib->eng.find(engId);
-    return e != Game::currentEngLib->eng.end() && e->second != nullptr ? e->second->getFullWidth() : 0.0f;
+    return e != Game::currentEngLib->eng.end() ? e->second : nullptr;
+}
+
+// A consist's vehicle as the core sees it: its length, kind and its share
+// of the train's performance (task 03; a vehicle without a known mass has
+// mass 0).
+Vehicle VehicleOf(const Consist::EngItem &item) {
+    Vehicle vehicle;
+    vehicle.flip = item.flip;
+    vehicle.eng = item.eng;
+    const Eng *eng = engOf(item.eng);
+    if (eng == nullptr)
+        return vehicle;
+    vehicle.length = const_cast<Eng *>(eng)->getFullWidth();
+    vehicle.type = eng->wagonTypeId;
+    vehicle.passengerCapacity = eng->passengerCapacity;
+    if (eng->wagonTypeId >= 4) {
+        vehicle.maxSpeed = float(eng->maxSpeedMps);
+        vehicle.force = eng->forceN;
+        vehicle.power = eng->powerW;
+    }
+    if (eng->massKg > 0.0) {
+        vehicle.mass = eng->massKg;
+        double davis[3] = {0.0, 0.0, 0.0}, lead[3] = {0.0, 0.0, 0.0};
+        resistanceOf(*eng, false, davis);
+        resistanceOf(*eng, true, lead);
+        std::copy(davis, davis + 3, vehicle.davis);
+        vehicle.davisLeading = lead[2];
+    }
+    return vehicle;
 }
 
 // A place of the activity (tile x, tile z, x, z as its files have them) on
@@ -139,11 +168,13 @@ std::vector<StaticConsist> StaticConsists(Activity *activity, TDB *tdb) {
         consist.object = i;
         float first = 0.0f;
         for (int v = 0; v < object->con->engItems.size(); ++v) {
-            const float length = vehicleLength(object->con->engItems[v].eng);
+            const Consist::EngItem &item = object->con->engItems[v];
+            Vehicle vehicle = VehicleOf(item);
+            vehicle.id = unsigned(object->id) * 65536u + unsigned(item.uid);
             if (v == 0)
-                first = length;
-            consist.length += length;
-            consist.cars.push_back(unsigned(object->id) * 65536u + unsigned(object->con->engItems[v].uid));
+                first = vehicle.length;
+            consist.length += vehicle.length;
+            consist.vehicles.push_back(vehicle);
         }
         int node = -1;
         float distance = 0.0f;
@@ -415,27 +446,59 @@ std::vector<SpeedLimit> SpeedLimits(const Projection &way, const TrackNetwork &n
     return limits;
 }
 
-void SetRates(TrainPlan &train, float topSpeed) {
+Rates RatesOf(const std::vector<Vehicle> &vehicles, float top) {
+    Rates rates;
     // A freight wagon makes it a freight train (Open Rails).
     bool freight = false;
-    for (const Vehicle &vehicle : train.vehicles)
+    for (const Vehicle &vehicle : vehicles)
         freight = freight || vehicle.type == 2;
-    train.passenger = !freight;
+    rates.passenger = !freight;
     if (freight) {
-        train.acceleration = 0.5f;
-        train.deceleration = 0.5f;
-        return;
+        rates.acceleration = 0.5f;
+        rates.deceleration = 0.5f;
+        return rates;
     }
-    train.acceleration = 1.0f;
-    const float top = topSpeed >= 0.0f ? topSpeed : train.maxSpeed;
-    train.deceleration = top > 55.0f ? 2.5f : top > 40.0f ? 1.5f : 1.0f;
+    rates.acceleration = 1.0f;
+    rates.deceleration = top > 55.0f ? 2.5f : top > 40.0f ? 1.5f : 1.0f;
     // An EMU: electric power cars with passengers at both ends.
     const auto powerCar = [](const Vehicle &vehicle) { return vehicle.type == 4 && vehicle.passengerCapacity; };
-    if (train.deceleration == 1.0f && !train.vehicles.empty() && powerCar(train.vehicles.front())
-            && powerCar(train.vehicles.back())) {
-        train.acceleration = 1.5f;
-        train.deceleration = 2.0f;
+    if (rates.deceleration == 1.0f && !vehicles.empty() && powerCar(vehicles.front()) && powerCar(vehicles.back())) {
+        rates.acceleration = 1.5f;
+        rates.deceleration = 2.0f;
     }
+    return rates;
+}
+
+void SetRates(TrainPlan &train, float topSpeed) {
+    const Rates rates = RatesOf(train.vehicles, topSpeed >= 0.0f ? topSpeed : train.maxSpeed);
+    train.passenger = rates.passenger;
+    train.acceleration = rates.acceleration;
+    train.deceleration = rates.deceleration;
+}
+
+Performance PerformanceOf(const std::vector<Vehicle> &vehicles) {
+    Performance p;
+    for (size_t i = 0; i < vehicles.size(); ++i) {
+        const Vehicle &vehicle = vehicles[i];
+        p.mass += vehicle.mass;
+        p.force += vehicle.force;
+        p.power += vehicle.power;
+        p.davisA += vehicle.davis[0];
+        p.davisB += vehicle.davis[1];
+        p.davisC += i == 0 ? vehicle.davisLeading : vehicle.davis[2];
+    }
+    return p;
+}
+
+Driving DrivingOf(const std::vector<Vehicle> &vehicles) {
+    bool known = !vehicles.empty();
+    double force = 0.0, power = 0.0;
+    for (const Vehicle &vehicle : vehicles) {
+        known = known && vehicle.mass > 0.0;
+        force += vehicle.force;
+        power += vehicle.power;
+    }
+    return known && (force > 0.0 || power > 0.0) ? Driving::Physics : Driving::Simple;
 }
 
 std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
@@ -507,46 +570,23 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
         float engineSpeed = 0.0f;
         QStringList missing;
         for (const Consist::EngItem &item : consist->engItems) {
-            Vehicle vehicle;
-            vehicle.flip = item.flip;
-            vehicle.eng = item.eng;
+            Vehicle vehicle = VehicleOf(item);
             // The player's train is consist 0 of the wagon lists.
             if (player)
                 vehicle.id = unsigned(item.uid);
-            Eng *eng = nullptr;
-            if (item.eng >= 0 && Game::currentEngLib != nullptr) {
-                auto e = Game::currentEngLib->eng.find(item.eng);
-                eng = e != Game::currentEngLib->eng.end() ? e->second : nullptr;
-            }
-            if (eng != nullptr) {
-                vehicle.length = eng->getFullWidth();
-                vehicle.type = eng->wagonTypeId;
-                vehicle.passengerCapacity = eng->passengerCapacity;
-                const float speed = float(eng->maxSpeedMps);
-                if (eng->wagonTypeId >= 4 && speed > 0.0f)
-                    engineSpeed = engineSpeed > 0.0f ? std::min(engineSpeed, speed) : speed;
-            }
-            plan.length += vehicle.length;
-            plan.vehicles.push_back(vehicle);
-            // Its share of the train's performance (task 03).
-            if (eng == nullptr || eng->massKg <= 0.0) {
+            if (vehicle.maxSpeed > 0.0f)
+                engineSpeed = engineSpeed > 0.0f ? std::min(engineSpeed, vehicle.maxSpeed) : vehicle.maxSpeed;
+            if (vehicle.mass <= 0.0) {
+                const Eng *eng = engOf(item.eng);
                 const QString what = eng != nullptr ? eng->name : QString::number(item.eng);
                 if (!missing.contains(what))
                     missing << what;
-                continue;
             }
-            Performance &p = plan.performance;
-            p.mass += eng->massKg;
-            if (eng->wagonTypeId >= 4) {
-                p.force += eng->forceN;
-                p.power += eng->powerW;
-            }
-            double davis[3] = {0.0, 0.0, 0.0};
-            resistanceOf(*eng, plan.vehicles.size() == 1, davis);
-            p.davisA += davis[0];
-            p.davisB += davis[1];
-            p.davisC += davis[2];
+            plan.length += vehicle.length;
+            plan.vehicles.push_back(vehicle);
         }
+        // Its performance (task 03), the leading vehicle's air drag its own.
+        plan.performance = PerformanceOf(plan.vehicles);
         // Driven with force and mass where every vehicle has its mass and the
         // engines their force or power (task 03), else simply.
         if (missing.isEmpty() && (plan.performance.force > 0.0 || plan.performance.power > 0.0)) {

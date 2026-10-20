@@ -32,6 +32,17 @@ struct Vehicle {
     // being consist 0 and a loose consist its object's id; NoCar for an AI
     // train's.
     unsigned int id = NoCar;
+    // Its share of its train's performance (task 03), summed again when a
+    // train's cars change (task 07): its mass (kg; 0 not known), an
+    // engine's force (N) and power (W), its Davis coefficients (the third
+    // as any vehicle but the leading one, and as the leading one), an
+    // engine's top speed (m/s; 0 none).
+    double mass = 0.0;
+    double force = 0.0;
+    double power = 0.0;
+    double davis[3] = {0.0, 0.0, 0.0};
+    double davisLeading = 0.0;
+    float maxSpeed = 0.0f;
 };
 
 // How a train is driven (task simulation 03): Simple, task 01's constant
@@ -143,16 +154,17 @@ struct TrainPlan {
     std::vector<PassingPlan> passing;
 };
 
-// A consist of the activity standing on the track for the whole run (a loose
-// consist): the track it covers.
+// A consist of the activity standing on the track (a loose consist): the
+// track it covers, from its first vehicle's end to its last's; a standing
+// train of the core (task 07).
 struct StaticConsist {
     QString name;
     // Its place among the activity's objects.
     int object = -1;
     float length = 0.0f;
     std::vector<RouteInterval> track;
-    // Its cars' ids (Vehicle::id), in the consist's order.
-    std::vector<unsigned int> cars;
+    // Its vehicles in the consist's order (their ids, Vehicle::id).
+    std::vector<Vehicle> vehicles;
 };
 
 // A place on a vector node of the track.
@@ -264,6 +276,20 @@ struct SimulationInput {
 // efficiency within the route's limit, Open Rails' TrainMaxSpeedMpS; its
 // maxSpeed when negative); freight 0.5 both.
 void SetRates(TrainPlan &train, float topSpeed = -1.0f);
+// The same for a train's vehicles (task 07: again when they change): no
+// freight wagon makes a passenger train; its acceleration and deceleration.
+struct Rates {
+    bool passenger = false;
+    float acceleration = 1.0f;
+    float deceleration = 1.0f;
+};
+Rates RatesOf(const std::vector<Vehicle> &vehicles, float topSpeed);
+// A train's performance from its vehicles (task 03): their masses, the
+// engines' force and power, their resistance, the first vehicle's air drag
+// as the leading one's; and whether it is driven with it (every vehicle's
+// mass known, force or power).
+Performance PerformanceOf(const std::vector<Vehicle> &vehicles);
+Driving DrivingOf(const std::vector<Vehicle> &vehicles);
 
 // The input for an activity, made on the main thread from the editor's data
 // (the activity's player and AI trains, their services, paths, consists and

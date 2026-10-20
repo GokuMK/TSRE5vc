@@ -471,7 +471,12 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
         const unsigned int a = 3u * 65536u + 1u, b = 3u * 65536u + 2u;
         Sim::StaticConsist loose;
         loose.track.push_back(Sim::RouteInterval{10, 1500.0f, 1540.0f, 0.0});
-        loose.cars = {a, b};
+        for (unsigned int car : {a, b}) {
+            Sim::Vehicle vehicle{20.0f, false, 2};
+            vehicle.id = car;
+            loose.vehicles.push_back(vehicle);
+        }
+        loose.length = 40.0f;
         const auto siding = [](EventPlan e, float from, float to) {
             e.siding = true;
             e.sidingNode = 10;
@@ -486,12 +491,13 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
             carsEvent(EventPlan::AssembleTrain, {a, b}),
             siding(carsEvent(EventPlan::DropOffWagonsAtLocation, {b, a}), 1490.0f, 1560.0f),
             siding(carsEvent(EventPlan::DropOffWagonsAtLocation, {a, b}), 100.0f, 200.0f),
-            siding(carsEvent(EventPlan::DropOffWagonsAtLocation, {5}), 1850.0f, 1950.0f),
+            siding(carsEvent(EventPlan::DropOffWagonsAtLocation, {6, 5}), 1850.0f, 1950.0f),
             carsEvent(EventPlan::PickUpWagons, {5}),
             carsEvent(EventPlan::PickUpWagons, {5, a}),
             siding(carsEvent(EventPlan::AssembleTrainAtLocation, {5, 6}), 1850.0f, 1950.0f),
             carsEvent(EventPlan::PickUpPassengers, {}),
             carsEvent(EventPlan::DropOffWagonsAtLocation, {a}),
+            siding(carsEvent(EventPlan::DropOffWagonsAtLocation, {5}), 1850.0f, 1950.0f),
         };
         double frontThen = -1.0;
         const Run run = runFor(inputOf({player}, events, {loose}), 200.0, [&](const Sim::SimulationCore &core) {
@@ -504,10 +510,10 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
                   && firedAt(run, 2) < 0.0 && byPlayer == 0,
               "AssembleTrain: the player's train holding exactly the cars, in order or reversed");
         check(std::fabs(firedAt(run, 3, &byLoose) - first) < 1e-9 && byLoose == -1, "AssembleTrain: a loose consist holding them");
-        check(firedAt(run, 4) > 0.0 && firedAt(run, 5) < 0.0 && firedAt(run, 11) > 0.0 && firedAt(run, 6) > 0.0
-                  && firedAt(run, 6) == firedAt(run, 9),
-              "DropOff (TSRE's rule): a train holding the cars, any order, with an end in the siding (no siding: anywhere): "
-              "a loose consist, or the player's train still coupled as its front enters the siding");
+        check(firedAt(run, 4) > 0.0 && firedAt(run, 5) < 0.0 && firedAt(run, 6) > 0.0 && firedAt(run, 6) == firedAt(run, 9)
+                  && firedAt(run, 11) < 0.0 && firedAt(run, 12) < 0.0,
+              "DropOff (TSRE's rule): a train that is the listed cars, any order, with an end in the siding: a loose consist, "
+              "the player's whole train as its front enters the siding; not a train holding them among others");
         check(std::fabs(firedAt(run, 7) - first) < 1e-9 && firedAt(run, 8) < 0.0,
               "PickUpWagons: the player's train holding the cars, standing");
         check(frontThen >= at(1850.0f) - 1e-6 && frontThen < at(1850.0f) + 2.5 && firedAt(run, 10) < 0.0,

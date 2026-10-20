@@ -1,6 +1,6 @@
 # Task 07 - Coupling and Train Changes
 
-Status: designed 2026-10-21, not started (branch `feature/simulation`).
+Status: designed 2026-10-21; phase 1 done (branch `feature/simulation`).
 Decisions taken are at the end.
 
 Sources:
@@ -22,7 +22,19 @@ Sources:
 
 ## Progress
 
-Nothing yet.
+**Phase 1, A1 and A2 (done 2026-10-21).**
+- Each vehicle in the input has its share of its train's performance
+  (mass, an engine's force, power and top speed, its Davis coefficients,
+  the leading one's air drag apart); `PerformanceOf`, `RatesOf`,
+  `DrivingOf` work a train out from its vehicles.
+- Each train in the core has its own vehicles, length, performance, kind,
+  rates and driving (`Runtime`), as its plan has them until they change
+  (`refreshConsist`); everything the core read from the plan reads them.
+- Loose consists carry their vehicles and are the core's standing trains
+  (`Standing`; per section the standing train holding it); task 06's
+  wagon checks read the trains' and standing trains' lists.
+- Every suite unchanged; on the seven routes the trains run exactly as
+  before (the same arrivals).
 
 ## Why
 
@@ -285,13 +297,15 @@ player to do.
 1. Part A as Open Rails' AI does it, part B TSRE's own.
 2. The autopilot may cut a train anywhere it stands, the main line
    included.
-3. **DropOff, TSRE's rule:** the listed cars must be in the siding, held
-   by any train: a loose consist, the player's or an AI train, coupled or
-   not; one end of that train in the siding (Open Rails' less strict end
-   rule; MSTS wants every listed car in it). Done in task 06's checks
-   (2026-10-21): on the seven routes whitpull ("leave your train in
-   Whitefish Siding 3") and nnmxdgds now end successfully, local_cutbank
-   fires one of its two drop-offs. **The autopilot**: the listed cars into
+3. **DropOff, TSRE's rule:** a train that is the listed cars (in any
+   order), whatever train it is: a loose consist, the player's or an AI
+   train; one end of it in the siding (Open Rails' less strict end rule;
+   MSTS wants every listed car in it). Cars to set out from a longer train
+   are cut off first; a list of the whole train ("all your units")
+   matches it as it is. Done in task 06's checks (2026-10-21): whitpull
+   ("leave your train in Whitefish Siding 3") now ends successfully;
+   nnmxdgds and local_cutbank wait for their cars to be cut off (part
+   B). **The autopilot**: the listed cars into
    the siding, cut off unless they are the whole train ("all your units":
    the train already matches); it may cut engines off while one stays in
    the player's train.

@@ -2189,7 +2189,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                         if (first >= 0.0)
                             met << QString("part %1 at %2 of %3").arg(p).arg(first, 0, 'f', 0).arg(part.length(), 0, 'f', 0);
                     }
-                    qInfo().noquote() << "[work]   loose" << c.name << c.cars.size() << "cars," << c.length << "m:"
+                    qInfo().noquote() << "[work]   loose" << c.name << c.vehicles.size() << "cars," << c.length << "m:"
                                       << (met.isEmpty() ? QString("not on the path") : met.join("; "));
                 }
                 for (const Sim::EventPlan &e : input->events) {

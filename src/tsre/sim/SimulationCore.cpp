@@ -46,6 +46,13 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         Runtime &rt = runtime[i];
         rt.parts = plan.route.parts;
         rt.ways = plan.projection;
+        rt.vehicles = plan.vehicles;
+        rt.length = plan.length;
+        rt.performance = plan.performance;
+        rt.passenger = plan.passenger;
+        rt.acceleration = plan.acceleration;
+        rt.deceleration = plan.deceleration;
+        rt.driving = plan.driving;
         rt.limits = plan.limits;
         rt.stops = plan.stops;
         rt.waits = plan.waits;
@@ -76,22 +83,37 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
     clearedFor.assign(network != nullptr ? network->signalGroups().size() : 0, NoHolder);
     headAspect.assign(network != nullptr ? network->heads().size() : 0, 0);
     headDraw.assign(headAspect.size(), 0);
-    // Loose consists hold the track they stand on for the whole run.
+    // Loose consists are standing trains, holding the track they stand on.
+    standingAt.assign(holder.size(), -1);
+    for (const StaticConsist &consist : in->staticConsists) {
+        Standing made;
+        made.name = consist.name;
+        made.object = consist.object;
+        made.vehicles = consist.vehicles;
+        made.length = consist.length;
+        made.track = consist.track;
+        standing.push_back(made);
+    }
     if (network != nullptr)
         for (const StaticConsist &consist : in->staticConsists) {
+            const int index = int(&consist - in->staticConsists.data());
             const RouteInterval *previous = nullptr;
             for (const RouteInterval &interval : consist.track) {
                 if (previous != nullptr && previous->node != interval.node) {
                     const int junction = network->endSection(previous->node, previous->forward() ? 1 : 0);
-                    if (junction >= 0)
+                    if (junction >= 0) {
                         holder[size_t(junction)] = StandingConsist;
+                        standingAt[size_t(junction)] = index;
+                    }
                 }
                 const float low = std::min(interval.from, interval.to), high = std::max(interval.from, interval.to);
                 const auto [first, count] = network->nodeSections(interval.node);
                 for (int k = first; k < first + count; ++k) {
                     const TrackSection &section = network->sections()[size_t(k)];
-                    if (section.to > low + 1e-3f && section.from < high - 1e-3f)
+                    if (section.to > low + 1e-3f && section.from < high - 1e-3f) {
                         holder[size_t(k)] = StandingConsist;
+                        standingAt[size_t(k)] = index;
+                    }
                 }
                 previous = &interval;
             }
@@ -106,9 +128,6 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
     for (const TrainPlan &plan : in->trains)
         if (plan.player && playerTrain < 0)
             playerTrain = plan.id;
-    if (playerTrain >= 0)
-        for (const Vehicle &vehicle : in->trains[size_t(playerTrain)].vehicles)
-            playerCars.push_back(vehicle.id);
     for (const EventPlan &event : in->events)
         if (event.kind == EventPlan::Location) {
             if (playerTrain >= 0)
@@ -144,6 +163,20 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
     if (aspectsPending())
         evaluateAspects();
     stepCount = 0;
+}
+
+void SimulationCore::refreshConsist(int train) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    rt.length = 0.0;
+    for (const Vehicle &vehicle : rt.vehicles)
+        rt.length += vehicle.length;
+    rt.performance = PerformanceOf(rt.vehicles);
+    const Rates rates = RatesOf(rt.vehicles, std::min(in->routeSpeedLimit, plan.maxSpeed * plan.efficiency));
+    rt.passenger = rates.passenger;
+    rt.acceleration = rates.acceleration;
+    rt.deceleration = rates.deceleration;
+    rt.driving = DrivingOf(rt.vehicles);
 }
 
 void SimulationCore::step(double seconds) {
@@ -291,7 +324,7 @@ void SimulationCore::start(int train, double from, double to) {
     // Starting at its first station (within a train's length of the stop):
     // it stands there its boarding time, and until its departure.
     if (!runtime[size_t(train)].stops.empty() && runtime[size_t(train)].stops.front().part == s.part
-            && std::fabs(runtime[size_t(train)].stops.front().front - s.front) <= plan.length) {
+            && std::fabs(runtime[size_t(train)].stops.front().front - s.front) <= runtime[size_t(train)].length) {
         const StopPlan &stop = runtime[size_t(train)].stops.front();
         s.status = TrainStatus::Stopped;
         s.stoppedAt = StopKind::Station;
@@ -309,7 +342,7 @@ bool SimulationCore::startClaimed(int train, int *blocker) const {
     if (in->network == nullptr || size_t(s.part) >= runtime[size_t(train)].ways.size())
         return false;
     const std::vector<ProjectedSection> &way = runtime[size_t(train)].ways[size_t(s.part)].sections;
-    const double rear = s.front - in->trains[size_t(train)].length;
+    const double rear = s.front - runtime[size_t(train)].length;
     size_t begin = 0;
     while (begin < way.size() && way[begin].leave < rear - 1e-6)
         ++begin;
@@ -389,7 +422,7 @@ void SimulationCore::advance(int train, double from, double to) {
                 releaseAll(train);
                 ++s.part;
                 s.reversed = !s.reversed;
-                s.front = std::min(double(plan.length), parts[size_t(s.part)].length());
+                s.front = std::min(double(runtime[size_t(train)].length), parts[size_t(s.part)].length());
                 record(t, train, TrainEvent::Reversed);
                 if (!occupy(train)) {
                     s.stoppedAt = StopKind::Blocked;
@@ -436,7 +469,7 @@ void SimulationCore::advance(int train, double from, double to) {
                             || spot.at < stop.platformStart || spot.at > stop.platformEnd || spot.at <= s.front + AtTarget
                             || !in->events[size_t(spot.event)].onStop || !wanted(spot.event))
                         continue;
-                    if (spot.at < stop.front && double(s.speed) * s.speed / (2.0 * plan.deceleration) > spot.at - s.front)
+                    if (spot.at < stop.front && double(s.speed) * s.speed / (2.0 * runtime[size_t(train)].deceleration) > spot.at - s.front)
                         continue;
                     stop.front = spot.at;
                     break;
@@ -475,7 +508,7 @@ void SimulationCore::advance(int train, double from, double to) {
                 if (spot.part != s.part || spot.at <= s.front + AtTarget || spot.at >= target - AtTarget
                         || !in->events[size_t(spot.event)].onStop || !wanted(spot.event))
                     continue;
-                if (spot.event != s.eventStop && double(s.speed) * s.speed / (2.0 * plan.deceleration) > spot.at - s.front)
+                if (spot.event != s.eventStop && double(s.speed) * s.speed / (2.0 * runtime[size_t(train)].deceleration) > spot.at - s.front)
                     continue;
                 target = spot.at;
                 kind = StopKind::Event;
@@ -516,9 +549,9 @@ void SimulationCore::advance(int train, double from, double to) {
                 limit = std::min(limit, double(s.signalSpeed));
             const double dt = to - t;
             const double v = s.speed;
-            const bool physics = plan.driving == Driving::Physics;
-            const double d = physics ? BrakingShare * plan.deceleration : plan.deceleration;
-            const double rear = s.front - plan.length;
+            const bool physics = runtime[size_t(train)].driving == Driving::Physics;
+            const double d = physics ? BrakingShare * runtime[size_t(train)].deceleration : runtime[size_t(train)].deceleration;
+            const double rear = s.front - runtime[size_t(train)].length;
             const double fastest = physics ? std::max(v, limit) : v;
             const double reach = fastest * fastest / (2.0 * d) + 2.0 * v * dt + 50.0
                     + (physics ? LimitCreep + BrakingZone : 0.0);
@@ -565,7 +598,7 @@ void SimulationCore::advance(int train, double from, double to) {
             // (Open Rails' trigger from full speed), anything else from its
             // braking distance and BrakingZone.
             if (kind == StopKind::Station)
-                braking = braking || distance <= 1.5 * top * top / plan.deceleration;
+                braking = braking || distance <= 1.5 * top * top / runtime[size_t(train)].deceleration;
             else
                 braking = braking || distance <= limit * limit / (2.0 * d) + BrakingZone;
             // The fastest speed at the step's end from which it still stops
@@ -587,7 +620,7 @@ void SimulationCore::advance(int train, double from, double to) {
                     ? limit - (4.5 - 3.0 * plan.drivingEfficiency) * 0.25 : limit;
             double next;
             if (v > limit) {
-                next = std::max(v - plan.deceleration * dt, limit);
+                next = std::max(v - runtime[size_t(train)].deceleration * dt, limit);
             } else if (v > hold) {
                 next = std::max(v - d * dt, hold);
             } else if (v >= std::min(hold, cap)) {
@@ -600,12 +633,12 @@ void SimulationCore::advance(int train, double from, double to) {
                 // braking curve) it opens the throttle fully, gaining at
                 // least half the target. Before the activity (its pre-run)
                 // the same, unlike Open Rails' (task 03).
-                double a = plan.acceleration;
+                double a = runtime[size_t(train)].acceleration;
                 if (physics && !driven.startingAway)
-                    a = std::max(fullAcceleration(train, v), 0.5 * plan.acceleration);
+                    a = std::max(fullAcceleration(train, v), 0.5 * runtime[size_t(train)].acceleration);
                 else if (physics)
-                    a = fullAcceleration(train, v) >= 0.5 * plan.acceleration ? 0.5 * plan.acceleration
-                        : plan.drivingEfficiency * 0.5 * plan.acceleration;
+                    a = fullAcceleration(train, v) >= 0.5 * runtime[size_t(train)].acceleration ? 0.5 * runtime[size_t(train)].acceleration
+                        : plan.drivingEfficiency * 0.5 * runtime[size_t(train)].acceleration;
                 next = std::min(v + a * dt, hold);
             }
             next = std::min(next, cap);
@@ -699,7 +732,7 @@ bool SimulationCore::occupy(int train) {
         return true;
     }
     const std::vector<ProjectedSection> &way = runtime[size_t(train)].ways[size_t(s.part)].sections;
-    const double rear = s.front - plan.length;
+    const double rear = s.front - runtime[size_t(train)].length;
     size_t k = 0;
     while (k < way.size() && way[k].leave < rear - 1e-6)
         ++k;
@@ -846,7 +879,7 @@ double SimulationCore::brakingSpeed(double v, double dt, double d, double distan
 
 double SimulationCore::fullAcceleration(int train, double v) const {
     const TrainPlan &plan = in->trains[size_t(train)];
-    const Performance &p = plan.performance;
+    const Performance &p = runtime[size_t(train)].performance;
     if (p.mass <= 0.0)
         return 0.0;
     double force = p.force > 0.0 ? p.force : p.power;
@@ -857,8 +890,8 @@ double SimulationCore::fullAcceleration(int train, double v) const {
     double gradient = 0.0;
     TrackPose front, rear;
     const TrainState &s = states[size_t(train)];
-    if (plan.length > 0.0f && pose(train, s.front, front) && pose(train, s.front - plan.length, rear))
-        gradient = double(front.y - rear.y) / double(plan.length);
+    if (runtime[size_t(train)].length > 0.0f && pose(train, s.front, front) && pose(train, s.front - runtime[size_t(train)].length, rear))
+        gradient = double(front.y - rear.y) / double(runtime[size_t(train)].length);
     return (force - resistance - p.mass * 9.81 * gradient) / p.mass;
 }
 
@@ -876,15 +909,15 @@ double SimulationCore::stoppingSpeed(int train, double v, double dt, double dist
     // At the creep speed (half that within the creep distance where it
     // creeps slower), stopping from it at the full deceleration.
     const double lowest = std::min(CreepSpeed, limit);
-    double speed = std::min(lowest, brakingSpeed(v, dt, plan.deceleration, distance, 0.0));
+    double speed = std::min(lowest, brakingSpeed(v, dt, runtime[size_t(train)].deceleration, distance, 0.0));
     if (slower)
         speed = std::min(speed, std::max(0.5 * lowest,
-                                         brakingSpeed(v, dt, plan.deceleration, distance - creep, 0.5 * lowest)));
+                                         brakingSpeed(v, dt, runtime[size_t(train)].deceleration, distance - creep, 0.5 * lowest)));
     // Above it, the planned braking curve down to the creep distance, held
     // BrakingMargin above it (v - margin on the curve, exact over the step).
     if (distance > creep) {
         const double u = std::max(0.0, v - BrakingMargin);
-        speed = std::max(speed, BrakingMargin + brakingSpeed(u, dt, BrakingShare * plan.deceleration,
+        speed = std::max(speed, BrakingMargin + brakingSpeed(u, dt, BrakingShare * runtime[size_t(train)].deceleration,
                                                              distance - creep - BrakingMargin * dt, 0.0));
     }
     return speed;
@@ -1458,8 +1491,8 @@ void SimulationCore::addStretches(int a, int pa, int b, int pb) {
                 loop = loopA[k] != 0;
             for (size_t k = run.high; apart && k < last.low && !loop; ++k)
                 loop = loopB[k] != 0;
-            if (!loop && (!open || (gapA < in->trains[size_t(a)].length + SignalMargin
-                                    && gapB < in->trains[size_t(b)].length + SignalMargin))) {
+            if (!loop && (!open || (gapA < runtime[size_t(a)].length + SignalMargin
+                                    && gapB < runtime[size_t(b)].length + SignalMargin))) {
                 last.to = run.to;
                 last.low = std::min(last.low, run.low);
                 last.high = std::max(last.high, run.high);
@@ -1516,7 +1549,7 @@ void SimulationCore::loopsOf(int train, int part, std::vector<char> &marks,
     marks.assign(way.size(), 0);
     for (size_t p = 0; p < rt.passing.size(); ++p) {
         const PassingPlan &passing = rt.passing[p];
-        if (passing.part != part || passing.track.length() < in->trains[size_t(train)].length + SignalMargin)
+        if (passing.part != part || passing.track.length() < runtime[size_t(train)].length + SignalMargin)
             continue;
         bool theirs = false;
         for (int section : rt.passingSections[p])
@@ -1580,7 +1613,7 @@ bool SimulationCore::passed(const Stretch &stretch, int side) const {
         return true;
     if (s.part != stretch.part[side])
         return s.part > stretch.part[side];
-    return s.status != TrainStatus::Waiting && s.front - in->trains[size_t(train)].length > stretch.leave[side] - 1e-6;
+    return s.status != TrainStatus::Waiting && s.front - runtime[size_t(train)].length > stretch.leave[side] - 1e-6;
 }
 
 bool SimulationCore::mayEnter(int train, size_t from, size_t to) {
@@ -1749,7 +1782,7 @@ void SimulationCore::takePassing(int train, size_t index) {
     rt.ways[part] = std::move(made.way);
     // Its limits from the speed posts on it (the activity's speed zones on
     // this part are not kept).
-    rt.limits[part] = SpeedLimits(rt.ways[part], *in->network, plan.passenger, {}, 0.0f, rt.parts[part].length());
+    rt.limits[part] = SpeedLimits(rt.ways[part], *in->network, runtime[size_t(train)].passenger, {}, 0.0f, rt.parts[part].length());
     rt.limit = 0;
     for (StopPlan &stop : rt.stops)
         if (size_t(stop.part) == part) {
@@ -1817,7 +1850,7 @@ void SimulationCore::findExits(int train) {
         // Held when the train stops short of it, or stopping at it most of
         // the train (60 %) stands at the platform; not again once let go.
         if (!held || (stop.front >= beyond->at
-                      && beyond->at - StationClearing - stop.platformStart <= 0.6 * in->trains[size_t(train)].length)
+                      && beyond->at - StationClearing - stop.platformStart <= 0.6 * runtime[size_t(train)].length)
                 || (k < rt.letGo.size() && rt.letGo[k]))
             continue;
         rt.exits[k] = int(index);
@@ -1943,7 +1976,7 @@ void SimulationCore::releaseBehind(int train) {
             ++rt.passed;
         }
     }
-    const double rear = s.front - plan.length;
+    const double rear = s.front - runtime[size_t(train)].length;
     // Stretches its rear has left are no longer its own.
     if (size_t(train) < stretchesOf.size() && size_t(s.part) < stretchesOf[size_t(train)].size())
         for (const auto &[stretch, side] : stretchesOf[size_t(train)][size_t(s.part)])
@@ -2081,11 +2114,11 @@ bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std:
     if (state.status == TrainStatus::Waiting || state.status == TrainStatus::Finished)
         return false;
     double before = 0.0;
-    for (const Vehicle &vehicle : plan.vehicles) {
+    for (const Vehicle &vehicle : runtime[size_t(train)].vehicles) {
         // Not reversed: the vehicle's front is `before` behind the train's
         // front. Reversed: the consist runs backwards, its first vehicle at
         // the train's rear.
-        const double frontAt = state.reversed ? state.front - plan.length + before : state.front - before;
+        const double frontAt = state.reversed ? state.front - runtime[size_t(train)].length + before : state.front - before;
         const double rearAt = state.reversed ? frontAt + vehicle.length : frontAt - vehicle.length;
         TrackPose front, rear;
         pose(train, frontAt, front);
@@ -2143,7 +2176,7 @@ bool SimulationCore::inSiding(const EventPlan &plan, int train) const {
         return true;
     const TrainState &s = states[size_t(train)];
     const RouteTrack &part = runtime[size_t(train)].parts[size_t(s.part)];
-    for (double at : {s.front, s.front - double(in->trains[size_t(train)].length)}) {
+    for (double at : {s.front, s.front - double(runtime[size_t(train)].length)}) {
         const RoutePoint point = part.locate(at);
         if (point.node == plan.sidingNode && point.distance >= plan.sidingFrom - 1e-3f
                 && point.distance <= plan.sidingTo + 1e-3f)
@@ -2152,7 +2185,7 @@ bool SimulationCore::inSiding(const EventPlan &plan, int train) const {
     return false;
 }
 
-bool SimulationCore::inSiding(const EventPlan &plan, const StaticConsist &consist) const {
+bool SimulationCore::inSiding(const EventPlan &plan, const Standing &consist) const {
     if (!plan.siding)
         return true;
     if (consist.track.empty())
@@ -2268,27 +2301,37 @@ bool SimulationCore::holds(int event, int *by, bool *standIn) const {
     *standIn = false;
     const auto onTrack = [this](int train) { return this->onTrack(train); };
     // Exactly the listed cars, in order or reversed; all the listed cars,
-    // others besides.
-    const auto exactly = [&plan](const std::vector<unsigned int> &cars) {
-        return cars.size() == plan.cars.size()
-                && (std::equal(cars.begin(), cars.end(), plan.cars.begin())
-                    || std::equal(cars.rbegin(), cars.rend(), plan.cars.begin()));
+    // others besides; the listed cars and no others, in any order.
+    const auto exactly = [&plan](const std::vector<Vehicle> &cars) {
+        if (cars.size() != plan.cars.size())
+            return false;
+        bool forward = true, backward = true;
+        for (size_t i = 0; i < cars.size(); ++i) {
+            forward = forward && cars[i].id == plan.cars[i];
+            backward = backward && cars[cars.size() - 1 - i].id == plan.cars[i];
+        }
+        return forward || backward;
     };
-    const auto includes = [&plan](const std::vector<unsigned int> &cars) {
+    const auto includes = [&plan](const std::vector<Vehicle> &cars) {
         for (unsigned int car : plan.cars)
-            if (std::find(cars.begin(), cars.end(), car) == cars.end())
+            if (std::none_of(cars.begin(), cars.end(), [car](const Vehicle &vehicle) { return vehicle.id == car; }))
                 return false;
         return true;
     };
-    // Some train holds exactly the listed cars: the player's or a loose
-    // consist (AI trains' cars cannot be listed).
+    const auto matches = [&](const std::vector<Vehicle> &cars) {
+        return cars.size() == plan.cars.size() && includes(cars);
+    };
+    // Some train holds exactly the listed cars: one on the track (an AI
+    // train's own cars cannot be listed, those it took up can), or a
+    // standing train.
     const auto assembled = [&](int *train) {
-        if (onTrack(playerTrain) && exactly(playerCars)) {
-            *train = playerTrain;
-            return true;
-        }
-        for (const StaticConsist &consist : in->staticConsists)
-            if (exactly(consist.cars))
+        for (size_t t = 0; t < runtime.size(); ++t)
+            if (onTrack(int(t)) && exactly(runtime[t].vehicles)) {
+                *train = int(t);
+                return true;
+            }
+        for (const Standing &consist : standing)
+            if (!consist.gone && exactly(consist.vehicles))
                 return true;
         return false;
     };
@@ -2333,21 +2376,23 @@ bool SimulationCore::holds(int event, int *by, bool *standIn) const {
             return assembled(&train);
         }
     case EventPlan::DropOffWagonsAtLocation:
-        // TSRE's rule (task 07, the user, 2026-10-21): a train holding all
-        // the listed cars, standing or not, coupled or not (a loose consist,
-        // the player's train), with an end in the siding (Open Rails' end
-        // rule; Open Rails also wants them uncoupled, MSTS every listed car
-        // in the siding).
-        if (onTrack(playerTrain) && includes(playerCars) && inSiding(plan, playerTrain)) {
-            *by = playerTrain;
-            return true;
-        }
-        for (const StaticConsist &consist : in->staticConsists)
-            if (includes(consist.cars) && inSiding(plan, consist))
+        // TSRE's rule (task 07, the user, 2026-10-21): a train that is the
+        // listed cars, in any order (a loose consist, the player's or an AI
+        // train: cars to set out from a longer train are cut off first; a
+        // list of the whole train matches it), with an end in the siding
+        // (Open Rails' end rule; Open Rails wants them a standing consist,
+        // MSTS every listed car in the siding, coupled or not).
+        for (size_t t = 0; t < runtime.size(); ++t)
+            if (onTrack(int(t)) && matches(runtime[t].vehicles) && inSiding(plan, int(t))) {
+                *by = int(t);
+                return true;
+            }
+        for (const Standing &consist : standing)
+            if (!consist.gone && matches(consist.vehicles) && inSiding(plan, consist))
                 return true;
         return false;
     case EventPlan::PickUpWagons:
-        if (!onTrack(playerTrain) || !includes(playerCars)
+        if (!onTrack(playerTrain) || !includes(runtime[size_t(playerTrain)].vehicles)
                 || std::fabs(states[size_t(playerTrain)].speed) > PickUpSpeed)
             return false;
         *by = playerTrain;
