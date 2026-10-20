@@ -16,6 +16,8 @@
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationTexts.h>
 #include <tsre/sound/SoundSystem.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
@@ -333,7 +335,8 @@ void SimulationController::poll() {
     // as fast as possible, a day can go by while the command waits): from
     // the start again to that time, as for a time behind.
     if (runToSeq != 0 && latest->acknowledged >= runToSeq) {
-        const bool passed = latest->acknowledged == runToSeq && latest->time > runToTarget + 1e-6;
+        // The host stops at the first whole step at or after the target.
+        const bool passed = latest->acknowledged == runToSeq && latest->time > runToTarget + SimulationCore::MaxStep;
         runToSeq = 0;
         if (passed && runToTime(runToTarget, runToThenRun, nullptr))
             return;
@@ -561,8 +564,43 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     case TrainEvent::Deadlock:
         //% "deadlocked: waits for %1, which waits for it in turn"
         return qtTrId("simulation.event.deadlock").arg(holderName(event.index));
+    case TrainEvent::EventFired: {
+        const ActivityEvent *fired = activityEvent(event.index);
+        const QString name = fired == nullptr ? QString::number(event.index)
+                           : fired->name.isEmpty() ? QString::number(fired->id) : fired->name;
+        QString text = event.signal == 1
+                //% "event %1 (by the player's train: its triggering train had not started)"
+                ? qtTrId("simulation.event.activity.standin").arg(name)
+                //% "event %1"
+                : qtTrId("simulation.event.activity").arg(name);
+        if (fired != nullptr)
+            for (const ActivityEvent::Outcome *outcome : fired->outcomes)
+                if (outcome != nullptr && outcome->type == ActivityEvent::Outcome::TypeDisplayMessage
+                        && !outcome->value.toString().isEmpty())
+                    text += QStringLiteral(": ") + outcome->value.toString().simplified();
+        return text;
+    }
+    case TrainEvent::ActivityEnded:
+        return event.index == 1
+                //% "the activity ends: success"
+                ? qtTrId("simulation.event.activity.success")
+                //% "the activity ends without success"
+                : qtTrId("simulation.event.activity.failure");
+    case TrainEvent::Restarted: {
+        const ActivityEvent *by = activityEvent(event.index);
+        //% "restarted by event %1"
+        return qtTrId("simulation.event.restarted")
+                .arg(by == nullptr ? QString::number(event.index) : by->name.isEmpty() ? QString::number(by->id) : by->name);
+    }
     }
     return QString();
+}
+
+const ActivityEvent *SimulationController::activityEvent(int event) const {
+    if (in == nullptr || current == nullptr || event < 0 || size_t(event) >= in->events.size())
+        return nullptr;
+    const int index = in->events[size_t(event)].index;
+    return index >= 0 && index < current->event.size() ? current->event[index] : nullptr;
 }
 
 QString SimulationController::statusText() const {

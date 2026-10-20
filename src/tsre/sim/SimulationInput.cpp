@@ -11,6 +11,7 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/ActivityTrains.h>
@@ -142,6 +143,7 @@ std::vector<StaticConsist> StaticConsists(Activity *activity, TDB *tdb) {
             if (v == 0)
                 first = length;
             consist.length += length;
+            consist.cars.push_back(unsigned(object->id) * 65536u + unsigned(object->con->engItems[v].uid));
         }
         int node = -1;
         float distance = 0.0f;
@@ -163,6 +165,162 @@ std::vector<StaticConsist> StaticConsists(Activity *activity, TDB *tdb) {
         consists.push_back(consist);
     }
     return consists;
+}
+
+// An AI train of the input by its service and start time (-1 any), as Open
+// Rails finds a triggering or restarted train; -1 none.
+int aiTrainOf(const SimulationInput &input, const QString &service, int time) {
+    for (const TrainPlan &train : input.trains)
+        if (!train.player && sameName(train.service, service) && (time < 0 || train.serviceTime == time))
+            return train.id;
+    return -1;
+}
+
+EventPlan::Kind kindOf(const ActivityEvent &event) {
+    if (event.category == ActivityEvent::CategoryTime)
+        return EventPlan::Time;
+    if (event.category == ActivityEvent::CategoryLocation)
+        return EventPlan::Location;
+    switch (event.eventType) {
+    case ActivityEvent::EventTypeAllstops: return EventPlan::AllStops;
+    case ActivityEvent::EventTypeAssembleTrain: return EventPlan::AssembleTrain;
+    case ActivityEvent::EventTypeAssembleTrainAtLocation: return EventPlan::AssembleTrainAtLocation;
+    case ActivityEvent::EventTypeDropoffWagonsAtLocation: return EventPlan::DropOffWagonsAtLocation;
+    case ActivityEvent::EventTypePickupWagons: return EventPlan::PickUpWagons;
+    case ActivityEvent::EventTypePickupPassengers: return EventPlan::PickUpPassengers;
+    case ActivityEvent::EventTypeReachSpeed: return EventPlan::ReachSpeed;
+    default: return EventPlan::Other;
+    }
+}
+
+// The activity's events as the core checks them (task 06): a location
+// event's point on the track within 2.5 m of it (Open Rails'
+// MaximumCenterlineOffset), sidings between their two items, outcomes by
+// the events' places in the list.
+std::vector<EventPlan> Events(Activity *activity, TDB *tdb, const SimulationInput &input, QStringList &warnings) {
+    std::vector<EventPlan> plans;
+    const auto byId = [activity](int id) {
+        std::vector<int> found;
+        for (int k = 0; k < activity->event.size(); ++k)
+            if (activity->event[k] != nullptr && activity->event[k]->id == id)
+                found.push_back(k);
+        return found;
+    };
+    for (int i = 0; i < activity->event.size(); ++i) {
+        const ActivityEvent *event = activity->event[i];
+        if (event == nullptr)
+            continue;
+        EventPlan plan;
+        plan.id = event->id;
+        plan.index = i;
+        plan.name = event->name.isEmpty() ? QString::number(event->id) : event->name;
+        plan.kind = kindOf(*event);
+        plan.activation = event->activationLevel != -99999 ? event->activationLevel : 0;
+        plan.reversible = event->reversableEvent;
+        plan.autoContinue = event->ortsContinue != -99999 ? event->ortsContinue : -1;
+        plan.time = event->time != -99999 ? event->time : 0;
+        plan.speed = event->speed != -99999 ? event->speed : 0.0f;
+        const QString &name = plan.name;
+        if (plan.kind == EventPlan::Location && event->location != nullptr) {
+            plan.radius = event->location[4];
+            plan.onStop = event->triggerOnStop == 1;
+            float posT[2] = {event->location[0], -event->location[1]};
+            float pos[3] = {event->location[2], 0.0f, -event->location[3]};
+            QVector<TDB::IntersectionPoint> points;
+            tdb->findNearestPositionsOnTDB(posT, pos, points, 2.5f, false);
+            for (const TDB::IntersectionPoint &point : points) {
+                TrackPlace place{int(point.idx), point.m};
+                bool seen = false;
+                for (const TrackPlace &other : plan.places)
+                    seen = seen || (other.node == place.node && std::fabs(other.distance - place.distance) < 0.5f);
+                if (!seen)
+                    plan.places.push_back(place);
+            }
+            if (!event->triggeringService.isEmpty()) {
+                plan.trigger = aiTrainOf(input, event->triggeringService, event->triggeringTime);
+                if (plan.trigger < 0)
+                    warnings << QString("event %1: its triggering train %2 is not in the activity").arg(name, event->triggeringService);
+            }
+        }
+        for (const ActivityEvent::WagonList &wagon : event->wagonList)
+            plan.cars.push_back(wagon.uid);
+        if ((plan.kind == EventPlan::AssembleTrainAtLocation || plan.kind == EventPlan::DropOffWagonsAtLocation)
+                && event->sidingItem >= 0) {
+            // A siding item and the one it links to; without them the place
+            // always matches (Open Rails).
+            auto found = tdb->trackItems.find(event->sidingItem);
+            TRitem *a = found != tdb->trackItems.end() ? found->second : nullptr;
+            TRitem *b = nullptr;
+            if (a != nullptr && a->type == "sidingitem" && a->platformTrItemData != nullptr) {
+                auto linked = tdb->trackItems.find(int(a->platformTrItemData[1]));
+                b = linked != tdb->trackItems.end() ? linked->second : nullptr;
+            }
+            if (a != nullptr && b != nullptr) {
+                const int nodeA = tdb->findTrItemNodeId(int(a->trItemId)), nodeB = tdb->findTrItemNodeId(int(b->trItemId));
+                plan.siding = true;
+                if (nodeA >= 0 && nodeA == nodeB) {
+                    plan.sidingNode = nodeA;
+                    plan.sidingFrom = std::min(a->getTrackPosition(), b->getTrackPosition());
+                    plan.sidingTo = std::max(a->getTrackPosition(), b->getTrackPosition());
+                } else {
+                    warnings << QString("event %1: its siding's two ends are not on one track node").arg(name);
+                }
+            }
+        }
+        for (const ActivityEvent::Outcome *outcome : event->outcomes) {
+            if (outcome == nullptr)
+                continue;
+            switch (outcome->type) {
+            case ActivityEvent::Outcome::TypeDisplayMessage:
+                plan.message = plan.message || !outcome->value.toString().isEmpty();
+                break;
+            case ActivityEvent::Outcome::TypeActivitySuccess:
+                plan.success = true;
+                break;
+            case ActivityEvent::Outcome::TypeActivityFail:
+                plan.failure = true;
+                break;
+            case ActivityEvent::Outcome::TypeActivateEvent:
+                for (int k : byId(outcome->value.toInt()))
+                    plan.activate.push_back(k);
+                break;
+            case ActivityEvent::Outcome::TypeRestorAactLevel:
+                for (int k : byId(outcome->value.toInt()))
+                    plan.restore.push_back(k);
+                break;
+            case ActivityEvent::Outcome::TypeDecActLevel:
+                for (int k : byId(outcome->value.toInt()))
+                    plan.decrease.push_back(k);
+                break;
+            case ActivityEvent::Outcome::TypeIncActLevel:
+                for (int k : byId(outcome->value.toInt()))
+                    plan.increase.push_back(k);
+                break;
+            case ActivityEvent::Outcome::TypeORTSRestartWaitingTrain:
+                if (outcome->restartService.isEmpty())
+                    break;
+                plan.restartTrain = aiTrainOf(input, outcome->restartService, outcome->restartTime);
+                plan.restartWait = outcome->restartWaitingPoint;
+                plan.restartDelay = outcome->restartDelay;
+                if (plan.restartTrain < 0)
+                    warnings << QString("event %1: the train to restart, %2, is not in the activity").arg(name, outcome->restartService);
+                break;
+            default:
+                break;
+            }
+        }
+        plans.push_back(plan);
+    }
+    // Outcomes name events by their place in the activity's list; the core
+    // keeps the plans in that order without the missing ones.
+    std::vector<int> place(size_t(activity->event.size()), -1);
+    for (size_t k = 0; k < plans.size(); ++k)
+        place[size_t(plans[k].index)] = int(k);
+    for (EventPlan &plan : plans)
+        for (std::vector<int> *list : {&plan.activate, &plan.restore, &plan.decrease, &plan.increase})
+            for (int &k : *list)
+                k = place[size_t(k)];
+    return plans;
 }
 
 }
@@ -319,6 +477,9 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
             Vehicle vehicle;
             vehicle.flip = item.flip;
             vehicle.eng = item.eng;
+            // The player's train is consist 0 of the wagon lists.
+            if (player)
+                vehicle.id = unsigned(item.uid);
             Eng *eng = nullptr;
             if (item.eng >= 0 && Game::currentEngLib != nullptr) {
                 auto e = Game::currentEngLib->eng.find(item.eng);
@@ -508,6 +669,7 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
         input->trains.push_back(std::move(plan));
     }
     input->staticConsists = StaticConsists(activity, tdb);
+    input->events = Events(activity, tdb, *input, input->warnings);
     return input;
 }
 

@@ -12,6 +12,9 @@ class TDB;
 
 namespace Sim {
 
+// A car the activity's wagon lists cannot name (an AI train's).
+constexpr unsigned int NoCar = 0xFFFFFFFFu;
+
 // A car or engine of a train: its length and how it is drawn.
 struct Vehicle {
     float length = 0.0f;
@@ -24,6 +27,11 @@ struct Vehicle {
     // It carries passengers (a carriage, or a power car with a passenger
     // capacity: an EMU's).
     bool passengerCapacity = false;
+    // As the activity's wagon lists name it (Open Rails' car id): its
+    // consist's number × 65536 + its UiD in the consist, the player's train
+    // being consist 0 and a loose consist its object's id; NoCar for an AI
+    // train's.
+    unsigned int id = NoCar;
 };
 
 // How a train is driven (task simulation 03): Simple, task 01's constant
@@ -143,6 +151,69 @@ struct StaticConsist {
     int object = -1;
     float length = 0.0f;
     std::vector<RouteInterval> track;
+    // Its cars' ids (Vehicle::id), in the consist's order.
+    std::vector<unsigned int> cars;
+};
+
+// A place on a vector node of the track.
+struct TrackPlace {
+    int node = -1;
+    float distance = 0.0f;
+};
+
+// An activity event (task simulation 06), as the core checks it: Open
+// Rails' rules (Activity.cs).
+struct EventPlan {
+    enum Kind {
+        Time, Location, AllStops, AssembleTrain, AssembleTrainAtLocation, DropOffWagonsAtLocation,
+        PickUpWagons, PickUpPassengers, ReachSpeed, Other
+    };
+    // The activity's id for it, its place in the activity's list, its name.
+    int id = 0;
+    int index = -1;
+    QString name;
+    Kind kind = Other;
+    // Its activation level as the file has it (looked at while above 0).
+    int activation = 0;
+    bool reversible = false;
+    // It shows a message; ORTSContinue: the seconds its message stays while
+    // the game runs (no other event checked meanwhile), below 0 none.
+    bool message = false;
+    int autoContinue = -1;
+    // Time: seconds after the activity's start.
+    int time = 0;
+    // Location: the places on the track within 2.5 m of its point, the
+    // radius (m), and whether the train must stand there.
+    std::vector<TrackPlace> places;
+    float radius = 0.0f;
+    bool onStop = false;
+    // Location: the train looked at, an AI train of the input, until it
+    // starts the player's train (Open Rails); -1 the player's.
+    int trigger = -1;
+    // ReachSpeed: m/s.
+    float speed = 0.0f;
+    // Wagon events: the listed cars (Vehicle::id), and the siding: a node
+    // and the stretch of it between its two items. Without a siding the
+    // place always matches (Open Rails).
+    std::vector<unsigned int> cars;
+    bool siding = false;
+    int sidingNode = -1;
+    float sidingFrom = 0.0f;
+    float sidingTo = 0.0f;
+    // Outcomes, as Open Rails acts on them: the events (by place in the
+    // input's list) activated, restored to their level in the file, their
+    // level decreased and increased; the activity ending; an AI train of
+    // the input waiting at a waiting point of value `restartWait` waiting
+    // `restartDelay` seconds from now instead.
+    std::vector<int> activate;
+    std::vector<int> restore;
+    std::vector<int> decrease;
+    std::vector<int> increase;
+    bool success = false;
+    bool failure = false;
+    int restartTrain = -1;
+    int restartWait = 0;
+    int restartDelay = 0;
 };
 
 // Everything a simulation reads, copied from the editor's data when it
@@ -164,6 +235,8 @@ struct SimulationInput {
     std::shared_ptr<const TrackNetwork> network;
     std::vector<TrainPlan> trains;
     std::vector<StaticConsist> staticConsists;
+    // The activity's events, in its order (task 06).
+    std::vector<EventPlan> events;
     // Trains not made, and why.
     QStringList warnings;
 

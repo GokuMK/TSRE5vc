@@ -1,6 +1,6 @@
 # Task 06 - Activity Events
 
-Status: designed 2026-10-20, not started (branch `feature/simulation`).
+Status: phases 1 and 2 done 2026-10-20 (branch `feature/simulation`).
 Decisions taken are at the end.
 
 Sources:
@@ -27,7 +27,60 @@ Sources:
 
 ## Progress
 
-Nothing yet.
+**Phase 1, core (done 2026-10-20).**
+- The fixed step: `SimulationCore::step` takes whole steps of 0.1 s and
+  keeps the rest for the next call; time is the origin plus steps × 0.1
+  (an hour of steps ends on the second); the pre-run steps whole steps
+  too. `onStep`: the host runs to the first whole step at or after a
+  target, and the controller takes a run to a time as passed only beyond
+  one step past it. Every simulation suite passes unchanged.
+- The input: `Vehicle::id` (the player's cars consist 0, a loose consist's
+  its object id × 65536 + UiD, AI trains' none), `StaticConsist::cars`,
+  `EventPlan`s made from `Activity::event`: location points placed on the
+  track within 2.5 m by x and z (`TDB::findNearestPositionsOnTDB` with
+  `useHeight` false), sidings between their two items on one node,
+  outcomes by the events' places in the list, triggering and restarted
+  trains found by service and time (warnings when not).
+- The core checks the events after each step as Open Rails does (section
+  2): levels, reversible events disabled until their condition stops
+  holding, outcomes once in Open Rails' order, chains in one step, a
+  staying message holding the others, the activity's end. Location events
+  look at where the front went during the step (`Runtime::swept`) and
+  where it came to rest (`rests`, a reversal included), so radii smaller
+  than a step's travel are not missed; places on a train's parts are
+  found again when it takes a passing path. Records: `TrainEvent`
+  `EventFired`, `ActivityEnded`, `Restarted`; frames carry the events'
+  states, shared while unchanged.
+- `simulation-events` suite (new, content-free): 38 checks then, among
+  them a time event at its second, chains and levels, a 0.5 m radius at
+  20 m/s, a stop-here event at a reversal, a reversible event out and
+  back, Open Rails' stand-in for a triggering train, each wagon event,
+  restarts standing and still coming, frames sharing states, a point
+  2 m beside the track found and 3 m not.
+- The route suite prints each activity's events fired by kind and its
+  end.
+
+**Phase 2, the player's train (done 2026-10-20).**
+- It stops at the nearest active stop-here event ahead that it can still
+  stop at with its deceleration (once braking for one it keeps it), stands
+  until it fires (at most a minute), then goes on (`StopKind::Event`,
+  `TrainState::eventStop`, "stopped for event ..."). Its next station stop
+  moves to such an event along the platform.
+- Checks added: it stops at the point and leaves once fired; activated
+  too late, passed; along a platform the stop moves there (boarding
+  there); before the platform a stop of its own first (41 checks).
+- On every local route (the route suite's events): the tutorials' location
+  events fired went up from 25 to 27 of 39 (sctutorial), 27 to 47 of 57
+  (oetutorial), 18 to 28 of 34 (tokyohakonetutorial), 24 to 26 of 29
+  (hisatsututorial), 18 to 21 of 36 (necorridortutorial), 12 to 15 of 19
+  (freighttutorial); BNSF's MustComeDown now ends successfully. Of the 65
+  activities on the seven routes, 35 end successfully, 3 fail (USA2
+  freight activities whose failure events stand for work not done: their
+  wagon events wait for 07), 27 have no end yet (phase 4 tells why).
+- Cost, Release builds against main: a step on the measured activities
+  unchanged (0.4 to 0.5 µs); whole routes JAPAN1 400 to 420 ms, USA1 268
+  to 314 ms, EUROPE2 120 to 153 ms for 13.1 simulated hours (its
+  oetutorial's 57 location events: about 70 ns a step).
 
 ## Why
 

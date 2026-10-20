@@ -46,6 +46,13 @@ struct SimulationFrame {
     std::shared_ptr<const std::vector<SimulationCore::SectionUse>> sectionUses;
     unsigned long long holdSerial = 0;
     std::vector<size_t> standsOn;
+    // The activity's events (task 06): their states (the input's list),
+    // shared with the frame before while unchanged; the activity's end and
+    // when (seconds after midnight, -1 not yet).
+    std::shared_ptr<const std::vector<EventState>> eventStates;
+    unsigned long long eventSerial = 0;
+    ActivityEnd activityEnd = ActivityEnd::None;
+    double activityEndedAt = -1.0;
 };
 
 // The core's state now, with its vehicles' poses; what has not changed

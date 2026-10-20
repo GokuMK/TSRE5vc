@@ -9,8 +9,9 @@ namespace Sim {
 
 enum class TrainStatus { Waiting, Running, Stopped, Finished };
 // Why a train stands. Blocked: at the end of its authority, the track ahead
-// held by another train or a standing consist.
-enum class StopKind { None, Station, Wait, Reversal, End, Blocked };
+// held by another train or a standing consist. Event: the player's train at
+// an activity's stop-here event (task 06), until it fires.
+enum class StopKind { None, Station, Wait, Reversal, End, Blocked, Event };
 
 // What a waiting train waits for: track held by another train (or a
 // consist), the single track ahead claimed for an opposing train (task 02,
@@ -57,15 +58,24 @@ struct TrainState {
     float signalSpeed = -1.0f;
     // It is in a deadlock (reported once).
     bool deadlocked = false;
+    // The player's train: the stop-here event (task 06) it brakes for or
+    // stands at, -1 none.
+    int eventStop = -1;
 };
 
 // Something that happened to a train, for the editor (task simulation 01,
-// section 6).
+// section 6), or to the activity (task 06).
 struct TrainEvent {
     // Blocked: waiting for `index` (a train, StandingConsist) as `waitFor`
     // says, at `signal` (a signal of the network, -1 none); Deadlock: in a
     // ring of trains waiting for each other, waiting for train `index`.
-    enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock };
+    // EventFired: the activity's event `index` (in the input's list) fired,
+    // `train` the train it looked at (-1 none); `signal` is 1 when that was
+    // the player's train standing in for a triggering train not yet
+    // started. ActivityEnded: `index` 1 success, 0 failure. Restarted: the
+    // event `index` restarted the waiting `train`.
+    enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock,
+                EventFired, ActivityEnded, Restarted };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -77,12 +87,33 @@ struct TrainEvent {
     double travelled = 0.0;
 };
 
+// An activity event's state in a run (task 06).
+struct EventState {
+    // Its activation level: looked at while above 0.
+    int level = 0;
+    // Times fired; a reversible event fired is disabled until its condition
+    // no longer holds.
+    int fired = 0;
+    bool disabled = false;
+    // When it last fired (seconds after midnight), -1 never; the train it
+    // looked at then (-1 none), and whether that was the player's train
+    // standing in for a triggering train not yet started.
+    double firedAt = -1.0;
+    int firedBy = -1;
+    bool standIn = false;
+};
+
+// How the activity ended: not yet, successfully, or not.
+enum class ActivityEnd { None, Success, Failure };
+
 // The simulation's state and its stepping: plain C++, no QObject, nothing
 // read but its input, so tests call it directly and the host runs it on its
 // own thread.
 class SimulationCore {
 public:
-    // The longest step taken at once: longer steps are cut into these.
+    // The step: the simulation advances in steps of exactly this; time asked
+    // for beyond whole steps waits for the next call (task 06, the fixed
+    // step decided 2026-10-17).
     static constexpr double MaxStep = 0.1;
     // A train stops this far short of the end of its authority, and this
     // far short of a stop signal not cleared for it (Open Rails' AI aims
@@ -140,8 +171,12 @@ public:
     double time() const { return now; }
     // Steps taken since the activity's start (the pre-run not counted).
     unsigned long long steps() const { return stepCount; }
-    // Advances the simulation by `seconds`, in steps of at most MaxStep.
+    // Advances the simulation by `seconds`, in whole steps of MaxStep; the
+    // rest is taken with the next call.
     void step(double seconds);
+    // A time of day as the simulation reaches it: rounded up to a whole
+    // step from now.
+    double onStep(double time) const;
     const std::vector<TrainState> &trains() const { return states; }
     // The events since the last call.
     std::vector<TrainEvent> takeEvents();
@@ -208,6 +243,20 @@ public:
     // its least restrictive NORMAL head's aspect, how far ahead (m); -1
     // none (comparisons with Open Rails, task 05).
     int nextSignalAhead(int train, int *aspect = nullptr, double *distance = nullptr) const;
+    // The activity's events (the input's list): their states, the
+    // activity's end and when (seconds after midnight, -1 not yet); the
+    // serial changes whenever any of them does.
+    const std::vector<EventState> &eventStates() const { return eventState; }
+    ActivityEnd activityEnd() const { return ended; }
+    double activityEndedAt() const { return endedAt; }
+    unsigned long long eventSerial() const { return eventChanges; }
+    // Open Rails' limits: standing is at most this speed (a location event
+    // on stopping, m/s); PickUpWagons needs the train at most this fast.
+    static constexpr double StandingSpeed = 0.032;
+    static constexpr double PickUpSpeed = 1.0;
+    // The player's train at a stop-here event stands until it fires, at
+    // most this long (seconds).
+    static constexpr double EventStandLimit = 60.0;
     // Every train has finished its path.
     bool finished() const;
     // Nothing more will happen: every train has finished, stands at its
@@ -219,6 +268,23 @@ private:
     std::shared_ptr<const SimulationInput> in;
     double now = 0.0;
     unsigned long long stepCount = 0;
+    // The fixed step: time is `origin` plus `ticks` steps; `pending` the time
+    // asked for that is not yet a whole step.
+    double origin = 0.0;
+    unsigned long long ticks = 0;
+    double pending = 0.0;
+    // Activity events (task 06): their states; the player's train (-1
+    // none); the activity's end; events held until this time by a message
+    // staying (ORTSContinue); events are not checked in the pre-run.
+    std::vector<EventState> eventState;
+    unsigned long long eventChanges = 0;
+    int playerTrain = -1;
+    // Its cars' ids (they do not change in a run yet).
+    std::vector<unsigned int> playerCars;
+    ActivityEnd ended = ActivityEnd::None;
+    double endedAt = -1.0;
+    double holdUntil = -1.0;
+    bool prerunning = false;
     std::vector<TrainState> states;
     std::vector<TrainEvent> events;
     // Per network section.
@@ -324,11 +390,51 @@ private:
         double triedAt = -1.0;
         unsigned long long triedHold = 0;
         unsigned long long triedClaims = 0;
+        // Activity events (task 06), for a train location events look at:
+        // where their points lie on its parts (the event, the part, the
+        // route distance; sorted by event), and in the step being taken the
+        // stretches its front covered and where it came to rest (part, from,
+        // to).
+        bool watched = false;
+        struct Spot {
+            int event = -1;
+            int part = 0;
+            double at = 0.0;
+        };
+        std::vector<Spot> spots;
+        struct Covered {
+            int part = 0;
+            double from = 0.0;
+            double to = 0.0;
+        };
+        std::vector<Covered> swept;
+        std::vector<Covered> rests;
     };
     std::vector<Runtime> runtime;
 
-    // All trains from `now` on by `seconds`, in steps of at most MaxStep.
-    void run(double seconds);
+    // All trains from `now` on by one step.
+    void stepOnce();
+    // Activity events (task 06): checked after a step as Open Rails checks
+    // them each frame, events firing one after another (each at most once)
+    // until none does; whether an event's condition holds now (the train
+    // it looked at, and whether the player's stood in for its triggering
+    // train); its outcomes (true when the activity ends); a waiting train
+    // restarted.
+    void checkEvents();
+    bool holds(int event, int *by, bool *standIn) const;
+    // The event can still fire: active, not fired (or reversible and
+    // enabled again), the activity not ended.
+    bool wanted(int event) const;
+    bool actOn(int event);
+    void restart(int train, int event);
+    // Where the events a watched train may trigger lie on one of its parts
+    // (again when the part changes).
+    void findSpots(int train, int part);
+    // Its front moved over [from, to] on its current part in this step.
+    void sweep(int train, double from, double to);
+    // Its front, or its rear, within the siding (the event's).
+    bool inSiding(const EventPlan &plan, int train) const;
+    bool inSiding(const EventPlan &plan, const StaticConsist &consist) const;
     // One train from `from` to `to` (seconds after midnight, at most
     // MaxStep apart), once it has started.
     void advance(int train, double from, double to);

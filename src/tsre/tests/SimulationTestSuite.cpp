@@ -7,10 +7,12 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <QTime>
 #include <QFileInfo>
 #include <QRandomGenerator>
 #include <QScopedValueRollback>
 #include <algorithm>
+#include <map>
 #include <cmath>
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
@@ -2317,6 +2319,27 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         }
         runMs += timer.elapsed();
         simulated += core.time() - input->startTime;
+        // The activity's events (task 06): how many of each kind fired, and
+        // its end.
+        if (!input->events.empty()) {
+            const char *kinds[] = {"time", "location", "allstops", "assemble", "assemble-at", "dropoff", "pickup",
+                                   "passengers", "speed", "other"};
+            std::map<QString, std::pair<int, int>> tally;
+            for (size_t e = 0; e < input->events.size(); ++e) {
+                std::pair<int, int> &count = tally[kinds[int(input->events[e].kind)]];
+                count.first += core.eventStates()[e].fired > 0 ? 1 : 0;
+                ++count.second;
+            }
+            QStringList parts;
+            for (const auto &[kind, count] : tally)
+                parts << QString("%1 %2/%3").arg(kind).arg(count.first).arg(count.second);
+            const Sim::ActivityEnd end = core.activityEnd();
+            const QString ending = end == Sim::ActivityEnd::None ? QString("no end")
+                    : QString("%1 at %2").arg(end == Sim::ActivityEnd::Success ? "success" : "failure")
+                          .arg(QTime(0, 0).addSecs(int(core.activityEndedAt()) % 86400).toString("HH:mm:ss"));
+            qInfo().noquote() << "[tests:simulation-route] events:" << activity->name << "|" << parts.join(", ") << "|"
+                              << ending;
+        }
         for (size_t t = 0; t < core.trains().size(); ++t) {
             const Sim::TrainState &state = core.trains()[t];
             const bool done = state.status == Sim::TrainStatus::Finished || state.stoppedAt == Sim::StopKind::End;

@@ -9,6 +9,7 @@
 #include <tsre/world/objects/SignalLights.h>
 
 class Activity;
+class ActivityEvent;
 class Consist;
 class GameObj;
 class QThread;
@@ -121,6 +122,8 @@ public:
     // and an event as the Timetable window lists it.
     QString stateText(int train) const;
     QString eventText(const TrainEvent &event) const;
+    // The activity's event of the input's event `event`, or null.
+    const ActivityEvent *activityEvent(int event) const;
     // A train as the Timetable window names it ("Local 09:30"); a section's
     // holder (a train, a standing consist).
     QString trainName(int train) const;

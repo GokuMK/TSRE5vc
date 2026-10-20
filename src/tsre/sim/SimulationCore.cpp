@@ -97,65 +97,111 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
             }
         }
     findStretches();
+    // Activity events (task 06): their levels from the file; the trains
+    // location events look at (the player's, and triggering trains) know
+    // where the events' points lie on their routes.
+    eventState.resize(in->events.size());
+    for (size_t e = 0; e < in->events.size(); ++e)
+        eventState[e].level = in->events[e].activation;
+    for (const TrainPlan &plan : in->trains)
+        if (plan.player && playerTrain < 0)
+            playerTrain = plan.id;
+    if (playerTrain >= 0)
+        for (const Vehicle &vehicle : in->trains[size_t(playerTrain)].vehicles)
+            playerCars.push_back(vehicle.id);
+    for (const EventPlan &event : in->events)
+        if (event.kind == EventPlan::Location) {
+            if (playerTrain >= 0)
+                runtime[size_t(playerTrain)].watched = true;
+            if (event.trigger >= 0 && size_t(event.trigger) < runtime.size())
+                runtime[size_t(event.trigger)].watched = true;
+        }
+    for (size_t i = 0; i < runtime.size(); ++i)
+        if (runtime[i].watched)
+            for (size_t part = 0; part < runtime[i].parts.size(); ++part)
+                findSpots(int(i), int(part));
     // The pre-run: all trains together from the first one's start up to the
-    // activity's (Open Rails' pre-run of AI trains).
+    // activity's (Open Rails' pre-run of AI trains), in whole steps (start
+    // times are whole seconds).
     now = in->startTime;
     double first = now;
     for (const TrainPlan &plan : in->trains)
         first = std::min(first, double(plan.startTime));
     if (first < now) {
         const double start = now;
+        origin = first;
+        ticks = 0;
         now = first;
-        run(start - first);
+        prerunning = true;
+        const long long count = std::llround((start - first) / MaxStep);
+        for (long long k = 0; k < count; ++k)
+            stepOnce();
+        prerunning = false;
         now = start;
     }
+    origin = now;
+    ticks = 0;
     if (aspectsPending())
         evaluateAspects();
     stepCount = 0;
 }
 
 void SimulationCore::step(double seconds) {
-    run(seconds);
+    pending += std::max(0.0, seconds);
+    while (pending >= MaxStep - 1e-9) {
+        pending -= MaxStep;
+        stepOnce();
+    }
+    pending = std::max(0.0, pending);
 }
 
-void SimulationCore::run(double seconds) {
-    double left = seconds;
-    while (left > 1e-9) {
-        const double h = std::min(MaxStep, left);
-        // Trains due take their places first, in the order they are due, all
-        // before any reserves ahead: those an activity puts on the track at
-        // the same time are there together. One waits while a stretch it
-        // would stand in was claimed for another train before.
-        std::vector<int> due;
-        for (size_t i = 0; i < states.size(); ++i)
-            if (states[i].status == TrainStatus::Waiting && in->trains[i].startTime <= now + h)
-                due.push_back(int(i));
-        std::stable_sort(due.begin(), due.end(), [this](int a, int b) {
-            return in->trains[size_t(a)].startTime < in->trains[size_t(b)].startTime;
-        });
-        std::vector<int> free;
-        for (int i : due) {
-            int blocker = NoHolder;
-            if (startClaimed(i, &blocker)) {
-                TrainState &s = states[size_t(i)];
-                s.blockedBy = blocker;
-                s.waitFor = WaitFor::SingleTrack;
-                blocked(i, std::max(now, double(in->trains[size_t(i)].startTime)));
-            } else {
-                free.push_back(i);
-            }
+double SimulationCore::onStep(double time) const {
+    return origin + std::ceil((time - origin) / MaxStep - 1e-6) * MaxStep;
+}
+
+void SimulationCore::stepOnce() {
+    // Time is the origin plus whole steps: no drift over a long run.
+    const double next = origin + double(ticks + 1) * MaxStep;
+    for (Runtime &rt : runtime)
+        if (rt.watched) {
+            rt.swept.clear();
+            rt.rests.clear();
         }
-        for (int i : free)
-            start(i, now, now + h);
-        for (size_t i = 0; i < states.size(); ++i)
-            advance(int(i), now, now + h);
-        now += h;
-        left -= h;
-        ++stepCount;
-        findDeadlocks(now);
-        if (aspectsPending())
-            evaluateAspects();
+    // Trains due take their places first, in the order they are due, all
+    // before any reserves ahead: those an activity puts on the track at
+    // the same time are there together. One waits while a stretch it
+    // would stand in was claimed for another train before.
+    std::vector<int> due;
+    for (size_t i = 0; i < states.size(); ++i)
+        if (states[i].status == TrainStatus::Waiting && in->trains[i].startTime <= next)
+            due.push_back(int(i));
+    std::stable_sort(due.begin(), due.end(), [this](int a, int b) {
+        return in->trains[size_t(a)].startTime < in->trains[size_t(b)].startTime;
+    });
+    std::vector<int> free;
+    for (int i : due) {
+        int blocker = NoHolder;
+        if (startClaimed(i, &blocker)) {
+            TrainState &s = states[size_t(i)];
+            s.blockedBy = blocker;
+            s.waitFor = WaitFor::SingleTrack;
+            blocked(i, std::max(now, double(in->trains[size_t(i)].startTime)));
+        } else {
+            free.push_back(i);
+        }
     }
+    for (int i : free)
+        start(i, now, next);
+    for (size_t i = 0; i < states.size(); ++i)
+        advance(int(i), now, next);
+    now = next;
+    ++ticks;
+    ++stepCount;
+    findDeadlocks(now);
+    if (aspectsPending())
+        evaluateAspects();
+    if (!prerunning)
+        checkEvents();
 }
 
 std::vector<TrainEvent> SimulationCore::takeEvents() {
@@ -313,6 +359,19 @@ void SimulationCore::advance(int train, double from, double to) {
                 runtime[size_t(train)].reported = Unreported;
                 continue;
             }
+            // At a stop-here event (task 06): until it has fired (the events
+            // are checked after each step), at most EventStandLimit.
+            if (s.stoppedAt == StopKind::Event) {
+                if (wanted(s.eventStop)) {
+                    if (s.until > to)
+                        break;
+                    t = std::max(t, s.until);
+                }
+                s.eventStop = -1;
+                s.status = TrainStatus::Running;
+                s.stoppedAt = StopKind::None;
+                continue;
+            }
             // Standing at a station, its exit signal is cleared a while
             // before it leaves; a signal next held for a stop further on is
             // let go at once.
@@ -362,6 +421,24 @@ void SimulationCore::advance(int train, double from, double to) {
                 break;
             ++s.nextWait;
         }
+        Runtime &own = runtime[size_t(train)];
+        // The player's train (task 06): its next station stop moves to an
+        // active stop-here event along the platform, where it can still
+        // stop there.
+        if (train == playerTrain && own.watched && s.nextStop < int(own.stops.size())) {
+            StopPlan &stop = own.stops[size_t(s.nextStop)];
+            if (stop.part == s.part && stop.front > s.front + AtTarget)
+                for (const Runtime::Spot &spot : own.spots) {
+                    if (spot.part != stop.part || std::fabs(spot.at - stop.front) < AtTarget
+                            || spot.at < stop.platformStart || spot.at > stop.platformEnd || spot.at <= s.front + AtTarget
+                            || !in->events[size_t(spot.event)].onStop || !wanted(spot.event))
+                        continue;
+                    if (spot.at < stop.front && double(s.speed) * s.speed / (2.0 * plan.deceleration) > spot.at - s.front)
+                        continue;
+                    stop.front = spot.at;
+                    break;
+                }
+        }
         double target = parts[size_t(s.part)].length();
         StopKind kind = s.part + 1 < int(parts.size()) ? StopKind::Reversal : StopKind::End;
         int index = -1;
@@ -385,6 +462,24 @@ void SimulationCore::advance(int train, double from, double to) {
                 index = w;
             }
             break;
+        }
+        // The player's train stops at the nearest active stop-here event
+        // ahead (task 06): one it brakes for already, or one it can still
+        // stop at; a train that cannot passes it, as a player told too late.
+        if (train == playerTrain && own.watched) {
+            int chosen = -1;
+            for (const Runtime::Spot &spot : own.spots) {
+                if (spot.part != s.part || spot.at <= s.front + AtTarget || spot.at >= target - AtTarget
+                        || !in->events[size_t(spot.event)].onStop || !wanted(spot.event))
+                    continue;
+                if (spot.event != s.eventStop && double(s.speed) * s.speed / (2.0 * plan.deceleration) > spot.at - s.front)
+                    continue;
+                target = spot.at;
+                kind = StopKind::Event;
+                index = spot.event;
+                chosen = spot.event;
+            }
+            s.eventStop = chosen;
         }
         if (s.authority < parts[size_t(s.part)].length() - 1e-6) {
             const double margin = runtime[size_t(train)].endsAtSignal ? SignalMargin : AuthorityMargin;
@@ -515,6 +610,7 @@ void SimulationCore::advance(int train, double from, double to) {
             if (moved >= distance - AtTarget) {
                 arrival = t + (moved > 0.0 ? dt * std::min(1.0, distance / moved) : dt);
             } else {
+                sweep(train, s.front, s.front + moved);
                 s.front += moved;
                 s.travelled += moved;
                 s.acceleration = dt > 0.0 ? float((next - v) / dt) : 0.0f;
@@ -536,6 +632,9 @@ void SimulationCore::advance(int train, double from, double to) {
 
         // At the target.
         s.travelled += target - s.front;
+        sweep(train, s.front, target);
+        if (runtime[size_t(train)].watched)
+            runtime[size_t(train)].rests.push_back({s.part, target, target});
         s.front = target;
         s.acceleration = arrival > t ? float(-s.speed / (arrival - t)) : 0.0f;
         s.speed = 0.0f;
@@ -562,6 +661,9 @@ void SimulationCore::advance(int train, double from, double to) {
             break;
         case StopKind::Reversal:
             s.until = t;
+            break;
+        case StopKind::Event:
+            s.until = t + EventStandLimit;
             break;
         case StopKind::End:
             record(t, train, TrainEvent::Finished);
@@ -1668,6 +1770,8 @@ void SimulationCore::takePassing(int train, size_t index) {
         }
     refreshStretches(train);
     findExits(train);
+    if (rt.watched)
+        findSpots(train, int(part));
 }
 
 void SimulationCore::findExits(int train) {
@@ -1992,6 +2096,328 @@ bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std:
         before += vehicle.length;
     }
     return true;
+}
+
+void SimulationCore::sweep(int train, double from, double to) {
+    Runtime &rt = runtime[size_t(train)];
+    if (!rt.watched)
+        return;
+    const int part = states[size_t(train)].part;
+    if (!rt.swept.empty() && rt.swept.back().part == part && std::fabs(rt.swept.back().to - from) < 1e-9)
+        rt.swept.back().to = to;
+    else
+        rt.swept.push_back({part, from, to});
+}
+
+void SimulationCore::findSpots(int train, int part) {
+    Runtime &rt = runtime[size_t(train)];
+    rt.spots.erase(std::remove_if(rt.spots.begin(), rt.spots.end(),
+                                  [part](const Runtime::Spot &spot) { return spot.part == part; }),
+                   rt.spots.end());
+    if (size_t(part) >= rt.parts.size())
+        return;
+    // The player's train looks at every location event (a triggering
+    // train's too, until that train starts); a triggering train at its own.
+    const bool player = train == playerTrain;
+    for (size_t e = 0; e < in->events.size(); ++e) {
+        const EventPlan &event = in->events[e];
+        if (event.kind != EventPlan::Location || (!player && event.trigger != train))
+            continue;
+        for (const TrackPlace &place : event.places)
+            for (const RouteInterval &interval : rt.parts[size_t(part)].intervals()) {
+                const float low = std::min(interval.from, interval.to), high = std::max(interval.from, interval.to);
+                if (interval.node == place.node && place.distance >= low - 1e-3f && place.distance <= high + 1e-3f)
+                    rt.spots.push_back({int(e), part, interval.start + std::fabs(double(place.distance - interval.from))});
+            }
+    }
+    std::sort(rt.spots.begin(), rt.spots.end(), [](const Runtime::Spot &a, const Runtime::Spot &b) {
+        return a.event != b.event ? a.event < b.event : a.part != b.part ? a.part < b.part : a.at < b.at;
+    });
+}
+
+bool SimulationCore::inSiding(const EventPlan &plan, int train) const {
+    if (!plan.siding)
+        return true;
+    const TrainState &s = states[size_t(train)];
+    const RouteTrack &part = runtime[size_t(train)].parts[size_t(s.part)];
+    for (double at : {s.front, s.front - double(in->trains[size_t(train)].length)}) {
+        const RoutePoint point = part.locate(at);
+        if (point.node == plan.sidingNode && point.distance >= plan.sidingFrom - 1e-3f
+                && point.distance <= plan.sidingTo + 1e-3f)
+            return true;
+    }
+    return false;
+}
+
+bool SimulationCore::inSiding(const EventPlan &plan, const StaticConsist &consist) const {
+    if (!plan.siding)
+        return true;
+    if (consist.track.empty())
+        return false;
+    const RouteInterval &first = consist.track.front(), &last = consist.track.back();
+    const std::pair<int, float> ends[2] = {{first.node, first.from}, {last.node, last.to}};
+    for (const auto &[node, distance] : ends)
+        if (node == plan.sidingNode && distance >= plan.sidingFrom - 1e-3f && distance <= plan.sidingTo + 1e-3f)
+            return true;
+    return false;
+}
+
+bool SimulationCore::holds(int event, int *by, bool *standIn) const {
+    const EventPlan &plan = in->events[size_t(event)];
+    *by = -1;
+    *standIn = false;
+    // A train on the track (an AI train gone at its path's end is not).
+    const auto onTrack = [this](int train) {
+        return train >= 0 && states[size_t(train)].status != TrainStatus::Waiting
+                && states[size_t(train)].status != TrainStatus::Finished;
+    };
+    // Exactly the listed cars, in order or reversed; all the listed cars,
+    // others besides.
+    const auto exactly = [&plan](const std::vector<unsigned int> &cars) {
+        return cars.size() == plan.cars.size()
+                && (std::equal(cars.begin(), cars.end(), plan.cars.begin())
+                    || std::equal(cars.rbegin(), cars.rend(), plan.cars.begin()));
+    };
+    const auto includes = [&plan](const std::vector<unsigned int> &cars) {
+        for (unsigned int car : plan.cars)
+            if (std::find(cars.begin(), cars.end(), car) == cars.end())
+                return false;
+        return true;
+    };
+    // Some train holds exactly the listed cars: the player's or a loose
+    // consist (AI trains' cars cannot be listed).
+    const auto assembled = [&](int *train) {
+        if (onTrack(playerTrain) && exactly(playerCars)) {
+            *train = playerTrain;
+            return true;
+        }
+        for (const StaticConsist &consist : in->staticConsists)
+            if (exactly(consist.cars))
+                return true;
+        return false;
+    };
+    switch (plan.kind) {
+    case EventPlan::Time:
+        // Whole seconds since the start, as Open Rails counts them.
+        return std::floor(now + 1e-6) - in->startTime >= plan.time;
+    case EventPlan::Location: {
+        // The triggering train once it has started (gone at its path's end
+        // it fires nothing); before, the player's train (Open Rails).
+        int train = plan.trigger;
+        if (train >= 0 && states[size_t(train)].status == TrainStatus::Waiting) {
+            train = playerTrain;
+            *standIn = true;
+        } else if (train < 0) {
+            train = playerTrain;
+        }
+        if (!onTrack(train))
+            return false;
+        const TrainState &s = states[size_t(train)];
+        const Runtime &rt = runtime[size_t(train)];
+        const double r = plan.radius;
+        const auto first = std::lower_bound(rt.spots.begin(), rt.spots.end(), event,
+                                            [](const Runtime::Spot &spot, int e) { return spot.event < e; });
+        for (auto it = first; it != rt.spots.end() && it->event == event; ++it) {
+            const Runtime::Spot &spot = *it;
+            bool near = false;
+            if (plan.onStop) {
+                // Standing within the radius now, or brought to rest there in
+                // this step.
+                near = s.part == spot.part && std::fabs(s.speed) <= StandingSpeed && std::fabs(s.front - spot.at) < r;
+                for (const Runtime::Covered &rest : rt.rests)
+                    near = near || (rest.part == spot.part && std::fabs(rest.to - spot.at) < r);
+            } else {
+                // The front within the radius at any moment of the step.
+                near = s.part == spot.part && std::fabs(s.front - spot.at) < r;
+                for (const Runtime::Covered &c : rt.swept)
+                    near = near || (c.part == spot.part && std::min(c.from, c.to) < spot.at + r
+                                    && std::max(c.from, c.to) > spot.at - r);
+            }
+            if (near) {
+                *by = train;
+                return true;
+            }
+        }
+        return false;
+    }
+    case EventPlan::AllStops: {
+        // The player's last station stop done: it has left it (or passed
+        // it); never for a train without stops.
+        if (playerTrain < 0 || !onTrack(playerTrain) || runtime[size_t(playerTrain)].stops.empty())
+            return false;
+        const TrainState &s = states[size_t(playerTrain)];
+        if (s.nextStop < int(runtime[size_t(playerTrain)].stops.size())
+                || (s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Station))
+            return false;
+        *by = playerTrain;
+        return true;
+    }
+    case EventPlan::ReachSpeed:
+        if (!onTrack(playerTrain) || std::fabs(states[size_t(playerTrain)].speed) < plan.speed)
+            return false;
+        *by = playerTrain;
+        return true;
+    case EventPlan::AssembleTrain:
+        return assembled(by);
+    case EventPlan::AssembleTrainAtLocation:
+        if (!onTrack(playerTrain) || !inSiding(plan, playerTrain))
+            return false;
+        *by = playerTrain;
+        {
+            int train = -1;
+            return assembled(&train);
+        }
+    case EventPlan::DropOffWagonsAtLocation:
+        // The cars left standing (a loose consist holding them all) with an
+        // end in the siding; still in the player's train they are not.
+        if (onTrack(playerTrain) && includes(playerCars))
+            return false;
+        for (const StaticConsist &consist : in->staticConsists)
+            if (includes(consist.cars))
+                return inSiding(plan, consist);
+        return false;
+    case EventPlan::PickUpWagons:
+        if (!onTrack(playerTrain) || !includes(playerCars)
+                || std::fabs(states[size_t(playerTrain)].speed) > PickUpSpeed)
+            return false;
+        *by = playerTrain;
+        return true;
+    case EventPlan::PickUpPassengers:
+    case EventPlan::Other:
+        return false;
+    }
+    return false;
+}
+
+bool SimulationCore::actOn(int event) {
+    const EventPlan &plan = in->events[size_t(event)];
+    EventState &state = eventState[size_t(event)];
+    // Not looked at again; a reversible event until its condition has
+    // stopped holding.
+    if (plan.reversible)
+        state.disabled = true;
+    else
+        state.level = 0;
+    // A reversible event's outcomes act the first time only.
+    if (state.fired > 1)
+        return false;
+    for (int k : plan.activate)
+        if (k >= 0)
+            eventState[size_t(k)].level = 1;
+    for (int k : plan.restore)
+        if (k >= 0)
+            eventState[size_t(k)].level = in->events[size_t(k)].activation;
+    for (int k : plan.decrease)
+        if (k >= 0)
+            --eventState[size_t(k)].level;
+    for (int k : plan.increase)
+        if (k >= 0)
+            ++eventState[size_t(k)].level;
+    if (plan.failure || plan.success) {
+        ended = plan.failure ? ActivityEnd::Failure : ActivityEnd::Success;
+        endedAt = now;
+        return true;
+    }
+    if (plan.restartTrain >= 0 && size_t(plan.restartTrain) < states.size())
+        restart(plan.restartTrain, event);
+    return false;
+}
+
+void SimulationCore::restart(int train, int event) {
+    const EventPlan &plan = in->events[size_t(event)];
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    const double wanted = now + plan.restartDelay;
+    // An "until" waiting point to the next whole minute.
+    const double minute = std::ceil(wanted / 60.0 - 1e-9) * 60.0;
+    // Standing at the waiting point of that value (as the path has it).
+    if (s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Wait && s.nextWait >= 1
+            && size_t(s.nextWait - 1) < in->trains[size_t(train)].waits.size()
+            && in->trains[size_t(train)].waits[size_t(s.nextWait - 1)].value == plan.restartWait) {
+        const bool until = WaitingPoint::decode(rt.waits[size_t(s.nextWait - 1)].value).kind == WaitingPoint::UntilTime;
+        s.until = until ? minute : wanted;
+        record(now, train, TrainEvent::Restarted, event);
+        return;
+    }
+    // Still coming to it: its next stopping waiting point, if of that value.
+    for (size_t w = size_t(std::max(0, s.nextWait)); w < rt.waits.size(); ++w) {
+        if (!stops(rt.waits[w]))
+            continue;
+        if (rt.waits[w].value != plan.restartWait)
+            break;
+        WaitingPoint::Point point = WaitingPoint::decode(rt.waits[w].value);
+        if (point.kind == WaitingPoint::UntilTime) {
+            const long long minutes = std::llround(minute / 60.0);
+            point.hour = int(minutes / 60 % 24);
+            point.minute = int(minutes % 60);
+        } else {
+            point = WaitingPoint::Point();
+            point.kind = WaitingPoint::Seconds;
+            point.seconds = std::clamp(plan.restartDelay, 0, 29999);
+        }
+        rt.waits[w].value = WaitingPoint::encode(point);
+        record(now, train, TrainEvent::Restarted, event);
+        break;
+    }
+}
+
+bool SimulationCore::wanted(int event) const {
+    if (event < 0 || size_t(event) >= eventState.size() || ended != ActivityEnd::None)
+        return false;
+    const EventState &state = eventState[size_t(event)];
+    return state.level > 0 && (state.fired < 1 || (in->events[size_t(event)].reversible && !state.disabled));
+}
+
+void SimulationCore::checkEvents() {
+    if (in->events.empty() || ended != ActivityEnd::None || now < holdUntil - 1e-9)
+        return;
+    // Open Rails checks the list each frame and fires one event, then the
+    // next frame (once its message is closed: a paused game) checks again
+    // from the start: here all at this time, each event at most once.
+    // Fired in this step (made when one fires: most steps fire none).
+    std::vector<char> done;
+    for (bool again = true; again;) {
+        again = false;
+        for (size_t e = 0; e < in->events.size(); ++e) {
+            if (!done.empty() && done[e])
+                continue;
+            const EventPlan &plan = in->events[e];
+            EventState &state = eventState[e];
+            if (state.level <= 0 || (state.fired >= 1 && !plan.reversible))
+                continue;
+            int by = -1;
+            bool standIn = false;
+            if (!holds(int(e), &by, &standIn)) {
+                if (plan.reversible && state.disabled) {
+                    state.disabled = false;
+                    ++eventChanges;
+                }
+                continue;
+            }
+            if (state.disabled)
+                continue;
+            ++state.fired;
+            state.firedAt = now;
+            state.firedBy = by;
+            state.standIn = standIn;
+            done.resize(in->events.size(), 0);
+            done[e] = 1;
+            ++eventChanges;
+            record(now, by, TrainEvent::EventFired, int(e));
+            events.back().signal = standIn ? 1 : -1;
+            if (actOn(int(e))) {
+                record(now, -1, TrainEvent::ActivityEnded, ended == ActivityEnd::Success ? 1 : 0);
+                return;
+            }
+            // A message staying while the game runs holds the others.
+            if (plan.message && plan.autoContinue > 0) {
+                holdUntil = now + plan.autoContinue;
+                return;
+            }
+            again = true;
+            break;
+        }
+    }
 }
 
 }

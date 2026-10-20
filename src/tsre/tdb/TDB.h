@@ -143,7 +143,9 @@ public:
     // useHeight false measures across the ground only: for positions
     // without a meaningful height (map mode, stored x and z).
     int findNearestPositionOnTDB(float* posT, float* pos, float* q = NULL, float* tpos = NULL, bool useHeight = true);
-    int findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::IntersectionPoint> &points, float maxDistance = 10.0);
+    // The places on the track within maxDistance of pos (on tile posT); by
+    // the distance in x and z only when useHeight is false.
+    int findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::IntersectionPoint> &points, float maxDistance = 10.0, bool useHeight = true);
     // Lowers each point's c to its squared XZ distance from the nearest line
     // around tile posT; lines outside bbox (minX, maxX, minZ, maxZ) are
     // skipped. With limit > 0 only distances below limit are exact: a point

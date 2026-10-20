@@ -38,6 +38,13 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         frame->sectionUses = before->sectionUses;
     else
         frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
+    frame->eventSerial = core.eventSerial();
+    frame->activityEnd = core.activityEnd();
+    frame->activityEndedAt = core.activityEndedAt();
+    if (before != nullptr && before->eventStates != nullptr && before->eventSerial == frame->eventSerial)
+        frame->eventStates = before->eventStates;
+    else
+        frame->eventStates = std::make_shared<const std::vector<EventState>>(core.eventStates());
     return frame;
 }
 
@@ -118,7 +125,8 @@ void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun) {
     acknowledged = seq;
     runOn = thenRun;
     if (core != nullptr && time > core->time()) {
-        target = time;
+        // The simulation steps whole steps: to the first at or after it.
+        target = core->onStep(time);
         mode = RunMode::RunningTo;
     } else {
         mode = core != nullptr && thenRun ? RunMode::Running : RunMode::Paused;

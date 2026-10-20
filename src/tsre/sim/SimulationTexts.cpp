@@ -68,6 +68,12 @@ QString StateText(const SimulationInput &in, const TrainState &s, double time, i
             return qtTrId("simulation.state.signal").arg(SignalName(in, s.atSignal));
         }
         return WaitText(in, s.waitFor, s.atSignal, s.blockedBy);
+    case StopKind::Event: {
+        const QString name = s.eventStop >= 0 && size_t(s.eventStop) < in.events.size()
+                ? in.events[size_t(s.eventStop)].name : QString();
+        //% "stopped for event %1"
+        return qtTrId("simulation.state.event").arg(name);
+    }
     case StopKind::None:
         break;
     }
