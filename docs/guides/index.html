@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Practical guides to using TSRE, with background explanations, step-by-step workflows and worked examples.">
+<title>TSRE user guides</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg:#fff; --paper:#fff; --text:#000; --muted:#4f5b55; --line:#d8dfda;
+  --accent:#087a5b; --accent-soft:#e3f4ed; --note:#fff8df; --note-line:#d9a928;
+  --code:#f6f8f7; --code-text:#17211d; --key:#006b50; --str:#8a4b08;
+  --val:#125c9b; --num:#7544a3; --comment:#66746e; --punct:#53615b;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.62 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)} code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+.header{border-bottom:1px solid var(--line);background:var(--paper)}
+.header-inner{width:min(1180px,calc(100% - 36px));margin:auto;padding:34px 0 30px}
+.overline{color:var(--accent);font:700 11px/1.2 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase}
+h1{margin:9px 0 8px;font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.04em}
+.subtitle{max-width:760px;margin:0;color:var(--muted);font-size:17px}.meta{margin-top:18px;color:var(--muted);font:12px/1.4 ui-monospace,monospace}
+.layout{width:min(1180px,calc(100% - 36px));margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;align-items:start}
+.toc{position:sticky;top:24px;padding:42px 0}.toc b{display:block;margin-bottom:10px;font-size:12px}.toc a{display:block;padding:5px 0;color:var(--muted);text-decoration:none;font-size:13px}.toc a:hover{color:var(--accent)}
+main{min-width:0;padding:44px 0 90px}.doc-section{padding:0 0 54px;scroll-margin-top:24px}.doc-section+.doc-section{padding-top:48px;border-top:1px solid var(--line)}
+h2{margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.025em}h3{margin:30px 0 9px;font-size:20px;line-height:1.3}h4{margin:22px 0 7px;font-size:15px}
+p{margin:9px 0 15px}.intro{color:var(--muted);font-size:16px}.anchor{color:inherit;text-decoration:none}.anchor:hover{color:var(--accent)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.summary div{padding:17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.summary b{display:block;margin-bottom:5px}.summary span{color:var(--muted);font-size:13px}
+.callout{margin:20px 0;padding:15px 17px;border-left:3px solid var(--note-line);background:var(--note);color:#4e4528}.callout.info{border-color:var(--accent);background:var(--accent-soft);color:#21473b}
+pre{margin:16px 0 22px;padding:18px 20px;overflow:auto;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--code);color:var(--code-text);font:13px/1.62 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:4}
+pre code{font:inherit}.k{color:var(--key);font-weight:650}.s{color:var(--str)}.v{color:var(--val)}.n{color:var(--num)}.c{color:var(--comment);font-style:italic}.p{color:var(--punct)}
+table{width:100%;margin:16px 0 25px;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);font-size:13px}
+th,td{padding:11px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#edf1ee;font-size:12px}tr:last-child td{border-bottom:0}td+td,th+th{border-left:1px solid var(--line)}td code{color:var(--accent);font-size:12px}.nowrap{white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:17px 18px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.card h3{margin:0 0 7px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:13px}.card code{color:var(--accent)}
+.syntax{margin:19px 0;padding:14px 17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.syntax b{display:block;margin-bottom:5px;font-size:12px}.syntax code{color:var(--accent);font-size:13px}
+.steps{counter-reset:step;list-style:none;padding:0;margin:18px 0}.steps li{position:relative;padding:0 0 18px 42px}.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:25px;height:25px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--accent);font:700 11px/1 ui-monospace,monospace}.steps li+li::after{content:"";position:absolute;left:12px;top:-15px;height:15px;border-left:1px solid var(--line)}
+.small{color:var(--muted);font-size:12px}.pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 10px/1.6 ui-monospace,monospace}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:8px}.files a{padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:var(--paper);text-decoration:none;font:11px/1.35 ui-monospace,monospace}.files a:hover{border-color:var(--accent)}
+footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);font-size:12px}.footer-inner{width:min(1180px,calc(100% - 36px));margin:auto}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.toc{position:static;padding:25px 0 0;columns:2}.toc b{column-span:all}.summary{grid-template-columns:1fr}.two,.files{grid-template-columns:1fr}main{padding-top:24px}}
+@media(max-width:520px){.header-inner,.layout,.footer-inner{width:min(100% - 24px,1180px)}.toc{columns:1}table{display:block;overflow-x:auto}.nowrap{white-space:normal}}
+@media print{.toc{display:none}.layout{display:block;width:100%}.header-inner,.footer-inner{width:100%}body{background:white}.doc-section{break-inside:auto}pre,table,.card{break-inside:avoid}}
+
+/* Guide-specific navigation and overflow handling. */
+a:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.skip-link{position:absolute;left:18px;top:-80px;padding:8px 14px;background:var(--paper);z-index:10}
+.skip-link:focus{top:12px}
+.guide-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.guide-nav a{padding:6px 12px;border:1px solid var(--line);border-radius:7px;text-decoration:none;font-size:13px}
+.guide-nav a[aria-current=page]{background:var(--accent-soft);border-color:var(--accent);font-weight:650}
+.toc{max-height:calc(100vh - 48px);overflow-y:auto}
+.toc a[aria-current=location]{color:var(--accent);font-weight:650}
+.toc .source-link{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+main p,main li,td,th{overflow-wrap:anywhere}
+main :not(pre)>code{padding:1px 4px;border-radius:3px;background:var(--code);font-size:.9em}
+.table-scroll{max-width:100%;overflow:auto;margin:16px 0 25px}
+.table-scroll table{margin:0;min-width:540px}
+th:first-child,td:first-child{width:28%}
+ol,ul{padding-left:24px}li{margin:6px 0}
+.code-example{position:relative;margin:16px 0 22px}
+.code-example pre{margin:0;padding-top:45px}
+.code-label{position:absolute;left:21px;top:11px;color:var(--muted);font:700 10px/1.5 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+.copy-code{position:absolute;right:12px;top:8px;padding:3px 9px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--accent);font:inherit;font-size:11px;font-weight:600;line-height:1.6;cursor:pointer}
+.copy-code:hover{border-color:var(--accent);background:var(--accent-soft)}
+.copy-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.summary a{text-decoration:none}.summary a:hover{text-decoration:underline}
+h3,h4{scroll-margin-top:24px}
+@media(max-width:850px){.toc{max-height:none;overflow:visible}.toc a{break-inside:avoid}.toc .source-link{column-span:all}.layout{gap:16px}}
+@media(max-width:520px){h1{font-size:36px}.header-inner{padding-top:27px}h2{font-size:26px}.table-scroll table{display:table;overflow:visible}pre{font-size:12px;padding-left:14px;padding-right:14px}.code-label{left:15px}.doc-section+.doc-section{padding-top:32px}.doc-section{padding-bottom:32px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{.guide-nav,.copy-code,.skip-link{display:none}.toc{display:none}.table-scroll{overflow:visible}.table-scroll table{min-width:0}pre{white-space:pre-wrap;overflow-wrap:anywhere}.header-inner{padding:10px 0 20px}main{padding:20px 0}.doc-section+.doc-section{padding-top:24px}.doc-section{padding-bottom:24px}}</style>
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to guide</a>
+<header class="header"><div class="header-inner">
+<div class="overline">TSRE &middot; Route author guides</div>
+<h1>TSRE user guides</h1>
+<p class="subtitle">Practical guides to using TSRE, with background explanations, step-by-step workflows and worked examples.</p>
+<div class="meta">Guide index &middot; Updated October 2026</div>
+<nav class="guide-nav" aria-label="Guides"><a href="elevation-data.html">Elevation data</a><a href="imagery-data.html">Imagery data</a><a href="index.html" aria-current="page">All guides</a></nav>
+</div></header>
+<div class="layout">
+<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#elevation-and-imagery">Elevation and imagery</a><a class="source-link" href="README.md">Read the Markdown version</a></aside>
+<main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Overview</a></h2><p>Practical guides to using TSRE, with background explanations, step-by-step
+workflows and worked examples. Choose a topic below.</p>
+<p>Browser editions: <a href="index.html">Guide index</a> ·
+<a href="elevation-data.html">Elevation</a> · <a href="imagery-data.html">Imagery</a>.</p>
+<div class="summary"><div><b>Learn the basics</b><span>Understand the concepts and settings behind each task.</span></div><div><b>Follow a workflow</b><span>Work through the steps and check the result in the editor.</span></div><div><b>Adapt the examples</b><span>Use practical examples as a starting point for your own projects.</span></div></div></section><section id="elevation-and-imagery" class="doc-section"><h2><a class="anchor" href="#elevation-and-imagery">Elevation and imagery</a></h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Guide</th>
+<th>What you will learn</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="elevation-data.html">Elevation data</a></td>
+<td>Load terrain heights, choose a fallback, and add WCS, COG, STAC or local GeoTIFF sources.</td>
+</tr>
+<tr>
+<td><a href="imagery-data.html">Imagery data</a></td>
+<td>Load aerial photographs and satellite imagery, and add WMS, WMTS, STAC/COG or static-map URL sources, including Google Static Maps.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Custom source definitions belong in <code>assets/geo/</code> in your TSRE working
+directory, normally beside <code>TSRE5vc.exe</code>. The guides explain the exact filenames;
+TSRE does not scan that folder for arbitrary JSON files. Downloaded raster data
+belongs in the separately configured geodata directory.</p>
+<p>For implementation history and source surveys, see the
+<a href="../tasks/geo/README.md">geodata development documentation</a>.</p>
+</section></main>
+</div>
+<div class="copy-status" role="status" aria-live="polite"></div>
+<footer><div class="footer-inner">TSRE user guides &middot; <a href="index.html">All guides</a> &middot; <a href="README.md">Markdown source</a> &middot; <a href="#content">Back to guide</a></div></footer>
+<script>
+(() => {
+  for (const example of document.querySelectorAll('.code-example')) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'copy-code';
+    button.textContent = 'Copy';
+    button.setAttribute('aria-label', 'Copy ' + example.dataset.language + ' example');
+    button.addEventListener('click', async () => {
+      const text = example.querySelector('code').textContent;
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        }
+      } catch (_) {}
+      if (!copied) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.append(area);
+        area.select();
+        copied = document.execCommand('copy');
+        area.remove();
+        button.focus();
+      }
+      button.textContent = copied ? 'Copied' : 'Select and copy';
+      document.querySelector('.copy-status').textContent = copied ? 'Example copied to clipboard.' : 'Select the example text and copy it manually.';
+      setTimeout(() => { button.textContent = 'Copy'; }, 1800);
+    });
+    example.append(button);
+  }
+  if ('IntersectionObserver' in window) {
+    const links = [...document.querySelectorAll('.toc a[href^="#"]')];
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        for (const link of links) {
+          if (link.hash === '#' + entry.target.id) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        }
+      }
+    }, {rootMargin: '-5% 0px -70% 0px'});
+    document.querySelectorAll('main .doc-section').forEach(section => observer.observe(section));
+  }
+})();
+</script>
+</body>
+</html>

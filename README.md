@@ -17,6 +17,10 @@ is not included in releases. Online appdata download remains a fallback if
 into `assets/procedural_examples/` if absent; they are not enabled automatically.
 See [release packaging](docs/development/releases.md).
 
+User guides: [Markdown index](docs/guides/README.md) or
+[HTML index](docs/guides/index.html). The first guides cover elevation and
+imagery data, including custom source catalogues and worked JSON examples.
+
 See more:
 
 Route Editor: 

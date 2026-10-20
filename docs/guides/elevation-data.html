@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Load terrain heights and define your own WCS, COG, STAC and local GeoTIFF sources.">
+<title>Elevation data &mdash; TSRE user guides</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg:#fff; --paper:#fff; --text:#000; --muted:#4f5b55; --line:#d8dfda;
+  --accent:#087a5b; --accent-soft:#e3f4ed; --note:#fff8df; --note-line:#d9a928;
+  --code:#f6f8f7; --code-text:#17211d; --key:#006b50; --str:#8a4b08;
+  --val:#125c9b; --num:#7544a3; --comment:#66746e; --punct:#53615b;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.62 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)} code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+.header{border-bottom:1px solid var(--line);background:var(--paper)}
+.header-inner{width:min(1180px,calc(100% - 36px));margin:auto;padding:34px 0 30px}
+.overline{color:var(--accent);font:700 11px/1.2 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase}
+h1{margin:9px 0 8px;font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.04em}
+.subtitle{max-width:760px;margin:0;color:var(--muted);font-size:17px}.meta{margin-top:18px;color:var(--muted);font:12px/1.4 ui-monospace,monospace}
+.layout{width:min(1180px,calc(100% - 36px));margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;align-items:start}
+.toc{position:sticky;top:24px;padding:42px 0}.toc b{display:block;margin-bottom:10px;font-size:12px}.toc a{display:block;padding:5px 0;color:var(--muted);text-decoration:none;font-size:13px}.toc a:hover{color:var(--accent)}
+main{min-width:0;padding:44px 0 90px}.doc-section{padding:0 0 54px;scroll-margin-top:24px}.doc-section+.doc-section{padding-top:48px;border-top:1px solid var(--line)}
+h2{margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.025em}h3{margin:30px 0 9px;font-size:20px;line-height:1.3}h4{margin:22px 0 7px;font-size:15px}
+p{margin:9px 0 15px}.intro{color:var(--muted);font-size:16px}.anchor{color:inherit;text-decoration:none}.anchor:hover{color:var(--accent)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.summary div{padding:17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.summary b{display:block;margin-bottom:5px}.summary span{color:var(--muted);font-size:13px}
+.callout{margin:20px 0;padding:15px 17px;border-left:3px solid var(--note-line);background:var(--note);color:#4e4528}.callout.info{border-color:var(--accent);background:var(--accent-soft);color:#21473b}
+pre{margin:16px 0 22px;padding:18px 20px;overflow:auto;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--code);color:var(--code-text);font:13px/1.62 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:4}
+pre code{font:inherit}.k{color:var(--key);font-weight:650}.s{color:var(--str)}.v{color:var(--val)}.n{color:var(--num)}.c{color:var(--comment);font-style:italic}.p{color:var(--punct)}
+table{width:100%;margin:16px 0 25px;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);font-size:13px}
+th,td{padding:11px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#edf1ee;font-size:12px}tr:last-child td{border-bottom:0}td+td,th+th{border-left:1px solid var(--line)}td code{color:var(--accent);font-size:12px}.nowrap{white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:17px 18px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.card h3{margin:0 0 7px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:13px}.card code{color:var(--accent)}
+.syntax{margin:19px 0;padding:14px 17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.syntax b{display:block;margin-bottom:5px;font-size:12px}.syntax code{color:var(--accent);font-size:13px}
+.steps{counter-reset:step;list-style:none;padding:0;margin:18px 0}.steps li{position:relative;padding:0 0 18px 42px}.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:25px;height:25px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--accent);font:700 11px/1 ui-monospace,monospace}.steps li+li::after{content:"";position:absolute;left:12px;top:-15px;height:15px;border-left:1px solid var(--line)}
+.small{color:var(--muted);font-size:12px}.pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 10px/1.6 ui-monospace,monospace}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:8px}.files a{padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:var(--paper);text-decoration:none;font:11px/1.35 ui-monospace,monospace}.files a:hover{border-color:var(--accent)}
+footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);font-size:12px}.footer-inner{width:min(1180px,calc(100% - 36px));margin:auto}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.toc{position:static;padding:25px 0 0;columns:2}.toc b{column-span:all}.summary{grid-template-columns:1fr}.two,.files{grid-template-columns:1fr}main{padding-top:24px}}
+@media(max-width:520px){.header-inner,.layout,.footer-inner{width:min(100% - 24px,1180px)}.toc{columns:1}table{display:block;overflow-x:auto}.nowrap{white-space:normal}}
+@media print{.toc{display:none}.layout{display:block;width:100%}.header-inner,.footer-inner{width:100%}body{background:white}.doc-section{break-inside:auto}pre,table,.card{break-inside:avoid}}
+
+/* Guide-specific navigation and overflow handling. */
+a:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.skip-link{position:absolute;left:18px;top:-80px;padding:8px 14px;background:var(--paper);z-index:10}
+.skip-link:focus{top:12px}
+.guide-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.guide-nav a{padding:6px 12px;border:1px solid var(--line);border-radius:7px;text-decoration:none;font-size:13px}
+.guide-nav a[aria-current=page]{background:var(--accent-soft);border-color:var(--accent);font-weight:650}
+.toc{max-height:calc(100vh - 48px);overflow-y:auto}
+.toc a[aria-current=location]{color:var(--accent);font-weight:650}
+.toc .source-link{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+main p,main li,td,th{overflow-wrap:anywhere}
+main :not(pre)>code{padding:1px 4px;border-radius:3px;background:var(--code);font-size:.9em}
+.table-scroll{max-width:100%;overflow:auto;margin:16px 0 25px}
+.table-scroll table{margin:0;min-width:540px}
+th:first-child,td:first-child{width:28%}
+ol,ul{padding-left:24px}li{margin:6px 0}
+.code-example{position:relative;margin:16px 0 22px}
+.code-example pre{margin:0;padding-top:45px}
+.code-label{position:absolute;left:21px;top:11px;color:var(--muted);font:700 10px/1.5 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+.copy-code{position:absolute;right:12px;top:8px;padding:3px 9px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--accent);font:inherit;font-size:11px;font-weight:600;line-height:1.6;cursor:pointer}
+.copy-code:hover{border-color:var(--accent);background:var(--accent-soft)}
+.copy-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.summary a{text-decoration:none}.summary a:hover{text-decoration:underline}
+h3,h4{scroll-margin-top:24px}
+@media(max-width:850px){.toc{max-height:none;overflow:visible}.toc a{break-inside:avoid}.toc .source-link{column-span:all}.layout{gap:16px}}
+@media(max-width:520px){h1{font-size:36px}.header-inner{padding-top:27px}h2{font-size:26px}.table-scroll table{display:table;overflow:visible}pre{font-size:12px;padding-left:14px;padding-right:14px}.code-label{left:15px}.doc-section+.doc-section{padding-top:32px}.doc-section{padding-bottom:32px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{.guide-nav,.copy-code,.skip-link{display:none}.toc{display:none}.table-scroll{overflow:visible}.table-scroll table{min-width:0}pre{white-space:pre-wrap;overflow-wrap:anywhere}.header-inner{padding:10px 0 20px}main{padding:20px 0}.doc-section+.doc-section{padding-top:24px}.doc-section{padding-bottom:24px}}</style>
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to guide</a>
+<header class="header"><div class="header-inner">
+<div class="overline">TSRE &middot; Route author guides</div>
+<h1>Elevation data</h1>
+<p class="subtitle">Load terrain heights and define your own WCS, COG, STAC and local GeoTIFF sources.</p>
+<div class="meta">User guide &middot; October 2026 &middot; JSON catalogue format 1</div>
+<nav class="guide-nav" aria-label="Guides"><a href="elevation-data.html" aria-current="page">Elevation data</a><a href="imagery-data.html">Imagery data</a><a href="index.html">All guides</a></nav>
+</div></header>
+<div class="layout">
+<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-start-with-the-basics">1. Start with the basics</a><a href="#2-try-a-built-in-source-first">2. Try a built-in source first</a><a href="#3-where-your-json-file-goes">3. Where your JSON file goes</a><a href="#4-parameters-shared-by-elevation-sources">4. Parameters shared by elevation sources</a><a href="#5-example-wcs-elevation">5. Example: WCS elevation</a><a href="#6-example-a-direct-cog-url">6. Example: a direct COG URL</a><a href="#7-example-stac-discovery-with-cog-range-reads">7. Example: STAC discovery with COG range reads</a><a href="#8-example-your-own-local-geotiffs">8. Example: your own local GeoTIFFs</a><a href="#9-credentials-and-defaults">9. Credentials and defaults</a><a href="#10-troubleshooting">10. Troubleshooting</a><a class="source-link" href="elevation-data.md">Read the Markdown version</a></aside>
+<main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Overview</a></h2><p>Elevation data supplies the <strong>height of the ground</strong>. TSRE uses it to shape
+terrain. Aerial photographs supply colour instead; those belong in the separate
+<a href="imagery-data.html">imagery catalogue</a>.</p>
+<p>This guide describes the implemented source formats. Examples copied from the
+built-in catalogue illustrate known configurations, rather than a promise that
+an external service will remain unchanged.</p>
+<div class="summary"><div><b>Shape the ground</b><span>Understand resolution, coordinate systems, height datums and fallback sources.</span></div><div><b>Add your own sources</b><span>Four complete JSON examples, with each provider explained.</span></div><div><b>Preview, then apply</b><span>Check coverage, downloads and terrain alignment before applying heights.</span></div></div></section><section id="1-start-with-the-basics" class="doc-section"><h2><a class="anchor" href="#1-start-with-the-basics">1. Start with the basics</a></h2>
+<p>A raster is a rectangular grid of pixels. In an elevation raster, each pixel
+contains a height rather than a colour.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DEM</td>
+<td>General term for a digital elevation model. Check what the product actually measures.</td>
+</tr>
+<tr>
+<td>DTM / bare-earth terrain</td>
+<td>Ground heights, with buildings and vegetation removed as far as the product allows. Usually the appropriate source for route terrain.</td>
+</tr>
+<tr>
+<td>DSM / surface model</td>
+<td>Heights including objects such as trees and buildings. These can become unwanted bumps in generated terrain.</td>
+</tr>
+<tr>
+<td>Resolution</td>
+<td>Spacing between source samples. A 1 m source has much more detail than a 30 m source, but needs more data. It does not automatically change your terrain tile's vertex spacing.</td>
+</tr>
+<tr>
+<td>CRS / EPSG code</td>
+<td>The coordinate system locating the raster. <code>2180</code>, for example, means EPSG:2180. This is separate from the route's own projection.</td>
+</tr>
+<tr>
+<td>Vertical datum</td>
+<td>The reference surface from which heights are measured. Two sources can be correctly positioned horizontally and still disagree in height.</td>
+</tr>
+<tr>
+<td>NoData</td>
+<td>A pixel for which the source has no usable height. Zero is a valid height unless that particular product explicitly uses it as NoData.</td>
+</tr>
+<tr>
+<td>WCS</td>
+<td>A service that returns numerical raster data for a requested area.</td>
+</tr>
+<tr>
+<td>GeoTIFF / COG</td>
+<td>A GeoTIFF carries raster coordinates. A Cloud Optimized GeoTIFF arranges its data so TSRE can request selected blocks rather than the whole file.</td>
+</tr>
+<tr>
+<td>STAC</td>
+<td>A catalogue describing available files and their coverage. TSRE finds an asset in the catalogue, then reads its raster data.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A coloured relief map, hillshade image or PNG is not a numerical elevation
+model. Changing its JSON <code>format</code> cannot turn it into one.</p>
+</section><section id="2-try-a-built-in-source-first" class="doc-section"><h2><a class="anchor" href="#2-try-a-built-in-source-first">2. Try a built-in source first</a></h2>
+<ol>
+<li>Open the route and use <strong>Load Height</strong> on the terrain tile you want to edit.</li>
+<li>Choose the main source and a fallback source. The list is filtered by the
+tile's location and whether you are editing detailed or distant terrain.</li>
+<li>Initially leave both height offsets at zero.</li>
+<li>Click <strong>Load preview</strong>. Inspect the preview and the report, particularly
+primary samples, fallback samples, missing data and downloads.</li>
+<li>Click <strong>Apply</strong> when the result is suitable, then save your route normally.</li>
+</ol>
+<p>The route must have the correct geographic placement/projection. A source JSON
+entry cannot correct a route that maps to the wrong place on Earth.</p>
+<p>The fallback fills samples the main source cannot supply. TSRE uses the selected
+fallback only; it does not silently try a third source. Main and fallback height
+offsets are independent. A constant offset may align a small area, but setting
+<code>verticalDatum</code> in JSON only describes the heights: it does <strong>not</strong> convert them
+between vertical datums.</p>
+</section><section id="3-where-your-json-file-goes" class="doc-section"><h2><a class="anchor" href="#3-where-your-json-file-goes">3. Where your JSON file goes</a></h2>
+<p>Create this file in the TSRE working directory:</p>
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">TSRE/
+  TSRE5vc.exe
+  assets/
+    geo/
+      elevation-datasets.json
+</code></pre></div>
+<p>With a normal release installation, this is the folder containing the EXE.
+Custom launch configurations can change the working directory.</p>
+<p>Use the exact filename <strong><code>elevation-datasets.json</code></strong>. There is one user elevation
+catalogue containing a <code>datasets</code> array; separate files such as <code>my-dem.json</code>
+are not discovered automatically. This is a local file, not <code>/assets/geo</code> at the
+root of your drive, and it is not stored under <code>appdata/0.7</code>.</p>
+<p>TSRE reads its built-in catalogue first, then your file:</p>
+<ul>
+<li>A new <code>id</code> adds a source.</li>
+<li>An existing <code>id</code> replaces that <strong>whole source definition</strong>, not just the
+properties you specify. Copy the complete entry before overriding it.</li>
+<li>An invalid entry is skipped with a diagnostic. A rejected override leaves
+the built-in entry available.</li>
+<li>Removing your override restores the built-in source on the next catalogue
+load. Restart TSRE after editing to refresh the source lists reliably.</li>
+</ul>
+<p>The JSON format is:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>This shows the container; add at least one complete dataset object to <code>datasets</code>
+for a useful user catalogue. The examples below each show a complete file.
+To combine them, put their dataset objects in one array, separated by commas,
+with only one outer <code>version</code> and <code>datasets</code>.</p>
+<p>Save as UTF-8 plain text. JSON uses double quotes, decimal points and lowercase
+<code>true</code>/<code>false</code>. It does not allow comments or trailing commas. On Windows, check
+that the filename did not become <code>elevation-datasets.json.txt</code>.</p>
+<h3 id="definitions-and-downloaded-files-have-different-locations"><a class="anchor" href="#definitions-and-downloaded-files-have-different-locations">Definitions and downloaded files have different locations</a></h3>
+<p>In Settings, <strong>Geodata and elevation cache directory</strong>
+(<code>core.paths.geoData</code>) controls where raster files and caches are stored.
+It does not move the JSON catalogue out of <code>assets/geo</code>.</p>
+<p>For file sources, <code>directory</code> is a subdirectory of that geodata root. For
+example, with <code>D:/TSRE-Geodata</code> selected and <code>&quot;directory&quot;: &quot;my_dtm&quot;</code>, local
+rasters belong in <code>D:/TSRE-Geodata/my_dtm/</code>. Service requests use a cache below
+the geodata root; COG sources also keep partial-file caches beside their source
+file locations. Let TSRE manage downloaded cache files.</p>
+</section><section id="4-parameters-shared-by-elevation-sources" class="doc-section"><h2><a class="anchor" href="#4-parameters-shared-by-elevation-sources">4. Parameters shared by elevation sources</a></h2>
+<p>These are the main fields to understand before adapting an example.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>Stable source identifier. Use a simple unique name such as <code>user.myarea.dtm1</code>; avoid spaces, slashes and <code>..</code>.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>Name shown in the source selector. Include the country/area, product and useful resolution.</td>
+</tr>
+<tr>
+<td><code>provider</code></td>
+<td>Selects an implemented acquisition method; see the table below.</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td>Decoder format. Service rasters use <code>image/tiff</code> or supported <code>image/x-aaigrid</code>; file GeoTIFF sources use <code>geotiff</code>, HGT uses <code>hgt</code>.</td>
+</tr>
+<tr>
+<td><code>crs</code></td>
+<td>Numeric EPSG code for the source raster. The CRS must be implemented by TSRE. Entering an arbitrary EPSG code does not add projection support.</td>
+</tr>
+<tr>
+<td><code>bounds</code></td>
+<td><code>[minX, minY, maxX, maxY]</code> in the <strong>source CRS</strong>, normally easting/northing for projected data. For EPSG:4326 these are longitude/latitude degrees.</td>
+</tr>
+<tr>
+<td><code>resolution</code></td>
+<td>Source/request spacing. For projected examples here, metres per pixel. Geographic single-COG products also need their specific overview configuration; use the matching built-in example.</td>
+</tr>
+<tr>
+<td><code>verticalDatum</code></td>
+<td>Human-readable height reference. No automatic height conversion is implied.</td>
+</tr>
+<tr>
+<td><code>concurrentRequests</code></td>
+<td>Requests allowed at once, from <code>1</code> to <code>4</code>; defaults to <code>1</code>. Start conservatively for an unfamiliar server.</td>
+</tr>
+<tr>
+<td><code>zeroIsNoData</code></td>
+<td>Defaults to <code>false</code>. Set <code>true</code> only when the product actually uses zero for missing heights.</td>
+</tr>
+<tr>
+<td><code>fallbackApproved</code></td>
+<td>Defaults to <code>false</code>. Allows selection as a fallback. Leave false for a new regional source.</td>
+</tr>
+<tr>
+<td><code>distantTerrainApproved</code></td>
+<td>Defaults to <code>false</code>. Allows use for distant terrain. Large areas need appropriate resolution and practical download testing.</td>
+</tr>
+<tr>
+<td><code>noDataPolicy</code></td>
+<td><code>fallback</code> by default; <code>fill</code> enables supported neighbour-based hole filling before unresolved samples fall back. Start with <code>fallback</code>.</td>
+</tr>
+<tr>
+<td><code>attribution</code>, <code>license</code>, <code>information</code></td>
+<td>Provider credit, licence description and useful notes shown with the source.</td>
+</tr>
+<tr>
+<td><code>attributionUrl</code>, <code>informationUrl</code>, <code>downloadPage</code></td>
+<td>Optional HTTPS links for credits, documentation and manual downloads.</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>fallbackApproved</code> and <code>distantTerrainApproved</code> are eligibility switches, not
+proof of data quality. A 1 m national source is not automatically a sensible
+choice for a 32 km distant-terrain tile.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Provider / file grid</th>
+<th>Intended input</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wcs-2.0.1</code>, <code>wcs-1.0.0</code></td>
+<td>Supported WCS raster requests. WCS 1.1.1 is not supported.</td>
+</tr>
+<tr>
+<td><code>arcgis-imageserver</code></td>
+<td>Numerical elevation from an ArcGIS ImageServer.</td>
+</tr>
+<tr>
+<td><code>wms-1.3.0</code></td>
+<td>A specifically configured numerical TIFF WMS, not a rendered colour map.</td>
+</tr>
+<tr>
+<td><code>file</code> + <code>fileGrid: &quot;cog&quot;</code></td>
+<td>One known remote COG URL.</td>
+</tr>
+<tr>
+<td><code>file</code> + <code>fileGrid: &quot;projected&quot;</code></td>
+<td>Regular projected COG sheets addressed by easting/northing in a URL template.</td>
+</tr>
+<tr>
+<td><code>file</code> + <code>fileGrid: &quot;stac&quot;</code></td>
+<td>GeoTIFF assets found through a supported STAC API.</td>
+</tr>
+<tr>
+<td><code>file</code> + <code>fileGrid: &quot;directory&quot;</code></td>
+<td>Local supported GeoTIFFs.</td>
+</tr>
+<tr>
+<td><code>file</code> + <code>fileGrid: &quot;degree&quot;</code></td>
+<td>One-degree HGT tiles, optionally downloaded as gzip files.</td>
+</tr>
+<tr>
+<td><code>wfs-file-catalog</code></td>
+<td>A configured WFS index pointing to elevation sheets; requires additional catalogue-field mappings.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Use the <a href="../../src/tsre/geo/elevation-datasets.json">built-in elevation catalogue</a>
+as a reference for the less common providers. <code>coordinateTransform</code>, for
+example, is a specific supported transformation configuration for British
+National Grid data, not a general-purpose projection definition.</p>
+</section><section id="5-example-wcs-elevation" class="doc-section"><h2><a class="anchor" href="#5-example-wcs-elevation">5. Example: WCS elevation</a></h2>
+<p>This is a separate user entry based on Poland's configured Geoportal KRON86
+source. Its unusual-looking origin and bounds are intentional provider values;
+do not replace them with latitude/longitude.</p>
+<p>Save as <code>assets/geo/elevation-datasets.json</code>:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;user.pl.geoportal.kron86&quot;</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;My Poland Geoportal DTM 1 m&quot;</span><span class="p">,</span>
+      <span class="k">&quot;provider&quot;</span><span class="p">:</span> <span class="s">&quot;wcs-2.0.1&quot;</span><span class="p">,</span>
+      <span class="k">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s">&quot;https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModelFormatTIFF&quot;</span><span class="p">,</span>
+      <span class="k">&quot;coverage&quot;</span><span class="p">:</span> <span class="s">&quot;DTM_PL-KRON86-NH_TIFF&quot;</span><span class="p">,</span>
+      <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;image/tiff&quot;</span><span class="p">,</span>
+      <span class="k">&quot;axisX&quot;</span><span class="p">:</span> <span class="s">&quot;x&quot;</span><span class="p">,</span>
+      <span class="k">&quot;axisY&quot;</span><span class="p">:</span> <span class="s">&quot;y&quot;</span><span class="p">,</span>
+      <span class="k">&quot;crs&quot;</span><span class="p">:</span> <span class="n">2180</span><span class="p">,</span>
+      <span class="k">&quot;verticalDatum&quot;</span><span class="p">:</span> <span class="s">&quot;PL-KRON86-NH&quot;</span><span class="p">,</span>
+      <span class="k">&quot;resolution&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+      <span class="k">&quot;origin&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">160828.34326572</span><span class="p">,</span> <span class="n">796521.669409553</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;bounds&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">160828.34326572</span><span class="p">,</span> <span class="n">98928.8977745594</span><span class="p">,</span> <span class="n">876029.97009323</span><span class="p">,</span> <span class="n">796521.669409553</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;blockPixels&quot;</span><span class="p">:</span> <span class="n">1024</span><span class="p">,</span>
+      <span class="k">&quot;concurrentRequests&quot;</span><span class="p">:</span> <span class="n">2</span><span class="p">,</span>
+      <span class="k">&quot;zeroIsNoData&quot;</span><span class="p">:</span> <span class="v">true</span><span class="p">,</span>
+      <span class="k">&quot;fallbackApproved&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;distantTerrainApproved&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;attribution&quot;</span><span class="p">:</span> <span class="s">&quot;GUGiK / Geoportal.gov.pl&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="wcs-specific-fields"><a class="anchor" href="#wcs-specific-fields">WCS-specific fields</a></h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>endpoint</code></td>
+<td>Service base URL. TSRE adds the coverage request parameters. Do not paste a complete one-off <code>GetCoverage</code> URL here.</td>
+</tr>
+<tr>
+<td><code>coverage</code></td>
+<td>Exact coverage identifier published by the service, including spelling and case.</td>
+</tr>
+<tr>
+<td><code>axisX</code>, <code>axisY</code></td>
+<td>WCS 2 subset axis labels corresponding to TSRE's X and Y. Read them from the coverage description; they are not necessarily <code>x</code> and <code>y</code>.</td>
+</tr>
+<tr>
+<td><code>scaleAxisX</code>, <code>scaleAxisY</code></td>
+<td>Optional WCS 2 scaling-axis names if the service uses different names from its subset axes. Default to <code>axisX</code>/<code>axisY</code>.</td>
+</tr>
+<tr>
+<td><code>origin</code></td>
+<td><code>[X, Y]</code> reference corner of TSRE's request-block grid: columns grow toward increasing X, rows toward decreasing Y. It is not the route origin. Match the service grid.</td>
+</tr>
+<tr>
+<td><code>blockPixels</code></td>
+<td>Base request-block size, <code>16</code>–<code>1024</code> pixels per side. TSRE includes interpolation neighbours around the block, so allow for a small border in server limits.</td>
+</tr>
+<tr>
+<td><code>requestFormat</code></td>
+<td>Optional exact wire-format string when the service's advertised format differs from the decoder's <code>format</code>.</td>
+</tr>
+<tr>
+<td><code>allowExpandedGrid</code></td>
+<td>Defaults to <code>false</code>. Enable only for a verified service that returns a larger enclosing grid. This is not a general fix for incorrect georeferencing.</td>
+</tr>
+</tbody>
+</table></div>
+<p>At 1 m resolution, a 1024-pixel base block covers about 1024 m per side. Larger
+blocks reduce request count but increase the size of each response.</p>
+<h3 id="adapting-this-to-another-wcs"><a class="anchor" href="#adapting-this-to-another-wcs">Adapting this to another WCS</a></h3>
+<ol>
+<li>Find its <code>GetCapabilities</code> document and a numerical DTM coverage.</li>
+<li>Request <code>DescribeCoverage</code> for that identifier. Record the CRS, bounds,
+grid spacing, grid alignment, axis labels and formats.</li>
+<li>Pick the matching supported WCS version and copy those values into your entry.</li>
+<li>Preview one tile inside known coverage before increasing concurrency or area.</li>
+</ol>
+<p>For the example above, these URLs help inspect the metadata:</p>
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModelFormatTIFF?SERVICE=WCS&amp;VERSION=2.0.1&amp;REQUEST=GetCapabilities
+https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModelFormatTIFF?SERVICE=WCS&amp;VERSION=2.0.1&amp;REQUEST=DescribeCoverage&amp;COVERAGEID=DTM_PL-KRON86-NH_TIFF
+</code></pre></div>
+<p>WCS 1.0.0 uses its own request syntax, so use <code>provider: &quot;wcs-1.0.0&quot;</code> for that
+version. Merely changing a 1.1.1 service's version string cannot make it compatible.</p>
+</section><section id="6-example-a-direct-cog-url" class="doc-section"><h2><a class="anchor" href="#6-example-a-direct-cog-url">6. Example: a direct COG URL</a></h2>
+<p>This example uses the configured Wallonia terrain COG hosted for TSRE. A direct
+URL identifies the file; TSRE requests the blocks needed for the selected area.
+It does not download the entire national raster.</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;user.wallonia.dtm1&quot;</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;My Wallonia DTM 1 m&quot;</span><span class="p">,</span>
+      <span class="k">&quot;provider&quot;</span><span class="p">:</span> <span class="s">&quot;file&quot;</span><span class="p">,</span>
+      <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;geotiff&quot;</span><span class="p">,</span>
+      <span class="k">&quot;fileGrid&quot;</span><span class="p">:</span> <span class="s">&quot;cog&quot;</span><span class="p">,</span>
+      <span class="k">&quot;directory&quot;</span><span class="p">:</span> <span class="s">&quot;user_wallonia_dtm1&quot;</span><span class="p">,</span>
+      <span class="k">&quot;crs&quot;</span><span class="p">:</span> <span class="n">3812</span><span class="p">,</span>
+      <span class="k">&quot;verticalDatum&quot;</span><span class="p">:</span> <span class="s">&quot;DNG / EPSG:5710&quot;</span><span class="p">,</span>
+      <span class="k">&quot;resolution&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+      <span class="k">&quot;bounds&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">542188</span><span class="p">,</span> <span class="n">521074</span><span class="p">,</span> <span class="n">795273</span><span class="p">,</span> <span class="n">667801</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;concurrentRequests&quot;</span><span class="p">:</span> <span class="n">2</span><span class="p">,</span>
+      <span class="k">&quot;zeroIsNoData&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;download&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="k">&quot;revision&quot;</span><span class="p">:</span> <span class="s">&quot;20260923-cog&quot;</span><span class="p">,</span>
+        <span class="k">&quot;urlTemplate&quot;</span><span class="p">:</span> <span class="s">&quot;https://koniec.org/geo/wallonia_mnt_1m_cog.tif&quot;</span>
+      <span class="p">}</span><span class="p">,</span>
+      <span class="k">&quot;attribution&quot;</span><span class="p">:</span> <span class="s">&quot;Service public de Wallonie - MNT 2021-2022&quot;</span><span class="p">,</span>
+      <span class="k">&quot;license&quot;</span><span class="p">:</span> <span class="s">&quot;CC BY 4.0&quot;</span><span class="p">,</span>
+      <span class="k">&quot;informationUrl&quot;</span><span class="p">:</span> <span class="s">&quot;https://geoportail.wallonie.be/catalogue/fe13bc84-e371-46ca-9632-8ad4139f1ee5.html&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Here <code>download.urlTemplate</code> is a literal HTTPS file URL with <strong>no placeholders</strong>.
+<code>download.revision</code> identifies the published file version and separates cached
+parts. Change it when replacing a file at the same URL. <code>directory</code> uses letters,
+digits, underscores or hyphens; nested directories can use <code>/</code>, but not <code>..</code>.</p>
+<p>The server must support valid HTTP byte-range responses (<code>206 Partial Content</code>
+with matching <code>Content-Range</code>). The TIFF must also use a supported numerical
+raster layout and compression. A <code>.tif</code> extension or the word “COG” alone is not
+enough. For EPSG:4326 single COGs, <code>download.overviewFactor</code> is required: a power
+of two from <code>1</code> to <code>1024</code>, with <code>1</code> selecting the base image. Omit it for projected
+single COGs such as this example.</p>
+<p>For a regular projected sheet grid, use <code>fileGrid: &quot;projected&quot;</code>,
+<code>download.tileSize</code> in CRS units, and a URL containing both <code>{easting}</code> and
+<code>{northing}</code>. The Austrian built-in entry demonstrates the filename convention.
+These placeholders address source sheets; they are not map-tile <code>{x}/{y}/{z}</code>.</p>
+</section><section id="7-example-stac-discovery-with-cog-range-reads" class="doc-section"><h2><a class="anchor" href="#7-example-stac-discovery-with-cog-range-reads">7. Example: STAC discovery with COG range reads</a></h2>
+<p>Canada's HRDEM entry demonstrates choosing a named bare-earth asset from a STAC
+collection:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;user.ca.hrdem1&quot;</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;My Canada HRDEM terrain 1 m&quot;</span><span class="p">,</span>
+      <span class="k">&quot;provider&quot;</span><span class="p">:</span> <span class="s">&quot;file&quot;</span><span class="p">,</span>
+      <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;geotiff&quot;</span><span class="p">,</span>
+      <span class="k">&quot;fileGrid&quot;</span><span class="p">:</span> <span class="s">&quot;stac&quot;</span><span class="p">,</span>
+      <span class="k">&quot;directory&quot;</span><span class="p">:</span> <span class="s">&quot;user_ca_hrdem1&quot;</span><span class="p">,</span>
+      <span class="k">&quot;crs&quot;</span><span class="p">:</span> <span class="n">3979</span><span class="p">,</span>
+      <span class="k">&quot;verticalDatum&quot;</span><span class="p">:</span> <span class="s">&quot;CGVD2013 orthometric height&quot;</span><span class="p">,</span>
+      <span class="k">&quot;resolution&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+      <span class="k">&quot;bounds&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">-2500000</span><span class="p">,</span> <span class="n">-1000000</span><span class="p">,</span> <span class="n">3050000</span><span class="p">,</span> <span class="n">3000000</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;concurrentRequests&quot;</span><span class="p">:</span> <span class="n">2</span><span class="p">,</span>
+      <span class="k">&quot;zeroIsNoData&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;fallbackApproved&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;distantTerrainApproved&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;download&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="k">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s">&quot;https://datacube.services.geo.ca/stac/api&quot;</span><span class="p">,</span>
+        <span class="k">&quot;collection&quot;</span><span class="p">:</span> <span class="s">&quot;hrdem-mosaic-1m&quot;</span><span class="p">,</span>
+        <span class="k">&quot;assetKey&quot;</span><span class="p">:</span> <span class="s">&quot;dtm&quot;</span><span class="p">,</span>
+        <span class="k">&quot;range&quot;</span><span class="p">:</span> <span class="v">true</span>
+      <span class="p">}</span><span class="p">,</span>
+      <span class="k">&quot;attribution&quot;</span><span class="p">:</span> <span class="s">&quot;Natural Resources Canada and contributing elevation data partners&quot;</span><span class="p">,</span>
+      <span class="k">&quot;license&quot;</span><span class="p">:</span> <span class="s">&quot;Open Government Licence - Canada 2.0&quot;</span><span class="p">,</span>
+      <span class="k">&quot;informationUrl&quot;</span><span class="p">:</span> <span class="s">&quot;https://open.canada.ca/data/en/dataset/0fe65119-e96e-4a57-8bfe-9d9245fba06b&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Inside <code>download</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>endpoint</code></td>
+<td>STAC API root. TSRE constructs the collection-items request itself. This is not an individual TIFF or STAC item URL.</td>
+</tr>
+<tr>
+<td><code>collection</code></td>
+<td>Exact collection ID.</td>
+</tr>
+<tr>
+<td><code>assetKey</code></td>
+<td>Exact key inside an item's <code>assets</code> object. Here <code>dtm</code> selects terrain instead of the surface model or hillshade. Requires <code>range: true</code>.</td>
+</tr>
+<tr>
+<td><code>range</code></td>
+<td><code>true</code> reads COG blocks. The default is <code>false</code>, which can acquire whole selected GeoTIFF assets; retain <code>true</code> for large mosaics.</td>
+</tr>
+<tr>
+<td><code>searchRoot</code></td>
+<td>Optional <code>true</code> uses the API's root <code>/search</code> instead of collection items. Omit <code>collection</code> when using this mode.</td>
+</tr>
+<tr>
+<td><code>resolutionProperty</code></td>
+<td>Optional item-property name containing resolution for a provider with different metadata conventions.</td>
+</tr>
+<tr>
+<td><code>assetCrs</code></td>
+<td>Optional EPSG code expected in asset metadata, for example a compound CRS whose horizontal part is the dataset's <code>crs</code>.</td>
+</tr>
+</tbody>
+</table></div>
+<p>STAC is not a universal adapter for every catalogue. The API and asset metadata
+must match TSRE's implemented discovery and selection rules. Named range assets
+such as Canada's obtain their authoritative grid from the COG header. Assets
+must advertise a cloud-optimized TIFF media type and matching <code>proj:epsg</code>.
+The ordinary elevation selector expects asset <code>eo:gsd</code> (or the configured item
+<code>resolutionProperty</code>) to equal <code>resolution</code>. Named range assets can omit that
+resolution metadata because TSRE validates the grid from the file itself.</p>
+<p>The configured rectangle is only an approximate area of availability. Canadian
+1 m LiDAR terrain does not cover every pixel inside it. Keep a global fallback
+selected and inspect the report. Even a small cold request may first download
+megabytes of TIFF index tables before reading the required height blocks.</p>
+</section><section id="8-example-your-own-local-geotiffs" class="doc-section"><h2><a class="anchor" href="#8-example-your-own-local-geotiffs">8. Example: your own local GeoTIFFs</a></h2>
+<p>For supported local numerical GeoTIFFs, a directory entry needs no download URL.
+This example assumes Polish EPSG:2180 rasters; replace the metadata with your
+files' actual CRS, extent, spacing and height datum.</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;user.local.dtm&quot;</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;My local terrain GeoTIFFs&quot;</span><span class="p">,</span>
+      <span class="k">&quot;provider&quot;</span><span class="p">:</span> <span class="s">&quot;file&quot;</span><span class="p">,</span>
+      <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;geotiff&quot;</span><span class="p">,</span>
+      <span class="k">&quot;fileGrid&quot;</span><span class="p">:</span> <span class="s">&quot;directory&quot;</span><span class="p">,</span>
+      <span class="k">&quot;directory&quot;</span><span class="p">:</span> <span class="s">&quot;my_dtm&quot;</span><span class="p">,</span>
+      <span class="k">&quot;crs&quot;</span><span class="p">:</span> <span class="n">2180</span><span class="p">,</span>
+      <span class="k">&quot;verticalDatum&quot;</span><span class="p">:</span> <span class="s">&quot;PL-EVRF2007-NH&quot;</span><span class="p">,</span>
+      <span class="k">&quot;resolution&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+      <span class="k">&quot;bounds&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">160000</span><span class="p">,</span> <span class="n">90000</span><span class="p">,</span> <span class="n">880000</span><span class="p">,</span> <span class="n">800000</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;zeroIsNoData&quot;</span><span class="p">:</span> <span class="v">false</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Place the files under <code>&lt;geodata root&gt;/my_dtm/</code>. Their embedded georeferencing must
+agree with the entry. Renaming a file or changing <code>crs</code> does not reproject it.
+Use a GIS conversion tool first when the raster layout or CRS is unsupported.</p>
+</section><section id="9-credentials-and-defaults" class="doc-section"><h2><a class="anchor" href="#9-credentials-and-defaults">9. Credentials and defaults</a></h2>
+<p>Credentials are referenced by name, not embedded in a source URL. Elevation
+supports <code>query-api-key</code>, <code>basic-api-key</code>, and, for supported STAC file sources,
+<code>basic-user-password</code>. Support depends on the provider; direct single-COG entries
+above do not accept an authentication object.</p>
+<p>For a service using a query-string API key, the dataset fragment is:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;authentication&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="k">&quot;type&quot;</span><span class="p">:</span> <span class="s">&quot;query-api-key&quot;</span><span class="p">,</span>
+    <span class="k">&quot;secret&quot;</span><span class="p">:</span> <span class="s">&quot;elevation.myServiceKey&quot;</span><span class="p">,</span>
+    <span class="k">&quot;parameter&quot;</span><span class="p">:</span> <span class="s">&quot;api-key&quot;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>This is a <strong>fragment</strong>, not a complete dataset. For Basic authentication with
+separate credentials, the corresponding fragment is:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;authentication&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="k">&quot;type&quot;</span><span class="p">:</span> <span class="s">&quot;basic-user-password&quot;</span><span class="p">,</span>
+    <span class="k">&quot;usernameSecret&quot;</span><span class="p">:</span> <span class="s">&quot;elevation.myUsername&quot;</span><span class="p">,</span>
+    <span class="k">&quot;passwordSecret&quot;</span><span class="p">:</span> <span class="s">&quot;elevation.myPassword&quot;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Store the actual strings in the active profile's <code>secrets.json</code>, beside its
+<code>settings.json</code>, following the <a href="imagery-data.html#store-the-key-in-your-active-profile">secret-file example</a>.
+Use your chosen reference names as keys in its <code>secrets</code> object. The
+<code>basic-api-key</code> variant uses <code>secret</code> and sends that key as the Basic username
+with an empty password. Never include real credentials in a shared catalogue.</p>
+<p>Usually you should select the source in <strong>Load Height</strong> rather than changing
+catalogue defaults. The optional top-level <code>defaultFileSource</code> names a <code>file</code>
+provider and is not a general default for WCS, nor the fallback-selection setting.</p>
+</section><section id="10-troubleshooting" class="doc-section"><h2><a class="anchor" href="#10-troubleshooting">10. Troubleshooting</a></h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>What to check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New source is missing</td>
+<td>Exact filename and working directory; JSON syntax; restart; location bounds and terrain eligibility. Read the catalogue diagnostic in the source window/log.</td>
+</tr>
+<tr>
+<td>Existing built-in still appears</td>
+<td>Your override may have been rejected. A partial object is not a valid override.</td>
+</tr>
+<tr>
+<td>Terrain comes entirely from fallback</td>
+<td>Inspect primary-source errors, location, asset selection and actual valid-data coverage. A completed preview does not prove the primary source supplied heights.</td>
+</tr>
+<tr>
+<td>Hills appear in the wrong place</td>
+<td>Route georeferencing, source CRS, X/Y order, WCS axis labels and request-grid alignment.</td>
+</tr>
+<tr>
+<td>Terrain is uniformly too high/low</td>
+<td>Source and fallback vertical datums, units and the two height offsets.</td>
+</tr>
+<tr>
+<td>Sea-level terrain disappears</td>
+<td><code>zeroIsNoData</code> may be incorrectly set to <code>true</code>.</td>
+</tr>
+<tr>
+<td>XML/HTML returned instead of a raster</td>
+<td>Wrong endpoint, coverage, version, request format or authentication; the server may be returning an error document.</td>
+</tr>
+<tr>
+<td>Unsupported TIFF/grid/CRS</td>
+<td>A valid file may use a layout TSRE cannot decode. Compare with a supported source or convert local data first.</td>
+</tr>
+<tr>
+<td>Download is unexpectedly large</td>
+<td>Check whole-file STAC versus <code>range: true</code>, source resolution, area and TIFF index overhead.</td>
+</tr>
+<tr>
+<td>Old data keeps appearing</td>
+<td>Check the provider's publication version and COG <code>download.revision</code>; do not change unrelated fields hoping to force a refresh.</td>
+</tr>
+</tbody>
+</table></div>
+<p>For a new source, start with one tile in known coverage and a modest concurrency.
+Compare a few recognisable landforms/heights, then try a coverage edge and a cache
+repeat. Share the complete entry, the report and the location when asking for
+help, with credentials removed.</p>
+<p>See also: <a href="imagery-data.html">imagery data</a>,
+<a href="../../src/tsre/geo/elevation-datasets.json">built-in source definitions</a> and
+<a href="../tasks/geo/elevation-current-status.md">elevation implementation status</a>.</p>
+</section></main>
+</div>
+<div class="copy-status" role="status" aria-live="polite"></div>
+<footer><div class="footer-inner">TSRE user guides &middot; <a href="index.html">All guides</a> &middot; <a href="elevation-data.md">Markdown source</a> &middot; <a href="#content">Back to guide</a></div></footer>
+<script>
+(() => {
+  for (const example of document.querySelectorAll('.code-example')) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'copy-code';
+    button.textContent = 'Copy';
+    button.setAttribute('aria-label', 'Copy ' + example.dataset.language + ' example');
+    button.addEventListener('click', async () => {
+      const text = example.querySelector('code').textContent;
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        }
+      } catch (_) {}
+      if (!copied) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.append(area);
+        area.select();
+        copied = document.execCommand('copy');
+        area.remove();
+        button.focus();
+      }
+      button.textContent = copied ? 'Copied' : 'Select and copy';
+      document.querySelector('.copy-status').textContent = copied ? 'Example copied to clipboard.' : 'Select the example text and copy it manually.';
+      setTimeout(() => { button.textContent = 'Copy'; }, 1800);
+    });
+    example.append(button);
+  }
+  if ('IntersectionObserver' in window) {
+    const links = [...document.querySelectorAll('.toc a[href^="#"]')];
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        for (const link of links) {
+          if (link.hash === '#' + entry.target.id) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        }
+      }
+    }, {rootMargin: '-5% 0px -70% 0px'});
+    document.querySelectorAll('main .doc-section').forEach(section => observer.observe(section));
+  }
+})();
+</script>
+</body>
+</html>
