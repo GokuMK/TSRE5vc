@@ -100,12 +100,11 @@ model as the first operating policy, and threading.
   the radius; Open Rails' triggering AI train), AllStops, ReachSpeed and
   the wagon events on fixed car lists; outcomes (levels, the activity's
   end, restarting a waiting train); the fixed step of 2026-10-17. Shown:
-  firing times in the Event window, the Timetable window and on the map,
-  messages in Play, why an event did not fire in Check Activity; Simulate
-  records them too. Open decisions at the doc's end (the player's train
-  stopping at "stop here" events, a triggering train's event before it
-  starts, pausing on messages). Wagon events that need shunting wait for
-  07.
+  firing times in the Event window, the Timetable window and on the map
+  (messages beside the train that fired them, no message boxes), why an
+  event did not fire in Check Activity; Simulate records them too. The
+  player's train stops at "stop here" events (decided 2026-10-20). Wagon
+  events that need shunting wait for 07.
 - [ ] `07-coupling-and-train-changes.md` (to design): trains that meet,
   couple and split.
   - Open Rails' AI shunts only where the author coded it in the path

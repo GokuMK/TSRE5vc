@@ -1,7 +1,7 @@
 # Task 06 - Activity Events
 
 Status: designed 2026-10-20, not started (branch `feature/simulation`).
-Open decisions are at the end.
+Decisions taken are at the end.
 
 Sources:
 - tasks 01 to 05 (the simulation core: trains on their routes, signals,
@@ -192,7 +192,7 @@ asks of the player has to be done by it:
   platform the TDB lacks), and are named in the warnings.
 - **Speed.** ReachSpeed fires if the train reaches the speed on its run;
   if it never does, the highest speed it reached is shown (section 7).
-- **"Stop here" location events (proposed, decision 1).** With
+- **"Stop here" location events (decided 2026-10-20).** With
   TriggerOnStop the player is asked to stop at the place. The player's
   train stops with its front at the event's point when the event is
   active as the train comes within its braking distance of it, and goes
@@ -222,11 +222,14 @@ asks of the player has to be done by it:
   activity's end ("09:42:10 The activity ends: success").
 - **Map, Events layer:** location events drawn by state: not active,
   active, fired (with its time beside the name), not fired at the run's
-  end; the chosen wagon event's siding and listed cars marked.
-- **Play:** a message box over the 3D view as the game shows it (the
-  event's name, the time, the text, Close), for events with a message;
-  Pause on messages in the activity panel (the game pauses: decision 3).
-  Runs as fast as possible list messages without showing them.
+  end; the chosen wagon event's siding and listed cars marked. An event's
+  message is shown beside the train that fired it (the player's train for
+  events that look at no train) while the simulation runs, and hides
+  after a while.
+- **No message boxes and no pausing** (decided 2026-10-20): for the
+  simulation and the autopilot the log (the Timetable window's list) is
+  enough; how the game shows messages belongs to the game's interface,
+  not designed yet.
 - **Simulate** (Timetable window, task 04): records the event results too,
   so the Event window has firing times without Play.
 - **Check Activity:** a "Last run" part: the events that never fired and
@@ -252,7 +255,7 @@ on every run. 0.01 s steps for driven trains come with the driving tasks.
   HH:MM;
 - location: no route of a train that triggers it passes within 2.5 m of
   its point (the nearest track and distance named); the train passed but
-  did not stand there (TriggerOnStop, decision 1 declined); its train never
+  did not stand there (TriggerOnStop: active too late to stop); its train never
   came (not started, stuck, the triggering train not in the activity);
 - time: after the run's end;
 - AllStops: the player's train has no stops, or did not reach its last;
@@ -280,12 +283,12 @@ on every run. 0.01 s steps for driven trains come with the driving tasks.
    records and frames. Fixtures in simulation-core: each kind, chains,
    reversible events, levels below 0, a triggering train, a restart, a
    point off the track, AllStops without stops.
-2. **The player's train:** stopping at "stop here" events (decision 1),
+2. **The player's train:** stopping at "stop here" events,
    a stop's place moved to the point; fixtures: in time, too late, at a
    platform.
 3. **Editor:** the Event window's results, the Timetable list, the map's
-   states and times, the message box and Pause on messages, Simulate's
-   results, session results marked out of date. simulation-ui cases.
+   states and times, messages beside the trains, Simulate's results,
+   session results marked out of date. simulation-ui cases.
 4. **Why not fired and Check Activity:** reasons, the Last run part, the
    completion texts.
 5. **Verified:** every local activity simulated: per activity the events
@@ -297,17 +300,15 @@ on every run. 0.01 s steps for driven trains come with the driving tasks.
    the trains run alike; the cost per step measured on the largest
    activities.
 
-## Open decisions (for the user)
+## Decisions (user, 2026-10-20)
 
-1. **The player's train stops at "stop here" location events**
-   (section 3). Recommended: yes, so the tutorials and other chains run
-   to their end, as the autopilot of task 07 will also do what the
-   activity asks. Without it they are reported as "passed without
-   stopping".
-2. **A triggering train's event before that train starts.** Open Rails
-   checks the player's train until the AI train exists, so the player
-   can fire it first. Recommended: as Open Rails (the preview shows what
-   the game will do), the event list saying when it fired by the
-   player's train, and Check Activity warning of it.
-3. **Pause on messages in Play:** on by default (as the game), or off.
-   Recommended: on; runs as fast as possible never pause.
+- The player's train stops at "stop here" location events (TriggerOnStop)
+  when they are active in time (section 3).
+- A triggering train's event before that train starts: as Open Rails, the
+  player's train looked at until then; the event list says when the
+  player's train fired it, and Check Activity warns of it.
+- No pausing on messages and no message boxes for now: the log is enough
+  for the simulation and the autopilot; the game's interface is not
+  designed yet. On the map an event's message shows beside the train that
+  fired it, hiding after some time.
+- The player's work orders (task 07): TSRE's full autopilot.
