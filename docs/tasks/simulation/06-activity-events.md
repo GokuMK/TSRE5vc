@@ -284,7 +284,7 @@ What each kind checks:
 | AllStops | the player's last station stop is done: boarding complete there, the train gone before it was, or the stop missed. Never for a player train without stops |
 | AssembleTrain | any train (loose consists included) holds exactly the listed cars, in order or reversed |
 | AssembleTrainAtLocation | the player's train has an end (front or rear) inside the siding, and some train holds exactly the listed cars |
-| DropOffWagonsAtLocation | a standing consist (cars left uncoupled) holds all listed cars, in any order, with an end inside the siding |
+| DropOffWagonsAtLocation | a standing consist (cars left uncoupled) holds all listed cars, in any order, with an end inside the siding. TSRE since 2026-10-21 (task 07, the user): any train holding them, coupled or not, with an end in the siding |
 | PickUpWagons | the player's train holds all listed cars (others may be in it) and its speed is at most 1 m/s |
 | ReachSpeed | the player's engine's speed reaches `Speed` (m/s) |
 | PickUpPassengers | never (an empty case) |
