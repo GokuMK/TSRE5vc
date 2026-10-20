@@ -135,19 +135,21 @@ public:
     }
 };
 
-// A tool panel (F1-F5) or the properties panels in a scroll area of their
-// box's width, so a tall panel scrolls instead of being cut off.
-QScrollArea *scrollPanel(QWidget *panel, QWidget *parent, int width = 260) {
+// A tool panel (F1-F5) or the properties panels in a scroll area, so a tall
+// panel scrolls instead of being cut off: of the tool box's width, or (wide)
+// the panel keeping its width and the area as much wider as its bar.
+QScrollArea *scrollPanel(QWidget *panel, QWidget *parent, int width = 260, bool wide = false) {
     static ThinScrollBars *thin = new ThinScrollBars;
     auto *area = new QScrollArea(parent);
     area->setWidgetResizable(true);
     area->setFrameShape(QFrame::NoFrame);
     area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     area->verticalScrollBar()->setStyle(thin);
-    area->setFixedWidth(width);
+    const int bar = thin->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, area->verticalScrollBar());
+    area->setFixedWidth(wide ? width + bar : width);
     // The panel keeps the width beside the scroll bar, so its rows squeeze
     // into it as they did at a fixed width (wider, they would be cut off).
-    panel->setFixedWidth(width - thin->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, area->verticalScrollBar()));
+    panel->setFixedWidth(wide ? width : width - bar);
     area->setWidget(panel);
     return area;
 }
@@ -266,7 +268,10 @@ RouteEditorWindow::RouteEditorWindow() {
     propertiesPanel->setLayout(mainLayout3);
     QVBoxLayout *propertiesBox = new QVBoxLayout;
     propertiesBox->setContentsMargins(0,0,0,0);
-    propertiesArea = scrollPanel(propertiesPanel, box2, 160);
+    // The panels keep their 160 pixels, the box widened by the bar.
+    propertiesArea = scrollPanel(propertiesPanel, box2, 160, true);
+    box2->setMinimumWidth(propertiesArea->minimumWidth());
+    box2->setMaximumWidth(propertiesArea->maximumWidth());
     propertiesBox->addWidget(propertiesArea);
     box2->setLayout(propertiesBox);
 
