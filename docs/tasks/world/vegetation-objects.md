@@ -1,7 +1,8 @@
 # Forest/Static shape and impostor integration
 
 Status: impostors of glTF shapes drawn (steps 3 to 5, simplified), merged from
-`feature/gltf-lod`; Forest and the world-file fields not started. Updated
+`feature/gltf-lod`; forests of shapes (a forest naming a shape, no new token),
+merged from `feature/forest-shapes`; world-file fields not started. Updated
 2026-10-20.
 Prerequisite: [native glTF LOD loading](../shapes/10-gltf-native-lod.md).
 
