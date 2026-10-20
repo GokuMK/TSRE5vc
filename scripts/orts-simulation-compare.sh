@@ -26,7 +26,8 @@
 # no sound played, which doubles the frame rate there (frames of 25 to 45
 # ms). Faster frames mean smaller steps for Open Rails' AI at a given game
 # speed, and a frame over 250 ms would simulate nothing. Needs xvfb-run,
-# xdotool, openbox and curl.
+# xdotool, openbox and curl. ORTS_EVENTS=1: the activity's events too
+# (task simulation 06), in <work-dir>/logs/<activity>-events.jsonl.
 set -euo pipefail
 
 if [[ "${1:-}" == --inner ]]; then
@@ -43,6 +44,13 @@ if [[ "${1:-}" == --inner ]]; then
     done
     sleep 5
     window="$(xdotool search --name "Open Rails" | head -1)"
+    # ORTS_EVENTS: the activity's events as Open Rails fires them, written
+    # by scripts/orts-activity-events.py to <samples>-events.jsonl; with it
+    # connected Open Rails sends its messages there and does not pause.
+    if [[ -n "${ORTS_EVENTS:-}" ]]; then
+        python3 "$(dirname "$0")/orts-activity-events.py" "${samples%.jsonl}-events.jsonl" &
+        sleep 3
+    fi
     # Keys reach it only while it is the active window with the pointer in
     # it, and only held across its frames.
     focus() {

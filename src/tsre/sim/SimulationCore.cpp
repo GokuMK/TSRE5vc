@@ -427,7 +427,8 @@ void SimulationCore::advance(int train, double from, double to) {
         // The player's train (task 06): its next station stop moves to an
         // active stop-here event along the platform, where it can still
         // stop there.
-        if (train == playerTrain && own.watched && s.nextStop < int(own.stops.size())) {
+        if (train == playerTrain && own.watched && in->eventStops != SimulationInput::EventStops::None
+                && s.nextStop < int(own.stops.size())) {
             StopPlan &stop = own.stops[size_t(s.nextStop)];
             if (stop.part == s.part && stop.front > s.front + AtTarget)
                 for (const Runtime::Spot &spot : own.spots) {
@@ -468,7 +469,7 @@ void SimulationCore::advance(int train, double from, double to) {
         // The player's train stops at the nearest active stop-here event
         // ahead (task 06): one it brakes for already, or one it can still
         // stop at; a train that cannot passes it, as a player told too late.
-        if (train == playerTrain && own.watched) {
+        if (train == playerTrain && own.watched && in->eventStops == SimulationInput::EventStops::All) {
             int chosen = -1;
             for (const Runtime::Spot &spot : own.spots) {
                 if (spot.part != s.part || spot.at <= s.front + AtTarget || spot.at >= target - AtTarget

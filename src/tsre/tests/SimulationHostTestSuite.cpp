@@ -257,6 +257,31 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
         p.startFront = route.pathStart + 10.0;
         input->trains.push_back(p);
     }
+    // Activity events (task simulation 06): a time event activating a
+    // location event, location events each train triggers; the host fires
+    // them at the times the core alone does (the fixed step).
+    {
+        const auto event = [&](Sim::EventPlan::Kind kind, int level) {
+            Sim::EventPlan e;
+            e.kind = kind;
+            e.activation = level;
+            e.index = int(input->events.size());
+            e.name = QString("E%1").arg(e.index);
+            return e;
+        };
+        Sim::EventPlan time = event(Sim::EventPlan::Time, 1);
+        time.time = 30;
+        time.activate = {2};
+        input->events.push_back(time);
+        for (const auto &[train, distance, level] : {std::make_tuple(0, 600.0f, 1), std::make_tuple(0, 1100.0f, 0),
+                                                     std::make_tuple(1, 300.0f, 1)}) {
+            Sim::EventPlan place = event(Sim::EventPlan::Location, level);
+            place.places = {Sim::TrackPlace{10, distance}};
+            place.radius = 5.0f;
+            place.trigger = train;
+            input->events.push_back(place);
+        }
+    }
     const std::shared_ptr<const Sim::SimulationInput> shared = input;
 
     QThread thread;
@@ -318,9 +343,13 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
                          || events[i].index != expected[i].index || std::fabs(events[i].time - expected[i].time) > 1e-6))
                 same = false;
         }
+        int fired = 0;
+        for (const Sim::TrainEvent &e : events)
+            fired += e.kind == Sim::TrainEvent::EventFired ? 1 : 0;
         check(ordered, "events come in order");
-        check(same, QString("the thread's run gives the synchronous core's events (%1 and %2)")
-                        .arg(events.size()).arg(expected.size()));
+        check(same && fired == 4, QString("the thread's run gives the synchronous core's events (%1 and %2), the "
+                                          "activity's %3 among them at the same times")
+                                      .arg(events.size()).arg(expected.size()).arg(fired));
     }
 
     // The track edited while the simulation runs: its copy stays.

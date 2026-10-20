@@ -2147,6 +2147,12 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         timer.restart();
         auto input = Sim::MakeInput(activity, &database, speedLimit, geometry, network,
                                     content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f);
+        // TSRE_SIM_EVENT_STOPS (none, platforms): where the player's train
+        // stops at stop-here events (task 06's comparisons).
+        if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_EVENT_STOPS"))
+            std::const_pointer_cast<Sim::SimulationInput>(input)->eventStops
+                    = qEnvironmentVariable("TSRE_SIM_EVENT_STOPS") == "none" ? Sim::SimulationInput::EventStops::None
+                    : Sim::SimulationInput::EventStops::Platforms;
         inputMs += timer.elapsed();
         // Each route part projected onto the network, end to end.
         for (const Sim::TrainPlan &plan : input->trains)
@@ -2269,6 +2275,16 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                     break;
                 case Sim::TrainEvent::Deadlock:
                     logEvent(event.time, event.train, "deadlock", QJsonObject{{"by", event.index}}, event.travelled);
+                    break;
+                // The activity's events (task 06; scripts/orts-compare-events.py).
+                case Sim::TrainEvent::EventFired:
+                    logEvent(event.time, event.train, "event",
+                             QJsonObject{{"name", input->events[size_t(event.index)].name},
+                                         {"message", input->events[size_t(event.index)].message},
+                                         {"standIn", event.signal == 1}});
+                    break;
+                case Sim::TrainEvent::ActivityEnded:
+                    logEvent(event.time, -1, "activityEnd", QJsonObject{{"success", event.index == 1}});
                     break;
                 default:
                     break;

@@ -94,7 +94,9 @@ model as the first operating policy, and threading.
   aspects trains see agree with Open Rails' at 62 to 100 % of samples,
   the rest where signals are cleared, task 02). Open Rails' script
   additions later.
-- [ ] `06-activity-events.md` (designed 2026-10-20): the activity's
+- [x] `06-activity-events.md` (designed 2026-10-20, done 2026-10-21; three
+  decisions open at its end: events on the other track of a double line,
+  stopping at stop-here events again, where trains stand at their start): the activity's
   events run in the simulation as Open Rails checks them (`Activity.cs`):
   time, location (the point within 2.5 m of the track, the front within
   the radius; Open Rails' triggering AI train), AllStops, ReachSpeed and

@@ -1,7 +1,7 @@
 # Task 06 - Activity Events
 
-Status: phases 1 to 4 done 2026-10-21 (branch `feature/simulation`); phase
-5 and one decision open (end of the doc).
+Status: phases 1 to 5 done 2026-10-21 (branch `feature/simulation`);
+three decisions open (end of the doc).
 Decisions taken are at the end.
 
 Sources:
@@ -139,6 +139,44 @@ Sources:
   5 off the path; 4 ReachSpeed not reached (a tutorial asking 219 km/h of
   a 158 km/h train); 4 AllStops without stops; 2 passed, active too late
   to stop.
+
+**Phase 5, verified (done 2026-10-21).**
+- Every local activity simulated (the route suite on the seven routes):
+  the table at the end of the doc, each run's events fired by kind and the
+  activity's end. The route suite logs fired events with
+  `TSRE_SIM_EVENTS` (kind "event", "activityEnd").
+- Play against the core alone: the host suite's input has activity events
+  (a time event activating a location event, location events triggered by
+  each train); the thread's paced run fires them at the core's times
+  exactly (the fixed step).
+- Open Rails: `scripts/orts-activity-events.py` reads its activity events
+  page (`/activityevents`; connected, Open Rails sends its messages there
+  and does not pause), `orts-simulation-compare.sh` runs it with
+  `ORTS_EVENTS=1`, `scripts/orts-compare-events.py` matches the two lists
+  by name. EUROPE1 sctutorial, Open Rails' autopilot driving the player's
+  train at 17 times real time to 08:11:30: all 32 events Open Rails fired
+  TSRE fires too, in the same order; time events at the same second;
+  location events 6 to 55 s later in TSRE (from the train's first move:
+  the trains run differently, below), median 10 s. TSRE fires 3 more:
+  "Long Crosby Garrett" (a stop-here event where TSRE's train stops, Open
+  Rails' autopilot does not: decision 5), "Can't Move" (a time event at 2
+  minutes cancelled by moving past a point 1 m ahead: TSRE's train starts
+  later) and "Rolling backward" (a point behind Open Rails' train's front,
+  ahead of TSRE's: decision 6). Open Rails fires none of the events on
+  the other track of the double line ("Shift 1 View", "Coordinate
+  Revereser and Regulator", active, with messages, passed): its 2.5 m
+  rule confirmed (decision 4).
+- Stopping at stop-here events (decision 1) measured: with it, 42 more
+  events fire on the seven routes than without, nearly all detecting a
+  player's mistake: oetutorial's "UnexpectedStop1" to "16", "Too Soon
+  ...", "Too Far ...", "Long ...", "Short ...", "Stop Wrong Siding";
+  a few instructions ("Yoyogi Uehara", "Umegaoka", "MoveSwitch",
+  "Detective Now Aboard"). Stopping only along the platforms of station
+  stops (the stop moved to the event) fires 3 more mistakes and loses 2
+  good ones ("Good Gotokuji", "Perfuchs2"): the first such event along a
+  platform is the "too early" one. `SimulationInput::eventStops` (none,
+  platforms, all; `TSRE_SIM_EVENT_STOPS` in the route suite) keeps the
+  choice (decision 5).
 
 ## Why
 
@@ -424,7 +462,7 @@ on every run. 0.01 s steps for driven trains come with the driving tasks.
   fired it, hiding after some time.
 - The player's work orders (task 07): TSRE's full autopilot.
 
-## Open decision (for the user)
+## Open decisions (for the user)
 
 4. **Location events on the other track of a double line.** Open Rails
    fires a location event only where its point lies within 2.5 m of the
@@ -435,5 +473,98 @@ on every run. 0.01 s steps for driven trains come with the driving tasks.
    Options: as Open Rails (now: they never fire, Check Activity says the
    point is on another track); as the distance from the point (they fire
    as presumably in MSTS, not in Open Rails); or as Open Rails with
-   Check Activity also saying that MSTS fires them. To be confirmed in
-   Open Rails in phase 5 (sctutorial's "Tunnel").
+   Check Activity also saying that MSTS fires them. Confirmed in Open
+   Rails (phase 5).
+5. **Stopping at stop-here events (decision 1 again).** In the local
+   content these events mostly catch a player's mistakes (stopping too
+   soon, too far, unexpectedly), so the autopilot stopping at every one
+   fires 42 mistake events (phase 5). Options: all (as decided);
+   none (as Open Rails' autopilot: the train stops where its timetable
+   and path say, and stop-here events fire where it stands); only along
+   station platforms (measured worse). Recommended: none, keeping the
+   option for later (task 07's autopilot may know an event's intent from
+   the work it asks for).
+6. **Where a train stands at its start.** Open Rails puts the train's rear
+   at its path's start, the whole train ahead of it (player's and AI
+   trains: `Simulator.InitializePlayerTrain`, `AI.cs`); TSRE (task 01, as
+   the editor shows a consist) its first vehicle across the start, the
+   train behind. TSRE's trains start a train's length further back:
+   events near the start come out differently ("Rolling backward"), and
+   every train reaches its first stop a little later. Recommended: the
+   simulation as Open Rails (the editor's display at the start too, so
+   they agree), a change to task 01 with its suites and comparisons run
+   again.
+
+## Local activities (2026-10-21)
+
+Each activity's events fired by kind (fired/all) and its end, in the
+route suite's run (stopping at every stop-here event, decision 1 as
+taken).
+
+| Route | Activity | Events fired | End |
+| --- | --- | --- | --- |
+| EUROPE1 | aftstorm | allstops 1/1 | success at 16:32:13 |
+| EUROPE1 | homestre | assemble 1/1, location 1/2, passengers 0/1, time 2/2 | no end |
+| EUROPE1 | itr_e1_s1_w1_t1 | allstops 0/1 | no end |
+| EUROPE1 | lclsrvce | allstops 1/1 | success at 11:10:21 |
+| EUROPE1 | lowwater | allstops 0/1 | no end |
+| EUROPE1 | medemerg | allstops 1/2, location 1/1, time 0/1 | success at 10:55:27 |
+| EUROPE1 | rsrescue | allstops 0/1, assemble 0/1, dropoff 0/1, location 1/1 | no end |
+| EUROPE1 | sctutorial | allstops 1/1, location 27/39, passengers 0/1, time 11/11 | success at 08:15:35 |
+| EUROPE1 | shrtpass | allstops 1/1 | success at 08:56:19 |
+| EUROPE1 | winterun | assemble 1/1, location 0/2, passengers 0/2, time 1/1 | no end |
+| EUROPE2 | barcarso | allstops 0/1, assemble 0/1, dropoff 0/1, time 0/1 | no end |
+| EUROPE2 | bridegrm | allstops 1/1, time 0/1 | success at 15:09:25 |
+| EUROPE2 | itr_e1_s1_w1_t1 | allstops 0/1 | no end |
+| EUROPE2 | murder | assemble 0/1, dropoff 0/1, location 5/6 | no end |
+| EUROPE2 | oetutorial | allstops 1/1, location 47/57, passengers 0/1, speed 0/1, time 13/14 | success at 12:23:32 |
+| EUROPE2 | replloco | allstops 0/1, assemble 0/1, location 2/2, passengers 0/1, time 0/1 | no end |
+| EUROPE2 | royalonb | allstops 1/1, time 0/1 | success at 20:08:56 |
+| EUROPE2 | sainnwn | allstops 0/1, passengers 0/1, time 1/1 | no end |
+| EUROPE2 | shrtpass | allstops 0/1, time 0/1 | no end |
+| JAPAN1 | afterthestorm | allstops 1/1, location 2/2, time 0/1 | success at 10:17:15 |
+| JAPAN1 | hvydelay | allstops 1/1, time 0/1 | success at 10:05:46 |
+| JAPAN1 | itr_e1_s1_w1_t1 | allstops 0/1 | no end |
+| JAPAN1 | pubhol | allstops 1/1, time 1/1 | success at 11:52:11 |
+| JAPAN1 | shinhakmachida | allstops 1/1 | success at 17:23:06 |
+| JAPAN1 | shnhaksu | allstops 1/1 | success at 09:38:28 |
+| JAPAN1 | shrtpass | allstops 1/1 | success at 09:06:57 |
+| JAPAN1 | tokyohakonetutorial | allstops 1/1, location 28/34, passengers 0/1, time 13/14 | success at 18:17:14 |
+| JAPAN2 | hisatsututorial | allstops 1/1, location 26/29, passengers 0/2, time 6/7 | success at 10:11:23 |
+| JAPAN2 | isaburo | allstops 1/1, time 1/1 | success at 14:38:45 |
+| JAPAN2 | itr_e1_s1_w1_t1 | allstops 1/1 | success at 14:05:24 |
+| JAPAN2 | lowfuel | allstops 1/1, time 0/1 | success at 16:18:18 |
+| JAPAN2 | quaketrk | allstops 1/1, location 1/1 | success at 18:58:51 |
+| JAPAN2 | shinpei | allstops 1/1, location 2/2 | success at 16:47:52 |
+| JAPAN2 | shrtpass | allstops 1/1, time 0/1 | success at 18:42:38 |
+| JAPAN2 | wst_rver | allstops 1/1, time 1/1 | success at 21:51:17 |
+| USA1 | aftstrm | allstops 1/1, location 0/2, time 1/1 | success at 17:53:11 |
+| USA1 | brdgstrk | allstops 1/1, location 1/1, time 0/1 | success at 18:01:54 |
+| USA1 | itr_e1_s1_w1_t1 | allstops 1/1 | success at 13:53:31 |
+| USA1 | morningmaryland | allstops 1/1, location 0/2 | success at 08:31:54 |
+| USA1 | necorridortutorial | allstops 1/1, location 21/36, passengers 0/1, speed 1/7, time 5/6 | success at 10:21:07 |
+| USA1 | rdngyllw | allstops 1/1, time 0/1 | success at 15:13:00 |
+| USA1 | shortpr | allstops 1/1, time 1/1 | success at 11:17:03 |
+| USA1 | smmrex | allstops 1/1, time 1/1 | success at 14:03:21 |
+| USA1 | tnrescue | allstops 0/1, location 0/1, pickup 0/1 | no end |
+| USA2 | autotrnsetout | dropoff 0/1, location 1/2 | failure at 10:09:28 |
+| USA2 | dawnoil | assemble 1/1, location 4/5, time 0/1 | success at 07:23:22 |
+| USA2 | evegrain | location 1/3 | no end |
+| USA2 | freighttutorial | assemble-at 0/1, location 15/19, pickup 0/1, time 7/9 | failure at 10:03:59 |
+| USA2 | hotbox | dropoff 0/1, location 4/6, time 0/2 | failure at 17:01:39 |
+| USA2 | itr_e1_s1_w1_t1 | allstops 0/1 | no end |
+| USA2 | local_cutbank | dropoff 0/2, location 0/4, pickup 0/1 | no end |
+| USA2 | local_one | dropoff 0/1, location 1/2 | no end |
+| USA2 | local_two | dropoff 0/1, location 0/1, pickup 0/1 | no end |
+| USA2 | mainduty | dropoff 0/1, location 1/1 | no end |
+| USA2 | mornimod | assemble-at 0/1 | no end |
+| USA2 | nnmxdgds | dropoff 0/1, location 1/2 | no end |
+| USA2 | whitefishydsw | assemble-at 0/1, dropoff 0/7, location 0/1 | no end |
+| USA2 | whitpull | dropoff 0/1, time 1/1 | no end |
+| USA2 | yard_one | dropoff 0/1, pickup 0/2 | no end |
+| USA2 | yard_two | dropoff 0/1, pickup 0/3 | no end |
+| BNSF_SCENIC | 1_WhatGoesUp | allstops 0/1, location 1/1 | success at 13:26:49 |
+| BNSF_SCENIC | 2_MustComeDown | allstops 0/1, location 1/1 | success at 23:12:54 |
+| BNSF_SCENIC | 3_CanadianImports | allstops 0/1, location 0/2 | no end |
+| BNSF_SCENIC | 4_lumberrun | dropoff 0/3, location 0/1, pickup 0/5, time 1/1 | no end |
+| BNSF_SCENIC | 5_wb_empirebuilder | allstops 1/1 | success at 09:38:00 |

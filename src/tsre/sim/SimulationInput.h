@@ -244,8 +244,12 @@ struct SimulationInput {
     std::shared_ptr<const TrackNetwork> network;
     std::vector<TrainPlan> trains;
     std::vector<StaticConsist> staticConsists;
-    // The activity's events, in its order (task 06).
+    // The activity's events, in its order (task 06), and where the player's
+    // train stops at its stop-here events: nowhere, along the platforms of
+    // its station stops only (the stop moved there), or everywhere.
     std::vector<EventPlan> events;
+    enum class EventStops { None, Platforms, All };
+    EventStops eventStops = EventStops::All;
     // Trains not made, and why.
     QStringList warnings;
 
