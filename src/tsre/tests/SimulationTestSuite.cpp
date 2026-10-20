@@ -2147,12 +2147,13 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         timer.restart();
         auto input = Sim::MakeInput(activity, &database, speedLimit, geometry, network,
                                     content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f);
-        // TSRE_SIM_EVENT_STOPS (none, platforms): where the player's train
-        // stops at stop-here events (task 06's comparisons).
+        // TSRE_SIM_EVENT_STOPS (platforms, all): where the player's train
+        // stops at stop-here events (task 06's comparisons; none by default).
         if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_EVENT_STOPS"))
             std::const_pointer_cast<Sim::SimulationInput>(input)->eventStops
-                    = qEnvironmentVariable("TSRE_SIM_EVENT_STOPS") == "none" ? Sim::SimulationInput::EventStops::None
-                    : Sim::SimulationInput::EventStops::Platforms;
+                    = qEnvironmentVariable("TSRE_SIM_EVENT_STOPS") == "all" ? Sim::SimulationInput::EventStops::All
+                    : qEnvironmentVariable("TSRE_SIM_EVENT_STOPS") == "platforms" ? Sim::SimulationInput::EventStops::Platforms
+                    : Sim::SimulationInput::EventStops::None;
         inputMs += timer.elapsed();
         // Each route part projected onto the network, end to end.
         for (const Sim::TrainPlan &plan : input->trains)

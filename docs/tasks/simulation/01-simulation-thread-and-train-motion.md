@@ -292,7 +292,9 @@ simulation state (`.asv`), stepping backwards other than by replaying.
   sections and applies the section's geometry (`TSectionDAT`).
 - **Placement:** a service's train stands behind its path start, the first
   vehicle across it, moved ahead when the track behind is shorter
-  (`Consist::initOnTrack`, task editor 07).
+  (`Consist::initOnTrack`, task editor 07). Changed 2026-10-21 (task 06, the
+  user's decision): the rear at the path's start, the whole train ahead,
+  as Open Rails places trains.
 
 ## Reference
 
@@ -374,7 +376,10 @@ the largest local routes.
   for the train's length, is found when the input is made, walking back on
   the track database (at a junction met from its points, its main route);
   where the track ends first, the train starts advanced so its rear is 1 m
-  from the end (the placement rule of task editor 07).
+  from the end (the placement rule of task editor 07). Changed 2026-10-21
+  (task 06): the rear at the path's start, the train ahead of it; the
+  lead-in, the train's length, is where it stands back when its first
+  route part is shorter than the train.
 - **A train is its front's distance along its route and its length.** Each
   vehicle's two ends are at fixed offsets behind the front (as `Consist`
   places them now); `RouteCursor` turns a route distance into a node,

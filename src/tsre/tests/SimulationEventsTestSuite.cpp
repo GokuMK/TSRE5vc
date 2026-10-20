@@ -146,9 +146,11 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
         return p;
     };
     const auto inputOf = [&](std::vector<Sim::TrainPlan> trains, std::vector<EventPlan> events,
-                             std::vector<Sim::StaticConsist> consists = {}) {
+                             std::vector<Sim::StaticConsist> consists = {},
+                             Sim::SimulationInput::EventStops stops = Sim::SimulationInput::EventStops::None) {
         auto made = std::make_shared<Sim::SimulationInput>();
         made->startTime = t0;
+        made->eventStops = stops;
         made->geometry = geometry;
         for (size_t i = 0; i < trains.size(); ++i) {
             trains[i].id = int(i);
@@ -243,8 +245,9 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
     }
 
     // Standing: at a station stop within the radius it fires while the
-    // train stands; at the path's end too. The player's train stops at a
-    // stop-here event (decided 2026-10-20) and goes on once it has fired.
+    // train stands; at the path's end too. By default the player's train
+    // passes a stop-here event (decided 2026-10-21); stopping at every one
+    // (an option), it stops there and goes on once it has fired.
     {
         Sim::TrainPlan stopping = player;
         Sim::StopPlan stop;
@@ -255,9 +258,13 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
         stop.boarding = 20;
         stop.platform = "Middle";
         stopping.stops = {stop};
+        const Run passing = runFor(inputOf({stopping}, {placeEvent(10, 600.0f, 10.0f, true)}), 300.0);
+        check(firedAt(passing, 0) < 0.0 && passing.states[0].passedAt > 0.0 && passing.states[0].passedActive,
+              "by default the train passes a stop-here event without stopping: not fired");
         double arrived = -1.0, departed = -1.0, frontThen = -1.0, leftAt = -1.0;
         const Run run = runFor(inputOf({stopping}, {placeEvent(10, 1000.0f, 10.0f, true), placeEvent(10, 600.0f, 10.0f, true),
-                                                    placeEvent(10, 1900.0f, 5.0f, true)}), 300.0,
+                                                    placeEvent(10, 1900.0f, 5.0f, true)}, {},
+                                       Sim::SimulationInput::EventStops::All), 300.0,
                                [&](const Sim::SimulationCore &core) {
                                    const Sim::TrainState &s = core.trains()[0];
                                    if (core.eventStates()[1].firedAt == core.time())
@@ -281,16 +288,18 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
         check(firedAt(run, 2) > departed, "standing at the path's end fires it");
     }
 
-    // A stop-here event activated too late to stop for: passed, not fired.
-    // One along the platform of the next station stop moves the stop there
-    // (the train stands its boarding time); one active from the start but
-    // not along the platform is a stop of its own before the station.
+    // Stopping at every stop-here event (the option): one activated too
+    // late to stop for is passed, not fired; one along the platform of the
+    // next station stop moves the stop there (the train stands its boarding
+    // time); one active from the start but not along the platform is a stop
+    // of its own before the station.
     {
+        const auto all = Sim::SimulationInput::EventStops::All;
         EventPlan late = placeEvent(10, 600.0f, 10.0f, true, 0);
         EventPlan wake = timeEvent(32);
         wake.activate = {0};
         double speedAtWake = -1.0, gap = -1.0;
-        const Run passed = runFor(inputOf({player}, {late, wake}), 200.0, [&](const Sim::SimulationCore &core) {
+        const Run passed = runFor(inputOf({player}, {late, wake}, {}, all), 200.0, [&](const Sim::SimulationCore &core) {
             if (core.eventStates()[1].firedAt == core.time()) {
                 speedAtWake = core.trains()[0].speed;
                 gap = at(600.0f) - core.trains()[0].front;
@@ -308,7 +317,7 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
         stop.platform = "Long";
         stopping.stops = {stop};
         double frontAtArrival = -1.0, standingFrom = -1.0, firstStand = -1.0;
-        const Run moved = runFor(inputOf({stopping}, {placeEvent(10, 1080.0f, 3.0f, true), placeEvent(10, 800.0f, 3.0f, true)}),
+        const Run moved = runFor(inputOf({stopping}, {placeEvent(10, 1080.0f, 3.0f, true), placeEvent(10, 800.0f, 3.0f, true)}, {}, all),
                                  300.0, [&](const Sim::SimulationCore &core) {
                                      const Sim::TrainState &s = core.trains()[0];
                                      if (s.stoppedAt == Sim::StopKind::Station && frontAtArrival < 0.0) {

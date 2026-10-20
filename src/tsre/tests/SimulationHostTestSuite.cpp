@@ -53,8 +53,10 @@
 #include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/Service.h>
 #include <tsre/trains/PathTrack.h>
 #include <tsre/trains/Traffic.h>
+#include <tsre/world/TerrainLib.h>
 
 namespace {
 
@@ -460,6 +462,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "R");
     const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &layout.db);
+    // The editor places consists on the terrain: none here (height 0).
+    TerrainLib terrain;
+    const QScopedValueRollback<TerrainLib *> flat(Game::terrainLib, &terrain);
     const QScopedValueRollback<float> hours(Game::timeOfDayHours, 12.0f);
     const QScopedValueRollback<QString> day(Game::timeOfDayDate, "2026-10-15");
     EngLib engines;
@@ -884,6 +889,36 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
                   && !placeholder->stops[0].kept,
               "an uncalculated timetable (every stop at the train's start): Simulate's times shown as new, none kept");
         Undo::Clear();
+    }
+
+    // Where trains stand at their start (task simulation 06, decided
+    // 2026-10-21): their rear at the path's start, the whole train ahead, as
+    // Open Rails places them; the editor shows the player's train where the
+    // simulation starts it.
+    {
+        QString error;
+        check(simulation->runTo(activity, 8 * 3600 + 1, &error), "a run to a second after the start: " + error);
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 10000, pump);
+        pump();
+        const Sim::TrainPlan &first = simulation->input()->trains[0];
+        MapFeatures shown, simulated;
+        if (Service *service = activity->playerService())
+            service->getMapFeatures(shown, 0, 0);
+        if (Consist *train = simulation->consistOf(simulation->trainOf(true, -1)))
+            train->getMapFeatures(simulated, 0, 0);
+        const bool both = shown.vehicles.size() >= MapFeatures::VehicleFloats && simulated.vehicles.size() >= MapFeatures::VehicleFloats;
+        // The test track's 10 m pieces lie side by side, not end to end: a
+        // place on the track is within one piece of another a metre along it
+        // (the old placement, the first car across the start, is 30 m off).
+        const float apart = both ? std::max(std::fabs(shown.vehicles[0] - simulated.vehicles[0]),
+                                            std::fabs(shown.vehicles[1] - simulated.vehicles[1])) : -1.0f;
+        check(f && first.player && std::fabs(first.startFront - (first.route.pathStart + first.length)) < 1e-6
+                  && both && apart <= 11.0f,
+              QString("the player's train starts with its rear at its path's start; the editor shows it there (%1 m apart "
+                      "on this track after a second)").arg(apart));
+        stop->click();
+        pump();
     }
 
     // Activity events (task simulation 06): a time event, a location event

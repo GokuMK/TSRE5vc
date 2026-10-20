@@ -245,11 +245,13 @@ struct SimulationInput {
     std::vector<TrainPlan> trains;
     std::vector<StaticConsist> staticConsists;
     // The activity's events, in its order (task 06), and where the player's
-    // train stops at its stop-here events: nowhere, along the platforms of
-    // its station stops only (the stop moved there), or everywhere.
+    // train stops at its stop-here events: nowhere (decided 2026-10-21: in
+    // the local content they mostly catch a player's mistakes), along the
+    // platforms of its station stops only (the stop moved there), or
+    // everywhere.
     std::vector<EventPlan> events;
     enum class EventStops { None, Platforms, All };
-    EventStops eventStops = EventStops::All;
+    EventStops eventStops = EventStops::None;
     // Trains not made, and why.
     QStringList warnings;
 

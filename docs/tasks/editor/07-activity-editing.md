@@ -281,7 +281,10 @@ with these details:
   `NextServiceUID`). Make Own Copy... writes the pattern's text into a new
   traffic pattern (`ActivityTrains::CopyPattern`) and points the activity
   at it (`Activity::setTrafficName`); its dialog has its own title.
-- A service's train stands behind its start (the first vehicle across
+- (Changed 2026-10-21, task simulation 06: a service's train now stands
+  with its rear at its path's start, the whole train ahead, as Open Rails
+  places trains; `Consist::initOnTrack` with `rearAtStart`.) Before: a
+  service's train stood behind its start (the first vehicle across
   it). When the track behind the start is shorter than the train, the
   train moves ahead until its rear is 1 m before the track's end
   (`Consist::initOnTrack` with `fitOnTrack`, `Consist::roomBehind`,

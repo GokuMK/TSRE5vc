@@ -608,7 +608,7 @@ TextObj *Consist::typeLabel(int wagonType) {
     return *label;
 }
 
-void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections, bool fitOnTrack){
+void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections, bool rearAtStart){
     if(direction > 0)
         direction = 1;
     
@@ -632,15 +632,9 @@ void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junction
     float conLen = 0;
     if(engItems.size() > 0)
         conLen = engItems[0].pos;
-    float advance = 0;
-    if(fitOnTrack && conLength > conLen){
-        const float behind = conLength - conLen + 1.0f;
-        const float room = roomBehind(tpos, direction, junctionDirections, behind);
-        if(room < behind){
-            advance = behind - room;
-            qDebug() << "coninit advance" << advance;
-        }
-    }
+    // A service's train: the first vehicle's middle its length less half
+    // of it ahead, the rear at the position.
+    const float advance = rearAtStart ? std::max(0.0f, conLength - conLen) : 0.0f;
     // Each vehicle moved to its place in one go: none passes the track's
     // end on the way (a traveller turns back there).
     for(int i = 0; i < engItems.size(); i++){

@@ -569,18 +569,17 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
             plan.efficiency = definition->efficiency.last();
         plan.startTime = player ? input->startTime : train.time;
 
-        // The train stands behind the path's start, its first vehicle across
-        // it; moved ahead when the track behind ends first.
-        const float firstHalf = plan.vehicles.front().length * 0.5f;
-        plan.route = BuildRoute(tdb, path->nodes(), path->legs(), double(plan.length - firstHalf) + 1.0);
+        // The train stands with its rear at the path's start, the whole train
+        // ahead of it, as Open Rails places trains (Simulator.Initialize-
+        // PlayerTrain, AI.cs; task 06). The track behind, the train's length,
+        // is its route's lead-in: where its first part is shorter than the
+        // train, it stands back on it.
+        plan.route = BuildRoute(tdb, path->nodes(), path->legs(), double(plan.length) + 1.0);
         if (plan.route.parts.empty() || plan.route.parts.front().length() <= 0.0) {
             input->warnings << QString("%1: its path has no track").arg(name);
             continue;
         }
-        plan.startFront = plan.route.pathStart + firstHalf;
-        if (plan.route.leadInEnded)
-            plan.startFront = std::max(plan.startFront, double(plan.length) + 1.0);
-        plan.startFront = std::min(plan.startFront, plan.route.parts.front().length());
+        plan.startFront = std::min(plan.route.pathStart + plan.length, plan.route.parts.front().length());
 
         // Station stops: the timetable's, each at its pass of the platform.
         const ActivityTimetable *timetable = train.timetable;
