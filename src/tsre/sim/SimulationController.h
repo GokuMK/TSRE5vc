@@ -215,9 +215,13 @@ private:
     std::vector<Message> messages;
     QElapsedTimer messageClock;
     unsigned long long messageChanges = 0;
-    // The events' states recorded last (EventResultStore), by run.
+    // The events' states recorded last (EventResultStore), by run, and the
+    // time then; recorded again when they change, and when the run pauses or
+    // stops (the reasons read where the trains are then).
     unsigned int recordedRun = 0;
     unsigned long long recordedSerial = 0;
+    double recordedTime = -1.0;
+    void recordEvents();
     // The world's date at start, and the simulation's time it shows (kept
     // while a run as fast as possible goes on).
     QString startDate;

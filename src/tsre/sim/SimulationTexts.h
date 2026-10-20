@@ -15,5 +15,8 @@ QString TrainName(const SimulationInput &in, int train);
 QString HolderName(const SimulationInput &in, int holder);
 QString SignalName(const SimulationInput &in, int signal);
 QString WaitText(const SimulationInput &in, WaitFor waitFor, int signal, int holder);
+// Why the input's event `event` did not fire in a run (task 06, section
+// 7), from its state where the run ended and the activity's end.
+QString WhyNotFired(const SimulationInput &in, int event, const EventState &state, ActivityEnd end, double endedAt);
 
 }

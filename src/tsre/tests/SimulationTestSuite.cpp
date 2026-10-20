@@ -19,6 +19,7 @@
 #include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SignalScript.h>
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/SimulationTexts.h>
 #include <tsre/sim/TimetableCalculation.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
@@ -2339,6 +2340,13 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                           .arg(QTime(0, 0).addSecs(int(core.activityEndedAt()) % 86400).toString("HH:mm:ss"));
             qInfo().noquote() << "[tests:simulation-route] events:" << activity->name << "|" << parts.join(", ") << "|"
                               << ending;
+            // Verbose: each event not fired and why (task 06, section 7).
+            if (verbose)
+                for (size_t e = 0; e < input->events.size(); ++e)
+                    if (core.eventStates()[e].fired == 0)
+                        qInfo().noquote() << "[tests:simulation-route]   not fired:" << input->events[e].name << "|"
+                                          << Sim::WhyNotFired(*input, int(e), core.eventStates()[e], end,
+                                                              core.activityEndedAt());
         }
         for (size_t t = 0; t < core.trains().size(); ++t) {
             const Sim::TrainState &state = core.trains()[t];

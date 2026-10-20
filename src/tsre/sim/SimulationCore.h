@@ -101,6 +101,17 @@ struct EventState {
     double firedAt = -1.0;
     int firedBy = -1;
     bool standIn = false;
+    // Why one did not fire (task 06, section 7): when it was first active
+    // (-1 never); a location event: when the train it looks at first came
+    // within its radius without firing it (-1 never), and whether it was
+    // active then; ReachSpeed: the highest speed the player's train reached
+    // while it was active (m/s); AssembleTrainAtLocation: the player's train
+    // had an end in the siding while it was active.
+    double activeSince = -1.0;
+    double passedAt = -1.0;
+    bool passedActive = false;
+    float bestSpeed = 0.0f;
+    bool reachedSiding = false;
 };
 
 // How the activity ended: not yet, successfully, or not.
@@ -422,6 +433,17 @@ private:
     // restarted.
     void checkEvents();
     bool holds(int event, int *by, bool *standIn) const;
+    // A train on the track (an AI train gone at its path's end is not).
+    bool onTrack(int train) const;
+    // The train a location event looks at now (its triggering train once
+    // started, else the player's), -1 none; whether that is the player's
+    // standing in.
+    int lookedAt(const EventPlan &plan, bool *standIn) const;
+    // That train's front within the event's radius in this step: at any
+    // moment, or standing (brought to rest, or standing at its end).
+    bool near(int event, int train, bool standing) const;
+    // What the events not fired met in this step (EventState's why fields).
+    void noteMisses();
     // The event can still fire: active, not fired (or reversible and
     // enabled again), the activity not ended.
     bool wanted(int event) const;

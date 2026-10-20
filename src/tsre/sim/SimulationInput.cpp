@@ -236,10 +236,43 @@ std::vector<EventPlan> Events(Activity *activity, TDB *tdb, const SimulationInpu
                 if (!seen)
                     plan.places.push_back(place);
             }
+            if (plan.places.empty()) {
+                QVector<TDB::IntersectionPoint> further;
+                tdb->findNearestPositionsOnTDB(posT, pos, further, 50.0f, false);
+                for (const TDB::IntersectionPoint &point : further)
+                    plan.offTrack = plan.offTrack < 0.0f ? point.distance : std::min(plan.offTrack, point.distance);
+            }
             if (!event->triggeringService.isEmpty()) {
                 plan.trigger = aiTrainOf(input, event->triggeringService, event->triggeringTime);
-                if (plan.trigger < 0)
+                if (plan.trigger < 0) {
+                    plan.triggerMissing = event->triggeringService;
                     warnings << QString("event %1: its triggering train %2 is not in the activity").arg(name, event->triggeringService);
+                }
+            }
+            // The path of the train it looks at: does it pass the places;
+            // else how near its track comes.
+            const TrainPlan *looked = nullptr;
+            for (const TrainPlan &train : input.trains)
+                if (plan.trigger >= 0 ? train.id == plan.trigger : train.player)
+                    looked = &train;
+            const auto onPath = [looked](int node, float distance) {
+                if (looked != nullptr)
+                    for (const RouteTrack &part : looked->route.parts)
+                        for (const RouteInterval &interval : part.intervals())
+                            if (interval.node == node && distance >= std::min(interval.from, interval.to) - 1e-3f
+                                    && distance <= std::max(interval.from, interval.to) + 1e-3f)
+                                return true;
+                return false;
+            };
+            bool passed = false;
+            for (const TrackPlace &place : plan.places)
+                passed = passed || onPath(place.node, place.distance);
+            if (!passed && looked != nullptr) {
+                QVector<TDB::IntersectionPoint> around;
+                tdb->findNearestPositionsOnTDB(posT, pos, around, 30.0f, false);
+                for (const TDB::IntersectionPoint &point : around)
+                    if (onPath(int(point.idx), point.m))
+                        plan.offPath = plan.offPath < 0.0f ? point.distance : std::min(plan.offPath, point.distance);
             }
         }
         for (const ActivityEvent::WagonList &wagon : event->wagonList)

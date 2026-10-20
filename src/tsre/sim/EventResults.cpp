@@ -39,6 +39,12 @@ void EventResultStore::record(Activity *activity, const SimulationInput &input, 
         result.inRun = true;
         result.state = states[e];
         result.by = states[e].firedBy >= 0 ? TrainName(input, states[e].firedBy) : QString();
+        result.why = states[e].fired > 0 ? QString() : WhyNotFired(input, int(e), states[e], end, endedAt);
+        if (const ActivityEvent *event = activity->event[index]) {
+            result.name = event->name;
+            result.completion = states[e].fired > 0 ? event->textToDisplayOnCompletionIfTriggered
+                                                    : event->textToDisplayOnCompletionIfNotTriggered;
+        }
     }
     results.time = time;
     results.complete = complete;

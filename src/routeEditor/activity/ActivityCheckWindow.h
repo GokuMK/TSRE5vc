@@ -7,8 +7,9 @@
 
 class Activity;
 
-// Check Activity's findings for an activity, errors first; choosing one
-// asks for what it names to be shown.
+// Check Activity's findings for an activity, errors first, then what its
+// last simulated run did with its events (task simulation 06); choosing
+// one asks for what it names to be shown.
 class ActivityCheckWindow : public QWidget {
     Q_OBJECT
 public:
@@ -25,4 +26,8 @@ private:
     QVector<ActivityFinding> findings;
     QTreeWidget list;
     QLabel summary;
+    // The last run's findings (EventResultStore): events not fired and why,
+    // fired by the player's train standing in, the activity's end and the
+    // texts MSTS shows then.
+    void appendLastRun();
 };

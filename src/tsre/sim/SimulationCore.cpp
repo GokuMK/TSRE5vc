@@ -200,8 +200,10 @@ void SimulationCore::stepOnce() {
     findDeadlocks(now);
     if (aspectsPending())
         evaluateAspects();
-    if (!prerunning)
+    if (!prerunning) {
         checkEvents();
+        noteMisses();
+    }
 }
 
 std::vector<TrainEvent> SimulationCore::takeEvents() {
@@ -2162,15 +2164,108 @@ bool SimulationCore::inSiding(const EventPlan &plan, const StaticConsist &consis
     return false;
 }
 
+bool SimulationCore::onTrack(int train) const {
+    return train >= 0 && size_t(train) < states.size() && states[size_t(train)].status != TrainStatus::Waiting
+            && states[size_t(train)].status != TrainStatus::Finished;
+}
+
+int SimulationCore::lookedAt(const EventPlan &plan, bool *standIn) const {
+    // The triggering train once it has started (gone at its path's end it
+    // fires nothing); before, the player's train (Open Rails).
+    *standIn = false;
+    if (plan.trigger >= 0 && size_t(plan.trigger) < states.size()) {
+        if (states[size_t(plan.trigger)].status != TrainStatus::Waiting)
+            return plan.trigger;
+        *standIn = true;
+    }
+    return playerTrain;
+}
+
+bool SimulationCore::near(int event, int train, bool standing) const {
+    const EventPlan &plan = in->events[size_t(event)];
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    const double r = plan.radius;
+    const auto first = std::lower_bound(rt.spots.begin(), rt.spots.end(), event,
+                                        [](const Runtime::Spot &spot, int e) { return spot.event < e; });
+    for (auto it = first; it != rt.spots.end() && it->event == event; ++it) {
+        const Runtime::Spot &spot = *it;
+        if (standing) {
+            // Standing within the radius now, or brought to rest there in
+            // this step.
+            if (s.part == spot.part && std::fabs(s.speed) <= StandingSpeed && std::fabs(s.front - spot.at) < r)
+                return true;
+            for (const Runtime::Covered &rest : rt.rests)
+                if (rest.part == spot.part && std::fabs(rest.to - spot.at) < r)
+                    return true;
+        } else {
+            // The front within the radius at any moment of the step.
+            if (s.part == spot.part && std::fabs(s.front - spot.at) < r)
+                return true;
+            for (const Runtime::Covered &c : rt.swept)
+                if (c.part == spot.part && std::min(c.from, c.to) < spot.at + r && std::max(c.from, c.to) > spot.at - r)
+                    return true;
+        }
+    }
+    return false;
+}
+
+void SimulationCore::noteMisses() {
+    if (ended != ActivityEnd::None)
+        return;
+    for (size_t e = 0; e < in->events.size(); ++e) {
+        EventState &state = eventState[e];
+        if (state.fired > 0)
+            continue;
+        const EventPlan &plan = in->events[e];
+        const bool active = state.level > 0;
+        if (active && state.activeSince < 0.0) {
+            state.activeSince = now;
+            ++eventChanges;
+        }
+        switch (plan.kind) {
+        case EventPlan::Location: {
+            // Passed: first while not active, or while active (stop-here
+            // events passed without standing).
+            if (state.passedAt >= 0.0 && (state.passedActive || !active))
+                break;
+            bool standIn = false;
+            const int train = lookedAt(plan, &standIn);
+            if (onTrack(train) && near(int(e), train, false)) {
+                state.passedAt = now;
+                state.passedActive = active;
+                ++eventChanges;
+            }
+            break;
+        }
+        case EventPlan::ReachSpeed:
+            if (active && onTrack(playerTrain)) {
+                const float speed = std::fabs(states[size_t(playerTrain)].speed);
+                if (speed > state.bestSpeed) {
+                    // Told by whole m/s: not every step.
+                    if (int(speed) != int(state.bestSpeed))
+                        ++eventChanges;
+                    state.bestSpeed = speed;
+                }
+            }
+            break;
+        case EventPlan::AssembleTrainAtLocation:
+            if (active && !state.reachedSiding && onTrack(playerTrain) && inSiding(plan, playerTrain)) {
+                state.reachedSiding = true;
+                ++eventChanges;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+}
+
 bool SimulationCore::holds(int event, int *by, bool *standIn) const {
     const EventPlan &plan = in->events[size_t(event)];
     *by = -1;
     *standIn = false;
-    // A train on the track (an AI train gone at its path's end is not).
-    const auto onTrack = [this](int train) {
-        return train >= 0 && states[size_t(train)].status != TrainStatus::Waiting
-                && states[size_t(train)].status != TrainStatus::Finished;
-    };
+    const auto onTrack = [this](int train) { return this->onTrack(train); };
     // Exactly the listed cars, in order or reversed; all the listed cars,
     // others besides.
     const auto exactly = [&plan](const std::vector<unsigned int> &cars) {
@@ -2201,44 +2296,13 @@ bool SimulationCore::holds(int event, int *by, bool *standIn) const {
         // Whole seconds since the start, as Open Rails counts them.
         return std::floor(now + 1e-6) - in->startTime >= plan.time;
     case EventPlan::Location: {
-        // The triggering train once it has started (gone at its path's end
-        // it fires nothing); before, the player's train (Open Rails).
-        int train = plan.trigger;
-        if (train >= 0 && states[size_t(train)].status == TrainStatus::Waiting) {
-            train = playerTrain;
-            *standIn = true;
-        } else if (train < 0) {
-            train = playerTrain;
-        }
-        if (!onTrack(train))
+        bool stand = false;
+        const int train = lookedAt(plan, &stand);
+        if (!onTrack(train) || !near(event, train, plan.onStop))
             return false;
-        const TrainState &s = states[size_t(train)];
-        const Runtime &rt = runtime[size_t(train)];
-        const double r = plan.radius;
-        const auto first = std::lower_bound(rt.spots.begin(), rt.spots.end(), event,
-                                            [](const Runtime::Spot &spot, int e) { return spot.event < e; });
-        for (auto it = first; it != rt.spots.end() && it->event == event; ++it) {
-            const Runtime::Spot &spot = *it;
-            bool near = false;
-            if (plan.onStop) {
-                // Standing within the radius now, or brought to rest there in
-                // this step.
-                near = s.part == spot.part && std::fabs(s.speed) <= StandingSpeed && std::fabs(s.front - spot.at) < r;
-                for (const Runtime::Covered &rest : rt.rests)
-                    near = near || (rest.part == spot.part && std::fabs(rest.to - spot.at) < r);
-            } else {
-                // The front within the radius at any moment of the step.
-                near = s.part == spot.part && std::fabs(s.front - spot.at) < r;
-                for (const Runtime::Covered &c : rt.swept)
-                    near = near || (c.part == spot.part && std::min(c.from, c.to) < spot.at + r
-                                    && std::max(c.from, c.to) > spot.at - r);
-            }
-            if (near) {
-                *by = train;
-                return true;
-            }
-        }
-        return false;
+        *by = train;
+        *standIn = stand;
+        return true;
     }
     case EventPlan::AllStops: {
         // The player's last station stop done: it has left it (or passed

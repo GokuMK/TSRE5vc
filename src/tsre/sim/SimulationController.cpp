@@ -269,6 +269,9 @@ void SimulationController::stop() {
     if (WorldClock::instance()->source() == this)
         WorldClock::instance()->setSource(nullptr);
     SignalLights::setStateSource(nullptr);
+    // The events as the run left them (task 06).
+    if (recordedTime != (latest != nullptr ? latest->time : -1.0))
+        recordEvents();
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
     QThread *owner = QThread::currentThread();
@@ -364,15 +367,11 @@ void SimulationController::poll() {
     // The activity's events as the run has them (task 06), for the Event
     // window and the map; the time alone when they have not changed.
     if (latest->eventStates != nullptr) {
-        EventResultStore *results = EventResultStore::instance();
-        if (recordedRun != in->runId || recordedSerial != latest->eventSerial) {
-            recordedRun = in->runId;
-            recordedSerial = latest->eventSerial;
-            results->record(current, *in, *latest->eventStates, latest->activityEnd, latest->activityEndedAt,
-                            latest->time, latest->finished);
-        } else {
-            results->advance(current, latest->time, latest->finished);
-        }
+        if (recordedRun != in->runId || recordedSerial != latest->eventSerial
+                || (latest->mode == RunMode::Paused && recordedTime != latest->time))
+            recordEvents();
+        else
+            EventResultStore::instance()->advance(current, latest->time, latest->finished);
     }
     // A run to a time the host had passed when it took the command (running
     // as fast as possible, a day can go by while the command waits): from
@@ -635,6 +634,16 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     }
     }
     return QString();
+}
+
+void SimulationController::recordEvents() {
+    if (in == nullptr || latest == nullptr || latest->eventStates == nullptr || latest->runId != in->runId)
+        return;
+    recordedRun = in->runId;
+    recordedSerial = latest->eventSerial;
+    recordedTime = latest->time;
+    EventResultStore::instance()->record(current, *in, *latest->eventStates, latest->activityEnd,
+                                         latest->activityEndedAt, latest->time, latest->finished);
 }
 
 QString SimulationController::messageOf(int event) const {

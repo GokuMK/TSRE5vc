@@ -1,6 +1,7 @@
 # Task 06 - Activity Events
 
-Status: phases 1 to 3 done 2026-10-20 (branch `feature/simulation`).
+Status: phases 1 to 4 done 2026-10-21 (branch `feature/simulation`); phase
+5 and one decision open (end of the doc).
 Decisions taken are at the end.
 
 Sources:
@@ -106,6 +107,38 @@ Sources:
   train) shows the tutorial's chain fired along the route with times, the
   station-stop message beside the train, events passed but not fired red
   ("Tunnel", "F4": phase 4 tells why).
+
+**Phase 4, why not fired and Check Activity (done 2026-10-21).**
+- The core notes for each event not fired: when it was first active,
+  when the train it looks at first came within its radius without firing
+  it (and whether it was active then), ReachSpeed's best speed,
+  AssembleTrainAtLocation's siding reached. The input keeps a location
+  point's distance from the track when it has no places, and from the
+  path of the train it looks at when that path does not pass them.
+- `WhyNotFired` (SimulationTexts) gives the reason (section 7); the
+  Event window's tooltips show it, Check Activity a "Last run" part: the
+  run (to where, the activity's end), each event not fired and why, those
+  fired by the player's train standing in, and at the end the texts MSTS
+  shows (`TextToDisplayOnCompletionIfTriggered` or `IfNotTriggered`). The
+  controller records the results again when a run pauses or stops, so the
+  reasons read where the trains are then. The route suite prints them
+  with `--test-verbose`.
+- Checks: 2 in simulation-events (passed before active, never active,
+  best speed, siding reached), 2 in simulation-ui (tooltips, Check
+  Activity's last run).
+- The local content (7 routes, 65 activities): 175 events not fired. 45
+  wagon events (shunting, task 07); 30 location events on the other track
+  of a double line, 4.4 to 10.3 m from the player's path (sctutorial 7,
+  necorridortutorial 12, oetutorial 3, and in winterun, aftstrm,
+  tokyohakonetutorial, tnrescue, evegrain): Open Rails looks for the
+  point within 2.5 m of the track the train is on, so it never fires them;
+  23 of them lie within their radius of the path (decision 4 below); 24
+  never active; 20 time events after the run's end; 15 not reached (the
+  player's train stuck or its run ended first); 11 PickUpPassengers; 9
+  passed before they were active; 6 AllStops with the last stop not left;
+  5 off the path; 4 ReachSpeed not reached (a tutorial asking 219 km/h of
+  a 158 km/h train); 4 AllStops without stops; 2 passed, active too late
+  to stop.
 
 ## Why
 
@@ -390,3 +423,17 @@ on every run. 0.01 s steps for driven trains come with the driving tasks.
   designed yet. On the map an event's message shows beside the train that
   fired it, hiding after some time.
 - The player's work orders (task 07): TSRE's full autopilot.
+
+## Open decision (for the user)
+
+4. **Location events on the other track of a double line.** Open Rails
+   fires a location event only where its point lies within 2.5 m of the
+   track the train runs on; 30 local events (MSTS's own tutorials among
+   them, which worked in MSTS) lie 4.4 to 10.3 m away, on the adjacent
+   track, 23 of them within their radius of the train's path. MSTS's own
+   rule is not traced; its tutorials suggest the distance from the point.
+   Options: as Open Rails (now: they never fire, Check Activity says the
+   point is on another track); as the distance from the point (they fire
+   as presumably in MSTS, not in Open Rails); or as Open Rails with
+   Check Activity also saying that MSTS fires them. To be confirmed in
+   Open Rails in phase 5 (sctutorial's "Tunnel").

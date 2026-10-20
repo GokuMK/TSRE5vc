@@ -187,9 +187,18 @@ struct EventPlan {
     std::vector<TrackPlace> places;
     float radius = 0.0f;
     bool onStop = false;
+    // Without places: how far its point is from the nearest track (m; -1
+    // more than 50 m). When the path of the train it looks at does not pass
+    // its places: how far the point is from that path's track (m; -1 more
+    // than 30 m), as on the other track of a double line.
+    float offTrack = -1.0f;
+    float offPath = -1.0f;
     // Location: the train looked at, an AI train of the input, until it
-    // starts the player's train (Open Rails); -1 the player's.
+    // starts the player's train (Open Rails); -1 the player's. A triggering
+    // train named but not in the activity (the player's train is looked at,
+    // as Open Rails does).
     int trigger = -1;
+    QString triggerMissing;
     // ReachSpeed: m/s.
     float speed = 0.0f;
     // Wagon events: the listed cars (Vehicle::id), and the siding: a node

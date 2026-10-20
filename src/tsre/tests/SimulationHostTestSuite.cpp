@@ -27,6 +27,7 @@
 #include <routeEditor/ActivityTools.h>
 #include <routeEditor/activity/ActivityEdit.h>
 #include <routeEditor/activity/ActivityEventProperties.h>
+#include <routeEditor/activity/ActivityCheckWindow.h>
 #include <routeEditor/activity/ActivityEventWindow.h>
 #include <routeEditor/activity/ActivityTimetableProperties.h>
 #include <routeEditor/activity/ActivityTimetableWindow.h>
@@ -933,6 +934,23 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         check(simulation->chosen() == simulation->trainOf(true, -1) && listed.join("\n").contains("Passing the marker")
                   && listed.join("\n").contains("Thirty seconds in"),
               "the Timetable window lists the activity's events with the player's train: " + listed.filter("event").join(" | "));
+        // Why the others did not fire (section 7), in the tooltip and in
+        // Check Activity's last run.
+        check(elsewhereRow != nullptr && elsewhereRow->toolTip().contains("does not pass its point")
+                  && rowOf("eventTimeList", "Sleeping") != nullptr
+                  && rowOf("eventTimeList", "Sleeping")->toolTip().contains("Never active"),
+              QString("why not fired: \"%1\"").arg(elsewhereRow != nullptr ? elsewhereRow->toolTip() : QString("-")));
+        {
+            ActivityCheckWindow checker(nullptr);
+            checker.check(activity);
+            QTreeWidget *found = checker.findChild<QTreeWidget *>();
+            QStringList run;
+            for (int i = 0; found != nullptr && i < found->topLevelItemCount(); ++i)
+                if (found->topLevelItem(i)->text(0) == "Last run")
+                    run << found->topLevelItem(i)->text(1);
+            check(run.size() == 3 && run.filter("did not fire").size() == 2 && run.filter("up to 08:03:00").size() == 1,
+                  "Check Activity's last run: the run up to 08:03, the two events not fired: " + run.join(" | "));
+        }
         std::vector<MapLabel> labels;
         simulation->messageLabels(labels);
         check(labels.size() == 1 && labels[0].text.contains("Marker") && labels[0].kind == MapLabelKind::Event,

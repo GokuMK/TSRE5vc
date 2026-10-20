@@ -550,11 +550,41 @@ int TsreTests::runSimulationEventsSuite(bool verbose) {
         check(std::fabs(other.second - other.first - 600.0) < 0.21 && restarted == 0, "a waiting point of another value is left alone");
     }
 
+    // Why events did not fire (section 7): a location event passed before
+    // it was active (activated at 60 s); one never active; ReachSpeed
+    // above the train's top speed (its best kept); AssembleTrainAtLocation
+    // with the siding reached but other cars.
+    {
+        EventPlan passed = placeEvent(10, 600.0f, 10.0f, false, 0);
+        EventPlan wake = timeEvent(60);
+        wake.activate = {0};
+        EventPlan faster;
+        faster.kind = EventPlan::ReachSpeed;
+        faster.activation = 1;
+        faster.speed = 25.0f;
+        EventPlan other = carsEvent(EventPlan::AssembleTrainAtLocation, {5, 99});
+        other.siding = true;
+        other.sidingNode = 10;
+        other.sidingFrom = 1850.0f;
+        other.sidingTo = 1950.0f;
+        const Run run = runFor(inputOf({player}, {passed, wake, faster, other, timeEvent(0, 0)}), 300.0);
+        const Sim::EventState &p = run.states[0];
+        check(p.fired == 0 && p.passedAt > t0 && p.passedAt < t0 + 60.0 && !p.passedActive
+                  && std::fabs(p.activeSince - (t0 + 60.0)) < 1e-6,
+              QString("passed at %1 s before it was active (from %2 s)").arg(p.passedAt - t0).arg(p.activeSince - t0));
+        check(run.states[4].activeSince < 0.0 && run.states[2].fired == 0 && std::fabs(run.states[2].bestSpeed - 20.0f) < 0.01f
+                  && run.states[3].fired == 0 && run.states[3].reachedSiding,
+              QString("never active; the best speed %1 m/s of 25 asked; the siding reached with other cars")
+                  .arg(run.states[2].bestSpeed));
+    }
+
     // Frames share the events' states while they do not change.
     {
+        // The first step notes it active.
         Sim::SimulationCore core(inputOf({player}, {timeEvent(1)}));
+        core.step(0.1);
         auto first = Sim::MakeFrame(core);
-        core.step(0.5);
+        core.step(0.4);
         auto same = Sim::MakeFrame(core, first.get());
         core.step(1.0);
         auto fired = Sim::MakeFrame(core, same.get());

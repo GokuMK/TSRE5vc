@@ -17,6 +17,12 @@ struct EventResult {
     // looked at when it fired, by name ("" none).
     EventState state;
     QString by;
+    // Not fired: why (WhyNotFired); its name and the texts MSTS shows at
+    // the activity's end (TextToDisplayOnCompletionIfTriggered and
+    // IfNotTriggered: the one for how it went), for Check Activity.
+    QString why;
+    QString name;
+    QString completion;
 };
 
 // What the last run of an activity did with its events: Play's (as it

@@ -206,6 +206,8 @@ void ActivityEventWindow::showResults(){
                 else
                     //% "Not fired in the last run, up to %1."
                     tip = qtTrId("route.editor.activity.event.result.not.fired.yet").arg(timeOfDay(results->time));
+                if(!result->why.isEmpty())
+                    tip += " " + result->why;
             }
             if(!current)
                 //% "The activity was edited since."
