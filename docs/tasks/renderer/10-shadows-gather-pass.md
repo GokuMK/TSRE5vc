@@ -157,3 +157,94 @@ scene casts into them.
 - Shadows near the camera have three times the texel density. On EUROPE1
   and BNSF_SCENIC only shadow edges near the camera change (RMSE up to 3.1,
   at most 1.3% of pixels); views without shadows are unchanged.
+
+## PBR cascade contrast correction (2026-10-20)
+
+Foliage testing in FOREST exposed an inappropriate reuse of the legacy shadow
+contrast in PBR. `PbrShading.glsl` requests visibility with
+`shadowedVisibility(1.0)`, but the near/middle filter subtracted 16 × 0.1 times
+the occluded fraction, while the far filter subtracted 2 × 0.4. Thus 50%
+occlusion produced 20% sunlight in the first two maps and 60% in the far map;
+62.5% occlusion already clipped the PBR near/middle result to black.
+
+`ShadowSampling.glsl` now uses 1/16 and 1/2 under `TSRE_PBR`, making all three
+filters return average comparison visibility. Standard legacy materials and
+water retain their existing contrast. No map extent, resolution, bias,
+foliage colour, or shader's diffuse-transmission amount was changed.
+
+Diagnostic setup: software QRhi OpenGL, 2048 primary / 1024 distant maps,
+calibrated silver birch in FOREST. Test a fixed near mesh at 40–400 m with
+FOV adjusted to retain its apparent size; separately force near/middle/far
+selection at identical eye-level and elevated cameras inside all maps.
+The latter isolates map resolution from camera, haze and mesh LOD changes.
+Forced near/middle comparisons also used the cluster mesh.
+
+The corrected shader compiled and captured six settled distance views through
+QRhi OpenGL and two settled fixed-camera views through native OpenGL, both on
+Mesa llvmpipe. These validate shader execution, not hardware performance.
+
+The local captures show modest cascade differences, not the user's complete
+tree blackout; the far map was lighter in the fixed near-mesh comparison.
+Normalized filtering improves partial shadows but is not acceptance of the
+reported problem as fully solved. The exact failing backend, map sizes, view
+and mesh level still need comparison. At the tested sizes, world texels are
+about 0.078 / 0.293 / 1.367 m; small foliage gaps cannot survive equally in
+all maps. Cascade blending, foliage shadow representation and receiver bias
+remain separate investigations. A light-facing receiver-normal experiment
+was captured privately but is not included in this correction.
+
+Harness note: startup resets the working directory to the executable's
+directory and strips `/build`. To test isolated shader copies, launch through
+an executable symlink in a temporary directory without `/build`, with its own
+`appdata/0.7/shaders330`. Verify the process working directory; merely setting
+the shell's directory otherwise silently tests the original shaders.
+
+## Exact FOREST cameras and receiver orientation (2026-10-20)
+
+The subsequent user pair reproduces two simultaneous transitions:
+
+| Startup camera | Birch mesh | Shadow map on the crown |
+|---|---|---|
+| `97,-118,-66.79,36.10,24.57,188.30,-20.23` | LOD1 | Near |
+| `97,-118,-61.91,48.55,-8.86,188.30,-20.23` | LOD2 clusters | Mostly middle |
+
+At FOV 55 and LOD bias zero, the birch's coverage is about 0.224 and 0.151,
+straddling its LOD1 threshold of 0.1667. Diagnostic fragment colours confirm
+the map change. Holding LOD1 at the second camera retains the fine foliage;
+forcing LOD2 at the first camera already produces the dense cluster appearance.
+Forcing the middle map at the first camera with native LOD1 does not reproduce
+that representation change. Disabling shadows brightens LOD2 substantially;
+doubling primary resolution to 4096 does not remove its dark appearance.
+
+A separate receiver-bias defect contributes: `StandardFog.vs` previously
+offset a surface away from the sun when its vertex normal faced away from it.
+For thin foliage, that can place the shadow lookup behind its own caster.
+The middle map's larger world-space offset amplifies the error. Under
+`TSRE_PBR`, orient the normal toward `shadowLightDirection` before calculating
+the existing sine-scaled receiver displacement. This does not change the
+lighting normal, normal maps, displacement magnitude policy, depth bias,
+legacy materials or shadow casters. The exact failing view improves; the
+near view changes very little. This is a bounded bias correction, not a
+general solution for LOD2's overlapping cluster silhouettes.
+
+Reproduce with `tests/renderer/forest-birch-cascades.json`, the FOREST route
+and generated runtime tree assets. Use primary 2048 / distant 1024, frozen
+noon sun and FOV 55; `TSRE_SHAPE_LEVEL=1` or `2` isolates mesh changes.
+The cases use internal tile Z/camera Z and radians, converted from the
+startup strings above. Captures of both cameras passed settling and shader
+compilation on software QRhi OpenGL and native OpenGL. These are visual
+checks, not performance measurements or full PBR route regression coverage.
+
+Remaining work: review LOD2 cluster coverage, normals and shadow representation
+together, and validate other sun angles/materials before treating brightness
+across LODs as matched. Cascade blending alone cannot hide a simultaneous mesh
+representation change.
+
+Vulkan follow-up: the user clarified that acceptance must always use QRhi
+Vulkan, the default API; the OpenGL backends are incomplete implementations.
+Both exact camera cases were subsequently captured successfully with
+`core.rendering.backend=qrhi`, `core.rendering.rhiApi=vulkan` and the software
+Vulkan ICD (`/usr/share/vulkan/icd.d/lvp_icd.json` on this machine). The capture
+record identifies `QRhi Vulkan: llvmpipe (LLVM 23.1.1, 256 bits)` and both views
+settled after eight frames. Keep future vegetation checks on Vulkan; earlier
+OpenGL captures remain diagnostic evidence only.

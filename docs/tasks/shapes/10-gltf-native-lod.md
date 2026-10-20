@@ -18,8 +18,11 @@ Both asset layouts are supplied; this task covers engine work only.
 3. Read root extras.MSFT_screencoverage for either layout, without requiring
    MSFT_lod on external files. Establish the coverage metric and map it to the
    native selector, accounting for viewport/FOV, bounds and instance scale.
-   Fixture values [0.2,0.05,0.001] are provisional OR defaults/example values,
-   not converted generator projected-height thresholds. Tune after captures.
+   Fixtures now use [480/1080,180/1080,65/1080] (approximately
+   [0.444444,0.166667,0.060185]), meaning projected bounding-box height divided
+   by viewport height. The final boundary starts the appended impostor.
+   Convert if the native selector uses a different coverage measure; tune
+   after captures. These replace the earlier provisional OR example values.
 4. Reuse shared meshes, materials and texture resources; choose LOD per instance
    while batching compatible instances. Preserve pivots, transforms and bounds.
    Keep the final mesh end boundary available to a future appended impostor;

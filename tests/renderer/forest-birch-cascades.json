@@ -1,0 +1,66 @@
+{
+  "output": "build/forest-birch-cascades",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    0,
+    0
+  ],
+  "probes": false,
+  "timingFrames": 1,
+  "hideAll": true,
+  "hud": false,
+  "pointer": false,
+  "compass": false,
+  "settle": {
+    "minFrames": 8,
+    "stableFrames": 2,
+    "maxFrames": 30,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "good",
+      "tile": [
+        97,
+        118
+      ],
+      "pos": [
+        -66.79,
+        36.1,
+        -24.57
+      ],
+      "rot": [
+        3.286454981505323,
+        -0.3530801076784529
+      ],
+      "time": 12,
+      "settings": {
+        "core.camera.fieldOfView": 55,
+        "core.rendering.lodBias": 0
+      }
+    },
+    {
+      "name": "bad",
+      "tile": [
+        97,
+        118
+      ],
+      "pos": [
+        -61.91,
+        48.55,
+        8.86
+      ],
+      "rot": [
+        3.286454981505323,
+        -0.3530801076784529
+      ],
+      "time": 12,
+      "settings": {
+        "core.camera.fieldOfView": 55,
+        "core.rendering.lodBias": 0
+      }
+    }
+  ],
+  "shadows": true
+}

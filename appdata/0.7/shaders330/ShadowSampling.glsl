@@ -301,7 +301,17 @@ float lampScale(float enclosed) {
 
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
+#ifdef TSRE_PBR
+    // PBR asks for sun visibility, not the legacy shadow contrast below.
+    // Average the comparison samples: a 50% occluded filter must retain
+    // 50% of the sun. The legacy near/mid sum reaches 1.6 and clips partial
+    // foliage shadows to black; its far sum only reaches 0.8.
+    float shadowIntensity = 1.0/16.0;
+    float farShadowIntensity = 1.0/2.0;
+#else
     float shadowIntensity = 0.1;
+    float farShadowIntensity = 0.4;
+#endif
     // Constant bias of surfaces without normals, scaled per map below.
     float bias = 0.0025;
 
@@ -341,7 +351,7 @@ float shadowedVisibility(float cosTheta) {
                     shadowPos2.z - biasMid + receiverPlaneBias(gradientMid, poissonDisk[i]/shadowMidRes, limitMid)) ));
     } else {
         for (int i = 0; i < 2; i++)
-            visibility -= shadowsEnabled2*(1.0-tMid)*t2*0.4*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, (shadow2Pos2.z-bias2)) ));
+            visibility -= shadowsEnabled2*(1.0-tMid)*t2*farShadowIntensity*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, (shadow2Pos2.z-bias2)) ));
     }
     return visibility;
 }

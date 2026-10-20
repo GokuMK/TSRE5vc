@@ -110,6 +110,13 @@ void main() {
     float shadowNormalLength = length(shadowNormal);
     shadowNormal = shadowNormalLength > 1e-6
             ? shadowNormal/shadowNormalLength*enableNormals : vec3(0.0);
+#ifdef TSRE_PBR
+    // Thin foliage can receive transmitted sunlight on either side. Move
+    // the receiver towards the light-facing side of the surface: an offset
+    // away from the sun creates self-shadowing, worse in coarser cascades.
+    if (dot(shadowNormal, shadowLightDirection) < 0.0)
+        shadowNormal = -shadowNormal;
+#endif
     float sunCos = max(dot(shadowNormal, shadowLightDirection), 0.0);
     vec3 shadowOffset = shadowNormal*sqrt(1.0 - sunCos*sunCos);
     shadowPos = uShadowPMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.y, 0.0));
