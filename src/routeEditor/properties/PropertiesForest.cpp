@@ -56,6 +56,16 @@ PropertiesForest::PropertiesForest() {
         //% "Copy FileName"
         qtTrId("route.editor.properties.forest.button.copy.f"), this);
     vbox->addWidget(copyF);
+    // The route's forest definitions (forests.dat): a texture or a shape,
+    // the trees' size and scale range.
+    QLabel *definitionLabel = new QLabel(
+        //% "Definition:"
+        qtTrId("route.editor.properties.forest.label.definition"));
+    definitionLabel->setContentsMargins(3,0,0,0);
+    vbox->addWidget(definitionLabel);
+    vbox->addWidget(&this->definition);
+    QObject::connect(&definition, QOverload<int>::of(&QComboBox::activated),
+                      this, &PropertiesForest::definitionSelected);
     
     QLabel * label12 = new QLabel(
         //% "Size:"
@@ -260,7 +270,15 @@ void PropertiesForest::showObj(GameObj* obj){
     this->infoLabel->setText(qtTrId("route.properties.forest.object.type")
                              .arg(forestObj->type));
     this->fileName.setText(tobj->treeTexture);
-        
+    {
+        // The definitions as loaded with the route.
+        QSignalBlocker blocked(&definition);
+        definition.clear();
+        for (const ForestObj::ForestList &entry : ForestObj::forestList)
+            definition.addItem(entry.name + " (" + entry.texture + ")");
+        definition.setCurrentIndex(tobj->definitionId());
+    }
+
     this->tX.setText(QString::number(forestObj->x, 10));
     this->tY.setText(QString::number(-forestObj->y, 10));
     this->sizeX.setText(QString::number(tobj->areaX, 'G', 4));
@@ -293,6 +311,14 @@ void PropertiesForest::sizeEnabled(QString val){
     forestObj->set("areaZ", sizeY.text().toFloat());
     forestObj->setModified();
     forestObj->deleteVBO();
+}
+
+void PropertiesForest::definitionSelected(int index){
+    if(forestObj == NULL || index < 0 || index == forestObj->definitionId())
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    forestObj->setDefinition(index);
+    this->fileName.setText(forestObj->treeTexture);
 }
 
 void PropertiesForest::populationEnabled(QString val){

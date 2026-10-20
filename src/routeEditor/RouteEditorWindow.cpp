@@ -135,19 +135,21 @@ public:
     }
 };
 
-// A tool panel (F1-F5) in a scroll area of the tool box's width, so a tall
-// panel scrolls instead of being cut off.
-QScrollArea *scrollPanel(QWidget *panel, QWidget *parent) {
+// A tool panel (F1-F5) or the properties panels in a scroll area, so a tall
+// panel scrolls instead of being cut off: of the tool box's width, or (wide)
+// the panel keeping its width and the area as much wider as its bar.
+QScrollArea *scrollPanel(QWidget *panel, QWidget *parent, int width = 260, bool wide = false) {
     static ThinScrollBars *thin = new ThinScrollBars;
     auto *area = new QScrollArea(parent);
     area->setWidgetResizable(true);
     area->setFrameShape(QFrame::NoFrame);
     area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     area->verticalScrollBar()->setStyle(thin);
-    area->setFixedWidth(260);
+    const int bar = thin->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, area->verticalScrollBar());
+    area->setFixedWidth(wide ? width + bar : width);
     // The panel keeps the width beside the scroll bar, so its rows squeeze
     // into it as they did at a fixed width (wider, they would be cut off).
-    panel->setFixedWidth(260 - thin->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, area->verticalScrollBar()));
+    panel->setFixedWidth(wide ? width : width - bar);
     area->setWidget(panel);
     return area;
 }
@@ -261,7 +263,17 @@ RouteEditorWindow::RouteEditorWindow() {
     
     //mainLayout3->addWidget(terrainTools);
     //mainLayout3->setAlignment(naviBox, Qt::AlignBottom);
-    box2->setLayout(mainLayout3);
+    // The panels scroll, as the tools do.
+    QWidget *propertiesPanel = new QWidget;
+    propertiesPanel->setLayout(mainLayout3);
+    QVBoxLayout *propertiesBox = new QVBoxLayout;
+    propertiesBox->setContentsMargins(0,0,0,0);
+    // The panels keep their 160 pixels, the box widened by the bar.
+    propertiesArea = scrollPanel(propertiesPanel, box2, 160, true);
+    box2->setMinimumWidth(propertiesArea->minimumWidth());
+    box2->setMaximumWidth(propertiesArea->maximumWidth());
+    propertiesBox->addWidget(propertiesArea);
+    box2->setLayout(propertiesBox);
 
     glWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
@@ -1446,6 +1458,7 @@ void RouteEditorWindow::showProperties(GameObj* obj){
             clearPinnedPropertiesSelection();
         }
     }
+    PropertiesAbstract *previous = shownProperties;
     // hide all
     //for (std::vector<PropertiesAbstract*>::iterator it = objProperties.begin(); it != objProperties.end(); ++it) {
     foreach (PropertiesAbstract *it, objProperties){
@@ -1466,6 +1479,9 @@ void RouteEditorWindow::showProperties(GameObj* obj){
         it->showObj(obj);
         shownProperties = it;
         shownPropertiesObj = obj;
+        // Another panel starts at its top; the same one keeps its place.
+        if (it != previous && propertiesArea != nullptr)
+            propertiesArea->verticalScrollBar()->setValue(0);
         return;
     }
 }

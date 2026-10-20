@@ -29,6 +29,7 @@ public slots:
     void densitykmEnabled(QString val);
     void enableCustomDetailLevelEnabled(int val);
     void customDetailLevelEdited(QString val);
+    void definitionSelected(int index);
     
 signals:
     
@@ -38,6 +39,7 @@ private:
     QLineEdit sizeY;
     QLineEdit population;
     QLineEdit densitykm;
+    QComboBox definition;
 };
 
 #endif	/* PROPERTIESFOREST_H */

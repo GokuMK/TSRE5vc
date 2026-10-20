@@ -28,6 +28,10 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/math3d/Vector4f.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeLib.h>
+#include <tsre/shape/ShapeLod.h>
+#include <cmath>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -101,6 +105,37 @@ int ForestObj::GetListIdByTexture(QString texture){
             return i;
     }
     return 0;
+}
+
+int ForestObj::definitionId() const {
+    for (int i = 0; i < forestList.size(); i++)
+        if (forestList[i].texture.compare(treeTexture, Qt::CaseInsensitive) == 0
+                && forestList[i].treeSizeX == treeSizeX && forestList[i].treeSizeZ == treeSizeZ
+                && forestList[i].scaleRangeX == scaleRangeX && forestList[i].scaleRangeZ == scaleRangeZ)
+            return i;
+    // The same texture or shape with other sizes.
+    for (int i = 0; i < forestList.size(); i++)
+        if (forestList[i].texture.compare(treeTexture, Qt::CaseInsensitive) == 0)
+            return i;
+    return -1;
+}
+
+void ForestObj::setDefinition(int id) {
+    if (id < 0 || id >= forestList.size())
+        return;
+    treeTexture = forestList[id].texture;
+    treeSizeX = forestList[id].treeSizeX;
+    treeSizeZ = forestList[id].treeSizeZ;
+    scaleRangeX = forestList[id].scaleRangeX;
+    scaleRangeZ = forestList[id].scaleRangeZ;
+    setModified();
+    deleteVBO();
+}
+
+bool ForestObj::shapeTrees() const {
+    // The name's extension, as written in the forest.
+    const QString suffix = treeTexture.section('.', -1).toLower();
+    return suffix == "s" || suffix == "gltf" || suffix == "glb";
 }
 
 void ForestObj::load(int x, int y) {
@@ -274,9 +309,130 @@ void ForestObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
 
     Mat4::translate(queue.transform(), queue.transform(), position[0], 0, position[2]);
 
+    if (shapeTrees()) {
+        pushRenderTrees(queue, selectionId, posx, posz, playerW);
+        return;
+    }
+
     shape.setMaterial(texturePath);
 
     pushRenderShape(queue, selectionId);
+}
+
+QVector<Vector4f> ForestObj::treePoints(){
+    int seed = (int)(position[0] + position[1] + position[2]);
+    std::srand(seed);
+    float posT[2];
+    posT[0] = x;
+    posT[1] = y;
+    float tposx, tposz;
+
+    QVector<Vector4f> fpoints;
+    float off = ((qDirection[1]+0.00001f)/fabs(qDirection[1]+0.00001f))*(float)-acos(qDirection[3])*2.0;
+    for(int uu = 0; uu < population; uu++){
+        tposx = ((float)((std::rand()%1000))/1000)*areaX-areaX/2.0;
+        tposz = ((float)((std::rand()%1000))/1000)*areaZ-areaZ/2.0;
+        Vector2f uuu(tposx,tposz);
+        uuu.rotate(off, 0);
+        fpoints.push_back(Vector4f(uuu.x+position[0], 0, uuu.y+position[2], 9999));
+    }
+
+    if(ForestClearDistance > 0){
+        float bBox[4];
+        bBox[0] = bBox[2] = 9999;
+        bBox[1] = bBox[3] = -9999;
+        Vector2f v;
+        for(int u = -1; u < 2; u+=2)
+            for(int y = -1; y < 2; y+=2){
+                v.set(areaX*u/2,areaZ*y/2);
+                v.rotate(off, 0);
+                if(v.x < bBox[0])
+                    bBox[0] = v.x;
+                if(v.x > bBox[1])
+                    bBox[1] = v.x;
+                if(v.y < bBox[2])
+                    bBox[2] = v.y;
+                if(v.y > bBox[3])
+                    bBox[3] = v.y;
+            }
+        bBox[0] += position[0];
+        bBox[1] += position[0];
+        bBox[2] += position[2];
+        bBox[3] += position[2];
+
+        if(Game::trackDB != NULL)
+            Game::trackDB->fillNearestSquaredDistanceToTDBXZ(posT, fpoints, bBox, ForestClearDistance);
+        if(Game::roadDB != NULL)
+            Game::roadDB->fillNearestSquaredDistanceToTDBXZ(posT, fpoints, bBox, ForestClearDistance);
+        QVector<Vector4f> kept;
+        for (const Vector4f &point : fpoints)
+            if (point.c >= ForestClearDistance*ForestClearDistance)
+                kept.push_back(point);
+        fpoints = kept;
+    }
+    return fpoints;
+}
+
+void ForestObj::pushRenderTrees(RenderQueue &queue, quint32 selectionId, float posx, float posz, const float *playerW){
+    if (Game::currentShapeLib == NULL)
+        return;
+    // Another shape since the trees were made: load it.
+    if (treeShapeName != treeTexture) {
+        treeShapeName = treeTexture;
+        treeShape = Game::currentShapeLib->addShape(Game::root + "/ROUTES/" + Game::route + "/SHAPES/" + treeTexture);
+        treeStates.clear();
+        init = false;
+    }
+    ComplexShape *treeShapePointer = treeShape >= 0 ? Game::currentShapeLib->shape[treeShape] : NULL;
+    if (treeShapePointer == NULL)
+        return;
+
+    if (!init) {
+        if(!Game::ignoreLoadLimits){
+            if(Game::objectLoadingTokens < 1)  return;
+            Game::objectLoadingTokens-=2;
+        }
+        // Where the 2D trees would stand, then each turned and scaled at
+        // random within the scale range (the shape's own size otherwise).
+        const QVector<Vector4f> points = treePoints();
+        const float scaleLow = scaleRangeX > 0 ? scaleRangeX : 1.0f;
+        const float scaleHigh = scaleRangeZ > 0 ? scaleRangeZ : scaleLow;
+        trees.clear();
+        for (const Vector4f &point : points) {
+            Tree tree;
+            tree.position[0] = point.x - position[0];
+            tree.position[1] = Game::terrainLib->getHeight(x, y, point.x, point.z);
+            tree.position[2] = point.z - position[2];
+            const float yaw = float(std::rand() % 3600) / 3600.0f * 2.0f * float(M_PI);
+            const float scale = scaleLow + float(std::rand() % 1000) / 1000.0f * (scaleHigh - scaleLow);
+            Mat4::identity(tree.matrix);
+            Mat4::translate(tree.matrix, tree.matrix, tree.position);
+            Mat4::rotate(tree.matrix, tree.matrix, yaw, 0, 1, 0);
+            for (int i = 0; i < 12; ++i)
+                tree.matrix[i] *= scale;
+            // Its own state: its level and impostor view are its own.
+            if (treeStates.size() <= trees.size())
+                treeStates.push_back(treeShapePointer->newState());
+            tree.state = treeStates[trees.size()];
+            trees.push_back(tree);
+        }
+        init = true;
+    }
+
+    for (Tree &tree : trees) {
+        queue.pushTransform();
+        Mat4::multiply(queue.transform(), queue.transform(), tree.matrix);
+        // posx, posz: the forest from the camera.
+        const float dx = posx + tree.position[0], dz = posz + tree.position[2];
+        const float dy = tree.position[1] - playerW[1];
+        const ShapeLod::Place place{std::sqrt(dx * dx + dz * dz), dy, {-dx, -dy, -dz}, tree.matrix};
+        if (ShapeLod::apply(*treeShapePointer, tree.state, place))
+            treeShapePointer->pushRenderItem(queue, selectionId, tree.state);
+        queue.popTransform();
+    }
+    if(selected){
+        pushRenderBox(queue);
+    }
 }
 
 void ForestObj::pushRenderShape(RenderQueue &queue, quint32 selectionId){
@@ -305,65 +461,11 @@ void ForestObj::pushRenderShape(RenderQueue &queue, quint32 selectionId){
             GLUU* gluu = GLUU::get();
             float alpha = -gluu->alphaTest;
 
-            int seed = (int)(position[0] + position[1] + position[2]);
-            //Random random = new Random(seed);
-            std::srand(seed);
             float treeSizeXt = treeSizeX*0.7;
-            float posT[2];
-            posT[0] = x;
-            posT[1] = y;
-            //qDebug() << x << y;
             float tposx, tposz;
-            
-            QVector<Vector4f> fpoints;
-            float off = ((qDirection[1]+0.00001f)/fabs(qDirection[1]+0.00001f))*(float)-acos(qDirection[3])*2.0;
-            for(int uu = 0; uu < population; uu++){
-                
-                tposx = ((float)((std::rand()%1000))/1000)*areaX-areaX/2.0;
-                tposz = ((float)((std::rand()%1000))/1000)*areaZ-areaZ/2.0;
-                
-                Vector2f uuu(tposx,tposz);
-                uuu.rotate(off, 0);
-                tposx = uuu.x;
-                tposz = uuu.y;
-                                
-                fpoints.push_back(Vector4f(tposx+position[0], 0, tposz+position[2], 9999));
-            }
-            
-            if(ForestClearDistance > 0){
-                float bBox[4];
-                bBox[0] = bBox[2] = 9999;
-                bBox[1] = bBox[3] = -9999;
-                Vector2f v;
-                for(int u = -1; u < 2; u+=2)
-                    for(int y = -1; y < 2; y+=2){
-                        v.set(areaX*u/2,areaZ*y/2);
-                        v.rotate(off, 0);
-                        if(v.x < bBox[0])
-                            bBox[0] = v.x;
-                        if(v.x > bBox[1])
-                            bBox[1] = v.x;
-                        if(v.y < bBox[2])
-                            bBox[2] = v.y;
-                        if(v.y > bBox[3])
-                            bBox[3] = v.y;
-                    }
-                bBox[0] += position[0];
-                bBox[1] += position[0];
-                bBox[2] += position[2];
-                bBox[3] += position[2];            
-                qDebug() << bBox[0] << bBox[1] << bBox[2] << bBox[3];
-            
-                if(Game::trackDB != NULL)
-                    Game::trackDB->fillNearestSquaredDistanceToTDBXZ(posT, fpoints, bBox, ForestClearDistance);
-                if(Game::roadDB != NULL)
-                    Game::roadDB->fillNearestSquaredDistanceToTDBXZ(posT, fpoints, bBox, ForestClearDistance);
-            }
-            for(int uu = 0; uu < population; uu++){
-                if(ForestClearDistance > 0){
-                    if(fpoints[uu].c < ForestClearDistance*ForestClearDistance)
-                        continue;
-                }
+            // The trees cleared off the track and roads are left out.
+            const QVector<Vector4f> fpoints = treePoints();
+            for(int uu = 0; uu < fpoints.size(); uu++){
 
                 float wysokosc = Game::terrainLib->getHeight(x, y, fpoints[uu].x, fpoints[uu].z);
                 

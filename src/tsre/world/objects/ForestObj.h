@@ -16,6 +16,7 @@
 #include <QVector>
 
 class RenderQueue;
+class Vector4f;
 
 class OglObj;
 //class Ref::RefItem;
@@ -65,14 +66,38 @@ public:
     void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
     static void LoadForestList();
     static int GetListIdByTexture(QString texture);
+    // The forests.dat definition (forestList) whose texture or shape this
+    // forest draws, -1 for none.
+    int definitionId() const;
+    // Takes a definition's texture or shape, tree size and scale range.
+    void setDefinition(int id);
+    // Whether the trees are shapes (.s, .gltf, .glb) rather than a texture.
+    bool shapeTrees() const;
     virtual ~ForestObj();
 private:
+    // A shape tree: where it stands (from the forest's position), its
+    // transform (turned and scaled at random) and its shape state.
+    struct Tree {
+        float position[3];
+        float matrix[16];
+        unsigned int state = 0;
+    };
     void pushRenderShape(RenderQueue &queue, quint32 selectionId);
+    void pushRenderTrees(RenderQueue &queue, quint32 selectionId, float posx, float posz, const float *playerW);
+    // The trees' places from the forest's seed (tile coordinates, y unset),
+    // without those cleared off the track and roads.
+    QVector<Vector4f> treePoints();
     bool getBoxPoints(QVector<float>& points);
     int tex;
     bool init;
     OglObj shape;
     QString * texturePath = NULL;
+    // Shape trees: the shape (ShapeLib id) of treeShapeName, the trees and
+    // the shape states they reuse.
+    int treeShape = -1;
+    QString treeShapeName;
+    QVector<Tree> trees;
+    QVector<unsigned int> treeStates;
 };
 
 #endif	/* FORESTOBJ_H */
