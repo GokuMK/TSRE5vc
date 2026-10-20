@@ -6080,6 +6080,11 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Copy FileName</source>
         <translation>Copy FileName</translation>
     </message>
+    <message id="route.editor.properties.forest.label.definition">
+        <location filename="../src/routeEditor/properties/PropertiesForest.cpp" line="63"/>
+        <source>Definition:</source>
+        <translation>Definition:</translation>
+    </message>
     <message id="route.editor.properties.forest.label.label12">
         <location filename="../src/routeEditor/properties/PropertiesForest.cpp" line="62"/>
         <source>Size:</source>

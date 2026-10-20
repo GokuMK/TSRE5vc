@@ -39,8 +39,32 @@ Prerequisite: [native glTF LOD loading](../shapes/10-gltf-native-lod.md).
   direction, cutout and maps, ReplaceLast, a shape without levels, another
   version; the TREES_EXT spruce with its impostor on a worker.
 
-Open: Forest; world-file fields; atlas bleeding at coarse mipmaps (no cell
-inset yet); the shadow pass's frame; crossfades; impostors of MSTS shapes.
+Open: world-file fields; atlas bleeding at coarse mipmaps (no cell inset
+yet); the shadow pass's frame; crossfades; impostors of MSTS shapes.
+
+## Forests of shapes (feature/forest-shapes, 2026-10-20)
+
+A first version, without a new token: a Forest whose `TreeTexture` names a
+shape (`.s`, `.gltf`, `.glb`, from the route's SHAPES) draws that shape for
+each tree instead of the 2D crossed quads. forests.dat definitions name them
+the same way (`Forest ( "Norway Spruce" "norway-spruce-v2-edge.glb" ... )`).
+
+- The trees stand where the 2D trees would (the same seed, area, population
+  and clearing off the track and roads, `ForestObj::treePoints`), on the
+  terrain; each turned at random about the vertical and scaled at random
+  within `ScaleRange` (1 without one) on the shape's authored size.
+  `TreeSize` stays the 2D trees'.
+- Each tree has its own shape state: its level of detail and impostor view
+  are chosen for it (`ShapeLod`). No grouped instancing yet: a push per tree,
+  the renderer still drawing the shared packets instanced.
+- Forest properties: the forest's definition from the route's forests.dat,
+  changed with undo (texture or shape, tree size, scale range).
+- Tests: suite `forest-objects` (7); the capture harness places forests
+  (`"forest"`, `"area"`, `"population"` in `objects`). TREES: a spruce forest
+  of 60 next to a 2D one, both drawn.
+
+Open: grouped instancing; TreeSize for shapes (the authored size is used);
+the selection box is the area's, not the trees'.
 
 ## Engine changes
 

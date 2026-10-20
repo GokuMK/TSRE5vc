@@ -45,6 +45,7 @@
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/world/Ref.h>
+#include <tsre/world/objects/ForestObj.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/shape/ShapeLoader.h>
@@ -186,6 +187,11 @@ struct PlacedObject {
     int tileX = 0;
     int tileZ = 0;
     float position[3] = {0.0f, 0.0f, 0.0f};
+    // A forest instead of a static object: the forests.dat definition's
+    // name ("file" unused), its area (metres) and population.
+    QString forest;
+    float area[2] = {100.0f, 100.0f};
+    int population = 10;
 };
 
 struct Options {
@@ -339,6 +345,11 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         const QJsonObject object = value.toObject();
         PlacedObject placed;
         placed.file = object.value("file").toString();
+        placed.forest = object.value("forest").toString();
+        readFloatArray(object.value("area"), placed.area, 2);
+        placed.population = object.value("population").toInt(placed.population);
+        if (placed.file.isEmpty() && !placed.forest.isEmpty())
+            placed.file = placed.forest;
         readFloatArray(object.value("offset"), placed.offset, 3);
         placed.yaw = float(object.value("yaw").toDouble(0.0));
         const QJsonArray objectTile = object.value("tile").toArray();
@@ -627,6 +638,23 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         item.type = "static";
         item.filename.push_back(placed.file);
         item.currentFilename = placed.file;
+        if (!placed.forest.isEmpty()) {
+            // As the editor's forest items: the definition, area and
+            // population packed in the value (ForestObj::getRefInfo).
+            int definition = -1;
+            for (int i = 0; i < ForestObj::forestList.size(); ++i)
+                if (ForestObj::forestList[i].name == placed.forest)
+                    definition = i;
+            if (definition < 0) {
+                qWarning() << CaptureLog << "no forest definition" << placed.forest;
+                continue;
+            }
+            item.type = "forest";
+            item.value = (long long)definition & 0xFFFF;
+            item.value |= ((long long)placed.area[0] & 0xFFF) << 16;
+            item.value |= ((long long)placed.area[1] & 0xFFF) << 28;
+            item.value |= ((long long)placed.population & 0xFFFFFF) << 40;
+        }
         int tileX = startTileX, tileZ = startTileZ;
         float position[3] = {startPos[0] + placed.offset[0], 0.0f, startPos[2] + placed.offset[2]};
         if (placed.absolute) {
