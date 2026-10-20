@@ -94,9 +94,11 @@ model as the first operating policy, and threading.
   aspects trains see agree with Open Rails' at 62 to 100 % of samples,
   the rest where signals are cleared, task 02). Open Rails' script
   additions later.
-- [x] `06-activity-events.md` (designed 2026-10-20, done 2026-10-21; three
-  decisions open at its end: events on the other track of a double line,
-  stopping at stop-here events again, where trains stand at their start): the activity's
+- [x] `06-activity-events.md` (designed 2026-10-20, done 2026-10-21; open
+  for investigation: location events on the other track of a double line,
+  MSTS's rule against Open Rails'; decided 2026-10-21: no stopping at
+  stop-here events, trains placed at their start as Open Rails places
+  them): the activity's
   events run in the simulation as Open Rails checks them (`Activity.cs`):
   time, location (the point within 2.5 m of the track, the front within
   the radius; Open Rails' triggering AI train), AllStops, ReachSpeed and
@@ -104,8 +106,7 @@ model as the first operating policy, and threading.
   end, restarting a waiting train); the fixed step of 2026-10-17. Shown:
   firing times in the Event window, the Timetable window and on the map
   (messages beside the train that fired them, no message boxes), why an
-  event did not fire in Check Activity; Simulate records them too. The
-  player's train stops at "stop here" events (decided 2026-10-20). Wagon
+  event did not fire in Check Activity; Simulate records them too. Wagon
   events that need shunting wait for 07.
 - [ ] `07-coupling-and-train-changes.md` (to design): trains that meet,
   couple and split.
