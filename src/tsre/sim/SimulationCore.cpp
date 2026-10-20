@@ -2333,13 +2333,18 @@ bool SimulationCore::holds(int event, int *by, bool *standIn) const {
             return assembled(&train);
         }
     case EventPlan::DropOffWagonsAtLocation:
-        // The cars left standing (a loose consist holding them all) with an
-        // end in the siding; still in the player's train they are not.
-        if (onTrack(playerTrain) && includes(playerCars))
-            return false;
+        // TSRE's rule (task 07, the user, 2026-10-21): a train holding all
+        // the listed cars, standing or not, coupled or not (a loose consist,
+        // the player's train), with an end in the siding (Open Rails' end
+        // rule; Open Rails also wants them uncoupled, MSTS every listed car
+        // in the siding).
+        if (onTrack(playerTrain) && includes(playerCars) && inSiding(plan, playerTrain)) {
+            *by = playerTrain;
+            return true;
+        }
         for (const StaticConsist &consist : in->staticConsists)
-            if (includes(consist.cars))
-                return inSiding(plan, consist);
+            if (includes(consist.cars) && inSiding(plan, consist))
+                return true;
         return false;
     case EventPlan::PickUpWagons:
         if (!onTrack(playerTrain) || !includes(playerCars)

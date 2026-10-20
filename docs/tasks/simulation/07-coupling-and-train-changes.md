@@ -1,7 +1,7 @@
 # Task 07 - Coupling and Train Changes
 
 Status: designed 2026-10-21, not started (branch `feature/simulation`).
-Open decisions are at the end.
+Decisions taken are at the end.
 
 Sources:
 - tasks 01 to 06 (the simulation core, signals, driving, Simulate, signal
@@ -82,9 +82,19 @@ From the route suite's analysis (`TSRE_SIM_WORK`, task 07's design), the
   | nnmxdgds | car 2 of 41, between two engines |
   | mainduty, whitpull, yard_one | the whole train, engines included |
 
-  The last three can never fire in Open Rails: a DropOff needs the cars
-  standing uncoupled, and the list names the player's engines (decision
-  3).
+  The last three are MSTS's way of saying "leave your train in this
+  siding" (their briefings say so): MSTS's DropOff only asks that every
+  listed car stand in the siding (below), so they end successfully in
+  MSTS and never in Open Rails, which wants the cars uncoupled.
+- **MSTS's wagon checks** (`train.exe`, traced 2026-10-21 from the event
+  dispatcher `FUN_0059b083`, which calls one check by the event's kind):
+  DropOff (`FUN_0059b430`) fires when every listed car stands on the
+  siding's track between its two items, coupled or not, moving or not;
+  PickUpWagons (`FUN_0059b3bf`) when every listed car is in the player's
+  train (no speed limit; Open Rails 1 m/s); AssembleTrain (`FUN_0059b599`)
+  when the listed cars, in order or reversed, are coupled to each other
+  and to nothing else (as Open Rails); AssembleTrainAtLocation
+  (`FUN_0059b737`) both.
 - **Pickups** name loose consists (14 PickUpWagons, 3 mixed assembles);
   AssembleTrain lists are mostly the player's train as it starts (task
   06).
@@ -202,7 +212,9 @@ from a branch only the trunk; a reversal on a track at least the train's
 length beyond the last junction), the train's length known at each step.
 
 **B3. Patterns.** Each goal becomes moves by a small set of shunting
-patterns, the ones the local activities need:
+patterns, the ones the local activities need (a set-out: the listed cars
+into the siding, then cut off unless they are the whole train, engines
+may be cut off while one stays in the player's train: decision 3):
 - pick up: go to the cars, coupling end towards them, and couple;
 - set out a block at the train's far end from its engines: bring that end
   into the siding first (shoving in, or through a reversal beyond the
@@ -268,21 +280,19 @@ player to do.
    ended, against task 06's table; Open Rails on an activity with a pickup
    on its path (local_cutbank: its autopilot attaches as ours does).
 
-## Open decisions (for the user)
+## Decisions (user, 2026-10-21)
 
-1. **Part A as Open Rails, part B TSRE's own.** Recommended: yes; part A
-   is what Open Rails' AI does with the same files, part B fills what
-   MSTS leaves to the player.
-2. **Where the autopilot may cut a train**: anywhere it stands (the main
-   line included, as a player would do to set out a car from the middle),
-   or only on sidings. Recommended: anywhere, the remainder holding its
-   track while the autopilot works.
-3. **DropOff lists naming the player's engines** (mainduty, whitpull,
-   yard_one): never met in Open Rails, as the cars cannot stand uncoupled
-   from the engines. Options: as Open Rails (never fires; Check Activity
-   says why), or the listed engines ignored, the cars set out (as MSTS
-   presumably does: not traced). Recommended: as Open Rails for the
-   event, the autopilot setting out the listed cars that are not engines
-   so the rest of the activity can go on.
-4. **Phase B0 before B1 to B5.** Recommended: yes; the patterns are kept
-   or widened from what it finds.
+1. Part A as Open Rails' AI does it, part B TSRE's own.
+2. The autopilot may cut a train anywhere it stands, the main line
+   included.
+3. **DropOff, TSRE's rule:** the listed cars must be in the siding, held
+   by any train: a loose consist, the player's or an AI train, coupled or
+   not; one end of that train in the siding (Open Rails' less strict end
+   rule; MSTS wants every listed car in it). Done in task 06's checks
+   (2026-10-21): on the seven routes whitpull ("leave your train in
+   Whitefish Siding 3") and nnmxdgds now end successfully, local_cutbank
+   fires one of its two drop-offs. **The autopilot**: the listed cars into
+   the siding, cut off unless they are the whole train ("all your units":
+   the train already matches); it may cut engines off while one stays in
+   the player's train.
+4. Phase B0 first; **B1 to B5 go ahead only if B0 succeeds.**
