@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Load aerial photographs and satellite imagery, with custom WMS, WMTS, STAC/COG and static-map sources.">
+<title>Imagery data &mdash; TSRE user guides</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg:#fff; --paper:#fff; --text:#000; --muted:#4f5b55; --line:#d8dfda;
+  --accent:#087a5b; --accent-soft:#e3f4ed; --note:#fff8df; --note-line:#d9a928;
+  --code:#f6f8f7; --code-text:#17211d; --key:#006b50; --str:#8a4b08;
+  --val:#125c9b; --num:#7544a3; --comment:#66746e; --punct:#53615b;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.62 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)} code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+.header{border-bottom:1px solid var(--line);background:var(--paper)}
+.header-inner{width:min(1180px,calc(100% - 36px));margin:auto;padding:34px 0 30px}
+.overline{color:var(--accent);font:700 11px/1.2 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase}
+h1{margin:9px 0 8px;font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.04em}
+.subtitle{max-width:760px;margin:0;color:var(--muted);font-size:17px}.meta{margin-top:18px;color:var(--muted);font:12px/1.4 ui-monospace,monospace}
+.layout{width:min(1180px,calc(100% - 36px));margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;align-items:start}
+.toc{position:sticky;top:24px;padding:42px 0}.toc b{display:block;margin-bottom:10px;font-size:12px}.toc a{display:block;padding:5px 0;color:var(--muted);text-decoration:none;font-size:13px}.toc a:hover{color:var(--accent)}
+main{min-width:0;padding:44px 0 90px}.doc-section{padding:0 0 54px;scroll-margin-top:24px}.doc-section+.doc-section{padding-top:48px;border-top:1px solid var(--line)}
+h2{margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.025em}h3{margin:30px 0 9px;font-size:20px;line-height:1.3}h4{margin:22px 0 7px;font-size:15px}
+p{margin:9px 0 15px}.intro{color:var(--muted);font-size:16px}.anchor{color:inherit;text-decoration:none}.anchor:hover{color:var(--accent)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.summary div{padding:17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.summary b{display:block;margin-bottom:5px}.summary span{color:var(--muted);font-size:13px}
+.callout{margin:20px 0;padding:15px 17px;border-left:3px solid var(--note-line);background:var(--note);color:#4e4528}.callout.info{border-color:var(--accent);background:var(--accent-soft);color:#21473b}
+pre{margin:16px 0 22px;padding:18px 20px;overflow:auto;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--code);color:var(--code-text);font:13px/1.62 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:4}
+pre code{font:inherit}.k{color:var(--key);font-weight:650}.s{color:var(--str)}.v{color:var(--val)}.n{color:var(--num)}.c{color:var(--comment);font-style:italic}.p{color:var(--punct)}
+table{width:100%;margin:16px 0 25px;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);font-size:13px}
+th,td{padding:11px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#edf1ee;font-size:12px}tr:last-child td{border-bottom:0}td+td,th+th{border-left:1px solid var(--line)}td code{color:var(--accent);font-size:12px}.nowrap{white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:17px 18px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.card h3{margin:0 0 7px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:13px}.card code{color:var(--accent)}
+.syntax{margin:19px 0;padding:14px 17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.syntax b{display:block;margin-bottom:5px;font-size:12px}.syntax code{color:var(--accent);font-size:13px}
+.steps{counter-reset:step;list-style:none;padding:0;margin:18px 0}.steps li{position:relative;padding:0 0 18px 42px}.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:25px;height:25px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--accent);font:700 11px/1 ui-monospace,monospace}.steps li+li::after{content:"";position:absolute;left:12px;top:-15px;height:15px;border-left:1px solid var(--line)}
+.small{color:var(--muted);font-size:12px}.pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 10px/1.6 ui-monospace,monospace}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:8px}.files a{padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:var(--paper);text-decoration:none;font:11px/1.35 ui-monospace,monospace}.files a:hover{border-color:var(--accent)}
+footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);font-size:12px}.footer-inner{width:min(1180px,calc(100% - 36px));margin:auto}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.toc{position:static;padding:25px 0 0;columns:2}.toc b{column-span:all}.summary{grid-template-columns:1fr}.two,.files{grid-template-columns:1fr}main{padding-top:24px}}
+@media(max-width:520px){.header-inner,.layout,.footer-inner{width:min(100% - 24px,1180px)}.toc{columns:1}table{display:block;overflow-x:auto}.nowrap{white-space:normal}}
+@media print{.toc{display:none}.layout{display:block;width:100%}.header-inner,.footer-inner{width:100%}body{background:white}.doc-section{break-inside:auto}pre,table,.card{break-inside:avoid}}
+
+/* Guide-specific navigation and overflow handling. */
+a:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.skip-link{position:absolute;left:18px;top:-80px;padding:8px 14px;background:var(--paper);z-index:10}
+.skip-link:focus{top:12px}
+.guide-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.guide-nav a{padding:6px 12px;border:1px solid var(--line);border-radius:7px;text-decoration:none;font-size:13px}
+.guide-nav a[aria-current=page]{background:var(--accent-soft);border-color:var(--accent);font-weight:650}
+.toc{max-height:calc(100vh - 48px);overflow-y:auto}
+.toc a[aria-current=location]{color:var(--accent);font-weight:650}
+.toc .source-link{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+main p,main li,td,th{overflow-wrap:anywhere}
+main :not(pre)>code{padding:1px 4px;border-radius:3px;background:var(--code);font-size:.9em}
+.table-scroll{max-width:100%;overflow:auto;margin:16px 0 25px}
+.table-scroll table{margin:0;min-width:540px}
+th:first-child,td:first-child{width:28%}
+ol,ul{padding-left:24px}li{margin:6px 0}
+.code-example{position:relative;margin:16px 0 22px}
+.code-example pre{margin:0;padding-top:45px}
+.code-label{position:absolute;left:21px;top:11px;color:var(--muted);font:700 10px/1.5 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+.copy-code{position:absolute;right:12px;top:8px;padding:3px 9px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--accent);font:inherit;font-size:11px;font-weight:600;line-height:1.6;cursor:pointer}
+.copy-code:hover{border-color:var(--accent);background:var(--accent-soft)}
+.copy-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.summary a{text-decoration:none}.summary a:hover{text-decoration:underline}
+h3,h4{scroll-margin-top:24px}
+@media(max-width:850px){.toc{max-height:none;overflow:visible}.toc a{break-inside:avoid}.toc .source-link{column-span:all}.layout{gap:16px}}
+@media(max-width:520px){h1{font-size:36px}.header-inner{padding-top:27px}h2{font-size:26px}.table-scroll table{display:table;overflow:visible}pre{font-size:12px;padding-left:14px;padding-right:14px}.code-label{left:15px}.doc-section+.doc-section{padding-top:32px}.doc-section{padding-bottom:32px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{.guide-nav,.copy-code,.skip-link{display:none}.toc{display:none}.table-scroll{overflow:visible}.table-scroll table{min-width:0}pre{white-space:pre-wrap;overflow-wrap:anywhere}.header-inner{padding:10px 0 20px}main{padding:20px 0}.doc-section+.doc-section{padding-top:24px}.doc-section{padding-bottom:24px}}</style>
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to guide</a>
+<header class="header"><div class="header-inner">
+<div class="overline">TSRE &middot; Route author guides</div>
+<h1>Imagery data</h1>
+<p class="subtitle">Load aerial photographs and satellite imagery, with custom WMS, WMTS, STAC/COG and static-map sources.</p>
+<div class="meta">User guide &middot; October 2026 &middot; JSON catalogue format 1</div>
+<nav class="guide-nav" aria-label="Guides"><a href="elevation-data.html">Elevation data</a><a href="imagery-data.html" aria-current="page">Imagery data</a><a href="index.html">All guides</a></nav>
+</div></header>
+<div class="layout">
+<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-understand-what-you-are-downloading">1. Understand what you are downloading</a><a href="#2-load-imagery-in-the-editor">2. Load imagery in the editor</a><a href="#3-create-the-user-catalogue">3. Create the user catalogue</a><a href="#4-shared-parameters">4. Shared parameters</a><a href="#5-example-wms-aerial-imagery">5. Example: WMS aerial imagery</a><a href="#6-example-wmts-satellite-mosaic">6. Example: WMTS satellite mosaic</a><a href="#7-example-stac-and-image-cogs">7. Example: STAC and image COGs</a><a href="#8-example-google-static-maps-url">8. Example: Google Static Maps URL</a><a href="#9-adapting-a-source-and-checking-the-result">9. Adapting a source and checking the result</a><a href="#10-troubleshooting">10. Troubleshooting</a><a class="source-link" href="imagery-data.md">Read the Markdown version</a></aside>
+<main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Overview</a></h2><p>Imagery supplies the <strong>colour image</strong> used as a terrain overlay or map
+background. It does not change the terrain's height. For numerical ground data,
+use the separate <a href="elevation-data.html">elevation guide</a>.</p>
+<p>This guide covers the source catalogue, the most useful parameters, and complete
+examples for WMS, WMTS, STAC/COG and a static-map URL, including Google Static
+Maps. Public-service examples follow the built-in catalogue; providers can
+change their layers, URLs and access requirements.</p>
+<div class="summary"><div><b>See the route</b><span>Use georeferenced imagery as a terrain overlay or compatible map background.</span></div><div><b>Choose a provider</b><span>Four complete examples, including Google Static Maps and API-key setup.</span></div><div><b>Control the detail</b><span>Understand source resolution, request sizes and the final overlay.</span></div></div></section><section id="1-understand-what-you-are-downloading" class="doc-section"><h2><a class="anchor" href="#1-understand-what-you-are-downloading">1. Understand what you are downloading</a></h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Orthophoto</td>
+<td>An aerial image corrected to line up with map coordinates. Usually a good source for detailed route scenery.</td>
+</tr>
+<tr>
+<td>Satellite mosaic</td>
+<td>Images combined across an area. Coverage and detail vary by product.</td>
+</tr>
+<tr>
+<td>Ground resolution</td>
+<td>Approximate metres represented by one source pixel. A 0.25 m image contains finer detail than a 10 m image.</td>
+</tr>
+<tr>
+<td>WMS</td>
+<td>Requests a rendered image for a geographic rectangle. TSRE supplies the bounds, CRS and image dimensions.</td>
+</tr>
+<tr>
+<td>WMTS</td>
+<td>Requests pre-rendered tiles at defined zoom levels, rows and columns. TSRE's provider supports the standard Web Mercator grid through KVP requests.</td>
+</tr>
+<tr>
+<td>Static-map URL</td>
+<td>Requests an image centred on latitude/longitude at a zoom level and size. It must use the Web Mercator geometry expected by TSRE.</td>
+</tr>
+<tr>
+<td>COG</td>
+<td>A georeferenced TIFF whose internal blocks can be read over HTTP without fetching the whole file.</td>
+</tr>
+<tr>
+<td>STAC</td>
+<td>A catalogue used to discover image assets for an area. The actual pixels come from those files.</td>
+</tr>
+<tr>
+<td>CRS / EPSG code</td>
+<td>Coordinate system used to place an image. TSRE converts between the route and supported source coordinates.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A website's map-viewer URL is usually not its imagery service endpoint. Find
+the provider's WMS/WMTS capabilities, STAC API or documented static-image API.</p>
+<p><strong>WCS and WMS have different roles here.</strong> Use WCS for numerical
+<a href="elevation-data.html#5-example-wcs-elevation">elevation</a>. The imagery catalogue
+has no WCS provider; it expects supported rendered images or image COGs.</p>
+</section><section id="2-load-imagery-in-the-editor" class="doc-section"><h2><a class="anchor" href="#2-load-imagery-in-the-editor">2. Load imagery in the editor</a></h2>
+<ol>
+<li>Open the route and use <strong>Load Imagery</strong> on the terrain tile.</li>
+<li>Select a source available at that location.</li>
+<li>Choose the source resolution option if the source provides one.</li>
+<li>Click <strong>Load preview</strong> and inspect the image and download report.</li>
+<li>Click <strong>Apply</strong> to put the image into the terrain overlay.</li>
+</ol>
+<p>Applying imagery does not automatically generate final terrain textures. Use
+the existing <strong>Make Tile Texture from Map</strong> action separately when appropriate
+for your source. The map mode's imagery background is another use of compatible
+tiled sources; adding a catalogue entry does not make every provider a
+continuously streaming map background.</p>
+<p>The route's geographic placement must be correct. If all sources line up with
+each other but appear in the wrong place in the route, check the route's
+georeferencing before changing the catalogue.</p>
+<h3 id="resolution-and-request-sizes"><a class="anchor" href="#resolution-and-request-sizes">Resolution and request sizes</a></h3>
+<p>These settings solve different problems:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nativeResolution</code></td>
+<td>Declared useful source detail, in metres per pixel. It helps tiled sources avoid requesting unnecessarily high zoom levels.</td>
+</tr>
+<tr>
+<td><code>requestSizes</code> / <code>defaultRequestSize</code></td>
+<td>Options for the source sampling resolution across the terrain tile. These are not necessarily the dimensions of one HTTP response.</td>
+</tr>
+<tr>
+<td><code>tilePixels</code>, or <code>maxRequestPixels</code> / <code>requestBlockPixels</code></td>
+<td>Size of an individual source tile/static image, or limits used to split rendered-image requests.</td>
+</tr>
+<tr>
+<td><strong>Generated map resolution</strong> (<code>core.maps.imageResolution</code>)</td>
+<td>Size of the final composed overlay. Increasing it cannot create detail absent from the source.</td>
+</tr>
+</tbody>
+</table></div>
+<p>For a 2048 m terrain tile, 4096 samples across imply about 0.5 m per sample;
+2048 imply 1 m, and 1024 imply 2 m. The actual source resolution can differ
+because of zoom levels, available assets and reprojection.</p>
+<p>A 4096 source option can use many 640-pixel static-map requests, or four
+2048-pixel WMS requests. It is not a request for a single 4096-pixel image from
+every server.</p>
+</section><section id="3-create-the-user-catalogue" class="doc-section"><h2><a class="anchor" href="#3-create-the-user-catalogue">3. Create the user catalogue</a></h2>
+<p>Use this exact file in your TSRE working directory, normally beside the EXE:</p>
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">TSRE/
+  TSRE5vc.exe
+  assets/
+    geo/
+      imagery-datasets.json
+</code></pre></div>
+<p>There is one user imagery catalogue. TSRE does not scan arbitrary JSON filenames
+under <code>assets/geo</code>. This location is independent of the selected route and
+<code>appdata/0.7</code>. It is relative to the TSRE working directory, not your drive root.</p>
+<p>The file has this container:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Add complete dataset objects to the array. Each example below is a complete file;
+combine examples by copying their objects into a single <code>datasets</code> array,
+separated by commas. Do not paste several outer JSON documents into one file.</p>
+<p>Use UTF-8 plain text, double quotes, decimal points and lowercase booleans.
+Comments and trailing commas are invalid. Check that Windows has not added
+<code>.txt</code> to the filename.</p>
+<p>Built-ins load first. New IDs add sources; matching IDs replace the <strong>entire</strong>
+built-in definition. An invalid override is skipped and the built-in remains.
+Give experiments a new <code>user.*</code> ID so they can be compared with the original.
+Restart TSRE after edits to refresh the source lists reliably.</p>
+<h3 id="where-images-are-cached"><a class="anchor" href="#where-images-are-cached">Where images are cached</a></h3>
+<p>Settings → <strong>Geodata and elevation cache directory</strong> (<code>core.paths.geoData</code>)
+controls the geodata root. Imagery caches live under:</p>
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">&lt;geodata root&gt;/cache/imagery/&lt;directory&gt;/...
+</code></pre></div>
+<p>For example, <code>&quot;directory&quot;: &quot;my_ortho&quot;</code> with geodata root <code>D:/TSRE-Geodata</code>
+uses <code>D:/TSRE-Geodata/cache/imagery/my_ortho/</code>. This has no effect on the
+catalogue's <code>assets/geo/imagery-datasets.json</code> location.</p>
+</section><section id="4-shared-parameters" class="doc-section"><h2><a class="anchor" href="#4-shared-parameters">4. Shared parameters</a></h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>Unique stable name using letters, digits, <code>.</code>, <code>_</code> or <code>-</code>, such as <code>user.myarea.ortho</code>.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>Display name in the source list.</td>
+</tr>
+<tr>
+<td><code>provider</code></td>
+<td>One of the supported methods in the next table.</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td><code>image/jpeg</code> or <code>image/png</code> for rendered/tiled sources; <code>image/tiff</code> for imagery COGs. Must match the returned data.</td>
+</tr>
+<tr>
+<td><code>boundsWgs84</code></td>
+<td><code>[west, south, east, north]</code>, <strong>always longitude/latitude degrees</strong>, even when <code>crs</code> is projected. Limits must be inside ±180° longitude and approximately ±85.05112878° latitude.</td>
+</tr>
+<tr>
+<td><code>nativeResolution</code></td>
+<td>Positive source spacing in metres per pixel. A smaller number does not improve the actual imagery.</td>
+</tr>
+<tr>
+<td><code>detailedTerrainApproved</code></td>
+<td>Set <code>true</code> to offer the source for normal detailed terrain. Defaults to <code>false</code>.</td>
+</tr>
+<tr>
+<td><code>distantTerrainApproved</code></td>
+<td>Defaults to <code>false</code>. Enable only after checking resolution, coverage and request costs for distant terrain.</td>
+</tr>
+<tr>
+<td><code>directory</code></td>
+<td>Cache subdirectory using letters, digits, underscores and hyphens; <code>/</code> can separate nested components. Do not use an absolute path or <code>..</code>.</td>
+</tr>
+<tr>
+<td><code>revision</code></td>
+<td>Version label, using letters, digits, <code>.</code>, <code>_</code> or <code>-</code>; defaults to <code>current</code>. Used in tiled/rendered and projected-COG cache identities. STAC COG parts use asset URL and publication timestamp.</td>
+</tr>
+<tr>
+<td><code>cacheMaxAgeDays</code></td>
+<td>Nonnegative expiry for ordinary cached tiles/rendered images. <code>0</code> means no age expiry. COG parts follow their asset/revision identities instead.</td>
+</tr>
+<tr>
+<td><code>persistentCache</code></td>
+<td>Defaults to <code>true</code>. For tiled, static-map and WMS/ArcGIS rendered images, <code>false</code> prevents persistent source-image caching. It does not disable COG part caches or overlay/export operations.</td>
+</tr>
+<tr>
+<td><code>requestSizes</code></td>
+<td>Optional distinct integer source sampling sizes, <code>256</code>–<code>8192</code>.</td>
+</tr>
+<tr>
+<td><code>defaultRequestSize</code></td>
+<td>Must be a member of <code>requestSizes</code> when that list is present. Omit both fields for automatic selection.</td>
+</tr>
+<tr>
+<td><code>attribution</code>, <code>license</code>, <code>information</code></td>
+<td>Credits, licence description and user-facing source information.</td>
+</tr>
+<tr>
+<td><code>attributionUrl</code>, <code>informationUrl</code></td>
+<td>Optional HTTPS links.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The bounding rectangle filters the source list; it does not guarantee imagery
+exists everywhere inside the rectangle. Keep the coverage realistic.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Additional configuration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wms-kvp</code></td>
+<td>WMS 1.3.0 endpoint, layer, CRS, axis order and request-size limits.</td>
+</tr>
+<tr>
+<td><code>wmts-kvp-webmercator</code></td>
+<td>WMTS endpoint, layer, matrix set/template and zoom limits on a standard Web Mercator grid.</td>
+</tr>
+<tr>
+<td><code>arcgis-mapserver-export</code></td>
+<td>ArcGIS MapServer endpoint, CRS and request-size limits.</td>
+</tr>
+<tr>
+<td><code>arcgis-imageserver-export</code></td>
+<td>ArcGIS ImageServer endpoint, CRS and request-size limits.</td>
+</tr>
+<tr>
+<td><code>stac-cog-image</code></td>
+<td>STAC API root, collection in <code>layer</code>, projected CRS and compatible JPEG-compressed image COGs.</td>
+</tr>
+<tr>
+<td><code>projected-cog-image</code></td>
+<td>Regular projected image sheets, <code>download.tileSize</code>, and an HTTPS <code>download.urlTemplate</code> with <code>{easting}</code> and <code>{northing}</code>.</td>
+</tr>
+<tr>
+<td><code>static-map-url</code></td>
+<td>HTTPS centre/zoom template, returned image size and zoom limits.</td>
+</tr>
+</tbody>
+</table></div>
+<p>There is no generic XYZ <code>{z}/{x}/{y}</code> URL provider in this catalogue. A tile
+server must match the supported WMTS interface, or another implemented provider.
+Similarly, adding an unfamiliar EPSG code does not implement a new CRS.</p>
+</section><section id="5-example-wms-aerial-imagery" class="doc-section"><h2><a class="anchor" href="#5-example-wms-aerial-imagery">5. Example: WMS aerial imagery</a></h2>
+<p>This example follows the configured Netherlands PDOK RGB layer:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;user.nl.pdok.ortho&quot;</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;My Netherlands aerial imagery&quot;</span><span class="p">,</span>
+      <span class="k">&quot;provider&quot;</span><span class="p">:</span> <span class="s">&quot;wms-kvp&quot;</span><span class="p">,</span>
+      <span class="k">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s">&quot;https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0&quot;</span><span class="p">,</span>
+      <span class="k">&quot;layer&quot;</span><span class="p">:</span> <span class="s">&quot;Actueel_ortho25&quot;</span><span class="p">,</span>
+      <span class="k">&quot;style&quot;</span><span class="p">:</span> <span class="s">&quot;default&quot;</span><span class="p">,</span>
+      <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;image/jpeg&quot;</span><span class="p">,</span>
+      <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="s">&quot;1.3.0&quot;</span><span class="p">,</span>
+      <span class="k">&quot;bboxAxisOrder&quot;</span><span class="p">:</span> <span class="s">&quot;xy&quot;</span><span class="p">,</span>
+      <span class="k">&quot;crs&quot;</span><span class="p">:</span> <span class="n">3857</span><span class="p">,</span>
+      <span class="k">&quot;maxRequestPixels&quot;</span><span class="p">:</span> <span class="n">2500</span><span class="p">,</span>
+      <span class="k">&quot;requestBlockPixels&quot;</span><span class="p">:</span> <span class="n">2048</span><span class="p">,</span>
+      <span class="k">&quot;requestSizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">4096</span><span class="p">,</span> <span class="n">2048</span><span class="p">,</span> <span class="n">1024</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;defaultRequestSize&quot;</span><span class="p">:</span> <span class="n">2048</span><span class="p">,</span>
+      <span class="k">&quot;nativeResolution&quot;</span><span class="p">:</span> <span class="n">0.25</span><span class="p">,</span>
+      <span class="k">&quot;boundsWgs84&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">3.0</span><span class="p">,</span> <span class="n">50.6</span><span class="p">,</span> <span class="n">7.3</span><span class="p">,</span> <span class="n">53.7</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;detailedTerrainApproved&quot;</span><span class="p">:</span> <span class="v">true</span><span class="p">,</span>
+      <span class="k">&quot;distantTerrainApproved&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;directory&quot;</span><span class="p">:</span> <span class="s">&quot;user_nl_pdok_ortho&quot;</span><span class="p">,</span>
+      <span class="k">&quot;revision&quot;</span><span class="p">:</span> <span class="s">&quot;rolling&quot;</span><span class="p">,</span>
+      <span class="k">&quot;cacheMaxAgeDays&quot;</span><span class="p">:</span> <span class="n">30</span><span class="p">,</span>
+      <span class="k">&quot;attribution&quot;</span><span class="p">:</span> <span class="s">&quot;Samenwerkingsverband Beeldmateriaal / PDOK&quot;</span><span class="p">,</span>
+      <span class="k">&quot;license&quot;</span><span class="p">:</span> <span class="s">&quot;CC BY 4.0&quot;</span><span class="p">,</span>
+      <span class="k">&quot;informationUrl&quot;</span><span class="p">:</span> <span class="s">&quot;https://www.pdok.nl/&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The outer <code>&quot;version&quot;: 1</code> is the catalogue format. The inner
+<code>&quot;version&quot;: &quot;1.3.0&quot;</code> is the WMS protocol version.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>WMS parameter</th>
+<th>How to choose it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>endpoint</code></td>
+<td>Base WMS URL. TSRE builds <code>GetMap</code>; do not include fixed <code>BBOX</code>, <code>WIDTH</code> or <code>HEIGHT</code>.</td>
+</tr>
+<tr>
+<td><code>layer</code></td>
+<td>Exact WMS layer name from capabilities, not its descriptive title.</td>
+</tr>
+<tr>
+<td><code>style</code></td>
+<td>Published style name, or <code>&quot;&quot;</code> when the service expects its default style that way.</td>
+</tr>
+<tr>
+<td><code>crs</code></td>
+<td>Supported CRS accepted by the service. This example requests EPSG:3857.</td>
+</tr>
+<tr>
+<td><code>bboxAxisOrder</code></td>
+<td><code>xy</code> or <code>yx</code> for the service's WMS bounding-box order. EPSG:4326 in WMS 1.3.0 often needs <code>yx</code>; inspect the provider. This does not change the order of <code>boundsWgs84</code>.</td>
+</tr>
+<tr>
+<td><code>maxRequestPixels</code></td>
+<td>Maximum side length of one request, <code>256</code>–<code>8192</code>; keep within the server's limit.</td>
+</tr>
+<tr>
+<td><code>requestBlockPixels</code></td>
+<td>Optional split-block size, at least <code>256</code> and no larger than <code>maxRequestPixels</code>. Here a 4096 option can be split into 2048-pixel blocks.</td>
+</tr>
+<tr>
+<td><code>dimensions</code></td>
+<td>Optional object of extra string parameters, for example <code>{&quot;TIME&quot;: &quot;2021-01-01&quot;}</code>.</td>
+</tr>
+</tbody>
+</table></div>
+<p>To adapt it, inspect the service's <code>GetCapabilities</code>, choose an image layer,
+style, format and supported CRS, and copy its extent as WGS84 degrees. Try one
+tile at 1024 or 2048 before choosing larger requests.</p>
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?SERVICE=WMS&amp;VERSION=1.3.0&amp;REQUEST=GetCapabilities
+</code></pre></div>
+</section><section id="6-example-wmts-satellite-mosaic" class="doc-section"><h2><a class="anchor" href="#6-example-wmts-satellite-mosaic">6. Example: WMTS satellite mosaic</a></h2>
+<p>This follows the global WorldCover Sentinel-2 RGB source. It is a colour mosaic,
+not the categorical WorldCover land-cover classification.</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;user.worldcover.rgb&quot;</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;My WorldCover Sentinel-2 RGB 2021&quot;</span><span class="p">,</span>
+      <span class="k">&quot;provider&quot;</span><span class="p">:</span> <span class="s">&quot;wmts-kvp-webmercator&quot;</span><span class="p">,</span>
+      <span class="k">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s">&quot;https://wmts.terrascope.be/&quot;</span><span class="p">,</span>
+      <span class="k">&quot;layer&quot;</span><span class="p">:</span> <span class="s">&quot;esa-worldcover-s2rgbnir-10m-2021-v2_tcc&quot;</span><span class="p">,</span>
+      <span class="k">&quot;style&quot;</span><span class="p">:</span> <span class="s">&quot;default&quot;</span><span class="p">,</span>
+      <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;image/png&quot;</span><span class="p">,</span>
+      <span class="k">&quot;tileMatrixSet&quot;</span><span class="p">:</span> <span class="s">&quot;EPSG:3857&quot;</span><span class="p">,</span>
+      <span class="k">&quot;tileMatrixTemplate&quot;</span><span class="p">:</span> <span class="s">&quot;{zoom}&quot;</span><span class="p">,</span>
+      <span class="k">&quot;dimensions&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="k">&quot;TIME&quot;</span><span class="p">:</span> <span class="s">&quot;2021-01-01&quot;</span>
+      <span class="p">}</span><span class="p">,</span>
+      <span class="k">&quot;tilePixels&quot;</span><span class="p">:</span> <span class="n">256</span><span class="p">,</span>
+      <span class="k">&quot;minZoom&quot;</span><span class="p">:</span> <span class="n">0</span><span class="p">,</span>
+      <span class="k">&quot;maxZoom&quot;</span><span class="p">:</span> <span class="n">24</span><span class="p">,</span>
+      <span class="k">&quot;nativeResolution&quot;</span><span class="p">:</span> <span class="n">10</span><span class="p">,</span>
+      <span class="k">&quot;boundsWgs84&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">-180</span><span class="p">,</span> <span class="n">-85</span><span class="p">,</span> <span class="n">180</span><span class="p">,</span> <span class="n">85</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;detailedTerrainApproved&quot;</span><span class="p">:</span> <span class="v">true</span><span class="p">,</span>
+      <span class="k">&quot;distantTerrainApproved&quot;</span><span class="p">:</span> <span class="v">true</span><span class="p">,</span>
+      <span class="k">&quot;directory&quot;</span><span class="p">:</span> <span class="s">&quot;user_worldcover_rgb&quot;</span><span class="p">,</span>
+      <span class="k">&quot;revision&quot;</span><span class="p">:</span> <span class="s">&quot;2021_v2&quot;</span><span class="p">,</span>
+      <span class="k">&quot;attribution&quot;</span><span class="p">:</span> <span class="s">&quot;ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium&quot;</span><span class="p">,</span>
+      <span class="k">&quot;license&quot;</span><span class="p">:</span> <span class="s">&quot;CC BY 4.0&quot;</span><span class="p">,</span>
+      <span class="k">&quot;informationUrl&quot;</span><span class="p">:</span> <span class="s">&quot;https://esa-worldcover.org/en/data-access&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>tileMatrixSet</code> is the exact matrix-set identifier. It may be <code>EPSG:3857</code>,
+<code>GoogleMapsCompatible</code>, or a provider-specific name. That name alone is not
+enough: the matrix must have the standard Web Mercator origin, zoom spacing and
+tile addressing expected by TSRE.</p>
+<p><code>tileMatrixTemplate</code> builds the matrix ID from <code>{zoom}</code>. Some services use
+<code>&quot;{zoom}&quot;</code>, others <code>&quot;EPSG:3857:{zoom}&quot;</code>. <code>tilePixels</code> must match the returned
+square tile and be a power of two between <code>64</code> and <code>1024</code>. Zoom limits must
+satisfy <code>0 &lt;= minZoom &lt;= maxZoom &lt;= 24</code>.</p>
+<p>Do not assume the highest advertised zoom contains new detail.
+<code>nativeResolution: 10</code> keeps this source near its useful ground resolution even
+though the service offers higher rendered levels.</p>
+</section><section id="7-example-stac-and-image-cogs" class="doc-section"><h2><a class="anchor" href="#7-example-stac-and-image-cogs">7. Example: STAC and image COGs</a></h2>
+<p>This follows Switzerland's SWISSIMAGE source:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;user.ch.swissimage&quot;</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;My SWISSIMAGE orthophotos&quot;</span><span class="p">,</span>
+      <span class="k">&quot;provider&quot;</span><span class="p">:</span> <span class="s">&quot;stac-cog-image&quot;</span><span class="p">,</span>
+      <span class="k">&quot;endpoint&quot;</span><span class="p">:</span> <span class="s">&quot;https://data.geo.admin.ch/api/stac/v1/&quot;</span><span class="p">,</span>
+      <span class="k">&quot;layer&quot;</span><span class="p">:</span> <span class="s">&quot;ch.swisstopo.swissimage-dop10&quot;</span><span class="p">,</span>
+      <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;image/tiff&quot;</span><span class="p">,</span>
+      <span class="k">&quot;crs&quot;</span><span class="p">:</span> <span class="n">2056</span><span class="p">,</span>
+      <span class="k">&quot;maxRequestPixels&quot;</span><span class="p">:</span> <span class="n">4096</span><span class="p">,</span>
+      <span class="k">&quot;requestSizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">4096</span><span class="p">,</span> <span class="n">2048</span><span class="p">,</span> <span class="n">1024</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;defaultRequestSize&quot;</span><span class="p">:</span> <span class="n">2048</span><span class="p">,</span>
+      <span class="k">&quot;nativeResolution&quot;</span><span class="p">:</span> <span class="n">0.1</span><span class="p">,</span>
+      <span class="k">&quot;boundsWgs84&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">5.8</span><span class="p">,</span> <span class="n">45.7</span><span class="p">,</span> <span class="n">10.7</span><span class="p">,</span> <span class="n">47.9</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;detailedTerrainApproved&quot;</span><span class="p">:</span> <span class="v">true</span><span class="p">,</span>
+      <span class="k">&quot;distantTerrainApproved&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;directory&quot;</span><span class="p">:</span> <span class="s">&quot;user_ch_swissimage&quot;</span><span class="p">,</span>
+      <span class="k">&quot;revision&quot;</span><span class="p">:</span> <span class="s">&quot;rolling&quot;</span><span class="p">,</span>
+      <span class="k">&quot;attribution&quot;</span><span class="p">:</span> <span class="s">&quot;Federal Office of Topography swisstopo - SWISSIMAGE; lake imagery includes material (2016-2018) Planet&quot;</span><span class="p">,</span>
+      <span class="k">&quot;license&quot;</span><span class="p">:</span> <span class="s">&quot;swisstopo terms; source attribution required&quot;</span><span class="p">,</span>
+      <span class="k">&quot;attributionUrl&quot;</span><span class="p">:</span> <span class="s">&quot;https://www.swisstopo.admin.ch/en/terms-of-use-free-geodata-and-geoservices&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>For this provider, <strong><code>layer</code> is the STAC collection ID</strong>. TSRE constructs
+<code>collections/&lt;layer&gt;/items</code> under <code>endpoint</code>, queries the geographic area and
+selects suitable assets. The imagery schema is different from elevation STAC:
+do not copy elevation's nested <code>download.collection</code>, <code>assetKey</code> or <code>range</code>
+fields into this entry.</p>
+<p>The current image-COG reader requires:</p>
+<ul>
+<li>A compatible STAC API and assets advertising a cloud-optimized TIFF media
+type, <code>gsd</code> or <code>eo:gsd</code>, and matching <code>proj:epsg</code> metadata.</li>
+<li>HTTPS asset URLs and working HTTP byte-range responses.</li>
+<li>Supported projected georeferencing.</li>
+<li>Tiled, three-channel, 8-bit JPEG-compressed imagery with RGB or YCbCr colour
+interpretation and the required TIFF metadata.</li>
+</ul>
+<p>An arbitrary multispectral Sentinel TIFF, a 16-bit reflectance product or a
+Deflate RGB TIFF does not become compatible merely by setting
+<code>format: &quot;image/tiff&quot;</code>. Use a supported rendered WMS/WMTS product for those
+datasets, or prepare a compatible image product separately.</p>
+<p>TSRE selects an appropriate asset/overview and downloads required blocks.
+STAC part caches are separated by asset URL and publication timestamp.
+There is no generic single-file image-COG URL provider equivalent to elevation's
+<code>fileGrid: &quot;cog&quot;</code>; the other imagery COG method is a regular projected sheet
+grid. See the Austrian <code>projected-cog-image</code> entry in the
+<a href="../../src/tsre/geo/imagery-datasets.json">built-in catalogue</a> for that layout.</p>
+</section><section id="8-example-google-static-maps-url" class="doc-section"><h2><a class="anchor" href="#8-example-google-static-maps-url">8. Example: Google Static Maps URL</a></h2>
+<p>The <code>static-map-url</code> provider replaces the old single imagery-URL setting.
+This example requests satellite images from the documented Google Maps Static
+API and keeps the API key outside the catalogue.</p>
+<p>You need your own Google Cloud project with Maps Static API enabled, billing
+enabled and a suitable API key. Requests can incur charges. See Google's
+<a href="https://developers.google.com/maps/documentation/maps-static/start">setup and request documentation</a>.
+This is a technical configuration example; use it only for workflows allowed
+by your account's <a href="https://developers.google.com/maps/documentation/maps-static/policies">Maps Static API policies</a>.
+Disabling TSRE's download cache does not by itself permit exporting imagery or
+making redistributable terrain textures.</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;version&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;datasets&quot;</span><span class="p">:</span> <span class="p">[</span>
+    <span class="p">{</span>
+      <span class="k">&quot;id&quot;</span><span class="p">:</span> <span class="s">&quot;user.google.satellite&quot;</span><span class="p">,</span>
+      <span class="k">&quot;name&quot;</span><span class="p">:</span> <span class="s">&quot;Google Maps satellite (my API key)&quot;</span><span class="p">,</span>
+      <span class="k">&quot;provider&quot;</span><span class="p">:</span> <span class="s">&quot;static-map-url&quot;</span><span class="p">,</span>
+      <span class="k">&quot;urlTemplate&quot;</span><span class="p">:</span> <span class="s">&quot;https://maps.googleapis.com/maps/api/staticmap?center={lat},{lon}&amp;zoom={zoom}&amp;size={res}x{res}&amp;maptype=satellite&amp;format=png&quot;</span><span class="p">,</span>
+      <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;image/png&quot;</span><span class="p">,</span>
+      <span class="k">&quot;tilePixels&quot;</span><span class="p">:</span> <span class="n">640</span><span class="p">,</span>
+      <span class="k">&quot;minZoom&quot;</span><span class="p">:</span> <span class="n">0</span><span class="p">,</span>
+      <span class="k">&quot;maxZoom&quot;</span><span class="p">:</span> <span class="n">21</span><span class="p">,</span>
+      <span class="k">&quot;nativeResolution&quot;</span><span class="p">:</span> <span class="n">0.1</span><span class="p">,</span>
+      <span class="k">&quot;requestSizes&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">4096</span><span class="p">,</span> <span class="n">2048</span><span class="p">,</span> <span class="n">1024</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;defaultRequestSize&quot;</span><span class="p">:</span> <span class="n">2048</span><span class="p">,</span>
+      <span class="k">&quot;boundsWgs84&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">-180</span><span class="p">,</span> <span class="n">-85</span><span class="p">,</span> <span class="n">180</span><span class="p">,</span> <span class="n">85</span><span class="p">]</span><span class="p">,</span>
+      <span class="k">&quot;detailedTerrainApproved&quot;</span><span class="p">:</span> <span class="v">true</span><span class="p">,</span>
+      <span class="k">&quot;distantTerrainApproved&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;persistentCache&quot;</span><span class="p">:</span> <span class="v">false</span><span class="p">,</span>
+      <span class="k">&quot;directory&quot;</span><span class="p">:</span> <span class="s">&quot;google_static_satellite&quot;</span><span class="p">,</span>
+      <span class="k">&quot;revision&quot;</span><span class="p">:</span> <span class="s">&quot;current&quot;</span><span class="p">,</span>
+      <span class="k">&quot;authentication&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="k">&quot;type&quot;</span><span class="p">:</span> <span class="s">&quot;query-api-key&quot;</span><span class="p">,</span>
+        <span class="k">&quot;secret&quot;</span><span class="p">:</span> <span class="s">&quot;maps.imageryApiKey&quot;</span><span class="p">,</span>
+        <span class="k">&quot;parameter&quot;</span><span class="p">:</span> <span class="s">&quot;key&quot;</span>
+      <span class="p">}</span><span class="p">,</span>
+      <span class="k">&quot;attribution&quot;</span><span class="p">:</span> <span class="s">&quot;Google Maps and its imagery providers; retain the image&#39;s provider credits&quot;</span><span class="p">,</span>
+      <span class="k">&quot;informationUrl&quot;</span><span class="p">:</span> <span class="s">&quot;https://developers.google.com/maps/documentation/maps-static/start&quot;</span>
+    <span class="p">}</span>
+  <span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p><code>nativeResolution: 0.1</code> is the example's acquisition setting, not a claim of
+uniform 10 cm Google coverage. Available imagery and useful zoom vary by place.
+Reduce the requested resolution/zoom if the service returns blank or
+unnecessarily enlarged images.</p>
+<h3 id="url-placeholders"><a class="anchor" href="#url-placeholders">URL placeholders</a></h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Placeholder</th>
+<th>Substituted value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{lat}</code></td>
+<td>Centre latitude in degrees.</td>
+</tr>
+<tr>
+<td><code>{lon}</code></td>
+<td>Centre longitude in degrees.</td>
+</tr>
+<tr>
+<td><code>{zoom}</code></td>
+<td>Chosen Web Mercator zoom level.</td>
+</tr>
+<tr>
+<td><code>{res}</code></td>
+<td>Configured <code>tilePixels</code>, here <code>640</code>.</td>
+</tr>
+<tr>
+<td><code>{width}</code>, <code>{height}</code></td>
+<td>Alternative to <code>{res}</code>; both become <code>tilePixels</code>. Requests are square.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The template must include latitude, longitude, zoom, and either <code>{res}</code> or both
+width/height placeholders. Unknown placeholders are rejected. There is no
+<code>{apikey}</code> placeholder: authentication adds the query parameter separately.</p>
+<p>In the example, a request has a centre such as <code>52.2297,21.0122</code>,
+<code>zoom=17</code>, and <code>size=640x640</code>; TSRE appends <code>key</code> only when sending it.
+<code>tilePixels</code> for static maps can be <code>64</code>–<code>1024</code> and must match the returned image
+exactly. Keep Google's default <code>scale=1</code>: adding <code>scale=2</code> changes the returned
+size and breaks this configuration's expected size/geometry.</p>
+<p>Unlike the WMTS example, 640 does not need to be a power of two. The 2048/4096
+options control coverage sampling across the terrain, while individual Google
+requests remain 640 × 640.</p>
+<h3 id="store-the-key-in-your-active-profile"><a class="anchor" href="#store-the-key-in-your-active-profile">Store the key in your active profile</a></h3>
+<p>Close TSRE before manually editing profile files. Find the active profile's
+<code>settings.json</code> and put the secret in <strong><code>secrets.json</code> beside it</strong>. A portable
+profile might use:</p>
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">profiles/default/settings.json
+profiles/default/secrets.json
+</code></pre></div>
+<p>Use the actual active profile, which may have another name or location.
+If <code>secrets.json</code> already exists, add the key to its existing <code>secrets</code> object
+and preserve the other entries:</p>
+<div class="code-example" data-language="json"><span class="code-label">json</span><pre><code class="language-json"><span class="p">{</span>
+  <span class="k">&quot;format&quot;</span><span class="p">:</span> <span class="s">&quot;tsre-secrets&quot;</span><span class="p">,</span>
+  <span class="k">&quot;schemaVersion&quot;</span><span class="p">:</span> <span class="n">1</span><span class="p">,</span>
+  <span class="k">&quot;secrets&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="k">&quot;maps.imageryApiKey&quot;</span><span class="p">:</span> <span class="s">&quot;REPLACE_WITH_YOUR_OWN_API_KEY&quot;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>The placeholder above is not a working key. The name <code>maps.imageryApiKey</code> must
+match <code>authentication.secret</code> exactly. <code>authentication.parameter: &quot;key&quot;</code> is the
+HTTP parameter Google expects; it is not the name of the stored secret.</p>
+<p>Restart TSRE, select the source, and preview a small area at the lower source
+resolution first. The secret file contains plaintext credentials: keep it local
+and leave it out of examples or bug reports.</p>
+<p>TSRE currently supports query-key imagery authentication for WMTS and static-map
+sources. It does not generate Google's per-request digital signatures or run an
+OAuth login flow. Account restrictions, signature requirements, quotas and
+regional availability can therefore affect whether a key works with this example.</p>
+</section><section id="9-adapting-a-source-and-checking-the-result" class="doc-section"><h2><a class="anchor" href="#9-adapting-a-source-and-checking-the-result">9. Adapting a source and checking the result</a></h2>
+<ol>
+<li>Pick the implemented provider matching the service.</li>
+<li>Copy a complete example, choose a new <code>id</code> and <code>directory</code>, and set a
+descriptive name.</li>
+<li>Replace the service-specific fields using its documentation/capabilities.
+Keep <code>boundsWgs84</code> in longitude/latitude order.</li>
+<li>Set <code>detailedTerrainApproved: true</code>; keep distant-terrain use disabled while
+trying a new detailed source.</li>
+<li>Restart and preview one tile inside known coverage. Inspect alignment,
+useful detail, download count and any errors.</li>
+<li>For cache-enabled sources, repeat the preview to check reuse. Then try a
+neighbouring tile and an area near the coverage edge.</li>
+</ol>
+<p>Keep the actual source selected in the UI/settings. Optional catalogue root
+fields <code>defaultDetailedSource</code> and <code>defaultDistantSource</code> identify defaults, but
+do not replace an existing profile selection. User and built-in default flags
+can coexist after merging, so these fields should not be treated as a reliable
+way to force a newly appended source to become the selected default.</p>
+</section><section id="10-troubleshooting" class="doc-section"><h2><a class="anchor" href="#10-troubleshooting">10. Troubleshooting</a></h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Reference table"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>What to check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source not listed</td>
+<td>Correct filename/working directory, valid JSON, restart, realistic bounds and <code>detailedTerrainApproved</code>.</td>
+</tr>
+<tr>
+<td>Built-in remains after an override</td>
+<td>The replacement may be incomplete or invalid. Overrides replace whole objects.</td>
+</tr>
+<tr>
+<td>Missing secret</td>
+<td>Edit <code>secrets.json</code> beside the active profile's <code>settings.json</code>; check the reference string, then restart.</td>
+</tr>
+<tr>
+<td>HTTP 401/403</td>
+<td>API enabled, key permissions/restrictions, authentication method and provider requirements. Keep the actual key out of logs you share.</td>
+</tr>
+<tr>
+<td>HTTP 429</td>
+<td>Service quota/rate limit. Reduce requested detail and wait before retrying.</td>
+</tr>
+<tr>
+<td>“Expected … × …” image-size error</td>
+<td><code>tilePixels</code>, server image-size limits or a scale parameter does not match the returned image.</td>
+</tr>
+<tr>
+<td>Blank image</td>
+<td>Coverage, layer, zoom availability, time dimension or account-specific content availability.</td>
+</tr>
+<tr>
+<td>Shifted, rotated or stretched imagery</td>
+<td>Route coordinates, WMS axis order, source CRS, or a tile matrix/static-map projection that is not compatible.</td>
+</tr>
+<tr>
+<td>High zoom but blurry terrain</td>
+<td>The source has reached its native detail. Larger output images cannot recover missing detail.</td>
+</tr>
+<tr>
+<td>Unsupported imagery COG raster profile</td>
+<td>Check the image-COG restrictions above; numerical/multispectral TIFFs are different formats.</td>
+</tr>
+<tr>
+<td>Many downloads on every preview</td>
+<td>The source may have <code>persistentCache: false</code>, an expired cache, or a different request area/resolution.</td>
+</tr>
+<tr>
+<td>Old imagery remains</td>
+<td>Check the service's layer/date and the cache age/revision. A layer called “current” can still serve an older mosaic.</td>
+</tr>
+</tbody>
+</table></div>
+<p>For further examples, see the
+<a href="../../src/tsre/geo/imagery-datasets.json">built-in imagery catalogue</a>.
+For terrain heights, continue with <a href="elevation-data.html">elevation data</a>.</p>
+</section></main>
+</div>
+<div class="copy-status" role="status" aria-live="polite"></div>
+<footer><div class="footer-inner">TSRE user guides &middot; <a href="index.html">All guides</a> &middot; <a href="imagery-data.md">Markdown source</a> &middot; <a href="#content">Back to guide</a></div></footer>
+<script>
+(() => {
+  for (const example of document.querySelectorAll('.code-example')) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'copy-code';
+    button.textContent = 'Copy';
+    button.setAttribute('aria-label', 'Copy ' + example.dataset.language + ' example');
+    button.addEventListener('click', async () => {
+      const text = example.querySelector('code').textContent;
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        }
+      } catch (_) {}
+      if (!copied) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.append(area);
+        area.select();
+        copied = document.execCommand('copy');
+        area.remove();
+        button.focus();
+      }
+      button.textContent = copied ? 'Copied' : 'Select and copy';
+      document.querySelector('.copy-status').textContent = copied ? 'Example copied to clipboard.' : 'Select the example text and copy it manually.';
+      setTimeout(() => { button.textContent = 'Copy'; }, 1800);
+    });
+    example.append(button);
+  }
+  if ('IntersectionObserver' in window) {
+    const links = [...document.querySelectorAll('.toc a[href^="#"]')];
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        for (const link of links) {
+          if (link.hash === '#' + entry.target.id) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        }
+      }
+    }, {rootMargin: '-5% 0px -70% 0px'});
+    document.querySelectorAll('main .doc-section').forEach(section => observer.observe(section));
+  }
+})();
+</script>
+</body>
+</html>
