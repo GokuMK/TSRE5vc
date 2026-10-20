@@ -108,8 +108,14 @@ model as the first operating policy, and threading.
   (messages beside the train that fired them, no message boxes), why an
   event did not fire in Check Activity; Simulate records them too. Wagon
   events that need shunting wait for 07.
-- [ ] `07-coupling-and-train-changes.md` (to design): trains that meet,
-  couple and split.
+- [ ] `07-coupling-and-train-changes.md` (designed 2026-10-21, open
+  decisions at its end): part A, trains that change as Open Rails' AI
+  does (each train its own cars, loose consists as standing trains,
+  attaching and coupling at contact, cuts at waiting points); part B, the
+  autopilot's work orders, planned off the player's path (MSTS paths do
+  not lead through the work: 20 of the 23 local activities with wagon
+  events), with a feasibility phase first. Notes from 2026-10-17 kept
+  below.
   - Open Rails' AI shunts only where the author coded it in the path
     (`AITrain.cs`): waiting point 4NNSS / 5NNSS uncouples keeping the
     first / last NN cars and waits SS s (the cars left become a standing

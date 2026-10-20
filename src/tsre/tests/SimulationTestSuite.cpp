@@ -2147,6 +2147,85 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         timer.restart();
         auto input = Sim::MakeInput(activity, &database, speedLimit, geometry, network,
                                     content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f);
+        // TSRE_SIM_WORK (task 07's design, temporary): for activities with
+        // wagon events, the player's path against the loose consists and
+        // the events' sidings.
+        if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_WORK")) {
+            bool wagons = false;
+            for (const Sim::EventPlan &e : input->events)
+                wagons = wagons || !e.cars.empty();
+            const Sim::TrainPlan *player = nullptr;
+            for (const Sim::TrainPlan &t : input->trains)
+                if (t.player)
+                    player = &t;
+            if (wagons && player != nullptr) {
+                const auto overlaps = [](const Sim::RouteInterval &a, int node, float from, float to) {
+                    const float lo = std::min(a.from, a.to), hi = std::max(a.from, a.to);
+                    return a.node == node && std::max(lo, std::min(from, to)) < std::min(hi, std::max(from, to)) + 1e-3f;
+                };
+                QStringList parts;
+                for (const Sim::RouteTrack &part : player->route.parts)
+                    parts << QString::number(part.length(), 'f', 0);
+                qInfo().noquote() << "[work]" << activity->name << "| player" << player->service << player->vehicles.size()
+                                  << "cars," << player->length << "m | parts" << parts.join(" ") << "| waits"
+                                  << player->waits.size();
+                for (const Sim::StaticConsist &c : input->staticConsists) {
+                    QStringList met;
+                    for (size_t p = 0; p < player->route.parts.size(); ++p) {
+                        const Sim::RouteTrack &part = player->route.parts[p];
+                        double first = -1.0;
+                        for (const Sim::RouteInterval &iv : part.intervals())
+                            for (const Sim::RouteInterval &ci : c.track)
+                                if (overlaps(iv, ci.node, ci.from, ci.to)) {
+                                    double at = -1.0;
+                                    for (float d : {ci.from, ci.to}) {
+                                        double here = -1.0;
+                                        if (part.find(ci.node, d, here))
+                                            at = at < 0.0 ? here : std::min(at, here);
+                                    }
+                                    if (at >= 0.0)
+                                        first = first < 0.0 ? at : std::min(first, at);
+                                }
+                        if (first >= 0.0)
+                            met << QString("part %1 at %2 of %3").arg(p).arg(first, 0, 'f', 0).arg(part.length(), 0, 'f', 0);
+                    }
+                    qInfo().noquote() << "[work]   loose" << c.name << c.cars.size() << "cars," << c.length << "m:"
+                                      << (met.isEmpty() ? QString("not on the path") : met.join("; "));
+                }
+                for (const Sim::EventPlan &e : input->events) {
+                    if (e.cars.empty())
+                        continue;
+                    QString siding = "-";
+                    if (e.siding && e.sidingNode >= 0) {
+                        QStringList on;
+                        for (size_t p = 0; p < player->route.parts.size(); ++p) {
+                            const Sim::RouteTrack &part = player->route.parts[p];
+                            bool in = false;
+                            for (const Sim::RouteInterval &iv : part.intervals())
+                                in = in || overlaps(iv, e.sidingNode, e.sidingFrom, e.sidingTo);
+                            if (in) {
+                                // The part's end in the siding (a reversal or the path's end).
+                                const Sim::RoutePoint end = part.locate(part.length());
+                                const bool endsIn = end.node == e.sidingNode && end.distance >= e.sidingFrom - 1.0f
+                                        && end.distance <= e.sidingTo + 1.0f;
+                                on << QString("part %1%2").arg(p).arg(endsIn ? " ends in it" : "");
+                            }
+                        }
+                        siding = QString("%1 m, %2").arg(e.sidingTo - e.sidingFrom, 0, 'f', 0)
+                                .arg(on.isEmpty() ? QString("not on the path") : on.join("; "));
+                    } else if (e.siding) {
+                        siding = "not placed";
+                    }
+                    int mine = 0;
+                    for (unsigned int car : e.cars)
+                        mine += car / 65536u == 0 ? 1 : 0;
+                    const char *kinds[] = {"time", "location", "allstops", "assemble", "assemble-at", "dropoff", "pickup",
+                                           "passengers", "speed", "other"};
+                    qInfo().noquote() << "[work]   event" << kinds[int(e.kind)] << e.name << "|" << e.cars.size() << "cars ("
+                                      << mine << "player's) | level" << e.activation << "| siding" << siding;
+                }
+            }
+        }
         // TSRE_SIM_EVENT_STOPS (platforms, all): where the player's train
         // stops at stop-here events (task 06's comparisons; none by default).
         if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_EVENT_STOPS"))
