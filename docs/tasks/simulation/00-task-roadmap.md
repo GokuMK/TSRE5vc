@@ -49,6 +49,9 @@ model as the first operating policy, and threading.
 - 2026-10-17: next come activity events (06), then coupling and trains
   changing (07); the player's driving is a task set of its own
   (`docs/tasks/driving/00-task-roadmap.md`).
+- 2026-10-20: the player's work orders are done by TSRE's own full
+  autopilot (task 07), so an activity can be checked end to end; Open
+  Rails' autopilot only asks the player to shunt.
 
 ## Execution Order
 - [x] `01-simulation-thread-and-train-motion.md`: the simulation thread and
@@ -91,29 +94,18 @@ model as the first operating policy, and threading.
   aspects trains see agree with Open Rails' at 62 to 100 % of samples,
   the rest where signals are cleared, task 02). Open Rails' script
   additions later.
-- [ ] `06-activity-events.md` (to design): the activity's events run in
-  the simulation. Agreed so far (2026-10-17):
-  - Events are checks on the world, as in Open Rails
-    (`Activity.cs`, `EventCategoryActionWrapper`): AssembleTrain fires
-    when any train holds exactly the listed cars (in order or reversed),
-    DropOffWagonsAtLocation when the cars stand as a standing consist
-    inside the siding (whoever left them), PickUpWagons,
-    AssembleTrainAtLocation and ReachSpeed look at the player's train
-    only, PickUpPassengers never fires; AllStops, location events (with
-    Open Rails' AI train trigger, `triggeringService`) and time events;
-    outcomes (events activated, restored, cancelled; messages; the
-    activity's end).
-  - Shown: each event's firing time in the Timetable window's event list
-    and on the map; events that never fire warned; outcome messages at
-    the time they would show in game. Reused: TSRE's `ActivityEvent`
-    parser, the simulation's event list, the map's Events layer, the
-    Event window.
-  - AI trains could carry out work-order events too (user). Open
-    decision: the player's work orders, messages only (as Open Rails'
-    autopilot, which asks the player to shunt) or TSRE's autopilot doing
-    them (TSRE's own; it would make an activity checkable end to end).
-  - Wagon events work fully only after 07; time, location, station and
-    speed events need only 06.
+- [ ] `06-activity-events.md` (designed 2026-10-20): the activity's
+  events run in the simulation as Open Rails checks them (`Activity.cs`):
+  time, location (the point within 2.5 m of the track, the front within
+  the radius; Open Rails' triggering AI train), AllStops, ReachSpeed and
+  the wagon events on fixed car lists; outcomes (levels, the activity's
+  end, restarting a waiting train); the fixed step of 2026-10-17. Shown:
+  firing times in the Event window, the Timetable window and on the map,
+  messages in Play, why an event did not fire in Check Activity; Simulate
+  records them too. Open decisions at the doc's end (the player's train
+  stopping at "stop here" events, a triggering train's event before it
+  starts, pausing on messages). Wagon events that need shunting wait for
+  07.
 - [ ] `07-coupling-and-train-changes.md` (to design): trains that meet,
   couple and split.
   - Open Rails' AI shunts only where the author coded it in the path
@@ -133,9 +125,13 @@ model as the first operating policy, and threading.
     and the core works in whole sections: a train stops a section short
     of another train or a loose consist (it never passes through, it
     never meets either).
+  - The player's work orders: TSRE's full autopilot carries them out
+    (user, 2026-10-20), its moves planned from the wagon events. AI
+    trains could carry out work-order events too (user, 2026-10-17).
   - Needed: one table of the activity's vehicles (trains' and loose
     consists') with stable ids, so events' wagon lists name them (Open
-    Rails' CarID from the UiD); each train's own vehicle list in its
+    Rails' CarID from the UiD; the ids come in 06, the lists changing
+    here); each train's own vehicle list in its
     state, its performance summed again when it changes; loose consists
     as standing trains of the simulation; frames carry each train's
     vehicles and the controller makes its consist copy again when they
