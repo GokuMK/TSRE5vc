@@ -1,0 +1,69 @@
+#pragma once
+#include <QObject>
+#include <QString>
+#include <unordered_map>
+#include <vector>
+#include <tsre/sim/SimulationCore.h>
+
+class Activity;
+
+namespace Sim {
+
+// An activity event in the last run of its activity (task simulation 06).
+struct EventResult {
+    // It was in the run (the input had it).
+    bool inRun = false;
+    // Its state when the run was last seen (EventState), and the train it
+    // looked at when it fired, by name ("" none).
+    EventState state;
+    QString by;
+};
+
+// What the last run of an activity did with its events: Play's (as it
+// runs) or Simulate's.
+struct EventResults {
+    // By the event's place in the activity's list.
+    std::vector<EventResult> events;
+    // Up to when it ran (seconds after midnight), and whether to its end
+    // (every train finished or settled).
+    double time = 0.0;
+    bool complete = false;
+    ActivityEnd end = ActivityEnd::None;
+    double endedAt = -1.0;
+};
+
+// The last run's results of each activity, kept for the session (main
+// thread). They go out of date once the activity is edited.
+class EventResultStore : public QObject {
+    Q_OBJECT
+public:
+    static EventResultStore *instance();
+    // A run's events (the input's list) as they are now, from `time` on.
+    void record(Activity *activity, const SimulationInput &input, const std::vector<EventState> &states,
+                ActivityEnd end, double endedAt, double time, bool complete);
+    // The run went on to `time` (nothing else changed): no signal.
+    void advance(const Activity *activity, double time, bool complete);
+    // The activity was edited: its results are from before.
+    void outdate(const Activity *activity);
+    // The last run's results, null none; `current` whether the activity is
+    // as it was then.
+    const EventResults *of(const Activity *activity, bool *current = nullptr) const;
+    // Changes whenever any results do (the map builds again).
+    unsigned long long version() const { return changes; }
+    // Forgotten (tests).
+    void forgetAll();
+
+signals:
+    void changed(const Activity *activity);
+
+private:
+    EventResultStore();
+    struct Entry {
+        EventResults results;
+        bool current = true;
+    };
+    std::unordered_map<const Activity *, Entry> entries;
+    unsigned long long changes = 0;
+};
+
+}

@@ -15,6 +15,8 @@
 #include "ActivityEventProperties.h"
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
+#include <tsre/sim/EventResults.h>
+#include <cmath>
 
 ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);
@@ -98,10 +100,24 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
         //% "Time"
         qtTrId("route.editor.activity.event.window.tab.time"));
     
+    // The lists, and under them the last run.
+    QVBoxLayout *lists = new QVBoxLayout;
+    lists->setSpacing(2);
+    lists->setContentsMargins(0,0,0,0);
+    lists->addWidget(tabWidget);
+    lastRun.setWordWrap(true);
+    lastRun.setFixedWidth(176);
+    lastRun.setVisible(false);
+    actionList.setObjectName("eventActionList");
+    locationList.setObjectName("eventLocationList");
+    timeList.setObjectName("eventTimeList");
+    lastRun.setObjectName("eventLastRun");
+    lists->addWidget(&lastRun);
+
     QHBoxLayout *v = new QHBoxLayout;
     v->setSpacing(2);
     v->setContentsMargins(1,1,1,1);
-    v->addWidget(tabWidget);
+    v->addLayout(lists);
     QWidget *editor = ActivityEditLock::Box(eventProperties);
     v->addWidget(editor);
     this->setLayout(v);
@@ -124,7 +140,104 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
                      this, &ActivityEventWindow::activityDataRestored);
     QObject::connect(eventProperties, SIGNAL(eventNameChanged(int)),
                       this, SLOT(eventNameChanged(int)));
+    QObject::connect(Sim::EventResultStore::instance(), &Sim::EventResultStore::changed,
+                     this, &ActivityEventWindow::resultsChanged);
     
+}
+
+void ActivityEventWindow::resultsChanged(const Activity *changed){
+    if(!isHidden() && changed == activity)
+        showResults();
+}
+
+namespace {
+
+QString timeOfDay(double seconds){
+    return QTime(0, 0).addSecs(int(std::floor(seconds)) % 86400).toString("HH:mm:ss");
+}
+
+}
+
+void ActivityEventWindow::showResults(){
+    bool current = true;
+    const Sim::EventResults *results = activity != NULL ? Sim::EventResultStore::instance()->of(activity, &current) : NULL;
+    int fired = 0, inRun = 0;
+    for(QListWidget *list : {&actionList, &locationList, &timeList}){
+        for(int row = 0; row < list->count(); row++){
+            QListWidgetItem *item = list->item(row);
+            const int index = item->type();
+            const ActivityEvent *e = activity != NULL && index >= 0 && index < activity->event.size() ? activity->event[index] : NULL;
+            if(e == NULL)
+                continue;
+            const Sim::EventResult *result = results != NULL && size_t(index) < results->events.size()
+                    && results->events[size_t(index)].inRun ? &results->events[size_t(index)] : NULL;
+            QFont font = item->font();
+            font.setItalic(result != NULL && !current);
+            item->setFont(font);
+            item->setData(Qt::ForegroundRole, QVariant());
+            if(result == NULL){
+                item->setText(e->name);
+                item->setToolTip(QString());
+                continue;
+            }
+            inRun++;
+            QString tip;
+            if(result->state.fired > 0){
+                fired++;
+                item->setText(timeOfDay(result->state.firedAt) + "  " + e->name);
+                if(result->state.fired > 1)
+                    //% "Fired %1 times, last at %2."
+                    tip = qtTrId("route.editor.activity.event.result.fired.times").arg(result->state.fired).arg(timeOfDay(result->state.firedAt));
+                else
+                    //% "Fired at %1."
+                    tip = qtTrId("route.editor.activity.event.result.fired").arg(timeOfDay(result->state.firedAt));
+                if(result->state.standIn)
+                    //% "By the player's train: its triggering train had not started (as Open Rails)."
+                    tip += " " + qtTrId("route.editor.activity.event.result.standin");
+                else if(!result->by.isEmpty())
+                    //% "By %1."
+                    tip += " " + qtTrId("route.editor.activity.event.result.by").arg(result->by);
+            } else {
+                item->setText(e->name);
+                item->setData(Qt::ForegroundRole, palette().color(QPalette::Disabled, QPalette::Text));
+                if(results->complete)
+                    //% "Not fired in the last run."
+                    tip = qtTrId("route.editor.activity.event.result.not.fired");
+                else
+                    //% "Not fired in the last run, up to %1."
+                    tip = qtTrId("route.editor.activity.event.result.not.fired.yet").arg(timeOfDay(results->time));
+            }
+            if(!current)
+                //% "The activity was edited since."
+                tip += " " + qtTrId("route.editor.activity.event.result.outdated");
+            item->setToolTip(tip);
+        }
+    }
+    if(results == NULL || inRun == 0){
+        lastRun.setVisible(false);
+        return;
+    }
+    QString text;
+    if(results->complete)
+        //% "Last run: %1 of %2 events fired."
+        text = qtTrId("route.editor.activity.event.last.run").arg(fired).arg(inRun);
+    else
+        //% "Last run, up to %3: %1 of %2 events fired."
+        text = qtTrId("route.editor.activity.event.last.run.to").arg(fired).arg(inRun).arg(timeOfDay(results->time));
+    if(results->end == Sim::ActivityEnd::Success)
+        //% "The activity ends successfully at %1."
+        text += " " + qtTrId("route.editor.activity.event.last.run.success").arg(timeOfDay(results->endedAt));
+    else if(results->end == Sim::ActivityEnd::Failure)
+        //% "The activity ends without success at %1."
+        text += " " + qtTrId("route.editor.activity.event.last.run.failure").arg(timeOfDay(results->endedAt));
+    else if(results->complete)
+        //% "The activity does not end."
+        text += " " + qtTrId("route.editor.activity.event.last.run.no.end");
+    if(!current)
+        //% "From before the activity was edited."
+        text += " " + qtTrId("route.editor.activity.event.last.run.outdated");
+    lastRun.setText(text);
+    lastRun.setVisible(true);
 }
 
 void ActivityEventWindow::eventNameChanged(int id){
@@ -144,8 +257,10 @@ void ActivityEventWindow::showEvents(Activity* act){
     actionList.clear();
     locationList.clear();
     timeList.clear();
-    if(activity == NULL)
+    if(activity == NULL){
+        lastRun.setVisible(false);
         return;
+    }
 
     for(int i = 0; i < activity->event.size(); i++ ){
         const ActivityEvent *e = activity->event[i];
@@ -165,6 +280,7 @@ void ActivityEventWindow::showEvents(Activity* act){
     eventProperties->setEventList(act->getEventIdNameList());
     eventProperties->setStationStopList(act->getServiceStationStopNameList());
     selectShownEvent();
+    showResults();
 }
 
 void ActivityEventWindow::selectShownEvent(){

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/Game.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationTexts.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
@@ -252,6 +253,10 @@ void TimetableCalculation::run(const std::atomic<bool> *cancel) {
     }
     last = core.trains();
     endTime = core.time();
+    eventStates = core.eventStates();
+    activityEnd = core.activityEnd();
+    activityEndedAt = core.activityEndedAt();
+    settled = core.settled();
     outcome.to = endTime;
     outcome.ms = timer.elapsed();
 }
@@ -259,6 +264,8 @@ void TimetableCalculation::run(const std::atomic<bool> *cancel) {
 const TimetableRun &TimetableCalculation::write(Activity *activity) {
     if (outcome.cancelled || activity == nullptr || last.size() != in->trains.size())
         return outcome;
+    // What the run did with the activity's events (task 06).
+    EventResultStore::instance()->record(activity, *in, eventStates, activityEnd, activityEndedAt, endTime, settled);
     Memory &memory = memories()[activityKey(activity)];
     const QVector<ActivityTrains::Train> trains = ActivityTrains::List(activity);
     const int step = outcome.options.step;

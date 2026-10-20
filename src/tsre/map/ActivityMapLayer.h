@@ -34,7 +34,9 @@ struct MapPalette;
 //   vehicles, engines darker than wagons;
 // - speed zones as a line along the track with circles at the ends;
 // - failed signals as circles;
-// - location events as squares, with a ring at their trigger radius;
+// - location events as squares, with a ring at their trigger radius; after
+//   a run of the activity (task simulation 06) those that fired, and those
+//   not active, in their own colours;
 // - while the activity is simulated: its trains where they are, the track
 //   they stand on and have reserved, and the signals' aspects (arrowheads
 //   pointing the way the trains they face go).
@@ -42,7 +44,7 @@ struct MapPalette;
 class ActivityMapLayer {
 public:
     enum Group { Path, PathStart, PathEnd, PathBroken, Vehicles, Engines, SpeedZone, FailedSignal,
-                 Event, GroupCount };
+                 Event, EventFired, EventInactive, GroupCount };
     static constexpr float PathPixels = 8.0f;
     static constexpr float LinePixels = 3.0f;
     static constexpr float MarkerPixels = 9.0f;
@@ -115,7 +117,8 @@ private:
     std::unique_ptr<OglObj> chosenBand;
     std::unique_ptr<OglObj> halos;
     std::unique_ptr<OglObj> borders;
-    std::unique_ptr<OglObj> areas;
+    // Event rings: of events, fired events, events not active.
+    std::unique_ptr<OglObj> areas[3];
     std::unique_ptr<OglObj> fills[GroupCount];
     // The simulated trains, built for this frame and view.
     const void *simulatedFrame = nullptr;

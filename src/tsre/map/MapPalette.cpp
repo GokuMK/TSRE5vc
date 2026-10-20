@@ -51,6 +51,8 @@ MapPalette MapPalette::dark() {
     palette.aspectStop = QColor(255, 90, 90);
     palette.aspectCaution = QColor(255, 215, 60);
     palette.aspectClear = QColor(60, 210, 100);
+    palette.eventFired = QColor(60, 210, 100);
+    palette.eventInactive = QColor(120, 122, 130);
     return palette;
 }
 
@@ -96,6 +98,8 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("speedZone", palette.speedZone);
     read("failedSignal", palette.failedSignal);
     read("event", palette.event);
+    read("eventFired", palette.eventFired);
+    read("eventInactive", palette.eventInactive);
     read("occupied", palette.occupied);
     read("reserved", palette.reserved);
     read("aspectStop", palette.aspectStop);

@@ -1,4 +1,5 @@
 #pragma once
+#include <QElapsedTimer>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -11,6 +12,7 @@
 class Activity;
 class ActivityEvent;
 class Consist;
+struct MapLabel;
 class GameObj;
 class QThread;
 class RenderQueue;
@@ -122,8 +124,17 @@ public:
     // and an event as the Timetable window lists it.
     QString stateText(int train) const;
     QString eventText(const TrainEvent &event) const;
-    // The activity's event of the input's event `event`, or null.
+    // The activity's event of the input's event `event`, or null; its
+    // message ("" none).
     const ActivityEvent *activityEvent(int event) const;
+    QString messageOf(int event) const;
+    // Messages of the activity's events that fired (task 06), on the map
+    // beside the train that fired them (the player's train for events of no
+    // train) for MessageMs, the latest of each train; what tells they have
+    // changed (shown or gone).
+    static constexpr qint64 MessageMs = 10000;
+    void messageLabels(std::vector<MapLabel> &out) const;
+    unsigned long long messagesVersion() const;
     // A train as the Timetable window names it ("Local 09:30"); a section's
     // holder (a train, a standing consist).
     QString trainName(int train) const;
@@ -194,6 +205,19 @@ private:
     int chosenTrain = -1;
     int followedTrain = -1;
     qint64 inputMs = 0;
+    // Messages shown on the map: by train, its text and when it came (on
+    // messageClock).
+    struct Message {
+        int train = -1;
+        QString text;
+        qint64 at = 0;
+    };
+    std::vector<Message> messages;
+    QElapsedTimer messageClock;
+    unsigned long long messageChanges = 0;
+    // The events' states recorded last (EventResultStore), by run.
+    unsigned int recordedRun = 0;
+    unsigned long long recordedSerial = 0;
     // The world's date at start, and the simulation's time it shows (kept
     // while a run as fast as possible goes on).
     QString startDate;

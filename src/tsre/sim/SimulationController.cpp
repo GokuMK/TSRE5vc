@@ -13,6 +13,8 @@
 #include <tsre/map/MapFeatures.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/map/MapLabelLayer.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationTexts.h>
 #include <tsre/sound/SoundSystem.h>
@@ -140,6 +142,7 @@ bool SimulationController::start(Activity *activity, QString *error) {
     in = input;
     latest.reset();
     history.clear();
+    messages.clear();
     asked = RunMode::Paused;
     chosenTrain = -1;
     thread = new QThread();
@@ -217,6 +220,7 @@ bool SimulationController::runToTime(double target, bool thenRun, QString *error
         in = input;
         latest.reset();
         history.clear();
+        messages.clear();
         sendStart(input);
         emit eventsAdded(0);
     }
@@ -245,6 +249,7 @@ void SimulationController::reset() {
     in = input;
     latest.reset();
     history.clear();
+    messages.clear();
     sendStart(input);
     if (asked != RunMode::Paused) {
         asked = RunMode::Running;
@@ -280,6 +285,8 @@ void SimulationController::stop() {
     in.reset();
     latest.reset();
     history.clear();
+    messages.clear();
+    ++messageChanges;
     asked = RunMode::Paused;
     chosenTrain = -1;
     if (followedTrain != -1) {
@@ -327,10 +334,46 @@ void SimulationController::poll() {
     if (!fresh.empty()) {
         const int first = int(history.size());
         history.insert(history.end(), fresh.begin(), fresh.end());
+        // Events with a message: shown beside the train that fired them.
+        for (const TrainEvent &event : fresh) {
+            if (event.kind != TrainEvent::EventFired)
+                continue;
+            const QString text = messageOf(event.index);
+            if (text.isEmpty())
+                continue;
+            int train = event.train;
+            if (train < 0)
+                for (const TrainPlan &plan : in->trains)
+                    if (plan.player)
+                        train = plan.id;
+            if (train < 0)
+                continue;
+            if (!messageClock.isValid())
+                messageClock.start();
+            messages.erase(std::remove_if(messages.begin(), messages.end(),
+                                          [train](const Message &m) { return m.train == train; }), messages.end());
+            const ActivityEvent *fired = activityEvent(event.index);
+            messages.push_back({train, (fired != nullptr ? fired->name + QStringLiteral(": ") : QString()) + text,
+                                messageClock.elapsed()});
+            ++messageChanges;
+        }
         emit eventsAdded(first);
     }
     if (!changed)
         return;
+    // The activity's events as the run has them (task 06), for the Event
+    // window and the map; the time alone when they have not changed.
+    if (latest->eventStates != nullptr) {
+        EventResultStore *results = EventResultStore::instance();
+        if (recordedRun != in->runId || recordedSerial != latest->eventSerial) {
+            recordedRun = in->runId;
+            recordedSerial = latest->eventSerial;
+            results->record(current, *in, *latest->eventStates, latest->activityEnd, latest->activityEndedAt,
+                            latest->time, latest->finished);
+        } else {
+            results->advance(current, latest->time, latest->finished);
+        }
+    }
     // A run to a time the host had passed when it took the command (running
     // as fast as possible, a day can go by while the command waits): from
     // the start again to that time, as for a time behind.
@@ -573,11 +616,9 @@ QString SimulationController::eventText(const TrainEvent &event) const {
                 ? qtTrId("simulation.event.activity.standin").arg(name)
                 //% "event %1"
                 : qtTrId("simulation.event.activity").arg(name);
-        if (fired != nullptr)
-            for (const ActivityEvent::Outcome *outcome : fired->outcomes)
-                if (outcome != nullptr && outcome->type == ActivityEvent::Outcome::TypeDisplayMessage
-                        && !outcome->value.toString().isEmpty())
-                    text += QStringLiteral(": ") + outcome->value.toString().simplified();
+        const QString message = messageOf(event.index);
+        if (!message.isEmpty())
+            text += QStringLiteral(": ") + message;
         return text;
     }
     case TrainEvent::ActivityEnded:
@@ -594,6 +635,50 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     }
     }
     return QString();
+}
+
+QString SimulationController::messageOf(int event) const {
+    const ActivityEvent *fired = activityEvent(event);
+    if (fired != nullptr)
+        for (const ActivityEvent::Outcome *outcome : fired->outcomes)
+            if (outcome != nullptr && outcome->type == ActivityEvent::Outcome::TypeDisplayMessage
+                    && !outcome->value.toString().isEmpty())
+                return outcome->value.toString().simplified();
+    return QString();
+}
+
+void SimulationController::messageLabels(std::vector<MapLabel> &out) const {
+    if (!exists() || !messageClock.isValid())
+        return;
+    const qint64 now = messageClock.elapsed();
+    for (const Message &message : messages) {
+        int tile[2];
+        float position[3], heading[3];
+        if (now - message.at > MessageMs || !trainPlace(message.train, tile, position, heading))
+            continue;
+        MapLabel label;
+        label.tileX = tile[0];
+        label.tileZ = tile[1];
+        label.x = position[0];
+        label.z = position[2];
+        // A long message is cut: the Timetable window lists it whole.
+        label.text = message.text.size() > 80 ? message.text.left(79) + QChar(0x2026) : message.text;
+        label.kind = MapLabelKind::Event;
+        // Before every other label.
+        label.priority = 1e15;
+        out.push_back(std::move(label));
+    }
+}
+
+unsigned long long SimulationController::messagesVersion() const {
+    // Changes as messages come and as they go.
+    unsigned long long shown = 0;
+    if (messageClock.isValid()) {
+        const qint64 now = messageClock.elapsed();
+        for (const Message &message : messages)
+            shown += now - message.at <= MessageMs ? 1 : 0;
+    }
+    return messageChanges * 1000 + shown;
 }
 
 const ActivityEvent *SimulationController::activityEvent(int event) const {

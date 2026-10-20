@@ -36,7 +36,9 @@ void appendMarkers(std::vector<MapLabel> &out, const Coords *markers);
 // draws (platforms with their stations, sidings).
 void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database, bool platforms = true,
                          bool sidings = true);
-// Location events' names at their place.
+// Location events' names at their place, with the time each fired in the
+// activity's last run (task simulation 06) while that is for the activity
+// as it is.
 void appendActivity(std::vector<MapLabel> &out, Activity *activity);
 
 }

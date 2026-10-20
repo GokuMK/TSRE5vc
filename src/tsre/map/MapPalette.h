@@ -57,6 +57,10 @@ struct MapPalette {
     QColor speedZone = QColor(255, 0, 102);
     QColor failedSignal = QColor(204, 51, 204);
     QColor event = QColor(255, 0, 0);
+    // After a run of the activity (task simulation 06): events that fired,
+    // and those not active.
+    QColor eventFired = QColor(0, 170, 60);
+    QColor eventInactive = QColor(150, 150, 155);
     // A simulation's track: stood on (by a train or a consist), reserved
     // ahead of a train; its signals by aspect.
     QColor occupied = QColor(220, 30, 30);

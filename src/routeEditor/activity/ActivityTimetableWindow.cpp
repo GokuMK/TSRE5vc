@@ -660,9 +660,15 @@ void ActivityTimetableWindow::showEvents(int first){
         return;
     const std::vector<Sim::TrainEvent> &all = simulation->events();
     const bool atEnd = events.count() == 0 || events.verticalScrollBar()->value() == events.verticalScrollBar()->maximum();
-    for(size_t i = size_t(std::max(0, first)); i < all.size(); i++)
-        if(all[i].train == train)
+    // The activity's events (task simulation 06) are the player's: listed
+    // with its train's, and with an AI train's that fired them.
+    const std::shared_ptr<const Sim::SimulationInput> input = simulation->input();
+    const bool player = input != NULL && size_t(train) < input->trains.size() && input->trains[size_t(train)].player;
+    for(size_t i = size_t(std::max(0, first)); i < all.size(); i++){
+        const bool activityEvent = all[i].kind == Sim::TrainEvent::EventFired || all[i].kind == Sim::TrainEvent::ActivityEnded;
+        if(all[i].train == train || (player && activityEvent))
             events.addItem(clock(int(all[i].time)) + "  " + simulation->eventText(all[i]));
+    }
     if(atEnd)
         events.scrollToBottom();
 }

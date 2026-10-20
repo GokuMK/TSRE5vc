@@ -35,15 +35,18 @@
 #include <tsre/Undo.h>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/map/MapFeatures.h>
+#include <tsre/map/MapLabelLayer.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TimetableCalculation.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/ActivityTrains.h>
@@ -850,6 +853,113 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
                   && placeholder->stops[0].arrivalBefore < 0 && placeholder->stops[0].departureBefore < 0
                   && !placeholder->stops[0].kept,
               "an uncalculated timetable (every stop at the train's start): Simulate's times shown as new, none kept");
+        Undo::Clear();
+    }
+
+    // Activity events (task simulation 06): a time event, a location event
+    // the player's train passes (both with messages), one on the other line
+    // and one not active. Run to 08:03: the Event window shows when each
+    // fired, the Timetable window lists them with the player's train, the
+    // map the latest message beside it; an edit puts the results out of
+    // date, Simulate brings them back.
+    {
+        const auto messageOf = [](ActivityEvent *event, const QString &text) {
+            ActivityEvent::Outcome *outcome = event->outcomes[event->newOutcome()];
+            outcome->setToNewType(ActivityEvent::Outcome::TypeDisplayMessage);
+            outcome->setMessage(text);
+        };
+        const auto placeAt = [&](ActivityEvent *event, int track, float distance) {
+            float at[7];
+            layout.db.getDrawPositionOnTrNode(at, track, distance);
+            event->setLocation(int(at[5]), int(at[6]), at[0], at[2]);
+            event->setLocationRadius(10);
+        };
+        ActivityEvent *half = activity->newEvent(ActivityEvent::CategoryTime);
+        half->setName("Half a minute");
+        half->setTime(30);
+        messageOf(half, "Thirty seconds in");
+        ActivityEvent *marker = activity->newEvent(ActivityEvent::CategoryLocation);
+        marker->setName("Marker");
+        placeAt(marker, 10, 700.0f);
+        messageOf(marker, "Passing the marker");
+        ActivityEvent *elsewhere = activity->newEvent(ActivityEvent::CategoryLocation);
+        elsewhere->setName("Elsewhere");
+        placeAt(elsewhere, 30, 700.0f);
+        ActivityEvent *sleeping = activity->newEvent(ActivityEvent::CategoryTime);
+        sleeping->setName("Sleeping");
+        sleeping->setActivationLevel(0);
+        events.showEvents(activity);
+        runToTime->setTime(QTime(8, 3, 0));
+        runTo->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 20000, pump);
+        pump();
+        bool current = false;
+        const Sim::EventResults *results = Sim::EventResultStore::instance()->of(activity, &current);
+        const auto resultOf = [&](ActivityEvent *event) -> const Sim::EventResult * {
+            const int index = activity->event.indexOf(event);
+            return results != nullptr && index >= 0 && size_t(index) < results->events.size() ? &results->events[size_t(index)] : nullptr;
+        };
+        check(f && results != nullptr && current && resultOf(half) && resultOf(half)->state.fired == 1
+                  && std::fabs(resultOf(half)->state.firedAt - (8 * 3600 + 30)) < 1e-6
+                  && resultOf(marker) && resultOf(marker)->state.fired == 1 && resultOf(marker)->by.contains("S")
+                  && resultOf(elsewhere) && resultOf(elsewhere)->state.fired == 0
+                  && resultOf(sleeping) && resultOf(sleeping)->state.fired == 0,
+              "Run to 08:03: the time and passed location events fired, the others not");
+        const auto rowOf = [&](const char *list, const QString &name) -> QListWidgetItem * {
+            QListWidget *shown = events.findChild<QListWidget *>(list);
+            for (int i = 0; shown != nullptr && i < shown->count(); ++i)
+                if (shown->item(i)->text().endsWith(name))
+                    return shown->item(i);
+            return nullptr;
+        };
+        QLabel *eventRun = events.findChild<QLabel *>("eventLastRun");
+        QListWidgetItem *markerRow = rowOf("eventLocationList", "Marker");
+        QListWidgetItem *elsewhereRow = rowOf("eventLocationList", "Elsewhere");
+        check(markerRow != nullptr && markerRow->text().startsWith("08:00:") && elsewhereRow != nullptr
+                  && elsewhereRow->text() == "Elsewhere" && elsewhereRow->data(Qt::ForegroundRole).isValid()
+                  && eventRun != nullptr && !eventRun->isHidden() && eventRun->text().contains("2 of 4"),
+              QString("the Event window: when each fired, grey those that did not, the run under the lists (%1; %2)")
+                  .arg(markerRow != nullptr ? markerRow->text() : QString("-"), eventRun != nullptr ? eventRun->text() : QString("-")));
+        // The player's train is the first row.
+        if (rows->topLevelItemCount() > 0) {
+            rows->setCurrentItem(rows->topLevelItem(0));
+            rows->topLevelItem(0)->setSelected(true);
+        }
+        pump();
+        QStringList listed;
+        for (int i = 0; i < trainEvents->count(); ++i)
+            listed << trainEvents->item(i)->text();
+        check(simulation->chosen() == simulation->trainOf(true, -1) && listed.join("\n").contains("Passing the marker")
+                  && listed.join("\n").contains("Thirty seconds in"),
+              "the Timetable window lists the activity's events with the player's train: " + listed.filter("event").join(" | "));
+        std::vector<MapLabel> labels;
+        simulation->messageLabels(labels);
+        check(labels.size() == 1 && labels[0].text.contains("Marker") && labels[0].kind == MapLabelKind::Event,
+              QString("the map shows the latest message beside the player's train (%1)")
+                  .arg(labels.empty() ? QString("none") : labels[0].text));
+        stop->click();
+        pump();
+        {
+            ActivityEdit edit(activity);
+            half->setTime(31);
+        }
+        Undo::StateEnd();
+        Sim::EventResultStore::instance()->of(activity, &current);
+        markerRow = rowOf("eventLocationList", "Marker");
+        check(!current && markerRow != nullptr && markerRow->font().italic() && eventRun->text().contains("edited"),
+              "an edit puts the last run's results out of date: shown so");
+        if (simulate != nullptr)
+            simulate->click();
+        QApplication::processEvents();
+        results = Sim::EventResultStore::instance()->of(activity, &current);
+        markerRow = rowOf("eventLocationList", "Marker");
+        check(current && results != nullptr && results->complete && markerRow != nullptr && !markerRow->font().italic()
+                  && resultOf(half) && std::fabs(resultOf(half)->state.firedAt - (8 * 3600 + 31)) < 1e-6,
+              "Simulate records the events' results for the activity as it is");
+        for (ActivityEvent *added : {half, marker, elsewhere, sleeping})
+            activity->deleteEvent(added);
+        events.showEvents(activity);
         Undo::Clear();
     }
 

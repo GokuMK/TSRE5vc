@@ -120,6 +120,7 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/environment/WorldClock.h>
 
@@ -3285,18 +3286,28 @@ void RouteEditorGLWidget::updateMapLabels() {
             && MapLayers::has(mapLayers.activityKinds, int(MapActivityKind::Events)) && route != NULL
             ? route->getCurrentActivity() : NULL;
     const OsmMapLayer *osm = mapLayers.shows(MapLayer::OsmData) ? osmMap.get() : NULL;
+    // The simulation's messages beside its trains (task simulation 06): they
+    // follow the trains while shown.
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const bool messages = activity != NULL && simulation->shows(activity);
+    const unsigned long long messagesVersion = messages ? simulation->messagesVersion() : 0;
+    const void *messageFrame = messagesVersion % 1000 != 0 ? simulation->viewFrame().get() : NULL;
     // What is labelled, and how much of it: a change rebuilds the labels.
     const std::vector<const void *> sources = {
         osm, reinterpret_cast<const void *>(quintptr(osm != NULL ? osm->labelsVersion() : 0)),
         markers, reinterpret_cast<const void *>(quintptr(markers != NULL ? markers->markerList.size() : 0)),
         track, reinterpret_cast<const void *>(quintptr(track != NULL ? track->trackItems.size() : 0)),
         activity, reinterpret_cast<const void *>(quintptr(activity != NULL ? activity->event.size() : 0)),
+        reinterpret_cast<const void *>(quintptr(Sim::EventResultStore::instance()->version())),
+        reinterpret_cast<const void *>(quintptr(messagesVersion)), messageFrame,
         mapMeasure.get(), reinterpret_cast<const void *>(quintptr(mapMeasure->version()))};
     if (!mapLabelsInvalid && sources == mapLabelSources)
         return;
     std::vector<MapLabel> labels;
     if (mapMeasure->shown())
         labels.push_back(mapMeasure->label(Game::GeoCoordConverter));
+    if (messages)
+        simulation->messageLabels(labels);
     MapLabelSources::appendActivity(labels, activity);
     MapLabelSources::appendTrackDatabase(labels, track,
                                          MapLayers::has(mapLayers.trackObjectKinds, TrackItemMapLayer::Platform),

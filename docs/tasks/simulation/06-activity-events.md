@@ -1,6 +1,6 @@
 # Task 06 - Activity Events
 
-Status: phases 1 and 2 done 2026-10-20 (branch `feature/simulation`).
+Status: phases 1 to 3 done 2026-10-20 (branch `feature/simulation`).
 Decisions taken are at the end.
 
 Sources:
@@ -81,6 +81,31 @@ Sources:
   unchanged (0.4 to 0.5 µs); whole routes JAPAN1 400 to 420 ms, USA1 268
   to 314 ms, EUROPE2 120 to 153 ms for 13.1 simulated hours (its
   oetutorial's 57 location events: about 70 ns a step).
+
+**Phase 3, editor (done 2026-10-20).**
+- `EventResultStore` (`src/tsre/sim/EventResults`): each activity's last
+  run's event results for the session, from Play and Run to (each frame
+  whose event states changed; the time alone otherwise) and from Simulate
+  (`TimetableCalculation::write`); out of date after any `ActivityEdit` of
+  the activity or an undo restoring activity data.
+- Event window: a fired event's time before its name, events that did not
+  fire grey, all in italics when out of date; the tooltip says when, how
+  often and by which train (or the player's standing in); under the lists
+  the run: how many fired, the activity's end, up to when.
+- Timetable window: the activity's events (fired, the end) among the
+  player's train's events, with their messages; an AI train's list keeps
+  those it fired and its restarts.
+- Map: events fired drawn green, those not active grey (palettes
+  `eventFired`, `eventInactive`), the rest red as before; a fired
+  location event's label has its time; the latest message of each train
+  beside it for 10 s (cut at 80 characters), following the train.
+- simulation-ui: 6 checks (Run to: results, the Event window's rows and
+  run line, the Timetable list, the map's message, an edit putting them
+  out of date, Simulate recording them again; 57 checks). A capture of
+  EUROPE1's sctutorial run to 08:06 (scratch case, map by the player's
+  train) shows the tutorial's chain fired along the route with times, the
+  station-stop message beside the train, events passed but not fired red
+  ("Tunnel", "F4": phase 4 tells why).
 
 ## Why
 
