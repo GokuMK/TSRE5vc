@@ -16,6 +16,7 @@
 #include <QMap>
 
 class QSlider;
+class QScrollArea;
 class RouteEditorGLWidget;
 class ObjTools;
 class GeoTools;
@@ -190,6 +191,8 @@ private:
     // The properties panel shown and its object, shown again when the units
     // the editors show change (task core si-units).
     PropertiesAbstract *shownProperties = NULL;
+    // The scroll area of the properties panels (as the tools').
+    QScrollArea *propertiesArea = nullptr;
     GameObj *shownPropertiesObj = NULL;
     GameObj* pinnedSelectionObj = NULL;
 };

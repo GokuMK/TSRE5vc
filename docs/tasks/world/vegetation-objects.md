@@ -66,6 +66,9 @@ the same way (`Forest ( "Norway Spruce" "norway-spruce-v2-edge.glb" ... )`).
 Open: grouped instancing; TreeSize for shapes (the authored size is used);
 the selection box is the area's, not the trees'.
 
+Performance test view (heavy, for the optimisations to come): route TREES,
+`core.startup.camera=96,-118,314.17,8.05,303.92,656.38,7.15`.
+
 ## Engine changes
 
 1. Extend Forest with optional `Shape ( "<id>.gltf" )` and
