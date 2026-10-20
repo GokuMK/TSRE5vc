@@ -72,6 +72,7 @@
 #include <settings/SettingsAccess.h>
 #include <settings/ui/SettingsDialog.h>
 #include <QDir>
+#include <QStandardPaths>
 #include <QThread>
 #include <cmath>
 #include <memory>
@@ -681,6 +682,33 @@ RouteEditorWindow::RouteEditorWindow() {
         // after --set= on the command line or in startup-args.txt, or as a
         // -Set value of the hardware scripts.
         QApplication::clipboard()->setText("core.startup.camera=" + glWidget->cameraSetting());
+    });
+    QAction* saveSceneAction = new QAction(
+        //% "Save Scene To &Image"
+        qtTrId("route.editor.route.editor.window.action.tools.save.scene.image"), this);
+    toolsMenu->addAction(saveSceneAction);
+    QObject::connect(saveSceneAction, &QAction::triggered, this, [this]() {
+        // The frame as drawn, to the user's Pictures/TSRE: the route's name
+        // and the time, lowercase (a name TSRE makes itself).
+        const QImage image = glWidget->grabFramebuffer().convertToFormat(QImage::Format_RGB32);
+        const QDir pictures(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation));
+        const QString folder = pictures.filePath("TSRE");
+        const QString name = QString("%1-%2.png").arg(Game::route,
+                QDateTime::currentDateTime().toString("yyyy-MM-dd-HH-mm-ss")).toLower();
+        const QString path = QDir(folder).filePath(name);
+        if (image.isNull() || !QDir().mkpath(folder) || !image.save(path, "PNG")) {
+            QMessageBox::warning(this,
+                //% "Save Scene To Image"
+                qtTrId("route.editor.route.editor.window.message.save.scene.image"),
+                //% "Could not save the scene to %1."
+                qtTrId("route.editor.route.editor.window.message.save.scene.image.failed")
+                    .arg(QDir::toNativeSeparators(path)));
+            return;
+        }
+        QToolTip::showText(glWidget->mapToGlobal(QPoint(16, 16)),
+            //% "Scene saved to %1"
+            qtTrId("route.editor.route.editor.window.message.save.scene.image.saved")
+                .arg(QDir::toNativeSeparators(path)), glWidget, QRect(), 4000);
     });
     auto *bakeTerrainAction=toolsMenu->addAction(
         //% "Bake procedural terrain textures…"

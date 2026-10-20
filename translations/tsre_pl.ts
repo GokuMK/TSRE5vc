@@ -3156,6 +3156,26 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <source>&amp;Copy Camera Position</source>
         <translation>&amp;Kopiuj położenie kamery</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.tools.save.scene.image">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="688"/>
+        <source>Save Scene To &amp;Image</source>
+        <translation>Zapisz scenę jako &amp;obraz</translation>
+    </message>
+    <message id="route.editor.route.editor.window.message.save.scene.image">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="702"/>
+        <source>Save Scene To Image</source>
+        <translation>Zapisz scenę jako obraz</translation>
+    </message>
+    <message id="route.editor.route.editor.window.message.save.scene.image.failed">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="704"/>
+        <source>Could not save the scene to %1.</source>
+        <translation>Nie udało się zapisać sceny do %1.</translation>
+    </message>
+    <message id="route.editor.route.editor.window.message.save.scene.image.saved">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="710"/>
+        <source>Scene saved to %1</source>
+        <translation>Scena zapisana w %1</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.v.view.world.grid">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="412"/>
         <source>&amp;World Grid</source>

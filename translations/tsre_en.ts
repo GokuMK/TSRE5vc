@@ -3154,6 +3154,26 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <source>&amp;Copy Camera Position</source>
         <translation>&amp;Copy Camera Position</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.tools.save.scene.image">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="688"/>
+        <source>Save Scene To &amp;Image</source>
+        <translation>Save Scene To &amp;Image</translation>
+    </message>
+    <message id="route.editor.route.editor.window.message.save.scene.image">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="702"/>
+        <source>Save Scene To Image</source>
+        <translation>Save Scene To Image</translation>
+    </message>
+    <message id="route.editor.route.editor.window.message.save.scene.image.failed">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="704"/>
+        <source>Could not save the scene to %1.</source>
+        <translation>Could not save the scene to %1.</translation>
+    </message>
+    <message id="route.editor.route.editor.window.message.save.scene.image.saved">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="710"/>
+        <source>Scene saved to %1</source>
+        <translation>Scene saved to %1</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.v.view.world.grid">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="412"/>
         <source>&amp;World Grid</source>
