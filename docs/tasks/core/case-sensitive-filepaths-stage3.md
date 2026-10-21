@@ -33,6 +33,24 @@ No journal is needed when nothing can or needs to change. Plans from older
 scanner versions must be regenerated: saved plans must exactly match the fresh
 planner's inventory, reference data, and decisions.
 
+Execution now begins with a lightweight core-directory bootstrap, before the
+reference/content analysis. It canonicalizes fixed root directories, including
+`ROUTES`, `GLOBAL`, `TRAINS`, `SOUND`, and `TEMPLATE`; fixed `GLOBAL`, `TRAINS`,
+and route subdirectories; `TRAINS/TRAINSET`, `TRAINS/CONSISTS`, and
+`TRAINS/CONSISTS/RANDOMSETS`; and recognized route extensions such as
+`OPENRAILS`, `ADDONS`, `PROCEDURAL`, `TRACKPROFILES`, and `TERRAIN_MAPS`.
+Dynamic TRAINSET product folders and arbitrary asset directories are not forced
+to uppercase.
+
+If several case variants of a fixed directory exist, an exactly canonical
+directory is preferred. Other variants are moved whole into the transaction
+vault, then unique subtrees are moved back into the canonical tree. Matching
+directories are merged recursively. A colliding canonical-side file is kept;
+the alternate stays byte-for-byte in `bootstrap-vault` and is reported. This
+keeps the live game root usable without silently overwriting either version.
+Bootstrap changes, retained conflicts, and later content repairs share one
+rollback journal.
+
 Exit 0 means the requested operation completed with no known outstanding repair
 proposals/errors; missing content warnings are allowed. Exit 1 means a partial
 conversion or unresolved verification result. Exit 2 means invalid arguments,
@@ -87,17 +105,19 @@ failed preservation writer uses the same local constraints. No error propagates
 through a shared shape/texture graph merely because files are connected. The
 planner still coordinates seasonal and alternate-representation names globally.
 
-Physical collisions remain local errors: colliding names and directory subtrees
-are retained, without merging or overwriting files. Their containing runtime
-directories can still be renamed. Links and ancestors carrying links remain
+Physical file collisions remain local errors and are never overwritten. During
+the fixed-directory bootstrap, alternate directory trees are merged by moving
+only unique entries into the canonical tree; colliding alternates remain in the
+transaction vault and are reported. Collisions elsewhere remain in place and are
+withheld by the normal planner. Links and ancestors carrying links remain
 protected. Excluded entries receive no individual repair operations, but can move
 with a repaired containing directory. Undiscovered references in unreadable or
 unknown content cannot be verified; this limitation remains explicit rather than
 preventing supported repairs elsewhere.
 
 Missing content remains a warning. It is not substituted from another scope.
-Case-only duplicate-file consolidation and directory-collision merging are **not
-enabled in execution v1**. They retain planner errors and are withheld; the
+Directory-collision merging is deliberately limited to fixed structural roles in
+the bootstrap phase. General duplicate-file consolidation is not enabled: the
 executor never overwrites one case variant with another. Unknown ENV water-map
 lookup rules, optional-empty-field semantics, and undiscovered include owners
 remain explicit limitations from stage 1. Root-wide compatibility is not claimed.
@@ -112,6 +132,13 @@ Complete results have no remaining proposals. Partial results retain errors,
 withheld operations, writer errors, missing-content warnings, and remaining counts.
 
 ## Transaction and recovery
+
+The core-directory bootstrap inventories the tree without parsing content, writes
+its recovery manifest and active marker, and applies no-overwrite renames before
+the first full content scan. Directory content hashes protect recovery; cached
+Merkle-style hashing avoids rereading the same bootstrap files for nested merges.
+The resulting lightweight path/type/metadata inventory is checked before content
+analysis starts.
 
 All edited sources receive exact-byte backups and staged replacements before
 content mutation. A second full preflight scan detects changes during preparation.
@@ -143,9 +170,12 @@ errors before the transaction begins. After interruption, explicitly invoke
 `--rollback`. Recovery infers whether an intent-only move happened by checking
 exact paths and hashes. A torn final log record can be discarded. Rollback is
 idempotent and itself recoverable; original edited bytes come from checked backups.
-It refuses to overwrite later changed files or directory contents. Recovery also
-checks the original path/type layout; unexpected entries (including possible
-writer temporaries) are reported and never blindly deleted. If it cannot
+It refuses to overwrite later changed files. A bootstrap directory whose bytes
+changed can be moved back only if its complete entry structure still matches the
+recorded tree, so later file edits are preserved while additions, removals, and
+type changes stop automatic recovery. Recovery also checks the original path/type
+layout; unexpected entries (including possible writer temporaries) are reported
+and never blindly deleted. If it cannot
 finish, keep the journal and backups and resolve the reported obstruction.
 Power-loss behavior still depends on filesystem/platform guarantees; tests cover
 process-interruption states, not physical power loss. Backups are retained after
@@ -163,8 +193,9 @@ Temporary-fixture tests cover text encodings and compression, exact binary paylo
 preservation, SD root edits, pure renames, conflicting incoming spellings, two-part
 vehicle references, shared routes/shapes, seasonal DDS names, stale plans,
 interrupted temporary-name moves, torn journal tails, automatic rollback on a
-concurrent file change, refusal to overwrite a later edit, and isolation of an
-independent broken route. CLI cases cover direct execution, read-only plans,
+concurrent file change, refusal to overwrite a later edit, fixed-directory
+case-variant merging with identical and different file collisions, exact bootstrap
+rollback, and isolation of an independent broken route. CLI cases cover direct execution, read-only plans,
 saved-plan execution, strict verification, rollback, and identical direct/saved
 outputs. Final checks passed:
 

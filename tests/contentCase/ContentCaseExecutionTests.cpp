@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QCoreApplication>
 #include <QProcess>
+#include <QSet>
 #include <QDateTime>
 #include <QtEndian>
 #include <stdexcept>
@@ -154,6 +155,75 @@ void runExecutionTests() {
 
     QTemporaryDir tmp;
     check(tmp.isValid(), "execution temporary directory");
+
+    // Fixed runtime directories are normalized and merged before the content
+    // graph is analyzed. Exact canonical spellings win; no colliding bytes are
+    // discarded, and the whole operation remains rollback-safe.
+    const auto bootstrapRoot = tmp.path() + "/Bootstrap";
+    put(bootstrapRoot + "/TRAINS/Trainset/Product/Same.ace", "same bytes");
+    put(bootstrapRoot + "/TRAINS/Trainset/Product/Different.ace", "canonical bytes");
+    put(bootstrapRoot + "/TRAINS/Trainset/Product/OnlyUpper.ace", "upper only");
+    put(bootstrapRoot + "/Trains/Trainset/Product/Same.ace", "same bytes");
+    put(bootstrapRoot + "/Trains/Trainset/Product/Different.ace", "alternate bytes");
+    put(bootstrapRoot + "/Trains/Trainset/Product/OnlyMixed.ace", "mixed only");
+    put(bootstrapRoot + "/Trains/Consists/Example.con", "Train ( TrainCfg ( Example ) )");
+    const auto bootstrapInitial = snapshot(bootstrapRoot);
+    const auto rootSpellings = QDir(bootstrapRoot).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    const bool separateCoreVariants =
+        rootSpellings.contains("TRAINS") && rootSpellings.contains("Trains");
+    const auto bootstrapped = ContentCase::execute(
+        bootstrapRoot, {}, tmp.path() + "/BootstrapJournal", error);
+    check(!bootstrapped.isEmpty() &&
+              (!separateCoreVariants || bootstrapped["status"] == "partial"),
+          "core directory bootstrap: " + error +
+              QString::fromUtf8(QJsonDocument(bootstrapped).toJson()));
+    const auto canonicalRootSpellings =
+        QDir(bootstrapRoot).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    const auto canonicalTrainSpellings =
+        QDir(bootstrapRoot + "/TRAINS").entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    check(QFileInfo::exists(bootstrapRoot + "/TRAINS/TRAINSET/Product/OnlyUpper.ace") &&
+              QFileInfo::exists(bootstrapRoot + "/TRAINS/TRAINSET/Product/OnlyMixed.ace") &&
+              QFileInfo::exists(bootstrapRoot + "/TRAINS/CONSISTS/Example.con") &&
+              canonicalRootSpellings.contains("TRAINS") &&
+              !canonicalRootSpellings.contains("Trains") &&
+              canonicalTrainSpellings.contains("TRAINSET") &&
+              !canonicalTrainSpellings.contains("Trainset"),
+          "core directory variants are merged into canonical runtime paths");
+    if (separateCoreVariants) {
+        check(get(bootstrapRoot + "/TRAINS/TRAINSET/Product/Different.ace") ==
+                  "canonical bytes" &&
+                  bootstrapped["bootstrap"].toObject()["identicalEntriesVaulted"].toInt() == 1 &&
+                  bootstrapped["bootstrapConflicts"].toArray().size() == 1,
+              "canonical collision wins while identical and different alternates are retained");
+        const auto bootstrapConflict =
+            bootstrapped["bootstrapConflicts"].toArray().first().toObject();
+        const auto bootstrapJournalDirectory =
+            QFileInfo(bootstrapped["journal"].toString()).absolutePath();
+        check(bootstrapConflict["kept"] ==
+                  "TRAINS/TRAINSET/Product/Different.ace" &&
+                  get(bootstrapJournalDirectory + '/' + bootstrapConflict["vault"].toString()) ==
+                      "alternate bytes",
+              "conflicting alternate bytes remain in the recovery vault");
+    }
+    check(ContentCase::rollback(bootstrapRoot, bootstrapped["journal"].toString(), error),
+          "core bootstrap rollback: " + error);
+    check(snapshot(bootstrapRoot) == bootstrapInitial,
+          "core bootstrap rollback restores every original path and byte");
+
+    const auto renamedMergeRoot = tmp.path() + "/RenamedMerge";
+    put(renamedMergeRoot + "/trains/trainset/Product/First.ace", "first tree");
+    put(renamedMergeRoot + "/Trains/trainset/Product/Second.ace", "second tree");
+    const auto renamedMergeInitial = snapshot(renamedMergeRoot);
+    const auto renamedMerge = ContentCase::execute(
+        renamedMergeRoot, {}, tmp.path() + "/RenamedMergeJournal", error);
+    check(!renamedMerge.isEmpty() &&
+              QFileInfo::exists(renamedMergeRoot + "/TRAINS/TRAINSET/Product/First.ace") &&
+              QFileInfo::exists(renamedMergeRoot + "/TRAINS/TRAINSET/Product/Second.ace"),
+          "a merged winner can itself be renamed after receiving unique entries: " + error);
+    check(ContentCase::rollback(renamedMergeRoot, renamedMerge["journal"].toString(), error) &&
+              snapshot(renamedMergeRoot) == renamedMergeInitial,
+          "renamed merged winner rollback: " + error);
+
     // A TRK scalar expands into several independent companion references.
     const auto companionRoot = tmp.path() + "/Companions";
     fixture(companionRoot);
@@ -368,7 +438,12 @@ void runExecutionTests() {
     check(ContentCase::execute(staleRoot, stale, tmp.path() + "/StaleJournal", error).isEmpty(),
           "stale plan refused");
     check(snapshot(staleRoot) == changed, "stale refusal changes no source");
-    for (int stop : {1, 2, 7}) {
+    int fixtureContentActions = 0;
+    const auto pureJournal = QJsonDocument::fromJson(get(result["journal"].toString())).object();
+    for (const auto &value : pureJournal["actions"].toArray())
+        fixtureContentActions += value.toObject()["kind"] != "bootstrap-move";
+    const QSet<int> interruptionStops{1, 2, fixtureContentActions};
+    for (int stop : interruptionStops) {
         const auto interruptedRoot = tmp.path() + "/Interrupted" + QString::number(stop);
         fixture(interruptedRoot);
         const auto saved = snapshot(interruptedRoot);
@@ -423,21 +498,31 @@ void runExecutionTests() {
     const auto racing = ContentCase::execute(
         racingRoot, {}, tmp.path() + "/RacingJournal", error, {}, [&](int step) {
             if (step == 1)
-                put(racingRoot + "/routes/RouteOne/textures/bark.ace",
+                put(racingRoot + "/ROUTES/RouteOne/TEXTURES/bark.ace",
                     "user change during conversion");
             return true;
         });
     check(racing.isEmpty(), "concurrent change aborts conversion");
-    check(snapshot(racingRoot) == racingExpected,
-          "automatic rollback preserves concurrent change to an unstarted file");
+    const auto racingActual = snapshot(racingRoot);
+    QStringList racingDifferences;
+    for (auto it = racingExpected.cbegin(); it != racingExpected.cend(); ++it)
+        if (!racingActual.contains(it.key()) || racingActual[it.key()] != it.value())
+            racingDifferences << "expected " + it.key();
+    for (auto it = racingActual.cbegin(); it != racingActual.cend(); ++it)
+        if (!racingExpected.contains(it.key()))
+            racingDifferences << "unexpected " + it.key();
+    check(racingActual == racingExpected,
+          "automatic rollback preserves concurrent change to an unstarted file: " + error +
+              "; " + racingDifferences.join(", "));
 
     // Once every journal action has completed, a final verification problem is
     // an iterative partial result. Keep the completed repairs and the external
     // change so a fresh run can rescan them instead of undoing the whole root.
     const auto iterativeRoot = tmp.path() + "/Iterative";
     fixture(iterativeRoot);
-    const auto iterativeWorld = iterativeRoot + "/routes/RouteOne/world/test.w";
-    put(iterativeWorld, "Tr_WorldFile ( Static ( FileName ( TREE.s ) ) )\r\n");
+    const auto iterativeWorld = iterativeRoot + "/ROUTES/RouteOne/WORLD/test.w";
+    const auto iterativeWorldBeforeBootstrap = iterativeRoot + "/routes/RouteOne/world/test.w";
+    put(iterativeWorldBeforeBootstrap, "Tr_WorldFile ( Static ( FileName ( TREE.s ) ) )\r\n");
     const auto iterative = ContentCase::execute(
         iterativeRoot, {}, tmp.path() + "/IterativeJournal", error, {}, [&](int step) {
             if (step == 1)

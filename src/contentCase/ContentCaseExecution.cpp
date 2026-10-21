@@ -1,5 +1,6 @@
 #include "ContentCaseExecution.h"
 #include "ContentCaseDocument.h"
+#include <QByteArrayView>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -14,6 +15,8 @@
 #include <QUuid>
 #include <algorithm>
 #include <filesystem>
+#include <memory>
+#include <utility>
 #ifdef Q_OS_WIN
 #include <io.h>
 #ifndef NOMINMAX
@@ -112,6 +115,16 @@ bool writeNew(const QString &path, const QByteArray &bytes, QString &error) {
 #endif
     return true;
 }
+bool writeJson(const QString &path, const QJsonObject &object, QString &error) {
+    QSaveFile f(path);
+    f.setDirectWriteFallback(false);
+    const auto bytes = QJsonDocument(object).toJson(QJsonDocument::Indented);
+    if (!f.open(QIODevice::WriteOnly) || f.write(bytes) != bytes.size() || !f.commit()) {
+        error = "Cannot update transaction journal: " + path + ": " + f.errorString();
+        return false;
+    }
+    return true;
+}
 bool append(const QString &directory, const QJsonObject &event, QString &error) {
     QFile f(directory + "/events.jsonl");
     if (!f.open(QIODevice::WriteOnly | QIODevice::Append)) {
@@ -162,38 +175,132 @@ QString treeHash(const QString &path, QString &error) {
     };
     return walk(path, {}) ? QString::fromLatin1(digest.result().toHex()) : QString();
 }
-bool move(const QString &root, const QString &from, const QString &to, QString &error) {
-    if (!safe(root, from, error) || !safe(root, to, error))
+QString bootstrapDigest(const QString &path, const QString &type, QString &error) {
+    if (type == "file")
+        return fileHash(path, error);
+    if (type == "link") {
+        const QFileInfo info(path);
+        if (!info.isSymLink() && !info.isJunction()) {
+            error = "Expected a link at " + path;
+            return {};
+        }
+        return hash(QByteArray("link\n") + QFile::encodeName(info.symLinkTarget()));
+    }
+    if (type != "directory") {
+        error = "Unknown bootstrap entry type: " + type;
+        return {};
+    }
+    QCryptographicHash digest(QCryptographicHash::Sha256);
+    auto entries = QDir(path).entryInfoList(
+        QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot, QDir::Name);
+    std::sort(entries.begin(), entries.end(), [](const QFileInfo &a, const QFileInfo &b) {
+        return a.fileName() < b.fileName();
+    });
+    for (const auto &entry : entries) {
+        const bool link = entry.isSymLink() || entry.isJunction();
+        const QString childType = link ? "link" : entry.isDir() ? "directory" : "file";
+        digest.addData(entry.fileName().toUtf8());
+        digest.addData(QByteArrayView("\0", 1));
+        digest.addData(childType.toLatin1());
+        digest.addData(QByteArrayView("\0", 1));
+        const auto child = bootstrapDigest(entry.filePath(), childType, error);
+        if (child.isEmpty())
+            return {};
+        digest.addData(child.toLatin1());
+    }
+    return QString::fromLatin1(digest.result().toHex());
+}
+QString bootstrapLayoutDigest(const QString &path, const QString &type, QString &error) {
+    if (type == "file")
+        return hash("file");
+    if (type == "link") {
+        const QFileInfo info(path);
+        if (!info.isSymLink() && !info.isJunction()) {
+            error = "Expected a link at " + path;
+            return {};
+        }
+        return hash(QByteArray("link\n") + QFile::encodeName(info.symLinkTarget()));
+    }
+    if (type != "directory") {
+        error = "Unknown bootstrap entry type: " + type;
+        return {};
+    }
+    QCryptographicHash digest(QCryptographicHash::Sha256);
+    auto entries = QDir(path).entryInfoList(
+        QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot, QDir::Name);
+    std::sort(entries.begin(), entries.end(), [](const QFileInfo &a, const QFileInfo &b) {
+        return a.fileName() < b.fileName();
+    });
+    for (const auto &entry : entries) {
+        const bool link = entry.isSymLink() || entry.isJunction();
+        const QString childType = link ? "link" : entry.isDir() ? "directory" : "file";
+        digest.addData(entry.fileName().toUtf8());
+        digest.addData(QByteArrayView("\0", 1));
+        digest.addData(childType.toLatin1());
+        digest.addData(QByteArrayView("\0", 1));
+        const auto child = bootstrapLayoutDigest(entry.filePath(), childType, error);
+        if (child.isEmpty())
+            return {};
+        digest.addData(child.toLatin1());
+    }
+    return QString::fromLatin1(digest.result().toHex());
+}
+bool safeMovePath(const QString &base, const QString &name, QString &error) {
+    if (!relative(name)) {
+        error = "Unsafe transaction path: " + name;
         return false;
-    if (!exact(root, from) || QFileInfo::exists(root + '/' + to)) {
+    }
+    QString path = base;
+    const auto parts = name.split('/');
+    for (int i = 0; i + 1 < parts.size(); ++i) {
+        path += '/' + parts[i];
+        const QFileInfo f(path);
+        if (f.isSymLink() || f.isJunction()) {
+            error = "Transaction path crosses a link: " + path;
+            return false;
+        }
+    }
+    return true;
+}
+bool moveBetween(const QString &fromBase, const QString &from, const QString &toBase,
+                 const QString &to, QString &error) {
+    if (!safeMovePath(fromBase, from, error) || !safeMovePath(toBase, to, error))
+        return false;
+    if (!exact(fromBase, from) || exact(toBase, to) ||
+        QFileInfo(toBase + '/' + to).exists() || QFileInfo(toBase + '/' + to).isSymLink()) {
         error = "Rename source/destination changed: " + from + " -> " + to;
         return false;
     }
     std::error_code ec;
 #ifdef Q_OS_WIN
-    const auto source = (root + '/' + from).toStdWString(),
-               destination = (root + '/' + to).toStdWString();
+    const auto source = (fromBase + '/' + from).toStdWString(),
+               destination = (toBase + '/' + to).toStdWString();
     if (!MoveFileExW(source.c_str(), destination.c_str(), MOVEFILE_WRITE_THROUGH))
         ec = std::error_code(GetLastError(), std::system_category());
 #elif defined(Q_OS_LINUX)
-    const auto source = QFile::encodeName(root + '/' + from),
-               destination = QFile::encodeName(root + '/' + to);
+    const auto source = QFile::encodeName(fromBase + '/' + from),
+               destination = QFile::encodeName(toBase + '/' + to);
     if (syscall(SYS_renameat2, AT_FDCWD, source.constData(), AT_FDCWD, destination.constData(),
                 RENAME_NOREPLACE) != 0)
         ec = std::error_code(errno, std::generic_category());
 #elif defined(Q_OS_MACOS)
-    if (renamex_np(QFile::encodeName(root + '/' + from).constData(),
-                   QFile::encodeName(root + '/' + to).constData(), RENAME_EXCL) != 0)
+    if (renamex_np(QFile::encodeName(fromBase + '/' + from).constData(),
+                   QFile::encodeName(toBase + '/' + to).constData(), RENAME_EXCL) != 0)
         ec = std::error_code(errno, std::generic_category());
 #else
     ec = std::make_error_code(std::errc::operation_not_supported);
 #endif
     if (ec) {
-        error =
-            "Rename failed: " + from + " -> " + to + ": " + QString::fromStdString(ec.message());
+        error = "Rename failed: " + from + " -> " + to + ": " +
+                QString::fromStdString(ec.message());
         return false;
     }
     return true;
+}
+bool move(const QString &root, const QString &from, const QString &to, QString &error) {
+    if (!safe(root, from, error) || !safe(root, to, error))
+        return false;
+    return moveBetween(root, from, root, to, error);
 }
 bool replace(const QString &path, const QByteArray &bytes, const QJsonObject &action,
              QString &error) {
@@ -263,6 +370,445 @@ QJsonObject readJson(const QString &path, QString &error) {
         return {};
     }
     return doc.object();
+}
+struct BootstrapNode {
+    QString name;
+    QString diskPath;
+    QString livePath;
+    QString liveArea = "root";
+    bool directory = false;
+    bool link = false;
+    qint64 size = 0;
+    qint64 modified = 0;
+    QList<std::shared_ptr<BootstrapNode>> children;
+};
+struct BootstrapCollision {
+    std::shared_ptr<BootstrapNode> kept;
+    std::shared_ptr<BootstrapNode> alternate;
+    QString reason;
+};
+struct BootstrapPlan {
+    QJsonArray actions;
+    QJsonArray conflicts;
+    QJsonArray originalLayout;
+    QJsonArray expectedLayout;
+    int directoriesRenamed = 0;
+    int directoryTreesMerged = 0;
+    int uniqueEntriesMoved = 0;
+    int identicalEntriesVaulted = 0;
+};
+class BootstrapPlanner {
+public:
+    QString root;
+    QString error;
+    BootstrapPlan plan;
+
+    explicit BootstrapPlanner(QString path) : root(std::move(path)) {}
+
+    std::shared_ptr<BootstrapNode> inventory() {
+        auto result = std::make_shared<BootstrapNode>();
+        result->directory = true;
+        if (!readChildren(result, {}))
+            return {};
+        return result;
+    }
+
+    bool build() {
+        tree = inventory();
+        if (!tree)
+            return false;
+        plan.originalLayout = layout(tree, false);
+        for (const auto &name : {QString("ROUTES"), QString("GLOBAL"), QString("TRAINS"),
+                                 QString("SOUND"), QString("TEMPLATE")})
+            canonicalize(tree, name);
+        const auto global = childDirectory(tree, "GLOBAL");
+        if (global)
+            for (const auto &name : {QString("SHAPES"), QString("TEXTURES")})
+                canonicalize(global, name);
+        const auto trains = childDirectory(tree, "TRAINS");
+        if (trains) {
+            for (const auto &name : {QString("TRAINSET"), QString("CONSISTS")})
+                canonicalize(trains, name);
+            const auto consists = childDirectory(trains, "CONSISTS");
+            if (consists)
+                canonicalize(consists, "RANDOMSETS");
+        }
+        const auto routes = childDirectory(tree, "ROUTES");
+        if (routes) {
+            const QStringList routeDirectories{
+                "ACTIVITIES",    "ADDONS",   "ENVFILES",     "LO_TILES", "OPENRAILS",
+                "PATHS",         "PROCEDURAL", "SERVICES",   "SHAPES",   "SOUND",
+                "TD",            "TERRAIN_MAPS", "TERRTEX",  "TEXTURES", "TILES",
+                "TRACKPROFILES", "TRAFFIC", "WORLD"};
+            const auto routeChildren = routes->children;
+            for (const auto &route : routeChildren) {
+                if (!route->directory || route->link)
+                    continue;
+                for (const auto &name : routeDirectories)
+                    canonicalize(route, name);
+                const auto envfiles = childDirectory(route, "ENVFILES");
+                if (envfiles)
+                    canonicalize(envfiles, "TEXTURES");
+            }
+        }
+        for (const auto &collision : conflicts)
+            plan.conflicts.append(QJsonObject{{"kept", collision.kept->livePath},
+                                              {"alternate", collision.alternate->diskPath},
+                                              {"vault", collision.alternate->livePath},
+                                              {"reason", collision.reason}});
+        plan.expectedLayout = layout(tree, true);
+        return error.isEmpty();
+    }
+
+private:
+    std::shared_ptr<BootstrapNode> tree;
+    int temporaryId = 0;
+    int vaultId = 0;
+    QHash<QString, QString> hashes;
+    QHash<QString, QString> layoutHashes;
+    QVector<BootstrapCollision> conflicts;
+
+    bool readChildren(const std::shared_ptr<BootstrapNode> &node, const QString &relativePath) {
+        QDir directory(root + (relativePath.isEmpty() ? QString() : '/' + relativePath));
+        if (!directory.isReadable()) {
+            error = "Unreadable core directory during bootstrap inventory: " + relativePath;
+            return false;
+        }
+        const auto entries = directory.entryInfoList(
+            QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
+            QDir::Name);
+        for (const auto &entry : entries) {
+            auto child = std::make_shared<BootstrapNode>();
+            child->name = entry.fileName();
+            child->diskPath = relativePath.isEmpty() ? child->name
+                                                     : relativePath + '/' + child->name;
+            child->livePath = child->diskPath;
+            child->link = entry.isSymLink() || entry.isJunction();
+            child->directory = entry.isDir();
+            child->size = child->directory || child->link ? 0 : entry.size();
+            child->modified = child->directory || child->link
+                                  ? 0
+                                  : entry.lastModified().toMSecsSinceEpoch();
+            node->children.append(child);
+            if (child->directory && !child->link && !readChildren(child, child->diskPath))
+                return false;
+        }
+        return true;
+    }
+
+    static QString entryType(const std::shared_ptr<BootstrapNode> &node) {
+        return node->link ? "link" : node->directory ? "directory" : "file";
+    }
+
+    QJsonArray layout(const std::shared_ptr<BootstrapNode> &rootNode, bool live) const {
+        QVector<QJsonObject> entries;
+        std::function<void(const std::shared_ptr<BootstrapNode> &)> visit =
+            [&](const std::shared_ptr<BootstrapNode> &node) {
+                for (const auto &child : node->children) {
+                    if (live && child->liveArea != "root")
+                        continue;
+                    const QString path = live ? child->livePath : child->diskPath;
+                    entries.append(QJsonObject{{"path", path},
+                                               {"directory", child->directory},
+                                               {"link", child->link},
+                                               {"size", child->size},
+                                               {"modifiedMs", child->modified}});
+                    visit(child);
+                }
+            };
+        visit(rootNode);
+        std::sort(entries.begin(), entries.end(), [](const QJsonObject &a, const QJsonObject &b) {
+            return a["path"].toString() < b["path"].toString();
+        });
+        QJsonArray result;
+        for (const auto &entry : entries)
+            result.append(entry);
+        return result;
+    }
+
+    QString digest(const std::shared_ptr<BootstrapNode> &node) {
+        if (!node->directory || node->link) {
+            auto found = hashes.constFind(node->diskPath);
+            if (found != hashes.cend())
+                return found.value();
+        }
+        QString value;
+        if (node->directory && !node->link) {
+            QCryptographicHash treeDigest(QCryptographicHash::Sha256);
+            auto children = node->children;
+            std::sort(children.begin(), children.end(), [](const auto &a, const auto &b) {
+                return a->name < b->name;
+            });
+            for (const auto &child : children) {
+                treeDigest.addData(child->name.toUtf8());
+                treeDigest.addData(QByteArrayView("\0", 1));
+                treeDigest.addData(entryType(child).toLatin1());
+                treeDigest.addData(QByteArrayView("\0", 1));
+                const auto childDigest = digest(child);
+                if (childDigest.isEmpty())
+                    return {};
+                treeDigest.addData(childDigest.toLatin1());
+            }
+            value = QString::fromLatin1(treeDigest.result().toHex());
+        } else {
+            value = bootstrapDigest(root + '/' + node->diskPath, entryType(node), error);
+        }
+        if (!value.isEmpty() && (!node->directory || node->link))
+            hashes[node->diskPath] = value;
+        return value;
+    }
+
+    QString layoutDigest(const std::shared_ptr<BootstrapNode> &node) {
+        if (!node->directory || node->link) {
+            auto found = layoutHashes.constFind(node->diskPath);
+            if (found != layoutHashes.cend())
+                return found.value();
+        }
+        QString value;
+        if (node->directory && !node->link) {
+            QCryptographicHash treeDigest(QCryptographicHash::Sha256);
+            auto children = node->children;
+            std::sort(children.begin(), children.end(), [](const auto &a, const auto &b) {
+                return a->name < b->name;
+            });
+            for (const auto &child : children) {
+                treeDigest.addData(child->name.toUtf8());
+                treeDigest.addData(QByteArrayView("\0", 1));
+                treeDigest.addData(entryType(child).toLatin1());
+                treeDigest.addData(QByteArrayView("\0", 1));
+                const auto childDigest = layoutDigest(child);
+                if (childDigest.isEmpty())
+                    return {};
+                treeDigest.addData(childDigest.toLatin1());
+            }
+            value = QString::fromLatin1(treeDigest.result().toHex());
+        } else if (node->link) {
+            value = bootstrapLayoutDigest(root + '/' + node->diskPath, "link", error);
+        } else {
+            value = hash("file");
+        }
+        if (!value.isEmpty() && (!node->directory || node->link))
+            layoutHashes[node->diskPath] = value;
+        return value;
+    }
+
+    void setLive(const std::shared_ptr<BootstrapNode> &node, const QString &area,
+                 const QString &path) {
+        node->liveArea = area;
+        node->livePath = path;
+        for (const auto &child : node->children)
+            setLive(child, area, path + '/' + child->name);
+    }
+
+    QString newVaultPath() {
+        return QString("bootstrap-vault/%1").arg(++vaultId, 8, 10, QChar('0'));
+    }
+
+    QString newTemporaryPath(const QString &base) {
+        QString path;
+        do {
+            const QString name = QString(".tsre-core-%1").arg(++temporaryId, 8, 10, QChar('0'));
+            path = base.isEmpty() ? name : base + '/' + name;
+        } while (exact(root, path));
+        return path;
+    }
+
+    void appendMove(const std::shared_ptr<BootstrapNode> &node, const QString &toArea,
+                    const QString &to, const QString &expected = {}) {
+        const QString value = expected.isEmpty() ? digest(node) : expected;
+        if (value.isEmpty())
+            return;
+        QJsonObject action{{"kind", "bootstrap-move"},
+                           {"entryType", entryType(node)},
+                           {"fromArea", node->liveArea},
+                           {"from", node->livePath},
+                           {"toArea", toArea},
+                           {"to", to},
+                           {"expectedSha256", value}};
+        if (node->directory && !node->link) {
+            const auto expectedLayout = layoutDigest(node);
+            if (expectedLayout.isEmpty())
+                return;
+            action["expectedLayoutSha256"] = expectedLayout;
+        }
+        plan.actions.append(action);
+        setLive(node, toArea, to);
+    }
+
+    void vaultWhole(const std::shared_ptr<BootstrapNode> &node) {
+        appendMove(node, "journal", newVaultPath());
+    }
+
+    std::shared_ptr<BootstrapNode> childDirectory(
+        const std::shared_ptr<BootstrapNode> &parentNode, const QString &name) const {
+        for (const auto &child : parentNode->children)
+            if (child->directory && !child->link &&
+                child->name.compare(name, Qt::CaseInsensitive) == 0)
+                return child;
+        return {};
+    }
+
+    static std::shared_ptr<BootstrapNode> preferred(
+        QList<std::shared_ptr<BootstrapNode>> entries, const QString &name) {
+        std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
+            if (a->name != b->name)
+                return a->name < b->name;
+            return a->diskPath < b->diskPath;
+        });
+        for (const auto &entry : entries)
+            if (entry->name == name)
+                return entry;
+        return entries.isEmpty() ? std::shared_ptr<BootstrapNode>() : entries.first();
+    }
+
+    void recordCollision(const std::shared_ptr<BootstrapNode> &kept,
+                         const std::shared_ptr<BootstrapNode> &alternate,
+                         const QString &reason) {
+        conflicts.append({kept, alternate, reason});
+    }
+
+    void mergeDirectories(const std::shared_ptr<BootstrapNode> &target,
+                          const std::shared_ptr<BootstrapNode> &source) {
+        const auto sourceChildren = source->children;
+        for (const auto &entry : sourceChildren) {
+            QList<std::shared_ptr<BootstrapNode>> matches;
+            for (const auto &candidate : target->children)
+                if (candidate->name.compare(entry->name, Qt::CaseInsensitive) == 0)
+                    matches.append(candidate);
+            if (matches.isEmpty()) {
+                const QString destination = target->livePath.isEmpty()
+                                                ? entry->name
+                                                : target->livePath + '/' + entry->name;
+                appendMove(entry, "root", destination);
+                if (!error.isEmpty())
+                    return;
+                source->children.removeOne(entry);
+                target->children.append(entry);
+                ++plan.uniqueEntriesMoved;
+                continue;
+            }
+            const auto kept = preferred(matches, entry->name);
+            if (kept->directory && !kept->link && entry->directory && !entry->link) {
+                mergeDirectories(kept, entry);
+                if (!error.isEmpty())
+                    return;
+                ++plan.directoryTreesMerged;
+                continue;
+            }
+            bool identical = false;
+            if (!kept->directory && !kept->link && !entry->directory && !entry->link) {
+                const auto keptHash = digest(kept), alternateHash = digest(entry);
+                if (!error.isEmpty())
+                    return;
+                identical = keptHash == alternateHash;
+            } else if (kept->link && entry->link) {
+                identical = QFileInfo(root + '/' + kept->diskPath).symLinkTarget() ==
+                            QFileInfo(root + '/' + entry->diskPath).symLinkTarget();
+            }
+            if (identical) {
+                ++plan.identicalEntriesVaulted;
+            } else {
+                recordCollision(kept, entry,
+                                entryType(kept) == entryType(entry)
+                                    ? "Different entries share one case-insensitive core path"
+                                    : "Different entry types share one case-insensitive core path");
+            }
+        }
+    }
+
+    void canonicalize(const std::shared_ptr<BootstrapNode> &parentNode,
+                      const QString &canonicalName) {
+        if (!error.isEmpty())
+            return;
+        QList<std::shared_ptr<BootstrapNode>> directories, other;
+        for (const auto &child : parentNode->children) {
+            if (child->name.compare(canonicalName, Qt::CaseInsensitive) != 0)
+                continue;
+            if (child->directory && !child->link)
+                directories.append(child);
+            else
+                other.append(child);
+        }
+        if (directories.isEmpty())
+            return;
+        auto winner = preferred(directories, canonicalName);
+        for (const auto &entry : other) {
+            vaultWhole(entry);
+            if (!error.isEmpty())
+                return;
+            parentNode->children.removeOne(entry);
+        }
+        if (winner->name != canonicalName) {
+            const QString base = parent(winner->livePath);
+            const QString destination = base.isEmpty() ? canonicalName : base + '/' + canonicalName;
+            const QString temporary = newTemporaryPath(base);
+            const QString expected = digest(winner);
+            if (expected.isEmpty())
+                return;
+            appendMove(winner, "root", temporary, expected);
+            appendMove(winner, "root", destination, expected);
+            winner->name = canonicalName;
+            ++plan.directoriesRenamed;
+        }
+        for (const auto &entry : directories) {
+            if (entry == winner)
+                continue;
+            vaultWhole(entry);
+            if (!error.isEmpty())
+                return;
+            mergeDirectories(winner, entry);
+            if (!error.isEmpty())
+                return;
+            parentNode->children.removeOne(entry);
+            ++plan.directoryTreesMerged;
+        }
+        for (const auto &entry : other)
+            recordCollision(winner, entry, "A non-directory blocks a fixed core directory name");
+    }
+};
+
+BootstrapPlan bootstrapPlan(const QString &root, QString &error) {
+    BootstrapPlanner planner(root);
+    if (!planner.build()) {
+        error = planner.error;
+        return {};
+    }
+    error.clear();
+    return planner.plan;
+}
+
+QJsonArray lightweightLayout(const QString &root, QString &error) {
+    BootstrapPlanner planner(root);
+    const auto tree = planner.inventory();
+    if (!tree) {
+        error = planner.error;
+        return {};
+    }
+    // A no-op plan leaves the live paths equal to the current disk paths.
+    BootstrapPlan current;
+    std::function<void(const std::shared_ptr<BootstrapNode> &)> visit =
+        [&](const std::shared_ptr<BootstrapNode> &node) {
+            for (const auto &child : node->children) {
+                current.expectedLayout.append(QJsonObject{{"path", child->livePath},
+                                                           {"directory", child->directory},
+                                                           {"link", child->link},
+                                                           {"size", child->size},
+                                                           {"modifiedMs", child->modified}});
+                visit(child);
+            }
+        };
+    visit(tree);
+    QVector<QJsonObject> sorted;
+    for (const auto &value : current.expectedLayout)
+        sorted.append(value.toObject());
+    std::sort(sorted.begin(), sorted.end(), [](const QJsonObject &a, const QJsonObject &b) {
+        return a["path"].toString() < b["path"].toString();
+    });
+    QJsonArray result;
+    for (const auto &entry : sorted)
+        result.append(entry);
+    error.clear();
+    return result;
 }
 QString mapped(const QMap<QString, QString> &paths, QString path) {
     path = clean(path);
@@ -531,6 +1077,80 @@ Selection select(const QJsonObject &plan, const QSet<int> &extra) {
     }
     return result;
 }
+QString actionBase(const QString &root, const QString &journalDirectory, const QString &area) {
+    return area == "journal" ? journalDirectory : root;
+}
+bool applyJournalAction(const QString &root, const QString &journalDirectory,
+                        const QJsonObject &action, int step, QString &error) {
+    const QString kind = action["kind"].toString(), from = action["from"].toString();
+    const QString fromBase = actionBase(root, journalDirectory,
+                                        action["fromArea"].toString("root"));
+    if (kind == "bootstrap-move") {
+        const QString to = action["to"].toString();
+        const QString toBase = actionBase(root, journalDirectory,
+                                          action["toArea"].toString("root"));
+        if (!safeMovePath(fromBase, from, error) || !exact(fromBase, from)) {
+            if (error.isEmpty())
+                error = "Bootstrap source disappeared: " + from;
+            return false;
+        }
+        const QString digest =
+            bootstrapDigest(fromBase + '/' + from, action["entryType"].toString(), error);
+        if (digest.isEmpty())
+            return false;
+        if (digest != action["expectedSha256"].toString()) {
+            error = "Bootstrap source changed: " + from;
+            return false;
+        }
+        if (!append(journalDirectory,
+                    {{"step", step}, {"phase", "started"}, {"digest", digest}}, error))
+            return false;
+        if (!moveBetween(fromBase, from, toBase, to, error))
+            return false;
+        return append(journalDirectory, {{"step", step}, {"phase", "done"}}, error);
+    }
+    if (!safe(root, from, error) || !exact(root, from)) {
+        if (error.isEmpty())
+            error = "Source disappeared: " + from;
+        return false;
+    }
+    const QString digest = kind == "move-directory" ? treeHash(root + '/' + from, error)
+                                                     : fileHash(root + '/' + from, error);
+    if (digest.isEmpty())
+        return false;
+    if (kind == "replace" && digest != action["beforeSha256"].toString()) {
+        error = "Edit source changed: " + from;
+        return false;
+    }
+    if (kind == "move-file" && digest != action["expectedSha256"].toString()) {
+        error = "Rename source changed: " + from;
+        return false;
+    }
+    if (!append(journalDirectory,
+                {{"step", step}, {"phase", "started"}, {"digest", digest}}, error))
+        return false;
+    if (kind == "replace") {
+        QFile f(journalDirectory + '/' + action["staged"].toString());
+        if (!f.open(QIODevice::ReadOnly)) {
+            error = "Missing staged replacement";
+            return false;
+        }
+        const auto bytes = f.readAll();
+        if (hash(bytes) != action["afterSha256"] ||
+            !replace(root + '/' + from, bytes, action, error)) {
+            if (error.isEmpty())
+                error = "Staged replacement hash mismatch";
+            return false;
+        }
+    } else if (kind == "move-file" || kind == "move-directory") {
+        if (!move(root, from, action["to"].toString(), error))
+            return false;
+    } else {
+        error = "Unknown journal operation: " + kind;
+        return false;
+    }
+    return append(journalDirectory, {{"step", step}, {"phase", "done"}}, error);
+}
 } // namespace
 
 bool verifyReferences(const QJsonObject &before, const QJsonObject &after,
@@ -649,14 +1269,44 @@ bool rollback(const QString &rootInput, const QString &journalPath, QString &err
             continue;
         const auto a = actions[i].toObject();
         const QString kind = a["kind"].toString(), from = a["from"].toString();
-        if (!safe(root, from, error))
-            return false;
         if (progress)
             progress(QString("Rollback %1/%2: %3")
                          .arg(actions.size() - i)
                          .arg(actions.size())
                          .arg(from));
-        if (kind == "replace") {
+        if (kind == "bootstrap-move") {
+            const QString to = a["to"].toString();
+            const QString fromBase =
+                              actionBase(root, directory, a["fromArea"].toString("root")),
+                          toBase = actionBase(root, directory, a["toArea"].toString("root"));
+            if (!safeMovePath(fromBase, from, error) || !safeMovePath(toBase, to, error))
+                return false;
+            const bool atFrom = exact(fromBase, from), atTo = exact(toBase, to);
+            if (atFrom == atTo) {
+                error = "Ambiguous bootstrap recovery locations: " + from + " / " + to;
+                return false;
+            }
+            const QString current = bootstrapDigest(
+                (atTo ? toBase + '/' + to : fromBase + '/' + from),
+                a["entryType"].toString(), error);
+            if (current.isEmpty())
+                return false;
+            if (current != state["digest"].toString()) {
+                const QString currentPath = atTo ? toBase + '/' + to : fromBase + '/' + from;
+                const auto layout = a["entryType"] == "directory"
+                                        ? bootstrapLayoutDigest(currentPath, "directory", error)
+                                        : QString();
+                if (layout.isEmpty() || layout != a["expectedLayoutSha256"].toString()) {
+                    error = "Refusing rollback of structurally modified bootstrap entry: " +
+                            (atTo ? to : from);
+                    return false;
+                }
+            }
+            if (atTo && !moveBetween(toBase, to, fromBase, from, error))
+                return false;
+        } else if (!safe(root, from, error)) {
+            return false;
+        } else if (kind == "replace") {
             const auto current = fileHash(root + '/' + from, error);
             if (current.isEmpty())
                 return false;
@@ -755,11 +1405,113 @@ QJsonObject execute(const QString &rootInput, const QJsonObject &savedPlan,
     const QString activePath = registry(root) + ".json";
     if (QFileInfo::exists(activePath))
         return fail("An interrupted transaction requires rollback first; see " + activePath);
-    const auto before = scan(root, error, progress);
-    if (before.isEmpty())
+    QJsonObject savedBaseline;
+    if (!savedPlan.isEmpty()) {
+        savedBaseline = scan(root, error, progress);
+        if (savedBaseline.isEmpty())
+            return {};
+        if (savedPlan != savedBaseline)
+            return fail(
+                "Saved plan is stale or differs from the current planner; generate a new plan");
+    }
+
+    const auto bootstrap = bootstrapPlan(root, error);
+    if (!error.isEmpty())
         return {};
-    if (!savedPlan.isEmpty() && savedPlan != before)
-        return fail("Saved plan is stale or differs from the current planner; generate a new plan");
+    const bool hasBootstrap = !bootstrap.actions.isEmpty();
+    const int bootstrapActionCount = bootstrap.actions.size();
+    QJsonArray actions = bootstrap.actions;
+    QString directory;
+    bool journalReady = false;
+
+    auto createJournalDirectory = [&]() {
+        const QFileInfo requested(journalDirectory), journalParent(requested.absolutePath());
+        if (requested.exists() || requested.isSymLink() || requested.isJunction() ||
+            journalParent.canonicalFilePath().isEmpty()) {
+            error = "Journal directory must be new with an existing parent";
+            return false;
+        }
+        directory = journalParent.canonicalFilePath() + '/' + requested.fileName();
+        if (under(directory.toLower(), root.toLower())) {
+            error = "Journal must be outside the game root";
+            return false;
+        }
+        if (QStorageInfo(root).device() != QStorageInfo(journalParent.canonicalFilePath()).device()) {
+            error = "Journal must be on the game-root filesystem";
+            return false;
+        }
+        if (!QDir().mkdir(directory) || !QDir().mkdir(directory + "/backup") ||
+            !QDir().mkdir(directory + "/staged") ||
+            !QDir().mkdir(directory + "/bootstrap-vault")) {
+            error = "Cannot create transaction directory";
+            return false;
+        }
+        journalReady = true;
+        return true;
+    };
+
+    const QJsonObject bootstrapSummary{
+        {"actions", bootstrapActionCount},
+        {"directoriesRenamed", bootstrap.directoriesRenamed},
+        {"directoryTreesMerged", bootstrap.directoryTreesMerged},
+        {"uniqueEntriesMoved", bootstrap.uniqueEntriesMoved},
+        {"identicalEntriesVaulted", bootstrap.identicalEntriesVaulted},
+        {"conflicts", bootstrap.conflicts.size()}};
+
+    auto abortTransaction = [&](const QString &reason) -> QJsonObject {
+        lock.unlock();
+        QString recovery;
+        const bool restored =
+            rollback(root, directory + "/journal.json", recovery, progress);
+        error = reason +
+                (restored ? "; applied changes rolled back"
+                          : "; rollback needs attention: " + recovery) +
+                "; journal: " + directory + "/journal.json";
+        return {};
+    };
+
+    if (hasBootstrap) {
+        if (!createJournalDirectory())
+            return {};
+        const QJsonObject initialJournal{{"schema", "tsre-content-case-journal-v1"},
+                                         {"gameRoot", root},
+                                         {"actions", actions},
+                                         {"originalLayout", bootstrap.originalLayout},
+                                         {"bootstrap", bootstrapSummary},
+                                         {"bootstrapConflicts", bootstrap.conflicts}};
+        if (!writeNew(directory + "/journal.json",
+                      QJsonDocument(initialJournal).toJson(QJsonDocument::Indented), error) ||
+            !writeNew(directory + "/events.jsonl", {}, error) ||
+            !writeNew(activePath,
+                      QJsonDocument(QJsonObject{{"journal", directory + "/journal.json"}})
+                          .toJson(),
+                      error))
+            return {};
+        for (int i = 0; i < bootstrapActionCount; ++i) {
+            const auto action = actions[i].toObject();
+            if (progress)
+                progress(QString("Bootstrap %1/%2: %3")
+                             .arg(i + 1)
+                             .arg(bootstrapActionCount)
+                             .arg(action["from"].toString()));
+            if (!applyJournalAction(root, directory, action, i, error))
+                return abortTransaction(error);
+        }
+        const auto actualLayout = lightweightLayout(root, error);
+        if (!error.isEmpty())
+            return abortTransaction(error);
+        if (actualLayout != bootstrap.expectedLayout)
+            return abortTransaction("Game root changed during core-directory bootstrap");
+    }
+
+    QJsonObject before;
+    if (!hasBootstrap && !savedBaseline.isEmpty())
+        before = savedBaseline;
+    else
+        before = scan(root, error, progress);
+    if (before.isEmpty())
+        return hasBootstrap ? abortTransaction(error.isEmpty() ? "Content scan failed" : error)
+                            : QJsonObject();
     const auto files = before["files"].toArray();
     QSet<int> extra;
     Selection selection;
@@ -789,7 +1541,9 @@ QJsonObject execute(const QString &rootInput, const QJsonObject &savedPlan,
             } else {
                 const auto bytes = input.readAll();
                 if (hash(bytes) != f["sha256"].toString())
-                    return fail("Source changed during preparation: " + path);
+                    return hasBootstrap
+                               ? abortTransaction("Source changed during preparation: " + path)
+                               : fail("Source changed during preparation: " + path);
                 if (patchDocument(bytes, family, it.value(), output, detail)) {
                     if (output != bytes)
                         replacements[it.key()] = output;
@@ -812,43 +1566,39 @@ QJsonObject execute(const QString &rootInput, const QJsonObject &savedPlan,
                        {"summary", before["summary"]},
                        {"remainingOperations", before["operations"].toArray().size()},
                        {"errors", before["failures"]},
-                       {"missingTargets", before["missingTargets"]}};
-    if (selection.leaves.isEmpty() && replacements.isEmpty())
+                       {"missingTargets", before["missingTargets"]},
+                       {"bootstrap", bootstrapSummary},
+                       {"bootstrapConflicts", bootstrap.conflicts}};
+    if (hasBootstrap)
+        result["journal"] = directory + "/journal.json";
+    if (!hasBootstrap && selection.leaves.isEmpty() && replacements.isEmpty())
         return result;
-    const QFileInfo requested(journalDirectory), journalParent(requested.absolutePath());
-    if (requested.exists() || requested.isSymLink() || requested.isJunction() ||
-        journalParent.canonicalFilePath().isEmpty())
-        return fail("Journal directory must be new with an existing parent");
-    const QString directory = journalParent.canonicalFilePath() + '/' + requested.fileName();
-    if (under(directory.toLower(), root.toLower()))
-        return fail("Journal must be outside the game root");
-    if (QStorageInfo(root).device() != QStorageInfo(journalParent.canonicalFilePath()).device())
-        return fail("Journal must be on the game-root filesystem");
+    if (!journalReady && !createJournalDirectory())
+        return {};
     qint64 needed = 0;
     for (auto it = replacements.cbegin(); it != replacements.cend(); ++it)
         needed += it.value().size() + files[it.key()].toObject()["size"].toVariant().toLongLong();
     if (QStorageInfo(root).bytesAvailable() < needed + 1024 * 1024)
-        return fail("Insufficient space for backups and staged edits");
-    if (!QDir().mkdir(directory) || !QDir().mkdir(directory + "/backup") ||
-        !QDir().mkdir(directory + "/staged"))
-        return fail("Cannot create transaction directory");
-    QJsonArray actions;
+        return hasBootstrap ? abortTransaction("Insufficient space for backups and staged edits")
+                            : fail("Insufficient space for backups and staged edits");
     for (auto it = replacements.cbegin(); it != replacements.cend(); ++it) {
         const auto entry = files[it.key()].toObject();
         const QString name = entry["path"].toString(),
                       backup = "backup/" + QString::number(it.key()),
                       stage = "staged/" + QString::number(it.key());
         if (!safe(root, name, error))
-            return {};
+            return hasBootstrap ? abortTransaction(error) : QJsonObject();
         QFile input(root + '/' + name);
         if (!input.open(QIODevice::ReadOnly))
-            return fail("Cannot back up " + name);
+            return hasBootstrap ? abortTransaction("Cannot back up " + name)
+                                : fail("Cannot back up " + name);
         const auto bytes = input.readAll();
         if (hash(bytes) != entry["sha256"].toString())
-            return fail("Source changed before backup: " + name);
+            return hasBootstrap ? abortTransaction("Source changed before backup: " + name)
+                                : fail("Source changed before backup: " + name);
         if (!writeNew(directory + '/' + backup, bytes, error) ||
             !writeNew(directory + '/' + stage, it.value(), error))
-            return {};
+            return hasBootstrap ? abortTransaction(error) : QJsonObject();
         actions.append(QJsonObject{{"kind", "replace"},
                                    {"from", name},
                                    {"backup", backup},
@@ -874,7 +1624,10 @@ QJsonObject execute(const QString &rootInput, const QJsonObject &savedPlan,
         const QString from = f["path"].toString(), base = parent(from);
         const QString to = (base.isEmpty() ? QString() : base + '/') + selection.leaves.value(id);
         if (from.toLower() != to.toLower())
-            return fail("Only case repair renames are supported: " + from + " -> " + to);
+            return hasBootstrap
+                       ? abortTransaction("Only case repair renames are supported: " + from +
+                                          " -> " + to)
+                       : fail("Only case repair renames are supported: " + from + " -> " + to);
         const QString temporary = (base.isEmpty() ? QString() : base + '/') + ".tsre-case-" +
                                   QUuid::createUuid().toString(QUuid::Id128);
         const QString kind = f["directory"].toBool() ? "move-directory" : "move-file";
@@ -884,91 +1637,84 @@ QJsonObject execute(const QString &rootInput, const QJsonObject &savedPlan,
             if (current.size() != f["size"].toVariant().toLongLong() ||
                 current.lastModified().toMSecsSinceEpoch() !=
                     f["modifiedMs"].toVariant().toLongLong())
-                return fail("Rename source changed: " + from);
+                return hasBootstrap ? abortTransaction("Rename source changed: " + from)
+                                    : fail("Rename source changed: " + from);
             expected = replacements.contains(id) ? hash(replacements.value(id))
                                                  : fileHash(root + '/' + from, error);
             if (expected.isEmpty())
-                return {};
+                return hasBootstrap ? abortTransaction(error) : QJsonObject();
         }
         actions.append(QJsonObject{
             {"kind", kind}, {"from", from}, {"to", temporary}, {"expectedSha256", expected}});
         actions.append(QJsonObject{
             {"kind", kind}, {"from", temporary}, {"to", to}, {"expectedSha256", expected}});
     }
-    // Detect inventory changes after staging, including added files. No game
-    // content has been changed yet. Hashes are rechecked by scan as well.
-    const auto rechecked = scan(root, error, progress);
-    if (rechecked.isEmpty())
-        return {};
-    if (rechecked != before)
-        return fail("Game root changed while staging; no repairs were applied");
-    QJsonArray originalLayout;
-    for (const auto &v : files) {
-        const auto f = v.toObject();
-        originalLayout.append(
-            QJsonObject{{"path", f["path"]}, {"directory", f["directory"]}, {"link", f["link"]}});
+    // Detect inventory changes after staging, including added files. Hashes are
+    // rechecked by scan as well. A bootstrap-only run already did this check.
+    if (actions.size() > bootstrapActionCount) {
+        const auto rechecked = scan(root, error, progress);
+        if (rechecked.isEmpty())
+            return hasBootstrap
+                       ? abortTransaction(error.isEmpty() ? "Content rescan failed" : error)
+                       : QJsonObject();
+        if (rechecked != before)
+            return hasBootstrap
+                       ? abortTransaction("Game root changed while staging; no content repairs "
+                                          "were applied")
+                       : fail("Game root changed while staging; no repairs were applied");
     }
+    QJsonArray originalLayout = bootstrap.originalLayout;
+    if (!hasBootstrap)
+        for (const auto &v : files) {
+            const auto f = v.toObject();
+            originalLayout.append(QJsonObject{{"path", f["path"]},
+                                               {"directory", f["directory"]},
+                                               {"link", f["link"]}});
+        }
     QJsonObject journal{{"schema", "tsre-content-case-journal-v1"},
                         {"gameRoot", root},
                         {"actions", actions},
                         {"originalLayout", originalLayout},
                         {"inventorySha256", before["inventorySha256"]},
-                        {"inspectedContentSha256", before["inspectedContentSha256"]}};
-    if (!writeNew(directory + "/journal.json",
-                  QJsonDocument(journal).toJson(QJsonDocument::Indented), error) ||
-        !writeNew(directory + "/events.jsonl", {}, error))
-        return {};
-    if (!writeNew(activePath,
-                  QJsonDocument(QJsonObject{{"journal", directory + "/journal.json"}}).toJson(),
-                  error))
-        return {};
+                        {"inspectedContentSha256", before["inspectedContentSha256"]},
+                        {"bootstrap", bootstrapSummary},
+                        {"bootstrapConflicts", bootstrap.conflicts}};
+    if (hasBootstrap) {
+        if (!writeJson(directory + "/journal.json", journal, error))
+            return abortTransaction(error);
+    } else {
+        if (!writeNew(directory + "/journal.json",
+                      QJsonDocument(journal).toJson(QJsonDocument::Indented), error) ||
+            !writeNew(directory + "/events.jsonl", {}, error) ||
+            !writeNew(activePath,
+                      QJsonDocument(QJsonObject{{"journal", directory + "/journal.json"}})
+                          .toJson(),
+                      error))
+            return {};
+    }
     result["journal"] = directory + "/journal.json";
-    auto abort = [&](QString reason) -> QJsonObject {
-        lock.unlock();
-        QString recovery;
-        const bool restored = rollback(root, directory + "/journal.json", recovery, progress);
-        error = reason +
-                (restored ? "; applied changes rolled back"
-                          : "; rollback needs attention: " + recovery) +
-                "; journal: " + directory + "/journal.json";
-        return {};
-    };
-    for (int i = 0; i < actions.size(); ++i) {
+    int completedContentActions = 0;
+    for (int i = bootstrapActionCount; i < actions.size(); ++i) {
         const auto a = actions[i].toObject();
-        const QString from = a["from"].toString(), kind = a["kind"].toString();
+        const QString from = a["from"].toString();
         if (progress)
-            progress(QString("Apply %1/%2: %3").arg(i + 1).arg(actions.size()).arg(from));
-        if (!safe(root, from, error) || !exact(root, from))
-            return abort(error.isEmpty() ? "Source disappeared: " + from : error);
-        const QString digest = kind == "move-directory" ? treeHash(root + '/' + from, error)
-                                                        : fileHash(root + '/' + from, error);
-        if (digest.isEmpty())
-            return abort(error);
-        if (kind == "replace" && digest != a["beforeSha256"].toString())
-            return abort("Edit source changed: " + from);
-        if (kind == "move-file" && digest != a["expectedSha256"].toString())
-            return abort("Rename source changed: " + from);
-        if (!append(directory, {{"step", i}, {"phase", "started"}, {"digest", digest}}, error))
-            return abort(error);
-        if (kind == "replace") {
-            QFile f(directory + '/' + a["staged"].toString());
-            if (!f.open(QIODevice::ReadOnly))
-                return abort("Missing staged replacement");
-            const auto bytes = f.readAll();
-            if (hash(bytes) != a["afterSha256"] || !replace(root + '/' + from, bytes, a, error))
-                return abort(error.isEmpty() ? "Staged replacement hash mismatch" : error);
-        } else if (!move(root, from, a["to"].toString(), error))
-            return abort(error);
-        if (!append(directory, {{"step", i}, {"phase", "done"}}, error))
-            return abort(error);
-        if (continuation && !continuation(i + 1)) {
+            progress(QString("Apply %1/%2: %3")
+                         .arg(i - bootstrapActionCount + 1)
+                         .arg(actions.size() - bootstrapActionCount)
+                         .arg(from));
+        if (!applyJournalAction(root, directory, a, i, error))
+            return abortTransaction(error);
+        ++completedContentActions;
+        if (continuation && !continuation(completedContentActions)) {
             append(directory, {{"phase", "interrupted"}}, error);
             error = "Execution interrupted; recover using " + directory + "/journal.json";
             result["status"] = "interrupted";
+            result["actionsApplied"] = bootstrapActionCount + completedContentActions;
             return result;
         }
     }
-    const auto after = scan(root, error, progress);
+    const auto after = actions.size() == bootstrapActionCount ? before
+                                                               : scan(root, error, progress);
     QString verificationError;
     if (after.isEmpty()) {
         verificationError = error.isEmpty() ? "Post-repair scan failed" : error;
@@ -1015,6 +1761,7 @@ QJsonObject execute(const QString &rootInput, const QJsonObject &savedPlan,
     const bool verificationPassed = verificationError.isEmpty();
     result["status"] = verificationPassed && selection.skipped.isEmpty() &&
                                writerErrors.isEmpty() &&
+                               bootstrap.conflicts.isEmpty() &&
                                after["summary"].toObject()["failedCases"].toInt() == 0 &&
                                after["operations"].toArray().isEmpty()
                            ? "complete"

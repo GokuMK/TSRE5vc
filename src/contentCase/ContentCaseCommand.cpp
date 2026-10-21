@@ -122,7 +122,8 @@ int run(int argc, char **argv) {
                "journal.\n"
                "--plan and --verify are read-only. Existing output files are never overwritten.\n"
                "Journal directories must be new, outside gameroot, and on the same filesystem.\n"
-               "Unresolved components and directory collisions are retained and reported.\n"
+               "Fixed core-directory variants are merged first; colliding files are retained "
+               "in the journal vault and reported.\n"
                "Exit 0: requested operation completed; 1: unresolved/partial result; 2: usage or "
                "execution error.\n";
         return 0;
@@ -184,6 +185,25 @@ int run(int argc, char **argv) {
             QString report = "# Content case conversion\n\nStatus: **" +
                              result["status"].toString() + "**\n\nJournal: `" +
                              result["journal"].toString() + "`\n\n";
+            const auto bootstrap = result["bootstrap"].toObject();
+            report += "## Core directory bootstrap\n\n";
+            report += "Renamed directories: " +
+                      QString::number(bootstrap["directoriesRenamed"].toInt()) +
+                      ". Merged directory trees: " +
+                      QString::number(bootstrap["directoryTreesMerged"].toInt()) +
+                      ". Unique entries moved: " +
+                      QString::number(bootstrap["uniqueEntriesMoved"].toInt()) +
+                      ". Identical entries retained in the recovery vault: " +
+                      QString::number(bootstrap["identicalEntriesVaulted"].toInt()) + ".\n\n";
+            report += "| Kept path | Vaulted source | Reason |\n| --- | --- | --- |\n";
+            for (const auto &v : result["bootstrapConflicts"].toArray()) {
+                const auto conflict = v.toObject();
+                report += "| " + cell(conflict["kept"].toString()) + " | " +
+                          cell(conflict["alternate"].toString()) + " -> " +
+                          cell(conflict["vault"].toString()) + " | " +
+                          cell(conflict["reason"].toString()) + " |\n";
+            }
+            report += '\n';
             report += "## Errors\n\n| Source | Reason |\n| --- | --- |\n";
             for (const auto &v : result["errors"].toArray()) {
                 const auto f = v.toObject();
@@ -232,8 +252,10 @@ int run(int argc, char **argv) {
         summary.remove("missingTargets");
         summary.remove("skippedOperations");
         summary.remove("writerErrors");
+        summary.remove("bootstrapConflicts");
         summary["skippedOperationCount"] = result["skippedOperations"].toArray().size();
         summary["writerErrorCount"] = result["writerErrors"].toArray().size();
+        summary["bootstrapConflictCount"] = result["bootstrapConflicts"].toArray().size();
         out << QJsonDocument(summary).toJson(QJsonDocument::Indented);
         return result["status"] == "complete" || (result["status"] == "no-changes" &&
                                                   result["preExistingErrors"].toInt() == 0 &&
