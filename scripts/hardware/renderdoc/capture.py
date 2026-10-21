@@ -23,6 +23,8 @@ try:
                               env, os.path.join(out, name), opts, False)
     p('inject', res.result, res.ident)
     tc = rd.CreateTargetControl('', res.ident, 'tsre-hardware', True)
+    # Only the TSRE started here: another one may be open.
+    pid = tc.GetPID()
     delay = float(os.environ.get('RDC_DELAY', '25'))
     start = time.time()
     triggered = False
@@ -48,10 +50,10 @@ try:
                 p('copied', msg.newCapture.path); break
             time.sleep(0.1)
     tc.Shutdown()
-    # Ask TSRE to close, then make sure it did.
-    os.system('taskkill /IM TSRE5vc.exe >NUL 2>&1')
+    # Ask the started TSRE to close, then make sure it did.
+    os.system('taskkill /PID %d >NUL 2>&1' % pid)
     time.sleep(3)
-    os.system('taskkill /F /IM TSRE5vc.exe >NUL 2>&1')
+    os.system('taskkill /F /PID %d >NUL 2>&1' % pid)
 except Exception:
     p(traceback.format_exc())
 log.close()
