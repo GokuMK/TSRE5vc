@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <set>
+#include <queue>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -2201,6 +2202,166 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
               QString("signal scripts: %1 read; the types of heads by script %2, without one %3, with problems %4%5")
                   .arg(network->scripts.size()).arg(byScript).arg(basic).arg(builtIn)
                   .arg(network->scriptWarnings.isEmpty() ? QString() : ": " + network->scriptWarnings.join("; ")));
+    }
+
+    // TSRE_SIM_BENCH (task 07): the work planner on this route's network
+    // without an activity of its own: in the yard with the most stub
+    // sidings near each other, cuts of cars, a drop-off that sorts five of
+    // them into another siding and a pickup; planned from beside the yard
+    // and from about 25 km away.
+    if (qEnvironmentVariableIsSet("TSRE_SIM_BENCH")) {
+        const std::vector<Sim::TrackSection> &sections = network->sections();
+        std::map<int, double> lengths;
+        for (const Sim::TrackSection &section : sections)
+            if (section.kind == Sim::TrackSection::Track)
+                lengths[section.node] = std::max(lengths[section.node], double(section.to));
+        const auto junctionAt = [&](int node, int end) {
+            const int j = network->endSection(node, end);
+            return j >= 0 && sections[size_t(j)].kind == Sim::TrackSection::Junction ? j : -1;
+        };
+        const auto neighbours = [&](int node) {
+            std::vector<int> out;
+            for (int end : {0, 1}) {
+                const int j = junctionAt(node, end);
+                if (j < 0)
+                    continue;
+                for (int pin : {0, 1, 2}) {
+                    const int t = sections[size_t(j)].link[pin];
+                    if (t >= 0 && sections[size_t(t)].node != node)
+                        out.push_back(sections[size_t(t)].node);
+                }
+            }
+            return out;
+        };
+        // Nodes by distance through the junctions (either way), within a
+        // radius.
+        const auto around = [&](int seed, double radius) {
+            std::vector<std::pair<double, int>> out;
+            std::map<int, double> seen{{seed, 0.0}};
+            using Entry = std::pair<double, int>;
+            std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> queue;
+            queue.push({0.0, seed});
+            while (!queue.empty()) {
+                const auto [d, node] = queue.top();
+                queue.pop();
+                if (d > seen[node] + 1e-6)
+                    continue;
+                out.push_back({d, node});
+                for (int next : neighbours(node)) {
+                    const double nd = d + lengths[next];
+                    if (nd <= radius && (seen.count(next) == 0 || nd < seen[next])) {
+                        seen[next] = nd;
+                        queue.push({nd, next});
+                    }
+                }
+            }
+            return out;
+        };
+        const auto stub = [&](int node) {
+            const double length = lengths[node];
+            return length >= 200.0 && length <= 1500.0 && ((junctionAt(node, 0) >= 0) != (junctionAt(node, 1) >= 0));
+        };
+        int seed = -1;
+        size_t most = 0;
+        for (const auto &[node, length] : lengths) {
+            if (!stub(node))
+                continue;
+            size_t count = 0;
+            for (const auto &[d, other] : around(node, 1500.0))
+                count += stub(other) ? 1 : 0;
+            if (count > most) {
+                most = count;
+                seed = node;
+            }
+        }
+        std::vector<int> yard;
+        std::vector<int> through;
+        if (seed >= 0)
+            for (const auto &[d, node] : around(seed, 1500.0)) {
+                if (stub(node))
+                    yard.push_back(node);
+                else if (junctionAt(node, 0) >= 0 && junctionAt(node, 1) >= 0 && lengths[node] >= 100.0)
+                    through.push_back(node);
+            }
+        qInfo().noquote() << "[bench]" << lengths.size() << "vector nodes; the yard round node" << seed << "with" << yard.size()
+                          << "stub sidings within 1.5 km";
+        if (yard.size() >= 5 && !through.empty()) {
+            const auto car = [](unsigned int consist, unsigned int uid, bool engine) {
+                Sim::Vehicle v;
+                v.length = engine ? 20.0f : 15.0f;
+                v.type = engine ? 5 : 2;
+                v.id = consist * 65536u + uid;
+                return v;
+            };
+            // A cut at a siding's buffer end.
+            const auto cutIn = [&](int node, unsigned int consist, int count) {
+                Sim::StaticConsist c;
+                c.name = QString("Cut %1").arg(consist);
+                for (int k = 0; k < count; ++k)
+                    c.vehicles.push_back(car(consist, unsigned(k), false));
+                c.length = 15.0f * float(count);
+                const double length = lengths[node];
+                if (junctionAt(node, 0) < 0)
+                    c.track.push_back(Sim::RouteInterval{node, 5.0f, 5.0f + c.length, 0.0});
+                else
+                    c.track.push_back(Sim::RouteInterval{node, float(length - 5.0 - c.length), float(length - 5.0), 0.0});
+                return c;
+            };
+            const auto plan = [&](int startNode, const QString &where) {
+                auto input = std::make_shared<Sim::SimulationInput>();
+                input->geometry = geometry;
+                input->network = network;
+                Sim::TrainPlan p;
+                p.player = true;
+                p.service = "Bench";
+                p.vehicles = {car(0, 0, true)};
+                p.length = 20.0;
+                const double length = lengths[startNode];
+                Sim::RouteTrack part;
+                part.append(startNode, 10.0f, float(length - 10.0));
+                p.route.parts.push_back(part);
+                p.startFront = 40.0;
+                input->trains.push_back(p);
+                input->staticConsists = {cutIn(yard[0], 1, 8), cutIn(yard[1], 2, 6), cutIn(yard[2], 3, 5), cutIn(yard[4], 4, 4)};
+                Sim::EventPlan drop;
+                drop.kind = Sim::EventPlan::DropOffWagonsAtLocation;
+                drop.name = "sort five";
+                drop.activation = 1;
+                drop.cars = {1u * 65536u + 1u, 1u * 65536u + 4u, 2u * 65536u + 0u, 2u * 65536u + 5u, 3u * 65536u + 2u};
+                drop.siding = true;
+                drop.sidingNode = yard[3];
+                drop.sidingFrom = 20.0f;
+                drop.sidingTo = float(lengths[yard[3]] - 20.0);
+                drop.index = 0;
+                Sim::EventPlan pick;
+                pick.kind = Sim::EventPlan::PickUpWagons;
+                pick.name = "pick up two";
+                pick.activation = 1;
+                pick.cars = {4u * 65536u + 0u, 4u * 65536u + 1u};
+                pick.index = 1;
+                input->events = {drop, pick};
+                QElapsedTimer timer;
+                timer.start();
+                const Sim::WorkPlan work = Sim::PlanWork(*input);
+                const qint64 ms = timer.elapsed();
+                QStringList goals;
+                for (const Sim::WorkGoal &goal : work.goals)
+                    goals << QString("%1 %2 (%3 m, %4 reversals, %5 steps)%6").arg(goal.name)
+                                 .arg(goal.planned ? "planned" : "NOT planned").arg(goal.metres, 0, 'f', 0).arg(goal.reversals)
+                                 .arg(goal.steps.size()).arg(goal.planned ? QString() : ": " + goal.why);
+                qInfo().noquote() << "[bench]" << where << "(node" << startNode << "):" << ms << "ms |" << goals.join("; ")
+                                  << "| back" << QString::number(work.back, 'f', 0) << "m";
+            };
+            plan(through.front(), "beside the yard");
+            int far = -1;
+            for (const auto &[d, node] : around(through.front(), 40000.0))
+                if (d >= 25000.0 && junctionAt(node, 0) >= 0 && junctionAt(node, 1) >= 0 && lengths[node] >= 200.0) {
+                    far = node;
+                    break;
+                }
+            if (far >= 0)
+                plan(far, "about 25 km away");
+        }
     }
 
     // Every activity: its input, run to its end.

@@ -440,6 +440,16 @@ orders' activities, task 06 against now:
   cheaper way was found skipped), and sorting's go no further than it may
   drive (20 km), so they do not grow with the route. Searches that find no
   way still cover the network within their reach.
+- **A big route** (the user asked: PRUDNIK, 7673 vector nodes against
+  USA2's 408; no activity of its own). `TSRE_SIM_BENCH=1` plans a yard job
+  on any route: in the yard with the most stub sidings within 1.5 km
+  (PRUDNIK's has 24), cuts of 8, 6, 5 and 4 cars, a drop-off sorting five
+  of them into another siding and a pickup of two, from a track beside
+  the yard and from 25 km away. Release build: PRUDNIK 0.95 s and 0.78 s,
+  USA2 35 ms. 95 % of the search was in searches that found no way, most
+  of them to the end of a cut against a buffer (the planner tries both
+  ends of each cut): those are now refused at once (`approachable`).
+  PRUDNIK then 0.10 s and 0.18 s, the same plans; whitefishydsw 0.13 s.
 - **Off the main thread:** the editor (Simulate, running back in time,
   Reset, the Timetable window's Simulate) makes the input without the
   work and plans it on a worker thread (`PlanWorkOrders`); after 0.4 s a

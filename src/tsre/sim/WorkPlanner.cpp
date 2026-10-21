@@ -362,6 +362,22 @@ private:
     }
 
     Move route(const Target &target) const;
+    // A place to couple at can be come to: the track behind it (the way it
+    // is come to) leads in from a junction clear of cars, or the train
+    // stands on it (not so a cut's end against a buffer: a search would
+    // cover all the track within its reach before failing).
+    bool approachable(const Target &target) const {
+        if (target.kind != Target::Couple)
+            return true;
+        for (const RouteInterval &interval : train.track)
+            if (interval.node == target.node)
+                return true;
+        const double end = target.forward ? 0.0 : nodeLength(target.node);
+        int hit = -1;
+        const double limit = reach(target.node, target.forward, end, -1, &hit);
+        const bool clear = target.forward ? limit >= target.x - Eps : limit <= target.x + Eps;
+        return clear && !exits(target.node, !target.forward).empty();
+    }
     // The train after a move, a coupling (to the cut `cut` at its start or
     // end, by its leading end) and a cut (`count` cars at end B or A left
     // standing).
@@ -504,7 +520,7 @@ Move Planner::route(const Target &target) const {
     };
     // Where it stands: end B leading on (its track's way there), or end A
     // (a reversal unless end A led last).
-    if (train.track.empty())
+    if (train.track.empty() || !approachable(target))
         return {};
     const RouteInterval &b = train.track.back();
     const RouteInterval &a = train.track.front();
