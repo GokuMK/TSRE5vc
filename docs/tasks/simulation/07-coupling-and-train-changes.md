@@ -1,6 +1,7 @@
 # Task 07 - Coupling and Train Changes
 
-Status: designed 2026-10-21; phases 1, 2a, 2b and 3 (part A) done
+Status: designed 2026-10-21; part A done (phases 1, 2a, 2b, 3); phase
+B0 done, its results and the question of going on with B1 to B5 below
 (branch `feature/simulation`).
 Decisions taken are at the end.
 
@@ -18,7 +19,7 @@ Sources:
   `TestUncouple`, `UncoupleSomeWagons`, `TestUncondAttach`,
   `ProcessEndOfPathReached`; its distances and speeds), `Simulator.cs`
   (`UncoupleBehind`, static consists), `AIAuxAction.cs` (waiting points);
-- the local content: the 23 activities with wagon events, their player
+- the local content: the 22 activities with wagon events, their player
   paths, consists and loose consists (the route suite's analysis below).
 
 ## Progress
@@ -200,6 +201,99 @@ Open Rails' AI (`AITrain.UpdateFollowingState`, `CoupleAI`,
   one line behind its engines, the pickup event's message beside it; the
   same in 3D.
 
+**Phase B0, feasibility (done 2026-10-21).** A planner as a tool
+(`src/tsre/sim/WorkPlanner`, not run by the core): `PlanWork` takes the
+input and plans the player's train's work from where it starts, the
+loose consists where the activity has them.
+- **The yard:** the player's train (its vehicles from end A to end B and
+  the track its body covers) and the standing cuts.
+- **Moves:** a Dijkstra search over (vector node, direction, the train's
+  leading end). It goes through junctions as they connect (a facing one
+  either way, a trailing one to its input), reverses where the whole
+  train has passed the junction it came in by (its length and 15 m of
+  free track beyond it), and is stopped by standing cars (not the cut it
+  couples to). A reversal weighs as 300 m in choosing a way.
+- **Goals,** in the order the event chain makes them active: events not
+  about cars taken to fire when active (one ending in failure never, one
+  ending in success last). Of the wagon events active together, the first
+  that can be planned is done, after any whose outcomes would take its
+  level down. One none can be planned is reported and taken as done.
+- **Patterns:**
+  - Pickup: couple at the cut's end next to the cars asked for, then cut
+    the others off; else take the whole cut (PickUp asks only that the
+    cars be in the train). The end and the leading end are chosen by the
+    metres, and by what later goals want: an assemble's order, and the
+    cars of drop-offs to come at an end that can lead into their siding.
+  - Set-out: a block at an end of the train goes into the siding first
+    and is cut off. A block in the middle: the whole train goes towards
+    the siding, the part beyond the block is left there, the block is set
+    out, and the part is coupled again. Where to leave it is tried at the
+    node ends of the way's last legs, its reversals and where the train
+    stands; the shortest is kept. The whole train asked for goes into the
+    siding as it is.
+  - Assemble (done when a train or a cut is exactly the cars, in order or
+    reversed, as the core checks): pickups, then the cars not asked for
+    cut off; cars asked for without an engine set out as a block (into
+    the siding for AssembleTrainAtLocation). Cars of a cut asked for
+    between two parts of the train are put in between: the train is cut
+    there, the part with an engine fetches the cars and comes back.
+- **The tool:** the route suite with `TSRE_SIM_PLAN=1` prints each
+  activity's briefing, goals, plans (metres, reversals, couplings, cuts,
+  each step) and the way back to the path's end. Fixtures:
+  `simulation-work` (10) on two yards, one siding facing the train and one
+  behind the junction. They cover a pickup, a pickup leaving the car
+  beyond, the rear car reversed into a siding, no way for the front car
+  there, a car from the middle, a car put in between, the whole train,
+  and the event chain's order.
+
+**B0's results** (`TSRE_SIM_PLAN`, 2026-10-21). Extra driving is the
+work's metres and the way back to the path's end, less the path's
+length:
+
+| Activity | The briefing's work | Goals (✗ not planned) | Extra driving | The plan |
+| --- | --- | --- | --- | --- |
+| homestre, winterun, dawnoil | a run; the train as it starts | assemble ✓ | 0 | nothing to do |
+| rsrescue | reverse into the siding, couple, take the loco and tender out and push them into siding 1, couple to the carriages | dropoff 2, assemble 9 | 1.4 km | the same moves |
+| barcarso | set out the bar car at Shonwies, the restaurant car in its place | dropoff 1, assemble 17 | 2.4 km | set out from the middle; the train cut at the gap, the restaurant car fetched into it |
+| murder | set out the sleeping car at Stams siding, leave carriages at Vols | dropoff 1, assemble 13 | 2.0 km | the same |
+| replloco | through the station, reverse into the north siding, couple to the train | assemble 18 | 0.2 km | the same, one reversal |
+| tnrescue | reverse into the siding, couple to the front of the train | pickup 7 | 0.1 km | the same, one reversal |
+| autotrnsetout | set out car 0-16 on Essex Siding 2 | dropoff 1 | 2.9 km | from the middle, the rest left by the siding |
+| hotbox | leave car 0-6 in the Glacier Park hole track | dropoff 1 | 1.5 km | the same |
+| freighttutorial | drop an empty lumber car, couple to a cut of full ones | pickup 1, assemble-at 1 | 1.7 km | in the event chain's order (the pickup activates the drop) |
+| local_cutbank | hoppers into Grain Elevator 1, the boxcar onto the team track, 13 grain cars from North Elevator Siding 3 | dropoff 1, pickup 13, dropoff 5 | 2.0 km | the same |
+| local_one | two boxcars onto the Columbia Falls plywood spur | dropoff 2 | 0.6 km | the same |
+| local_two | pick up 5 woodchip cars and 2 boxcars, leave 2 centerbeams | dropoff 2, pickup 7 | 2.4 km | the same |
+| mainduty, whitpull, mornimod | the train into a siding | dropoff or assemble-at | 0 to 1.1 km | the same |
+| yard_one | two cuts into one outbound cut on Siding 8 | pickup 5, pickup 3, dropoff 9 | 6.2 km (path 0.8 km) | the same, long |
+| nnmxdgds | the helper (behind the lead loco) onto Essex Siding 2 | dropoff 1 | 76 km | found, absurd: it has to lead in, and the train is turned far away |
+| 4_lumberrun | Everett switching by its work order | 8 goals | 45 km (path 4.8 km) | found, long: cars must lead into their sidings |
+| yard_two | the westbound cars out of two cuts and a logger, into one cut on Siding 8 | 3 pickups, dropoff 5 ✗ | 5.3 km | the cars stand between others in the cuts: sorting |
+| whitefishydsw | sort the yard into outbound cuts | 3 dropoffs, 4 dropoffs ✗, assemble-at ✗ | 59 km | the same: sorting |
+
+- **42 of the 48 goals are planned, and all the work of 20 of the 22
+  activities.** Planning takes under 0.13 s per activity (0.9 s for
+  whitefishydsw). In 17 activities the extra driving is under 3 km and
+  the moves are the ones the briefing asks for.
+- **Beyond the patterns:**
+  - *Sorting:* gathering cars from between others in several cuts into
+    one ordered cut (whitefishydsw, yard_two).
+  - *Turning without a run-around:* cars that must lead into a siding
+    the other way round. With no run-around move, the planner finds a wye
+    or a loop far off (nnmxdgds 76 km, 4_lumberrun 45 km; 28 km for
+    4_lumberrun with the look-ahead for drop-offs off, the rest from one
+    block at a time and the reversal clearances). Run-around moves were
+    left out of this task "unless B0 finds local activities needing
+    them": two do.
+- **Not in B0:** AI trains and signals; the work planned from the train's
+  start, not from where it leaves the path (the extra driving takes the
+  path's own length off); a plan's moves run by the core.
+- **For B1 to B5:** the planner's output is what B1 to B5 need: route
+  parts with reversals and an action at the end of each step. The core
+  runs them as paths, with the couplings and cuts of part A. What it
+  still lacks: stopping short of cars it must not couple to (a set-out
+  into an occupied siding), run-around moves, and sorting.
+
 ## Why
 
 Activities are made of trains that change: a train picks up cars and sets
@@ -236,7 +330,8 @@ start to its end.
 ## The local content (2026-10-21)
 
 From the route suite's analysis (`TSRE_SIM_WORK`, task 07's design), the
-23 activities with wagon events on the seven routes:
+22 activities with wagon events on the seven routes (23 written here
+before; the planner's run in B0 counts 22):
 - **The player's path does not lead through the work.** In 20 of them the
   path is a single part (no reversal), mostly along the main line; the
   loose consists to pick up are off it, and so are the sidings to set
@@ -422,7 +517,7 @@ else first) stops and is reported; no re-planning in this task.
 
 **B6. Feasibility first.** Phase B0 builds the route search and the
 patterns as a tool on the local content, before any of it runs in the
-core: for each work order of the 23 activities, whether a plan is found
+core: for each work order of the 22 activities, whether a plan is found
 and how long it is, set against what the activity's briefing tells the
 player to do.
 

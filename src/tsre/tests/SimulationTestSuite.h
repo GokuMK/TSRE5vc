@@ -24,6 +24,9 @@ int runSimulationEventsSuite(bool verbose);
 // joined, cuts at waiting points, reversing short of cut-off cars,
 // attaching again to them.
 int runSimulationCouplingSuite(bool verbose);
+// The autopilot's work orders planned (task simulation 07, phase B0):
+// pickups, set-outs and assembles on two small yards.
+int runSimulationWorkSuite(bool verbose);
 // The scaling workloads (task simulation 02): the route enlarged with the
 // same traffic, more traffic, more trains at one junction, on hand-made
 // track; measured.

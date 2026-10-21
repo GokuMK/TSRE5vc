@@ -4176,6 +4176,7 @@ QStringList TsreTests::listSuites() {
         "simulation-scaling",
         "simulation-events",
         "simulation-coupling",
+        "simulation-work",
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
@@ -4370,6 +4371,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSimulationEventsSuite(opts.verbose);
     if (suite == "simulation-coupling")
         return runSimulationCouplingSuite(opts.verbose);
+    if (suite == "simulation-work")
+        return runSimulationWorkSuite(opts.verbose);
 
     if (suite == "simulation-route")
         return runSimulationRouteSuite(opts.verbose);

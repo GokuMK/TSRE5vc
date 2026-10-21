@@ -112,11 +112,12 @@ model as the first operating policy, and threading.
   user's decisions at its end; part A done (phases 1 to 3): each train its
   own cars, standing trains, attaching, coupling and cuts, signals into
   occupied blocks, living trains, 60001 and 60002, the editor drawing the
-  changed trains and the standing ones; B0 next): part A, trains that change as Open Rails' AI
+  changed trains and the standing ones; B0 done: 42 of 48 goals planned,
+  20 of 22 activities whole, sorting and run-arounds beyond it): part A, trains that change as Open Rails' AI
   does (each train its own cars, loose consists as standing trains,
   attaching and coupling at contact, cuts at waiting points); part B, the
   autopilot's work orders, planned off the player's path (MSTS paths do
-  not lead through the work: 20 of the 23 local activities with wagon
+  not lead through the work: 20 of the 22 local activities with wagon
   events), with a feasibility phase first. Notes from 2026-10-17 kept
   below.
   - Open Rails' AI shunts only where the author coded it in the path

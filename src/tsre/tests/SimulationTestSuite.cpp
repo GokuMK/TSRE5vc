@@ -24,6 +24,7 @@
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
+#include <tsre/sim/WorkPlanner.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/tdb/TRitem.h>
@@ -2301,6 +2302,47 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                     qInfo().noquote() << "[work]   event" << kinds[int(e.kind)] << e.name << "|" << e.cars.size() << "cars ("
                                       << mine << "player's) | level" << e.activation << "| siding" << siding;
                 }
+            }
+        }
+        // TSRE_SIM_PLAN (task 07, phase B0): the player's work orders as the
+        // planner would do them, with the activity's briefing.
+        if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_PLAN")) {
+            bool wagons = false;
+            for (const Sim::EventPlan &e : input->events)
+                wagons = wagons || !e.cars.empty();
+            if (wagons) {
+                QElapsedTimer planning;
+                planning.start();
+                const Sim::WorkPlan plan = Sim::PlanWork(*input);
+                const qint64 ms = planning.elapsed();
+                QString briefing = activity->header != nullptr ? activity->header->briefing : QString();
+                briefing.replace("\\n", " / ").replace('\n', " / ");
+                qInfo().noquote() << "[plan]" << activity->name << "|" << ms << "ms | briefing:" << briefing.left(700);
+                const char *kinds[] = {"time", "location", "allstops", "assemble", "assemble-at", "dropoff", "pickup",
+                                       "passengers", "speed", "other"};
+                for (const Sim::WorkGoal &goal : plan.goals) {
+                    QStringList steps;
+                    for (const Sim::WorkStep &step : goal.steps) {
+                        double metres = 0.0;
+                        for (const Sim::WorkLeg &leg : step.legs)
+                            metres += leg.length();
+                        steps << QString("%1 (%2 legs, %3 m)").arg(step.what).arg(step.legs.size()).arg(metres, 0, 'f', 0);
+                    }
+                    qInfo().noquote() << "[plan]   " << kinds[int(goal.kind)] << goal.name << "|" << goal.cars << "cars |"
+                                      << (goal.planned ? QString("planned: %1 m, %2 reversals, %3 couplings, %4 cuts")
+                                                             .arg(goal.metres, 0, 'f', 0).arg(goal.reversals)
+                                                             .arg(goal.couplings).arg(goal.cuts)
+                                                       : "NOT planned: " + goal.why)
+                                      << "|" << steps.join("; ");
+                }
+                double work = 0.0;
+                for (const Sim::WorkGoal &goal : plan.goals)
+                    work += goal.metres;
+                qInfo().noquote() << "[plan]    path" << QString::number(plan.path, 'f', 0) << "m, work" << QString::number(work, 'f', 0)
+                                  << "m; back to the path's end:"
+                                  << (plan.back >= 0.0 ? QString("%1 m, %2 reversals").arg(plan.back, 0, 'f', 0).arg(plan.backReversals)
+                                                       : QString("no way"))
+                                  << (plan.notes.isEmpty() ? QString() : "| " + plan.notes.join("; "));
             }
         }
         // TSRE_SIM_EVENT_STOPS (platforms, all): where the player's train
