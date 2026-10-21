@@ -164,10 +164,11 @@ model as the first operating policy, and threading.
     append, delete, reverse, move, flip); the simulation does not need
     them (its copies are made from frames). The player's driving with
     real consists will.
-- [ ] `08-open-rails-timetables.md` (designed 2026-10-21, waiting for the
-  user's decisions): Open Rails' timetable mode read and simulated (the
-  user, 2026-10-21: before the player's driving). PRUDNIK's timetable,
-  308 trains and no activity, is the local content.
+- [ ] `08-open-rails-timetables.md` (designed 2026-10-21 with the user's
+  ideas, under review): Open Rails' timetable mode read, simulated, shown
+  and saved (the user, 2026-10-21: before the player's driving); an Open
+  Rails timetable set is an activity in code. PRUDNIK's timetable, 308
+  trains and no activity, is the local content.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a
