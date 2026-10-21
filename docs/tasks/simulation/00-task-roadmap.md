@@ -179,6 +179,28 @@ model as the first operating policy, and threading.
 - Open Rails' script additions to `sigscr.dat` (task 05, later).
 - Offered, not decided: Jump To going to where a simulated train is; the
   efficiency after a train's last stop.
+- Kept for later (user, 2026-10-21, after task 07):
+  - whitefishydsw's 13-car drop-off (Whitefish Siding 529) is skipped as
+    impractical: a block would have to come to the cars gathered there
+    the other way round (a run-round for a delivery to cars gathered).
+  - Location events on another track than the train's: Open Rails fires
+    them only within 2.5 m of the train's track, MSTS by a 2D distance from
+    the player's train (task 06); the user wants both modes, their
+    definition open.
+  - Coupling: after a reversal Open Rails' AI creeps for some 50 s before
+    its authority reaches the cars it closes on (local_cutbank, 91 s
+    later than ours); ours follows the approach rule at once.
+  - Single-track arbitration (task 02's decision 2: later):
+    BNSF_SCENIC 3_CanadianImports still deadlocks.
+  - AI trains doing work orders themselves (the user's idea of
+    2026-10-17), with the same planner.
+  - Two Open Rails crashes found, not reported upstream: an AI path
+    waiting point "until 08:30" on EUROPE1 lclsrvce (2026-10-14), and
+    JAPAN1 itr from 12:00 at about 12:23 ("Collection was modified" in
+    `TrackCircuitSection.TestTrainAhead`).
+- Separate tasks: Open Rails' timetable mode (PRUDNIK has only an Open
+  Rails timetable, so its trains cannot run in TSRE's simulation yet); the
+  flagged refactors below.
 
 ## Flagged refactors (user, 2026-10-17)
 - `Sim::TrackGeometry` repeats `TDB::getDrawPositionOnTrNode`'s section
