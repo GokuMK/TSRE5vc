@@ -266,33 +266,48 @@ length:
 | local_two | pick up 5 woodchip cars and 2 boxcars, leave 2 centerbeams | dropoff 2, pickup 7 | 2.4 km | the same |
 | mainduty, whitpull, mornimod | the train into a siding | dropoff or assemble-at | 0 to 1.1 km | the same |
 | yard_one | two cuts into one outbound cut on Siding 8 | pickup 5, pickup 3, dropoff 9 | 6.2 km (path 0.8 km) | the same, long |
-| nnmxdgds | the helper (behind the lead loco) onto Essex Siding 2 | dropoff 1 | 76 km | found, absurd: it has to lead in, and the train is turned far away |
+| nnmxdgds | the helper (behind the lead loco) onto Essex Siding 2 | dropoff 1 | 2.2 km | the train run to Essex, the 39 cars left, the helper put in with the lead loco, back (76 km before a fix below) |
 | 4_lumberrun | Everett switching by its work order | 8 goals | 45 km (path 4.8 km) | found, long: cars must lead into their sidings |
 | yard_two | the westbound cars out of two cuts and a logger, into one cut on Siding 8 | 3 pickups, dropoff 5 ✗ | 5.3 km | the cars stand between others in the cuts: sorting |
-| whitefishydsw | sort the yard into outbound cuts | 3 dropoffs, 4 dropoffs ✗, assemble-at ✗ | 59 km | the same: sorting |
+| whitefishydsw | sort the yard into outbound cuts | 2 of 9 goals; 5 dropoffs ✗ (sorting), 2 ✗ impractical | - | the same: sorting |
 
-- **42 of the 48 goals are planned, and all the work of 20 of the 22
-  activities.** Planning takes under 0.13 s per activity (0.9 s for
-  whitefishydsw). In 17 activities the extra driving is under 3 km and
+- **41 of the 48 goals are planned, and all the work of 20 of the 22
+  activities.** Planning takes under 0.8 s per activity (2.3 s for
+  whitefishydsw). In 18 activities the extra driving is under 3 km and
   the moves are the ones the briefing asks for.
 - **Beyond the patterns:**
   - *Sorting:* gathering cars from between others in several cuts into
     one ordered cut (whitefishydsw, yard_two).
-  - *Turning without a run-around:* cars that must lead into a siding
-    the other way round. With no run-around move, the planner finds a wye
-    or a loop far off (nnmxdgds 76 km, 4_lumberrun 45 km; 28 km for
-    4_lumberrun with the look-ahead for drop-offs off, the rest from one
-    block at a time and the reversal clearances). Run-around moves were
-    left out of this task "unless B0 finds local activities needing
-    them": two do.
+  - *Long yard work:* 4_lumberrun, 45 km beyond its 4.8 km path. Its
+    pickups take long ways so that the cars can lead into their drop
+    sidings later; the cars left for a middle set-out stand where the
+    train is, kilometres from the siding. Run-arounds (below) do not
+    shorten it. With a smaller look-ahead penalty its work is 32 km, one
+    drop then impractical.
+  - nnmxdgds's 76 km was a bug (below), not a missing run-around.
 - **Not in B0:** AI trains and signals; the work planned from the train's
   start, not from where it leaves the path (the extra driving takes the
   path's own length off); a plan's moves run by the core.
 - **For B1 to B5:** the planner's output is what B1 to B5 need: route
   parts with reversals and an action at the end of each step. The core
-  runs them as paths, with the couplings and cuts of part A. What it
-  still lacks: stopping short of cars it must not couple to (a set-out
-  into an occupied siding), run-around moves, and sorting.
+  runs them as paths, with the couplings and cuts of part A.
+
+**B0, after the user's decisions (2026-10-21).**
+- **Run-arounds:** a block that must lead into a siding the other way is
+  left standing where the train is (or on its way to the siding), the
+  rest of the train goes round it by a loop or crossovers and couples to
+  its other end, then puts it in; tried beside the direct way, the
+  shorter kept. Fixture: a loop, the car behind the engine, a siding
+  beyond facing the train (`simulation-work`, 11 checks).
+- **Impractical work is skipped:** a goal whose plan is more than 10 km
+  of moves beyond the way to its place, or more than 12 reversals, is
+  not done; the run's log will say so (B1 to B5).
+- **Two planner bugs fixed:** the search let a move pass through the cut
+  it couples to (a run-around "found" with no loop); and a pattern's
+  second way round (which part of the train to leave) started from the
+  yard its first way's trials left (nnmxdgds's helper: 113 km, now
+  2.2 km).
+- `TSRE_SIM_PLAN=<activity file>` plans that activity only.
 
 ## Why
 
@@ -554,6 +569,16 @@ player to do.
    on its path (local_cutbank: its autopilot attaches as ours does).
 
 ## Decisions (user, 2026-10-21)
+
+After B0:
+- B1 to B5 go ahead, with run-around moves; sorting (whitefishydsw,
+  yard_two) is a task after them. Sorting needs free space, and there are
+  plenty of sorting algorithms.
+- A work order with no simple solution is skipped, and the run's log
+  warns that it is impractical (overcomplicated work would not be fun for
+  a player either).
+
+Before:
 
 1. Part A as Open Rails' AI does it, part B TSRE's own.
 2. The autopilot may cut a train anywhere it stands, the main line

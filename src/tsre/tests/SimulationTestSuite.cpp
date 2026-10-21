@@ -2306,7 +2306,10 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         }
         // TSRE_SIM_PLAN (task 07, phase B0): the player's work orders as the
         // planner would do them, with the activity's briefing.
-        if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_PLAN")) {
+        // (TSRE_SIM_PLAN=<activity file name>: that activity only.)
+        const QString planOnly = qEnvironmentVariable("TSRE_SIM_PLAN");
+        if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_PLAN")
+                && (planOnly == "1" || activity->name.compare(planOnly, Qt::CaseInsensitive) == 0)) {
             bool wagons = false;
             for (const Sim::EventPlan &e : input->events)
                 wagons = wagons || !e.cars.empty();

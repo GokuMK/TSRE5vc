@@ -73,6 +73,23 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
     layout.end(7, 21);
     layout.track(22, 6, 8, 20);
     layout.end(8, 22);
+    // A third with a loop: track end 40, track 30 (200 m) to junction 31,
+    // its outputs track 32 (main, 300 m) and track 33 (the loop, laid the
+    // other way) to junction 34, its input track 35 (200 m) to junction 36,
+    // its outputs track 37 (200 m, to track end 41) and track 38 (a siding
+    // facing an eastbound train, 200 m, to track end 42).
+    layout.end(40, 30);
+    layout.track(30, 40, 31, 20);
+    layout.junction(31, 30, 32, 33);
+    layout.track(32, 31, 34, 30);
+    layout.track(33, 34, 31, 32);
+    layout.junction(34, 35, 32, 33);
+    layout.track(35, 34, 36, 20);
+    layout.junction(36, 35, 37, 38);
+    layout.track(37, 36, 41, 20);
+    layout.end(41, 37);
+    layout.track(38, 36, 42, 20);
+    layout.end(42, 38);
     TDB *db = &layout.db;
     const QScopedValueRollback<TDB *> live(Game::trackDB, db);
     const auto geometry = std::make_shared<const Sim::TrackGeometry>(db);
@@ -134,8 +151,9 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
     const Sim::TrainRoute east = routeOf({10, 100.0f}, {11, 400.0f});
     const Sim::TrainRoute eastTrailing = routeOf({20, 100.0f}, {21, 400.0f});
     const Sim::TrainRoute westTrailing = routeOf({21, 400.0f}, {20, 100.0f}, true);
+    const Sim::TrainRoute throughLoop = routeOf({30, 50.0f}, {37, 150.0f});
     check(!east.parts.empty() && !eastTrailing.parts.empty() && !westTrailing.parts.empty(), "the test paths");
-    if (east.parts.empty() || eastTrailing.parts.empty() || westTrailing.parts.empty()) {
+    if (east.parts.empty() || eastTrailing.parts.empty() || westTrailing.parts.empty() || throughLoop.parts.empty()) {
         qInfo().noquote() << QString("simulation-work: %1 passed, %2 failed").arg(passed).arg(failed);
         return 1;
     }
@@ -206,6 +224,19 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
         check(goal != nullptr && goal->planned && goal->couplings == 2 && goal->cuts == 1
                   && (made == std::vector<unsigned int>({e1, w2, a, w3}) || idsOf(plan.train.vehicles) == std::vector<unsigned int>({e1, w2, a, w3})),
               "a car put in between two of the train's: " + describe(plan));
+    }
+    // The car behind the engine, a siding it must go into first ahead: left
+    // on the loop's main track, the engine round it by the loop, the car
+    // pushed in.
+    {
+        const Sim::WorkPlan plan = Sim::PlanWork(*inputOf(throughLoop, {car(20.0f, true, e1), car(10.0f, false, x)}, {},
+                                                          {wagonEvent(Sim::EventPlan::DropOffWagonsAtLocation, {x}, 38)}));
+        const Sim::WorkGoal *goal = plan.goals.empty() ? nullptr : &plan.goals[0];
+        bool round = false;
+        for (const Sim::WorkStep &step : goal != nullptr ? goal->steps : std::vector<Sim::WorkStep>())
+            round = round || step.what.contains("round the cars");
+        check(goal != nullptr && goal->planned && round && plan.cuts.size() == 1 && plan.cuts[0].track.front().node == 38,
+              "a run-around by the loop for the car to lead into the siding: " + describe(plan));
     }
     // The whole train asked for: into the siding as it is, no cut.
     {

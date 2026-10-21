@@ -48,8 +48,11 @@ struct WorkGoal {
     EventPlan::Kind kind = EventPlan::Other;
     int cars = 0;
     bool planned = false;
-    // Not planned: why.
+    // Not planned: why; whether because the plan found was impractical
+    // (the user, 2026-10-21: work too complicated is skipped, the run's
+    // log warning of it).
     QString why;
+    bool impractical = false;
     std::vector<WorkStep> steps;
     double metres = 0.0;
     int reversals = 0;

@@ -17,6 +17,11 @@ namespace {
 constexpr double Margin = 15.0;
 constexpr double StandOff = 5.0;
 constexpr double ReversalCost = 300.0;
+// A goal's plan is impractical (skipped) beyond so many metres more than
+// the way to its place, or so many reversals (the user, 2026-10-21: work
+// too complicated would be no fun for a player either).
+constexpr double ImpracticalExtra = 10000.0;
+constexpr int ImpracticalReversals = 12;
 constexpr double Eps = 1e-3;
 
 double lengthOf(const std::vector<RouteInterval> &track) {
@@ -185,9 +190,10 @@ private:
         double limit = forward ? nodeLength(node) : 0.0;
         if (hit != nullptr)
             *hit = -1;
+        // (The cut coupled to too: the move stops at its near end, never
+        // through it to its far one.)
+        (void)skip;
         for (size_t c = 0; c < cuts.size(); ++c) {
-            if (int(c) == skip)
-                continue;
             for (const RouteInterval &interval : cuts[c].track) {
                 if (interval.node != node)
                     continue;
@@ -273,6 +279,11 @@ private:
     // siding: from an end of the train, or from its middle (the rest left
     // short of the siding and coupled again).
     bool setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vector<unsigned int> &cars);
+    // The `count` cars at end B (or A) into the siding and cut off there:
+    // that end first, or (`runRound`) after running the rest round them
+    // (the cars left standing, the rest taken to their other end and
+    // coupled, so that they lead the other way); the shorter.
+    bool setOutEnd(WorkGoal &goal, const EventPlan &event, size_t count, bool atB, bool runRound);
     bool assemble(WorkGoal &goal, const EventPlan &event, const Ahead &ahead);
     // Places to leave part of the train on its way to a target (with either
     // end leading, or the one given): short of the node ends on the way's
@@ -286,6 +297,10 @@ private:
     int trainIndex(unsigned int car) const;
     int cutOf(unsigned int car) const;
     WorkGoal goalFor(int event, const Ahead &ahead);
+    WorkGoal planGoal(int event, const Ahead &ahead);
+    // The way from where the train stands to an event's place (its cars'
+    // cut nearest, or its siding), metres; 0 none.
+    double wayTo(const EventPlan &event) const;
 };
 
 Move Planner::route(const Target &target) const {
@@ -773,15 +788,10 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
             goal.why = "no engine would be left in the train";
             return false;
         }
-        WorkStep made;
-        if (!step(goal, sidingOf(event, b ? 1 : 0), WorkStep::Cut, QString("set out %1 cars").arg(count), made)) {
-            goal.why = "no way into the siding with these cars leading (the train would have to be turned)";
+        if (!setOutEnd(goal, event, count, b, true)) {
+            goal.why = "no way into the siding with these cars leading, nor round them";
             return false;
         }
-        made.cars = int(count);
-        made.atB = b;
-        cutOff(count, b);
-        finish(goal, std::move(made));
         return true;
     }
     // In the middle: the whole train on its way to the siding as far as a
@@ -795,10 +805,15 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
     Snapshot bestYard = before;
     bool found = false;
     for (bool keepA : {true, false}) {
+        // (From the yard as it was: the other way's trials changed it.)
+        restore(before);
+        goal = savedGoal;
         if (!(keepA ? anyEngine(train.vehicles, 0, first) : anyEngine(train.vehicles, last + 1, n)))
             continue;
         const int lead = keepA ? 1 : 0;
         std::vector<Move> stages = stagesTowards(sidingOf(event, lead), lead);
+        if (stages.size() > 8)
+            stages.erase(stages.begin() + 7, stages.end() - 1);
         for (const Move &stage : stages) {
             restore(before);
             goal = savedGoal;
@@ -816,13 +831,8 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
             const int put = cutOff(beyond, keepA);
             const unsigned int marker = cuts[size_t(put)].vehicles.front().id;
             finish(goal, std::move(leave));
-            WorkStep made;
-            if (!step(goal, sidingOf(event, lead), WorkStep::Cut, QString("set out %1 cars").arg(count), made))
+            if (!setOutEnd(goal, event, count, keepA, true))
                 continue;
-            made.cars = int(count);
-            made.atB = keepA;
-            cutOff(count, keepA);
-            finish(goal, std::move(made));
             // Back to the cars left, at the end that was coupled to the block.
             int index = -1;
             for (size_t c = 0; c < cuts.size(); ++c)
@@ -851,6 +861,75 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
     restore(before);
     goal = savedGoal;
     goal.why = "no way to set out the cars from the middle of the train";
+    return false;
+}
+
+bool Planner::setOutEnd(WorkGoal &goal, const EventPlan &event, size_t count, bool atB, bool runRound) {
+    const Snapshot start = save();
+    const WorkGoal savedGoal = goal;
+    WorkGoal bestGoal;
+    Snapshot bestYard = start;
+    bool found = false;
+    const auto keepBest = [&]() {
+        const double cost = goal.metres + ReversalCost * goal.reversals;
+        if (!found || cost < bestGoal.metres + ReversalCost * bestGoal.reversals) {
+            found = true;
+            bestGoal = goal;
+            bestYard = save();
+        }
+    };
+    const auto setOut = [&](bool b) {
+        WorkStep made;
+        if (!step(goal, sidingOf(event, b ? 1 : 0), WorkStep::Cut, QString("set out %1 cars").arg(count), made))
+            return false;
+        made.cars = int(count);
+        made.atB = b;
+        cutOff(count, b);
+        finish(goal, std::move(made));
+        return true;
+    };
+    if (setOut(atB))
+        keepBest();
+    // A run-around where the train stands or on its way to the siding.
+    std::vector<Move> stages;
+    if (runRound) {
+        stages = stagesTowards(sidingOf(event, -1), -1);
+        if (stages.size() > 6)
+            stages.erase(stages.begin() + 5, stages.end() - 1);
+    }
+    for (const Move &stage : stages) {
+        restore(start);
+        goal = savedGoal;
+        if (stage.found) {
+            WorkStep made;
+            keep(goal, stage, WorkStep::None, "the train towards the siding", made);
+            finish(goal, std::move(made));
+        }
+        WorkStep leave;
+        leave.action = WorkStep::Cut;
+        leave.cars = int(count);
+        leave.atB = atB;
+        leave.what = QString("leave the %1 cars to run round them").arg(count);
+        const int put = cutOff(count, atB);
+        finish(goal, std::move(leave));
+        // Their far end: the end of their track away from the rest.
+        const bool farStart = !atB;
+        WorkStep round;
+        if (!step(goal, endOf(put, farStart, -1), WorkStep::Couple, "round the cars to their other end", round))
+            continue;
+        round.cars = int(count);
+        couple(put, farStart, lastLeadB);
+        finish(goal, std::move(round));
+        if (setOut(lastLeadB))
+            keepBest();
+    }
+    if (found) {
+        goal = bestGoal;
+        restore(bestYard);
+        return true;
+    }
+    restore(start);
+    goal = savedGoal;
     return false;
 }
 
@@ -931,6 +1010,8 @@ bool Planner::insert(WorkGoal &goal, const std::vector<unsigned int> &cars) {
     Snapshot bestYard = start;
     bool found = false;
     for (bool keepA : {true, false}) {
+        restore(start);
+        goal = savedGoal;
         if (!(keepA ? anyEngine(train.vehicles, 0, gap) : anyEngine(train.vehicles, gap, n)))
             continue;
         // The kept part's end at the gap leads to the cut, the end of the
@@ -1072,7 +1153,41 @@ bool Planner::assemble(WorkGoal &goal, const EventPlan &event, const Ahead &ahea
     return true;
 }
 
+double Planner::wayTo(const EventPlan &event) const {
+    double best = -1.0;
+    const auto consider = [&](const Target &target) {
+        const Move move = route(target);
+        if (move.found && (best < 0.0 || move.metres < best))
+            best = move.metres;
+    };
+    for (unsigned int car : event.cars) {
+        const int c = cutOf(car);
+        if (c >= 0) {
+            consider(endOf(c, true, -1));
+            consider(endOf(c, false, -1));
+            break;
+        }
+    }
+    if (event.siding && event.sidingNode >= 0)
+        consider(sidingOf(event, -1));
+    return std::max(0.0, best);
+}
+
 WorkGoal Planner::goalFor(int e, const Ahead &ahead) {
+    const EventPlan &event = in.events[size_t(e)];
+    const double direct = wayTo(event);
+    WorkGoal goal = planGoal(e, ahead);
+    if (goal.planned && (goal.metres - direct > ImpracticalExtra || goal.reversals > ImpracticalReversals)) {
+        goal.planned = false;
+        goal.impractical = true;
+        goal.why = QString("impractical: %1 km of moves (%2 km more than the way there), %3 reversals")
+                       .arg(goal.metres / 1000.0, 0, 'f', 1).arg((goal.metres - direct) / 1000.0, 0, 'f', 1)
+                       .arg(goal.reversals);
+    }
+    return goal;
+}
+
+WorkGoal Planner::planGoal(int e, const Ahead &ahead) {
     const EventPlan &event = in.events[size_t(e)];
     WorkGoal goal;
     goal.event = e;
@@ -1191,6 +1306,7 @@ WorkPlan Planner::plan() {
         const Snapshot before = save();
         int chosen = -1, failedFirst = -1;
         WorkGoal chosenGoal, failedGoal;
+        std::vector<WorkGoal> failures;
         for (int e : active) {
             restore(before);
             Ahead others = ahead;
@@ -1205,7 +1321,15 @@ WorkPlan Planner::plan() {
                 failedFirst = e;
                 failedGoal = goal;
             }
+            failures.push_back(goal);
         }
+        // The activity ending in success with goals undone: those reported
+        // before it (with why).
+        if (chosen >= 0 && in.events[size_t(chosen)].success)
+            for (const WorkGoal &failure : failures) {
+                out.goals.push_back(failure);
+                fired[size_t(failure.event)] = true;
+            }
         if (chosen < 0) {
             restore(before);
             chosen = failedFirst;
