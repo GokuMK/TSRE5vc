@@ -462,6 +462,57 @@ orders' activities, task 06 against now:
 - **Left:** whitefishydsw's 13-car drop-off (a run-round for a delivery to
   cars gathered); phase 6.
 
+**Phase 6, verified (done 2026-10-21).**
+- **Every local activity against task 06's table** (the route suite after
+  sorting): 46 of the 65 activities run as they did in task 06, the same
+  events and the same ends at the same times. The 19 others are the
+  work-order activities: 16 never ended and 3 ended in failure, now all
+  19 end in success. 47 of the 48 wagon events fire (task 06: 3); the one
+  left is whitefishydsw's 13-car drop-off, skipped as impractical.
+- **The events still not fired in those 19** are not work: the traps and
+  warnings an activity sets for a player who goes wrong (End without
+  success, Gone Too Far, "You've gone too far", "You've gone the wrong
+  way", "You did not complete all your tasks", Passed Pians, a siding
+  warning), times after the activity ended, events never made active,
+  stop-here events the train passes (the user's decision of 2026-10-21: no
+  stopping at them), points off the track (Open Rails' 2.5 m rule) and
+  PickUpPassengers (it never fires, as in Open Rails).
+- **Open Rails on local_cutbank** (its player's train on Open Rails'
+  autopilot along its path; ours with the work orders left out,
+  `TSRE_SIM_NOWORK=1`): both reverse beside the 13 cars at the same time
+  (13:04:49 and about 13:04:55) and couple to them; "Pick up cars" fires in
+  Open Rails at 13:09:29, in ours at 13:06:59, 150 s earlier. Ours ran at
+  line speed to 100 m from the cars and crept only there; Open Rails' AI
+  closes on a standing train at most at √(distance × its deceleration) / 2,
+  the creep speed at least (its FOLLOWING state, `UpdateFollowingState`;
+  the deceleration Open Rails' AI MaxDecel, which the core already has).
+  Ours now does the same: 13:07:59, 91 s before Open Rails. The rest:
+  after the reversal Open Rails creeps for 50 s before its authority
+  reaches the cars, and its controls swing on the way in (200 s over the
+  last 800 m, the rule gives 175 s).
+- **Open Rails on JAPAN1's itr, ITR (Traffic 05)**: ours took the 10 cars
+  standing 85 m ahead of its start and ran its service with them. Open
+  Rails closes on them as ours does (13:35:01 to 13:35:20, 70 m) and then
+  removes the train ("out of control, reason OUT_OF_PATH"): the cars stand
+  across a junction onto the other way than its path, so taken, the
+  train's front is off its path. Ours had put its front the cars' length
+  along its path instead, wherever the cars stood. Now a train whose cars
+  taken stand off the rest of its part is removed as in Open Rails (event
+  `Removed`; the player's train stands there). Run from 12:00, Open Rails
+  crashes at 12:23 ("Collection was modified" in
+  `TrackCircuitSection.TestTrainAhead`, from a signal's update, the AI
+  trains bunched behind each other); a copy of the activity starting at
+  13:25 runs.
+- **After the two changes** the route suite has the same events and ends;
+  only times move, the couplings slower as in Open Rails (whitefishydsw's
+  success 18:44:58, was 18:34:39; yard_two's 15:20:46, was 15:18:18; a few
+  seconds sooner where a short approach may now go faster than the creep
+  speed).
+- **Fixtures:** `simulation-coupling` (23): closing on the cars within
+  Open Rails' rule; a train taking cars that stand off its path is
+  removed. The route suite's `TSRE_SIM_TRACE` prints reversals and
+  couplings too.
+
 ## Why
 
 Activities are made of trains that change: a train picks up cars and sets

@@ -682,6 +682,9 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     case TrainEvent::Parted:
         //% "runs on its own again, parted from %1"
         return qtTrId("simulation.event.parted").arg(holderName(event.index));
+    case TrainEvent::Removed:
+        //% "removed: the cars it took stand off its path (as Open Rails does)"
+        return qtTrId("simulation.event.removed");
     case TrainEvent::WorkSkipped: {
         const ActivityEvent *skipped = activityEvent(event.index);
         const QString name = skipped == nullptr ? QString::number(event.index)

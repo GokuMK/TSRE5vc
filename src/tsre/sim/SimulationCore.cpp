@@ -614,10 +614,13 @@ void SimulationCore::advance(int train, double from, double to) {
                     }
                 }
             }
-            // Coupling (task 07): creeping up to the train it attaches to, at
-            // the coupling speed over the last metres.
-            if (kind == StopKind::Couple && distance < CreepReach)
-                limit = std::min(limit, CreepSpeed);
+            // Coupling (task 07): closing on the train it attaches to as Open
+            // Rails' AI follows a standing train, at most half the speed it
+            // could stop from over the distance, never below the creep speed
+            // (at the coupling speed over the last metres, below).
+            if (kind == StopKind::Couple)
+                limit = std::min(limit, std::max(0.5 * std::sqrt(distance * runtime[size_t(train)].deceleration),
+                                                  double(CreepSpeed)));
             // A station's stop from 1.5 × its top speed² / its deceleration
             // (Open Rails' trigger from full speed), anything else from its
             // braking distance and BrakingZone.
@@ -3036,6 +3039,25 @@ std::vector<Vehicle> turned(const std::vector<Vehicle> &vehicles) {
     return out;
 }
 
+// Whether a track runs along a route part from route distance `at` for
+// `length` metres (each 2 m within 1.5 m of where the part has it).
+bool runsAlong(const RouteTrack &part, double at, const std::vector<RouteInterval> &track, double length) {
+    double walked = 0.0;
+    for (const RouteInterval &interval : track) {
+        const double span = std::fabs(double(interval.to - interval.from));
+        const float sign = interval.forward() ? 1.0f : -1.0f;
+        for (double k = 0.0; k < span && walked + k <= length; k += 2.0) {
+            double here = -1.0;
+            if (!part.find(interval.node, interval.from + sign * float(k), here) || std::fabs(here - (at + walked + k)) > 1.5)
+                return false;
+        }
+        walked += span;
+        if (walked > length)
+            break;
+    }
+    return true;
+}
+
 // Track intervals the other way.
 std::vector<RouteInterval> backwards(const std::vector<RouteInterval> &track) {
     std::vector<RouteInterval> out;
@@ -3149,13 +3171,34 @@ void SimulationCore::couple(int train, double time) {
     }
     st.sections.clear();
     const double contact = s.front;
+    // The cars taken off the rest of its part (standing across a junction
+    // onto another way): it cannot go on with them. Open Rails removes
+    // such a train (out of control, OUT_OF_PATH); the player's train stays.
+    const std::vector<RouteInterval> away = atFirst ? st.track : backwards(st.track);
+    const double along = std::min(double(st.length), part.length() - contact) - 1.0;
+    const bool offPath = along > 0.0 && !runsAlong(part, contact, away, along);
     rt.vehicles = vehicles;
     refreshConsist(train);
     s.front = contact + st.length;
     // Its route part goes on over the cars taken where it ended among them
     // (a reversal or its path's end there).
-    extendPart(train, atFirst ? st.track : backwards(st.track), contact);
+    extendPart(train, away, contact);
     releaseAll(train);
+    if (offPath) {
+        record(time, train, TrainEvent::Coupled, other);
+        events.back().signal = int(st.vehicles.size());
+        s.front = contact;
+        s.speed = 0.0f;
+        if (train == playerTrain) {
+            s.status = TrainStatus::Stopped;
+            s.stoppedAt = StopKind::End;
+            occupy(train);
+        } else {
+            s.status = TrainStatus::Finished;
+        }
+        record(time, train, TrainEvent::Removed, other);
+        return;
+    }
     if (!occupy(train))
         blocked(train, time);
     record(time, train, TrainEvent::Coupled, other);

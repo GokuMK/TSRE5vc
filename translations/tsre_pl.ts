@@ -14655,28 +14655,33 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>runs on its own again, parted from %1</source>
         <translation>jedzie znów sam, odłączony od pociągu %1</translation>
     </message>
+    <message id="simulation.event.removed">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="687"/>
+        <source>removed: the cars it took stand off its path (as Open Rails does)</source>
+        <translation>usunięty: zabrane wagony stoją poza jego drogą (jak w Open Rails)</translation>
+    </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="694"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="697"/>
         <source>restarted by event %1</source>
         <translation>wznowiony przez zdarzenie %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="786"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="789"/>
         <source>Every train has finished its path.</source>
         <translation>Wszystkie pociągi przejechały swoje drogi.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="788"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="791"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Pociągi: %1 czeka, %2 jedzie, %3 stoi, %4 zakończyło.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="797"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="800"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Zakleszczenie: %1 czekają na siebie nawzajem.</translation>
     </message>
     <message id="simulation.status.warnings">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="800"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="803"/>
         <source>Not simulated: %1.</source>
         <translation>Bez symulacji: %1.</translation>
     </message>
@@ -14696,102 +14701,102 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>%1 (geo %2)</translation>
     </message>
     <message id="work.why.no.car">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="955"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="971"/>
         <source>car %1 is in no train or cut</source>
         <translation>wagon %1 nie stoi w żadnym pociągu ani grupie wagonów</translation>
     </message>
     <message id="work.why.no.way.to">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="999"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1015"/>
         <source>no way to %1</source>
         <translation>brak drogi do %1</translation>
     </message>
     <message id="work.why.too.many">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1019"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1035"/>
         <source>too many cuts to take</source>
         <translation>zbyt wiele grup wagonów do zabrania</translation>
     </message>
     <message id="work.why.no.siding">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1026"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1042"/>
         <source>the event has no siding</source>
         <translation>zdarzenie nie ma bocznicy</translation>
     </message>
     <message id="work.why.sort.long">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1272"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1288"/>
         <source>sorting given up after %1 km of moves and %2 reversals</source>
         <translation>sortowanie przerwane po %1 km jazdy manewrowej, zmian kierunku: %2</translation>
     </message>
     <message id="work.why.sort.stuck">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1335"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1351"/>
         <source>sorting: no way on with %1 of the cars in the train</source>
         <translation>sortowanie: brak dalszego ruchu z %1 wagonami w pociągu</translation>
     </message>
     <message id="work.why.sort.moves">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1342"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1358"/>
         <source>sorting: more than %1 moves</source>
         <translation>sortowanie: ponad %1 manewrów</translation>
     </message>
     <message id="work.why.not.in.train">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1352"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1368"/>
         <source>the cars are not in the train</source>
         <translation>wagonów nie ma w pociągu</translation>
     </message>
     <message id="work.why.whole.train">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1361"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1377"/>
         <source>no way into the siding for the whole train</source>
         <translation>brak drogi na bocznicę dla całego pociągu</translation>
     </message>
     <message id="work.why.not.together">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1369"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1385"/>
         <source>the cars are not together in the train: sorting</source>
         <translation>wagony nie stoją razem w pociągu: wymaga rozrządzania</translation>
     </message>
     <message id="work.why.no.engine">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1379"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1395"/>
         <source>no engine would be left in the train</source>
         <translation>w pociągu nie zostałaby żadna lokomotywa</translation>
     </message>
     <message id="work.why.leading">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1384"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1400"/>
         <source>no way into the siding with these cars leading, nor round them</source>
         <translation>brak drogi na bocznicę z tymi wagonami na czele ani objazdu wokół nich</translation>
     </message>
     <message id="work.why.middle">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1456"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1472"/>
         <source>no way to set out the cars from the middle of the train</source>
         <translation>brak sposobu odstawienia wagonów ze środka pociągu</translation>
     </message>
     <message id="work.why.siding">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1766"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1782"/>
         <source>no way into the siding</source>
         <translation>brak drogi na bocznicę</translation>
     </message>
     <message id="work.why.assemble.together">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1786"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1802"/>
         <source>the cars asked for are not together in the train: sorting</source>
         <translation>żądane wagony nie stoją razem w pociągu: wymaga rozrządzania</translation>
     </message>
     <message id="work.why.order">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1800"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1816"/>
         <source>the cars are in another order: car %1 asked for at place %2, car %3 there</source>
         <translation>wagony stoją w innej kolejności: wagon %1 miał być na miejscu %2, stoi tam wagon %3</translation>
     </message>
     <message id="work.why.assemble.middle">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1811"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1827"/>
         <source>the cars asked for are in the middle of the train</source>
         <translation>żądane wagony są w środku pociągu</translation>
     </message>
     <message id="work.why.impractical">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1852"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1868"/>
         <source>impractical: %1 km of moves (%2 km more than the way there), %3 reversals</source>
         <translation>niepraktyczne: %1 km jazdy manewrowej (o %2 km więcej niż droga na miejsce), zmian kierunku: %3</translation>
     </message>
     <message id="work.why.not.wagons">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1879"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1895"/>
         <source>not a wagon event</source>
         <translation>to nie zdarzenie dotyczące wagonów</translation>
     </message>
     <message id="work.why.never.active">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="2211"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="2227"/>
         <source>never active in the event chain</source>
         <translation>nigdy nie aktywne w łańcuchu zdarzeń</translation>
     </message>

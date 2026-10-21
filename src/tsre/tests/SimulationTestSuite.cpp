@@ -2385,8 +2385,11 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
             continue;
         ++activities;
         timer.restart();
+        // (TSRE_SIM_NOWORK: the player's path as it is, no work orders: for
+        // comparisons with Open Rails' autopilot, task 07 phase 6.)
         auto input = Sim::MakeInput(activity, &database, speedLimit, geometry, network,
-                                    content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f);
+                                    content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f,
+                                    !qEnvironmentVariableIsSet("TSRE_SIM_NOWORK"));
         // TSRE_SIM_WORK (task 07's design, temporary): for activities with
         // wagon events, the player's path against the loose consists and
         // the events' sidings.
@@ -2726,6 +2729,9 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 case Sim::TrainEvent::Finished:
                     logEvent(event.time, event.train, "finished", {}, event.travelled);
                     break;
+                case Sim::TrainEvent::Removed:
+                    logEvent(event.time, event.train, "removed", QJsonObject{{"other", event.index}}, event.travelled);
+                    break;
                 case Sim::TrainEvent::Deadlock:
                     logEvent(event.time, event.train, "deadlock", QJsonObject{{"by", event.index}}, event.travelled);
                     break;
@@ -2783,6 +2789,13 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                     qInfo().noquote() << "[sim-trace]" << activity->name << p.service << p.serviceTime << "blocked at"
                                       << event.time << "by" << event.index << "for" << int(event.waitFor) << "signal"
                                       << event.signal << "front" << core.trains()[size_t(event.train)].front;
+                }
+                if ((event.kind == Sim::TrainEvent::Reversed || event.kind == Sim::TrainEvent::Coupled)
+                        && qEnvironmentVariableIsSet("TSRE_SIM_TRACE")) {
+                    const Sim::TrainPlan &p = input->trains[size_t(event.train)];
+                    qInfo().noquote() << "[sim-trace]" << activity->name << p.service << p.serviceTime
+                                      << (event.kind == Sim::TrainEvent::Reversed ? "reversed at" : "coupled at") << event.time
+                                      << "travelled" << core.trains()[size_t(event.train)].travelled;
                 }
                 if (event.kind != Sim::TrainEvent::Arrived)
                     continue;

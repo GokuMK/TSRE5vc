@@ -4,6 +4,7 @@
 #include <QScopedValueRollback>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationInput.h>
@@ -122,12 +123,15 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
         float speedAtContact = -1.0f;
     };
     // Runs `seconds`; the events, and the train's speed in the step it
-    // coupled.
-    const auto runFor = [](Sim::SimulationCore &core, double seconds) {
+    // coupled; `each` after every step.
+    const auto runFor = [](Sim::SimulationCore &core, double seconds,
+                           const std::function<void()> &each = nullptr) {
         Run out;
         float lastSpeed = 0.0f;
         for (int k = 0; k < int(seconds * 10); ++k) {
             core.step(Sim::SimulationCore::MaxStep);
+            if (each)
+                each();
             for (const TrainEvent &e : core.takeEvents()) {
                 if (e.kind == TrainEvent::Coupled && out.speedAtContact < 0.0f)
                     out.speedAtContact = lastSpeed;
@@ -161,7 +165,21 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
         elsewhere.sidingTo = 190.0f;
         Sim::SimulationCore core(inputOf({trainOn(east, {vehicle(10.0f, true, 5), vehicle(10.0f, false, 6)}, true)},
                                          {loose(11, 100.0f, {a, b})}, {assembled, elsewhere}));
-        const Run run = runFor(core, 600.0);
+        // Closing on the cars no faster than Open Rails' AI follows a
+        // standing train: √(distance × deceleration) / 2, the creep speed
+        // at least.
+        double contact = -1.0, over = 0.0;
+        east.parts[0].find(11, 100.0f, contact);
+        const double deceleration = core.input().trains[0].deceleration;
+        const Run run = runFor(core, 600.0, [&] {
+            const Sim::TrainState &s = core.trains()[0];
+            const double distance = contact - s.front;
+            if (s.part == 0 && distance > 0.0 && core.standingTrains()[0].gone == false)
+                over = std::max(over, double(s.speed) - std::max(0.5 * std::sqrt(distance * deceleration),
+                                                                  Sim::SimulationCore::CreepSpeed));
+        });
+        check(contact > 0.0 && over < 0.3, QString("it closes on the cars as Open Rails' AI follows a standing train "
+                                                   "(at most %1 m/s over)").arg(over, 0, 'f', 2));
         const Sim::CarsNow carsNow = Sim::CarsOf(core);
         const QString where = Sim::WhyNotFired(core.input(), 1, core.eventStates()[1], core.activityEnd(),
                                                core.activityEndedAt(), &carsNow);
@@ -422,6 +440,24 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
                   && idsOf(core.vehiclesOf(0)) == std::vector<unsigned int>({h1, h2, h3})
                   && finished != nullptr && finished->time > parted->time,
               "the goods train's cut gives it back its cars; it runs on to its own path's end");
+    }
+
+    // Cars standing across the junction onto the loop, the train's path on
+    // the main track: taken, they stand off its path and it cannot go on
+    // with them; it is removed (Open Rails: out of control, OUT_OF_PATH).
+    {
+        Sim::StaticConsist across;
+        across.name = "Across";
+        for (unsigned int k = 0; k < 4; ++k) {
+            across.vehicles.push_back(vehicle(10.0f, false, a + 10 + k));
+            across.length += 10.0f;
+        }
+        across.track = {Sim::RouteInterval{10, 80.0f, 100.0f, 0.0}, Sim::RouteInterval{12, 220.0f, 200.0f, 0.0}};
+        Sim::SimulationCore core(inputOf({trainOn(outAndBack, {vehicle(20.0f, true, 7)}, false)}, {across}));
+        const Run run = runFor(core, 300.0);
+        check(firstOf(run.events, TrainEvent::Coupled) != nullptr && firstOf(run.events, TrainEvent::Removed) != nullptr
+                  && core.trains()[0].status == Sim::TrainStatus::Finished && core.standingTrains()[0].gone,
+              "a train taking cars that stand off its path is removed (Open Rails' OUT_OF_PATH)");
     }
 
     qInfo().noquote() << QString("simulation-coupling: %1 passed, %2 failed").arg(passed).arg(failed);

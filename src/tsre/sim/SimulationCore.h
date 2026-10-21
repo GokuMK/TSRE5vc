@@ -86,10 +86,13 @@ struct TrainEvent {
     // after waiting point 60001); Parted, carried along so far, it runs
     // again on its own (that train cut it off). WorkSkipped: the work order
     // of the activity's event `index` is not done by the autopilot (the
-    // input's work orders say why).
+    // input's work orders say why). Removed: the cars of the standing
+    // train `index` it took stand off the rest of its path (across a
+    // junction onto another way): it cannot go on, and is gone as Open
+    // Rails removes such a train (the player's train stands there).
     enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock,
                 EventFired, ActivityEnded, Restarted, Coupled, Joined, Uncoupled,
-                TookCars, LeftCars, JoinedTrain, Parted, WorkSkipped };
+                TookCars, LeftCars, JoinedTrain, Parted, WorkSkipped, Removed };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -309,8 +312,9 @@ public:
         std::vector<int> sections;
     };
     const std::vector<Standing> &standingTrains() const { return standing; }
-    // Coupling (task 07, Open Rails' AI): a train attaching creeps up within
-    // CreepReach of the contact and comes in at CouplingSpeed over the last
+    // Coupling (task 07, Open Rails' AI): a train attaching closes on the
+    // contact at most at √(distance × its deceleration) / 2, not below the
+    // creep speed, and comes in at CouplingSpeed over the last
     // CouplingReach; it does not attach to cars it cut off until more than
     // UncoupledApart away from them; at its path's end with fewer than
     // JoinSections sections left an AI train joins the standing train.
@@ -318,7 +322,6 @@ public:
     // within AttachReach of it, its front or rear in the
     // last section of this train's path part, or any after waiting point
     // 60001.
-    static constexpr double CreepReach = 100.0;
     static constexpr double CouplingSpeed = 0.4;
     static constexpr double CouplingReach = 8.0;
     static constexpr double AttachReach = 600.0;
