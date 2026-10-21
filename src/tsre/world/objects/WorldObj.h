@@ -189,12 +189,17 @@ public:
     virtual void setInternalLodControl(bool val);
     virtual void loadingFixes();
     virtual void setModified(bool val = true);
+    // Changed less than a second ago (now from clock()): being edited.
+    bool recentlyChanged(qint64 now) const { return changedAt >= 0 && now - changedAt < 1000; }
     // Drawn into the shadow maps every frame instead of their cache (task
-    // renderer 37): animated or moving objects, and objects changed in the
-    // last second, being edited.
-    virtual bool castsMovingShadow();
+    // renderer 37): animated or moving objects, and objects being edited.
+    bool castsMovingShadow(qint64 now);
     // When the object was last marked modified (clock(), -1 never).
     qint64 changedAt = -1;
+    // Its hash in the cached maps' signatures (Tile) and the change it is
+    // for: computed again only after an edit.
+    quint64 signatureHash = 0;
+    qint64 signatureFor = -2;
     // Milliseconds since the program started.
     static qint64 clock();
     virtual void randomTransform(Ref::RandomTransformation * transformation);

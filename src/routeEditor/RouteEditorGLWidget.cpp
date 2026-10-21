@@ -1143,10 +1143,13 @@ constexpr float ShadowBiasReferenceHalfDepth = 200.0f;
 // only has to cover texel quantization.
 constexpr float ShadowNormalOffsetTexels[2] = {1.0f, 1.0f};
 constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
-// The grid each map's centre is snapped to, in its texels (task 37): 2.5 m
-// for the near map at 2048, 9.4 m for the middle one, 43.8 m for the far one
-// at 1024.
-constexpr float ShadowSnapTexels = 32.0f;
+// The grid each map's centre is snapped to, in its texels (task 37).
+constexpr float ShadowSnapTexels = 1.0f;
+// How far ahead of the camera, in the view's direction, each map's centre
+// lies, and how far the camera may go from where a cached map was drawn
+// before it is drawn again: a tenth of the map's width (task 37). The map
+// then still reaches its half width ahead when it is drawn again.
+constexpr float ShadowLead[3] = {16.0f, 60.0f, 140.0f};
 }
 
 void RouteEditorGLWidget::applyTimeOfDay() {
@@ -1542,14 +1545,14 @@ void RouteEditorGLWidget::reportEnvironment(float sunElevation, float sunAzimuth
     emit environmentInfo(sunElevation, sunAzimuth, moonElevation, moonFraction);
 }
 
-// Light-space matrices of the near, mid and far shadow maps, centred on the
-// camera's cell. The near and mid maps share the primary map size; the near
+// Light-space matrices of the near, mid and far shadow maps, centred ahead
+// of the camera. The near and mid maps share the primary map size; the near
 // map covers a third of the mid map's width, so shadows close to the camera
 // get three times the detail.
-// Each map's centre lies on a grid of ShadowSnapTexels of its own texels in
-// the light's frame (task 37): its texels keep their place on the ground
-// while the camera moves, so shadow edges do not crawl, and a map drawn for
-// one centre holds while the camera stays in that cell.
+// Each map's centre lies ShadowLead ahead of the camera in the view's
+// direction, on a grid of its own texels in the light's frame (task 37): its
+// texels keep their place on the ground while the camera moves, so shadow
+// edges do not crawl.
 void RouteEditorGLWidget::computeShadowMatrices() {
     float up[3] = {0.0f, 1.0f, 0.0f};
     float sun[3] = {shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]};
@@ -1564,7 +1567,14 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // No frame with the sun straight overhead (lookAt leaves right zero).
     const bool snap = right[0] * right[0] + right[1] * right[1] + right[2] * right[2] > 0.5f;
     const float *position = camera->getPos();
-    shadowCellsValid = snap;
+    shadowSnapped = snap;
+    // The view's direction on the ground.
+    const float *target = camera->getTarget();
+    float forward[2] = {target[0] - position[0], target[2] - position[2]};
+    const float forwardLength = std::sqrt(forward[0] * forward[0] + forward[1] * forward[1]);
+    for (float &c : forward)
+        c = forwardLength > 1e-6f ? c / forwardLength : 0.0f;
+    std::copy(forward, forward + 2, shadowForward);
     float *matrices[3] = {gluu->pShadowMatrix0, gluu->pShadowMatrix, gluu->pShadowMatrix2};
     for (int map = 0; map < 3; map++)
         Mat4::ortho(matrices[map], -ShadowHalfExtent[map], ShadowHalfExtent[map],
@@ -1593,19 +1603,20 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     for (int map = 0; map < 3; map++) {
         const int size = map < 2 ? shadowMapSize : distantShadowMapSize;
         const float cell = ShadowSnapTexels * 2.0f * ShadowHalfExtent[map] / float(std::max(size, 1));
-        float centre[3] = {position[0], position[1], position[2]};
+        const float ahead[3] = {position[0] + forward[0] * ShadowLead[map], position[1],
+                                position[2] + forward[1] * ShadowLead[map]};
+        float centre[3] = {ahead[0], ahead[1], ahead[2]};
         if (snap) {
-            // The camera in the light's frame, on the grid, and back.
-            float q[3] = {right[0] * position[0] + right[1] * position[1] + right[2] * position[2],
-                          upward[0] * position[0] + upward[1] * position[1] + upward[2] * position[2],
-                          sun[0] * position[0] + sun[1] * position[1] + sun[2] * position[2]};
-            for (int c = 0; c < 3; ++c) {
-                shadowCells[map][c] = std::llround(q[c] / cell);
-                q[c] = float(shadowCells[map][c]) * cell;
-            }
+            // In the light's frame, on the grid, and back.
+            float q[3] = {right[0] * ahead[0] + right[1] * ahead[1] + right[2] * ahead[2],
+                          upward[0] * ahead[0] + upward[1] * ahead[1] + upward[2] * ahead[2],
+                          sun[0] * ahead[0] + sun[1] * ahead[1] + sun[2] * ahead[2]};
+            for (float &c : q)
+                c = std::round(c / cell) * cell;
             for (int c = 0; c < 3; ++c)
                 centre[c] = right[c] * q[0] + upward[c] * q[1] + sun[c] * q[2];
         }
+        std::copy(centre, centre + 3, shadowCentres[map]);
         float eye[3] = {centre[0] + sun[0], centre[1] + sun[1], centre[2] + sun[2]};
         float view[16];
         Mat4::lookAt(view, eye, centre, up);
@@ -1616,11 +1627,13 @@ void RouteEditorGLWidget::computeShadowMatrices() {
 // Draws the near, middle and far shadow maps from the gathered queue, with
 // casters up to 250 m, 600 m and 1000 m away.
 // Static casters are cached (task 37) where the renderer can: each map's
-// cache holds them for the map's cell and sun, and the frame's map starts
-// as a copy of it with the moving casters drawn on top. A cache is drawn
-// again at once when what it holds changes (the static casters' signature,
-// a texture or shape loaded), and one a frame when the camera has left its
-// cell, the sun has moved or it is a few seconds old.
+// cache holds them for the place and sun it was drawn for, and the frame's
+// map starts as a copy of it with the moving casters drawn on top. A cache
+// is drawn again at once when what it holds changes (the static objects'
+// signature, a texture or shape loaded) or the camera's tile changed, and
+// one a frame when its centre would have moved more than its ShadowLead,
+// the view has turned 30 degrees (objects culling themselves by the view
+// come and go), the sun has moved or it is a few seconds old.
 // TSRE_SHADOW_CACHE=0 turns the caches off, TSRE_SHADOW_CACHE_LOG=1 logs
 // their redraws.
 void RouteEditorGLWidget::renderShadowMaps() {
@@ -1634,8 +1647,9 @@ void RouteEditorGLWidget::renderShadowMaps() {
     static QElapsedTimer clock;
     if (!clock.isValid())
         clock.start();
-    // The sun moved by more than about 0.1 degrees.
+    // The sun moved by more than about 0.1 degrees; the view turned 30.
     constexpr float SunMoved = 0.9999985f;
+    const float ViewTurned = std::cos(float(M_PI) / 6.0f);
     constexpr qint64 RefreshMs = 4000;
     const float ranges[3] = {250.0f, 600.0f, 1000.0f};
     const int sizes[3] = {shadowMapSize, shadowMapSize, distantShadowMapSize};
@@ -1651,23 +1665,28 @@ void RouteEditorGLWidget::renderShadowMaps() {
         renderer->applyFrameUniforms();
     };
 
-    const bool caching = cacheEnabled && shadowCellsValid;
+    const bool caching = cacheEnabled && shadowSnapped;
     const quint64 signature = caching ? renderer->shadowSignature() : 0;
     const qint64 now = clock.elapsed();
     float sun[3] = {shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]};
     Vec3::normalize(sun, sun);
     const int tile[2] = {int(camera->pozT[0]), int(camera->pozT[1])};
-    // At once: the cache misses what it holds. In turn: it was drawn for
-    // another place, sun or time; one a frame, the one drawn longest ago, so
-    // a fast camera still moves the middle and far maps along.
+    // At once: the cache misses what it holds, or its place is in another
+    // tile's frame. In turn: it was drawn for another place, view, sun or
+    // time; one a frame, the one drawn longest ago, so a fast camera still
+    // moves the middle and far maps along.
     bool atOnce[3] = {}, due[3] = {};
     int inTurn = -1;
     for (int map = 0; caching && map < 3; ++map) {
         const ShadowCache &cache = shadowCaches[map];
         atOnce[map] = !cache.valid || cache.size != sizes[map] || cache.signature != signature
-                || cache.uploads != Texture::uploads || cache.shapes != ShapeLoader::progress();
-        due[map] = !std::equal(cache.cell, cache.cell + 3, shadowCells[map])
-                || cache.tile[0] != tile[0] || cache.tile[1] != tile[1]
+                || cache.uploads != Texture::uploads || cache.shapes != ShapeLoader::progress()
+                || cache.tile[0] != tile[0] || cache.tile[1] != tile[1];
+        float moved = 0.0f;
+        for (int c = 0; c < 3; ++c)
+            moved += (shadowCentres[map][c] - cache.centre[c]) * (shadowCentres[map][c] - cache.centre[c]);
+        due[map] = moved > ShadowLead[map] * ShadowLead[map]
+                || cache.forward[0] * shadowForward[0] + cache.forward[1] * shadowForward[1] < ViewTurned
                 || cache.sun[0] * sun[0] + cache.sun[1] * sun[1] + cache.sun[2] * sun[2] < SunMoved
                 || now - cache.drawnAt > RefreshMs;
         if (due[map] && !atOnce[map] && (inTurn < 0 || cache.drawnAt < shadowCaches[inTurn].drawnAt))
@@ -1685,10 +1704,12 @@ void RouteEditorGLWidget::renderShadowMaps() {
                                       : cache.uploads != Texture::uploads ? "textures"
                                       : cache.shapes != ShapeLoader::progress() ? "shapes"
                                       : cache.size != sizes[map] ? "size"
-                                      : now - cache.drawnAt > RefreshMs ? "refresh" : "cell or sun");
+                                      : cache.tile[0] != tile[0] || cache.tile[1] != tile[1] ? "tile"
+                                      : now - cache.drawnAt > RefreshMs ? "refresh" : "place, view or sun");
             cache.valid = true;
             std::copy(matrices[map], matrices[map] + 16, cache.matrix);
-            std::copy(shadowCells[map], shadowCells[map] + 3, cache.cell);
+            std::copy(shadowCentres[map], shadowCentres[map] + 3, cache.centre);
+            std::copy(shadowForward, shadowForward + 2, cache.forward);
             std::copy(tile, tile + 2, cache.tile);
             std::copy(sun, sun + 3, cache.sun);
             cache.size = sizes[map];

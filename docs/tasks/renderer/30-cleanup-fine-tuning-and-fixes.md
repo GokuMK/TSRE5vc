@@ -63,7 +63,8 @@ Noted in their tasks:
 - `StaticObj::pushRenderItems` skips objects behind the camera beyond their
   size and 150 m (a CPU saving from the immediate renderer; the queue culls
   each instance against the view anyway). Their shadows are missing from
-  the middle and far maps (long shadows of a low sun), and turning the
-  camera redraws the cached shadow maps when one appears or goes (task 37).
+  the middle and far maps (long shadows of a low sun), and the cached
+  shadow maps redraw in turn when the view has turned 30 degrees so that
+  those that appear cast (task 37).
 
 ## Done

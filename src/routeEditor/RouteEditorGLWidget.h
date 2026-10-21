@@ -323,16 +323,18 @@ protected:
     // to know whether water was on screen (Renderer::measuredSamples).
     void renderWaterPass(bool measure);
     void computeShadowMatrices();
-    // The cell of each map's centre on its grid (computeShadowMatrices);
-    // invalid with the sun straight overhead.
-    long long shadowCells[3][3] = {};
-    bool shadowCellsValid = false;
+    // Each map's centre this frame and the view's direction on the ground
+    // (computeShadowMatrices); not snapped with the sun straight overhead.
+    float shadowCentres[3][3] = {};
+    float shadowForward[2] = {0.0f, 1.0f};
+    bool shadowSnapped = false;
     // Cached static shadow casters (task renderer 37): each map's cache and
     // what it was drawn for.
     struct ShadowCache {
         bool valid = false;
         float matrix[16] = {};
-        long long cell[3] = {};
+        float centre[3] = {};
+        float forward[2] = {};
         int tile[2] = {};
         float sun[3] = {};
         int size = 0;

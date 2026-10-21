@@ -138,7 +138,6 @@ bool QueueRenderer::visible(const DrawInstance &instance, const Frustum &frustum
 
 void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
                                     quint32 selectionId, SubmitOrder order, bool owned){
-    ++submissionCount;
     if(shadowOnly){
         // A stand-in for the shadow maps only: nothing to draw without a
         // casting mesh.

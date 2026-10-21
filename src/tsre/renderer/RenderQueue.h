@@ -105,20 +105,18 @@ public:
     void setShadowDynamic(bool dynamic);
     bool shadowDynamicEnabled() const { return shadowDynamic; }
     // What the cached static shadow maps hold (task renderer 37): producers
-    // add a hash of each static object that casts (its identity, place and
-    // last change), so edits, deletions and loaded tiles change the sum, and
-    // a level of detail switching does not. A new frame starts it at 0.
+    // add a hash of each loaded object that casts and is not being edited
+    // (its identity, place and last change), in range or not, drawn or not,
+    // so edits, additions, deletions and loaded tiles change the sum, and
+    // the camera moving or turning and levels of detail switching do not.
+    // A new frame starts it at 0.
     void addShadowSignature(quint64 hash) { shadowSignatureSum += hash; }
     quint64 shadowSignature() const { return shadowSignatureSum; }
-    // The same of every object in range, moving or not, drawn or not: what
-    // maps of all surfaces hold (the sky enclosure), so an object dragged
-    // in the editor redraws them while turning the camera does not.
+    // The same of every loaded object, being edited too: what maps of all
+    // surfaces hold (the sky enclosure), so an object dragged in the editor
+    // redraws them every frame.
     void addSceneSignature(quint64 hash) { sceneSignatureSum += hash; }
     quint64 sceneSignature() const { return sceneSignatureSum; }
-    // Instances queued so far: whether an object submitted anything (objects
-    // cull themselves, for example by the view's direction, so only those
-    // drawn add to the signature).
-    quint64 submissions() const { return submissionCount; }
     // The reach (m) of the lights of following submissions, set by a placed
     // object that asks for more than the default; 0 for the default. A new
     // frame turns it back to 0.
@@ -136,7 +134,6 @@ protected:
     bool shadowDynamic = false;
     quint64 shadowSignatureSum = 0;
     quint64 sceneSignatureSum = 0;
-    quint64 submissionCount = 0;
     float currentLightReach = 0.0f;
 
 private:

@@ -199,45 +199,58 @@ A dedicated renderer step after part 1.
 
 ### Snapped centres (step 4a)
 
-Done (2026-10-21): each map's centre lies on a grid of 32 of its texels in
-the light's frame (`ShadowSnapTexels`; 2.5 m for the near map at 2048,
-9.4 m for the middle one, 43.8 m for the far one at 1024), the depth too;
-the shaders choose the map by the point's place in it, unchanged. The map's
-texels keep their place on the ground while the camera moves: with the
-centre moved 1.5 cm and the camera still, 5.8% of the TREES view's pixels
-changed before (the crawl of shadow edges), none now. A still view differs
-from before only by where the texel grid falls. The camera is at most
-half a cell off the map's middle (1.8 m for the near map); the maps keep
-their size.
+Each map's centre lies on a grid of its own texels in the light's frame
+(`ShadowSnapTexels`), the depth too; the shaders choose the map by the
+point's place in it, unchanged. The map's texels keep their place on the
+ground while the camera moves: with the centre moved 1.5 cm and the camera
+still, 5.8% of the TREES view's pixels changed before (the crawl of shadow
+edges), none now. A still view differs from before only by where the texel
+grid falls. First done with a grid of 32 texels, which also decided the
+redraws (2.5 m for the near map: 11 to 19 redraws a second at 100 km/h);
+now one texel, the redraws by distance (below).
+
+Each map's centre lies `ShadowLead` ahead of the camera in the view's
+direction on the ground (16, 60 and 140 m: a tenth of its width). The half
+of a map behind the camera mostly shades points out of view; shifted, a
+cached map still reaches its half width ahead when it is drawn again.
 
 ### The static cache and its redraws (step 4b)
 
-Each map has a cache of its static casters, drawn for the map's cell and
-sun; every frame the map starts as a copy of it (a full-screen pass writing
-each texel's depth, as the water's depth copy) and the moving casters are
-drawn on top. Receivers keep one lookup.
+Each map has a cache of its static casters, drawn for the place and sun it
+was drawn for; every frame the map starts as a copy of it (a full-screen
+pass writing each texel's depth, as the water's depth copy) and the moving
+casters are drawn on top. Receivers keep one lookup.
 
 A cache is drawn again at once when what it holds changes, and in turn
 (one a frame, the one drawn longest ago, so a fast camera still moves the
-middle and far maps along) when it was drawn for another place, sun or time:
+middle and far maps along) when it was drawn for another place, view, sun
+or time:
 
 - At once: the static objects' signature, textures uploaded
   (`Texture::uploads`), shapes loaded (`ShapeLoader::progress()`), the map's
-  size. The signature (`RenderQueue::addShadowSignature`, from
-  `Tile::pushRenderItems`) sums a hash of each static object that casts and
-  drew this frame: its identity, tile, place, rotation and last change. A
-  level of detail switching does not change it (hashing the queued packets
-  did, every frame while the camera moved). Objects that cull themselves
-  (`StaticObj`, behind the camera beyond its size and 150 m) count only when
-  drawn, so turning the camera redraws the caches when one appears or goes.
-- In turn: the map's cell or the camera's tile, the sun moved more than
-  0.1 degrees, or 4 seconds since its last draw (a safety net, as the
-  enclosure maps' redraw once a second).
+  size, or the camera's tile (positions are the tile's, so a cached matrix
+  is wrong in another). The signature (`RenderQueue::addShadowSignature`,
+  from `Tile::pushRenderItems`) sums a hash of each loaded object that
+  casts and is not being edited: its identity, tile, place, rotation and
+  last change, cached on the object (`WorldObj::signatureHash`) and
+  computed again only after an edit. It counts every loaded object, in
+  range or not, drawn or not, so the camera moving or turning does not
+  change it: counting only objects in range that drew (the first version)
+  changed it nearly every frame on a moving camera, as objects crossed the
+  3 km object range and the 150 m line behind the camera where `StaticObj`
+  stops drawing. Levels of detail switching do not change it either
+  (hashing the queued packets, before that, did).
+- In turn: the map's centre would have moved more than its `ShadowLead`,
+  the view turned 30 degrees (distant `StaticObj` culling themselves by the
+  view come and go), the sun moved more than 0.1 degrees, or 4 seconds since
+  its last draw (a safety net, as the enclosure maps' redraw once a
+  second). At 100 km/h (28 m/s): the near map about 1.7 times a second, the
+  middle one 0.5, the far one every 5 seconds.
 
 The LOD of static objects is kept as it was at the redraw while the camera
-moves inside a cell; harmless. `TSRE_SHADOW_CACHE=0` turns the caches off
-(the maps drawn as before), `TSRE_SHADOW_CACHE_LOG=1` logs each redraw and
-its reason. OpenGL has no caches (`Renderer::beginShadowCache` false).
+moves; harmless. `TSRE_SHADOW_CACHE=0` turns the caches off (the maps drawn
+as before), `TSRE_SHADOW_CACHE_LOG=1` logs each redraw and its reason.
+OpenGL has no caches (`Renderer::beginShadowCache` false).
 
 Done (2026-10-21, QRhi):
 
@@ -261,14 +274,19 @@ Done (2026-10-21, QRhi):
   identical with the caches on and off. Before objects counted only when
   drawn, the view turned 90 degrees differed (0.5% of pixels): the caches
   lacked the distant objects that culled themselves when they were drawn.
+- Redraws by distance (2026-10-21, the user: 2.5 m is very little):
+  EUROPE1 from its start, 2 m a frame for 80 m: the near cache drawn again
+  4 times for its place, the others only by the 4 second refresh, none for
+  the objects; the enclosure maps by their own cells only. TREES forest
+  view and the edited gantry still identical with the caches off.
 
 The sky enclosure's maps (task 27) had the same problem: drawn again only
 when the camera changed cell or every 60 frames, so a roof dragged in the
 editor left its cover behind (the user, 2026-10-21). They now also redraw
 when the queue's scene signature changes (`RenderQueue::addSceneSignature`:
-every object in range, moving or not, drawn or not, with shapes loaded):
-the near map every frame while an object is dragged, the far map the frame
-after. Turning the camera does not change it. `TSRE_SHADOW_CACHE_LOG=1`
+every loaded object, being edited too, with shapes loaded): the near map
+every frame while an object is dragged, the far map the frame after. The
+camera moving or turning does not change it. `TSRE_SHADOW_CACHE_LOG=1`
 logs these redraws too.
 
 ### What moves
