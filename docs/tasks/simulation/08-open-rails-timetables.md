@@ -121,8 +121,11 @@ decisions at the end of this document; phases 1 to 3 done.
   byte, read as a token with no block, and skipping it ran to the end of
   the block (MaxForce, MaxPower and the includes after lost).
   `FileBuffer::toUtf16` now decodes such a file as UTF-8 without the
-  mark; others byte by byte as before (`content-path` checks it).
-- **PRUDNIK**, converted by the user with `--contentcase` (2026-10-22;
+  mark; others byte by byte as before (`content-path` checks it). A
+  stop-gap: encodings and the wider parsing belong to the ENG refactor
+  task (the user, 2026-10-22).
+- **PRUDNIK**, on a first conversion by the user with `--contentcase`
+  (2026-10-22, not final: the numbers below are to be measured again;
   the converter does not read timetables, but all 200 consist and 215
   path names the timetable gives match the converted files). The
   timetable is still in `ACTIVITIES/Openrails`, so it ran from a scratch
