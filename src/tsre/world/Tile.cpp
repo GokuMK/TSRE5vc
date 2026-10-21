@@ -44,6 +44,7 @@
 #include <tsre/world/Trk.h>
 #include <tsre/world/Route.h>
 #include <settings/SettingsAccess.h>
+#include <cstring>
 
 Tile::Tile() {
     modified = false;
@@ -955,6 +956,21 @@ void Tile::updateSim(float deltaTime){
     }
 }
 
+// What a static object contributes to the cached shadow maps (task
+// renderer 37): its identity, tile, place and last change.
+static quint64 shadowSignature(const WorldObj &obj, int tileX, int tileZ){
+    quint64 hash = quint64(reinterpret_cast<quintptr>(&obj)) ^ (quint64(quint32(tileX)) << 32) ^ quint32(tileZ);
+    const auto mix = [&hash](quint64 value){
+        hash ^= value + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
+        hash ^= hash >> 31;
+        hash *= 0xbf58476d1ce4e5b9ULL;
+    };
+    for (float f : obj.position){ quint32 bits; std::memcpy(&bits, &f, 4); mix(bits); }
+    for (float f : obj.qDirection){ quint32 bits; std::memcpy(&bits, &f, 4); mix(bits); }
+    mix(quint64(obj.changedAt));
+    return hash ^ (hash >> 29);
+}
+
 void Tile::pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode){
     if (loaded != 1) return;
     quint32 selectionId = 0;
@@ -982,8 +998,16 @@ void Tile::pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, f
                                 z - static_cast<int>(playerT[1]), i);
                 }
                 queue.setShadowCasting(obj->castsShadows());
+                // Moving objects cast on top of the cached shadow maps (task 37).
+                const bool moving = obj->castsMovingShadow();
+                queue.setShadowDynamic(moving);
+                const quint64 submitted = queue.submissions();
                 obj->pushRenderItems(queue, lod, lodx, lodz, playerW, target, fov, selectionId);
+                // Only objects drawn this frame: some cull themselves by the view.
+                if (!moving && obj->castsShadows() && queue.submissions() != submitted)
+                    queue.addShadowSignature(shadowSignature(*obj, x, z));
                 queue.setShadowCasting(true);
+                queue.setShadowDynamic(false);
                 queue.popTransform();
             }
         }

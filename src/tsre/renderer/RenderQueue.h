@@ -98,6 +98,22 @@ public:
     // frame turns it off.
     void setShadowOnly(bool only);
     bool shadowOnlyEnabled() const { return shadowOnly; }
+    // Whether following submissions move (trains, animated objects, objects
+    // being edited): their shadows are drawn on top of the cached static
+    // shadow maps every frame (task renderer 37). Overlay and frame items
+    // always count as moving. A new frame turns it off.
+    void setShadowDynamic(bool dynamic);
+    bool shadowDynamicEnabled() const { return shadowDynamic; }
+    // What the cached static shadow maps hold (task renderer 37): producers
+    // add a hash of each static object that casts (its identity, place and
+    // last change), so edits, deletions and loaded tiles change the sum, and
+    // a level of detail switching does not. A new frame starts it at 0.
+    void addShadowSignature(quint64 hash) { shadowSignatureSum += hash; }
+    quint64 shadowSignature() const { return shadowSignatureSum; }
+    // Instances queued so far: whether an object submitted anything (objects
+    // cull themselves, for example by the view's direction, so only those
+    // drawn add to the signature).
+    quint64 submissions() const { return submissionCount; }
     // The reach (m) of the lights of following submissions, set by a placed
     // object that asks for more than the default; 0 for the default. A new
     // frame turns it back to 0.
@@ -112,6 +128,9 @@ protected:
     Layer currentLayer = LAYER_SCENE;
     bool shadowCasting = true;
     bool shadowOnly = false;
+    bool shadowDynamic = false;
+    quint64 shadowSignatureSum = 0;
+    quint64 submissionCount = 0;
     float currentLightReach = 0.0f;
 
 private:

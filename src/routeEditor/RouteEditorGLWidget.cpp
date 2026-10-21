@@ -44,6 +44,7 @@
 #include <tsre/world/TerrainLib.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/HeightWindow.h>
 #include <tsre/geo/ImageryWindow.h>
@@ -1563,6 +1564,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // No frame with the sun straight overhead (lookAt leaves right zero).
     const bool snap = right[0] * right[0] + right[1] * right[1] + right[2] * right[2] > 0.5f;
     const float *position = camera->getPos();
+    shadowCellsValid = snap;
     float *matrices[3] = {gluu->pShadowMatrix0, gluu->pShadowMatrix, gluu->pShadowMatrix2};
     for (int map = 0; map < 3; map++)
         Mat4::ortho(matrices[map], -ShadowHalfExtent[map], ShadowHalfExtent[map],
@@ -1597,8 +1599,10 @@ void RouteEditorGLWidget::computeShadowMatrices() {
             float q[3] = {right[0] * position[0] + right[1] * position[1] + right[2] * position[2],
                           upward[0] * position[0] + upward[1] * position[1] + upward[2] * position[2],
                           sun[0] * position[0] + sun[1] * position[1] + sun[2] * position[2]};
-            for (float &c : q)
-                c = std::round(c / cell) * cell;
+            for (int c = 0; c < 3; ++c) {
+                shadowCells[map][c] = std::llround(q[c] / cell);
+                q[c] = float(shadowCells[map][c]) * cell;
+            }
             for (int c = 0; c < 3; ++c)
                 centre[c] = right[c] * q[0] + upward[c] * q[1] + sun[c] * q[2];
         }
@@ -1611,37 +1615,110 @@ void RouteEditorGLWidget::computeShadowMatrices() {
 
 // Draws the near, middle and far shadow maps from the gathered queue, with
 // casters up to 250 m, 600 m and 1000 m away.
+// Static casters are cached (task 37) where the renderer can: each map's
+// cache holds them for the map's cell and sun, and the frame's map starts
+// as a copy of it with the moving casters drawn on top. A cache is drawn
+// again at once when what it holds changes (the static casters' signature,
+// a texture or shape loaded), and one a frame when the camera has left its
+// cell, the sun has moved or it is a few seconds old.
+// TSRE_SHADOW_CACHE=0 turns the caches off, TSRE_SHADOW_CACHE_LOG=1 logs
+// their redraws.
 void RouteEditorGLWidget::renderShadowMaps() {
     computeShadowMatrices();
     renderer->useProgram(Renderer::PROGRAM_SHADOW);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
 
-    // The shadow shader reads uShadowPMatrix; swap in the near map's matrix.
-    std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
-    renderer->applyFrameUniforms();
-    renderer->bindTarget(Renderer::TARGET_SHADOW_NEAR);
-    renderer->clear(true, true);
-    renderer->setViewport(0, 0, shadowMapSize, shadowMapSize);
-    renderer->renderShadowCasters(250.0f, RenderStats::FrameStats::PassSlots - 3,
-                                  gluu->pShadowMatrix);
-    std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
+    static const bool cacheEnabled = qEnvironmentVariable("TSRE_SHADOW_CACHE", "1") != "0";
+    static const bool cacheLog = qEnvironmentVariableIsSet("TSRE_SHADOW_CACHE_LOG");
+    static QElapsedTimer clock;
+    if (!clock.isValid())
+        clock.start();
+    // The sun moved by more than about 0.1 degrees.
+    constexpr float SunMoved = 0.9999985f;
+    constexpr qint64 RefreshMs = 4000;
+    const float ranges[3] = {250.0f, 600.0f, 1000.0f};
+    const int sizes[3] = {shadowMapSize, shadowMapSize, distantShadowMapSize};
+    const int statsSlots[3] = {RenderStats::FrameStats::PassSlots - 3, RenderStats::FrameStats::PassSlots - 2,
+                               RenderStats::FrameStats::PassSlots - 1};
+    const Renderer::Target targets[3] = {Renderer::TARGET_SHADOW_NEAR, Renderer::TARGET_SHADOW_MID,
+                                         Renderer::TARGET_SHADOW_FAR};
+    float *matrices[3] = {gluu->pShadowMatrix0, gluu->pShadowMatrix, gluu->pShadowMatrix2};
+    float *const midMatrix = gluu->pShadowMatrix;
+    // The shadow shader reads uShadowPMatrix.
+    auto drawWith = [&](float *matrix) {
+        gluu->pShadowMatrix = matrix;
+        renderer->applyFrameUniforms();
+    };
 
-    renderer->applyFrameUniforms();
-    renderer->bindTarget(Renderer::TARGET_SHADOW_MID);
-    renderer->clear(true, true);
-    renderer->setViewport(0, 0, shadowMapSize, shadowMapSize);
-    renderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 2,
-                                  gluu->pShadowMatrix);
+    const bool caching = cacheEnabled && shadowCellsValid;
+    const quint64 signature = caching ? renderer->shadowSignature() : 0;
+    const qint64 now = clock.elapsed();
+    float sun[3] = {shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]};
+    Vec3::normalize(sun, sun);
+    const int tile[2] = {int(camera->pozT[0]), int(camera->pozT[1])};
+    // At once: the cache misses what it holds. In turn: it was drawn for
+    // another place, sun or time; one a frame, the one drawn longest ago, so
+    // a fast camera still moves the middle and far maps along.
+    bool atOnce[3] = {}, due[3] = {};
+    int inTurn = -1;
+    for (int map = 0; caching && map < 3; ++map) {
+        const ShadowCache &cache = shadowCaches[map];
+        atOnce[map] = !cache.valid || cache.size != sizes[map] || cache.signature != signature
+                || cache.uploads != Texture::uploads || cache.shapes != ShapeLoader::progress();
+        due[map] = !std::equal(cache.cell, cache.cell + 3, shadowCells[map])
+                || cache.tile[0] != tile[0] || cache.tile[1] != tile[1]
+                || cache.sun[0] * sun[0] + cache.sun[1] * sun[1] + cache.sun[2] * sun[2] < SunMoved
+                || now - cache.drawnAt > RefreshMs;
+        if (due[map] && !atOnce[map] && (inTurn < 0 || cache.drawnAt < shadowCaches[inTurn].drawnAt))
+            inTurn = map;
+    }
 
-    std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
-    renderer->applyFrameUniforms();
-    renderer->bindTarget(Renderer::TARGET_SHADOW_FAR);
-    renderer->clear(true, true);
-    renderer->setViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
-    renderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 1,
-                                  gluu->pShadowMatrix);
-    std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
+    for (int map = 0; map < 3; ++map) {
+        ShadowCache &cache = shadowCaches[map];
+        if (caching && (atOnce[map] || map == inTurn) && renderer->beginShadowCache(map)) {
+            drawWith(matrices[map]);
+            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map], Renderer::CASTERS_STATIC);
+            if (cacheLog)
+                qInfo().noquote() << "shadow cache" << map << "drawn:"
+                                  << (!cache.valid ? "new" : cache.signature != signature ? "casters"
+                                      : cache.uploads != Texture::uploads ? "textures"
+                                      : cache.shapes != ShapeLoader::progress() ? "shapes"
+                                      : cache.size != sizes[map] ? "size"
+                                      : now - cache.drawnAt > RefreshMs ? "refresh" : "cell or sun");
+            cache.valid = true;
+            std::copy(matrices[map], matrices[map] + 16, cache.matrix);
+            std::copy(shadowCells[map], shadowCells[map] + 3, cache.cell);
+            std::copy(tile, tile + 2, cache.tile);
+            std::copy(sun, sun + 3, cache.sun);
+            cache.size = sizes[map];
+            cache.signature = signature;
+            cache.uploads = Texture::uploads;
+            cache.shapes = ShapeLoader::progress();
+            cache.drawnAt = now;
+        } else if (!caching || atOnce[map]) {
+            cache.valid = false;
+        }
+        renderer->bindTarget(targets[map]);
+        renderer->clear(true, true);
+        if (caching && cache.valid) {
+            // The cache's place and sun until it is drawn again; the lit
+            // shaders read the map with this matrix.
+            std::copy(cache.matrix, cache.matrix + 16, matrices[map]);
+            // A renderer made since has no cache: drawn again next frame.
+            cache.valid = renderer->copyShadowCache(map);
+        }
+        if (caching && cache.valid) {
+            drawWith(matrices[map]);
+            renderer->setViewport(0, 0, sizes[map], sizes[map]);
+            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map], Renderer::CASTERS_DYNAMIC);
+        } else {
+            drawWith(matrices[map]);
+            renderer->setViewport(0, 0, sizes[map], sizes[map]);
+            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map]);
+        }
+    }
+    gluu->pShadowMatrix = midMatrix;
     renderer->releaseProgram();
 }
 

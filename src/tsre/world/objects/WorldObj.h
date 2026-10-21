@@ -189,6 +189,14 @@ public:
     virtual void setInternalLodControl(bool val);
     virtual void loadingFixes();
     virtual void setModified(bool val = true);
+    // Drawn into the shadow maps every frame instead of their cache (task
+    // renderer 37): animated or moving objects, and objects changed in the
+    // last second, being edited.
+    virtual bool castsMovingShadow();
+    // When the object was last marked modified (clock(), -1 never).
+    qint64 changedAt = -1;
+    // Milliseconds since the program started.
+    static qint64 clock();
     virtual void randomTransform(Ref::RandomTransformation * transformation);
     virtual int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sections);
     virtual void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);

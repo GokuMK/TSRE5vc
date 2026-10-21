@@ -1,0 +1,58 @@
+{
+  "output": "build/trees-shadow-cache-edit",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    0,
+    0
+  ],
+  "timingFrames": 1,
+  "probes": false,
+  "objects": [
+    {
+      "file": "jp1gantry2.s",
+      "offset": [
+        18,
+        0,
+        -1.1
+      ],
+      "yaw": 0
+    }
+  ],
+  "views": [
+    {
+      "name": "before",
+      "time": 12,
+      "weatherPreset": "clear",
+      "settle": {
+        "minFrames": 20,
+        "stableFrames": 3,
+        "maxFrames": 300,
+        "maxSeconds": 120
+      }
+    },
+    {
+      "name": "moved",
+      "moveObjects": [
+        0,
+        0,
+        5
+      ],
+      "settle": {
+        "minFrames": 1,
+        "stableFrames": 0,
+        "maxFrames": 1,
+        "maxSeconds": 10
+      }
+    },
+    {
+      "name": "settled",
+      "settle": {
+        "minFrames": 45,
+        "stableFrames": 3,
+        "maxFrames": 300,
+        "maxSeconds": 120
+      }
+    }
+  ]
+}

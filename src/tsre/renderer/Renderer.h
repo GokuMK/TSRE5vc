@@ -66,12 +66,24 @@ public:
         float minAngularRadius = 0.0f;
     };
     void setViewLimits(const ViewLimits *limits);
+    // Which shadow casters a draw takes (task 37): all, or only those of
+    // static or of moving objects (RenderQueue::setShadowDynamic).
+    enum ShadowCasters {CASTERS_ALL = 0, CASTERS_STATIC, CASTERS_DYNAMIC};
     // Draws queued shadow casters with the bound shader without consuming
     // them, skipping instances whose origin lies farther than range from the
     // view position on the ground plane, and, with a light view-projection,
     // instances outside it. statsSlot labels the draws.
     virtual void renderShadowCasters(float range, int statsSlot,
-                                     const float *viewProjection = nullptr) = 0;
+                                     const float *viewProjection = nullptr,
+                                     ShadowCasters casters = CASTERS_ALL) = 0;
+    // Cached static shadow maps (task 37), when the renderer has them.
+    // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far),
+    // cleared and sized as the map, for its static casters. copyShadowCache
+    // makes the bound shadow map start as a copy of that cache instead of
+    // cleared; the casters drawn into it after go on top. False when there
+    // is no such cache (a new renderer): draw every caster then.
+    virtual bool beginShadowCache(int map) { (void)map; return false; }
+    virtual bool copyShadowCache(int map) { (void)map; return false; }
     // Draws and consumes queued work of passes first..last; later passes stay
     // queued. Use it where direct drawing must happen between passes.
     virtual void renderPasses(RenderPass first, RenderPass last) = 0;

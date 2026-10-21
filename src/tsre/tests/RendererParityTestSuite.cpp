@@ -141,6 +141,10 @@ struct ViewSpec {
     double lat = 0.0, lon = 0.0;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
     bool editDistant = false;
+    // Move the placed objects by this much (metres) before the view, as the
+    // editor moves an object (cached shadow maps, task renderer 37).
+    bool hasMoveObjects = false;
+    float moveObjects[3] = {0.0f, 0.0f, 0.0f};
     // Height above the terrain, replacing the view's own height.
     bool hasAboveGround = false;
     float aboveGround = 0.0f;
@@ -421,6 +425,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
             view.lon = latLon[1].toDouble();
         }
         view.editDistant = object.value("editDistant").toBool(false);
+        view.hasMoveObjects = readFloatArray(object.value("moveObjects"), view.moveObjects, 3);
         view.hasAboveGround = object.contains("aboveGround");
         if (object.value("windowSize").isArray() && object.value("windowSize").toArray().size() == 2) {
             view.windowWidth = object.value("windowSize").toArray()[0].toInt(0);
@@ -633,6 +638,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     float startPos[3];
     float startRot[2];
     widget.diagnosticView(startTileX, startTileZ, startPos, startRot[0], startRot[1]);
+    QVector<WorldObj *> placedObjects;
     for (const PlacedObject &placed : options.objects) {
         Ref::RefItem item;
         item.type = "static";
@@ -668,9 +674,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         float rotation[4];
         float up[3] = {0.0f, 1.0f, 0.0f};
         Quat::setAxisAngle(rotation, up, placed.yaw * float(M_PI) / 180.0f);
-        if (widget.currentRoute() == nullptr
-                || widget.currentRoute()->placeObject(tileX, tileZ, position, rotation, 0.0f, &item) == nullptr)
+        WorldObj *placedObject = widget.currentRoute() != nullptr
+                ? widget.currentRoute()->placeObject(tileX, tileZ, position, rotation, 0.0f, &item) : nullptr;
+        if (placedObject == nullptr)
             qWarning() << CaptureLog << "could not place" << placed.file;
+        else
+            placedObjects.push_back(placedObject);
     }
 
     widget.setDiagnosticActivity(options.activity, options.path);
@@ -758,6 +767,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         }
         Game::viewMarkers = spec.viewMarkers && !options.hideAll;
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
+        if (spec.hasMoveObjects)
+            for (WorldObj *placedObject : placedObjects)
+                placedObject->translate(spec.moveObjects[0], spec.moveObjects[1], spec.moveObjects[2]);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
                                         spec.bearing);

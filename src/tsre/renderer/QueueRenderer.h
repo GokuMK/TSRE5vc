@@ -60,6 +60,8 @@ public:
         quint8 category = 0;
         bool owned = false;
         bool castsShadow = false;
+        // Moving: cast on top of the cached static shadow maps (task 37).
+        bool dynamicShadow = false;
         // Its object's light reach (m), 0 for the default.
         float lightReach = 0.0f;
     };
@@ -112,7 +114,8 @@ protected:
     // submissions included; with enclosure, terrain and every opaque surface
     // but vegetation instead (the sky enclosure, task 27).
     void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
-                           float minRadius = 0.0f, bool alphaTested = false);
+                           float minRadius = 0.0f, bool alphaTested = false,
+                           ShadowCasters casters = CASTERS_ALL);
     // The lights of every queued instance in submission space, punctual
     // lights scaled by exposure and emissive ones by emissiveGain, with
     // ranges derived where missing (task 21). emittersOnly keeps only the

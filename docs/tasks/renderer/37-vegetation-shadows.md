@@ -1,8 +1,9 @@
 # Task 37 - Vegetation shadows and cached shadow maps
 
 Status: the TREES forest measured (2026-10-21). Part 1, the forest's own
-costs (steps 1-3), done on `feature/forest-performance`. Part 2, cached
-and vegetation shadow maps (steps 4-5), designed, not started.
+costs (steps 1-3), done on `feature/forest-performance`. Part 2: snapped
+maps and the static cache (step 4) done there; the vegetation map set
+(step 5) designed, not started.
 Updated 2026-10-21.
 
 Related: [task 10](10-shadows-gather-pass.md) (the three shadow maps),
@@ -211,28 +212,71 @@ their size.
 
 ### The static cache and its redraws (step 4b)
 
-A cached map is drawn again when what it holds changes, not when the code
-is told: a signature of its casters (each static casting instance's packet
-and matrix), the map's cell, the sun moved more than about a texel, and the
-shapes and textures still loading. So a static/dynamic choice that is
-wrong costs speed (a redraw each frame, as today), never a ghost shadow.
-One map is drawn again per frame at most, the near one first; a slow
-refresh of each map every few seconds, in turn, stays as a safety net (as
-the enclosure maps' once a second). The LOD of static objects is kept as it
-was at the redraw while the camera moves inside a cell; harmless.
+Each map has a cache of its static casters, drawn for the map's cell and
+sun; every frame the map starts as a copy of it (a full-screen pass writing
+each texel's depth, as the water's depth copy) and the moving casters are
+drawn on top. Receivers keep one lookup.
+
+A cache is drawn again at once when what it holds changes, and in turn
+(one a frame, the one drawn longest ago, so a fast camera still moves the
+middle and far maps along) when it was drawn for another place, sun or time:
+
+- At once: the static objects' signature, textures uploaded
+  (`Texture::uploads`), shapes loaded (`ShapeLoader::progress()`), the map's
+  size. The signature (`RenderQueue::addShadowSignature`, from
+  `Tile::pushRenderItems`) sums a hash of each static object that casts and
+  drew this frame: its identity, tile, place, rotation and last change. A
+  level of detail switching does not change it (hashing the queued packets
+  did, every frame while the camera moved). Objects that cull themselves
+  (`StaticObj`, behind the camera beyond its size and 150 m) count only when
+  drawn, so turning the camera redraws the caches when one appears or goes.
+- In turn: the map's cell or the camera's tile, the sun moved more than
+  0.1 degrees, or 4 seconds since its last draw (a safety net, as the
+  enclosure maps' redraw once a second).
+
+The LOD of static objects is kept as it was at the redraw while the camera
+moves inside a cell; harmless. `TSRE_SHADOW_CACHE=0` turns the caches off
+(the maps drawn as before), `TSRE_SHADOW_CACHE_LOG=1` logs each redraw and
+its reason. OpenGL has no caches (`Renderer::beginShadowCache` false).
+
+Done (2026-10-21, QRhi):
+
+- TREES forest view at 1280x800: frame 82.5 to 70.4 ms (GPU 77 to 66 ms),
+  the image identical with the caches on and off; the shadows now cost
+  about 3.5 ms (13 to 15 before; no shadows at all: 63 ms). At the user's
+  2123x1948: GPU 159 to 148 ms (197 at the start of the task).
+- Moving 0.5 m a frame for 40 frames: mean frame 93 to 82 ms; the near
+  cache drawn again about every 5 frames, the middle one twice. 9 frames
+  differ from the caches off by more than 0.5% of pixels (5% at worst):
+  while a cache waits its turn, its map lies up to a cell away, so trees at
+  the near map's edge fall in the middle one (coarser texels); nothing is
+  missing.
+- Editing (`tests/renderer/trees-shadow-cache-edit.json`, run with the
+  TREES camera as `core.startup.camera`): a gantry placed, moved 5 m and
+  captured the next frame, then settled; each frame identical with the
+  caches off, no shadow left behind. The harness's `"moveObjects": [x, y,
+  z]` moves the placed objects before a view (`WorldObj::translate`, as
+  the editor).
+- EUROPE1 (`parity-views-shadows.json`, six views turned and from above):
+  identical with the caches on and off. Before objects counted only when
+  drawn, the view turned 90 degrees differed (0.5% of pixels): the caches
+  lacked the distant objects that culled themselves when they were drawn.
 
 ### What moves
 
-Drawn on top every frame: trains, animated objects (the Animate flag,
-animated shape states), overlay and frame items, and objects being edited.
+Drawn on top every frame (`RenderQueue::setShadowDynamic`,
+`WorldObj::castsMovingShadow`): objects with the Animate flag (MSTS and glTF
+shapes animate only with it), car spawners, level crossings, signals (arms
+in the simulation), overlay and frame items (trains, markers), and objects
+being edited.
 
 Editing (the user's question, 2026-10-21): an object is dynamic while it is
-changed and for about a second after its last change (stamped where it is
-marked modified), then settles into the static map. Marking it until save
-would grow over a session: one forest re-defined, 2000 trees cast every
-frame. An edit costs two static redraws: when the object turns dynamic (or
-its old shadow stays behind) and when it settles. Deleting or adding an
-object changes the signature too.
+changed and for a second after its last change (`WorldObj::changedAt`,
+stamped in `setModified`, which every edit calls), then settles into the
+static map. Marking it until save would grow over a session: one forest
+re-defined, 2000 trees cast every frame. An edit costs two redraws of the
+caches: when the object turns dynamic (or its old shadow stays behind) and
+when it settles. Deleting or adding an object changes the signature too.
 
 ### Receivers
 

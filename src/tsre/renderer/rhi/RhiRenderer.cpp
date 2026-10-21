@@ -287,6 +287,9 @@ void RhiRenderer::releaseResources() {
     releaseAttachments(selection);
     for (Attachments &map : shadowMaps)
         releaseAttachments(map);
+    releaseShadowCopy();
+    for (Attachments &cache : shadowCaches)
+        releaseAttachments(cache);
     delete uniformArena.buffer;
     uniformArena.buffer = nullptr;
     delete instanceArena.buffer;
@@ -1078,6 +1081,97 @@ void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
         shadowMaps[map].openGlRows = true;
         targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
     }
+}
+
+bool RhiRenderer::beginShadowCache(int map) {
+    beginFrameIfNeeded();
+    if (map < 0 || map > 2 || !shadowMaps[map].valid())
+        return false;
+    flushTarget();
+    Attachments &cache = shadowCaches[map];
+    const QSize size = shadowMaps[map].size;
+    if ((!cache.valid() || cache.size != size)
+            && !createAttachments(cache, QRhiTexture::UnknownFormat, size, {}))
+        return false;
+    // Rows as in the map, which takes it texel for texel.
+    cache.openGlRows = true;
+    targets[TargetShadowCache + map].attachments = &cache;
+    currentTarget = TargetShadowCache + map;
+    TargetState &state = target();
+    state.clearColor = false;
+    state.clearDepth = true;
+    setViewport(0, 0, size.width(), size.height());
+    return true;
+}
+
+bool RhiRenderer::copyShadowCache(int map) {
+    if (map < 0 || map > 2 || !shadowCaches[map].valid())
+        return false;
+    // Over the map's clear: a failed copy leaves it empty, never stale.
+    target().copyCache = map;
+    return true;
+}
+
+bool RhiRenderer::drawShadowCopy(QRhiCommandBuffer *cb, int map, const Attachments &into) {
+    const Attachments &cache = shadowCaches[map];
+    if (!cache.valid() || cache.depth == nullptr || cache.size != into.size)
+        return false;
+    ShadowCopy &copy = shadowCopy;
+    if (copy.sampler == nullptr) {
+        copy.sampler = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
+                                       QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+        if (!copy.sampler->create()) {
+            releaseShadowCopy();
+            return false;
+        }
+    }
+    if (copy.bindings[map] == nullptr || copy.bound[map] != cache.depth) {
+        if (copy.bindings[map] == nullptr)
+            copy.bindings[map] = rhi->newShaderResourceBindings();
+        copy.bindings[map]->setBindings({QRhiShaderResourceBinding::sampledTexture(
+                0, QRhiShaderResourceBinding::FragmentStage, cache.depth, copy.sampler)});
+        if (!copy.bindings[map]->create())
+            return false;
+        copy.bound[map] = cache.depth;
+    }
+    if (copy.pipeline == nullptr) {
+        // Every texel's depth as the cache has it; the maps' passes are
+        // alike, so one pipeline serves the three.
+        static const char *fragment = R"(#version 440
+layout(binding = 0) uniform sampler2D cache;
+void main() {
+    gl_FragDepth = texelFetch(cache, ivec2(gl_FragCoord.xy), 0).r;
+}
+)";
+        copy.pipeline = rhi->newGraphicsPipeline();
+        copy.pipeline->setShaderStages(
+                {{QRhiShaderStage::Vertex, bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi)},
+                 {QRhiShaderStage::Fragment, bakeInline(fragment, QShader::FragmentStage, rhi)}});
+        copy.pipeline->setDepthTest(true);
+        copy.pipeline->setDepthWrite(true);
+        copy.pipeline->setDepthOp(QRhiGraphicsPipeline::Always);
+        copy.pipeline->setShaderResourceBindings(copy.bindings[map]);
+        copy.pipeline->setRenderPassDescriptor(into.pipelinePass());
+        if (!copy.pipeline->create()) {
+            delete copy.pipeline;
+            copy.pipeline = nullptr;
+            return false;
+        }
+    }
+    cb->setGraphicsPipeline(copy.pipeline);
+    cb->setViewport(QRhiViewport(0, 0, float(into.size.width()), float(into.size.height())));
+    cb->setShaderResources(copy.bindings[map]);
+    cb->draw(3);
+    return true;
+}
+
+void RhiRenderer::releaseShadowCopy() {
+    ShadowCopy &copy = shadowCopy;
+    delete copy.pipeline;
+    for (QRhiShaderResourceBindings *bindings : copy.bindings)
+        delete bindings;
+    delete copy.sampler;
+    copy = ShadowCopy();
 }
 
 bool RhiRenderer::enclosureTarget(int which) const {
@@ -2279,12 +2373,13 @@ void RhiRenderer::renderPassesMeasured(RenderPass first, RenderPass last) {
     drawPasses(first, last, true);
 }
 
-void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *viewProjection) {
+void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *viewProjection,
+                                      ShadowCasters casters) {
     beginFrameIfNeeded();
     if (!targetReady())
         return;
     // Casters in range and inside the light view, instanced by packet.
-    planShadowCasters(range, viewProjection);
+    planShadowCasters(range, viewProjection, false, 0.0f, false, casters);
     recordCasters(statsSlot);
 }
 
@@ -2306,7 +2401,8 @@ void RhiRenderer::flushTarget() {
     if (s == nullptr || s->frame().commandBuffer == nullptr)
         return;
     const bool splatsPending = glowSplats.pending && currentTarget == TARGET_VIEW;
-    if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending)
+    if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending
+            && state.copyCache < 0)
         return;
     if (!targetReady())
         return;
@@ -2372,6 +2468,10 @@ void RhiRenderer::flushTarget() {
     }
     cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
     frameBatch = nullptr;
+    // A shadow map starting as its cached static casters (task 37), with the
+    // moving ones drawn on top.
+    if (state.copyCache >= 0 && !drawShadowCopy(cb, state.copyCache, *state.attachments))
+        qWarning() << "QRhi: could not copy the cached shadow map" << state.copyCache;
     // State a draw shares with the one before is not set again: on OpenGL
     // every setShaderResources applies all uniforms and textures, and every
     // setVertexInput all attributes. The instance and index offsets go to
@@ -2462,6 +2562,7 @@ void RhiRenderer::flushTarget() {
     state.keys.clear();
     state.bindings.clear();
     state.clearColor = state.clearDepth = false;
+    state.copyCache = -1;
 }
 
 void RhiRenderer::present() {

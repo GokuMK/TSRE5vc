@@ -138,6 +138,7 @@ bool QueueRenderer::visible(const DrawInstance &instance, const Frustum &frustum
 
 void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
                                     quint32 selectionId, SubmitOrder order, bool owned){
+    ++submissionCount;
     if(shadowOnly){
         // A stand-in for the shadow maps only: nothing to draw without a
         // casting mesh.
@@ -149,6 +150,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.order = nextOrder++;
         instance.category = RenderStats::category();
         instance.castsShadow = true;
+        instance.dynamicShadow = shadowDynamic;
         shadowOnlyInstances.push_back(instance);
         queuedPackets++;
         if(RenderStats::inFrame())
@@ -164,6 +166,8 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.category = RenderStats::category();
     instance.owned = owned;
     instance.castsShadow = castsShadow(packet);
+    // Overlays (trains, markers) and frame items change from frame to frame.
+    instance.dynamicShadow = shadowDynamic || owned || currentLayer != LAYER_SCENE;
     instance.lightReach = currentLightReach;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
@@ -399,12 +403,16 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
 }
 
 void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
-                                      float minRadius, bool alphaTested){
+                                      float minRadius, bool alphaTested, ShadowCasters casters){
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Depth does not depend on draw order, so repeated packets draw instanced.
     shadowCasters.clear();
     const auto consider = [&](const DrawInstance &instance, bool terrain){
         if((!enclosure && !instance.castsShadow) || !hasMesh(instance.packet))
+            return;
+        // A cached map's static casters, or the moving ones on top (task 37).
+        if((casters == CASTERS_STATIC && instance.dynamicShadow)
+                || (casters == CASTERS_DYNAMIC && !instance.dynamicShadow))
             return;
         // Vegetation is never a roof (task 37).
         if(enclosure && instance.packet->material.vegetation)

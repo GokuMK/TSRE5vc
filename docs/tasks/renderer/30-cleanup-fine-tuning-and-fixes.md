@@ -60,5 +60,10 @@ Noted in their tasks:
   2026-10-21).
 - On QRhi, `RenderStats` counts indices as primitives (3 times the
   triangles): `RhiRenderer::recordDraw` passes primitive 0 (task 37).
+- `StaticObj::pushRenderItems` skips objects behind the camera beyond their
+  size and 150 m (a CPU saving from the immediate renderer; the queue culls
+  each instance against the view anyway). Their shadows are missing from
+  the middle and far maps (long shadows of a low sun), and turning the
+  camera redraws the cached shadow maps when one appears or goes (task 37).
 
 ## Done
