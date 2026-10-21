@@ -1,7 +1,7 @@
 # Task simulation 08: Open Rails timetables
 
-Status: designed 2026-10-21, under the user's review (no code yet); the
-decisions so far at the end of this document.
+Status: designed 2026-10-21 with the user's ideas (part C); under review,
+no code yet. The decisions at the end of this document.
 
 ## Why
 
@@ -127,43 +127,96 @@ mapped onto the core:
   speed.
 - Midnight and `$next` as Open Rails does them.
 
-**Part C, the editor.** Timetables listed with the route's activities (in
-the activity panel), a timetable chosen like an activity; its trains
-listed in the Timetable window with their stops and times; Simulate runs
-it (all trains AI, or one chosen as the player's, then on the autopilot);
-the map and 3D draw it as they do an activity's trains.
+**Part C, the activity in code, and the editor** (the user's ideas,
+2026-10-21; file formats and Open Rails compatibility not decided).
+
+- **An activity in code is either an MSTS activity or an Open Rails
+  timetable set** (a timetable or a timetable group, `.timetablelist-or`).
+  Open Rails has no activity file in timetable mode: the set is what is
+  played, the player's train chosen at the start. Treating the set as an
+  activity from the start leaves room for later: activity events and the
+  activity's own objects with timetables (a TSRE format, not decided).
+  For now the two kinds are separate, no mixing.
+- **No player's train needed:** an activity runs with none (every train
+  AI), in both kinds; traffic runs without an activity, from the first
+  train's departure. Later (driving) events will look at the train the
+  player controls at the moment, as the player may change trains.
+- **Classes:** `OrTimetable` (TSRE's own reader of `.timetable-or` and
+  its groups) beside `Traffic` (`.trf`), with a common interface for a
+  source of trains: each train's name, start, path, consist, stops and
+  times, problems; whether it can be edited; its check. `Traffic` gets an
+  adapter, `ActivityTrains::List` becomes one implementation. Not one
+  class: the formats share almost nothing (`.trf` lists service instances
+  and start times pointing at `.srv` files; a timetable has each train's
+  path, consist, stops and commands in one grid).
+- **The simulation:** `MakeInput` for an MSTS activity as now, a
+  timetable input for a set (its player's train or none), the same
+  `SimulationInput`; the simulation is started with an activity of either
+  kind and the player's choice.
+- **Saving:** TSRE writes a timetable file of its own layout from its
+  model (the user: the easier way; who edits timetables in a spreadsheet
+  need not use TSRE's tools), not the read file's cells kept.
+
+The editor:
+
+1. **Activity panel (F4):** the kind chosen first (MSTS activity or Open
+   Rails timetable, as Open Rails' menu does), then the list of that kind.
+   For a timetable set: its timetables, and the player's train (None by
+   default, or any running train); the MSTS-only fields hidden (the
+   traffic pattern, events, loose consists, difficulty).
+2. **Traffic window:** both kinds, in two groups (MSTS traffic, Open Rails
+   timetables); a timetable's properties a summary (trains, stations,
+   problems) and its check.
+3. **Timetable window:** both kinds in one consistent interface (the
+   trains, their stops and times, Simulate, Follow, the states); a
+   timetable's trains with more (their commands, start and dispose, the
+   problems).
+4. **Check window:** a timetable's problems (paths or consists missing,
+   stations not on a train's path, references to no train, commands not
+   supported).
+5. **Map and 3D:** as for an activity's trains (from the frames).
 
 **Part D, verified.** PRUDNIK's timetable in TSRE against Open Rails
 (`-timetable`, the comparison scripts of tasks 02 and 03): the trains'
 arrivals and departures at their stations, the formed and static trains.
 
-## Not in this task (proposal)
+## Not in this task
 
-- Editing or writing timetables (the Timetable window's Simulate writing
-  calculated times back is task 04's for activities).
 - The shunting commands (`$attach`, `$detach`, `$pickup`, `$transfer`,
-  `$forms` with run-rounds), pools and turntables, weather files,
-  `$callon`, request stops: read and reported, not run; later, from
-  content that uses them.
+  `$forms` with run-rounds), pools and turntables, Open Rails' weather
+  files, `$callon`, request stops: read and reported, not run; later
+  tasks.
+- Activity events and objects with timetables; events looking at the
+  train the player controls (the driving tasks).
 
-## Phases (proposal)
+## Phases
 
 1. **Reading and the check** (part A), with fixtures; PRUDNIK read whole,
    its check report.
-2. **The trains** (part B without the commands): paths, consists, start
+2. **The activity in code** (part C's model): an activity of either kind,
+   the source of trains and its two implementations, runs with no
+   player's train; every suite unchanged.
+3. **The trains** (part B without the commands): paths, consists, start
    times, stops and times, static trains; PRUDNIK's trains run.
-3. **The commands** PRUDNIK uses (part B), with fixtures for each.
-4. **The editor** (part C).
-5. **Verified** (part D), Open Rails on PRUDNIK.
+4. **The commands** PRUDNIK uses (part B), with fixtures for each.
+5. **The editor** (part C's windows).
+6. **Saving** a timetable in TSRE's own layout, and what the Timetable
+   window edits for one.
+7. **Verified** (part D), Open Rails on PRUDNIK.
 
 ## Decisions (user, 2026-10-21)
 
-- For now a review of this design, no code.
-- The commands: those PRUDNIK uses run; the rest read and reported.
+- The commands: those PRUDNIK uses run; the rest read and reported. Pools,
+  turntables and weather files: later tasks.
 - The player's train: all trains AI by default, any running train
   choosable as the player's (on the autopilot), as in Open Rails.
-- The editor: the user has ideas of their own (a Traffic window?), to be
-  discussed; part C waits for them.
+- A timetable is an advanced traffic file; an Open Rails timetable set is
+  an activity in code from the start (part C); the two kinds separate for
+  now; the kind chosen first in the activity panel.
+- Separate classes with a common interface (part C).
+- The Timetable window shows both kinds in one consistent interface.
+- Saving: TSRE's own file layout, written from the model.
+- For now a review of this design, no code.
 
 ## Questions for the user (as asked)
 
