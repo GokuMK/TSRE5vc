@@ -309,6 +309,91 @@ length:
   2.2 km).
 - `TSRE_SIM_PLAN=<activity file>` plans that activity only.
 
+**Phases B1 to B5, the autopilot running its plans (done 2026-10-21).**
+- **The player's route made from the plan** when the input is made
+  (`ApplyWork`, from `MakeInput`): its path up to where the work leaves
+  it (its stops, waits and passing paths kept), the work's moves as route
+  parts (a new part at each reversal, starting with the train's body), a
+  coupling going on over the cars taken, a cut a waiting point where the
+  core cuts the cars off (`WaitPlan::keep`, the cars kept at the front or
+  the rear). On the work's moves the train may pass a stop signal into an
+  occupied block as with permission (60002), up to where it comes back to
+  its path (`workFrom`, `workTo`).
+- **Back to the path:** the nearest way to the rest of the path that
+  skips none of its stops, waits and event places (a skipped one weighs as
+  5 km of driving), not to where the rest of the path would run into cars
+  left standing; the rest of the path is then run as it is, with its
+  stops, waits and passing paths. Where the work makes active an event
+  ending the activity in success at a place the rest of the path does not
+  pass, the way back goes there instead: hotbox's End Activity on the
+  other track (along the path the train runs into End without success, as
+  in task 06), 4_lumberrun's at the yard it started from (its path ends
+  elsewhere).
+- **Cars an assemble leaves** (those not asked for, or the cars asked for
+  without an engine) stand off the paths of trains: off an AI train's path
+  whenever a track within 3 km has room (murder's 5 carriages left on the
+  main line held two AI trains for good); off the player's path or an
+  event's siding only for less than 3 km more. Within decision 2: the
+  autopilot still cuts on the main line where it must.
+- **Skipped work orders:** each in the run's log at the start (`WorkSkipped`:
+  "work order X skipped, too complicated: …" or "… no plan for it: …");
+  why a wagon event did not fire names the autopilot's reason and where
+  its cars are.
+- **The core:** several standing trains may stand in one section (cars
+  set out beside a loose consist in the same siding: local_two). Each is
+  considered: a train attaches to the nearest ahead on its part, goes on
+  past those off its part, and its placement still fails on one under it.
+  Before, a section knew one of them, and the train ran through the other
+  or waited for good.
+- **A location event's why:** passed after another event lowered it now
+  reads "when it was no longer active" (replloco's Passed Pians, a warning
+  the rescue takes away).
+- **Fixtures:** `simulation-work` (21): six plans run by the core to the
+  path's end (a pickup, a rear car reversed into a siding, a car from
+  behind the engine, a run-around by the loop, the whole train, a car put
+  in between), the way back to a path going on past a reversal, the way
+  back to the place ending the activity, cars not asked for set out off an
+  AI train's path, and a set-out beside a loose car then that car taken
+  from the siding's other end (it fails with one standing train per
+  section).
+
+**B1 to B5's results** (the route suite, 2026-10-21). Of the 65 local
+activities 52 end in success and 13 never end, none in failure (task 06:
+34, 28 and 3); 41 of the 48 wagon events fire (task 06: 3). The work
+orders' activities, task 06 against now:
+
+| Activity | Task 06 | Now |
+| --- | --- | --- |
+| rsrescue | allstops 0/1, assemble 0/1, dropoff 0/1, location 1/1; no end | allstops 1/1, assemble 1/1, dropoff 1/1, location 1/1; success at 11:32:15 |
+| barcarso | allstops 0/1, assemble 0/1, dropoff 0/1, time 0/1; no end | allstops 1/1, assemble 1/1, dropoff 1/1, time 1/1; success at 17:40:41 |
+| murder | assemble 0/1, dropoff 0/1, location 4/6; no end | assemble 1/1, dropoff 1/1, location 5/6; success at 18:26:24 |
+| replloco | allstops 0/1, assemble 0/1, location 2/2, passengers 0/1, time 0/1; no end | allstops 1/1, assemble 1/1, location 1/2 (Passed Pians: a warning, not due), passengers 0/1, time 0/1; success at 11:21:41 |
+| tnrescue | allstops 0/1, location 0/1, pickup 0/1; no end | allstops 1/1, location 0/1, pickup 1/1; success at 08:22:59 |
+| autotrnsetout | dropoff 0/1, location 1/2; failure at 10:08:18 | dropoff 1/1, location 1/2; success at 10:17:02 |
+| dawnoil | assemble 1/1, location 4/5, time 0/1; success at 07:22:56 | the same |
+| freighttutorial | assemble-at 0/1, location 12/19, pickup 0/1, time 7/9; failure at 10:01:53 | assemble-at 1/1, location 14/19, pickup 1/1, time 7/9; success at 10:08:26 |
+| hotbox | dropoff 0/1, location 4/6, time 0/2; failure at 17:01:39 | dropoff 1/1, location 5/6, time 0/2; success at 16:55:36 |
+| local_cutbank | dropoff 0/2, location 0/4, pickup 0/1; no end | dropoff 2/2, location 1/4, pickup 1/1; success at 13:21:22 |
+| local_one | dropoff 0/1, location 1/2; no end | dropoff 1/1, location 2/2; success at 08:20:45 |
+| local_two | dropoff 0/1, location 0/1, pickup 0/1; no end | dropoff 1/1, location 1/1, pickup 1/1; success at 13:14:28 |
+| mainduty | dropoff 0/1, location 1/1; no end | dropoff 1/1, location 1/1; success at 14:16:00 |
+| mornimod | assemble-at 0/1; no end | assemble-at 1/1; success at 09:33:39 |
+| nnmxdgds | dropoff 0/1, location 1/2; no end | dropoff 1/1, location 2/2; success at 13:22:58 |
+| whitefishydsw | assemble-at 0/1, dropoff 0/7, location 0/1; no end | assemble-at 1/1, dropoff 1/7, location 0/1; success at 17:13:49 (its success event; 6 drop-offs skipped: sorting, impractical) |
+| whitpull | dropoff 0/1, time 1/1; no end | dropoff 1/1, time 1/1; success at 09:41:57 |
+| yard_one | dropoff 0/1, pickup 0/2; no end | dropoff 1/1, pickup 2/2; success at 11:07:18 |
+| yard_two | dropoff 0/1, pickup 0/3; no end | dropoff 0/1 (sorting), pickup 3/3; no end |
+| 4_lumberrun | dropoff 0/3, location 0/1, pickup 0/5, time 1/1; no end | dropoff 3/3, location 1/1, pickup 5/5, time 1/1; success at 09:32:46 |
+| homestre, winterun | no end (not their work: passengers, places) | the same |
+
+- **Trains still waiting at the end:** yard_one's AI train at the signal
+  whose block holds the loose cars (unplated, STOP; Open Rails the same),
+  as before; hotbox's AI train behind the player's train standing at End
+  Activity on its track, after the activity has ended.
+- **Left:** sorting (yard_two, whitefishydsw), the next task; phase 6
+  (the local activities against task 06's table, Open Rails where it
+  tells something).
+
 ## Why
 
 Activities are made of trains that change: a train picks up cars and sets

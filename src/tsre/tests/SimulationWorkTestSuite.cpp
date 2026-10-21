@@ -4,6 +4,7 @@
 #include <QScopedValueRollback>
 #include <algorithm>
 #include <tsre/Game.h>
+#include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
@@ -116,6 +117,14 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
             p.length += v.length;
         p.route = route;
         p.startFront = std::min(route.pathStart + p.length, route.parts.front().length());
+        p.maxSpeed = 10.0f;
+        Sim::SetRates(p);
+        p.startTime = 8 * 3600;
+        made->startTime = p.startTime;
+        for (const Sim::RouteTrack &part : route.parts) {
+            p.projection.push_back(network->project(part));
+            p.limits.push_back({});
+        }
         made->trains.push_back(p);
         made->staticConsists = std::move(loose);
         for (size_t e = 0; e < events.size(); ++e)
@@ -268,6 +277,152 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
                                                           {first, trap, pick, never}));
         check(plan.goals.size() == 1 && plan.goals[0].event == 2 && plan.notes.size() == 1,
               "the goals in the order the event chain makes them active: " + describe(plan) + " / " + plan.notes.join("; "));
+    }
+
+    // B1 to B5: the plans run by the core (ApplyWork). Each: its event
+    // fires, the player's train reaches its path's end with the cars it
+    // should have.
+    struct Ran {
+        bool fired = false;
+        bool ended = false;
+        std::vector<unsigned int> cars;
+        std::vector<Sim::TrainEvent> events;
+        int parts = 0;
+    };
+    const auto runWork = [&](std::shared_ptr<const Sim::SimulationInput> made, int event) {
+        auto input = std::const_pointer_cast<Sim::SimulationInput>(made);
+        Sim::ApplyWork(*input);
+        Ran ran;
+        ran.parts = int(input->trains[0].route.parts.size());
+        Sim::SimulationCore core(input);
+        for (int k = 0; k < 36000 && !ran.ended; ++k) {
+            core.step(Sim::SimulationCore::MaxStep);
+            for (const Sim::TrainEvent &e : core.takeEvents())
+                ran.events.push_back(e);
+            ran.ended = core.trains()[0].stoppedAt == Sim::StopKind::End;
+        }
+        ran.fired = core.eventStates()[size_t(event)].fired > 0;
+        ran.cars = idsOf(core.vehiclesOf(0));
+        return ran;
+    };
+    const auto told = [](const Ran &ran) {
+        QStringList kinds;
+        for (const Sim::TrainEvent &e : ran.events)
+            kinds << QString::number(int(e.kind));
+        return QString("%1 parts, events %2").arg(ran.parts).arg(kinds.join(","));
+    };
+    {
+        const Ran ran = runWork(inputOf(east, {car(20.0f, true, e1), car(10.0f, false, w2)}, {looseOn(12, 100.0f, {a, b})},
+                                        {wagonEvent(Sim::EventPlan::PickUpWagons, {a, b})}), 0);
+        check(ran.fired && ran.ended && ran.cars.size() == 4, "run: the pickup in the siding fires, the train at its path's end with the cars: " + told(ran));
+    }
+    {
+        const Ran ran = runWork(inputOf(eastTrailing, {car(20.0f, true, e1), car(10.0f, false, w2), car(10.0f, false, x)}, {},
+                                        {wagonEvent(Sim::EventPlan::DropOffWagonsAtLocation, {x}, 22)}), 0);
+        check(ran.fired && ran.ended && ran.cars == std::vector<unsigned int>({e1, w2}),
+              "run: the rear car reversed into the siding and left there: " + told(ran));
+    }
+    {
+        const Ran ran = runWork(inputOf(eastTrailing, {car(20.0f, true, e1), car(10.0f, false, x), car(10.0f, false, w3),
+                                                       car(10.0f, false, w4)}, {},
+                                        {wagonEvent(Sim::EventPlan::DropOffWagonsAtLocation, {x}, 22)}), 0);
+        check(ran.fired && ran.ended && ran.cars.size() == 3 && std::find(ran.cars.begin(), ran.cars.end(), x) == ran.cars.end(),
+              "run: the car from behind the engine set out, the rest coupled again: " + told(ran));
+    }
+    {
+        const Ran ran = runWork(inputOf(throughLoop, {car(20.0f, true, e1), car(10.0f, false, x)}, {},
+                                        {wagonEvent(Sim::EventPlan::DropOffWagonsAtLocation, {x}, 38)}), 0);
+        check(ran.fired && ran.ended && ran.cars == std::vector<unsigned int>({e1}), "run: the run-around by the loop and the set-out: " + told(ran));
+    }
+    {
+        const Ran ran = runWork(inputOf(east, {car(20.0f, true, e1), car(10.0f, false, w2)}, {},
+                                        {wagonEvent(Sim::EventPlan::DropOffWagonsAtLocation, {e1, w2}, 12)}), 0);
+        check(ran.fired, "run: the whole train into the siding fires: " + told(ran));
+    }
+    {
+        const Ran ran = runWork(inputOf(eastTrailing, {car(20.0f, true, e1), car(10.0f, false, w2), car(10.0f, false, w3)},
+                                        {looseOn(22, 100.0f, {a})},
+                                        {wagonEvent(Sim::EventPlan::AssembleTrain, {e1, w2, a, w3})}), 0);
+        check(ran.fired && ran.ended && ran.cars.size() == 4, "run: the car put in between, the train assembled: " + told(ran));
+    }
+    // Back to the path after the work, the rest of it run: a path out to
+    // track 11 and back west reverses at its far end; a place on track 11
+    // the way straight to the path's end would not pass.
+    {
+        Sim::TrainRoute outAndBack = routeOf({10, 100.0f}, {11, 450.0f});
+        Sim::RouteTrack back;
+        back.append(11, 450.0f, 0.0f);
+        back.append(10, 500.0f, 50.0f);
+        outAndBack.parts.push_back(back);
+        outAndBack.partPathStart.push_back(outAndBack.partPathStart.empty() ? 0.0 : outAndBack.partPathStart.back() + 800.0);
+        Sim::EventPlan place;
+        place.kind = Sim::EventPlan::Location;
+        place.name = "on 11";
+        place.places = {Sim::TrackPlace{11, 300.0f}};
+        place.radius = 10.0f;
+        place.activation = 1;
+        const auto made = inputOf(outAndBack, {car(20.0f, true, e1), car(10.0f, false, w2)}, {looseOn(12, 100.0f, {a, b})},
+                                  {wagonEvent(Sim::EventPlan::PickUpWagons, {a, b}), place});
+        const Sim::WorkPlan plan = Sim::PlanWork(*made);
+        const Ran ran = runWork(made, 1);
+        check(plan.rejoinPart == 0 && plan.skipped == 0 && ran.fired && ran.ended && ran.cars.size() == 4,
+              QString("back to the path where it goes on (part %1 at %2 m, %3 skipped), its place passed: ")
+                      .arg(plan.rejoinPart).arg(plan.rejoinAt, 0, 'f', 0).arg(plan.skipped) + told(ran));
+    }
+    // The activity ending at a place behind the train, made active by the
+    // pickup: the way back goes there.
+    {
+        Sim::EventPlan pickup = wagonEvent(Sim::EventPlan::PickUpWagons, {a, b});
+        pickup.increase = {1};
+        Sim::EventPlan end;
+        end.kind = Sim::EventPlan::Location;
+        end.name = "end";
+        end.places = {Sim::TrackPlace{10, 50.0f}};
+        end.radius = 10.0f;
+        end.activation = 0;
+        end.success = true;
+        const auto made = inputOf(east, {car(20.0f, true, e1), car(10.0f, false, w2)}, {looseOn(12, 100.0f, {a, b})},
+                                  {pickup, end});
+        const Sim::WorkPlan plan = Sim::PlanWork(*made);
+        const Ran ran = runWork(made, 1);
+        check(plan.endEvent == 1 && ran.fired && ran.ended, "back to the place where the activity ends: " + told(ran));
+    }
+    // Cars not asked for on an AI train's path: set out where no train's
+    // path goes (the siding behind the junction), not left on the line.
+    {
+        auto made = std::const_pointer_cast<Sim::SimulationInput>(
+                inputOf(eastTrailing, {car(20.0f, true, e1), car(10.0f, false, w2), car(10.0f, false, x)}, {},
+                        {wagonEvent(Sim::EventPlan::AssembleTrain, {e1, w2})}));
+        Sim::TrainPlan ai = made->trains[0];
+        ai.player = false;
+        ai.service = "AI";
+        made->trains.push_back(ai);
+        const Sim::WorkPlan plan = Sim::PlanWork(*made);
+        const Sim::WorkGoal *goal = plan.goals.empty() ? nullptr : &plan.goals[0];
+        check(goal != nullptr && goal->planned && plan.cuts.size() == 1 && plan.cuts[0].track.front().node == 22
+                      && idsOf(plan.cuts[0].vehicles) == std::vector<unsigned int>({x}),
+              "cars not asked for off an AI train's path: " + describe(plan));
+    }
+    // Two standing trains in one section: a car set out in the loop beside
+    // a loose car, the loose one then coupled to from the loop's other end
+    // (the core: the train goes to the one on its way, not past it).
+    {
+        Sim::EventPlan drop = wagonEvent(Sim::EventPlan::DropOffWagonsAtLocation, {x}, 33);
+        drop.activate = {1};
+        Sim::EventPlan pickup = wagonEvent(Sim::EventPlan::PickUpWagons, {a});
+        pickup.activation = 0;
+        const auto made = inputOf(throughLoop, {car(10.0f, false, x), car(20.0f, true, e1)}, {looseOn(33, 20.0f, {a})},
+                                  {drop, pickup});
+        const Sim::WorkPlan plan = Sim::PlanWork(*made);
+        const Ran ran = runWork(made, 1);
+        bool coupled = false;
+        for (const Sim::TrainEvent &e : ran.events)
+            coupled = coupled || e.kind == Sim::TrainEvent::Coupled;
+        std::vector<unsigned int> cars = ran.cars;
+        std::sort(cars.begin(), cars.end());
+        check(plan.goals.size() == 2 && plan.goals[0].planned && plan.goals[1].planned && ran.fired && ran.ended && coupled
+                      && cars == std::vector<unsigned int>({e1, a}),
+              "the set-out beside a loose car, then the loose car taken from the other end: " + describe(plan) + "; " + told(ran));
     }
 
     qInfo().noquote() << QString("simulation-work: %1 passed, %2 failed").arg(passed).arg(failed);

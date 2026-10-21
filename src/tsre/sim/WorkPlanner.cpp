@@ -1,9 +1,12 @@
 #include <tsre/sim/WorkPlanner.h>
 
+#include <QCoreApplication>
 #include <QSet>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <map>
+#include <set>
 #include <queue>
 #include <tsre/sim/TrackNetwork.h>
 
@@ -22,6 +25,15 @@ constexpr double ReversalCost = 300.0;
 // too complicated would be no fun for a player either).
 constexpr double ImpracticalExtra = 10000.0;
 constexpr int ImpracticalReversals = 12;
+// What skipping a stop, a waiting point or an event's place on the path
+// weighs against metres driven in choosing where to come back to it.
+constexpr double SkipFeature = 5000.0;
+// Where cars are left off the paths of trains: among the nearest so many
+// tracks within so many metres, for at most so many metres more than
+// leaving them where they are.
+constexpr size_t ParkingChoices = 6;
+constexpr double ParkingReach = 3000.0;
+constexpr double ParkingExtra = 3000.0;
 constexpr double Eps = 1e-3;
 
 double lengthOf(const std::vector<RouteInterval> &track) {
@@ -81,6 +93,41 @@ std::vector<RouteInterval> headOf(const std::vector<RouteInterval> &track, doubl
     return backwardsOf(tailOf(backwardsOf(track), length));
 }
 
+// For how many metres two tracks run together from their starts.
+double together(const std::vector<RouteInterval> &a, const std::vector<RouteInterval> &b) {
+    size_t i = 0, j = 0;
+    double inA = 0.0, inB = 0.0, run = 0.0;
+    while (i < a.size() && j < b.size()) {
+        const RouteInterval &x = a[i], &y = b[j];
+        if (x.node != y.node || x.forward() != y.forward())
+            break;
+        const double atX = x.from + (x.forward() ? inA : -inA), atY = y.from + (y.forward() ? inB : -inB);
+        if (std::fabs(atX - atY) > 0.05)
+            break;
+        const double lengthX = std::fabs(double(x.to - x.from)), lengthY = std::fabs(double(y.to - y.from));
+        const double step = std::min(lengthX - inA, lengthY - inB);
+        run += step;
+        inA += step;
+        inB += step;
+        if (inA >= lengthX - 1e-6) {
+            ++i;
+            inA = 0.0;
+        }
+        if (inB >= lengthY - 1e-6) {
+            ++j;
+            inB = 0.0;
+        }
+    }
+    return run;
+}
+
+std::vector<RouteInterval> intervalsOf(const RouteTrack &track) {
+    std::vector<RouteInterval> out;
+    for (const RouteInterval &interval : track.intervals())
+        appendTo(out, interval.node, interval.from, interval.to);
+    return out;
+}
+
 std::vector<Vehicle> turned(const std::vector<Vehicle> &vehicles) {
     std::vector<Vehicle> out(vehicles.rbegin(), vehicles.rend());
     for (Vehicle &vehicle : out)
@@ -112,10 +159,11 @@ QString carName(unsigned int car) {
 
 // Where to come to: a cut's end to couple to (from outside it, the way
 // given), a siding's stretch to stand in (the leading end in it, as deep in
-// as the track allows), a place (the path's end, come to the way given).
-// Which end must lead (-1 either); the cut coupled to (not in the way).
+// as the track allows), a place (the path's end, come to the way given),
+// the path (anywhere on the rest of it, the way it goes). Which end must
+// lead (-1 either); the cut coupled to (not in the way).
 struct Target {
-    enum Kind { Couple, Siding, Point };
+    enum Kind { Couple, Siding, Point, Path };
     Kind kind = Point;
     int node = -1;
     double x = 0.0;
@@ -130,6 +178,20 @@ struct Move {
     bool found = false;
     std::vector<WorkLeg> legs;
     double metres = 0.0;
+    // To the path: the part and route distance come to.
+    int part = -1;
+    double at = 0.0;
+};
+
+// The rest of the path to come back to: each a stretch of a part (node
+// distances `from` to `to`, the part's route distance `start` at `from`).
+struct PathPiece {
+    int part;
+    int node;
+    bool forward;
+    double from;
+    double to;
+    double start;
 };
 
 class Planner {
@@ -144,6 +206,43 @@ private:
     YardTrain train;
     std::vector<YardTrain> cuts;
     bool lastLeadB = true;
+    // The track of the cars last coupled, from where they were met on.
+    std::vector<RouteInterval> lastCoupled;
+    // The rest of the path, and its stops, waits and event places (part,
+    // route distance) on it.
+    std::vector<PathPiece> pathPieces;
+    std::vector<std::pair<int, double>> features;
+    double skipCost(int part, double at) const {
+        int skipped = 0;
+        for (const auto &[p, d] : features)
+            skipped += p < part || (p == part && d < at - 0.5) ? 1 : 0;
+        return SkipFeature * skipped;
+    }
+    // The path from route distance `departure` on its first part, clear of
+    // cuts on it from where it comes to them on.
+    void pathFrom(const TrainPlan &player, double departure);
+    // The nodes the paths of the activity's trains take (the player's and
+    // its AI trains'), and the wagon events' sidings: cars are not left
+    // standing there. Those of its AI trains' paths alone.
+    std::set<int> busy;
+    std::set<int> aiBusy;
+    static bool on(const std::set<int> &nodes, const std::vector<RouteInterval> &track) {
+        for (const RouteInterval &interval : track)
+            if (nodes.count(interval.node) > 0)
+                return true;
+        return false;
+    }
+    bool onBusy(const std::vector<RouteInterval> &track) const { return on(busy, track); }
+    // Nodes off those paths with room for `need` metres of cars, the
+    // nearest to the train first.
+    std::vector<int> parkings(double need) const;
+    // The `count` cars at end B (or A) left standing off the paths: where
+    // they are when clear of them, else set out into the nearest track off
+    // them they fit in (where they are when there is none, or when only the
+    // player's path or an event's siding and that is much shorter: cars on
+    // an AI train's path would stop it); `then` the move after it, which
+    // the place must leave possible (false: it failed).
+    bool leaveClear(WorkGoal &goal, size_t count, bool atB, const QString &what, const std::function<bool()> &then);
 
     double nodeLength(int node) const {
         const auto [first, count] = net.nodeSections(node);
@@ -242,7 +341,7 @@ private:
     // The train after a move, a coupling (to the cut `cut` at its start or
     // end, by its leading end) and a cut (`count` cars at end B or A left
     // standing).
-    void moveBy(const Move &move);
+    void moveBy(Move &move);
     void couple(int cut, bool atStart, bool leadB);
     int cutOff(size_t count, bool atB);
 
@@ -346,6 +445,8 @@ Move Planner::route(const Target &target) const {
     push(State{a.node, !a.forward(), 0, a.from, 0, lastLeadB ? ReversalCost : 0.0, 0.0, -1, {}, false});
     int found = -1;
     double foundCost = 1e18;
+    int foundPart = -1;
+    double foundAt = 0.0;
     std::vector<RouteInterval> lastPiece;
     double lastMetres = 0.0;
     int expanded = 0;
@@ -359,8 +460,29 @@ Move Planner::route(const Target &target) const {
         int hit = -1;
         const double limit = reach(s.node, s.forward, s.start, target.skip, &hit);
         const bool leadOk = target.lead < 0 || target.lead == s.lead;
+        // The path: where this run comes to it first, the way it goes.
+        if (leadOk && target.kind == Target::Path) {
+            for (const PathPiece &piece : pathPieces) {
+                if (piece.node != s.node || piece.forward != s.forward)
+                    continue;
+                const double x = s.forward ? std::max(s.start, piece.from) : std::min(s.start, piece.from);
+                if (s.forward ? x > std::min(limit, piece.to) + Eps : x < std::max(limit, piece.to) - Eps)
+                    continue;
+                const double at = piece.start + std::fabs(x - piece.from);
+                const double total = cost + std::fabs(x - s.start) + skipCost(piece.part, at);
+                if (total < foundCost) {
+                    foundCost = total;
+                    found = index;
+                    lastPiece.clear();
+                    appendTo(lastPiece, s.node, s.start, x);
+                    lastMetres = s.metres + std::fabs(x - s.start);
+                    foundPart = piece.part;
+                    foundAt = at;
+                }
+            }
+        }
         // The target on this node, the way it goes.
-        if (leadOk && s.node == target.node) {
+        if (leadOk && target.kind != Target::Path && s.node == target.node) {
             double x = -1.0;
             bool ok = false;
             if (target.kind != Target::Siding && s.forward == target.forward) {
@@ -427,12 +549,76 @@ Move Planner::route(const Target &target) const {
     move.legs.push_back(leg);
     move.metres = lastMetres;
     move.found = true;
+    move.part = foundPart;
+    move.at = foundAt;
     return move;
 }
 
-void Planner::moveBy(const Move &move) {
+void Planner::pathFrom(const TrainPlan &player, double departure) {
+    pathPieces.clear();
+    features.clear();
+    for (size_t p = 0; p < player.route.parts.size(); ++p) {
+        for (const RouteInterval &interval : player.route.parts[p].intervals()) {
+            const double length = interval.length();
+            const double skip = p == 0 ? departure - interval.start : 0.0;
+            if (skip >= length - Eps)
+                continue;
+            const double sign = interval.forward() ? 1.0 : -1.0;
+            const double cut = std::max(0.0, skip);
+            pathPieces.push_back(PathPiece{int(p), interval.node, interval.forward(), interval.from + sign * cut,
+                                           interval.to, interval.start + cut});
+        }
+    }
+    // Not where the rest of the path would run into cars standing.
+    size_t clearFrom = 0;
+    double clearAt = -1.0;
+    for (size_t k = 0; k < pathPieces.size(); ++k) {
+        const PathPiece &piece = pathPieces[k];
+        const double lo = std::min(piece.from, piece.to), hi = std::max(piece.from, piece.to);
+        for (const YardTrain &cut : cuts)
+            for (const RouteInterval &interval : cut.track) {
+                const double a = std::min(interval.from, interval.to), b = std::max(interval.from, interval.to);
+                if (interval.node != piece.node || std::min(hi, b) - std::max(lo, a) <= 0.5)
+                    continue;
+                const double past = piece.forward ? std::min(hi, b) : std::max(lo, a);
+                if (k > clearFrom || clearAt < 0.0 || std::fabs(past - piece.from) > std::fabs(clearAt - piece.from)) {
+                    clearFrom = k;
+                    clearAt = past;
+                }
+            }
+    }
+    if (clearAt >= 0.0) {
+        PathPiece &piece = pathPieces[clearFrom];
+        piece.start += std::fabs(clearAt - piece.from);
+        piece.from = clearAt;
+        pathPieces.erase(pathPieces.begin(), pathPieces.begin() + long(clearFrom));
+    }
+    const double from = pathPieces.empty() ? 0.0 : pathPieces.front().start;
+    const int fromPart = pathPieces.empty() ? int(player.route.parts.size()) : pathPieces.front().part;
+    const auto add = [&](int part, double at) {
+        if (part > fromPart || (part == fromPart && at >= from - 0.5))
+            features.push_back({part, at});
+    };
+    for (const StopPlan &stop : player.stops)
+        add(stop.part, stop.front);
+    for (const WaitPlan &wait : player.waits)
+        add(wait.part, wait.front);
+    for (const EventPlan &event : in.events) {
+        if (event.kind != EventPlan::Location || event.trigger >= 0)
+            continue;
+        for (const TrackPlace &place : event.places)
+            for (size_t p = 0; p < player.route.parts.size(); ++p) {
+                double at = -1.0;
+                if (player.route.parts[p].find(place.node, place.distance, at))
+                    add(int(p), at);
+            }
+    }
+}
+
+void Planner::moveBy(Move &move) {
     const double length = train.length();
-    for (const WorkLeg &leg : move.legs) {
+    for (WorkLeg &leg : move.legs) {
+        leg.body = leg.leadB ? train.track : backwardsOf(train.track);
         if (leg.leadB) {
             std::vector<RouteInterval> track = train.track;
             appendAll(track, leg.way);
@@ -448,6 +634,7 @@ void Planner::moveBy(const Move &move) {
 
 void Planner::couple(int cut, bool atStart, bool leadB) {
     YardTrain &other = cuts[size_t(cut)];
+    lastCoupled = atStart ? other.track : backwardsOf(other.track);
     if (leadB) {
         const std::vector<Vehicle> cars = atStart ? other.vehicles : turned(other.vehicles);
         train.vehicles.insert(train.vehicles.end(), cars.begin(), cars.end());
@@ -511,7 +698,6 @@ int Planner::cutOf(unsigned int car) const {
 }
 
 void Planner::keep(WorkGoal &goal, const Move &move, WorkStep::Action action, const QString &what, WorkStep &made) {
-    made.legs = move.legs;
     made.action = action;
     made.what = what;
     goal.metres += move.metres;
@@ -521,7 +707,9 @@ void Planner::keep(WorkGoal &goal, const Move &move, WorkStep::Action action, co
             ++goal.reversals;
         lead = leg.leadB;
     }
-    moveBy(move);
+    Move kept = move;
+    moveBy(kept);
+    made.legs = kept.legs;
 }
 
 bool Planner::step(WorkGoal &goal, const Target &target, WorkStep::Action action, QString what, WorkStep &made) {
@@ -647,8 +835,10 @@ double Planner::judge(const Ahead &ahead) const {
 }
 
 void Planner::finish(WorkGoal &goal, WorkStep &&made) {
-    if (made.action == WorkStep::Couple)
+    if (made.action == WorkStep::Couple) {
         ++goal.couplings;
+        made.over = lastCoupled;
+    }
     if (made.action == WorkStep::Cut)
         ++goal.cuts;
     goal.steps.push_back(std::move(made));
@@ -666,7 +856,8 @@ bool Planner::pickUp(WorkGoal &goal, const std::vector<unsigned int> &cars, cons
             return true;
         const int c = cutOf(missing);
         if (c < 0) {
-            goal.why = QString("car %1 is in no train or cut").arg(carName(missing));
+            goal.why = //% "car %1 is in no train or cut"
+                    qtTrId("work.why.no.car").arg(carName(missing));
             return false;
         }
         // The listed cars of the cut: a block at its end coupled to, the
@@ -709,7 +900,8 @@ bool Planner::pickUp(WorkGoal &goal, const std::vector<unsigned int> &cars, cons
                 }
             }
         if (!bestMove.found) {
-            goal.why = QString("no way to %1").arg(name);
+            goal.why = //% "no way to %1"
+                    qtTrId("work.why.no.way.to").arg(name);
             return false;
         }
         WorkStep made;
@@ -728,13 +920,15 @@ bool Planner::pickUp(WorkGoal &goal, const std::vector<unsigned int> &cars, cons
             finish(goal, std::move(cut));
         }
     }
-    goal.why = "too many cuts";
+    //% "too many cuts to take"
+    goal.why = qtTrId("work.why.too.many");
     return false;
 }
 
 bool Planner::setOut(WorkGoal &goal, const EventPlan &event, const Ahead &ahead) {
     if (!event.siding || event.sidingNode < 0) {
-        goal.why = "the event has no siding";
+        //% "the event has no siding"
+        goal.why = qtTrId("work.why.no.siding");
         return false;
     }
     // Already standing so in the siding.
@@ -761,7 +955,8 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
     size_t first = 0, last = 0, count = 0;
     const bool together = blockOf(train.vehicles, cars, first, last, count);
     if (count == 0) {
-        goal.why = "the cars are not in the train";
+        //% "the cars are not in the train"
+        goal.why = qtTrId("work.why.not.in.train");
         return false;
     }
     if (count == n) {
@@ -769,14 +964,16 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
         // and all: decision 3).
         WorkStep made;
         if (!step(goal, sidingOf(event, -1), WorkStep::None, "the train into the siding", made)) {
-            goal.why = "no way into the siding for the whole train";
+            //% "no way into the siding for the whole train"
+            goal.why = qtTrId("work.why.whole.train");
             return false;
         }
         finish(goal, std::move(made));
         return true;
     }
     if (!together) {
-        goal.why = "the cars are not together in the train";
+        //% "the cars are not together in the train: sorting"
+        goal.why = qtTrId("work.why.not.together");
         return false;
     }
     const bool atA = first == 0, atB = last + 1 == n;
@@ -785,11 +982,13 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
     if (atA || atB) {
         const bool b = atB;
         if (!(b ? anyEngine(train.vehicles, 0, first) : anyEngine(train.vehicles, last + 1, n))) {
-            goal.why = "no engine would be left in the train";
+            //% "no engine would be left in the train"
+            goal.why = qtTrId("work.why.no.engine");
             return false;
         }
         if (!setOutEnd(goal, event, count, b, true)) {
-            goal.why = "no way into the siding with these cars leading, nor round them";
+            //% "no way into the siding with these cars leading, nor round them"
+            goal.why = qtTrId("work.why.leading");
             return false;
         }
         return true;
@@ -860,7 +1059,8 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
     }
     restore(before);
     goal = savedGoal;
-    goal.why = "no way to set out the cars from the middle of the train";
+    //% "no way to set out the cars from the middle of the train"
+    goal.why = qtTrId("work.why.middle");
     return false;
 }
 
@@ -931,6 +1131,91 @@ bool Planner::setOutEnd(WorkGoal &goal, const EventPlan &event, size_t count, bo
     restore(start);
     goal = savedGoal;
     return false;
+}
+
+std::vector<int> Planner::parkings(double need) const {
+    std::vector<int> out;
+    if (train.track.empty())
+        return out;
+    // Through the junctions from either end of the train, by distance
+    // (a reversal counted as in a move).
+    using Entry = std::pair<double, std::pair<int, bool>>;
+    std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> queue;
+    std::set<std::pair<int, bool>> seen;
+    const RouteInterval &b = train.track.back(), &a = train.track.front();
+    queue.push({std::fabs((b.forward() ? nodeLength(b.node) : 0.0) - b.to), {b.node, b.forward()}});
+    queue.push({std::fabs((a.forward() ? 0.0 : nodeLength(a.node)) - a.from), {a.node, !a.forward()}});
+    while (!queue.empty() && out.size() < ParkingChoices) {
+        const auto [distance, at] = queue.top();
+        queue.pop();
+        if (distance > ParkingReach || !seen.insert(at).second)
+            continue;
+        for (const Exit &exit : exits(at.first, at.second)) {
+            const double length = nodeLength(exit.node);
+            const double entry = exit.forward ? 0.0 : length;
+            int hit = -1;
+            const double room = std::fabs(reach(exit.node, exit.forward, entry, -1, &hit) - entry);
+            if (busy.count(exit.node) == 0 && room >= need + Margin
+                    && std::find(out.begin(), out.end(), exit.node) == out.end())
+                out.push_back(exit.node);
+            queue.push({distance + length, {exit.node, exit.forward}});
+        }
+        // Or reversing there.
+        queue.push({distance + nodeLength(at.first) + ReversalCost, {at.first, !at.second}});
+    }
+    return out;
+}
+
+bool Planner::leaveClear(WorkGoal &goal, size_t count, bool atB, const QString &what,
+                         const std::function<bool()> &then) {
+    const size_t n = train.vehicles.size();
+    const double need = atB ? carsLength(train.vehicles, n - count, n) : carsLength(train.vehicles, 0, count);
+    const auto here = [&]() {
+        WorkStep made;
+        made.action = WorkStep::Cut;
+        made.cars = int(count);
+        made.atB = atB;
+        made.what = what;
+        cutOff(count, atB);
+        finish(goal, std::move(made));
+        return then();
+    };
+    if (!onBusy(atB ? tailOf(train.track, need) : headOf(train.track, need)))
+        return here();
+    const Snapshot start = save();
+    const WorkGoal savedGoal = goal;
+    const bool blocksAi = on(aiBusy, atB ? tailOf(train.track, need) : headOf(train.track, need));
+    // Where they are: what it costs.
+    const bool hereOk = here();
+    const double hereCost = goal.metres + ReversalCost * goal.reversals;
+    restore(start);
+    goal = savedGoal;
+    WorkGoal bestGoal;
+    Snapshot bestYard = start;
+    bool found = false;
+    for (int node : parkings(need)) {
+        EventPlan siding;
+        siding.siding = true;
+        siding.sidingNode = node;
+        siding.sidingFrom = 0.0f;
+        siding.sidingTo = float(nodeLength(node));
+        if (setOutEnd(goal, siding, count, atB, false) && !onBusy(cuts.back().track)) {
+            goal.steps.back().what = what + " off the running lines";
+            const double cost = goal.metres + ReversalCost * goal.reversals;
+            if (then() && (!found || cost < bestGoal.metres + ReversalCost * bestGoal.reversals)) {
+                found = true;
+                bestGoal = goal;
+                bestYard = save();
+            }
+        }
+        restore(start);
+        goal = savedGoal;
+    }
+    if (!found || (hereOk && !blocksAi && bestGoal.metres + ReversalCost * bestGoal.reversals > hereCost + ParkingExtra))
+        return here();
+    goal = bestGoal;
+    restore(bestYard);
+    return true;
 }
 
 std::vector<Move> Planner::stagesTowards(const Target &target, int lead) const {
@@ -1084,7 +1369,8 @@ bool Planner::assemble(WorkGoal &goal, const EventPlan &event, const Ahead &ahea
             return true;
         WorkStep made;
         if (!step(goal, sidingOf(event, -1), WorkStep::None, "the train into the siding", made)) {
-            goal.why = "no way into the siding";
+            //% "no way into the siding"
+            goal.why = qtTrId("work.why.siding");
             return false;
         }
         finish(goal, std::move(made));
@@ -1103,7 +1389,8 @@ bool Planner::assemble(WorkGoal &goal, const EventPlan &event, const Ahead &ahea
     const size_t n = train.vehicles.size();
     size_t first = 0, last = 0, count = 0;
     if (!blockOf(train.vehicles, cars, first, last, count)) {
-        goal.why = "the cars asked for are not together in the train";
+        //% "the cars asked for are not together in the train: sorting"
+        goal.why = qtTrId("work.why.assemble.together");
         return false;
     }
     const std::vector<Vehicle> block(train.vehicles.begin() + long(first), train.vehicles.begin() + long(last) + 1);
@@ -1116,7 +1403,8 @@ bool Planner::assemble(WorkGoal &goal, const EventPlan &event, const Ahead &ahea
             ++backward;
         const size_t at = std::max(forward, backward);
         const unsigned int there = forward >= backward ? block[at].id : block[block.size() - 1 - at].id;
-        goal.why = QString("the cars are in another order: car %1 asked for at place %2, car %3 there")
+        //% "the cars are in another order: car %1 asked for at place %2, car %3 there"
+        goal.why = qtTrId("work.why.order")
                        .arg(carName(cars[at])).arg(at + 1).arg(carName(there));
         return false;
     }
@@ -1126,31 +1414,17 @@ bool Planner::assemble(WorkGoal &goal, const EventPlan &event, const Ahead &ahea
     if (!atA && !atB) {
         if (atLocation)
             return setOutBlock(goal, event, cars);
-        goal.why = "the cars asked for are in the middle of the train";
+        //% "the cars asked for are in the middle of the train"
+        goal.why = qtTrId("work.why.assemble.middle");
         return false;
     }
     // At an end: with an engine among them, the others cut off where it
     // stands; without, they set out (into the siding, or where it stands).
-    if (anyEngine(train.vehicles, first, last + 1)) {
-        WorkStep made;
-        made.action = WorkStep::Cut;
-        made.cars = int(n - count);
-        made.atB = atA;
-        made.what = QString("leave %1 cars not asked for").arg(n - count);
-        cutOff(n - count, atA);
-        finish(goal, std::move(made));
-        return intoSiding();
-    }
+    if (anyEngine(train.vehicles, first, last + 1))
+        return leaveClear(goal, n - count, atA, QString("leave %1 cars not asked for").arg(n - count), intoSiding);
     if (atLocation)
         return setOutBlock(goal, event, cars);
-    WorkStep made;
-    made.action = WorkStep::Cut;
-    made.cars = int(count);
-    made.atB = atB;
-    made.what = QString("leave the %1 cars asked for where it stands").arg(count);
-    cutOff(count, atB);
-    finish(goal, std::move(made));
-    return true;
+    return leaveClear(goal, count, atB, QString("leave the %1 cars asked for").arg(count), [] { return true; });
 }
 
 double Planner::wayTo(const EventPlan &event) const {
@@ -1180,7 +1454,8 @@ WorkGoal Planner::goalFor(int e, const Ahead &ahead) {
     if (goal.planned && (goal.metres - direct > ImpracticalExtra || goal.reversals > ImpracticalReversals)) {
         goal.planned = false;
         goal.impractical = true;
-        goal.why = QString("impractical: %1 km of moves (%2 km more than the way there), %3 reversals")
+        //% "impractical: %1 km of moves (%2 km more than the way there), %3 reversals"
+        goal.why = qtTrId("work.why.impractical")
                        .arg(goal.metres / 1000.0, 0, 'f', 1).arg((goal.metres - direct) / 1000.0, 0, 'f', 1)
                        .arg(goal.reversals);
     }
@@ -1206,7 +1481,8 @@ WorkGoal Planner::planGoal(int e, const Ahead &ahead) {
         goal.planned = assemble(goal, event, ahead);
         break;
     default:
-        goal.why = "not a wagon event";
+        //% "not a wagon event"
+        goal.why = qtTrId("work.why.not.wagons");
         break;
     }
     return goal;
@@ -1242,6 +1518,16 @@ WorkPlan Planner::plan() {
     out.path = -player->startFront;
     for (const RouteTrack &routePart : player->route.parts)
         out.path += routePart.length();
+    for (const TrainPlan &plan : in.trains)
+        for (const RouteTrack &routePart : plan.route.parts)
+            for (const RouteInterval &interval : routePart.intervals()) {
+                busy.insert(interval.node);
+                if (!plan.player)
+                    aiBusy.insert(interval.node);
+            }
+    for (const EventPlan &event : in.events)
+        if (event.siding && event.sidingNode >= 0)
+            busy.insert(event.sidingNode);
     // The event chain: events not about cars fire when active (one ending
     // the activity in failure never); of the wagon events active together
     // the first (in the list's order) that can be planned is done, each
@@ -1252,9 +1538,14 @@ WorkPlan Planner::plan() {
     for (size_t e = 0; e < in.events.size(); ++e)
         level[e] = in.events[e].activation;
     bool ended = false;
+    // The event ending the activity in success at a place the player's
+    // train comes to.
+    int endsAt = -1;
     const auto fire = [&](int e) {
         const EventPlan &event = in.events[size_t(e)];
         fired[size_t(e)] = true;
+        if (event.success && event.kind == EventPlan::Location && event.trigger < 0 && !event.places.empty())
+            endsAt = e;
         for (int k : event.activate)
             if (k >= 0 && size_t(k) < level.size())
                 level[size_t(k)] = 1;
@@ -1341,16 +1632,74 @@ WorkPlan Planner::plan() {
     for (size_t e = 0; e < in.events.size(); ++e)
         if (!in.events[e].cars.empty() && !fired[e])
             out.notes << QString("%1: never active").arg(in.events[e].name);
-    // Back to the path's end.
-    const RouteTrack &lastPart = player->route.parts.back();
-    const RoutePoint end = lastPart.locate(lastPart.length());
-    Target back;
-    back.kind = Target::Point;
-    back.node = end.node;
-    back.x = end.distance;
-    back.forward = end.forward;
+    // Where the work leaves the path: as far along it as its first move
+    // runs together with it.
+    out.departure = player->startFront;
+    const WorkLeg *first = nullptr;
+    for (const WorkGoal &goal : out.goals)
+        for (const WorkStep &step : goal.steps)
+            for (const WorkLeg &leg : step.legs)
+                if (goal.planned && first == nullptr)
+                    first = &leg;
+    if (first != nullptr && first->leadB) {
+        const std::vector<RouteInterval> path = intervalsOf(player->route.parts.front());
+        out.departure += together(tailOf(path, lengthOf(path) - player->startFront), first->way);
+    }
+    // Back to the path, the nearest way not skipping its stops, waits and
+    // event places; else to its end.
+    out.train = train;
+    out.cuts = cuts;
     const bool wasB = lastLeadB;
-    const Move move = route(back);
+    pathFrom(*player, out.departure);
+    Target back;
+    back.kind = Target::Path;
+    Move move = route(back);
+    // The activity ending at a place the rest of the path does not pass:
+    // there instead.
+    if (endsAt >= 0) {
+        const EventPlan &event = in.events[size_t(endsAt)];
+        const std::vector<RouteTrack> &parts = player->route.parts;
+        bool passed = false;
+        for (const TrackPlace &place : event.places)
+            for (size_t p = move.found ? size_t(move.part) : parts.size(); p < parts.size(); ++p) {
+                double at = -1.0;
+                passed = passed || (parts[p].find(place.node, place.distance, at)
+                                    && (p > size_t(move.part) || at >= move.at - 0.5));
+            }
+        Move there;
+        double cost = 0.0;
+        for (const TrackPlace &place : event.places)
+            for (bool forward : {true, false}) {
+                Target target;
+                target.kind = Target::Point;
+                target.node = place.node;
+                target.x = place.distance;
+                target.forward = forward;
+                const Move found = route(target);
+                const double weighed = found.metres + ReversalCost * double(found.legs.size());
+                if (!passed && found.found && (!there.found || weighed < cost)) {
+                    there = found;
+                    cost = weighed;
+                }
+            }
+        if (there.found) {
+            move = there;
+            out.endEvent = endsAt;
+        }
+    }
+    if (move.found && out.endEvent < 0) {
+        out.rejoinPart = move.part;
+        out.rejoinAt = move.at;
+        out.skipped = int(std::lround(skipCost(move.part, move.at) / SkipFeature));
+    } else if (!move.found) {
+        const RouteTrack &lastPart = player->route.parts.back();
+        const RoutePoint end = lastPart.locate(lastPart.length());
+        back.kind = Target::Point;
+        back.node = end.node;
+        back.x = end.distance;
+        back.forward = end.forward;
+        move = route(back);
+    }
     if (move.found) {
         out.back = move.metres;
         bool lead = wasB;
@@ -1359,9 +1708,9 @@ WorkPlan Planner::plan() {
                 ++out.backReversals;
             lead = leg.leadB;
         }
+        moveBy(move);
+        out.backLegs = move.legs;
     }
-    out.train = train;
-    out.cuts = cuts;
     return out;
 }
 
@@ -1378,6 +1727,223 @@ double WorkLeg::length() const {
 WorkPlan PlanWork(const SimulationInput &input) {
     Planner planner(input);
     return planner.plan();
+}
+
+void ApplyWork(SimulationInput &input) {
+    TrainPlan *player = nullptr;
+    for (TrainPlan &plan : input.trains)
+        if (plan.player)
+            player = &plan;
+    bool wagons = false;
+    for (const EventPlan &event : input.events)
+        wagons = wagons || !event.cars.empty();
+    if (player == nullptr || !wagons || player->route.parts.empty() || input.network == nullptr)
+        return;
+    const WorkPlan work = PlanWork(input);
+    bool any = false;
+    for (const WorkGoal &goal : work.goals) {
+        input.workOrders.push_back(SimulationInput::WorkOrder{goal.event, goal.planned, goal.impractical, true, goal.why});
+        any = any || (goal.planned && !goal.steps.empty());
+    }
+    for (size_t e = 0; e < input.events.size(); ++e) {
+        bool listed = false;
+        for (const WorkGoal &goal : work.goals)
+            listed = listed || goal.event == int(e);
+        if (!input.events[e].cars.empty() && !listed)
+            input.workOrders.push_back(SimulationInput::WorkOrder{int(e), false, false, false,
+                                                                  //% "never active in the event chain"
+                                                                  qtTrId("work.why.never.active")});
+    }
+    if (!any)
+        return;
+    // The parts: the path up to where the work leaves it, the work's moves
+    // (a new part at each reversal: from where the train stands back over
+    // its track, then on), the way back merged into the path's last part.
+    const std::vector<RouteInterval> pathFirst = intervalsOf(player->route.parts.front());
+    const std::vector<RouteInterval> pathLast = intervalsOf(player->route.parts.back());
+    const double start = player->startFront;
+    std::vector<RouteTrack> parts;
+    std::vector<double> workFrom;
+    std::vector<double> workTo;
+    std::vector<WaitPlan> waits;
+    std::vector<RouteInterval> current = headOf(pathFirst, start);
+    double currentWork = -1.0;
+    double currentWorkTo = -1.0;
+    bool lead = true;
+    bool started = false;
+    const double departure = work.departure;
+    int cars = int(player->vehicles.size());
+    const auto flush = [&]() {
+        RouteTrack track;
+        for (const RouteInterval &interval : current)
+            track.append(interval.node, interval.from, interval.to);
+        parts.push_back(track);
+        workFrom.push_back(currentWork);
+        workTo.push_back(currentWorkTo);
+        current.clear();
+        currentWork = 0.0;
+        currentWorkTo = -1.0;
+    };
+    const auto addLeg = [&](const WorkLeg &leg) {
+        if (!started) {
+            started = true;
+            if (leg.leadB) {
+                // The way the work starts along the path: the path run as
+                // far (its stops and waits kept), the work from there.
+                current = headOf(pathFirst, departure);
+                appendAll(current, tailOf(leg.way, std::max(0.0, leg.length() - (departure - start))));
+                currentWork = departure;
+                return;
+            }
+            currentWork = start;
+        }
+        if (leg.leadB == lead) {
+            appendAll(current, leg.way);
+            return;
+        }
+        flush();
+        current = leg.body;
+        appendAll(current, leg.way);
+        lead = leg.leadB;
+    };
+    for (const WorkGoal &goal : work.goals) {
+        if (!goal.planned)
+            continue;
+        for (const WorkStep &step : goal.steps) {
+            for (const WorkLeg &leg : step.legs)
+                addLeg(leg);
+            if (step.action == WorkStep::Cut) {
+                // The cars left at the leading end: the rear ones kept.
+                WaitPlan wait;
+                wait.part = int(parts.size());
+                wait.front = lengthOf(current);
+                wait.keep = cars - step.cars;
+                wait.keepFront = step.atB != lead;
+                waits.push_back(wait);
+                cars -= step.cars;
+            } else if (step.action == WorkStep::Couple) {
+                cars += step.cars;
+                // The part goes on over them (a coupling at the leading end).
+                appendAll(current, step.over);
+            }
+        }
+    }
+    for (const WorkLeg &leg : work.backLegs)
+        addLeg(leg);
+    std::vector<StopPlan> stops;
+    std::vector<PassingPlan> passing;
+    // The path up to where the work leaves it: its stops, waits and passing
+    // paths kept.
+    for (const StopPlan &stop : player->stops)
+        if (stop.part == 0 && stop.front <= departure + 0.5)
+            stops.push_back(stop);
+    for (const WaitPlan &wait : player->waits)
+        if (wait.part == 0 && wait.front <= departure + 0.5)
+            waits.push_back(wait);
+    for (const PassingPlan &side : player->passing)
+        if (side.part == 0 && side.to <= departure)
+            passing.push_back(side);
+    if (work.rejoinPart >= 0) {
+        // Back on the path: the rest of the part it comes to run on from
+        // there, its parts after it as they are, with their stops, waits
+        // and passing paths.
+        const int rejoin = work.rejoinPart;
+        const double at = work.rejoinAt;
+        const std::vector<RouteInterval> rest = intervalsOf(player->route.parts[size_t(rejoin)]);
+        const int joined = int(parts.size());
+        const double shift = lengthOf(current) - at;
+        currentWorkTo = lengthOf(current);
+        appendAll(current, tailOf(rest, std::max(0.0, lengthOf(rest) - at)));
+        const auto place = [&](int &part, double from) {
+            if (part < rejoin || (part == rejoin && from < at - 0.5))
+                return false;
+            if (part == 0 && from <= departure + 0.5)
+                return false;
+            part = part == rejoin ? joined : joined + part - rejoin;
+            return true;
+        };
+        for (StopPlan stop : player->stops) {
+            const bool same = stop.part == rejoin;
+            if (place(stop.part, stop.front)) {
+                if (same) {
+                    stop.front += shift;
+                    stop.platformEnd += shift;
+                    stop.platformStart += shift;
+                }
+                stops.push_back(stop);
+            }
+        }
+        for (WaitPlan wait : player->waits) {
+            const bool same = wait.part == rejoin;
+            if (place(wait.part, wait.front)) {
+                wait.front += same ? shift : 0.0;
+                waits.push_back(wait);
+            }
+        }
+        for (PassingPlan side : player->passing) {
+            const bool same = side.part == rejoin;
+            if (place(side.part, side.from)) {
+                if (same) {
+                    side.from += shift;
+                    side.to += shift;
+                }
+                passing.push_back(side);
+            }
+        }
+        flush();
+        for (size_t q = size_t(rejoin) + 1; q < player->route.parts.size(); ++q) {
+            parts.push_back(player->route.parts[q]);
+            workFrom.push_back(-1.0);
+            workTo.push_back(-1.0);
+        }
+    } else {
+        // Where the way back runs together with the path's last part to
+        // its end: that stretch's stops and waits kept on the last part.
+        const double merged = together(backwardsOf(current), backwardsOf(pathLast));
+        const double lastLength = lengthOf(pathLast);
+        const int lastPath = int(player->route.parts.size()) - 1;
+        const int finalPart = int(parts.size());
+        const double finalLength = lengthOf(current);
+        for (StopPlan stop : player->stops) {
+            if (stop.part == lastPath && lastLength - stop.platformStart <= merged + 0.5
+                    && !(stop.part == 0 && stop.front <= departure + 0.5)) {
+                const double shift = finalLength - lastLength;
+                stop.part = finalPart;
+                stop.front += shift;
+                stop.platformEnd += shift;
+                stop.platformStart += shift;
+                stops.push_back(stop);
+            }
+        }
+        for (WaitPlan wait : player->waits) {
+            if (wait.part == lastPath && lastLength - wait.front <= merged + 0.5
+                    && !(wait.part == 0 && wait.front <= departure + 0.5)) {
+                wait.part = finalPart;
+                wait.front += finalLength - lastLength;
+                waits.push_back(wait);
+            }
+        }
+        flush();
+    }
+    std::stable_sort(waits.begin(), waits.end(), [](const WaitPlan &a, const WaitPlan &b) {
+        return a.part != b.part ? a.part < b.part : a.front < b.front;
+    });
+    std::stable_sort(stops.begin(), stops.end(), [](const StopPlan &a, const StopPlan &b) {
+        return a.part != b.part ? a.part < b.part : a.front < b.front;
+    });
+    std::stable_sort(passing.begin(), passing.end(), [](const PassingPlan &a, const PassingPlan &b) {
+        return a.part != b.part ? a.part < b.part : a.from < b.from;
+    });
+    player->route.parts = parts;
+    player->stops = stops;
+    player->waits = waits;
+    player->passing = passing;
+    player->workFrom = workFrom;
+    player->workTo = workTo;
+    player->projection.assign(parts.size(), Projection());
+    player->limits.assign(parts.size(), {});
+    for (size_t p = 0; p < parts.size(); ++p)
+        FinishPart(input, *player, parts[p], player->projection[p], player->limits[p]);
 }
 
 }

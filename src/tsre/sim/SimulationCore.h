@@ -84,10 +84,12 @@ struct TrainEvent {
     // that train's cars; LeftCars, it left that train `signal` of its own;
     // JoinedTrain, it joined that train (and is gone, or carried along
     // after waiting point 60001); Parted, carried along so far, it runs
-    // again on its own (that train cut it off).
+    // again on its own (that train cut it off). WorkSkipped: the work order
+    // of the activity's event `index` is not done by the autopilot (the
+    // input's work orders say why).
     enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock,
                 EventFired, ActivityEnded, Restarted, Coupled, Joined, Uncoupled,
-                TookCars, LeftCars, JoinedTrain, Parted };
+                TookCars, LeftCars, JoinedTrain, Parted, WorkSkipped };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -303,6 +305,8 @@ public:
         // only once it has been more than UncoupledApart away (Open Rails'
         // UncoupledFrom).
         int uncoupledFrom = -1;
+        // The sections it stands in (holdStanding).
+        std::vector<int> sections;
     };
     const std::vector<Standing> &standingTrains() const { return standing; }
     // Coupling (task 07, Open Rails' AI): a train attaching creeps up within
@@ -547,6 +551,13 @@ private:
     bool attaches(int train, int standingTrain, double gap);
     double contactOn(int train, int standingTrain) const;
     bool behind(int train, int standingTrain, double rear) const;
+    // The standing trains in a section (several may stand in one: cars set
+    // out beside others, task 07); the nearest of them ahead of a train on
+    // its part (-1 none) and its contact; whether a standing train lies on
+    // a train's part beyond route distance `from`.
+    std::vector<int> standingIn(int section) const;
+    int standingAhead(int train, int section, double *contact = nullptr) const;
+    bool onPart(int train, int standingTrain, double from) const;
     // Living trains (task 07): the track a train stands on (its rear to its
     // front, its way); whether a train attaches to the living train `other`
     // `gap` metres ahead (Open Rails' AI); the contact with it on the

@@ -30,6 +30,9 @@ struct CarsNow {
 };
 CarsNow CarsOf(const SimulationCore &core);
 CarsNow CarsOf(const struct SimulationFrame &frame);
+// A work order the autopilot does not do (task 07, part B): the input's
+// event `event` (named `name`), why.
+QString WorkSkippedText(const SimulationInput &in, int event, const QString &name);
 // Why the input's event `event` did not fire in a run (task 06, section
 // 7), from its state where the run ended and the activity's end; the
 // cars where they are then (else where the input has them).

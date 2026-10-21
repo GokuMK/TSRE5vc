@@ -216,6 +216,27 @@ CarsNow CarsOf(const SimulationFrame &frame) {
     return cars;
 }
 
+namespace {
+
+const SimulationInput::WorkOrder *workOrderOf(const SimulationInput &in, int event) {
+    for (const SimulationInput::WorkOrder &order : in.workOrders)
+        if (order.event == event)
+            return &order;
+    return nullptr;
+}
+
+}
+
+QString WorkSkippedText(const SimulationInput &in, int event, const QString &name) {
+    const SimulationInput::WorkOrder *order = workOrderOf(in, event);
+    const QString why = order != nullptr ? order->why : QString();
+    if (order != nullptr && order->impractical)
+        //% "work order %1 skipped, too complicated: %2"
+        return qtTrId("simulation.work.impractical").arg(name, why);
+    //% "work order %1 skipped, no plan for it: %2"
+    return qtTrId("simulation.work.skipped").arg(name, why);
+}
+
 QString WhyNotFired(const SimulationInput &in, int event, const EventState &state, ActivityEnd end, double endedAt,
                     const CarsNow *cars) {
     if (event < 0 || size_t(event) >= in.events.size())
@@ -258,9 +279,13 @@ QString WhyNotFired(const SimulationInput &in, int event, const EventState &stat
                 else
                     //% "The path of %1 does not pass its point."
                     why += qtTrId("simulation.why.not.on.path").arg(train);
-            } else if (state.passedAt >= 0.0 && !state.passedActive) {
+            } else if (state.passedAt >= 0.0 && !state.passedActive && state.passedAt < state.activeSince) {
                 //% "%1 passed it at %2, before it was active (from %3)."
                 why += qtTrId("simulation.why.passed.inactive").arg(train, clock(state.passedAt), clock(state.activeSince));
+            } else if (state.passedAt >= 0.0 && !state.passedActive) {
+                // Active, then lowered by another event's outcome.
+                //% "%1 passed it at %2, when it was no longer active (active from %3)."
+                why += qtTrId("simulation.why.passed.lowered").arg(train, clock(state.passedAt), clock(state.activeSince));
             } else if (state.passedAt >= 0.0 && plan.onStop) {
                 //% "%1 passed it at %2 without stopping: active too late to stop."
                 why += qtTrId("simulation.why.passed.no.stop").arg(train, clock(state.passedAt));
@@ -296,8 +321,19 @@ QString WhyNotFired(const SimulationInput &in, int event, const EventState &stat
             if (plan.kind == EventPlan::AssembleTrainAtLocation && !state.reachedSiding)
                 //% "The player's train did not reach the siding."
                 why = qtTrId("simulation.why.siding") + " ";
-            //% "The cars: %1. The autopilot does not shunt yet."
-            why += qtTrId("simulation.why.cars").arg(places.join(", "));
+            // The autopilot's work order for it (task 07, part B).
+            const SimulationInput::WorkOrder *order = workOrderOf(in, event);
+            if (order != nullptr && !order->planned && order->impractical)
+                //% "The autopilot skipped it as too complicated: %1."
+                why += qtTrId("simulation.why.work.impractical").arg(order->why) + " ";
+            else if (order != nullptr && !order->planned)
+                //% "The autopilot found no plan for it: %1."
+                why += qtTrId("simulation.why.work.none").arg(order->why) + " ";
+            else if (order == nullptr)
+                //% "The autopilot was not asked to do the work."
+                why += qtTrId("simulation.why.work.off") + " ";
+            //% "The cars: %1."
+            why += qtTrId("simulation.why.cars.at").arg(places.join(", "));
             break;
         }
         default:

@@ -106,6 +106,11 @@ struct WaitPlan {
     int part = 0;
     double front = 0.0;
     int value = 0;
+    // The autopilot's cut there (task 07, part B): the cars kept, counted
+    // from the front in the direction of travel (or from the rear); -1
+    // none.
+    int keep = -1;
+    bool keepFront = true;
 };
 
 // What a train does in the simulation, made from the activity.
@@ -152,6 +157,12 @@ struct TrainPlan {
     std::vector<std::vector<SpeedLimit>> limits;
     // Its path's passing paths, in the order passed.
     std::vector<PassingPlan> passing;
+    // The autopilot's work (task 07, part B): on each part, the route
+    // distance from which its moves are the work's (they may pass a stop
+    // signal into an occupied block, as with permission), -1 none; and to
+    // which (where it comes back to its path), -1 the part's end.
+    std::vector<double> workFrom;
+    std::vector<double> workTo;
 };
 
 // A consist of the activity standing on the track (a loose consist): the
@@ -262,6 +273,24 @@ struct SimulationInput {
     // platforms of its station stops only (the stop moved there), or
     // everywhere.
     std::vector<EventPlan> events;
+    // The activity's restricted speed zones: their two ends on the track.
+    struct Zone {
+        int node[2] = {-1, -1};
+        float distance[2] = {0.0f, 0.0f};
+    };
+    std::vector<Zone> zones;
+    // The player's work orders (task 07, part B): each wagon event's as the
+    // autopilot plans it; not planned: why, and whether impractical (the
+    // user, 2026-10-21: skipped, the run's log warning of it).
+    struct WorkOrder {
+        int event = -1;
+        bool planned = false;
+        bool impractical = false;
+        // Active at some point of the event chain as the planner follows it.
+        bool active = true;
+        QString why;
+    };
+    std::vector<WorkOrder> workOrders;
     enum class EventStops { None, Platforms, All };
     EventStops eventStops = EventStops::None;
     // Trains not made, and why.
@@ -295,10 +324,17 @@ Driving DrivingOf(const std::vector<Vehicle> &vehicles);
 // (the activity's player and AI trains, their services, paths, consists and
 // timetables, loose consists) and `tdb`, which must be Game::trackDB.
 // `geometry` and `network` may be ones made earlier from the same database.
+// `work`: the player's work orders planned and run by the autopilot (task
+// 07, part B: ApplyWork).
 std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
                                                  std::shared_ptr<const TrackGeometry> geometry = nullptr,
                                                  std::shared_ptr<const TrackNetwork> network = nullptr,
-                                                 float restrictedSpeed = -1.0f);
+                                                 float restrictedSpeed = -1.0f, bool work = true);
+
+// A route part's way and speed limits (the zones it passes at the input's
+// restricted speed), as MakeInput makes them.
+void FinishPart(const SimulationInput &input, const TrainPlan &plan, const RouteTrack &part, Projection &way,
+                std::vector<SpeedLimit> &limits);
 
 // A route part's speed limits: the speed posts facing it that apply to its
 // kind of train (a limit from its post to the next limit or resume post),

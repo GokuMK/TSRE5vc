@@ -2342,7 +2342,11 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 for (const Sim::WorkGoal &goal : plan.goals)
                     work += goal.metres;
                 qInfo().noquote() << "[plan]    path" << QString::number(plan.path, 'f', 0) << "m, work" << QString::number(work, 'f', 0)
-                                  << "m; back to the path's end:"
+                                  << "m (from" << QString::number(plan.departure, 'f', 0) << "m); back"
+                                  << (plan.rejoinPart >= 0 ? QString("to the path (part %1 at %2 m, %3 skipped):").arg(plan.rejoinPart)
+                                                                     .arg(plan.rejoinAt, 0, 'f', 0).arg(plan.skipped)
+                                      : plan.endEvent >= 0 ? QString("to %1:").arg(input->events[size_t(plan.endEvent)].name)
+                                                           : QString("to the path's end:"))
                                   << (plan.back >= 0.0 ? QString("%1 m, %2 reversals").arg(plan.back, 0, 'f', 0).arg(plan.backReversals)
                                                        : QString("no way"))
                                   << (plan.notes.isEmpty() ? QString() : "| " + plan.notes.join("; "));

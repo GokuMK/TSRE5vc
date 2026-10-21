@@ -1,4 +1,5 @@
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/WorkPlanner.h>
 
 #include <QDir>
 #include <algorithm>
@@ -501,9 +502,23 @@ Driving DrivingOf(const std::vector<Vehicle> &vehicles) {
     return known && (force > 0.0 || power > 0.0) ? Driving::Physics : Driving::Simple;
 }
 
+void FinishPart(const SimulationInput &input, const TrainPlan &plan, const RouteTrack &part, Projection &way,
+                std::vector<SpeedLimit> &limits) {
+    way = input.network->project(part);
+    // The zones whose both ends this part passes.
+    std::vector<std::pair<double, double>> passed;
+    for (const SimulationInput::Zone &zone : input.zones) {
+        double a = 0.0, b = 0.0;
+        if (part.find(zone.node[0], zone.distance[0], a) && part.find(zone.node[1], zone.distance[1], b))
+            passed.push_back({std::min(a, b), std::max(a, b)});
+    }
+    limits = SpeedLimits(way, *input.network, plan.passenger, passed, input.restrictedSpeed, part.length());
+}
+
 std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
                                                  std::shared_ptr<const TrackGeometry> geometry,
-                                                 std::shared_ptr<const TrackNetwork> network, float restrictedSpeed) {
+                                                 std::shared_ptr<const TrackNetwork> network, float restrictedSpeed,
+                                                 bool work) {
     auto input = std::make_shared<SimulationInput>();
     input->runId = nextRun++;
     input->routeSpeedLimit = routeSpeedLimit > 0.0f ? routeSpeedLimit : 44.4444f;
@@ -527,19 +542,14 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
     }
     const QString routePath = ContentPath::parentDirectory(activity->path);
     // The activity's restricted speed zones: their two ends on the track.
-    struct Zone {
-        int node[2];
-        float distance[2];
-    };
-    std::vector<Zone> zones;
     for (ActivityObject *object : activity->restrictedSpeedZone) {
         float start[4], end[4];
         if (object == nullptr || !object->getSpeedZoneEnds(start, end))
             continue;
-        Zone zone;
+        SimulationInput::Zone zone;
         if (placeOnTrack(tdb, start, zone.node[0], zone.distance[0])
                 && placeOnTrack(tdb, end, zone.node[1], zone.distance[1]))
-            zones.push_back(zone);
+            input->zones.push_back(zone);
     }
     for (const ActivityTrains::Train &train : ActivityTrains::List(activity)) {
         if (train.kind == ActivityTrains::PatternOnly)
@@ -697,16 +707,9 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
                 plan.waits.push_back(wait);
         }
         for (const RouteTrack &part : plan.route.parts) {
-            plan.projection.push_back(input->network->project(part));
-            // The zones whose both ends this part passes.
-            std::vector<std::pair<double, double>> passed;
-            for (const Zone &zone : zones) {
-                double a = 0.0, b = 0.0;
-                if (part.find(zone.node[0], zone.distance[0], a) && part.find(zone.node[1], zone.distance[1], b))
-                    passed.push_back({std::min(a, b), std::max(a, b)});
-            }
-            plan.limits.push_back(SpeedLimits(plan.projection.back(), *input->network, plan.passenger, passed,
-                                              input->restrictedSpeed, part.length()));
+            plan.projection.emplace_back();
+            plan.limits.emplace_back();
+            FinishPart(*input, plan, part, plan.projection.back(), plan.limits.back());
         }
         // Passing paths: each where the main route leaves it and rejoins
         // it, and its own track between.
@@ -742,6 +745,10 @@ std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, f
     }
     input->staticConsists = StaticConsists(activity, tdb);
     input->events = Events(activity, tdb, *input, input->warnings);
+    // The player's work orders, planned and run by the autopilot (task 07,
+    // part B).
+    if (work)
+        ApplyWork(*input);
     return input;
 }
 

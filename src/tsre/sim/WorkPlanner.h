@@ -22,10 +22,12 @@ struct YardTrain {
     double length() const;
 };
 
-// A move: the leading end's way, end B or end A leading.
+// A move: the leading end's way, end B or end A leading; the train's track
+// where it starts (from its trailing end to its leading one).
 struct WorkLeg {
     bool leadB = true;
     std::vector<RouteInterval> way;
+    std::vector<RouteInterval> body;
     double length() const;
 };
 
@@ -35,9 +37,11 @@ struct WorkStep {
     enum Action { None, Couple, Cut };
     std::vector<WorkLeg> legs;
     Action action = None;
-    // Couple: the cars taken; Cut: the cars left standing, at end B or A.
+    // Couple: the cars taken, and their track from where they are met on;
+    // Cut: the cars left standing, at end B or A.
     int cars = 0;
     bool atB = true;
+    std::vector<RouteInterval> over;
     QString what;
 };
 
@@ -71,6 +75,18 @@ struct WorkPlan {
     double path = 0.0;
     double back = -1.0;
     int backReversals = 0;
+    std::vector<WorkLeg> backLegs;
+    // Where the work leaves the path (route distance on its first part);
+    // where the way back comes to it again, the train then running the rest
+    // of it: a part and the route distance there (-1 none: back to the
+    // path's end); the path's stops, waits and event places skipped.
+    double departure = 0.0;
+    int rejoinPart = -1;
+    double rejoinAt = 0.0;
+    int skipped = 0;
+    // Or to the place of the event ending the activity in success (the work
+    // makes it active; the rest of the path does not pass it), -1 not.
+    int endEvent = -1;
     // The trains as the work leaves them: the player's, the cuts standing.
     YardTrain train;
     std::vector<YardTrain> cuts;
@@ -80,5 +96,12 @@ struct WorkPlan {
 // activity's loose consists where the input has them (its AI trains not
 // counted).
 WorkPlan PlanWork(const SimulationInput &input);
+
+// The player's work orders planned (PlanWork) and given to its train to run
+// (task 07, B1 to B5): its path run up to where the work leaves it, the
+// work's moves as route parts (a reversal between two), its cuts as waiting
+// points, back to the path where the way back meets it. The input's work
+// orders say which goals were planned and why not.
+void ApplyWork(SimulationInput &input);
 
 }

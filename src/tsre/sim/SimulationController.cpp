@@ -678,6 +678,12 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     case TrainEvent::Parted:
         //% "runs on its own again, parted from %1"
         return qtTrId("simulation.event.parted").arg(holderName(event.index));
+    case TrainEvent::WorkSkipped: {
+        const ActivityEvent *skipped = activityEvent(event.index);
+        const QString name = skipped == nullptr ? QString::number(event.index)
+                           : skipped->name.isEmpty() ? QString::number(skipped->id) : skipped->name;
+        return WorkSkippedText(*in, event.index, name);
+    }
     case TrainEvent::Restarted: {
         const ActivityEvent *by = activityEvent(event.index);
         //% "restarted by event %1"
