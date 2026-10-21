@@ -246,6 +246,7 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
     std::copy(materialColor, materialColor + 4, packet->material.color);
     packet->material.lineWidth = lineWidth;
     packet->material.opacity = opacity;
+    packet->material.vegetation = vegetation;
     packet->water.enabled = water;
     std::copy(layers, layers + RenderItem::Water::LAYER_COUNT, packet->water.layers);
     packet->mesh.handle = mesh;

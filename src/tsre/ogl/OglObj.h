@@ -43,6 +43,8 @@ public:
     void setLineWidth(int val);
     // Below 1 drawn blended at this opacity (RenderItem::Material::opacity).
     void setOpacity(float value);
+    // Trees, bushes and hedges (RenderItem::Material::vegetation).
+    void setVegetation(bool value) { vegetation = value; }
     // Draws as a shaded water surface (water program variant) over the
     // bottom and middle water layer textures, or as a plain surface when off.
     void setWater(bool enabled, QString *bottomPath = NULL, QString *middlePath = NULL);
@@ -60,6 +62,7 @@ private:
     int materialType;
     int lineWidth = 0;
     float opacity = 1.0f;
+    bool vegetation = false;
     float bound[6];
     float minDistance = -1;
     float maxDistance = 999999;

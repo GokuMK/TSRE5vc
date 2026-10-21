@@ -505,6 +505,8 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     program->setFloat("enableNormals", item->material.lit ? 1.0f : 0.0f);
     program->setFloat("colorBrightness", item->material.brightness);
     program->setFloat("materialTransparency", 1.0f - item->material.opacity);
+    // Vegetation is never under a roof: no sky enclosure lookups (task 37).
+    program->setInt("materialVegetation", item->material.vegetation ? 1 : 0);
     program->setUint("selectionId", selectionId);
     const QVector3D remap = item->terrain.textureRemap;
     program->setVec("terrainTextureRemap", remap.x(), remap.y(), remap.z());

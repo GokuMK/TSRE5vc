@@ -186,6 +186,9 @@ uniform vec2 skyEnclosureFar;
 uniform sampler2D skyEnclosureOpenMap;
 uniform sampler2D skyEnclosureFarOpenMap;
 uniform vec2 skyEnclosureOpen;
+// Vegetation (1): trees, bushes and hedges are never under a roof, and the
+// maps leave them out; open sky without lookups (task 37).
+uniform int materialVegetation;
 
 // Where a map has the point: its map coordinates and depth, and how much the
 // map counts there (1 inside, fading to 0 towards its edge; 0 outside it or
@@ -233,7 +236,7 @@ float enclosureTapsCoarse(sampler2D map, vec3 m, float spacing) {
 // (user, 2026-10-12).
 float skyEnclosed(vec3 position, vec3 normal, out float shade) {
     shade = 0.0;
-    if (skyEnclosureParams.x <= 0.0)
+    if (skyEnclosureParams.x <= 0.0 || materialVegetation != 0)
         return 0.0;
     vec2 side = normal.xz;
     float sideLength = length(side);

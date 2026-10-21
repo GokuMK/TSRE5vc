@@ -138,6 +138,23 @@ bool QueueRenderer::visible(const DrawInstance &instance, const Frustum &frustum
 
 void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
                                     quint32 selectionId, SubmitOrder order, bool owned){
+    if(shadowOnly){
+        // A stand-in for the shadow maps only: nothing to draw without a
+        // casting mesh.
+        if(owned || !hasMesh(packet) || !castsShadow(packet))
+            return;
+        DrawInstance instance;
+        instance.packet = packet;
+        instance.matrix = captureMatrix(matrix);
+        instance.order = nextOrder++;
+        instance.category = RenderStats::category();
+        instance.castsShadow = true;
+        shadowOnlyInstances.push_back(instance);
+        queuedPackets++;
+        if(RenderStats::inFrame())
+            RenderStats::current().groupedInstances++;
+        return;
+    }
     const RenderPass pass = routePass(packet, order);
     DrawInstance instance;
     instance.packet = packet;
@@ -265,6 +282,8 @@ void QueueRenderer::consumePass(PassQueue &queue){
 void QueueRenderer::clearQueues(){
     for(PassQueue &queue : passes)
         consumePass(queue);
+    queuedPackets -= static_cast<int>(shadowOnlyInstances.size());
+    shadowOnlyInstances.clear();
     for(RenderItem *item : ownedItems)
         delete item;
     ownedItems.clear();
@@ -384,34 +403,43 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Depth does not depend on draw order, so repeated packets draw instanced.
     shadowCasters.clear();
+    const auto consider = [&](const DrawInstance &instance, bool terrain){
+        if((!enclosure && !instance.castsShadow) || !hasMesh(instance.packet))
+            return;
+        // Vegetation is never a roof (task 37).
+        if(enclosure && instance.packet->material.vegetation)
+            return;
+        // Measure the range to the bounds, so long meshes whose origin
+        // is out of range still cast near the camera.
+        float center[3];
+        float radius = 0.0f;
+        if(!instanceBounds(instance, center, radius))
+            instanceOrigin(instance, center);
+        const float dx = center[0] - viewPosition[0];
+        const float dz = center[2] - viewPosition[2];
+        const float reach = range + radius;
+        if(dx * dx + dz * dz > reach * reach || !visible(instance, lightFrustum))
+            return;
+        // The far enclosure map: terrain and large objects only.
+        if(!terrain && radius < minRadius)
+            return;
+        shadowCasters.push_back(&instance);
+    };
     for(int pass = 0; pass < PASS_COUNT; ++pass){
         // The enclosure maps: opaque surfaces; the views from below (the
         // lowest surfaces: track beds, tunnel floors) alpha-tested ones too.
         if(enclosure && pass != PASS_TERRAIN && pass != PASS_OPAQUE && !(alphaTested && pass == PASS_ALPHA_TEST))
             continue;
         PassQueue &queue = passes[pass];
-        for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
-            for(const DrawInstance &instance : *list){
-                if((!enclosure && !instance.castsShadow) || !hasMesh(instance.packet))
-                    continue;
-                // Measure the range to the bounds, so long meshes whose origin
-                // is out of range still cast near the camera.
-                float center[3];
-                float radius = 0.0f;
-                if(!instanceBounds(instance, center, radius))
-                    instanceOrigin(instance, center);
-                const float dx = center[0] - viewPosition[0];
-                const float dz = center[2] - viewPosition[2];
-                const float reach = range + radius;
-                if(dx * dx + dz * dz > reach * reach || !visible(instance, lightFrustum))
-                    continue;
-                // The far enclosure map: terrain and large objects only.
-                if(pass != PASS_TERRAIN && radius < minRadius)
-                    continue;
-                shadowCasters.push_back(&instance);
-            }
-        }
+        for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped})
+            for(const DrawInstance &instance : *list)
+                consider(instance, pass == PASS_TERRAIN);
     }
+    // Stand-ins for the shadow maps (task 37); the enclosure takes the view's
+    // meshes.
+    if(!enclosure)
+        for(const DrawInstance &instance : shadowOnlyInstances)
+            consider(instance, false);
     std::stable_sort(shadowCasters.begin(), shadowCasters.end(),
                      [](const DrawInstance *a, const DrawInstance *b){
         return std::less<const RenderItem *>()(a->packet, b->packet);

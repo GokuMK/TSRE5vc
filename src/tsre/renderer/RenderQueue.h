@@ -92,6 +92,12 @@ public:
     // cast, excluding terrain and terrain decals.
     void setShadowCasting(bool cast);
     bool shadowCastingEnabled() const { return shadowCasting; }
+    // Whether following submissions are drawn into the shadow maps only,
+    // never in a view: a coarser level of detail standing in for the view's
+    // mesh, which is then submitted without casting (task renderer 37). A new
+    // frame turns it off.
+    void setShadowOnly(bool only);
+    bool shadowOnlyEnabled() const { return shadowOnly; }
     // The reach (m) of the lights of following submissions, set by a placed
     // object that asks for more than the default; 0 for the default. A new
     // frame turns it back to 0.
@@ -105,6 +111,7 @@ protected:
     float *mvMatrix = nullptr;
     Layer currentLayer = LAYER_SCENE;
     bool shadowCasting = true;
+    bool shadowOnly = false;
     float currentLightReach = 0.0f;
 
 private:

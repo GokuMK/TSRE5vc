@@ -1,9 +1,8 @@
 # Task 37 - Vegetation shadows and cached shadow maps
 
 Status: the TREES forest measured (2026-10-21). Part 1, the forest's own
-costs (steps 1-3), in progress on `feature/forest-performance`: step 1
-done. Part 2, cached and vegetation shadow maps (steps 4-5), designed, not
-started.
+costs (steps 1-3), done on `feature/forest-performance`. Part 2, cached
+and vegetation shadow maps (steps 4-5), designed, not started.
 Updated 2026-10-21.
 
 Related: [task 10](10-shadows-gather-pass.md) (the three shadow maps),
@@ -118,20 +117,68 @@ only the hedge:
   shader, which receives no shadows (its trees never shadow themselves).
 - Every Forest, of crossed quads or of shapes.
 
-The queue carries it per instance. Vegetation materials skip the enclosure
-lookup (open sky) and are not drawn into the enclosure maps (removes the
-5.2 M triangle redraw once a second).
+Vegetation materials skip the enclosure lookup (open sky) and are not drawn
+into the enclosure maps (removes the 5.2 M triangle redraw once a second).
 
-### Step 3: vegetation casts its lowest mesh level
+Done (2026-10-21): `RenderItem::Material::vegetation`, set by `GltfShape`
+(an impostor), both MSTS backends (`SFileComplexGL`, `SFileLegacy`: light
+material -9 or -10) and the Forest's crossed quads (`OglObj::setVegetation`).
+A glTF shape without an impostor in a Forest of shapes is not vegetation:
+the flag is the packet's, shared with the shape's statics. The QRhi
+renderer passes it as `materialVegetation`; `skyEnclosed()`
+(`ShadowSampling.glsl`) returns open sky for it, so `enclosureSun`,
+`skyAmbient` and `lampScale` see no cover. `planShadowCasters` leaves it out
+of the enclosure maps. OpenGL has no enclosure.
 
-A tree pushes its view level without shadow casting and its lowest mesh
-level as shadow-only packets; a tree already at that level, or at the
-impostor, pushes nothing more. Packets stay shared per level, so the shadow
-maps draw them instanced. View passes skip shadow-only packets.
+- TREES forest view, no shadows or environment map: GPU 62.6 to 58.1 ms.
+  The enclosure redraws draw no world triangles there now (5.2 M before,
+  11.5 M on the first frame with all four maps).
+- EUROPE1 enclosure views (`tests/renderer/enclosure-views.json`: tunnel
+  portal, stone bridge, night), with main's build as the reference:
+  pixel-identical.
+- Tests: `shape-complex-gl` (light materials -5, -9, -10 in both backends;
+  131 on the real platform), `gltf-lod` (packets of shapes with an
+  impostor).
 
-Estimate: with every tree at level 2 the shadow maps cost 15 ms instead of
-36 (1280x800). Impostors as casters need the frame facing the sun, not the
-camera; later.
+### Step 3: vegetation casts a coarser level
+
+A tree pushes its view level without shadow casting and a coarser level as
+shadow-only packets. Packets stay shared per level, so the shadow maps draw
+them instanced. View passes skip shadow-only packets.
+
+The shadow's level (the user asked: not always the last; not a cruciform):
+the level the view would choose 3 times farther away
+(`ShapeLod::ShadowDistanceScale`), down to the shape's
+`shadowFloorLevel()`: the coarsest level fit to cast. For glTF trees that is
+the last mesh level before the impostor in both bindings: with Append the
+last mesh (level 2's clusters), with ReplaceLast the one before the
+cruciform the impostor stands in for (never drawn). Never the impostor,
+which faces the camera; a tree at the impostor in the view casts it as
+before (the frame facing the sun: later). Shapes without an impostor cast
+their view's level. MSTS shapes have no marker for a billboard level (-9 is
+a lighting model, used by 3D foliage too); stock trees are cruciform at
+every level, so nothing to choose; a check of a few quads can come with
+multi-level MSTS trees (tree-gen's planned `.s` export). Not done for the
+LOD bias's ends, `TSRE_SHAPE_LEVEL` or picking.
+
+Done (2026-10-21): `RenderQueue::setShadowOnly()`; the queue keeps such
+packets in `shadowOnlyInstances`, read by `planShadowCasters` only (both
+renderers). `ShapeLod::shadowLevel()`, set by `ShapeLod::apply()` through
+`ComplexShape::setShadowDistanceLevel()`. `GltfShape::pushRenderItem` takes
+the packets per level (`levelPackets()`).
+
+- TREES forest view, 1280x800: shadow map triangles near 2.50 to 0.42 M,
+  mid 4.44 to 1.53 M, far 4.54 to 1.63 M (11.5 to 3.6 M). With step 2:
+  frame 109 to 81 ms, GPU 104 to 76 ms, cpu 5.0 ms. At the user's
+  2123x1948: GPU 197 to 159 ms (frame 220 to 164 ms).
+- The image: brightness unchanged (the trees +0.5, the ground -0.2 of 255);
+  10% of pixels change by a little, the self-shadow speckle on the leaves,
+  cast by the coarser levels.
+- Tests: `gltf-lod` (50): the floor in both bindings and without levels,
+  the level at 20 m (0 casts 1), 50 m (1 casts 2), the view's own at 5 m,
+  at the last mesh level and at the impostor, none without an impostor;
+  the push (view without casting, shadow-only set, the queue's state
+  restored), none when picking or not casting.
 
 ## Part 2: cached and vegetation shadow maps
 

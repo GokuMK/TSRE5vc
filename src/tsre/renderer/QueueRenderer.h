@@ -108,8 +108,9 @@ protected:
     // Shadow casters within range on the ground plane (measured to their
     // bounds) and inside the light view, grouped by packet: shadowCasters,
     // groupPlans and instanceUpload.
-    // Shadow casters in range and inside the light's view; with enclosure,
-    // terrain and every opaque surface instead (the sky enclosure, task 27).
+    // Shadow casters in range and inside the light's view, shadow-only
+    // submissions included; with enclosure, terrain and every opaque surface
+    // but vegetation instead (the sky enclosure, task 27).
     void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
                            float minRadius = 0.0f, bool alphaTested = false);
     // The lights of every queued instance in submission space, punctual
@@ -129,6 +130,9 @@ protected:
     std::vector<float> instanceUpload;
     // Frame storage is cleared, not freed, so steady frames do not allocate.
     PassQueue passes[PASS_COUNT];
+    // Shadow-only submissions (RenderQueue::setShadowOnly): read by the
+    // shadow maps' planning only, never drawn in a view pass.
+    std::vector<DrawInstance> shadowOnlyInstances;
     std::vector<float> instanceMatrices;
     std::vector<quint32> sortOrder;
     std::vector<RenderItem*> ownedItems;

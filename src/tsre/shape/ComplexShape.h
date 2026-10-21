@@ -77,6 +77,17 @@ public:
         (void)stateId;
         (void)direction;
     }
+    // Shadows of a coarser level (task renderer 37): the coarsest level fit
+    // to stand in for the view's in the shadow maps, -1 for none (the shadows
+    // are the view's level). Not an impostor, which faces the camera, nor a
+    // cruciform fallback.
+    virtual int shadowFloorLevel() const { return -1; }
+    // The level cast into the shadow maps, set each frame (ShapeLod); -1
+    // casts the view's.
+    virtual void setShadowDistanceLevel(unsigned int stateId, int level) {
+        (void)stateId;
+        (void)level;
+    }
     virtual void enableSubObjByName(unsigned int stateId, const QString& name, bool val);
     virtual void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val);
     virtual void updateSim(float deltaTime, unsigned int stateId = 0) = 0;

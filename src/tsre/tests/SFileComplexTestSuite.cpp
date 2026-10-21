@@ -862,6 +862,37 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
         QOpenGLContext context;
         context.setFormat(surface.format());
         t.check(context.create() && context.makeCurrent(&surface), "GL context");
+        // Cruciform light materials (-9, -10) mark vegetation, in both
+        // backends (task renderer 37). The legacy backend reads the encoded
+        // document and needs a texture.
+        for (const QByteArray light : {QByteArray("-5"), QByteArray("-9"), QByteArray("-10")}) {
+            const QString lightPath = tmp.filePath("light" + QString::fromLatin1(light) + ".s");
+            SFileDetail::Document lightDoc;
+            QString lightError;
+            lightDoc.readBytes(QByteArray(triangle)
+                .replace("vtx_state ( 00000000 0 -5 0", "vtx_state ( 00000000 0 " + light + " 0")
+                .replace("primitives ( 1 prim_state_idx", "primitives ( 2 prim_state_idx")
+                .replace("images ( 0 ) textures ( 0 )",
+                         "images ( 1 image ( unused.ace ) ) textures ( 1 texture ( 0 0 0 0 ) )"));
+            write(lightPath, lightDoc.encode(false, false, lightError));
+            const bool expected = light != "-5";
+            auto marked = [&](ComplexShape &lit) {
+                MatrixProbe probe;
+                lit.pushRenderItem(probe, 0, 0);
+                bool all = !probe.packets.isEmpty();
+                for (const RenderItem *packet : probe.packets)
+                    all = all && packet->material.vegetation == expected;
+                return all;
+            };
+            SFileComplex complex(lightPath, "light", tmp.path());
+            t.check(complex.loadData() && complex.initGL() && marked(complex),
+                    "light material " + QString::fromLatin1(light) + ": vegetation "
+                        + (expected ? "yes" : "no") + " (complex)");
+            SFileLegacy legacy(lightPath, "light", tmp.path());
+            t.check(legacy.loadData() && legacy.initGL() && marked(legacy),
+                    "light material " + QString::fromLatin1(light) + ": vegetation "
+                        + (expected ? "yes" : "no") + " (legacy)");
+        }
         for (bool compact : {false, true}) {
             SFileComplex recovered(animationPath, "damaged animation GL", tmp.path());
             recovered.setLoadOptions(shapeLoadOptions(false, compact));

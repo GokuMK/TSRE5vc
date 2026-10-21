@@ -90,6 +90,10 @@ public:
         // Below 1 the surface is drawn blended, its alpha times this (terrain
         // tile overlays, task editor 04).
         float opacity = 1.0f;
+        // Trees, bushes and hedges (task renderer 37): glTF shapes with an
+        // impostor, MSTS cruciform light materials, forests. Never under a
+        // roof: no sky enclosure lookups, left out of the enclosure maps.
+        bool vegetation = false;
     };
 
     // Metallic-roughness material (glTF), drawn by the PBR program variant.
