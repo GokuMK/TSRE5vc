@@ -115,9 +115,10 @@ model as the first operating policy, and threading.
   changed trains and the standing ones; B0 done: 42 of 48 goals planned,
   20 of 22 activities whole, sorting and run-arounds beyond it; run-arounds
   and B1 to B5 done: the autopilot runs its plans, back to the path or to
-  the place ending the activity, 41 of the 48 wagon events fire and 20 of
-  the 22 work-order activities end in success; sorting next, then phase
-  6): part A, trains that change as Open Rails' AI
+  the place ending the activity, 41 of the 48 wagon events fire and 19 of
+  the 22 work-order activities end in success; sorting done: 47 of 48
+  wagon events fire, 20 of the 22 end in success (homestre and winterun
+  never end, not for their work); phase 6 next): part A, trains that change as Open Rails' AI
   does (each train its own cars, loose consists as standing trains,
   attaching and coupling at contact, cuts at waiting points); part B, the
   autopilot's work orders, planned off the player's path (MSTS paths do

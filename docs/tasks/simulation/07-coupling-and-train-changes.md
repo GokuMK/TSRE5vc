@@ -394,6 +394,50 @@ orders' activities, task 06 against now:
   (the local activities against task 06's table, Open Rails where it
   tells something).
 
+**Sorting (done 2026-10-21)**, as B7 describes it.
+- **The planner** (`sort`): deliver a block where its cars are wanted, set
+  a block aside, fetch a cut; the cheapest each time. Into a long yard
+  track only as deep as the cars gathered there will need (Whitefish's
+  tracks are 1.2 to 2 km: as deep as the track allows, every move was
+  1.5 to 3.5 km). A block is set aside only where it shuts off neither the
+  siding, the cars still to fetch, the sidings of the wagon events to come
+  nor the way back to where the train started (whitefishydsw's locos were
+  boxed in before that).
+- **Tried** when the plain set-out finds no plan or one over 5 km, the
+  shorter kept: murder's sleeping car (now 4.9 km, was 6.2) and
+  local_one's set-out (0.2 km shorter) take the sorted plans.
+- **Pickups on the way:** a pickup whose cars an active drop-off wants is
+  planned after it; the drop-off's fetching brings them into the train,
+  and they fire then (yard_two's three pickups).
+- **Limits** (the user, 2026-10-21): a sorting goal is impractical beyond
+  20 reversals (every other goal 12) or 10 km more than the way there;
+  sorting gives up past 20 km or 40 reversals.
+- **Found on the way:** the route suite's `TSRE_SIM_PLAN` print planned on
+  the input with the work already applied (a different path); it now
+  plans from the input without it. When the work's first move runs the
+  whole path, the run ends with the work (no way back). The core ends a
+  train's run when its own cut-off cars stand on the rest of its last
+  part (it waited for them for good). `TSRE_SIM_YARD=<activity>` prints
+  the yard: the cuts and their cars in order, the player's train, the
+  wagon events and the tracks round them.
+- **Fixture:** `simulation-work` (23): a ladder yard, the two cars asked
+  for between others in a cut on one siding gathered on another, the car
+  between them set aside off the track leading there; the run fires the
+  drop-off and ends.
+- **Results** (the route suite): yard_two: dropoff 1/1, pickup 3/3,
+  success at 15:18:18 (the drop-off 6.2 km and 15 reversals, the pickups
+  on its moves). whitefishydsw: dropoff 6/7, assemble-at 1/1, success at
+  18:34:39 (drop-offs of 10.1 km and 18 reversals, 7.7 and 14, 6.9 and
+  15, 5.8 and 8, 5.4 and 7, one done by the others' moves; the 13 cars
+  for Whitefish Siding 529 skipped as impractical, 33 km: a block would
+  have to come to the cars gathered there the other way round). Of the 65
+  local activities 53 end in success and 12 never end, none in failure;
+  47 of the 48 wagon events fire. Nothing else changed.
+- **Planning time:** 3.7 s for whitefishydsw, on the main thread when its
+  simulation starts (0.15 s for yard_two).
+- **Left:** whitefishydsw's 13-car drop-off (a run-round for a delivery to
+  cars gathered); phase 6.
+
 ## Why
 
 Activities are made of trains that change: a train picks up cars and sets
@@ -621,6 +665,29 @@ core: for each work order of the 22 activities, whether a plan is found
 and how long it is, set against what the activity's briefing tells the
 player to do.
 
+**B7. Sorting** (after B1 to B5; the user, 2026-10-21: free space is all
+it needs; work with no simple solution is skipped and the run's log warns
+of it). A drop-off's cars gathered into one cut in its siding, in any
+order (the DropOff rule), from wherever they stand. Each time the
+cheapest of these moves is made:
+- a block at an end of the train (cars going to the same place, up to an
+  engine) taken where its cars are wanted: this drop-off's siding, or the
+  siding of a drop-off still to come; coupled to the cars gathered there
+  and cut off with them as one cut; only as deep into a long yard track
+  as all those cars will need;
+- a block no drop-off wants set aside on a track no train's path takes,
+  where it shuts off neither the siding, the cars still to fetch, the
+  sidings of the wagon events to come nor the way back to where the train
+  started;
+- with none of the cars in the train, a cut that has some fetched, the
+  cars beyond the last of them left where they stand.
+
+Each move takes cars out of the train or brings wanted ones in, so the
+search ends. It is tried when the plain set-out finds no plan, or one
+over 5 km long (the shorter kept). A pickup whose cars an active
+drop-off wants is planned after it: the drop-off's fetching brings them
+into the train, and the pickup fires then.
+
 ### Not in this task
 
 - AI trains doing work orders (the user's idea of 2026-10-17): the same
@@ -662,6 +729,11 @@ After B0:
 - A work order with no simple solution is skipped, and the run's log
   warns that it is impractical (overcomplicated work would not be fun for
   a player either).
+
+After B1 to B5:
+- Sorting first, then phase 6.
+- A sorting goal may take up to 20 reversals (each siding visited off a
+  ladder takes about two); every other goal keeps 12.
 
 Before:
 

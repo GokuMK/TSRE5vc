@@ -534,6 +534,11 @@ void SimulationCore::advance(int train, double from, double to) {
             if (kind == StopKind::Blocked && (ownCars || parted) && s.part + 1 < int(parts.size())) {
                 target = s.front;
                 kind = StopKind::Reversal;
+            } else if (kind == StopKind::Blocked && ownCars) {
+                // On its last part: its run ends there (the autopilot's work
+                // ending with cars set out).
+                target = s.front;
+                kind = StopKind::End;
             }
         }
 

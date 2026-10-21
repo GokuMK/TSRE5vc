@@ -14693,87 +14693,102 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>%1 (geo %2)</translation>
     </message>
     <message id="work.why.no.car">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="860"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="917"/>
         <source>car %1 is in no train or cut</source>
         <translation>car %1 is in no train or cut</translation>
     </message>
     <message id="work.why.no.way.to">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="904"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="961"/>
         <source>no way to %1</source>
         <translation>no way to %1</translation>
     </message>
     <message id="work.why.too.many">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="924"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="981"/>
         <source>too many cuts to take</source>
         <translation>too many cuts to take</translation>
     </message>
     <message id="work.why.no.siding">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="931"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="988"/>
         <source>the event has no siding</source>
         <translation>the event has no siding</translation>
     </message>
+    <message id="work.why.sort.long">
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1225"/>
+        <source>sorting given up after %1 km of moves and %2 reversals</source>
+        <translation>sorting given up after %1 km of moves and %2 reversals</translation>
+    </message>
+    <message id="work.why.sort.stuck">
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1288"/>
+        <source>sorting: no way on with %1 of the cars in the train</source>
+        <translation>sorting: no way on with %1 of the cars in the train</translation>
+    </message>
+    <message id="work.why.sort.moves">
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1295"/>
+        <source>sorting: more than %1 moves</source>
+        <translation>sorting: more than %1 moves</translation>
+    </message>
     <message id="work.why.not.in.train">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="959"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1305"/>
         <source>the cars are not in the train</source>
         <translation>the cars are not in the train</translation>
     </message>
     <message id="work.why.whole.train">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="968"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1314"/>
         <source>no way into the siding for the whole train</source>
         <translation>no way into the siding for the whole train</translation>
     </message>
     <message id="work.why.not.together">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="976"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1322"/>
         <source>the cars are not together in the train: sorting</source>
         <translation>the cars are not together in the train: sorting</translation>
     </message>
     <message id="work.why.no.engine">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="986"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1332"/>
         <source>no engine would be left in the train</source>
         <translation>no engine would be left in the train</translation>
     </message>
     <message id="work.why.leading">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="991"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1337"/>
         <source>no way into the siding with these cars leading, nor round them</source>
         <translation>no way into the siding with these cars leading, nor round them</translation>
     </message>
     <message id="work.why.middle">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1063"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1409"/>
         <source>no way to set out the cars from the middle of the train</source>
         <translation>no way to set out the cars from the middle of the train</translation>
     </message>
     <message id="work.why.siding">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1373"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1719"/>
         <source>no way into the siding</source>
         <translation>no way into the siding</translation>
     </message>
     <message id="work.why.assemble.together">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1393"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1739"/>
         <source>the cars asked for are not together in the train: sorting</source>
         <translation>the cars asked for are not together in the train: sorting</translation>
     </message>
     <message id="work.why.order">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1407"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1753"/>
         <source>the cars are in another order: car %1 asked for at place %2, car %3 there</source>
         <translation>the cars are in another order: car %1 asked for at place %2, car %3 there</translation>
     </message>
     <message id="work.why.assemble.middle">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1418"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1764"/>
         <source>the cars asked for are in the middle of the train</source>
         <translation>the cars asked for are in the middle of the train</translation>
     </message>
     <message id="work.why.impractical">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1458"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1805"/>
         <source>impractical: %1 km of moves (%2 km more than the way there), %3 reversals</source>
         <translation>impractical: %1 km of moves (%2 km more than the way there), %3 reversals</translation>
     </message>
     <message id="work.why.not.wagons">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1485"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1832"/>
         <source>not a wagon event</source>
         <translation>not a wagon event</translation>
     </message>
     <message id="work.why.never.active">
-        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="1755"/>
+        <location filename="../src/tsre/sim/WorkPlanner.cpp" line="2149"/>
         <source>never active in the event chain</source>
         <translation>never active in the event chain</translation>
     </message>

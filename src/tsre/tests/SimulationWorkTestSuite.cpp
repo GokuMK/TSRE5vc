@@ -91,6 +91,21 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
     layout.end(41, 37);
     layout.track(38, 36, 42, 20);
     layout.end(42, 38);
+    // A ladder: track end 60, the lead track 61 (500 m) to junction 62,
+    // its outputs siding A 63 (300 m, to track end 64) and track 65 (100 m)
+    // to junction 66, whose outputs are siding B 67 and siding C 69 (300 m
+    // each, to track ends 68 and 70).
+    layout.end(60, 61);
+    layout.track(61, 60, 62, 50);
+    layout.junction(62, 61, 63, 65);
+    layout.track(63, 62, 64, 30);
+    layout.end(64, 63);
+    layout.track(65, 62, 66, 10);
+    layout.junction(66, 65, 67, 69);
+    layout.track(67, 66, 68, 30);
+    layout.end(68, 67);
+    layout.track(69, 66, 70, 30);
+    layout.end(70, 69);
     TDB *db = &layout.db;
     const QScopedValueRollback<TDB *> live(Game::trackDB, db);
     const auto geometry = std::make_shared<const Sim::TrackGeometry>(db);
@@ -308,7 +323,9 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
     const auto told = [](const Ran &ran) {
         QStringList kinds;
         for (const Sim::TrainEvent &e : ran.events)
-            kinds << QString::number(int(e.kind));
+            kinds << (e.kind == Sim::TrainEvent::Blocked
+                              ? QString("%1(by %2 at %3 s)").arg(int(e.kind)).arg(e.index).arg(e.time, 0, 'f', 0)
+                              : QString::number(int(e.kind)));
         return QString("%1 parts, events %2").arg(ran.parts).arg(kinds.join(","));
     };
     {
@@ -423,6 +440,29 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
         check(plan.goals.size() == 2 && plan.goals[0].planned && plan.goals[1].planned && ran.fired && ran.ended && coupled
                       && cars == std::vector<unsigned int>({e1, a}),
               "the set-out beside a loose car, then the loose car taken from the other end: " + describe(plan) + "; " + told(ran));
+    }
+    // Sorting: the cars asked for between others in a cut on siding A,
+    // gathered on siding C (in any order); the car between them set aside
+    // where it does not shut C off (not on track 65), the car beyond them
+    // left in A.
+    {
+        const Sim::TrainRoute lead = routeOf({61, 50.0f}, {61, 400.0f});
+        const unsigned int u1 = a + 10, w1 = a + 11, u2 = a + 12, w2 = a + 13, u3 = a + 14;
+        const auto made = inputOf(lead, {car(20.0f, true, e1)}, {looseOn(63, 20.0f, {u1, w1, u2, w2, u3})},
+                                  {wagonEvent(Sim::EventPlan::DropOffWagonsAtLocation, {w1, w2}, 69)});
+        const Sim::WorkPlan plan = Sim::PlanWork(*made);
+        const Sim::WorkGoal *goal = plan.goals.empty() ? nullptr : &plan.goals[0];
+        bool gathered = false, apart = true;
+        for (const Sim::YardTrain &cut : plan.cuts) {
+            std::vector<unsigned int> ids = idsOf(cut.vehicles);
+            std::sort(ids.begin(), ids.end());
+            gathered = gathered || (ids == std::vector<unsigned int>({w1, w2}) && cut.track.front().node == 69);
+            for (const Sim::RouteInterval &interval : cut.track)
+                apart = apart && interval.node != 65;
+        }
+        check(goal != nullptr && goal->planned && gathered && apart, "sorting: the cars gathered on siding C: " + describe(plan));
+        const Ran ran = runWork(made, 0);
+        check(ran.fired && ran.ended, "run: the sorted cars on siding C fire the drop-off: " + told(ran));
     }
 
     qInfo().noquote() << QString("simulation-work: %1 passed, %2 failed").arg(passed).arg(failed);

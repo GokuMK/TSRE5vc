@@ -57,6 +57,8 @@ struct WorkGoal {
     // log warning of it).
     QString why;
     bool impractical = false;
+    // Its plan sorts (gathers cars from between others).
+    bool sorted = false;
     std::vector<WorkStep> steps;
     double metres = 0.0;
     int reversals = 0;

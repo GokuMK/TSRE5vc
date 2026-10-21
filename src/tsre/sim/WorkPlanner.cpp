@@ -25,6 +25,9 @@ constexpr double ReversalCost = 300.0;
 // too complicated would be no fun for a player either).
 constexpr double ImpracticalExtra = 10000.0;
 constexpr int ImpracticalReversals = 12;
+// Sorting may reverse more (the user, 2026-10-21: each siding visited off a
+// ladder takes about two).
+constexpr int ImpracticalSortReversals = 20;
 // What skipping a stop, a waiting point or an event's place on the path
 // weighs against metres driven in choosing where to come back to it.
 constexpr double SkipFeature = 5000.0;
@@ -34,6 +37,15 @@ constexpr double SkipFeature = 5000.0;
 constexpr size_t ParkingChoices = 6;
 constexpr double ParkingReach = 3000.0;
 constexpr double ParkingExtra = 3000.0;
+// Sorting: at most so many moves; given up beyond so many metres or
+// reversals (well past what is impractical); setting cars aside that are
+// wanted in a siding weighs so many metres more than taking them there.
+constexpr int SortMoves = 200;
+constexpr double SortGiveUp = 2.0 * ImpracticalExtra;
+constexpr int SortGiveUpReversals = 2 * ImpracticalSortReversals;
+constexpr double AsideWanted = 2000.0;
+// A drop-off's plan without sorting so long that sorting is tried too.
+constexpr double SortTried = 5000.0;
 constexpr double Eps = 1e-3;
 
 double lengthOf(const std::vector<RouteInterval> &track) {
@@ -161,7 +173,8 @@ QString carName(unsigned int car) {
 // given), a siding's stretch to stand in (the leading end in it, as deep in
 // as the track allows), a place (the path's end, come to the way given),
 // the path (anywhere on the rest of it, the way it goes). Which end must
-// lead (-1 either); the cut coupled to (not in the way).
+// lead (-1 either); the cut coupled to (not in the way). A siding: only so
+// deep in from its near end when `depth` is above 0.
 struct Target {
     enum Kind { Couple, Siding, Point, Path };
     Kind kind = Point;
@@ -172,6 +185,7 @@ struct Target {
     double to = 0.0;
     int lead = -1;
     int skip = -1;
+    double depth = 0.0;
 };
 
 struct Move {
@@ -351,18 +365,25 @@ private:
         YardTrain train;
         std::vector<YardTrain> cuts;
         bool lastLeadB;
+        std::vector<int> satisfied;
     };
-    Snapshot save() const { return Snapshot{train, cuts, lastLeadB}; }
+    Snapshot save() const { return Snapshot{train, cuts, lastLeadB, satisfied}; }
     void restore(const Snapshot &snapshot) {
         train = snapshot.train;
         cuts = snapshot.cuts;
         lastLeadB = snapshot.lastLeadB;
+        satisfied = snapshot.satisfied;
     }
+    // Pickups active while a goal is planned, and those whose cars were all
+    // in the train at once on its moves (they fire then: a drop-off's
+    // sorting fetches them).
+    std::vector<int> watching;
+    std::vector<int> satisfied;
     // A move kept in a goal (its metres and reversals counted) and made; a
     // move found to a target and kept.
     void keep(WorkGoal &goal, const Move &move, WorkStep::Action action, const QString &what, WorkStep &made);
     bool step(WorkGoal &goal, const Target &target, WorkStep::Action action, QString what, WorkStep &made);
-    Target sidingOf(const EventPlan &event, int lead) const;
+    Target sidingOf(const EventPlan &event, int lead, double depth = 0.0) const;
     Target endOf(int cut, bool atStart, int lead) const;
     // What goals to come want of a pickup: an assemble's order, the
     // drop-offs' cars at an end of the train that can lead into their
@@ -382,7 +403,7 @@ private:
     // that end first, or (`runRound`) after running the rest round them
     // (the cars left standing, the rest taken to their other end and
     // coupled, so that they lead the other way); the shorter.
-    bool setOutEnd(WorkGoal &goal, const EventPlan &event, size_t count, bool atB, bool runRound);
+    bool setOutEnd(WorkGoal &goal, const EventPlan &event, size_t count, bool atB, bool runRound, double depth = 0.0);
     bool assemble(WorkGoal &goal, const EventPlan &event, const Ahead &ahead);
     // Places to leave part of the train on its way to a target (with either
     // end leading, or the one given): short of the node ends on the way's
@@ -392,6 +413,33 @@ private:
     // them, between two of its parts: the train cut there, the part with an
     // engine to the cars and back.
     bool insert(WorkGoal &goal, const std::vector<unsigned int> &cars);
+    // Sorting (the user, 2026-10-21): a drop-off's cars gathered into one
+    // cut in its siding, in any order, from wherever they stand. Each time
+    // the cheapest of: a block at an end of the train (cars going to the
+    // same place, up to an engine) taken where its cars are wanted (this
+    // siding or a drop-off's to come, coupled to the cars gathered there
+    // and cut off with them) or set aside on a track no path takes; with
+    // none of the cars in the train, a cut with some fetched (the cars
+    // beyond the last of them left where they stand).
+    struct Block {
+        size_t count = 0;
+        const EventPlan *to = nullptr;
+    };
+    Block endBlock(bool atB, const std::vector<const EventPlan *> &drops) const;
+    // The cut in an event's siding of its cars only (the largest), -1; the
+    // length of the listed cars, wherever they are.
+    int gathered(const EventPlan &event) const;
+    double carsLengthOf(const std::vector<unsigned int> &cars) const;
+    bool deliver(WorkGoal &goal, const EventPlan &to, size_t count, bool atB);
+    bool putAside(WorkGoal &goal, size_t count, bool atB, const EventPlan &event);
+    bool fetch(WorkGoal &goal, int cut, bool atStart, int lead, const EventPlan &event);
+    // The event's siding (or the cars gathered there), every other cut
+    // with its cars, the sidings of the wagon events to come and where the
+    // train started reached from where the train stands.
+    bool reachesRest(const EventPlan &event) const;
+    std::vector<const EventPlan *> pendingSidings;
+    Target started;
+    bool sort(WorkGoal &goal, const EventPlan &event, const Ahead &ahead);
     void finish(WorkGoal &goal, WorkStep &&made);
     int trainIndex(unsigned int car) const;
     int cutOf(unsigned int car) const;
@@ -493,6 +541,8 @@ Move Planner::route(const Target &target) const {
                 const bool buffer = hit < 0 && exits(s.node, s.forward).empty();
                 const double stop = hit >= 0 || buffer ? limit + (s.forward ? -StandOff : StandOff) : limit;
                 x = s.forward ? std::min(target.to, stop) : std::max(target.from, stop);
+                if (target.depth > 0.0)
+                    x = s.forward ? std::min(x, target.from + target.depth) : std::max(x, target.to - target.depth);
                 ok = s.forward ? x >= target.from + 1.0 && x >= s.start - Eps : x <= target.to - 1.0 && x <= s.start + Eps;
             }
             if (ok && cost + std::fabs(x - s.start) < foundCost) {
@@ -720,9 +770,10 @@ bool Planner::step(WorkGoal &goal, const Target &target, WorkStep::Action action
     return true;
 }
 
-Target Planner::sidingOf(const EventPlan &event, int lead) const {
+Target Planner::sidingOf(const EventPlan &event, int lead, double depth) const {
     Target target;
     target.kind = Target::Siding;
+    target.depth = depth;
     target.node = event.sidingNode;
     target.from = std::min(event.sidingFrom, event.sidingTo);
     target.to = std::max(event.sidingFrom, event.sidingTo);
@@ -842,6 +893,15 @@ void Planner::finish(WorkGoal &goal, WorkStep &&made) {
     if (made.action == WorkStep::Cut)
         ++goal.cuts;
     goal.steps.push_back(std::move(made));
+    for (int e : watching) {
+        if (e == goal.event || std::find(satisfied.begin(), satisfied.end(), e) != satisfied.end())
+            continue;
+        bool all = true;
+        for (unsigned int car : in.events[size_t(e)].cars)
+            all = all && trainIndex(car) >= 0;
+        if (all)
+            satisfied.push_back(e);
+    }
 }
 
 bool Planner::pickUp(WorkGoal &goal, const std::vector<unsigned int> &cars, const Ahead &ahead) {
@@ -943,11 +1003,301 @@ bool Planner::setOut(WorkGoal &goal, const EventPlan &event, const Ahead &ahead)
     }
     // Cars not in the train picked up first, so that they can lead into
     // the siding.
+    const Snapshot before = save();
+    const WorkGoal savedGoal = goal;
     Ahead mine = ahead;
     mine.drops.insert(mine.drops.begin(), &event);
-    if (!pickUp(goal, event.cars, mine))
+    const bool simple = pickUp(goal, event.cars, mine) && setOutBlock(goal, event, event.cars);
+    if (simple && goal.metres - savedGoal.metres <= SortTried)
+        return true;
+    // Else sorted, from the yard as it was (the shorter kept).
+    const QString why = goal.why;
+    const WorkGoal simpleGoal = goal;
+    const Snapshot simpleYard = save();
+    restore(before);
+    goal = savedGoal;
+    if (sort(goal, event, ahead)) {
+        if (!simple || goal.metres + ReversalCost * goal.reversals
+                        <= simpleGoal.metres + ReversalCost * simpleGoal.reversals) {
+            goal.sorted = true;
+            return true;
+        }
+    } else if (!simple) {
+        if (goal.why.isEmpty())
+            goal.why = why;
         return false;
-    return setOutBlock(goal, event, event.cars);
+    }
+    goal = simpleGoal;
+    restore(simpleYard);
+    return true;
+}
+
+Planner::Block Planner::endBlock(bool atB, const std::vector<const EventPlan *> &drops) const {
+    Block block;
+    const std::vector<Vehicle> &vehicles = train.vehicles;
+    const size_t n = vehicles.size();
+    const auto at = [&](size_t k) -> const Vehicle & { return atB ? vehicles[n - 1 - k] : vehicles[k]; };
+    const auto destination = [&](unsigned int car) -> const EventPlan * {
+        for (const EventPlan *drop : drops)
+            if (listed(drop->cars, car))
+                return drop;
+        return nullptr;
+    };
+    if (n == 0 || engine(at(0)))
+        return block;
+    block.to = destination(at(0).id);
+    while (block.count < n && !engine(at(block.count)) && destination(at(block.count).id) == block.to)
+        ++block.count;
+    return block;
+}
+
+double Planner::carsLengthOf(const std::vector<unsigned int> &cars) const {
+    double length = 0.0;
+    const auto add = [&](const std::vector<Vehicle> &vehicles) {
+        for (const Vehicle &vehicle : vehicles)
+            length += listed(cars, vehicle.id) ? vehicle.length : 0.0;
+    };
+    add(train.vehicles);
+    for (const YardTrain &cut : cuts)
+        add(cut.vehicles);
+    return length;
+}
+
+int Planner::gathered(const EventPlan &event) const {
+    int best = -1;
+    for (size_t c = 0; c < cuts.size(); ++c) {
+        bool only = !cuts[c].vehicles.empty();
+        for (const Vehicle &vehicle : cuts[c].vehicles)
+            only = only && listed(event.cars, vehicle.id);
+        if (only && inSiding(cuts[c], event) && (best < 0 || cuts[c].vehicles.size() > cuts[size_t(best)].vehicles.size()))
+            best = int(c);
+    }
+    return best;
+}
+
+bool Planner::deliver(WorkGoal &goal, const EventPlan &to, size_t count, bool atB) {
+    const int there = gathered(to);
+    // In only as far as all its cars will need (a long yard track).
+    if (there < 0)
+        return setOutEnd(goal, to, count, atB, false, carsLengthOf(to.cars) + Margin);
+    // Coupled to the cars gathered there at their open end, cut off with
+    // them as one.
+    Move best;
+    bool bestStart = true;
+    for (bool atStart : {true, false}) {
+        const Move move = route(endOf(there, atStart, atB ? 1 : 0));
+        if (move.found && (!best.found || move.metres + ReversalCost * double(move.legs.size())
+                                                  < best.metres + ReversalCost * double(best.legs.size()))) {
+            best = move;
+            bestStart = atStart;
+        }
+    }
+    if (!best.found)
+        return false;
+    const size_t gatheredCars = cuts[size_t(there)].vehicles.size();
+    WorkStep made;
+    made.cars = int(gatheredCars);
+    keep(goal, best, WorkStep::Couple, QString("%1 cars to the %2 gathered").arg(count).arg(gatheredCars), made);
+    couple(there, bestStart, lastLeadB);
+    finish(goal, std::move(made));
+    WorkStep cut;
+    cut.action = WorkStep::Cut;
+    cut.cars = int(count + gatheredCars);
+    cut.atB = lastLeadB;
+    cut.what = QString("leave the %1 cars").arg(count + gatheredCars);
+    cutOff(count + gatheredCars, lastLeadB);
+    finish(goal, std::move(cut));
+    return true;
+}
+
+bool Planner::reachesRest(const EventPlan &event) const {
+    const auto reaches = [&](int cut) {
+        return route(endOf(cut, true, -1)).found || route(endOf(cut, false, -1)).found;
+    };
+    const int there = gathered(event);
+    if (there >= 0 ? !reaches(there) : !route(sidingOf(event, -1)).found)
+        return false;
+    for (size_t c = 0; c < cuts.size(); ++c) {
+        if (int(c) == there)
+            continue;
+        bool has = false;
+        for (const Vehicle &vehicle : cuts[c].vehicles)
+            has = has || listed(event.cars, vehicle.id);
+        if (has && !reaches(int(c)))
+            return false;
+    }
+    for (const EventPlan *other : pendingSidings)
+        if (other != &event && gathered(*other) < 0 && !route(sidingOf(*other, -1)).found)
+            return false;
+    if (started.node >= 0) {
+        Target back = started;
+        if (!route(back).found) {
+            back.forward = !back.forward;
+            if (!route(back).found)
+                return false;
+        }
+    }
+    return true;
+}
+
+bool Planner::putAside(WorkGoal &goal, size_t count, bool atB, const EventPlan &event) {
+    const size_t n = train.vehicles.size();
+    const double need = atB ? carsLength(train.vehicles, n - count, n) : carsLength(train.vehicles, 0, count);
+    const Snapshot start = save();
+    const WorkGoal savedGoal = goal;
+    WorkGoal bestGoal;
+    Snapshot bestYard = start;
+    bool found = false;
+    for (int node : parkings(need)) {
+        EventPlan siding;
+        siding.siding = true;
+        siding.sidingNode = node;
+        siding.sidingFrom = 0.0f;
+        siding.sidingTo = float(nodeLength(node));
+        if (setOutEnd(goal, siding, count, atB, false, need + Margin) && !onBusy(cuts.back().track) && reachesRest(event)) {
+            goal.steps.back().what = QString("set %1 cars aside").arg(count);
+            const double cost = goal.metres + ReversalCost * goal.reversals;
+            if (!found || cost < bestGoal.metres + ReversalCost * bestGoal.reversals) {
+                found = true;
+                bestGoal = goal;
+                bestYard = save();
+            }
+        }
+        restore(start);
+        goal = savedGoal;
+    }
+    if (!found)
+        return false;
+    goal = bestGoal;
+    restore(bestYard);
+    return true;
+}
+
+bool Planner::fetch(WorkGoal &goal, int cut, bool atStart, int lead, const EventPlan &event) {
+    const std::vector<Vehicle> &vehicles = cuts[size_t(cut)].vehicles;
+    const size_t n = vehicles.size();
+    // The cars beyond the last asked for, seen from the end coupled to.
+    size_t beyond = 0;
+    for (size_t k = 0; k < n; ++k) {
+        const size_t index = atStart ? n - 1 - k : k;
+        if (listed(event.cars, vehicles[index].id))
+            break;
+        ++beyond;
+    }
+    const QString name = cuts[size_t(cut)].name;
+    WorkStep made;
+    if (!step(goal, endOf(cut, atStart, lead), WorkStep::Couple, QString("couple to %1 (%2 cars)").arg(name).arg(n), made))
+        return false;
+    made.cars = int(n);
+    couple(cut, atStart, lastLeadB);
+    finish(goal, std::move(made));
+    if (beyond > 0) {
+        WorkStep left;
+        left.action = WorkStep::Cut;
+        left.cars = int(beyond);
+        left.atB = lastLeadB;
+        left.what = QString("leave %1 cars not asked for").arg(beyond);
+        cutOff(beyond, lastLeadB);
+        finish(goal, std::move(left));
+    }
+    return true;
+}
+
+bool Planner::sort(WorkGoal &goal, const EventPlan &event, const Ahead &ahead) {
+    std::vector<const EventPlan *> drops{&event};
+    for (const EventPlan *drop : ahead.drops)
+        if (drop != &event && drop->siding && drop->sidingNode >= 0)
+            drops.push_back(drop);
+    struct Option {
+        enum Kind { Deliver, Aside, Fetch };
+        Kind kind;
+        bool atB;
+        size_t count;
+        const EventPlan *to;
+        int cut;
+        bool atStart;
+        int lead;
+    };
+    for (int moves = 0; moves < SortMoves; ++moves) {
+        // Done: the cars in one cut in the siding.
+        const int there = gathered(event);
+        if (there >= 0 && cuts[size_t(there)].vehicles.size() == event.cars.size())
+            return true;
+        if (goal.metres > SortGiveUp || goal.reversals > SortGiveUpReversals) {
+            goal.impractical = true;
+            //% "sorting given up after %1 km of moves and %2 reversals"
+            goal.why = qtTrId("work.why.sort.long").arg(goal.metres / 1000.0, 0, 'f', 1).arg(goal.reversals);
+            return false;
+        }
+        size_t inTrain = 0;
+        for (unsigned int car : event.cars)
+            inTrain += trainIndex(car) >= 0 ? 1 : 0;
+        std::vector<Option> options;
+        if (inTrain > 0) {
+            for (bool atB : {true, false}) {
+                const Block block = endBlock(atB, drops);
+                if (block.count == 0)
+                    continue;
+                if (block.to != nullptr)
+                    options.push_back(Option{Option::Deliver, atB, block.count, block.to, -1, true, -1});
+                if (block.to != &event)
+                    options.push_back(Option{Option::Aside, atB, block.count, block.to, -1, true, -1});
+            }
+        } else {
+            for (size_t c = 0; c < cuts.size(); ++c) {
+                bool has = false;
+                for (const Vehicle &vehicle : cuts[c].vehicles)
+                    has = has || listed(event.cars, vehicle.id);
+                if (!has || int(c) == there)
+                    continue;
+                for (bool atStart : {true, false})
+                    for (int lead : {1, 0})
+                        options.push_back(Option{Option::Fetch, true, 0, nullptr, int(c), atStart, lead});
+            }
+        }
+        const Snapshot before = save();
+        const WorkGoal savedGoal = goal;
+        const double was = goal.metres + ReversalCost * goal.reversals;
+        bool found = false;
+        double bestCost = 0.0;
+        WorkGoal bestGoal;
+        Snapshot bestYard = before;
+        for (const Option &option : options) {
+            bool done = false;
+            double extra = 0.0;
+            switch (option.kind) {
+            case Option::Deliver:
+                done = deliver(goal, *option.to, option.count, option.atB);
+                break;
+            case Option::Aside:
+                done = putAside(goal, option.count, option.atB, event);
+                extra = option.to != nullptr ? AsideWanted : 0.0;
+                break;
+            case Option::Fetch:
+                done = fetch(goal, option.cut, option.atStart, option.lead, event);
+                break;
+            }
+            const double cost = goal.metres + ReversalCost * goal.reversals - was + extra;
+            if (done && (!found || cost < bestCost)) {
+                found = true;
+                bestCost = cost;
+                bestGoal = goal;
+                bestYard = save();
+            }
+            restore(before);
+            goal = savedGoal;
+        }
+        if (!found) {
+            //% "sorting: no way on with %1 of the cars in the train"
+            goal.why = qtTrId("work.why.sort.stuck").arg(inTrain);
+            return false;
+        }
+        goal = bestGoal;
+        restore(bestYard);
+    }
+    //% "sorting: more than %1 moves"
+    goal.why = qtTrId("work.why.sort.moves").arg(SortMoves);
+    return false;
 }
 
 bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vector<unsigned int> &cars) {
@@ -1064,7 +1414,7 @@ bool Planner::setOutBlock(WorkGoal &goal, const EventPlan &event, const std::vec
     return false;
 }
 
-bool Planner::setOutEnd(WorkGoal &goal, const EventPlan &event, size_t count, bool atB, bool runRound) {
+bool Planner::setOutEnd(WorkGoal &goal, const EventPlan &event, size_t count, bool atB, bool runRound, double depth) {
     const Snapshot start = save();
     const WorkGoal savedGoal = goal;
     WorkGoal bestGoal;
@@ -1080,7 +1430,7 @@ bool Planner::setOutEnd(WorkGoal &goal, const EventPlan &event, size_t count, bo
     };
     const auto setOut = [&](bool b) {
         WorkStep made;
-        if (!step(goal, sidingOf(event, b ? 1 : 0), WorkStep::Cut, QString("set out %1 cars").arg(count), made))
+        if (!step(goal, sidingOf(event, b ? 1 : 0, depth), WorkStep::Cut, QString("set out %1 cars").arg(count), made))
             return false;
         made.cars = int(count);
         made.atB = b;
@@ -1451,7 +1801,8 @@ WorkGoal Planner::goalFor(int e, const Ahead &ahead) {
     const EventPlan &event = in.events[size_t(e)];
     const double direct = wayTo(event);
     WorkGoal goal = planGoal(e, ahead);
-    if (goal.planned && (goal.metres - direct > ImpracticalExtra || goal.reversals > ImpracticalReversals)) {
+    const int maxReversals = goal.sorted ? ImpracticalSortReversals : ImpracticalReversals;
+    if (goal.planned && (goal.metres - direct > ImpracticalExtra || goal.reversals > maxReversals)) {
         goal.planned = false;
         goal.impractical = true;
         //% "impractical: %1 km of moves (%2 km more than the way there), %3 reversals"
@@ -1507,6 +1858,12 @@ WorkPlan Planner::plan() {
     train.name = player->service;
     train.track = tailOf(headOf(whole, player->startFront), player->length);
     train.vehicles = turned(player->vehicles);
+    if (!train.track.empty()) {
+        started.kind = Target::Point;
+        started.node = train.track.back().node;
+        started.x = train.track.back().to;
+        started.forward = train.track.back().forward();
+    }
     for (const StaticConsist &consist : in.staticConsists) {
         YardTrain cut;
         cut.name = consist.name;
@@ -1586,14 +1943,34 @@ WorkPlan Planner::plan() {
         // Tried first: goals whose outcomes take no other active goal's level
         // down (one that does goes after it); one ending the activity in
         // success last.
+        // A pickup whose cars an active drop-off wants too goes after it:
+        // that one's moves bring them into the train.
         const auto rank = [&](int e) {
             const EventPlan &event = in.events[size_t(e)];
             int kills = 0;
             for (int k : event.decrease)
                 kills += std::find(active.begin(), active.end(), k) != active.end() ? 1 : 0;
-            return (event.success ? 2 : 0) + (kills > 0 ? 1 : 0);
+            bool covered = false;
+            if (event.kind == EventPlan::PickUpWagons)
+                for (int other : active) {
+                    const EventPlan &drop = in.events[size_t(other)];
+                    bool all = drop.kind == EventPlan::DropOffWagonsAtLocation;
+                    for (unsigned int car : event.cars)
+                        all = all && listed(drop.cars, car);
+                    covered = covered || all;
+                }
+            return (covered ? 4 : 0) + (event.success ? 2 : 0) + (kills > 0 ? 1 : 0);
         };
         std::stable_sort(active.begin(), active.end(), [&](int a, int b) { return rank(a) < rank(b); });
+        watching.clear();
+        for (int e : active)
+            if (in.events[size_t(e)].kind == EventPlan::PickUpWagons)
+                watching.push_back(e);
+        pendingSidings.clear();
+        for (size_t e = 0; e < in.events.size(); ++e)
+            if (!fired[e] && !in.events[e].cars.empty() && in.events[e].siding && in.events[e].sidingNode >= 0)
+                pendingSidings.push_back(&in.events[e]);
+        satisfied.clear();
         const Snapshot before = save();
         int chosen = -1, failedFirst = -1;
         WorkGoal chosenGoal, failedGoal;
@@ -1626,6 +2003,22 @@ WorkPlan Planner::plan() {
             chosen = failedFirst;
             chosenGoal = failedGoal;
         }
+        // Pickups its moves did on the way: done then, before it.
+        if (chosenGoal.planned)
+            for (int e : satisfied)
+                if (e != chosen && !fired[size_t(e)]) {
+                    WorkGoal done;
+                    done.event = e;
+                    done.name = in.events[size_t(e)].name;
+                    done.kind = in.events[size_t(e)].kind;
+                    done.cars = int(in.events[size_t(e)].cars.size());
+                    done.planned = true;
+                    done.why = QString("done on the moves of %1").arg(chosenGoal.name);
+                    out.goals.push_back(done);
+                    fire(e);
+                }
+        watching.clear();
+        satisfied.clear();
         out.goals.push_back(chosenGoal);
         fire(chosen);
     }
@@ -1651,6 +2044,11 @@ WorkPlan Planner::plan() {
     out.cuts = cuts;
     const bool wasB = lastLeadB;
     pathFrom(*player, out.departure);
+    // The first move ran the whole path: the run ends with the work.
+    if (player->route.parts.size() == 1 && out.departure >= player->route.parts.front().length() - 0.5) {
+        out.back = 0.0;
+        return out;
+    }
     Target back;
     back.kind = Target::Path;
     Move move = route(back);

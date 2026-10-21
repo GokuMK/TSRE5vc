@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
+#include <set>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -2304,6 +2305,88 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 }
             }
         }
+        // TSRE_SIM_YARD=<activity> (temporary, sorting design): the yard.
+        if (input != nullptr && activity->name.compare(qEnvironmentVariable("TSRE_SIM_YARD"), Qt::CaseInsensitive) == 0
+                && input->network != nullptr) {
+            const Sim::TrackNetwork &net = *input->network;
+            const auto car = [](unsigned int id) { return QString("%1-%2").arg(id / 65536u).arg(id % 65536u); };
+            const auto length = [&](int node) {
+                const auto [first, count] = net.nodeSections(node);
+                return count > 0 ? net.sections()[size_t(first + count - 1)].to : 0.0f;
+            };
+            std::set<int> nodes;
+            for (const Sim::StaticConsist &c : input->staticConsists) {
+                QStringList ids, track;
+                for (const Sim::Vehicle &v : c.vehicles)
+                    ids << car(v.id) + (v.type >= 4 ? "E" : "");
+                for (const Sim::RouteInterval &iv : c.track) {
+                    track << QString("%1:%2-%3").arg(iv.node).arg(iv.from, 0, 'f', 0).arg(iv.to, 0, 'f', 0);
+                    nodes.insert(iv.node);
+                }
+                qInfo().noquote() << "[yard] consist" << c.name << c.vehicles.size() << "cars" << QString::number(c.length, 'f', 0)
+                                  << "m on" << track.join(" ") << "|" << ids.join(" ");
+            }
+            for (const Sim::TrainPlan &t : input->trains)
+                if (t.player) {
+                    QStringList ids;
+                    for (const Sim::Vehicle &v : t.vehicles)
+                        ids << car(v.id) + (v.type >= 4 ? "E" : "");
+                    QStringList track;
+                    for (const Sim::RouteInterval &iv : t.route.parts.front().intervals()) {
+                        track << QString("%1:%2-%3").arg(iv.node).arg(iv.from, 0, 'f', 0).arg(iv.to, 0, 'f', 0);
+                        nodes.insert(iv.node);
+                    }
+                    qInfo().noquote() << "[yard] player" << t.vehicles.size() << "cars, front first:" << ids.join(" ")
+                                      << "| start front" << t.startFront << "| part 0:" << track.join(" ");
+                }
+            for (const Sim::EventPlan &e : input->events) {
+                if (e.cars.empty())
+                    continue;
+                QStringList ids;
+                for (unsigned int id : e.cars)
+                    ids << car(id);
+                qInfo().noquote() << "[yard] event" << e.index << int(e.kind) << e.name << "| level" << e.activation << "| siding"
+                                  << (e.siding ? QString("%1:%2-%3").arg(e.sidingNode).arg(e.sidingFrom, 0, 'f', 0).arg(e.sidingTo, 0, 'f', 0)
+                                               : QString("-"))
+                                  << "| act" << e.activate.size() << "inc" << e.increase.size() << "dec" << e.decrease.size() << "succ" << e.success
+                                  << "|" << ids.join(" ");
+                if (e.siding)
+                    nodes.insert(e.sidingNode);
+            }
+            // Two hops round them.
+            for (int hop = 0; hop < 2; ++hop) {
+                std::set<int> more = nodes;
+                for (int node : nodes)
+                    for (int end : {0, 1}) {
+                        const int j = net.endSection(node, end);
+                        if (j < 0 || net.sections()[size_t(j)].kind != Sim::TrackSection::Junction)
+                            continue;
+                        for (int pin : {0, 1, 2}) {
+                            const int t = net.sections()[size_t(j)].link[pin];
+                            if (t >= 0)
+                                more.insert(net.sections()[size_t(t)].node);
+                        }
+                    }
+                nodes = more;
+            }
+            for (int node : nodes) {
+                QStringList ends;
+                for (int end : {0, 1}) {
+                    const int j = net.endSection(node, end);
+                    if (j < 0 || net.sections()[size_t(j)].kind != Sim::TrackSection::Junction) {
+                        ends << QString("end%1: buffer").arg(end);
+                        continue;
+                    }
+                    const Sim::TrackSection &js = net.sections()[size_t(j)];
+                    QStringList pins;
+                    for (int pin : {0, 1, 2})
+                        pins << (js.link[pin] >= 0 ? QString::number(net.sections()[size_t(js.link[pin])].node) : QString("-"));
+                    ends << QString("end%1: J%2 pin%3 [in %4 | %5 %6]").arg(end).arg(js.node).arg(net.endPin(node, end))
+                                .arg(pins[0], pins[1], pins[2]);
+                }
+                qInfo().noquote() << "[yard] node" << node << QString::number(length(node), 'f', 0) << "m |" << ends.join(" | ");
+            }
+        }
         // TSRE_SIM_PLAN (task 07, phase B0): the player's work orders as the
         // planner would do them, with the activity's briefing.
         // (TSRE_SIM_PLAN=<activity file name>: that activity only.)
@@ -2314,9 +2397,12 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
             for (const Sim::EventPlan &e : input->events)
                 wagons = wagons || !e.cars.empty();
             if (wagons) {
+                // (From the input as it is before the work is applied.)
+                const auto plain = Sim::MakeInput(activity, &database, speedLimit, geometry, network,
+                                                  content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f, false);
                 QElapsedTimer planning;
                 planning.start();
-                const Sim::WorkPlan plan = Sim::PlanWork(*input);
+                const Sim::WorkPlan plan = Sim::PlanWork(plain != nullptr ? *plain : *input);
                 const qint64 ms = planning.elapsed();
                 QString briefing = activity->header != nullptr ? activity->header->briefing : QString();
                 briefing.replace("\\n", " / ").replace('\n', " / ");
