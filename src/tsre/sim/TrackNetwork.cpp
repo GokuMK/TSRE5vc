@@ -74,12 +74,11 @@ SignalKind kindOf(const SignalType &type, const SigCfg *config, bool openRailsCo
     return kind;
 }
 
-// A file in a folder by name, in any letter case; empty for none.
+// A file in a folder by its name as spelled; empty for none (content in
+// another letter case is for the content-case converter).
 QString fileIn(const QString &folder, const QString &name) {
-    for (const QFileInfo &file : QDir(folder).entryInfoList(QDir::Files))
-        if (file.fileName().compare(name, Qt::CaseInsensitive) == 0)
-            return file.filePath();
-    return QString();
+    const QString path = folder + "/" + name;
+    return QFileInfo(path).isFile() ? path : QString();
 }
 
 double wrap(double angle) {

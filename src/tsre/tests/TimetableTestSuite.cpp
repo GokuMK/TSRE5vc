@@ -214,31 +214,37 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
     }
 
     // The check: a path and a consist not there, a command not run yet, a
-    // train referred to that is not in it; a path cell naming the file, or
-    // ending in a '.', is the path (Open Rails adds ".pat" where there is no
-    // extension).
+    // train referred to that is not in it. A path by the route's path names
+    // as the simulation finds it (in any case; a cell naming the file, or
+    // ending in a '.', is the path: Open Rails adds ".pat" where there is no
+    // extension); a consist by its file's name as spelled (C2.con is not
+    // c2: another case is for the content-case converter).
     {
         QDir root(dir.path());
-        root.mkpath("route/Paths");
-        root.mkpath("trains/consists");
-        writeFile(dir.filePath("route/Paths/p1.pat"), "x", Encoding::Utf8);
-        writeFile(dir.filePath("trains/consists/C1.con"), "x", Encoding::Utf8);
+        root.mkpath("route/PATHS");
+        root.mkpath("TRAINS/CONSISTS");
+        writeFile(dir.filePath("route/PATHS/p1.pat"), QString(pathText).arg("p1"), Encoding::Utf16);
+        writeFile(dir.filePath("TRAINS/CONSISTS/c1.con"), "x", Encoding::Utf8);
+        writeFile(dir.filePath("TRAINS/CONSISTS/C2.con"), "x", Encoding::Utf8);
+        const int path = ActLib::AddPath(dir.filePath("route/PATHS"), "p1.pat");
         const QString file = dir.filePath("check.timetable-or");
         writeFile(file,
-                  ";T1;T2;T3;T4\n#path;p1;p9;P1.pat;p1.\n#consist;c1;c1 + c9;c1;c1\n#start;05:00;06:00;07:00;08:00\n"
+                  ";T1;T2;T3;T4\n#path;p1;p9;P1.pat;p1.\n#consist;c1;c1 + c9;c1;c2\n#start;05:00;06:00;07:00;08:00\n"
                   "#note;$attach=T1;$follow=T7\n",
                   Encoding::Utf8);
         OrTimetable c;
         c.load(file);
-        const QVector<OrTimetableProblem> found = CheckTimetable(c, dir.filePath("route"),
-                                                                 OrTimetable::FindPath(dir.path(), "TRAINS/CONSISTS"), nullptr);
+        const QVector<OrTimetableProblem> found
+                = CheckTimetable(c, dir.filePath("route"), dir.filePath("TRAINS/CONSISTS"), nullptr);
         QStringList texts;
         for (const OrTimetableProblem &p : found)
             texts << p.train + ": " + p.text;
-        check(found.size() == 4 && texts.join("\n").contains("path p9") && texts.join("\n").contains("consist c9")
-                  && texts.join("\n").contains("$attach") && texts.join("\n").contains("t7")
-                  && c.trains.size() == 4 && c.trains[2].pathName() == "P1" && c.trains[3].pathName() == "p1",
-              "the check (folders' case not minded, P1.pat and p1. the path p1): " + texts.join("; "));
+        check(found.size() == 5 && texts.join("\n").contains("path p9") && texts.join("\n").contains("consist c9")
+                  && texts.join("\n").contains("T4: consist c2") && texts.join("\n").contains("$attach")
+                  && texts.join("\n").contains("t7") && c.trains.size() == 4 && c.trains[2].pathName() == "P1"
+                  && c.trains[3].pathName() == "p1",
+              "the check (P1.pat and p1. the path p1, consist c2 not C2.con): " + texts.join("; "));
+        ActLib::Paths[path] = nullptr;
     }
 
     // A timetable set as an activity (phase 2): its name the timetable's
@@ -307,14 +313,23 @@ int TsreTests::runTimetableRouteSuite(bool verbose) {
     database.loadTdb();
     if (!database.loaded)
         return 1;
-    const QString folder = OrTimetable::FindPath(routeDirectory, "ACTIVITIES/OPENRAILS");
-    const QString consists = OrTimetable::FindPath(Game::root, "TRAINS/CONSISTS");
+    const QString folder = routeDirectory + "/ACTIVITIES/OPENRAILS";
+    const QString consists = Game::root + "/TRAINS/CONSISTS";
+    // The route's paths, as the editor loads them, for the check.
+    const int firstPath = ActLib::jestpath;
+    for (const QString &entry : QDir(routeDirectory + "/PATHS").entryList({"*.pat"}, QDir::Files))
+        ActLib::AddPath(routeDirectory + "/PATHS", entry);
     QStringList files;
     for (const QString &entry : QDir(folder).entryList(QDir::Files))
         if (entry.endsWith(".timetable-or", Qt::CaseInsensitive) || entry.endsWith(".timetable_or", Qt::CaseInsensitive))
             files << entry;
+    const auto forgetPaths = [&] {
+        for (int id = firstPath; id < ActLib::jestpath; ++id)
+            ActLib::Paths[id] = nullptr;
+    };
     if (files.isEmpty()) {
         qInfo().noquote() << "[tests:timetable-route] the route has no Open Rails timetables";
+        forgetPaths();
         return 0;
     }
     check(true, QString("%1 timetables in %2").arg(files.size()).arg(folder));
@@ -350,6 +365,7 @@ int TsreTests::runTimetableRouteSuite(bool verbose) {
             for (const OrTimetableProblem &p : problems)
                 qInfo().noquote() << "[timetable]     " << (p.train.isEmpty() ? QString("-") : p.train) << ":" << p.text;
     }
+    forgetPaths();
     qInfo().noquote() << QString("timetable-route: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }

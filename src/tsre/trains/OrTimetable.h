@@ -121,11 +121,10 @@ public:
     // A file's text as Open Rails' StreamReader decodes it: the byte order
     // mark's encoding, else UTF-8.
     static QString Decode(const QByteArray &bytes);
-    // A folder under `base` by its relative path, each name's case not
-    // minded (Open Rails content made on Windows: OR_PSK has both TRAINS
-    // and Trains, the consists in the second); the variant holding the rest
-    // of the path first. Empty when there is none.
-    static QString FindPath(const QString &base, const QString &relative);
+    // A consist's file name as written in a consist cell, ".con" added
+    // where the cell has no extension (opened as spelled, content with
+    // another letter case is for the content-case converter).
+    static QString ConsistFile(const QString &name);
 };
 
 // A timetable group (`.timetablelist-or`): its name (the first line after
@@ -140,8 +139,9 @@ struct OrTimetableGroup {
 // What a timetable asks that the route or TSRE cannot give (task 08's
 // check): paths and consists not there, stations no platform has, trains
 // referred to that are not in it, commands TSRE does not run yet, timings
-// it cannot read. `routeDirectory` holds PATHS; `consistDirectory` the
-// .con files; `tdb` the route's platforms (none: stations not checked).
+// it cannot read. Paths by name among the route's paths ActLib holds (as
+// the simulation finds them); `consistDirectory` the .con files, by their
+// exact names; `tdb` the route's platforms (none: stations not checked).
 struct OrTimetableProblem {
     QString train;
     QString text;

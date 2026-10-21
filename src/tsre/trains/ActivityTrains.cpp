@@ -104,7 +104,7 @@ namespace {
 QVector<Train> timetableTrains(Activity *activity) {
     QVector<Train> trains;
     const QString routeDirectory = ActivityTrains::RouteDirectory(activity);
-    const QString consists = OrTimetable::FindPath(Game::root, "TRAINS/CONSISTS");
+    const QString consists = Game::root + "/TRAINS/CONSISTS";
     for (int t = 0; t < int(activity->timetables.size()); ++t) {
         const OrTimetable &timetable = *activity->timetables[size_t(t)];
         const QVector<OrTimetableProblem> problems = CheckTimetable(timetable, routeDirectory, consists, Game::trackDB);

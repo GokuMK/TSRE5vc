@@ -728,7 +728,7 @@ std::vector<RouteInterval> standingTrack(TDB *tdb, Path *path, double length) {
 
 void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
     const QString routeDirectory = ActivityTrains::RouteDirectory(set);
-    const QString consists = OrTimetable::FindPath(Game::root, "TRAINS/CONSISTS");
+    const QString consists = Game::root + "/TRAINS/CONSISTS";
     int traffic = 0;
     for (const std::shared_ptr<OrTimetable> &timetable : set->timetables) {
         for (const OrTimetable::Train &train : timetable->trains) {
@@ -739,8 +739,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             std::vector<ConsistPart> parts;
             bool whole = !train.consists.isEmpty();
             for (const OrTimetable::ConsistPart &part : train.consists) {
-                const QString file = part.name.endsWith(".con", Qt::CaseInsensitive) ? part.name : part.name + ".con";
-                const int id = ConLib::addCon(consists + "/", file);
+                const int id = ConLib::addCon(consists + "/", OrTimetable::ConsistFile(part.name));
                 auto found = ConLib::con.find(id);
                 const Consist *consist = found != ConLib::con.end() ? found->second : nullptr;
                 if (consist == nullptr || consist->loaded != 1 || consist->engItems.isEmpty()) {

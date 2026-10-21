@@ -208,7 +208,21 @@ void FileBuffer::findToken(TS::TokenId id) {
 void FileBuffer::toUtf16(){
     if(isBOM()) return;
     qDebug() << "converting to UTF16";
-    // 
+    // A file its byte order mark declares UTF-8 (as Open Rails content's
+    // include files often are): decoded as UTF-8, the mark dropped, so the
+    // mark is not read as a token. Other files byte by byte, as before.
+    if (length >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) {
+        const QString text = QString::fromUtf8(reinterpret_cast<const char *>(data) + 3, length - 3);
+        unsigned char * decoded = new unsigned char[text.size() * 2 + 1];
+        for (int i = 0; i < text.size(); i++) {
+            decoded[i*2] = text.at(i).unicode() & 0xff;
+            decoded[i*2+1] = text.at(i).unicode() >> 8;
+        }
+        length = text.size() * 2;
+        delete[] data;
+        data = decoded;
+        return;
+    }
     unsigned char * newData = new unsigned char[length * 2];
     for(int i = 0; i < length; i++){
         newData[i*2] = data[i];

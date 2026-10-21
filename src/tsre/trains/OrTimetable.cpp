@@ -8,6 +8,7 @@
 #include <QStringDecoder>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
+#include <tsre/trains/ActLib.h>
 
 namespace {
 
@@ -58,6 +59,10 @@ const OrTimetable::Stop *OrTimetable::Train::stopAt(int station) const {
         if (stop.station == station)
             return &stop;
     return nullptr;
+}
+
+QString OrTimetable::ConsistFile(const QString &name) {
+    return name.endsWith(".con", Qt::CaseInsensitive) ? name : name + ".con";
 }
 
 QString OrTimetable::Train::pathName() const {
@@ -220,25 +225,6 @@ QVector<OrTimetable::ConsistPart> OrTimetable::ParseConsist(const QString &text)
         }
     }
     return out;
-}
-
-QString OrTimetable::FindPath(const QString &base, const QString &relative) {
-    QStringList names = relative.split('/', Qt::SkipEmptyParts);
-    if (names.isEmpty())
-        return QDir(base).exists() ? base : QString();
-    const QString first = names.takeFirst();
-    QStringList candidates;
-    if (QDir(base + "/" + first).exists())
-        candidates << first;
-    for (const QString &entry : QDir(base).entryList(QDir::Dirs | QDir::NoDotAndDotDot))
-        if (entry.compare(first, Qt::CaseInsensitive) == 0 && entry != first)
-            candidates << entry;
-    for (const QString &candidate : candidates) {
-        const QString found = FindPath(base + "/" + candidate, names.join('/'));
-        if (!found.isEmpty())
-            return found;
-    }
-    return QString();
 }
 
 bool OrTimetable::load(const QString &path) {
@@ -530,25 +516,6 @@ bool OrTimetableCommandRun(const QString &name) {
     return run.contains(name);
 }
 
-namespace {
-
-// A file in a folder, its name's case not minded (MSTS content on Linux).
-bool fileIn(const QString &directory, const QString &name) {
-    if (QFileInfo::exists(directory + "/" + name))
-        return true;
-    static QHash<QString, QSet<QString>> listed;
-    auto found = listed.find(directory);
-    if (found == listed.end()) {
-        QSet<QString> files;
-        for (const QString &entry : QDir(directory).entryList(QDir::Files))
-            files.insert(entry.toLower());
-        found = listed.insert(directory, files);
-    }
-    return found->contains(name.toLower());
-}
-
-}
-
 QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const QString &routeDirectory,
                                            const QString &consistDirectory, TDB *tdb) {
     QVector<OrTimetableProblem> out;
@@ -566,7 +533,6 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
                 out.push_back(OrTimetableProblem{QString(),
                                                  //% "station %1: no platform of the route has it"
                                                  qtTrId("timetable.check.station").arg(station.name)});
-    const QString paths = OrTimetable::FindPath(routeDirectory, "PATHS");
     // The commands naming another train.
     static const QSet<QString> referring = {"follow", "triggers", "forms", "wait", "connect", "activate", "attach",
                                             "pickup", "transfer"};
@@ -601,14 +567,14 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
         if (train.path.isEmpty())
             //% "no path"
             out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.no.path")});
-        else if (!fileIn(paths, train.pathName() + ".pat"))
+        else if (ActLib::GetPathByName(train.pathName(), routeDirectory) == nullptr)
             //% "path %1 is not in the route's PATHS"
             out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.path").arg(train.path)});
         if (train.consists.isEmpty())
             //% "no consist"
             out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.no.consist")});
         for (const OrTimetable::ConsistPart &part : train.consists)
-            if (!fileIn(consistDirectory, part.name.endsWith(".con", Qt::CaseInsensitive) ? part.name : part.name + ".con"))
+            if (!QFileInfo::exists(consistDirectory + "/" + OrTimetable::ConsistFile(part.name)))
                 //% "consist %1 is not there"
                 out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.consist").arg(part.name)});
         if (train.startTime < 0 && !train.isStatic)

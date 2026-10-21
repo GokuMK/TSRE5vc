@@ -22,7 +22,9 @@ decisions at the end of this document; phases 1 to 3 done.
   cells added to its train's. Commands as Open Rails' `TTTrainCommands`
   parses them (lower case, values at `+`, qualifiers after `/`), every
   cell's text kept. `OrTimetableGroup` reads `.timetablelist-or`.
-  `OrTimetable::FindPath` finds folders whatever their names' case.
+  Folders by their fixed names (`ACTIVITIES/OPENRAILS`, `PATHS`,
+  `TRAINS/CONSISTS`; at first found in any case, changed 2026-10-22: no
+  runtime search in another letter case, the user).
 - `CheckTimetable`: paths and consists not there, stations no platform of
   the route has, commands naming a train that is not in the timetable (a
   name with `:` is another timetable's), `/ahead` the same, commands TSRE
@@ -42,7 +44,7 @@ decisions at the end of this document; phases 1 to 3 done.
   description, a static train, consists, start commands with qualifiers,
   notes, dispose, the speed row, station commands, every timing, the
   continuation column and row, an unknown row and a bad timing reported;
-  a group; the check in folders of any case. `timetable-route` reads and
+  a group; the check. `timetable-route` reads and
   checks a route's timetables (`--game-root`, `--route`; a route without
   any passes).
 
@@ -105,34 +107,48 @@ decisions at the end of this document; phases 1 to 3 done.
   AI paths take the tile's nearest junction at any distance). PRUDNIK's
   paths have junction nodes 1.5 m off; at 1 m their routes broke (116
   stops beyond the route).
-- **PRUDNIK** (Release, 24 h simulated in 7 s): 266 trains, 219 finish,
-  46 stuck, no deadlocks, 1368 station stops; against the timetable
-  (1139 timed stops) a median of 59 s early. Warnings: 31 stops at
+- Content lookups as the content-case policy has them (the user,
+  2026-10-22: no runtime search in another letter case; exceptions marked
+  to be fixed): timetables in `ACTIVITIES/OPENRAILS`, consists by their
+  file names as spelled (`OrTimetable::ConsistFile`), paths by the
+  route's path names (`ActLib::GetPathByName`, logical names as the
+  policy allows; the check finds them the same way). Two older lookups of
+  mine made exact as well: the signal script files (`TrackNetwork`) and
+  the Open Rails activity overlay (`ActivityOverlay`, the activity's file
+  name in `ACTIVITIES/OPENRAILS`).
+- Include files a UTF-8 byte order mark opens (25 of PSK's engine
+  parameter files) broke the engine block: the mark, widened byte by
+  byte, read as a token with no block, and skipping it ran to the end of
+  the block (MaxForce, MaxPower and the includes after lost).
+  `FileBuffer::toUtf16` now decodes such a file as UTF-8 without the
+  mark; others byte by byte as before (`content-path` checks it).
+- **PRUDNIK**, converted by the user with `--contentcase` (2026-10-22;
+  the converter does not read timetables, but all 200 consist and 215
+  path names the timetable gives match the converted files). The
+  timetable is still in `ACTIVITIES/Openrails`, so it ran from a scratch
+  game root linking OR_PSK with a copy of it in `ACTIVITIES/OPENRAILS`.
+  Release, 24 h simulated in 6 s: 266 trains, 239 finish, 26 stuck, no
+  deadlocks, 1511 station stops; against the timetable (1276 timed
+  stops) a median of 11 s early; 40 of 42 static trains placed (S286 and
+  S288 have broken paths, "Static 1/3 Zdzieszowice"). Driven simply: 5
+  (one with wagons whose folder `PL-PKPC_Sggrss_MMP` OR_PSK does not
+  have, three "Obserwator" trains of a WM15 without force or power,
+  ET22-2033 whose Engine block is inside its Wagon block). 31 stops at
   Gliwice and Katowice, stations the paths do not reach (Open Rails
-  skips them too); every train driven simply and no static train placed,
-  as no vehicle is read (below).
-- **PRUDNIK's vehicles** are not read for two reasons outside this task:
-  the folder is `TRAINS/Trainset` (and `Trains/Consists`), where TSRE
-  looks for `TRAINS/TRAINSET` (the content-case policy,
-  `docs/tasks/core/case-sensitive-filepaths.md`), and the consists name
-  vehicles as `../Trainset/<folder>`; and most vehicles take their size,
-  mass and brakes from Open Rails' `Include ( … )` files, which TSRE's
-  ENG reading does not follow. On a scratch game root with upper-case
-  links (no content changed): 124 trains still driven simply (their
-  vehicles `Include` theirs), 38 of 42 static trains placed, 218 finish,
-  47 stuck, a median of 25 s early.
-- The stuck trains: all queue behind one, 0552_R46405, at Jasiona's exit
+  skips them too).
+- The stuck trains: all queue behind one, 1027_EC341, at Jasiona's exit
   signal 150 (an entry signal type, USER1, that shows proceed only when
   the block signal 149 0.8 m beyond does; 149 shows RESTRICTING until a
   train's clearing reaches it, and 150 clears no signal ahead, having no
-  `SignalNumClearAhead`). The train reaches it behind TLK 0503_GWAREK,
-  which runs early (driven simply) and takes the line at
-  Kędzierzyn-Koźle first; with 150's block taken when its clearing
-  passed, nothing clears 149 later. Open Rails' code reads the same
-  (a train passing a signal asks the next one with no signals to clear
-  ahead); to see in phase 7 against an Open Rails run. Before the exit
-  signals were let go (above) the first train on that line,
-  0446_R46401, stood there held at the station.
+  `SignalNumClearAhead`). The train follows another closely; with 150's
+  block taken when its clearing passed signal 315, nothing clears 149
+  later. Open Rails' code reads the same (a train passing a signal asks
+  the next one with no signals to clear ahead; a NORMAL signal's next is
+  the one found at the start, 149); to see in phase 7 against an Open
+  Rails run. Before the vehicles were read (driven simply, other
+  timings) the same happened to 0552_R46405, and before the exit
+  signals were let go (above) to the first train on that line,
+  0446_R46401, held at the station.
 - **Fixtures:** `timetable-trains` (9): three lines with platforms,
   paths, a consist, a timetable of three trains and a static one: the
   path cell naming the file and one ending in '.', the run from the
@@ -362,6 +378,10 @@ arrivals and departures at their stations, the formed and static trains.
 - The Timetable window shows both kinds in one consistent interface.
 - Saving: TSRE's own file layout, written from the model.
 - For now a review of this design, no code.
+- 2026-10-22: no runtime search for content in another letter case (the
+  content-case policy; exceptions marked to be fixed); the user converts
+  the content (`--contentcase`), which does not read Open Rails
+  timetables, so tests use a copy with its names matching.
 
 ## Questions for the user (as asked)
 
