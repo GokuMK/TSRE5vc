@@ -27,6 +27,12 @@ int runSimulationCouplingSuite(bool verbose);
 // The autopilot's work orders planned (task simulation 07, phase B0):
 // pickups, set-outs and assembles on two small yards.
 int runSimulationWorkSuite(bool verbose);
+// Open Rails timetables read (task simulation 08): the rows, columns,
+// cells and commands Open Rails knows, groups, the check.
+int runTimetableReadSuite(bool verbose);
+// The route's Open Rails timetables read and checked (--game-root,
+// --route).
+int runTimetableRouteSuite(bool verbose);
 // The scaling workloads (task simulation 02): the route enlarged with the
 // same traffic, more traffic, more trains at one junction, on hand-made
 // track; measured.

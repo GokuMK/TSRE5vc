@@ -1,7 +1,49 @@
 # Task simulation 08: Open Rails timetables
 
-Status: designed 2026-10-21 with the user's ideas (part C); under review,
-no code yet. The decisions at the end of this document.
+Status: designed 2026-10-21 with the user's ideas (part C), the
+decisions at the end of this document; phase 1 done.
+
+## Progress
+
+**Phase 1, reading and the check (done 2026-10-21).**
+- `OrTimetable` (`src/tsre/trains/OrTimetable`) reads a timetable as Open
+  Rails does (its `TimetableReader` and `ProcessTimetable`): the encoding
+  from the byte order mark (else UTF-8), the separator the first character
+  (the first cell must be empty), every cell trimmed; the column kinds
+  (trains, `#comment`, blank continuations, `$static` trains named after
+  their column) and row kinds (the special rows, `#path /binary`, a second
+  speed row skipped, continuation rows of a station); the description
+  where the first comment row and column meet. Each train: its path,
+  consist parts (`+`, `$reverse`, `<…>`), start time (with seconds) and
+  start commands, notes, dispose, speed row (`$max`, the `$` optional as
+  in Open Rails, per m/s, km/h or mph), restart delays, briefing (`<br>`
+  breaks), stops: the timing (arrival-departure, one time both, `P`
+  passing, `*` early, `x` request) and commands, a continuation column's
+  cells added to its train's. Commands as Open Rails' `TTTrainCommands`
+  parses them (lower case, values at `+`, qualifiers after `/`), every
+  cell's text kept. `OrTimetableGroup` reads `.timetablelist-or`.
+  `OrTimetable::FindPath` finds folders whatever their names' case.
+- `CheckTimetable`: paths and consists not there, stations no platform of
+  the route has, commands naming a train that is not in the timetable (a
+  name with `:` is another timetable's), `/ahead` the same, commands TSRE
+  does not run yet (all but PRUDNIK's), and a command with text after it
+  (a timing after the commands, which Open Rails does not read either);
+  the reading's problems first. Texts translated.
+- **PRUDNIK** (`timetable-route`): 308 trains (42 static, 66 with a top
+  speed), 100 stations, 1684 stops, read in 5 ms with no problems. The
+  check finds 12, all in the content: the path name with a trailing dot,
+  station "KK Lokomotywownia" that no platform has, 9 `$follow` naming
+  trains the timetable does not have, and two cells with their timing
+  after a command (`$extendplatformtosignal 08:30-08:34`). No command
+  outside PRUDNIK's set.
+- **Fixtures:** `timetable-read` (20): UTF-16 with `;`, UTF-8 with `,`,
+  a tab after a UTF-8 byte order mark, a first cell not empty; the
+  description, a static train, consists, start commands with qualifiers,
+  notes, dispose, the speed row, station commands, every timing, the
+  continuation column and row, an unknown row and a bad timing reported;
+  a group; the check in folders of any case. `timetable-route` reads and
+  checks a route's timetables (`--game-root`, `--route`; a route without
+  any passes).
 
 ## Why
 
