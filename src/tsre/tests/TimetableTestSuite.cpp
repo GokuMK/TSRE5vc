@@ -9,13 +9,22 @@
 #include <QScopedValueRollback>
 #include <QStringEncoder>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <tsre/Game.h>
+#include <tsre/sim/SimulationCore.h>
+#include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/TrackGeometry.h>
+#include <tsre/sim/TrackNetwork.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
+#include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTrains.h>
+#include <tsre/trains/EngLib.h>
 #include <tsre/trains/OrTimetable.h>
+#include <tsre/trains/Path.h>
+#include <tsre/trains/PathTrack.h>
 
 namespace {
 
@@ -38,6 +47,58 @@ bool writeFile(const QString &path, const QString &text, Encoding encoding) {
     }
     return true;
 }
+
+// A path file (its nodes laid on the test track after), a consist of an
+// engine and a carriage of 20 m each (no mass: driven simply), the
+// vehicles.
+const char *pathText = R"(SIMISA@@@@@@@@@@JINX0P0t______
+
+Serial ( 1 )
+TrackPDPs (
+	TrackPDP ( 0 0 100 0 0 2 0 )
+	TrackPDP ( 0 0 1900 0 0 2 0 )
+)
+TrackPath (
+	TrPathName ( %1 )
+	Name ( "%1" )
+	TrPathStart ( "A" )
+	TrPathEnd ( "B" )
+	TrPathNodes ( 2
+		TrPathNode ( 00000000 1 4294967295 0 )
+		TrPathNode ( 00000000 4294967295 4294967295 1 )
+	)
+)
+)";
+
+const char *consistText = R"(SIMISA@@@@@@@@@@JINX0D0t______
+
+Train (
+	TrainCfg ( "Two"
+		Name ( "Two" )
+		Serial ( 1 )
+		MaxVelocity ( 20 0.5 )
+		NextWagonUID ( 2 )
+		Durability ( 1 )
+		Engine (
+			UiD ( 0 )
+			EngineData ( loco TEST )
+		)
+		Wagon (
+			UiD ( 1 )
+			WagonData ( car TEST )
+		)
+	)
+)
+)";
+
+const char *vehicleText = R"(SIMISA@@@@@@@@@@JINX0D0t______
+
+Wagon ( %1
+	Type ( %2 )
+	Size ( 3m 4m 20m )
+	WagonShape ( missing.s )
+)
+)";
 
 }
 
@@ -153,7 +214,9 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
     }
 
     // The check: a path and a consist not there, a command not run yet, a
-    // train referred to that is not in it.
+    // train referred to that is not in it; a path cell naming the file, or
+    // ending in a '.', is the path (Open Rails adds ".pat" where there is no
+    // extension).
     {
         QDir root(dir.path());
         root.mkpath("route/Paths");
@@ -161,7 +224,9 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         writeFile(dir.filePath("route/Paths/p1.pat"), "x", Encoding::Utf8);
         writeFile(dir.filePath("trains/consists/C1.con"), "x", Encoding::Utf8);
         const QString file = dir.filePath("check.timetable-or");
-        writeFile(file, ";T1;T2\n#path;p1;p9\n#consist;c1;c1 + c9\n#start;05:00;06:00\n#note;$attach=T1;$follow=T7\n",
+        writeFile(file,
+                  ";T1;T2;T3;T4\n#path;p1;p9;P1.pat;p1.\n#consist;c1;c1 + c9;c1;c1\n#start;05:00;06:00;07:00;08:00\n"
+                  "#note;$attach=T1;$follow=T7\n",
                   Encoding::Utf8);
         OrTimetable c;
         c.load(file);
@@ -171,8 +236,9 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         for (const OrTimetableProblem &p : found)
             texts << p.train + ": " + p.text;
         check(found.size() == 4 && texts.join("\n").contains("path p9") && texts.join("\n").contains("consist c9")
-                  && texts.join("\n").contains("$attach") && texts.join("\n").contains("t7"),
-              "the check (folders' case not minded): " + texts.join("; "));
+                  && texts.join("\n").contains("$attach") && texts.join("\n").contains("t7")
+                  && c.trains.size() == 4 && c.trains[2].pathName() == "P1" && c.trains[3].pathName() == "p1",
+              "the check (folders' case not minded, P1.pat and p1. the path p1): " + texts.join("; "));
     }
 
     // A timetable set as an activity (phase 2): its name the timetable's
@@ -285,5 +351,179 @@ int TsreTests::runTimetableRouteSuite(bool verbose) {
                 qInfo().noquote() << "[timetable]     " << (p.train.isEmpty() ? QString("-") : p.train) << ":" << p.text;
     }
     qInfo().noquote() << QString("timetable-route: %1 passed, %2 failed").arg(passed).arg(failed);
+    return failed == 0 ? 0 : 1;
+}
+
+int TsreTests::runTimetableTrainsSuite(bool verbose) {
+    int passed = 0, failed = 0;
+    const auto check = [&](bool value, const QString &name) {
+        if (value) { ++passed; if (verbose) qInfo().noquote() << "[tests:timetable-trains] PASS" << name; }
+        else { ++failed; qWarning().noquote() << "[tests:timetable-trains] FAIL" << name; }
+    };
+
+    // Three 2 km lines (tests/TrackLayoutSupport). Line 10: platforms
+    // Alpha (100-300 m), Beta (1000-1200), Gamma (1700-1900); T1's path
+    // P1 from 350 m to 1950 m, so Alpha is behind its start. Line 30: T2's
+    // path P2 from 100 to 800 m, platform Delta beyond its end (1000-1200),
+    // the static train's path P4 from 1500 m. Line 50: platform Epsilon
+    // (100-300) behind T3's path P3 from 400 m, a signal between at 330 m.
+    QTemporaryDir temp;
+    const QString routePath = temp.path() + "/ROUTES/R";
+    const QString folder = routePath + "/ACTIVITIES/OPENRAILS";
+    QDir().mkpath(folder);
+    QDir().mkpath(routePath + "/PATHS");
+    QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
+    QDir().mkpath(temp.path() + "/TRAINS/TRAINSET/TEST");
+    bool written = true;
+    for (const QString &name : {"P1", "P2", "P3", "P4"})
+        written = written && writeFile(routePath + "/PATHS/" + name + ".pat", QString(pathText).arg(name), Encoding::Utf16);
+    written = written && writeFile(temp.path() + "/TRAINS/CONSISTS/Two.con", consistText, Encoding::Utf16)
+            && writeFile(temp.path() + "/TRAINS/TRAINSET/TEST/loco.eng", QString(vehicleText).arg("loco", "Engine"),
+                         Encoding::Utf16)
+            && writeFile(temp.path() + "/TRAINS/TRAINSET/TEST/car.wag", QString(vehicleText).arg("car", "Carriage"),
+                         Encoding::Utf16);
+    // The path cells name P1 by its file and P2 with a trailing '.' (Open
+    // Rails reads both); the stops: Alpha a departure only, Beta booked
+    // 2 minutes, Gamma one time.
+    written = written && writeFile(folder + "/test.timetable-or",
+                                   ";T1;T2;T3;$static\n"
+                                   "#path;P1.pat;P2.;P3;P4\n"
+                                   "#consist;Two;Two;Two;Two\n"
+                                   "#start;08:00;08:00;08:00;\n"
+                                   "Alpha;08:05;;;\n"
+                                   "Beta;08:10-08:12;;;\n"
+                                   "Gamma;08:20;;;\n"
+                                   "Delta;;08:06;;\n"
+                                   "Epsilon;;;08:01;\n",
+                                   Encoding::Utf8);
+    check(temp.isValid() && written, "write the test route");
+
+    TestTrack::Layout layout;
+    for (int k = 0; k < 3; ++k) {
+        const int line = 10 + 20 * k;
+        layout.end(2 * k + 1, line);
+        layout.track(line, 2 * k + 1, 2 * k + 2, 200);
+        layout.end(2 * k + 2, line);
+    }
+    TestTrack::platform(layout, 10, 101, 100.0f, 300.0f, "Alpha");
+    TestTrack::platform(layout, 10, 103, 1000.0f, 1200.0f, "Beta");
+    TestTrack::platform(layout, 10, 105, 1700.0f, 1900.0f, "Gamma");
+    TestTrack::platform(layout, 30, 201, 1000.0f, 1200.0f, "Delta");
+    TestTrack::platform(layout, 50, 301, 100.0f, 300.0f, "Epsilon");
+    TestTrack::signalHead(layout, 50, 401, 330.0f, true, "Test");
+    const QScopedValueRollback<QString> root(Game::root, temp.path());
+    const QScopedValueRollback<QString> routeName(Game::route, "R");
+    const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &layout.db);
+    EngLib engines;
+    const QScopedValueRollback<EngLib *> engineLibrary(Game::currentEngLib, &engines);
+    const int firstPath = ActLib::jestpath;
+    const std::pair<const char *, std::pair<PathTrack::TrackPoint, PathTrack::TrackPoint>> laid[] = {
+        {"P1.pat", {{10, 350.0f}, {10, 1950.0f}}}, {"P2.pat", {{30, 100.0f}, {30, 800.0f}}},
+        {"P3.pat", {{50, 400.0f}, {50, 1500.0f}}}, {"P4.pat", {{30, 1500.0f}, {30, 1700.0f}}}};
+    for (const auto &[file, ends] : laid) {
+        Path *path = ActLib::Paths.value(ActLib::AddPath(routePath + "/PATHS", file));
+        if (path == nullptr)
+            continue;
+        PathTrack::Result made = PathTrack::startAt(&layout.db, ends.first);
+        made = PathTrack::endAt(&layout.db, made.nodes, ends.second);
+        path->apply(made.nodes);
+    }
+
+    const int id = ActLib::AddTimetableSet(folder, "test.timetable-or");
+    Activity *set = ActLib::TimetableSets.value(id);
+    const auto geometry = std::make_shared<const Sim::TrackGeometry>(&layout.db);
+    const auto network = std::make_shared<const Sim::TrackNetwork>(&layout.db, *geometry, nullptr, false);
+    const std::shared_ptr<Sim::SimulationInput> input
+            = set != nullptr ? Sim::MakeInput(set, &layout.db, 30.0f, geometry, network) : nullptr;
+    const auto trainNamed = [&](const QString &name) -> const Sim::TrainPlan * {
+        for (const Sim::TrainPlan &plan : input->trains)
+            if (plan.service == name)
+                return &plan;
+        return nullptr;
+    };
+    check(input != nullptr && input->trains.size() == 3 && input->startTime == 8 * 3600,
+          QString("the running trains made, the run from the first one's start (08:00): %1 trains; warnings: %2")
+              .arg(input != nullptr ? int(input->trains.size()) : -1)
+              .arg(input != nullptr ? input->warnings.join("; ") : QString()));
+    if (input == nullptr || input->trains.size() != 3) {
+        qInfo().noquote() << QString("timetable-trains: %1 passed, %2 failed").arg(passed).arg(failed);
+        return 1;
+    }
+    const Sim::TrainPlan *t1 = trainNamed("T1");
+    const Sim::TrainPlan *t2 = trainNamed("T2");
+    const Sim::TrainPlan *t3 = trainNamed("T3");
+    check(t1 != nullptr && t2 != nullptr && t3 != nullptr && std::fabs(t1->length - 40.0) < 0.01
+              && t1->startTime == 8 * 3600 && t1->traffic >= 0 && !t1->player,
+          "each an AI train of the consist (40 m), from its start time");
+    // T1: Alpha behind its path's start, in the same track section: the
+    // train is at that station from its start (Open Rails); Beta's booked
+    // dwell under the platform's least waiting time (180 s); Gamma's one
+    // time, the least waiting time. No stop holds its exit signal (Open
+    // Rails' timetable mode, without `$hold`).
+    QStringList stops;
+    if (t1 != nullptr)
+        for (const Sim::StopPlan &stop : t1->stops)
+            stops << QString("%1 %2-%3 %4s").arg(stop.platform).arg(stop.arrival).arg(stop.departure).arg(stop.boarding);
+    check(t1 != nullptr && t1->stops.size() == 3 && t1->stops[0].platform == "Alpha" && t1->stops[0].part == 0
+              && std::fabs(t1->stops[0].front - t1->startFront) < 0.01 && t1->stops[0].departure == 8 * 3600 + 300
+              && t1->stops[1].platform == "Beta" && t1->stops[1].boarding == 120 && t1->stops[2].platform == "Gamma"
+              && t1->stops[2].boarding == 180
+              && std::none_of(t1->stops.begin(), t1->stops.end(), [](const Sim::StopPlan &stop) { return stop.holdsExit; }),
+          "T1: at Alpha (behind its start) from its start, then Beta and Gamma: " + stops.join(", "));
+    // T2: Delta beyond its path's end: it runs on to the platform's far
+    // end and stops on it.
+    check(t2 != nullptr && t2->stops.size() == 1 && t2->stops[0].platform == "Delta" && t2->route.parts.size() == 1
+              && std::fabs(t2->route.parts.back().length() - t2->stops[0].platformEnd) < 0.01
+              && std::fabs(t2->stops[0].platformEnd - t2->stops[0].platformStart - 200.0) < 0.01
+              && std::fabs(t2->stops[0].front - (t2->stops[0].platformEnd - 80.0)) < 0.01,
+          QString("T2 (path P2.): on to Delta beyond its path's end, centred on it (route %1 m, front %2)")
+              .arg(t2 != nullptr ? t2->route.parts.back().length() : -1.0, 0, 'f', 1)
+              .arg(t2 != nullptr && !t2->stops.empty() ? t2->stops[0].front : -1.0, 0, 'f', 1));
+    // T3: Epsilon behind its start with a signal between: another track
+    // section, not on its route.
+    check(t3 != nullptr && t3->stops.empty() && input->warnings.join("\n").contains("T3: the stop at Epsilon is not on its path"),
+          "T3: Epsilon behind a signal, not on its route: " + input->warnings.join("; "));
+    // The static train: a standing consist from its path's start.
+    double from = 1e9, to = -1e9;
+    for (const Sim::StaticConsist &standing : input->staticConsists)
+        for (const Sim::RouteInterval &piece : standing.track) {
+            from = std::min({from, double(piece.from), double(piece.to)});
+            to = std::max({to, double(piece.from), double(piece.to)});
+        }
+    check(input->staticConsists.size() == 1 && input->staticConsists[0].name == "S4"
+              && std::fabs(from - 1500.0) < 0.01 && std::fabs(to - 1540.0) < 0.01,
+          QString("the static train stands from its path's start: %1 to %2 m").arg(from).arg(to));
+
+    // The run: T1 leaves Alpha at its booked 08:05, stands at Beta to
+    // 08:12; T2 stops at Delta.
+    Sim::SimulationCore core(input);
+    std::vector<Sim::TrainEvent> events;
+    for (int k = 0; k < 25 * 60 * 10 && core.time() < 8 * 3600 + 25 * 60; ++k) {
+        core.step(Sim::SimulationCore::MaxStep);
+        for (const Sim::TrainEvent &e : core.takeEvents())
+            events.push_back(e);
+    }
+    const auto at = [&](const Sim::TrainPlan *plan, Sim::TrainEvent::Kind kind, int index) {
+        for (const Sim::TrainEvent &e : events)
+            if (plan != nullptr && e.train == plan->id && e.kind == kind && e.index == index)
+                return e.time;
+        return -1.0;
+    };
+    const double leftAlpha = at(t1, Sim::TrainEvent::Departed, 0);
+    const double atBeta = at(t1, Sim::TrainEvent::Arrived, 1), leftBeta = at(t1, Sim::TrainEvent::Departed, 1);
+    check(at(t1, Sim::TrainEvent::Arrived, 0) >= 0.0 && std::fabs(leftAlpha - (8 * 3600 + 300)) <= 1.0 && atBeta > leftAlpha
+              && std::fabs(leftBeta - (8 * 3600 + 720)) <= 1.0,
+          QString("T1 leaves Alpha at %1 s and Beta at %2 s (booked 29100, 29520)").arg(leftAlpha).arg(leftBeta));
+    bool t2Finished = false;
+    for (const Sim::TrainEvent &e : events)
+        t2Finished = t2Finished || (t2 != nullptr && e.train == t2->id && e.kind == Sim::TrainEvent::Finished);
+    check(at(t2, Sim::TrainEvent::Arrived, 0) > 8 * 3600 && t2Finished,
+          QString("T2 stops at Delta (%1 s) and ends there").arg(at(t2, Sim::TrainEvent::Arrived, 0)));
+
+    delete set;
+    ActLib::TimetableSets.remove(id);
+    for (int path = firstPath; path < ActLib::jestpath; ++path)
+        ActLib::Paths[path] = nullptr;
+    qInfo().noquote() << QString("timetable-trains: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }

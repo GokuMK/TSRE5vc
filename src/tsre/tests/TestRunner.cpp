@@ -4179,6 +4179,7 @@ QStringList TsreTests::listSuites() {
         "simulation-work",
         "timetable-read",
         "timetable-route",
+        "timetable-trains",
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
@@ -4379,6 +4380,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runTimetableReadSuite(opts.verbose);
     if (suite == "timetable-route")
         return runTimetableRouteSuite(opts.verbose);
+    if (suite == "timetable-trains")
+        return runTimetableTrainsSuite(opts.verbose);
 
     if (suite == "simulation-route")
         return runSimulationRouteSuite(opts.verbose);

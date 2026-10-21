@@ -60,6 +60,15 @@ const OrTimetable::Stop *OrTimetable::Train::stopAt(int station) const {
     return nullptr;
 }
 
+QString OrTimetable::Train::pathName() const {
+    QString name = path;
+    if (name.endsWith(".pat", Qt::CaseInsensitive))
+        name.chop(4);
+    else if (name.endsWith('.'))
+        name.chop(1);
+    return name;
+}
+
 int OrTimetable::trainNamed(const QString &name) const {
     const QString key = name.trimmed().toLower();
     for (int k = 0; k < trains.size(); ++k)
@@ -592,7 +601,7 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
         if (train.path.isEmpty())
             //% "no path"
             out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.no.path")});
-        else if (!fileIn(paths, train.path.endsWith(".pat", Qt::CaseInsensitive) ? train.path : train.path + ".pat"))
+        else if (!fileIn(paths, train.pathName() + ".pat"))
             //% "path %1 is not in the route's PATHS"
             out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.path").arg(train.path)});
         if (train.consists.isEmpty())

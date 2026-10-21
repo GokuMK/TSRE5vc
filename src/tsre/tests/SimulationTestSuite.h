@@ -33,6 +33,9 @@ int runTimetableReadSuite(bool verbose);
 // The route's Open Rails timetables read and checked (--game-root,
 // --route).
 int runTimetableRouteSuite(bool verbose);
+// A timetable set's trains (task simulation 08, phase 3) made and run on
+// hand-made track: paths, consists, stops, a static train.
+int runTimetableTrainsSuite(bool verbose);
 // The scaling workloads (task simulation 02): the route enlarged with the
 // same traffic, more traffic, more trains at one junction, on hand-made
 // track; measured.

@@ -81,6 +81,10 @@ struct StopPlan {
     QString platform;
     // Its row in the train's timetable.
     int entry = -1;
+    // The platform's exit signal held until shortly before it departs, as
+    // Open Rails' activities hold it; an Open Rails timetable's stop only
+    // with `$hold` (task 08).
+    bool holdsExit = true;
 };
 
 // A speed limit along a route part (route distances), m/s.
@@ -331,6 +335,14 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
                                                  std::shared_ptr<const TrackGeometry> geometry = nullptr,
                                                  std::shared_ptr<const TrackNetwork> network = nullptr,
                                                  float restrictedSpeed = -1.0f, bool work = true);
+
+// An Open Rails timetable set's trains into the input (task simulation 08):
+// each running train with its consist (the parts, turned ones turned), its
+// path (the rear at its start), its top speed (the #speed row's lower one),
+// its start time, its stops at its stations' platforms with their booked
+// times; static trains standing trains; the set's chosen train the
+// player's. MakeInput uses it for a set.
+void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb);
 
 // A route part's way and speed limits (the zones it passes at the input's
 // restricted speed), as MakeInput makes them.

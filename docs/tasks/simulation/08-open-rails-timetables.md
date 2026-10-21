@@ -1,7 +1,7 @@
 # Task simulation 08: Open Rails timetables
 
 Status: designed 2026-10-21 with the user's ideas (part C), the
-decisions at the end of this document; phases 1 and 2 done.
+decisions at the end of this document; phases 1 to 3 done.
 
 ## Progress
 
@@ -31,7 +31,8 @@ decisions at the end of this document; phases 1 and 2 done.
   the reading's problems first. Texts translated.
 - **PRUDNIK** (`timetable-route`): 308 trains (42 static, 66 with a top
   speed), 100 stations, 1684 stops, read in 5 ms with no problems. The
-  check finds 12, all in the content: the path name with a trailing dot,
+  check finds 12, all in the content: the path name with a trailing dot
+  (since phase 3 read as Open Rails reads it, so 11),
   station "KK Lokomotywownia" that no platform has, 9 `$follow` naming
   trains the timetable does not have, and two cells with their timing
   after a command (`$extendplatformtosignal 08:30-08:34`). No command
@@ -69,6 +70,79 @@ decisions at the end of this document; phases 1 and 2 done.
   marked, problems from the check), a group's two timetables;
   `simulation-coupling` (24): a run with no player's train to its end, an
   event looking at the player's train not fired. Every suite unchanged.
+
+**Phase 3, the trains (done 2026-10-22).**
+- `TimetableTrains` (`SimulationInput`): each train of a set's
+  timetables a `TrainPlan` as an activity's service gets one, through
+  the helpers taken out of `MakeInput` (vehicles, route, stop placing,
+  finishing; activities unchanged): its consist's parts in order
+  (`$reverse` turning one), its path (`OrTimetable::Train::pathName`, as
+  Open Rails finds the file: ".pat" added where the cell has no
+  extension, a trailing '.' none), standing with its rear at the path's
+  start; its start time; the `#speed` row a lower top speed. A static
+  train is a standing consist of the core from its path's start (one of
+  no length, or off its track, warned and left out).
+- Stops: each timetable stop at the path's first pass by a platform of
+  its station, in the path's order; standing the booked dwell, or the
+  platform's least waiting time without one, no longer than that least
+  time when late (`TTTrain.ComputeTrainBoardingTime`). A station the
+  path does not pass whose platform is behind its start or beyond its
+  end, in the track section there (no signal between: Open Rails' route
+  holds the whole section, `Signals.InsertNode` splitting only at
+  signals), is on its route as in Open Rails: behind the start the
+  train is at that station from its start
+  (`TTTrain.CheckStationPosition`) and stands until it departs; beyond
+  the end it runs on to the platform and stops there. Other stations
+  off the path: warned and left out (Open Rails: "Station … not found").
+- No exit signal held (`StopPlan::holdsExit`, true for activities):
+  Open Rails' timetable mode holds one only with `$hold` or `$forcehold`
+  (`ProcessTimetable`, a station's `HoldState` NoHold by default); the
+  stop is still made short of its platform's end signal.
+- `MakeInput` of a set: its trains, the run from its start (the chosen
+  player's train's start where there is one); no events.
+- Path: a junction node resolves to a junction within 2.5 m (was 1 m),
+  the distance Open Rails' TrackViewer calls a node broken beyond (its
+  AI paths take the tile's nearest junction at any distance). PRUDNIK's
+  paths have junction nodes 1.5 m off; at 1 m their routes broke (116
+  stops beyond the route).
+- **PRUDNIK** (Release, 24 h simulated in 7 s): 266 trains, 219 finish,
+  46 stuck, no deadlocks, 1368 station stops; against the timetable
+  (1139 timed stops) a median of 59 s early. Warnings: 31 stops at
+  Gliwice and Katowice, stations the paths do not reach (Open Rails
+  skips them too); every train driven simply and no static train placed,
+  as no vehicle is read (below).
+- **PRUDNIK's vehicles** are not read for two reasons outside this task:
+  the folder is `TRAINS/Trainset` (and `Trains/Consists`), where TSRE
+  looks for `TRAINS/TRAINSET` (the content-case policy,
+  `docs/tasks/core/case-sensitive-filepaths.md`), and the consists name
+  vehicles as `../Trainset/<folder>`; and most vehicles take their size,
+  mass and brakes from Open Rails' `Include ( … )` files, which TSRE's
+  ENG reading does not follow. On a scratch game root with upper-case
+  links (no content changed): 124 trains still driven simply (their
+  vehicles `Include` theirs), 38 of 42 static trains placed, 218 finish,
+  47 stuck, a median of 25 s early.
+- The stuck trains: all queue behind one, 0552_R46405, at Jasiona's exit
+  signal 150 (an entry signal type, USER1, that shows proceed only when
+  the block signal 149 0.8 m beyond does; 149 shows RESTRICTING until a
+  train's clearing reaches it, and 150 clears no signal ahead, having no
+  `SignalNumClearAhead`). The train reaches it behind TLK 0503_GWAREK,
+  which runs early (driven simply) and takes the line at
+  Kędzierzyn-Koźle first; with 150's block taken when its clearing
+  passed, nothing clears 149 later. Open Rails' code reads the same
+  (a train passing a signal asks the next one with no signals to clear
+  ahead); to see in phase 7 against an Open Rails run. Before the exit
+  signals were let go (above) the first train on that line,
+  0446_R46401, stood there held at the station.
+- **Fixtures:** `timetable-trains` (9): three lines with platforms,
+  paths, a consist, a timetable of three trains and a static one: the
+  path cell naming the file and one ending in '.', the run from the
+  first start, a station behind the path's start (stood at from the
+  start, left at its booked time), a booked dwell and the least waiting
+  time, no exit signal held, a station beyond the end (run on to and
+  stopped at), one behind a signal (not on the route, warned), the
+  static train placed. `simulation-route` counts a set's static trains
+  among the consists to place. Every MSTS route's results and events
+  unchanged.
 
 ## Why
 

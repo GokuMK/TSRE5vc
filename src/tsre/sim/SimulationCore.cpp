@@ -2175,8 +2175,10 @@ void SimulationCore::findExits(int train) {
                       && beyond->at - StationClearing - stop.platformStart <= 0.6 * runtime[size_t(train)].length)
                 || (k < rt.letGo.size() && rt.letGo[k]))
             continue;
-        rt.exits[k] = int(index);
-        // Short of it, as Open Rails stops a train at a held signal.
+        // Short of it, as Open Rails stops a train at its platform's end
+        // signal; held there when the stop holds it.
+        if (stop.holdsExit)
+            rt.exits[k] = int(index);
         rt.stops[k].front = std::min(stop.front, beyond->at - StationClearing - 1.0);
     }
 }

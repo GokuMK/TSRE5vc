@@ -85,6 +85,10 @@ public:
         QVector<Stop> stops;
         // The stop at a station, or none.
         const Stop *stopAt(int station) const;
+        // Its path's name without ".pat", as Open Rails finds the file
+        // (ProcessTimetable.ExtractPathString): ".pat" added where the cell
+        // has no extension (a trailing '.' none either).
+        QString pathName() const;
     };
 
     // Reads the file; false when it cannot be read as a timetable (the

@@ -10,6 +10,7 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TRitem.h>
+#include <tsre/tdb/TRnode.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
@@ -20,6 +21,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
+#include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/ServiceStops.h>
@@ -515,6 +517,369 @@ void FinishPart(const SimulationInput &input, const TrainPlan &plan, const Route
     limits = SpeedLimits(way, *input.network, plan.passenger, passed, input.restrictedSpeed, part.length());
 }
 
+namespace {
+
+// One consist of a train, the other way round (a timetable's `$reverse`)
+// or not.
+struct ConsistPart {
+    const Consist *consist = nullptr;
+    bool reverse = false;
+};
+
+// A train's vehicles from its consists in order (one turned: its vehicles
+// the other way, each flipped), its length, its performance and driving
+// (task 03), its top speed: the consist files' MaxVelocity (as Open Rails
+// takes it, the lowest of several), else the slowest engine's. The
+// player's train's vehicles are consist 0 of the wagon lists. A train not
+// driven (a timetable's static one) gets its vehicles and length only.
+void vehiclesOf(SimulationInput &input, TrainPlan &plan, const std::vector<ConsistPart> &parts, bool player,
+                const QString &name, bool driven = true) {
+    float engineSpeed = 0.0f;
+    float fileSpeed = 0.0f;
+    QStringList missing;
+    for (const ConsistPart &part : parts) {
+        std::vector<Vehicle> vehicles;
+        for (const Consist::EngItem &item : part.consist->engItems) {
+            Vehicle vehicle = VehicleOf(item);
+            if (player)
+                vehicle.id = unsigned(item.uid);
+            if (vehicle.maxSpeed > 0.0f)
+                engineSpeed = engineSpeed > 0.0f ? std::min(engineSpeed, vehicle.maxSpeed) : vehicle.maxSpeed;
+            if (vehicle.mass <= 0.0) {
+                const Eng *eng = engOf(item.eng);
+                const QString what = eng != nullptr ? eng->name : QString::number(item.eng);
+                if (!missing.contains(what))
+                    missing << what;
+            }
+            vehicles.push_back(vehicle);
+        }
+        if (part.reverse) {
+            std::reverse(vehicles.begin(), vehicles.end());
+            for (Vehicle &vehicle : vehicles)
+                vehicle.flip = !vehicle.flip;
+        }
+        for (const Vehicle &vehicle : vehicles) {
+            plan.length += vehicle.length;
+            plan.vehicles.push_back(vehicle);
+        }
+        if (part.consist->fileMaxVelocity > 0.1f)
+            fileSpeed = fileSpeed > 0.0f ? std::min(fileSpeed, part.consist->fileMaxVelocity) : part.consist->fileMaxVelocity;
+    }
+    if (!driven)
+        return;
+    // Its performance (task 03), the leading vehicle's air drag its own.
+    plan.performance = PerformanceOf(plan.vehicles);
+    // Driven with force and mass where every vehicle has its mass and the
+    // engines their force or power (task 03), else simply.
+    if (missing.isEmpty() && (plan.performance.force > 0.0 || plan.performance.power > 0.0)) {
+        plan.driving = Driving::Physics;
+    } else {
+        plan.driving = Driving::Simple;
+        input.warnings << (missing.isEmpty()
+                           ? QString("%1: driven simply (its engines have no force or power)").arg(name)
+                           : QString("%1: driven simply (no mass for %2)").arg(name, missing.join(", ")));
+    }
+    plan.maxSpeed = fileSpeed > 0.1f ? fileSpeed : engineSpeed > 0.0f ? engineSpeed : input.routeSpeedLimit;
+}
+
+// The train's route on its path: it stands with its rear at the path's
+// start, the whole train ahead of it, as Open Rails places trains
+// (Simulator.InitializePlayerTrain, AI.cs; task 06). The track behind, the
+// train's length, is its route's lead-in: where its first part is shorter
+// than the train, it stands back on it.
+bool routeOf(SimulationInput &input, TDB *tdb, TrainPlan &plan, Path *path, const QString &name) {
+    plan.route = BuildRoute(tdb, path->nodes(), path->legs(), double(plan.length) + 1.0);
+    if (plan.route.parts.empty() || plan.route.parts.front().length() <= 0.0) {
+        input.warnings << QString("%1: its path has no track").arg(name);
+        return false;
+    }
+    plan.startFront = std::min(plan.route.pathStart + plan.length, plan.route.parts.front().length());
+    return true;
+}
+
+// A station stop at a pass of the path by a platform: centred on the
+// platform, a longer train overhanging both ends; false beyond the route.
+bool stopAt(const TrainPlan &plan, const Path::PathObject &pass, StopPlan &stop) {
+    double nearEnd = 1e12, farEnd = -1e12;
+    for (const QPair<int, float> &met : pass.items) {
+        nearEnd = std::min(nearEnd, double(met.second));
+        farEnd = std::max(farEnd, double(met.second));
+    }
+    double nearRoute = 0.0;
+    int nearPart = 0;
+    if (!plan.route.place(farEnd, stop.part, stop.front) || !plan.route.place(nearEnd, nearPart, nearRoute))
+        return false;
+    if (nearPart != stop.part)
+        nearRoute = 0.0;
+    stop.platformEnd = stop.front;
+    stop.platformStart = nearRoute;
+    const double platformLength = stop.front - nearRoute;
+    stop.front = std::clamp(stop.front - 0.5 * (platformLength - plan.length), 0.0,
+                            plan.route.parts[size_t(stop.part)].length());
+    return true;
+}
+
+// The route parts' ways and speed limits, and the path's passing paths.
+void finishTrain(SimulationInput &input, TDB *tdb, TrainPlan &plan, Path *path) {
+    const QVector<PathTrack::Node> &nodes = path->nodes();
+    const QVector<PathTrack::Leg> &legs = path->legs();
+    for (const RouteTrack &part : plan.route.parts) {
+        plan.projection.emplace_back();
+        plan.limits.emplace_back();
+        FinishPart(input, plan, part, plan.projection.back(), plan.limits.back());
+    }
+    // Passing paths: each where the main route leaves it and rejoins
+    // it, and its own track between.
+    {
+        QVector<double> nodeDown(nodes.size(), 0.0);
+        for (int k = 1; k < nodes.size() && k - 1 < legs.size(); ++k)
+            nodeDown[k] = nodeDown[k - 1] + std::fabs(double(legs[k - 1].to) - double(legs[k - 1].from));
+        for (const PathSnapshot::Passing &side : path->passingPaths()) {
+            if (side.from < 0 || side.to >= nodes.size() || side.from >= side.to)
+                continue;
+            QVector<PathTrack::Node> around;
+            around << nodes[side.from] << side.nodes << nodes[side.to];
+            const QVector<PathTrack::Leg> sideLegs = PathTrack::legs(tdb, around);
+            bool broken = sideLegs.isEmpty();
+            for (const PathTrack::Leg &leg : sideLegs)
+                broken = broken || leg.broken;
+            PassingPlan passing;
+            int partTo = -1;
+            if (broken || !plan.route.place(nodeDown[side.from], passing.part, passing.from)
+                    || !plan.route.place(nodeDown[side.to], partTo, passing.to) || partTo != passing.part
+                    || passing.to <= passing.from)
+                continue;
+            for (const PathTrack::Leg &leg : sideLegs)
+                passing.track.append(leg.track, leg.from, leg.to);
+            if (passing.track.length() > 0.0)
+                plan.passing.push_back(passing);
+        }
+        std::sort(plan.passing.begin(), plan.passing.end(), [](const PassingPlan &a, const PassingPlan &b) {
+            return a.part != b.part ? a.part < b.part : a.from < b.from;
+        });
+    }
+}
+
+// A platform of station `key` on vector node `track` beyond a path's end
+// there (`edge`; `away` +1 or -1, the way along the node from the path): a
+// station on the path's route as Open Rails counts one, its route holding
+// the whole track section at each end of the path (sections split at
+// signals only, Signals.InsertNode). The nearest such platform: an item of
+// it and its ends along the node, nearer first; none when there is none or
+// a signal is between.
+const TRitem *platformBeyond(TDB *tdb, int track, float edge, float away, const QString &key, float &nearEnd,
+                             float &farEnd) {
+    auto it = tdb->trackNodes.find(track);
+    const TRnode *vector = it != tdb->trackNodes.end() ? it->second : nullptr;
+    float nearest = 1e30f, signal = 1e30f;
+    const TRitem *platform = nullptr;
+    for (int i = 0; vector != nullptr && i < vector->iTri; ++i) {
+        auto found = tdb->trackItems.find(vector->trItemRef[i]);
+        TRitem *item = found != tdb->trackItems.end() ? found->second : nullptr;
+        if (item == nullptr)
+            continue;
+        const float beyond = (item->getTrackPosition() - edge) * away;
+        if (beyond <= 0.0f)
+            continue;
+        if (item->type == "signalitem") {
+            signal = std::min(signal, beyond);
+            continue;
+        }
+        if (item->platformTrItemData == nullptr || item->type != "platformitem" || beyond >= nearest
+                || item->stationName.trimmed().toLower() != key)
+            continue;
+        auto partner = tdb->trackItems.find(int(item->platformTrItemData[1]));
+        if (partner == tdb->trackItems.end() || partner->second == nullptr
+                || tdb->findTrItemNodeId(int(partner->first)) != track)
+            continue;
+        const float other = (partner->second->getTrackPosition() - edge) * away;
+        nearest = std::min(beyond, other);
+        nearEnd = edge + away * nearest;
+        farEnd = edge + away * std::max(beyond, other);
+        platform = item;
+    }
+    return nearest < signal ? platform : nullptr;
+}
+
+// The track a train covers standing with its rear at its path's start (a
+// timetable's static train, Open Rails' placing): from its front back.
+std::vector<RouteInterval> standingTrack(TDB *tdb, Path *path, double length) {
+    std::vector<RouteInterval> track;
+    const TrainRoute route = BuildRoute(tdb, path->nodes(), path->legs(), 0.0);
+    if (route.parts.empty())
+        return track;
+    const RouteTrack &part = route.parts.front();
+    const double from = route.pathStart, to = std::min(route.pathStart + length, part.length());
+    for (const RouteInterval &interval : part.intervals()) {
+        const double a = std::max(from, interval.start), b = std::min(to, interval.start + interval.length());
+        if (b <= a)
+            continue;
+        const float sign = interval.forward() ? 1.0f : -1.0f;
+        RouteInterval piece;
+        piece.node = interval.node;
+        piece.from = interval.from + sign * float(a - interval.start);
+        piece.to = interval.from + sign * float(b - interval.start);
+        track.insert(track.begin(), RouteInterval{piece.node, piece.to, piece.from, 0.0});
+    }
+    return track;
+}
+
+}
+
+void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
+    const QString routeDirectory = ActivityTrains::RouteDirectory(set);
+    const QString consists = OrTimetable::FindPath(Game::root, "TRAINS/CONSISTS");
+    int traffic = 0;
+    for (const std::shared_ptr<OrTimetable> &timetable : set->timetables) {
+        for (const OrTimetable::Train &train : timetable->trains) {
+            const int index = traffic++;
+            const bool player = !train.isStatic && !set->playerTrain.isEmpty()
+                    && train.name.compare(set->playerTrain, Qt::CaseInsensitive) == 0;
+            const QString name = player ? QString("%1 (player)").arg(train.name) : train.name;
+            std::vector<ConsistPart> parts;
+            bool whole = !train.consists.isEmpty();
+            for (const OrTimetable::ConsistPart &part : train.consists) {
+                const QString file = part.name.endsWith(".con", Qt::CaseInsensitive) ? part.name : part.name + ".con";
+                const int id = ConLib::addCon(consists + "/", file);
+                auto found = ConLib::con.find(id);
+                const Consist *consist = found != ConLib::con.end() ? found->second : nullptr;
+                if (consist == nullptr || consist->loaded != 1 || consist->engItems.isEmpty()) {
+                    input.warnings << QString("%1: no consist %2").arg(name, part.name);
+                    whole = false;
+                    break;
+                }
+                parts.push_back(ConsistPart{consist, part.reverse});
+            }
+            Path *path = ActLib::GetPathByName(train.pathName(), routeDirectory);
+            if (!whole || path == nullptr || path->nodes().size() < 2) {
+                if (path == nullptr || path->nodes().size() < 2)
+                    input.warnings << QString("%1: no path %2").arg(name, train.path);
+                continue;
+            }
+            TrainPlan plan;
+            plan.id = int(input.trains.size());
+            plan.player = player;
+            plan.service = train.name;
+            plan.serviceTime = player ? -1 : train.startTime;
+            plan.traffic = player ? -1 : index;
+            plan.consist = train.consist;
+            vehiclesOf(input, plan, parts, player, name, !train.isStatic);
+            // A static train (Open Rails: from the timetable's start, its
+            // rear at its path's start): a standing train of the core.
+            if (train.isStatic) {
+                StaticConsist standing;
+                standing.name = train.name;
+                standing.vehicles = plan.vehicles;
+                standing.length = float(plan.length);
+                standing.track = standingTrack(tdb, path, plan.length);
+                if (!standing.track.empty())
+                    input.staticConsists.push_back(standing);
+                else
+                    input.warnings << QString("%1: a static train of no length (its vehicles not read) or off its "
+                                              "path's track, not placed").arg(name);
+                continue;
+            }
+            // The timetable's #speed row: a lower top speed.
+            if (train.speed > 0.0f)
+                plan.maxSpeed = std::min(plan.maxSpeed, train.speed);
+            plan.efficiency = 1.0f;
+            plan.drivingEfficiency = player ? 0.9f : plan.efficiency;
+            SetRates(plan, std::min(input.routeSpeedLimit, plan.maxSpeed * plan.efficiency));
+            plan.startTime = std::max(0, train.startTime);
+            if (!routeOf(input, tdb, plan, path, name))
+                continue;
+            // Station stops: each timetable stop at the path's first pass by
+            // a platform of its station, in the path's order; a passing
+            // time is no stop. Standing at least the booked dwell, or the
+            // platform's least waiting time without one, and no longer
+            // than that least time when late (Open Rails' timetable trains,
+            // TTTrain.ComputeTrainBoardingTime).
+            std::vector<bool> used(size_t(train.stops.size()), false);
+            const auto book = [&](StopPlan &stop, const OrTimetable::Stop &booked, int least) {
+                stop.arrival = booked.timing.arrival;
+                stop.departure = booked.timing.departure;
+                const int dwell = stop.arrival >= 0 && stop.departure >= 0 ? stop.departure - stop.arrival : 0;
+                stop.boarding = dwell > 0 ? std::min(dwell, least) : least;
+                stop.efficiency = plan.efficiency;
+                stop.platform = timetable->stations[booked.station].name;
+                // Open Rails' timetable mode holds no exit signal by default
+                // (`$hold` asks for it, phase 4).
+                stop.holdsExit = false;
+            };
+            for (const Path::PathObject *pass : path->pathObjects) {
+                if (pass == nullptr)
+                    continue;
+                const QString key = pass->name.trimmed().toLower();
+                int k = -1;
+                for (int s = 0; s < train.stops.size() && k < 0; ++s)
+                    if (!used[size_t(s)] && timetable->stations[train.stops[s].station].key == key)
+                        k = s;
+                if (k < 0)
+                    continue;
+                used[size_t(k)] = true;
+                const OrTimetable::Stop &booked = train.stops[k];
+                if (booked.timing.arrival < 0 && booked.timing.departure < 0)
+                    continue;
+                StopPlan stop;
+                if (!stopAt(plan, *pass, stop)) {
+                    input.warnings << QString("%1: the stop at %2 is beyond its route").arg(name, pass->name);
+                    continue;
+                }
+                const TRitem *item = platformItem(tdb, pass->trItemId);
+                book(stop, booked, item != nullptr ? item->platformMinWaitingTime : 0);
+                plan.stops.push_back(stop);
+            }
+            // A station not passed with a platform behind the path's start
+            // or beyond its end, in the track section there: on the route
+            // in Open Rails. Behind the start the train is at the station
+            // from the start (its rear past the platform's end,
+            // TTTrain.CheckStationPosition) and stands there until it
+            // departs; beyond the end it runs on to the platform and stops.
+            const QVector<PathTrack::Leg> &legs = path->legs();
+            for (int s = 0; s < train.stops.size(); ++s) {
+                const OrTimetable::Stop &booked = train.stops[s];
+                if (used[size_t(s)] || (booked.timing.arrival < 0 && booked.timing.departure < 0))
+                    continue;
+                const QString key = timetable->stations[booked.station].key;
+                float nearEnd = 0.0f, farEnd = 0.0f;
+                const PathTrack::Leg &first = legs.first(), &last = legs.last();
+                RouteTrack &end = plan.route.parts.back();
+                const TRitem *platform = first.broken ? nullptr
+                        : platformBeyond(tdb, first.track, first.from, first.forward() ? -1.0f : 1.0f, key, nearEnd, farEnd);
+                const bool atStart = platform != nullptr;
+                if (!atStart && !plan.route.broken && !last.broken && !end.intervals().empty()
+                        && end.intervals().back().node == last.track
+                        && std::fabs(end.intervals().back().to - last.to) < PathTrack::SamePlace)
+                    platform = platformBeyond(tdb, last.track, last.to, last.forward() ? 1.0f : -1.0f, key, nearEnd, farEnd);
+                if (platform == nullptr) {
+                    input.warnings << QString("%1: the stop at %2 is not on its path")
+                                          .arg(name, timetable->stations[booked.station].name);
+                    continue;
+                }
+                used[size_t(s)] = true;
+                StopPlan stop;
+                if (atStart) {
+                    stop.part = 0;
+                    stop.front = stop.platformEnd = stop.platformStart = plan.startFront;
+                } else {
+                    stop.part = int(plan.route.parts.size()) - 1;
+                    stop.platformStart = end.length() + std::fabs(double(nearEnd) - double(last.to));
+                    end.append(last.track, last.to, farEnd);
+                    stop.platformEnd = end.length();
+                    stop.front = std::clamp(stop.platformEnd - 0.5 * (stop.platformEnd - stop.platformStart - plan.length),
+                                            0.0, stop.platformEnd);
+                }
+                book(stop, booked, platform->platformMinWaitingTime);
+                plan.stops.insert(atStart ? plan.stops.begin() : plan.stops.end(), stop);
+            }
+            for (size_t k = 0; k < plan.stops.size(); ++k)
+                plan.stops[k].entry = int(k);
+            finishTrain(input, tdb, plan, path);
+            input.trains.push_back(std::move(plan));
+        }
+    }
+}
+
 std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
                                                  std::shared_ptr<const TrackGeometry> geometry,
                                                  std::shared_ptr<const TrackNetwork> network, float restrictedSpeed,
@@ -539,6 +904,15 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
         input->activity = activity->header->name;
         input->startTime = activity->header->startTime[0] * 3600 + activity->header->startTime[1] * 60
                 + activity->header->startTime[2];
+    }
+    // An Open Rails timetable set (task 08): its trains, the chosen one the
+    // player's (its start the run's); no events, zones or work orders yet.
+    if (activity->isTimetables()) {
+        TimetableTrains(*input, activity, tdb);
+        for (const TrainPlan &plan : input->trains)
+            if (plan.player)
+                input->startTime = plan.startTime;
+        return input;
     }
     const QString routePath = ContentPath::parentDirectory(activity->path);
     // The activity's restricted speed zones: their two ends on the track.
@@ -577,40 +951,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
         plan.serviceTime = player ? -1 : train.time;
         plan.traffic = player ? -1 : train.index;
         plan.consist = service->trainConfig;
-        float engineSpeed = 0.0f;
-        QStringList missing;
-        for (const Consist::EngItem &item : consist->engItems) {
-            Vehicle vehicle = VehicleOf(item);
-            // The player's train is consist 0 of the wagon lists.
-            if (player)
-                vehicle.id = unsigned(item.uid);
-            if (vehicle.maxSpeed > 0.0f)
-                engineSpeed = engineSpeed > 0.0f ? std::min(engineSpeed, vehicle.maxSpeed) : vehicle.maxSpeed;
-            if (vehicle.mass <= 0.0) {
-                const Eng *eng = engOf(item.eng);
-                const QString what = eng != nullptr ? eng->name : QString::number(item.eng);
-                if (!missing.contains(what))
-                    missing << what;
-            }
-            plan.length += vehicle.length;
-            plan.vehicles.push_back(vehicle);
-        }
-        // Its performance (task 03), the leading vehicle's air drag its own.
-        plan.performance = PerformanceOf(plan.vehicles);
-        // Driven with force and mass where every vehicle has its mass and the
-        // engines their force or power (task 03), else simply.
-        if (missing.isEmpty() && (plan.performance.force > 0.0 || plan.performance.power > 0.0)) {
-            plan.driving = Driving::Physics;
-        } else {
-            plan.driving = Driving::Simple;
-            input->warnings << (missing.isEmpty()
-                                ? QString("%1: driven simply (its engines have no force or power)").arg(name)
-                                : QString("%1: driven simply (no mass for %2)").arg(name, missing.join(", ")));
-        }
-        // The consist file's MaxVelocity (as Open Rails takes it), else its
-        // slowest engine's.
-        plan.maxSpeed = consist->fileMaxVelocity > 0.1f ? consist->fileMaxVelocity
-                      : engineSpeed > 0.0f ? engineSpeed : input->routeSpeedLimit;
+        vehiclesOf(*input, plan, {ConsistPart{consist, false}}, player, name);
         plan.efficiency = service->efficiency > 0.0f ? service->efficiency : 1.0f;
         plan.drivingEfficiency = player ? 0.9f : plan.efficiency;
         SetRates(plan, std::min(input->routeSpeedLimit, plan.maxSpeed * plan.efficiency));
@@ -619,17 +960,8 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
             plan.efficiency = definition->efficiency.last();
         plan.startTime = player ? input->startTime : train.time;
 
-        // The train stands with its rear at the path's start, the whole train
-        // ahead of it, as Open Rails places trains (Simulator.Initialize-
-        // PlayerTrain, AI.cs; task 06). The track behind, the train's length,
-        // is its route's lead-in: where its first part is shorter than the
-        // train, it stands back on it.
-        plan.route = BuildRoute(tdb, path->nodes(), path->legs(), double(plan.length) + 1.0);
-        if (plan.route.parts.empty() || plan.route.parts.front().length() <= 0.0) {
-            input->warnings << QString("%1: its path has no track").arg(name);
+        if (!routeOf(*input, tdb, plan, path, name))
             continue;
-        }
-        plan.startFront = std::min(plan.route.pathStart + plan.length, plan.route.parts.front().length());
 
         // Station stops: the timetable's, each at its pass of the platform.
         const ActivityTimetable *timetable = train.timetable;
@@ -659,27 +991,11 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
                     input->warnings << QString("%1: the stop at %2 is not on the path").arg(name, platform);
                     continue;
                 }
-                double nearEnd = 1e12, farEnd = -1e12;
-                for (const QPair<int, float> &met : passes[passOf[i]].items) {
-                    nearEnd = std::min(nearEnd, double(met.second));
-                    farEnd = std::max(farEnd, double(met.second));
-                }
                 StopPlan stop;
-                double nearRoute = 0.0;
-                int nearPart = 0;
-                if (!plan.route.place(farEnd, stop.part, stop.front)
-                        || !plan.route.place(nearEnd, nearPart, nearRoute)) {
+                if (!stopAt(plan, passes[passOf[i]], stop)) {
                     input->warnings << QString("%1: the stop at %2 is beyond its route").arg(name, platform);
                     continue;
                 }
-                if (nearPart != stop.part)
-                    nearRoute = 0.0;
-                stop.platformEnd = stop.front;
-                stop.platformStart = nearRoute;
-                // Centred on the platform; a longer train overhangs both ends.
-                const double platformLength = stop.front - nearRoute;
-                stop.front = std::clamp(stop.front - 0.5 * (platformLength - plan.length), 0.0,
-                                        plan.route.parts[size_t(stop.part)].length());
                 const bool timed = timetable->arrivalTime[i] != 0 || timetable->departTime[i] != 0;
                 stop.arrival = timed ? timetable->arrivalTime[i] : -1;
                 stop.departure = timed ? timetable->departTime[i] : -1;
@@ -706,41 +1022,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
             if (plan.route.place(down, wait.part, wait.front))
                 plan.waits.push_back(wait);
         }
-        for (const RouteTrack &part : plan.route.parts) {
-            plan.projection.emplace_back();
-            plan.limits.emplace_back();
-            FinishPart(*input, plan, part, plan.projection.back(), plan.limits.back());
-        }
-        // Passing paths: each where the main route leaves it and rejoins
-        // it, and its own track between.
-        {
-            QVector<double> nodeDown(nodes.size(), 0.0);
-            for (int k = 1; k < nodes.size() && k - 1 < legs.size(); ++k)
-                nodeDown[k] = nodeDown[k - 1] + std::fabs(double(legs[k - 1].to) - double(legs[k - 1].from));
-            for (const PathSnapshot::Passing &side : path->passingPaths()) {
-                if (side.from < 0 || side.to >= nodes.size() || side.from >= side.to)
-                    continue;
-                QVector<PathTrack::Node> around;
-                around << nodes[side.from] << side.nodes << nodes[side.to];
-                const QVector<PathTrack::Leg> sideLegs = PathTrack::legs(tdb, around);
-                bool broken = sideLegs.isEmpty();
-                for (const PathTrack::Leg &leg : sideLegs)
-                    broken = broken || leg.broken;
-                PassingPlan passing;
-                int partTo = -1;
-                if (broken || !plan.route.place(nodeDown[side.from], passing.part, passing.from)
-                        || !plan.route.place(nodeDown[side.to], partTo, passing.to) || partTo != passing.part
-                        || passing.to <= passing.from)
-                    continue;
-                for (const PathTrack::Leg &leg : sideLegs)
-                    passing.track.append(leg.track, leg.from, leg.to);
-                if (passing.track.length() > 0.0)
-                    plan.passing.push_back(passing);
-            }
-            std::sort(plan.passing.begin(), plan.passing.end(), [](const PassingPlan &a, const PassingPlan &b) {
-                return a.part != b.part ? a.part < b.part : a.from < b.from;
-            });
-        }
+        finishTrain(*input, tdb, plan, path);
         input->trains.push_back(std::move(plan));
     }
     input->staticConsists = StaticConsists(activity, tdb);

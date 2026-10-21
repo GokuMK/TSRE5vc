@@ -43,6 +43,7 @@
 #include <tsre/trains/Traffic.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
+#include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/PathTrack.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Trk.h>
@@ -2379,8 +2380,15 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
     std::vector<double> lateness;
     double simulated = 0.0;
     qint64 inputMs = 0, runMs = 0;
-    for (int id : content->activityId) {
-        Activity *activity = ActLib::Act.value(id);
+    // The route's activities, then its Open Rails timetable sets (task
+    // 08), each run as an activity with every train AI.
+    content->loadTimetableSets();
+    QVector<Activity *> runs;
+    for (int id : content->activityId)
+        runs << ActLib::Act.value(id);
+    for (int id : content->timetableSetId)
+        runs << ActLib::TimetableSets.value(id);
+    for (Activity *activity : runs) {
         if (activity == nullptr || activity->loaded != 1)
             continue;
         ++activities;
@@ -2632,6 +2640,10 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         for (const ActivityObject *object : activity->activityObjects)
             looseConsists += object != nullptr && object->objectTypeId == ActivityObject::WAGONLIST
                     && object->con != nullptr ? 1 : 0;
+        // A timetable set's static trains (task 08) stand as they do.
+        for (const std::shared_ptr<OrTimetable> &timetable : activity->timetables)
+            for (const OrTimetable::Train &train : timetable->trains)
+                looseConsists += train.isStatic ? 1 : 0;
         placedConsists += int(input->staticConsists.size());
         trains += int(input->trains.size());
         warnings += input->warnings.size();

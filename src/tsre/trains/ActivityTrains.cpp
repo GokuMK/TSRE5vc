@@ -118,7 +118,7 @@ QVector<Train> timetableTrains(Activity *activity) {
             train.orTimetable = t;
             train.orTrain = k;
             train.staticTrain = one.isStatic;
-            train.path = one.path;
+            train.path = one.pathName();
             train.consist = one.consist;
             const OrTimetable::Stop *first = nullptr;
             const OrTimetable::Stop *last = nullptr;

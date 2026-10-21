@@ -165,10 +165,13 @@ model as the first operating policy, and threading.
     them (its copies are made from frames). The player's driving with
     real consists will.
 - [ ] `08-open-rails-timetables.md` (designed 2026-10-21 with the user's
-  ideas, under review): Open Rails' timetable mode read, simulated, shown
-  and saved (the user, 2026-10-21: before the player's driving); an Open
-  Rails timetable set is an activity in code. PRUDNIK's timetable, 308
-  trains and no activity, is the local content.
+  ideas; phases 1 to 3 done 2026-10-22): Open Rails' timetable mode read,
+  simulated, shown and saved (the user, 2026-10-21: before the player's
+  driving); an Open Rails timetable set is an activity in code. PRUDNIK's
+  timetable, 308 trains and no activity, is the local content: its
+  trains run (219 of 266 finish; the rest wait behind one at a signal
+  pair, see the task), driven simply until TSRE reads its vehicles
+  (`TRAINS/Trainset`, Open Rails' `Include` in .eng files).
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a
@@ -203,9 +206,8 @@ model as the first operating policy, and threading.
     waiting point "until 08:30" on EUROPE1 lclsrvce (2026-10-14), and
     JAPAN1 itr from 12:00 at about 12:23 ("Collection was modified" in
     `TrackCircuitSection.TestTrainAhead`).
-- Separate tasks: Open Rails' timetable mode (PRUDNIK has only an Open
-  Rails timetable, so its trains cannot run in TSRE's simulation yet); the
-  flagged refactors below.
+- Separate tasks: Open Rails' timetable mode (task 08); the flagged
+  refactors below.
 
 ## Flagged refactors (user, 2026-10-17)
 - `Sim::TrackGeometry` repeats `TDB::getDrawPositionOnTrNode`'s section
