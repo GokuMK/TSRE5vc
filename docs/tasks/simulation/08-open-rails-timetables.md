@@ -160,13 +160,16 @@ mapped onto the core:
 The editor:
 
 1. **Activity panel (F4):** the kind chosen first (MSTS activity or Open
-   Rails timetable, as Open Rails' menu does), then the list of that kind.
+   Rails timetable, as Open Rails' menu does), then the list of that kind;
+   the kind is the mode of every activity window (below).
    For a timetable set: its timetables, and the player's train (None by
    default, or any running train); the MSTS-only fields hidden (the
    traffic pattern, events, loose consists, difficulty).
-2. **Traffic window:** both kinds, in two groups (MSTS traffic, Open Rails
-   timetables); a timetable's properties a summary (trains, stations,
-   problems) and its check.
+2. **Traffic window:** the chosen kind's traffic (MSTS `.trf` patterns, or
+   Open Rails timetables); a timetable's properties a summary (trains,
+   stations, problems) and its check. The Service window is MSTS's only
+   (a timetable has no `.srv` files, its trains are in the timetable):
+   off for timetables, its controls in the panel hidden.
 3. **Timetable window:** both kinds in one consistent interface (the
    trains, their stops and times, Simulate, Follow, the states); a
    timetable's trains with more (their commands, start and dispose, the
@@ -212,7 +215,8 @@ arrivals and departures at their stations, the formed and static trains.
   choosable as the player's (on the autopilot), as in Open Rails.
 - A timetable is an advanced traffic file; an Open Rails timetable set is
   an activity in code from the start (part C); the two kinds separate for
-  now; the kind chosen first in the activity panel.
+  now; the kind chosen first in the activity panel, and the activity
+  windows (Traffic, Service, Timetable, Check) following it.
 - Separate classes with a common interface (part C).
 - The Timetable window shows both kinds in one consistent interface.
 - Saving: TSRE's own file layout, written from the model.
