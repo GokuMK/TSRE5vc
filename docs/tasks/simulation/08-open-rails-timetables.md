@@ -1,7 +1,7 @@
 # Task simulation 08: Open Rails timetables
 
 Status: designed 2026-10-21 with the user's ideas (part C), the
-decisions at the end of this document; phase 1 done.
+decisions at the end of this document; phases 1 and 2 done.
 
 ## Progress
 
@@ -44,6 +44,31 @@ decisions at the end of this document; phase 1 done.
   a group; the check in folders of any case. `timetable-route` reads and
   checks a route's timetables (`--game-root`, `--route`; a route without
   any passes).
+
+**Phase 2, the activity in code (done 2026-10-21).**
+- `Activity::Kind`: an MSTS activity or an Open Rails timetable set
+  (`loadTimetableSet`: a timetable, or a group naming timetables beside
+  it); a set has no activity file, its timetables (`Activity::timetables`),
+  the player's train chosen for a run (`playerTrain`, none: every train
+  AI), its name the group's or the timetable's description, its start the
+  first running train's. Not saved yet (phase 6), never unsaved.
+- Sets are kept apart from the MSTS activities
+  (`ActLib::TimetableSets`, `Route::timetableSetId`): code going through
+  `ActLib::Act` and `Route::activityId` knows .act files. A route loads its
+  sets from `ACTIVITIES/OpenRails` (`Route::loadTimetableSets`, the
+  folder's case not minded).
+- The source of trains: `ActivityTrains::List` gives a set's trains as it
+  gives an activity's (the rows the Timetable window and the simulation
+  read): each AI or the player's, static or not, its path and consist,
+  first and last stops by their times, the check's problems;
+  `RouteDirectory`, `StartPosition` for both kinds.
+- Runs with no player's train: the core already looks at the player's
+  train only where there is one.
+- **Fixtures:** `timetable-read` (24): a set as an activity (name, start,
+  its trains in start order, the chosen one the player's, the static one
+  marked, problems from the check), a group's two timetables;
+  `simulation-coupling` (24): a run with no player's train to its end, an
+  event looking at the player's train not fired. Every suite unchanged.
 
 ## Why
 

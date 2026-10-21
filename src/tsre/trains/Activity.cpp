@@ -21,6 +21,7 @@
 #include <tsre/renderer/SelectionId.h>
 #include <QDebug>
 #include <QFile>
+#include <QFileInfo>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Traffic.h>
@@ -28,10 +29,51 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/OrTimetable.h>
 #include <tsre/sim/SimulationController.h>
 #include <algorithm>
 
 Activity::Activity() {
+}
+
+void Activity::loadTimetableSet(const QString &directory, const QString &file) {
+    kind = Kind::OrTimetables;
+    path = directory;
+    name = file;
+    nameid = QFileInfo(file).completeBaseName();
+    pathid = ContentPath::normalize(directory + "/" + file);
+    hashid = ContentPath::key(pathid);
+    timetables.clear();
+    QString display;
+    QStringList files;
+    if (file.contains(".timetablelist", Qt::CaseInsensitive)) {
+        OrTimetableGroup group;
+        if (group.load(pathid)) {
+            display = group.name;
+            files = group.timetables;
+        }
+    } else {
+        files << file;
+    }
+    int start = -1;
+    for (const QString &one : files) {
+        auto timetable = std::make_shared<OrTimetable>();
+        timetable->load(directory + "/" + one);
+        if (display.isEmpty())
+            display = timetable->description;
+        for (const OrTimetable::Train &train : timetable->trains)
+            if (!train.isStatic && train.startTime >= 0 && (start < 0 || train.startTime < start))
+                start = train.startTime;
+        timetables.push_back(timetable);
+    }
+    delete header;
+    header = new ActivityHeader(Game::route, display.isEmpty() ? nameid : display);
+    if (start >= 0) {
+        header->startTime[0] = start / 3600;
+        header->startTime[1] = start / 60 % 60;
+        header->startTime[2] = start % 60;
+    }
+    loaded = 1;
 }
 
 void Activity::init(QString route, QString name) {
@@ -346,6 +388,9 @@ void Activity::parse(FileBuffer *data) {
 }
 
 void Activity::save() {
+    // A timetable set: not saved yet (task 08, phase 6).
+    if (isTimetables())
+        return;
     QString tpath;
     
     QDir dir(path);
@@ -893,6 +938,8 @@ void Activity::initToPlay(){
 }
 
 bool Activity::isUnSaved(){
+    if (isTimetables())
+        return false;
     for(int i = 0; i < activityObjects.size(); i++){
         if(activityObjects[i]->isUnSaved())
             return true;

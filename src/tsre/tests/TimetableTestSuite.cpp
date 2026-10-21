@@ -12,6 +12,9 @@
 #include <tsre/Game.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
+#include <tsre/trains/ActLib.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/OrTimetable.h>
 
 namespace {
@@ -170,6 +173,47 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         check(found.size() == 4 && texts.join("\n").contains("path p9") && texts.join("\n").contains("consist c9")
                   && texts.join("\n").contains("$attach") && texts.join("\n").contains("t7"),
               "the check (folders' case not minded): " + texts.join("; "));
+    }
+
+    // A timetable set as an activity (phase 2): its name the timetable's
+    // description, its start the first running train's; its trains listed
+    // as the editor and the simulation see an activity's, the one chosen
+    // the player's.
+    {
+        const int id = ActLib::AddTimetableSet(dir.path(), "test.timetable-or");
+        Activity *set = ActLib::TimetableSets.value(id);
+        check(set != nullptr && set->isTimetables() && set->loaded == 1 && set->header != nullptr
+                  && set->header->name == "Test timetable" && set->header->startTime[0] == 5
+                  && set->header->startTime[1] == 0 && set->timetables.size() == 1 && !set->isUnSaved(),
+              "a timetable set as an activity: its name and the first train's start (05:00)");
+        if (set != nullptr) {
+            set->playerTrain = "t2";
+            const QVector<ActivityTrains::Train> trains = ActivityTrains::List(set);
+            QStringList listed;
+            for (const ActivityTrains::Train &train : trains)
+                listed << QString("%1%2%3").arg(train.service, train.kind == ActivityTrains::Player ? "*" : "",
+                                                train.staticTrain ? "(s)" : "");
+            const ActivityTrains::Train *t1 = nullptr;
+            for (const ActivityTrains::Train &train : trains)
+                if (train.service == "T1")
+                    t1 = &train;
+            check(trains.size() == 4 && listed.join(" ") == "S4(s) T1 T2* T3" && t1 != nullptr
+                      && t1->firstStop == "A 05:12:00" && t1->lastStop == "B 05:30:00" && t1->path == "p1",
+                  "its trains in start order, the static one first, the chosen one the player's: " + listed.join(" "));
+            check(t1 != nullptr && !t1->problems.isEmpty() && t1->problems.join(" ").contains("p1"),
+                  "a train's problems from the check: " + (t1 != nullptr ? t1->problems.join("; ") : QString()));
+            delete set;
+            ActLib::TimetableSets.remove(id);
+        }
+        writeFile(dir.filePath("two.timetable-or"), ";X;Y\n#path;px;py\n#consist;cx;cy\n#start;04:10;04:20\n", Encoding::Utf8);
+        writeFile(dir.filePath("both.timetablelist-or"), "#Both\ntest.timetable-or\ntwo.timetable-or\n", Encoding::Utf8);
+        const int group = ActLib::AddTimetableSet(dir.path(), "both.timetablelist-or");
+        Activity *both = ActLib::TimetableSets.value(group);
+        check(both != nullptr && both->header->name == "Both" && both->timetables.size() == 2
+                  && ActivityTrains::List(both).size() == 6 && both->header->startTime[0] == 4 && both->header->startTime[1] == 10,
+              "a group as an activity: the trains of its two timetables, the first start 04:10");
+        delete both;
+        ActLib::TimetableSets.remove(group);
     }
 
     qInfo().noquote() << QString("timetable-read: %1 passed, %2 failed").arg(passed).arg(failed);

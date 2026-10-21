@@ -27,6 +27,10 @@ public:
     static int jesttraffic;
     static int jestpath;
     static QHash<int, Activity*> Act;
+    // Open Rails timetable sets as activities (task simulation 08), apart
+    // from Act: code going through Act knows .act files.
+    static QHash<int, Activity*> TimetableSets;
+    static int AddTimetableSet(QString path, QString name);
     static QHash<int, Service*> Services;
     static QHash<int, Traffic*> Traffics;
     static QHash<int, Path*> Paths;
