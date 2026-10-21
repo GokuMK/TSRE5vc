@@ -1693,11 +1693,30 @@ void RouteEditorGLWidget::renderShadowMaps() {
             inTurn = map;
     }
 
+    // Vegetation in its own maps where the renderer has them (task 37),
+    // drawn with the main maps' matrices and cached with them.
+    // TSRE_VEGETATION_SHADOWS=0 casts it into the main maps as before, its
+    // own maps left empty.
+    static const bool splitVegetation = qEnvironmentVariable("TSRE_VEGETATION_SHADOWS", "1") != "0";
+    const bool vegetationMaps = renderer->vegetationShadows();
+    const bool vegetationSet = vegetationMaps && splitVegetation;
+    const Renderer::ShadowSet mainSet = vegetationSet ? Renderer::SET_MAIN : Renderer::SET_ALL;
+    const Renderer::Target vegetationTargets[3] = {Renderer::TARGET_VEGETATION_NEAR, Renderer::TARGET_VEGETATION_MID,
+                                                   Renderer::TARGET_VEGETATION_FAR};
     for (int map = 0; map < 3; ++map) {
         ShadowCache &cache = shadowCaches[map];
+        // The caches of both sets: the main one, then vegetation's.
+        bool drawn = false;
         if (caching && (atOnce[map] || map == inTurn) && renderer->beginShadowCache(map)) {
             drawWith(matrices[map]);
-            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map], Renderer::CASTERS_STATIC);
+            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map], Renderer::CASTERS_STATIC,
+                                          mainSet);
+            drawn = !vegetationSet || renderer->beginShadowCache(map + 3);
+            if (vegetationSet && drawn)
+                renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map],
+                                              Renderer::CASTERS_STATIC, Renderer::SET_VEGETATION);
+        }
+        if (drawn) {
             if (cacheLog)
                 qInfo().noquote() << "shadow cache" << map << "drawn:"
                                   << (!cache.valid ? "new" : cache.signature != signature ? "casters"
@@ -1720,23 +1739,29 @@ void RouteEditorGLWidget::renderShadowMaps() {
         } else if (!caching || atOnce[map]) {
             cache.valid = false;
         }
-        renderer->bindTarget(targets[map]);
-        renderer->clear(true, true);
-        if (caching && cache.valid) {
+        if (caching && cache.valid)
             // The cache's place and sun until it is drawn again; the lit
-            // shaders read the map with this matrix.
+            // shaders read the maps with this matrix.
             std::copy(cache.matrix, cache.matrix + 16, matrices[map]);
-            // A renderer made since has no cache: drawn again next frame.
-            cache.valid = renderer->copyShadowCache(map);
-        }
-        if (caching && cache.valid) {
+        // The frame's map: its cache with the moving casters on top, or every
+        // caster. A renderer made since has no cache: drawn again next frame.
+        auto drawMap = [&](Renderer::Target target, int cacheIndex, Renderer::ShadowSet set) {
+            renderer->bindTarget(target);
+            renderer->clear(true, true);
+            const bool copied = caching && cache.valid && renderer->copyShadowCache(cacheIndex);
+            if (caching && cache.valid && !copied)
+                cache.valid = false;
             drawWith(matrices[map]);
             renderer->setViewport(0, 0, sizes[map], sizes[map]);
-            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map], Renderer::CASTERS_DYNAMIC);
-        } else {
-            drawWith(matrices[map]);
-            renderer->setViewport(0, 0, sizes[map], sizes[map]);
-            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map]);
+            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map],
+                                          copied ? Renderer::CASTERS_DYNAMIC : Renderer::CASTERS_ALL, set);
+        };
+        drawMap(targets[map], map, mainSet);
+        if (vegetationSet) {
+            drawMap(vegetationTargets[map], map + 3, Renderer::SET_VEGETATION);
+        } else if (vegetationMaps) {
+            renderer->bindTarget(vegetationTargets[map]);
+            renderer->clear(true, true);
         }
     }
     gluu->pShadowMatrix = midMatrix;

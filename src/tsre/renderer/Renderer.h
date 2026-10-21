@@ -67,18 +67,30 @@ public:
     };
     void setViewLimits(const ViewLimits *limits);
     // Which shadow casters a draw takes (task 37): all, or only those of
-    // static or of moving objects (RenderQueue::setShadowDynamic).
+    // static or of moving objects (RenderQueue::setShadowDynamic); and of
+    // which set: all, all but vegetation (the main maps) or vegetation alone
+    // (its own maps, RenderItem::Material::vegetation).
     enum ShadowCasters {CASTERS_ALL = 0, CASTERS_STATIC, CASTERS_DYNAMIC};
+    enum ShadowSet {SET_ALL = 0, SET_MAIN, SET_VEGETATION};
     // Draws queued shadow casters with the bound shader without consuming
     // them, skipping instances whose origin lies farther than range from the
     // view position on the ground plane, and, with a light view-projection,
     // instances outside it. statsSlot labels the draws.
     virtual void renderShadowCasters(float range, int statsSlot,
                                      const float *viewProjection = nullptr,
-                                     ShadowCasters casters = CASTERS_ALL) = 0;
+                                     ShadowCasters casters = CASTERS_ALL,
+                                     ShadowSet set = SET_ALL) = 0;
+    // Vegetation's own shadow maps (task 37), when the renderer has them:
+    // TARGET_VEGETATION_*, drawn with the main maps' matrices and sampled
+    // beside them, vegetation itself taking them at a share of their
+    // strength. Without them vegetation casts into the main maps. When the
+    // renderer has them they must be drawn every frame the main ones are,
+    // cleared at least: everything that reads the main maps reads them.
+    virtual bool vegetationShadows() const { return false; }
     // Cached static shadow maps (task 37), when the renderer has them.
-    // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far),
-    // cleared and sized as the map, for its static casters. copyShadowCache
+    // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far;
+    // 3 to 5 the vegetation maps'), cleared and sized as the map, for its
+    // static casters. copyShadowCache
     // makes the bound shadow map start as a copy of that cache instead of
     // cleared; the casters drawn into it after go on top. False when there
     // is no such cache (a new renderer): draw every caster then.
@@ -352,8 +364,10 @@ public:
     // object draw distance); 0 draws without fog.
     virtual void setFogLod(float lod) = 0;
 
-    // Render targets: the view's frame, or one of the three shadow maps.
-    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR};
+    // Render targets: the view's frame, one of the three shadow maps, or one
+    // of vegetation's (vegetationShadows()).
+    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR,
+                 TARGET_VEGETATION_NEAR, TARGET_VEGETATION_MID, TARGET_VEGETATION_FAR};
     // The surface whose frame TARGET_VIEW is.
     void setSurface(RenderSurface *surface) { viewSurface = surface; }
     // Creates the shadow maps the main program samples: near and middle at

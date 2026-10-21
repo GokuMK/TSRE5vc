@@ -2,8 +2,8 @@
 
 Status: the TREES forest measured (2026-10-21). Part 1, the forest's own
 costs (steps 1-3), done on `feature/forest-performance`. Part 2: snapped
-maps and the static cache (step 4) done there; the vegetation map set
-(step 5) designed, not started.
+maps and the static cache (step 4), the vegetation map set (step 5, QRhi)
+done there; the depth gap and impostor shadows facing the sun open.
 Updated 2026-10-21.
 
 Related: [task 10](10-shadows-gather-pass.md) (the three shadow maps),
@@ -305,6 +305,38 @@ re-defined, 2000 trees cast every frame. An edit costs two redraws of the
 caches: when the object turns dynamic (or its old shadow stays behind) and
 when it settles. Deleting or adding an object changes the signature too.
 
+### Vegetation's maps (step 5)
+
+Done (2026-10-22, QRhi): three maps of vegetation's own
+(`TARGET_VEGETATION_*`), the main maps' sizes and matrices, cached with
+them (caches 3 to 5) and drawn every frame the main ones are. Vegetation
+(`RenderItem::Material::vegetation`: glTF shapes with an impostor and their
+shadow stand-ins, MSTS light materials -9 and -10, Forests) casts into them
+only (`Renderer::SET_VEGETATION`), everything else into the main maps
+(`SET_MAIN`). The OpenGL renderer keeps one set (`vegetationShadows()`
+false).
+
+- The lit shaders (`shadowedVisibility`, `ShadowSampling.glsl`) read both at
+  the same coordinates: the main maps' 16 taps (2 far), vegetation's 4 (every
+  fourth; 2 far). The shaded share combines as two occluders, `main + s veg
+  - main s veg`, with `s` 1 for ordinary surfaces and 0.3 for vegetation
+  (`vegetationSelfShadow`). Without vegetation's shadow the result is the
+  old one exactly (the switch off: pixel-identical).
+- The fog volume (`RhiFog`, one tap per map) and the light shafts (the far
+  map) take both at full strength, so trees still cut the shafts.
+- `TSRE_VEGETATION_SHADOWS=0` casts vegetation into the main maps as before,
+  its own maps cleared (the fog, shafts and shaders read them as lit;
+  the dummy depth texture is not initialized, so it must not stand in).
+- Cost, TREES forest view: 1.8 ms at 1280x800, 2.2 ms at 2123x1948 (8
+  vegetation taps cost 6 and 14 ms; 4 differ from 8 at shadow edges on
+  0.6% of pixels). Memory: 36 MB, and 36 MB of caches.
+- Look: the spruces' crowns lit evenly, their own shade light (fixed
+  exposure: the big tree 7 to 9 levels brighter, the trees behind 8 to 11);
+  the ground under them unchanged. With the profile's auto exposure the
+  brighter trees darken the rest of the view a little. EUROPE1's crossed-quad
+  trees lose the hard dark wedge of their own quads; their shadows on the
+  ground stay.
+
 ### Receivers
 
 - Ordinary surfaces: main and vegetation.
@@ -333,7 +365,10 @@ the type cannot detect vegetation, only override:
 
 ### Open
 
-- The vegetation set's cascades and sizes (near and mid at 1024? far trees
-  as impostors in the main far map?).
+- The depth gap (light within a tree's own crown, darker in a neighbour's
+  shadow); bark at full strength.
+- The vegetation set at smaller sizes (1024) if memory matters.
 - Impostor shadows from the frame facing the sun.
+- A moving camera on heavy routes still gives bumpy frame times (the user,
+  2026-10-22): another task.
 - Wind: vegetation would move.

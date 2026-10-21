@@ -46,6 +46,8 @@ static void debugCount(const QString &key) { if (traceDraws) debugCounts[key]++;
 extern const char *RhiPresentFragment;
 
 namespace {
+// The share of vegetation's shadow maps vegetation itself takes (task 37).
+constexpr float VegetationSelfShadow = 0.3f;
 
 constexpr int InstanceFloats = 20;
 constexpr int InstanceStride = InstanceFloats * sizeof(float);
@@ -287,6 +289,8 @@ void RhiRenderer::releaseResources() {
     releaseAttachments(selection);
     for (Attachments &map : shadowMaps)
         releaseAttachments(map);
+    for (Attachments &map : vegetationMaps)
+        releaseAttachments(map);
     releaseShadowCopy();
     for (Attachments &cache : shadowCaches)
         releaseAttachments(cache);
@@ -441,6 +445,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     // With auto exposure lamps keep one scale (gathered at it), enclosed or
     // not: the exposure finds the tunnel dark.
     program->setFloat("localLightDay", enclosed && !exposureActive() ? gluu->localLightAdaptation : 1.0f);
+    // Vegetation's shadow maps (task 37), and the share vegetation takes of
+    // them: its own crown and its neighbours' as a light shade.
+    program->setInt("vegetationShadowsOn", vegetationMaps[0].valid() && Game::shadowsEnabled > 0 ? 1 : 0);
+    program->setFloat("vegetationSelfShadow", VegetationSelfShadow);
     // MSTS night textures (task 35): the scale of their light, set by the
     // view with the lamps' rule.
     const NightTextures::Frame &night = NightTextures::frame();
@@ -1080,16 +1088,24 @@ void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
             createAttachments(shadowMaps[map], QRhiTexture::UnknownFormat, size, {});
         shadowMaps[map].openGlRows = true;
         targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
+        // Vegetation's (task 37), as the map.
+        if (!vegetationMaps[map].valid() || vegetationMaps[map].size != size)
+            createAttachments(vegetationMaps[map], QRhiTexture::UnknownFormat, size, {});
+        vegetationMaps[map].openGlRows = true;
+        targets[TARGET_VEGETATION_NEAR + map].attachments = &vegetationMaps[map];
     }
 }
 
 bool RhiRenderer::beginShadowCache(int map) {
     beginFrameIfNeeded();
-    if (map < 0 || map > 2 || !shadowMaps[map].valid())
+    if (map < 0 || map > 5)
+        return false;
+    const Attachments &source = map < 3 ? shadowMaps[map] : vegetationMaps[map - 3];
+    if (!source.valid())
         return false;
     flushTarget();
     Attachments &cache = shadowCaches[map];
-    const QSize size = shadowMaps[map].size;
+    const QSize size = source.size;
     if ((!cache.valid() || cache.size != size)
             && !createAttachments(cache, QRhiTexture::UnknownFormat, size, {}))
         return false;
@@ -1105,7 +1121,7 @@ bool RhiRenderer::beginShadowCache(int map) {
 }
 
 bool RhiRenderer::copyShadowCache(int map) {
-    if (map < 0 || map > 2 || !shadowCaches[map].valid())
+    if (map < 0 || map > 5 || !shadowCaches[map].valid())
         return false;
     // Over the map's clear: a failed copy leaves it empty, never stale.
     target().copyCache = map;
@@ -2084,6 +2100,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             const int map = slot.binding == 9 ? 0 : slot.binding == 2 ? 1 : slot.binding == 3 ? 2 : -1;
             if (map >= 0 && shadowMaps[map].valid() && Game::shadowsEnabled > 0)
                 texture = shadowMaps[map].depth;
+            // Vegetation's (task 37).
+            const int vegetation = slot.binding - RhiShaderSource::VegetationShadowBinding;
+            if (vegetation >= 0 && vegetation < 3 && vegetationMaps[vegetation].valid() && Game::shadowsEnabled > 0)
+                texture = vegetationMaps[vegetation].depth;
             break;
         }
         case 4:
@@ -2374,12 +2394,12 @@ void RhiRenderer::renderPassesMeasured(RenderPass first, RenderPass last) {
 }
 
 void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *viewProjection,
-                                      ShadowCasters casters) {
+                                      ShadowCasters casters, ShadowSet set) {
     beginFrameIfNeeded();
     if (!targetReady())
         return;
     // Casters in range and inside the light view, instanced by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, false, casters);
+    planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
     recordCasters(statsSlot);
 }
 

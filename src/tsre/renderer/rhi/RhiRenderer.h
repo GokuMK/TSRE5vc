@@ -69,7 +69,8 @@ public:
     PlanarReflection::Storage *createReflectionStorage() override;
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr,
-                             ShadowCasters casters = CASTERS_ALL) override;
+                             ShadowCasters casters = CASTERS_ALL,
+                             ShadowSet set = SET_ALL) override;
     void renderFrame() override;
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
@@ -77,6 +78,7 @@ public:
     void setClouds(const Clouds &clouds) override;
     bool beginShadowCache(int map) override;
     bool copyShadowCache(int map) override;
+    bool vegetationShadows() const override { return true; }
     bool beginSkyEnclosure(int size, int map = 0) override;
     void finishSkyEnclosure(bool far, float radius, float metresPerDepth) override;
     void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
@@ -206,7 +208,7 @@ private:
     // Targets by Renderer::Target, then the near sky enclosure map,
     // selection, an environment map face, the water reflection, the far sky
     // enclosure map and both seen from below, then the shadow maps' caches.
-    static constexpr int TargetEnclosure = TARGET_SHADOW_FAR + 1;
+    static constexpr int TargetEnclosure = TARGET_VEGETATION_FAR + 1;
     static constexpr int TargetSelection = TargetEnclosure + 1;
     static constexpr int TargetEnvironment = TargetSelection + 1;
     static constexpr int TargetReflection = TargetEnvironment + 1;
@@ -214,7 +216,7 @@ private:
     static constexpr int TargetEnclosureBottom = TargetEnclosureFar + 1;
     static constexpr int TargetEnclosureFarBottom = TargetEnclosureBottom + 1;
     static constexpr int TargetShadowCache = TargetEnclosureFarBottom + 1;
-    static constexpr int TargetCount = TargetShadowCache + 3;
+    static constexpr int TargetCount = TargetShadowCache + 6;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -754,6 +756,7 @@ private:
         QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
         const QRhiTexture *volumeCloudMap = nullptr;
         const QRhiTexture *volumeSunMap = nullptr;
+        const QRhiTexture *volumeVegetationMap = nullptr;
         const QRhiTexture *volumeShadeMap = nullptr;
         const QRhiTexture *volumeWeather = nullptr;
         const QRhiTexture *volumeFarCover = nullptr;
@@ -807,7 +810,7 @@ private:
         // The maps the injection's bindings hold (shadow maps, the cloud
         // shadow map, the terrain's shade, the lamps' and the signals' grids
         // come and go).
-        const QRhiTexture *boundMaps[13] = {};
+        const QRhiTexture *boundMaps[16] = {};
         int current = 0;
         bool historyValid = false;
         float previousForward[16] = {};
@@ -1023,15 +1026,19 @@ private:
 
     // Shadow maps: near, middle and far.
     Attachments shadowMaps[3];
-    // Their cached static casters (task 37), and the pass that copies a
-    // cache into its map at the start of the map's pass: a full-screen
-    // triangle writing each texel's depth.
-    Attachments shadowCaches[3];
+    // Vegetation's own shadow maps (task 37), with the main maps' sizes and
+    // matrices.
+    Attachments vegetationMaps[3];
+    // The cached static casters of both (task 37; 0 to 2 the main maps', 3
+    // to 5 vegetation's), and the pass that copies a cache into its map at
+    // the start of the map's pass: a full-screen triangle writing each
+    // texel's depth.
+    Attachments shadowCaches[6];
     struct ShadowCopy {
         QRhiSampler *sampler = nullptr;
         QRhiGraphicsPipeline *pipeline = nullptr;
-        QRhiShaderResourceBindings *bindings[3] = {};
-        QRhiTexture *bound[3] = {};
+        QRhiShaderResourceBindings *bindings[6] = {};
+        QRhiTexture *bound[6] = {};
     } shadowCopy;
     bool drawShadowCopy(QRhiCommandBuffer *cb, int map, const Attachments &into);
     void releaseShadowCopy();

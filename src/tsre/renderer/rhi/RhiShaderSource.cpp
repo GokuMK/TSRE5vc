@@ -46,7 +46,9 @@ const QHash<QString, int> &samplerBindings() {
         {"skyEnclosureOpenMap", SkyEnclosureOpenBinding}, {"skyEnclosureFarOpenMap", SkyEnclosureFarOpenBinding},
         {"terrainPatchData", TerrainPatchDataBinding}, {"fogVolume", FogVolumeBinding},
         {"fogFloorMap", FogFloorBinding}, {"terrainShadeMap", TerrainShadeBinding},
-        {"uNightSampler", NightTextureBinding}};
+        {"uNightSampler", NightTextureBinding},
+        {"vegetationShadow0", VegetationShadowBinding}, {"vegetationShadow1", VegetationShadowBinding + 1},
+        {"vegetationShadow2", VegetationShadowBinding + 2}};
     return bindings;
 }
 

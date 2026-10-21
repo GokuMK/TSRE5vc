@@ -44,6 +44,8 @@ constexpr int FogVolumeBinding = 30;
 constexpr int FogFloorBinding = 31;
 // The terrain's shade of a low sun past the shadow maps (TerrainShade).
 constexpr int TerrainShadeBinding = 32;
+// Vegetation's shadow maps, near, middle and far (task 37): 34 to 36.
+constexpr int VegetationShadowBinding = 34;
 // MSTS night textures (task 35), as OpenGL binds them.
 constexpr int NightTextureBinding = NightTextures::TextureUnit;
 

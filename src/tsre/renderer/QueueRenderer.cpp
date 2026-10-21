@@ -402,7 +402,8 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
 }
 
 void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
-                                      float minRadius, bool alphaTested, ShadowCasters casters){
+                                      float minRadius, bool alphaTested, ShadowCasters casters,
+                                      ShadowSet set){
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Depth does not depend on draw order, so repeated packets draw instanced.
     shadowCasters.clear();
@@ -412,6 +413,10 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
         // A cached map's static casters, or the moving ones on top (task 37).
         if((casters == CASTERS_STATIC && instance.dynamicShadow)
                 || (casters == CASTERS_DYNAMIC && !instance.dynamicShadow))
+            return;
+        // The main maps or vegetation's own.
+        if((set == SET_MAIN && instance.packet->material.vegetation)
+                || (set == SET_VEGETATION && !instance.packet->material.vegetation))
             return;
         // Vegetation is never a roof (task 37).
         if(enclosure && instance.packet->material.vegetation)

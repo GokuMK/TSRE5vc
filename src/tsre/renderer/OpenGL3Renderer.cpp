@@ -894,7 +894,8 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
 }
 
 void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
-                                          const float *viewProjection, ShadowCasters casters){
+                                          const float *viewProjection, ShadowCasters casters,
+                                          ShadowSet set){
     GLUU *gluu = GLUU::get();
     QOpenGLContext *context = QOpenGLContext::currentContext();
     f = context != NULL ? context->functions() : NULL;
@@ -904,7 +905,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     TerrainStateCache terrainState;
     DetailStateCache detailState;
     // Casters in range and inside the light view, grouped by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, false, casters);
+    planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
     const bool instancing = !instanceUpload.empty() && uploadInstances();
     Shader *shader = gluu->currentShader;
     QOpenGLExtraFunctions *e = context->extraFunctions();
@@ -1263,6 +1264,9 @@ void OpenGL3Renderer::bindTarget(Target target){
     if(context == NULL)
         return;
     QOpenGLFunctions *functions = context->functions();
+    // No vegetation maps here (vegetationShadows()).
+    if(target > TARGET_SHADOW_FAR)
+        return;
     const unsigned int framebuffer = target == TARGET_VIEW
             ? (viewSurface != nullptr ? viewSurface->defaultFramebufferObject() : 0u)
             : shadowFramebuffers[target - TARGET_SHADOW_NEAR];
