@@ -1,0 +1,37 @@
+{
+  "output": "build/trees-forest-perf",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    0,
+    0
+  ],
+  "probes": false,
+  "timingFrames": 30,
+  "views": [
+    {
+      "name": "forest",
+      "tile": [
+        96,
+        118
+      ],
+      "pos": [
+        142.12,
+        8.32,
+        -320.64
+      ],
+      "rot": [
+        -10.934662297,
+        0.124791042
+      ],
+      "time": 12,
+      "weatherPreset": "clear",
+      "settle": {
+        "minFrames": 10,
+        "stableFrames": 3,
+        "maxFrames": 300,
+        "maxSeconds": 120
+      }
+    }
+  ]
+}

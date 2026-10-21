@@ -41,7 +41,8 @@ an even green, losing its depth). The fixtures also transmit little: the
 black locust's leaves average sRGB 73 95 38 (about 0.1 linear) and pass
 that colour at 0.55 (alpha 140), about 5 %. To try: leaves in the shadow
 map passing a share of the light for transmission, a brighter transmitted
-colour in the assets (tree-gen).
+colour in the assets (tree-gen). Planned in [task 37](37-vegetation-shadows.md)
+part 2: vegetation in its own shadow maps, which trees read at about 30%.
 
 ## Engine scope
 
