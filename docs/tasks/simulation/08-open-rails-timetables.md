@@ -1,7 +1,7 @@
 # Task simulation 08: Open Rails timetables
 
-Status: designed 2026-10-21, waiting for the user's decisions (end of this
-document).
+Status: designed 2026-10-21, under the user's review (no code yet); the
+decisions so far at the end of this document.
 
 ## Why
 
@@ -156,7 +156,16 @@ arrivals and departures at their stations, the formed and static trains.
 4. **The editor** (part C).
 5. **Verified** (part D), Open Rails on PRUDNIK.
 
-## Questions for the user
+## Decisions (user, 2026-10-21)
+
+- For now a review of this design, no code.
+- The commands: those PRUDNIK uses run; the rest read and reported.
+- The player's train: all trains AI by default, any running train
+  choosable as the player's (on the autopilot), as in Open Rails.
+- The editor: the user has ideas of their own (a Traffic window?), to be
+  discussed; part C waits for them.
+
+## Questions for the user (as asked)
 
 1. Scope: run timetables (reading, the simulation, the editor) as above,
    with editing timetables a later task?
