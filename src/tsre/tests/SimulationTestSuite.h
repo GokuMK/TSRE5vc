@@ -20,6 +20,10 @@ int runSimulationUiSuite(bool verbose);
 // each kind of event as Open Rails checks it, levels and chains, the
 // activity's end, held messages, triggering trains, wagon lists, restarts.
 int runSimulationEventsSuite(bool verbose);
+// Trains that change (task simulation 07): loose consists taken along and
+// joined, cuts at waiting points, reversing short of cut-off cars,
+// attaching again to them.
+int runSimulationCouplingSuite(bool verbose);
 // The scaling workloads (task simulation 02): the route enlarged with the
 // same traffic, more traffic, more trains at one junction, on hand-made
 // track; measured.

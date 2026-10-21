@@ -93,31 +93,8 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         made.length = consist.length;
         made.track = consist.track;
         standing.push_back(made);
+        holdStanding(int(standing.size()) - 1);
     }
-    if (network != nullptr)
-        for (const StaticConsist &consist : in->staticConsists) {
-            const int index = int(&consist - in->staticConsists.data());
-            const RouteInterval *previous = nullptr;
-            for (const RouteInterval &interval : consist.track) {
-                if (previous != nullptr && previous->node != interval.node) {
-                    const int junction = network->endSection(previous->node, previous->forward() ? 1 : 0);
-                    if (junction >= 0) {
-                        holder[size_t(junction)] = StandingConsist;
-                        standingAt[size_t(junction)] = index;
-                    }
-                }
-                const float low = std::min(interval.from, interval.to), high = std::max(interval.from, interval.to);
-                const auto [first, count] = network->nodeSections(interval.node);
-                for (int k = first; k < first + count; ++k) {
-                    const TrackSection &section = network->sections()[size_t(k)];
-                    if (section.to > low + 1e-3f && section.from < high - 1e-3f) {
-                        holder[size_t(k)] = StandingConsist;
-                        standingAt[size_t(k)] = index;
-                    }
-                }
-                previous = &interval;
-            }
-        }
     findStretches();
     // Activity events (task 06): their levels from the file; the trains
     // location events look at (the player's, and triggering trains) know
@@ -417,12 +394,15 @@ void SimulationCore::advance(int train, double from, double to) {
                 break;
             t = std::max(t, s.until);
             if (s.stoppedAt == StopKind::Reversal) {
-                // The old rear leads, the train's length along the next part,
-                // on the track it holds (given back and taken again).
+                // The old rear leads, the train's length along the next part
+                // (more where it reverses short of its part's end: task 07,
+                // its own cut-off cars beyond), on the track it holds (given
+                // back and taken again).
+                const double shortOfEnd = std::max(0.0, parts[size_t(s.part)].length() - s.front);
                 releaseAll(train);
                 ++s.part;
                 s.reversed = !s.reversed;
-                s.front = std::min(double(runtime[size_t(train)].length), parts[size_t(s.part)].length());
+                s.front = std::min(double(runtime[size_t(train)].length) + shortOfEnd, parts[size_t(s.part)].length());
                 record(t, train, TrainEvent::Reversed);
                 if (!occupy(train)) {
                     s.stoppedAt = StopKind::Blocked;
@@ -517,7 +497,13 @@ void SimulationCore::advance(int train, double from, double to) {
             }
             s.eventStop = chosen;
         }
-        if (s.authority < parts[size_t(s.part)].length() - 1e-6) {
+        // Attaching to a standing train (task 07): it comes to the contact.
+        if (own.attachTo >= 0 && own.contactAt >= s.front - AtTarget && own.contactAt <= target + AtTarget) {
+            target = std::max(s.front, own.contactAt);
+            kind = StopKind::Couple;
+            index = own.attachTo;
+        }
+        if (kind != StopKind::Couple && s.authority < parts[size_t(s.part)].length() - 1e-6) {
             const double margin = runtime[size_t(train)].endsAtSignal ? SignalMargin : AuthorityMargin;
             const double limit = std::max(s.front, s.authority - margin);
             // A station stop short of where its authority ends is kept: Open
@@ -527,6 +513,15 @@ void SimulationCore::advance(int train, double from, double to) {
                 target = limit;
                 kind = StopKind::Blocked;
                 index = -1;
+            }
+            // Its own cut-off cars on the rest of the part (task 07): it
+            // reverses where it stands.
+            if (kind == StopKind::Blocked && s.blockedBy == StandingConsist && s.waitSection >= 0
+                    && standingAt[size_t(s.waitSection)] >= 0
+                    && standing[size_t(standingAt[size_t(s.waitSection)])].uncoupledFrom == train
+                    && s.part + 1 < int(parts.size())) {
+                target = s.front;
+                kind = StopKind::Reversal;
             }
         }
 
@@ -594,6 +589,10 @@ void SimulationCore::advance(int train, double from, double to) {
                     }
                 }
             }
+            // Coupling (task 07): creeping up to the train it attaches to, at
+            // the coupling speed over the last metres.
+            if (kind == StopKind::Couple && distance < CreepReach)
+                limit = std::min(limit, CreepSpeed);
             // A station's stop from 1.5 × its top speed² / its deceleration
             // (Open Rails' trigger from full speed), anything else from its
             // braking distance and BrakingZone.
@@ -603,8 +602,10 @@ void SimulationCore::advance(int train, double from, double to) {
                 braking = braking || distance <= limit * limit / (2.0 * d) + BrakingZone;
             // The fastest speed at the step's end from which it still stops
             // at the target, so the train follows the braking curve exactly.
-            const double cap = std::min(ahead, physics ? stoppingSpeed(train, v, dt, distance, kind, limit)
-                                                       : brakingSpeed(v, dt, d, distance, 0.0));
+            double cap = std::min(ahead, physics ? stoppingSpeed(train, v, dt, distance, kind, limit)
+                                                 : brakingSpeed(v, dt, d, distance, 0.0));
+            if (kind == StopKind::Couple && distance < CouplingReach)
+                cap = std::max(cap, CouplingSpeed);
             // Physics: away from rest it is starting away until within
             // (9 - 6 × Efficiency) half m/s of its limit or in its braking
             // state (Open Rails' accelerating state).
@@ -690,10 +691,23 @@ void SimulationCore::advance(int train, double from, double to) {
             record(t, train, TrainEvent::Arrived, index);
             break;
         }
-        case StopKind::Wait:
-            s.until = waitUntil(runtime[size_t(train)].waits[size_t(index)], t);
+        case StopKind::Wait: {
+            const WaitPlan &wait = runtime[size_t(train)].waits[size_t(index)];
+            s.until = waitUntil(wait, t);
             s.nextWait = index + 1;
             record(t, train, TrainEvent::Waiting, index);
+            // Open Rails' uncoupling waiting points (task 07): 4NNSS keeps the
+            // first NN cars, 5NNSS the last.
+            const WaitingPoint::Point point = WaitingPoint::decode(wait.value);
+            if (point.kind == WaitingPoint::KeepFirst || point.kind == WaitingPoint::KeepLast)
+                cut(train, point.cars, point.kind == WaitingPoint::KeepFirst, t);
+            break;
+        }
+        case StopKind::Couple:
+            couple(train, t);
+            if (s.status == TrainStatus::Finished)
+                return;
+            s.until = t;
             break;
         case StopKind::Reversal:
             s.until = t;
@@ -738,9 +752,28 @@ bool SimulationCore::occupy(int train) {
         ++k;
     const size_t begin = k;
     double reach = s.front;
+    int attach = -1;
+    double contact = -1.0;
     while (k < way.size() && way[k].enter <= s.front + 1e-6) {
         const int h = holder[size_t(way[k].section)];
-        if (h != NoHolder && h != train) {
+        // A section its own cut-off cars stand in is shared with them; so
+        // is one a standing train stands in clear of it (Open Rails'
+        // CanPlaceTrain), attached to when ahead (a loose consist always).
+        const int under = standingAt.empty() ? -1 : standingAt[size_t(way[k].section)];
+        bool shared = h == StandingConsist && under >= 0 && standing[size_t(under)].uncoupledFrom == train;
+        if (!shared && h == StandingConsist && under >= 0) {
+            const double ahead = contactOn(train, under);
+            if (ahead >= s.front - AtTarget && attaches(train, under, ahead - s.front)) {
+                shared = true;
+                if (contact < 0.0 || ahead < contact) {
+                    attach = under;
+                    contact = ahead;
+                }
+            } else {
+                shared = behind(train, under, rear);
+            }
+        }
+        if (h != NoHolder && h != train && !shared) {
             s.blockedBy = h;
             s.waitSection = way[k].section;
             s.waitFor = WaitFor::Track;
@@ -764,6 +797,11 @@ bool SimulationCore::occupy(int train) {
     while (rt.nextSignal < stopSignals.size() && stopSignals[rt.nextSignal].section < k)
         ++rt.nextSignal;
     s.authority = k >= way.size() ? partLength : reach;
+    if (attach >= 0) {
+        rt.attachTo = attach;
+        rt.contactAt = contact;
+        s.authority = contact;
+    }
     s.blockedBy = NoHolder;
     s.waitSection = -1;
     return true;
@@ -786,6 +824,12 @@ void SimulationCore::extendAuthority(int train) {
     s.waitSection = -1;
     s.atSignal = -1;
     rt.endsAtSignal = false;
+    // Attaching to a standing train (task 07): its authority ends at the
+    // contact.
+    if (rt.attachTo >= 0) {
+        s.authority = rt.contactAt;
+        return;
+    }
     // Short of the first stop signal ahead (or where there is none), it
     // reserves as Open Rails' Auto Node does; past it, the blocks of the
     // signals it may clear.
@@ -854,10 +898,29 @@ void SimulationCore::extendAuthority(int train) {
         }
         if (choice == Passing::Wait)
             break;
-        bool free = true;
-        for (size_t k = rt.next; k < end && free; ++k)
-            free = !blockedAt(k);
-        if (!free || !mayEnter(train, rt.next, end))
+        size_t k = rt.next;
+        while (k < end && !blockedAt(k))
+            ++k;
+        if (k < end) {
+            // A standing train it attaches to (task 07, Open Rails' AI: a
+            // loose consist always): the sections up to it and the one it
+            // stands in taken (shared with it), the authority to the contact.
+            const int section = way[k].section;
+            const int other = holder[size_t(section)] == StandingConsist ? standingAt[size_t(section)] : -1;
+            const double contact = other >= 0 ? contactOn(train, other) : -1.0;
+            if (contact >= s.front - AtTarget && attaches(train, other, contact - s.front)
+                    && mayEnter(train, rt.next, k + 1)) {
+                take(train, rt.next, k + 1);
+                rt.next = k + 1;
+                rt.attachTo = other;
+                rt.contactAt = contact;
+                s.authority = contact;
+                s.blockedBy = NoHolder;
+                s.waitSection = -1;
+            }
+            break;
+        }
+        if (!mayEnter(train, rt.next, end))
             break;
         take(train, rt.next, end);
         if (end > rt.next)
@@ -1991,20 +2054,16 @@ void SimulationCore::releaseBehind(int train) {
         bool again = false;
         for (const Held &other : rt.held)
             again = again || other.section == section;
-        if (!again && holder[size_t(section)] == train) {
-            holder[size_t(section)] = NoHolder;
-            heldStamp[size_t(section)] = ++holdChanges;
-        }
+        if (!again && holder[size_t(section)] == train)
+            freeSection(section);
     }
 }
 
 void SimulationCore::releaseAll(int train) {
     Runtime &rt = runtime[size_t(train)];
     for (const Held &held : rt.held)
-        if (holder[size_t(held.section)] == train) {
-            holder[size_t(held.section)] = NoHolder;
-            heldStamp[size_t(held.section)] = ++holdChanges;
-        }
+        if (holder[size_t(held.section)] == train)
+            freeSection(held.section);
     rt.held.clear();
     rt.next = 0;
     rt.nextSignal = 0;
@@ -2075,7 +2134,7 @@ std::vector<SimulationCore::SectionUse> SimulationCore::sectionUses() const {
     std::vector<SectionUse> uses(holder.size());
     for (size_t k = 0; k < holder.size(); ++k) {
         uses[k].holder = holder[k];
-        uses[k].occupied = holder[k] == StandingConsist;
+        uses[k].occupied = holder[k] == StandingConsist || (k < standingAt.size() && standingAt[k] >= 0);
     }
     for (size_t t = 0; t < runtime.size(); ++t) {
         const std::deque<Held> &held = runtime[t].held;
@@ -2533,6 +2592,277 @@ void SimulationCore::checkEvents() {
             break;
         }
     }
+}
+
+void SimulationCore::freeSection(int section) {
+    const bool standingThere = size_t(section) < standingAt.size() && standingAt[size_t(section)] >= 0;
+    holder[size_t(section)] = standingThere ? StandingConsist : NoHolder;
+    heldStamp[size_t(section)] = ++holdChanges;
+}
+
+void SimulationCore::holdStanding(int standingTrain) {
+    const TrackNetwork *network = in->network.get();
+    if (network == nullptr)
+        return;
+    const auto mark = [&](int section) {
+        standingAt[size_t(section)] = standingTrain;
+        if (holder[size_t(section)] == NoHolder)
+            holder[size_t(section)] = StandingConsist;
+        heldStamp[size_t(section)] = ++holdChanges;
+    };
+    const RouteInterval *previous = nullptr;
+    for (const RouteInterval &interval : standing[size_t(standingTrain)].track) {
+        if (previous != nullptr && previous->node != interval.node) {
+            const int junction = network->endSection(previous->node, previous->forward() ? 1 : 0);
+            if (junction >= 0)
+                mark(junction);
+        }
+        const float low = std::min(interval.from, interval.to), high = std::max(interval.from, interval.to);
+        const auto [first, count] = network->nodeSections(interval.node);
+        for (int k = first; k < first + count; ++k) {
+            const TrackSection &section = network->sections()[size_t(k)];
+            if (section.to > low + 1e-3f && section.from < high - 1e-3f)
+                mark(k);
+        }
+        previous = &interval;
+    }
+}
+
+bool SimulationCore::attaches(int train, int standingTrain, double gap) {
+    Standing &other = standing[size_t(standingTrain)];
+    if (other.gone)
+        return false;
+    // Not to cars it cut off until it has been away from them (Open Rails'
+    // UncoupledFrom).
+    if (other.uncoupledFrom == train) {
+        if (gap <= UncoupledApart)
+            return false;
+        other.uncoupledFrom = -1;
+    }
+    return true;
+}
+
+double SimulationCore::contactOn(int train, int standingTrain) const {
+    const Standing &other = standing[size_t(standingTrain)];
+    const TrainState &s = states[size_t(train)];
+    if (other.track.empty() || size_t(s.part) >= runtime[size_t(train)].parts.size())
+        return -1.0;
+    const RouteTrack &part = runtime[size_t(train)].parts[size_t(s.part)];
+    double contact = -1.0;
+    for (const auto &[node, distance] : {std::make_pair(other.track.front().node, other.track.front().from),
+                                         std::make_pair(other.track.back().node, other.track.back().to)}) {
+        double at = -1.0;
+        if (part.find(node, distance, at) && at >= s.front - UncoupledApart && (contact < 0.0 || at < contact))
+            contact = at;
+    }
+    return contact;
+}
+
+bool SimulationCore::behind(int train, int standingTrain, double rear) const {
+    const Standing &other = standing[size_t(standingTrain)];
+    const TrainState &s = states[size_t(train)];
+    if (other.track.empty() || size_t(s.part) >= runtime[size_t(train)].parts.size())
+        return false;
+    const RouteTrack &part = runtime[size_t(train)].parts[size_t(s.part)];
+    for (const auto &[node, distance] : {std::make_pair(other.track.front().node, other.track.front().from),
+                                         std::make_pair(other.track.back().node, other.track.back().to)}) {
+        double at = -1.0;
+        if (!part.find(node, distance, at) || at > rear + AtTarget)
+            return false;
+    }
+    return true;
+}
+
+namespace {
+
+// Vehicles in the other order: each turned (its flip changed).
+std::vector<Vehicle> turned(const std::vector<Vehicle> &vehicles) {
+    std::vector<Vehicle> out(vehicles.rbegin(), vehicles.rend());
+    for (Vehicle &vehicle : out)
+        vehicle.flip = !vehicle.flip;
+    return out;
+}
+
+// Track intervals the other way.
+std::vector<RouteInterval> backwards(const std::vector<RouteInterval> &track) {
+    std::vector<RouteInterval> out;
+    for (auto it = track.rbegin(); it != track.rend(); ++it)
+        out.push_back(RouteInterval{it->node, it->to, it->from, 0.0});
+    return out;
+}
+
+}
+
+std::vector<RouteInterval> SimulationCore::slice(const RouteTrack &part, double from, double to) {
+    std::vector<RouteInterval> out;
+    for (const RouteInterval &interval : part.intervals()) {
+        const double a = std::max(from, interval.start), b = std::min(to, interval.start + interval.length());
+        if (b - a < 1e-3)
+            continue;
+        const float sign = interval.forward() ? 1.0f : -1.0f;
+        out.push_back(RouteInterval{interval.node, interval.from + sign * float(a - interval.start),
+                                    interval.from + sign * float(b - interval.start), a});
+    }
+    return out;
+}
+
+void SimulationCore::reprojectPart(int train, int part) {
+    Runtime &rt = runtime[size_t(train)];
+    if (in->network == nullptr || size_t(part) >= rt.ways.size())
+        return;
+    rt.ways[size_t(part)] = in->network->project(rt.parts[size_t(part)]);
+    if (rt.limits.size() <= size_t(part))
+        rt.limits.resize(size_t(part) + 1);
+    rt.limits[size_t(part)] = SpeedLimits(rt.ways[size_t(part)], *in->network, rt.passenger, {}, 0.0f,
+                                          rt.parts[size_t(part)].length());
+    rt.limit = 0;
+    refreshStretches(train);
+    findExits(train);
+    if (rt.watched)
+        findSpots(train, part);
+}
+
+void SimulationCore::couple(int train, double time) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    const int other = rt.attachTo;
+    rt.attachTo = -1;
+    if (other < 0 || standing[size_t(other)].gone)
+        return;
+    Standing &st = standing[size_t(other)];
+    RouteTrack &part = rt.parts[size_t(s.part)];
+    // Which of its ends the train met: its first vehicle's (the track's
+    // start) or its last's.
+    double first = -1.0, last = -1.0;
+    part.find(st.track.front().node, st.track.front().from, first);
+    part.find(st.track.back().node, st.track.back().to, last);
+    const bool atFirst = last < 0.0 || (first >= 0.0 && std::fabs(first - s.front) <= std::fabs(last - s.front));
+    // The train's vehicles from its front backwards.
+    const std::vector<Vehicle> fromFront = s.reversed ? turned(rt.vehicles) : rt.vehicles;
+    const double rear = s.front - rt.length;
+    // An AI train at its path's end joins the standing train (Open Rails:
+    // with fewer than five sections of its path left); the player's train
+    // takes it.
+    size_t left = 0;
+    if (size_t(s.part) < rt.ways.size())
+        for (const ProjectedSection &section : rt.ways[size_t(s.part)].sections)
+            left += section.enter > s.front + 1e-3 ? 1 : 0;
+    if (!plan.player && s.part + 1 >= int(rt.parts.size()) && left < JoinSections) {
+        const std::vector<RouteInterval> under = slice(part, std::max(0.0, rear), s.front);
+        if (atFirst) {
+            std::vector<Vehicle> vehicles = turned(fromFront);
+            vehicles.insert(vehicles.end(), st.vehicles.begin(), st.vehicles.end());
+            st.vehicles = vehicles;
+            std::vector<RouteInterval> track = under;
+            track.insert(track.end(), st.track.begin(), st.track.end());
+            st.track = track;
+        } else {
+            st.vehicles.insert(st.vehicles.end(), fromFront.begin(), fromFront.end());
+            const std::vector<RouteInterval> back = backwards(under);
+            st.track.insert(st.track.end(), back.begin(), back.end());
+        }
+        st.length += rt.length;
+        releaseAll(train);
+        holdStanding(other);
+        s.status = TrainStatus::Finished;
+        s.speed = 0.0f;
+        record(time, train, TrainEvent::Joined, other);
+        return;
+    }
+    // The train takes the standing train's cars: they join at its front.
+    const std::vector<Vehicle> outward = atFirst ? st.vehicles : turned(st.vehicles);
+    std::vector<Vehicle> vehicles;
+    if (s.reversed) {
+        vehicles = rt.vehicles;
+        vehicles.insert(vehicles.end(), outward.begin(), outward.end());
+    } else {
+        vehicles = turned(outward);
+        vehicles.insert(vehicles.end(), rt.vehicles.begin(), rt.vehicles.end());
+    }
+    st.gone = true;
+    for (size_t k = 0; k < standingAt.size(); ++k)
+        if (standingAt[k] == other) {
+            standingAt[k] = -1;
+            if (holder[k] == StandingConsist)
+                holder[k] = NoHolder;
+            heldStamp[k] = ++holdChanges;
+        }
+    const double contact = s.front;
+    rt.vehicles = vehicles;
+    refreshConsist(train);
+    s.front = contact + st.length;
+    // Its route part goes on over the cars taken where it ended among them
+    // (a reversal or its path's end there).
+    if (s.front > part.length() + 1e-3) {
+        const std::vector<RouteInterval> away = atFirst ? st.track : backwards(st.track);
+        double skip = part.length() - contact;
+        for (const RouteInterval &interval : away) {
+            const double length = std::fabs(double(interval.to - interval.from));
+            if (skip >= length - 1e-3) {
+                skip -= length;
+                continue;
+            }
+            const float sign = interval.forward() ? 1.0f : -1.0f;
+            part.append(interval.node, interval.from + sign * float(std::max(0.0, skip)), interval.to);
+            skip = 0.0;
+        }
+        reprojectPart(train, s.part);
+    }
+    s.front = std::min(s.front, part.length());
+    releaseAll(train);
+    if (!occupy(train))
+        blocked(train, time);
+    record(time, train, TrainEvent::Coupled, other);
+    events.back().signal = int(st.vehicles.size());
+}
+
+bool SimulationCore::cut(int train, int keep, bool keepFront, double time) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    const size_t count = rt.vehicles.size();
+    keep = std::min(keep, int(count) - 1);
+    if (keep <= 0)
+        return false;
+    // By place from the front in the direction of travel.
+    std::vector<Vehicle> kept, off;
+    bool engine = false;
+    for (size_t c = 0; c < count; ++c) {
+        const size_t fromFront = s.reversed ? count - 1 - c : c;
+        const bool keepIt = keepFront ? fromFront < size_t(keep) : fromFront >= count - size_t(keep);
+        (keepIt ? kept : off).push_back(rt.vehicles[c]);
+        engine = engine || (keepIt && rt.vehicles[c].type >= 4);
+    }
+    // Open Rails: no cut leaving the moving part without an engine.
+    if (!engine)
+        return false;
+    double offLength = 0.0;
+    for (const Vehicle &vehicle : off)
+        offLength += vehicle.length;
+    const double rear = s.front - rt.length;
+    const double from = keepFront ? rear : s.front - offLength;
+    const double to = keepFront ? rear + offLength : s.front;
+    Standing made;
+    made.name = plan.service;
+    // In the order of the route (from its rear to its front).
+    made.vehicles = s.reversed ? off : turned(off);
+    made.length = offLength;
+    made.track = slice(rt.parts[size_t(s.part)], std::max(0.0, from), to);
+    made.uncoupledFrom = train;
+    standing.push_back(made);
+    const int index = int(standing.size()) - 1;
+    rt.vehicles = kept;
+    refreshConsist(train);
+    if (!keepFront)
+        s.front -= offLength;
+    releaseAll(train);
+    holdStanding(index);
+    if (!occupy(train))
+        blocked(train, time);
+    record(time, train, TrainEvent::Uncoupled, index);
+    events.back().signal = int(off.size());
+    return true;
 }
 
 }

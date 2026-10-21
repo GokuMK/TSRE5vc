@@ -10,8 +10,9 @@ namespace Sim {
 enum class TrainStatus { Waiting, Running, Stopped, Finished };
 // Why a train stands. Blocked: at the end of its authority, the track ahead
 // held by another train or a standing consist. Event: the player's train at
-// an activity's stop-here event (task 06), until it fires.
-enum class StopKind { None, Station, Wait, Reversal, End, Blocked, Event };
+// an activity's stop-here event (task 06), until it fires. Couple: at the
+// standing train it attaches to (task 07), coupling.
+enum class StopKind { None, Station, Wait, Reversal, End, Blocked, Event, Couple };
 
 // What a waiting train waits for: track held by another train (or a
 // consist), the single track ahead claimed for an opposing train (task 02,
@@ -73,9 +74,13 @@ struct TrainEvent {
     // `train` the train it looked at (-1 none); `signal` is 1 when that was
     // the player's train standing in for a triggering train not yet
     // started. ActivityEnded: `index` 1 success, 0 failure. Restarted: the
-    // event `index` restarted the waiting `train`.
+    // event `index` restarted the waiting `train`. Task 07: Coupled, the
+    // train took the standing train `index` (`signal` its cars); Joined, the
+    // train joined the standing train `index` and is gone; Uncoupled, the
+    // cars it cut off are the standing train `index` (`signal` their
+    // number).
     enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock,
-                EventFired, ActivityEnded, Restarted };
+                EventFired, ActivityEnded, Restarted, Coupled, Joined, Uncoupled };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -272,8 +277,22 @@ public:
         double length = 0.0;
         std::vector<RouteInterval> track;
         bool gone = false;
+        // The train that cut it off (-1 none): that train attaches to it
+        // only once it has been more than UncoupledApart away (Open Rails'
+        // UncoupledFrom).
+        int uncoupledFrom = -1;
     };
     const std::vector<Standing> &standingTrains() const { return standing; }
+    // Coupling (task 07, Open Rails' AI): a train attaching creeps up within
+    // CreepReach of the contact and comes in at CouplingSpeed over the last
+    // CouplingReach; it does not attach to cars it cut off until more than
+    // UncoupledApart away from them; at its path's end with fewer than
+    // JoinSections sections left an AI train joins the standing train.
+    static constexpr double CreepReach = 100.0;
+    static constexpr double CouplingSpeed = 0.4;
+    static constexpr double CouplingReach = 8.0;
+    static constexpr double UncoupledApart = 5.0;
+    static constexpr size_t JoinSections = 5;
     // A train's vehicles now (task 07: they change as it couples and cuts),
     // and its length.
     const std::vector<Vehicle> &vehiclesOf(int train) const { return runtime[size_t(train)].vehicles; }
@@ -430,6 +449,10 @@ private:
         float acceleration = 1.0f;
         float deceleration = 1.0f;
         Driving driving = Driving::Simple;
+        // The standing train it attaches to (-1 none) and the route distance
+        // of the contact on its part.
+        int attachTo = -1;
+        double contactAt = 0.0;
         // Activity events (task 06), for a train location events look at:
         // where their points lie on its parts (the event, the part, the
         // route distance; sorted by event), and in the step being taken the
@@ -456,6 +479,30 @@ private:
     void stepOnce();
     // A train's consist worked out again from its vehicles (task 07).
     void refreshConsist(int train);
+    // Standing trains (task 07): the sections under one (marked standing
+    // there, held where free); a section a train gives back (to the
+    // standing train under it, else free); whether a train attaches to a
+    // standing train ahead `gap` metres away; the contact's route distance
+    // on its part (-1 not on it); whether the standing train is on its
+    // part behind `rear`.
+    void holdStanding(int standingTrain);
+    void freeSection(int section);
+    bool attaches(int train, int standingTrain, double gap);
+    double contactOn(int train, int standingTrain) const;
+    bool behind(int train, int standingTrain, double rear) const;
+    // At the contact: the standing train's cars taken (the train goes on),
+    // or the train joins it (an AI train at its path's end).
+    void couple(int train, double time);
+    // Cars cut off the train: keeping `keep` cars from its front (in the
+    // direction of travel) or from its rear; the others a standing train
+    // where they stand. False when the kept part would have no engine.
+    bool cut(int train, int keep, bool keepFront, double time);
+    // The track of a route part between two route distances, in the
+    // route's order.
+    static std::vector<RouteInterval> slice(const RouteTrack &part, double from, double to);
+    // A train's route part again after it changed (projection, limits,
+    // stretches, exits, event places).
+    void reprojectPart(int train, int part);
     // Activity events (task 06): checked after a step as Open Rails checks
     // them each frame, events firing one after another (each at most once)
     // until none does; whether an event's condition holds now (the train

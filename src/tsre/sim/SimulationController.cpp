@@ -626,6 +626,15 @@ QString SimulationController::eventText(const TrainEvent &event) const {
                 ? qtTrId("simulation.event.activity.success")
                 //% "the activity ends without success"
                 : qtTrId("simulation.event.activity.failure");
+    case TrainEvent::Coupled:
+        //% "coupled to %1 cars"
+        return qtTrId("simulation.event.coupled").arg(event.signal);
+    case TrainEvent::Joined:
+        //% "joined the cars standing ahead"
+        return qtTrId("simulation.event.joined");
+    case TrainEvent::Uncoupled:
+        //% "cut off %1 cars"
+        return qtTrId("simulation.event.uncoupled").arg(event.signal);
     case TrainEvent::Restarted: {
         const ActivityEvent *by = activityEvent(event.index);
         //% "restarted by event %1"

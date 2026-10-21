@@ -76,6 +76,9 @@ QString StateText(const SimulationInput &in, const TrainState &s, double time, i
         //% "stopped for event %1"
         return qtTrId("simulation.state.event").arg(name);
     }
+    case StopKind::Couple:
+        //% "coupling"
+        return qtTrId("simulation.state.couple");
     case StopKind::None:
         break;
     }

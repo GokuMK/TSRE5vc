@@ -1,6 +1,7 @@
 # Task 07 - Coupling and Train Changes
 
-Status: designed 2026-10-21; phase 1 done (branch `feature/simulation`).
+Status: designed 2026-10-21; phase 1 and phase 2a done (branch
+`feature/simulation`).
 Decisions taken are at the end.
 
 Sources:
@@ -36,6 +37,50 @@ Sources:
 - Every suite unchanged; on the seven routes the trains run exactly as
   before (the same arrivals).
 
+**Phase 2a, A3 to A6 with standing trains (done 2026-10-21).**
+- **Attaching:** a train whose authority reaches a section a standing
+  train stands in attaches to it (Open Rails: a static train always; its
+  own cut-off cars only once it has been more than 5 m away from them).
+  Its authority then runs into that section up to the contact; it creeps
+  (2.5 m/s) within 100 m and comes in at 0.4 m/s within 8 m (the stop
+  kind `Couple`, "coupling").
+- **Coupling:** the standing train's cars join at the leading end (turned
+  where the ends meet the other way), the path part extended over them
+  where it ends inside them. An AI train on its last part with fewer than
+  5 sections left joins the standing train instead and is gone (Open
+  Rails' `CoupleAIToStatic` and `CoupleAI`). Events `Coupled` and
+  `Joined`, in the simulation log.
+- **Cuts:** waiting points 4NNSS (the first NN cars kept) and 5NNSS (the
+  last NN) cut there as Open Rails does, never leaving the moving part
+  without an engine. The cars cut off are a standing train where they
+  stand (`Uncoupled`). A train whose own cut-off cars stand on the rest of
+  its path part reverses where it stands.
+- **Placement:** a train may start in a section a standing train stands
+  in when it is clear of it (Open Rails' `CanPlaceTrain`): ahead, the
+  train attaches to it; behind, it leaves it.
+- **Events:** the wagon checks read the changed lists: a fixture's
+  AssembleTrain fires on the train a coupling made, a DropOff on the car
+  a 4NNSS cut left in a siding.
+- **Fixtures:** `simulation-coupling` (12 checks). One core check
+  changed: a loose consist stops a train from starting only where the
+  train would stand.
+- **The seven routes** (against phase 1): local_cutbank's player train
+  attaches to the 13 cars at its reversal and takes them on ("Pick up
+  cars" fires). No drop-offs are done yet (part B), so it runs past
+  Cutbank, and the activity's trap there ("You've gone too far and missed
+  Cutbank", Location2) ends it in failure at 13:10:38. JAPAN1 itr's ITR
+  (Traffic 05) starts now: it takes the 10 cars standing 85 m ahead of it
+  and runs its service with them (worth a look in Open Rails in phase 6).
+  Every other train and arrival is unchanged.
+- **Left:** yard_one's Yard_One_Traffic2 still waits, at a signal whose
+  block holds the loose consist (1.5 km in). In Open Rails the script
+  then reads BLOCK_OCCUPIED: USA2's show STOP_AND_PROCEED (number plate)
+  or RESTRICTING (gradient plate), else STOP, and a train runs in on the
+  first two. TSRE's core gives a block only CLEAR or JN_OBSTRUCTED and
+  never lets a train into an occupied block; task 05 left OCCUPIED and
+  call-on for later. Phase 2b: 60001, and couplings with living trains
+  (cars taken or left).
+
 ## Why
 
 Activities are made of trains that change: a train picks up cars and sets
@@ -58,7 +103,9 @@ start to its end.
   (`StaticConsist`); a train reaching one stops a section short and waits
   for good (three local trains do: the player's train of local_cutbank,
   whose path reverses at the 13 cars its pickup event wants; an AI train
-  of yard_one; one of JAPAN1's itr).
+  of yard_one, at a signal whose block holds them; one of JAPAN1's itr,
+  which never starts: its front would stand in the loose consist's
+  section).
 - The core works in whole sections: a train never enters a section
   another train or a consist holds, so trains never meet.
 - Task 06 gave each car its activity id (consist × 65536 + UiD) and checks

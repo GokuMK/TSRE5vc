@@ -1037,18 +1037,20 @@ Engine ( Test
             check(ringed, "three trains in a ring, each waiting for the next: a deadlock, reported for all three");
         }
 
-        // A loose consist on the track a train starts on: it never starts.
+        // A loose consist where a train would stand (70 to 110 m) at its
+        // start: it never starts. (One clear of it in the same section does
+        // not stop it: task 07, Open Rails' CanPlaceTrain.)
         auto blockedInput = inputOf(lineGeometry, lineNetwork, {trainOn(east, *lineNetwork, t0)});
         Sim::StaticConsist standing;
-        standing.track.push_back(Sim::RouteInterval{10, 120.0f, 140.0f, 0.0});
+        standing.track.push_back(Sim::RouteInterval{10, 80.0f, 100.0f, 0.0});
         blockedInput->staticConsists.push_back(standing);
         Sim::SimulationCore stuck(blockedInput);
         stuck.step(60.0);
         const std::vector<Sim::TrainEvent> stuckEvents = stuck.takeEvents();
         const Sim::TrainEvent *stuckBlocked = firstEvent(stuckEvents, 0, Sim::TrainEvent::Blocked);
         check(stuck.trains()[0].status == Sim::TrainStatus::Waiting && stuckBlocked != nullptr
-                  && stuckBlocked->index == Sim::StandingConsist && stuck.holders()[size_t(lineNetwork->sectionAt(10, 130.0f, true))] == Sim::StandingConsist,
-              "a train starting on a loose consist's track waits, blocked by it");
+                  && stuckBlocked->index == Sim::StandingConsist && stuck.holders()[size_t(lineNetwork->sectionAt(10, 90.0f, true))] == Sim::StandingConsist,
+              "a train whose start place a loose consist stands in waits, blocked by it");
 
         // The passing loop: two trains for track 10 from the loop's two
         // branches take turns at the junction; one on track 13 alone runs.
@@ -2355,6 +2357,15 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                     break;
                 case Sim::TrainEvent::Deadlock:
                     logEvent(event.time, event.train, "deadlock", QJsonObject{{"by", event.index}}, event.travelled);
+                    break;
+                // Couplings and cuts (task 07): the cars taken or cut off.
+                case Sim::TrainEvent::Coupled:
+                case Sim::TrainEvent::Joined:
+                case Sim::TrainEvent::Uncoupled:
+                    logEvent(event.time, event.train,
+                             event.kind == Sim::TrainEvent::Coupled ? "coupled"
+                             : event.kind == Sim::TrainEvent::Joined ? "joined" : "uncoupled",
+                             QJsonObject{{"cars", event.signal}}, event.travelled);
                     break;
                 // The activity's events (task 06; scripts/orts-compare-events.py).
                 case Sim::TrainEvent::EventFired:
