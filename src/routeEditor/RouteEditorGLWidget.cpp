@@ -1803,16 +1803,30 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     float eye[3], farEye[3];
     snap(Cell, eye);
     snap(FarCell, farEye);
+    // What the maps hold: an object dragged in the editor draws the near map
+    // again every frame, so its cover follows it; the far map after.
+    const quint64 scene = renderer->sceneSignature() + 0x9e3779b97f4a7c15ULL * ShapeLoader::progress();
     const bool redraw = enclosureAge < 0 || enclosureAge >= RedrawFrames
-            || !std::equal(eye, eye + 3, enclosureEye);
+            || !std::equal(eye, eye + 3, enclosureEye) || scene != enclosureScene;
     const bool farRedraw = farEnclosureAge < 0
-            || (!redraw && (farEnclosureAge >= FarRedrawFrames || !std::equal(farEye, farEye + 3, farEnclosureEye)));
+            || (!redraw && (farEnclosureAge >= FarRedrawFrames || !std::equal(farEye, farEye + 3, farEnclosureEye)
+                            || scene != farEnclosureScene));
     look(Half, eye, enclosure.viewProjection);
     enclosure.metresPerDepth = Depth;
     enclosure.filter = 2.0f / Size;
     enclosure.farFilter = 2.0f / Size;
     enclosure.ambientFloor = route != NULL && route->trk != NULL && route->trk->tsreEnclosedAmbient >= 0.0f
             ? route->trk->tsreEnclosedAmbient : Game::enclosedAmbient;
+    // TSRE_SHADOW_CACHE_LOG=1 logs these redraws too (task 37).
+    static const bool cacheLog = qEnvironmentVariableIsSet("TSRE_SHADOW_CACHE_LOG");
+    if (cacheLog && redraw)
+        qInfo().noquote() << "enclosure near drawn:"
+                          << (enclosureAge < 0 ? "new" : !std::equal(eye, eye + 3, enclosureEye) ? "cell"
+                              : scene != enclosureScene ? "objects" : "age");
+    if (cacheLog && farRedraw)
+        qInfo().noquote() << "enclosure far drawn:"
+                          << (farEnclosureAge < 0 ? "new" : !std::equal(farEye, farEye + 3, farEnclosureEye) ? "cell"
+                              : scene != farEnclosureScene ? "objects" : "age");
     if (redraw) {
         if (!draw(0, enclosure.viewProjection, Half * 1.5f, 0.0f)) {
             enclosureAge = farEnclosureAge = -1;
@@ -1825,6 +1839,7 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
             renderer->finishSkyEnclosure(false, OpenRadius / (2.0f * Half), Depth);
         std::copy(eye, eye + 3, enclosureEye);
         enclosureAge = 0;
+        enclosureScene = scene;
     } else {
         ++enclosureAge;
     }
@@ -1838,6 +1853,7 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
                 renderer->finishSkyEnclosure(true, OpenRadius / (2.0f * FarHalf), Depth);
             std::copy(farEye, farEye + 3, farEnclosureEye);
             farEnclosureAge = 0;
+            farEnclosureScene = scene;
         } else {
             farEnclosureAge = -1;
         }

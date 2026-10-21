@@ -262,6 +262,15 @@ Done (2026-10-21, QRhi):
   drawn, the view turned 90 degrees differed (0.5% of pixels): the caches
   lacked the distant objects that culled themselves when they were drawn.
 
+The sky enclosure's maps (task 27) had the same problem: drawn again only
+when the camera changed cell or every 60 frames, so a roof dragged in the
+editor left its cover behind (the user, 2026-10-21). They now also redraw
+when the queue's scene signature changes (`RenderQueue::addSceneSignature`:
+every object in range, moving or not, drawn or not, with shapes loaded):
+the near map every frame while an object is dragged, the far map the frame
+after. Turning the camera does not change it. `TSRE_SHADOW_CACHE_LOG=1`
+logs these redraws too.
+
 ### What moves
 
 Drawn on top every frame (`RenderQueue::setShadowDynamic`,

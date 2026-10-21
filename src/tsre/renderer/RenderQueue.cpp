@@ -74,6 +74,7 @@ void RenderQueue::resetQueueState() {
     shadowOnly = false;
     shadowDynamic = false;
     shadowSignatureSum = 0;
+    sceneSignatureSum = 0;
     currentLightReach = 0.0f;
     matrixStackDepth = 0;
 }

@@ -357,6 +357,11 @@ protected:
     int enclosureAge = -1;
     float farEnclosureEye[3] = {0.0f, 0.0f, 0.0f};
     int farEnclosureAge = -1;
+    // The objects and shapes the near and far maps were drawn with (the
+    // queue's scene signature, shapes loaded): an object moved, edited,
+    // added or deleted draws them again (task 37).
+    quint64 enclosureScene = 0;
+    quint64 farEnclosureScene = 0;
     Renderer::Clouds cloudState;
     quint64 weatherRevision = 0;
     quint64 cloudWeatherRevision = ~0ull;

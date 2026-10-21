@@ -956,9 +956,9 @@ void Tile::updateSim(float deltaTime){
     }
 }
 
-// What a static object contributes to the cached shadow maps (task
+// What an object contributes to the signatures of cached maps (task
 // renderer 37): its identity, tile, place and last change.
-static quint64 shadowSignature(const WorldObj &obj, int tileX, int tileZ){
+static quint64 objectSignature(const WorldObj &obj, int tileX, int tileZ){
     quint64 hash = quint64(reinterpret_cast<quintptr>(&obj)) ^ (quint64(quint32(tileX)) << 32) ^ quint32(tileZ);
     const auto mix = [&hash](quint64 value){
         hash ^= value + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
@@ -1001,11 +1001,13 @@ void Tile::pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, f
                 // Moving objects cast on top of the cached shadow maps (task 37).
                 const bool moving = obj->castsMovingShadow();
                 queue.setShadowDynamic(moving);
+                const quint64 signature = objectSignature(*obj, x, z);
+                queue.addSceneSignature(signature);
                 const quint64 submitted = queue.submissions();
                 obj->pushRenderItems(queue, lod, lodx, lodz, playerW, target, fov, selectionId);
                 // Only objects drawn this frame: some cull themselves by the view.
                 if (!moving && obj->castsShadows() && queue.submissions() != submitted)
-                    queue.addShadowSignature(shadowSignature(*obj, x, z));
+                    queue.addShadowSignature(signature);
                 queue.setShadowCasting(true);
                 queue.setShadowDynamic(false);
                 queue.popTransform();

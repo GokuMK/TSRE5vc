@@ -110,6 +110,11 @@ public:
     // a level of detail switching does not. A new frame starts it at 0.
     void addShadowSignature(quint64 hash) { shadowSignatureSum += hash; }
     quint64 shadowSignature() const { return shadowSignatureSum; }
+    // The same of every object in range, moving or not, drawn or not: what
+    // maps of all surfaces hold (the sky enclosure), so an object dragged
+    // in the editor redraws them while turning the camera does not.
+    void addSceneSignature(quint64 hash) { sceneSignatureSum += hash; }
+    quint64 sceneSignature() const { return sceneSignatureSum; }
     // Instances queued so far: whether an object submitted anything (objects
     // cull themselves, for example by the view's direction, so only those
     // drawn add to the signature).
@@ -130,6 +135,7 @@ protected:
     bool shadowOnly = false;
     bool shadowDynamic = false;
     quint64 shadowSignatureSum = 0;
+    quint64 sceneSignatureSum = 0;
     quint64 submissionCount = 0;
     float currentLightReach = 0.0f;
 

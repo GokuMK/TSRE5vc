@@ -482,3 +482,9 @@ Open (for the user):
 
 Lamps in tunnels are dimmed by daylight as in the open. Today this affects
 only routes with glTF lamps or emissive surfaces in tunnels.
+
+### Edited objects (2026-10-21)
+
+The maps are also drawn again when an object is moved, edited, added or
+deleted (the queue's scene signature, task 37): a roof dragged in the
+editor took its cover along only every 60 frames before.
