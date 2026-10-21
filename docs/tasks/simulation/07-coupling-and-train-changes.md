@@ -433,8 +433,22 @@ orders' activities, task 06 against now:
   have to come to the cars gathered there the other way round). Of the 65
   local activities 53 end in success and 12 never end, none in failure;
   47 of the 48 wagon events fire. Nothing else changed.
-- **Planning time:** 3.7 s for whitefishydsw, on the main thread when its
-  simulation starts (0.15 s for yard_two).
+- **Planning time** (the user asked, 2026-10-21): 3.7 s for whitefishydsw
+  was a debug build's; a release build (-O3) took 0.36 s, now 0.17 s
+  (every other local activity under 0.08 s). The searches are cheaper (no
+  state copied each step, the least costs hashed, entries queued before a
+  cheaper way was found skipped), and sorting's go no further than it may
+  drive (20 km), so they do not grow with the route. Searches that find no
+  way still cover the network within their reach.
+- **Off the main thread:** the editor (Simulate, running back in time,
+  Reset, the Timetable window's Simulate) makes the input without the
+  work and plans it on a worker thread (`PlanWorkOrders`); after 0.4 s a
+  dialog shows the goals planned so far and Cancel, which stops the start
+  and leaves the input as it was (`WorkProgress`). Checked on
+  whitefishydsw in a debug build: the dialog at 3 of 8 goals, Cancel
+  stopping the planning at once. `simulation-work` (25): a cancelled
+  planning leaves the input as it was; the editor's planning on a worker
+  thread.
 - **Left:** whitefishydsw's 13-car drop-off (a run-round for a delivery to
   cars gathered); phase 6.
 

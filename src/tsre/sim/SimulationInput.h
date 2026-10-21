@@ -325,8 +325,9 @@ Driving DrivingOf(const std::vector<Vehicle> &vehicles);
 // timetables, loose consists) and `tdb`, which must be Game::trackDB.
 // `geometry` and `network` may be ones made earlier from the same database.
 // `work`: the player's work orders planned and run by the autopilot (task
-// 07, part B: ApplyWork).
-std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
+// 07, part B: ApplyWork); without, the caller may plan them before sharing
+// the input (PlanWorkOrders).
+std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
                                                  std::shared_ptr<const TrackGeometry> geometry = nullptr,
                                                  std::shared_ptr<const TrackNetwork> network = nullptr,
                                                  float restrictedSpeed = -1.0f, bool work = true);

@@ -515,7 +515,7 @@ void FinishPart(const SimulationInput &input, const TrainPlan &plan, const Route
     limits = SpeedLimits(way, *input.network, plan.passenger, passed, input.restrictedSpeed, part.length());
 }
 
-std::shared_ptr<const SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
+std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
                                                  std::shared_ptr<const TrackGeometry> geometry,
                                                  std::shared_ptr<const TrackNetwork> network, float restrictedSpeed,
                                                  bool work) {

@@ -17,6 +17,7 @@
 #include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationTexts.h>
+#include <tsre/sim/WorkPlanning.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
@@ -136,8 +137,7 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     Route *route = Game::currentRoute;
     const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
     const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;
-    std::shared_ptr<const SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted);
-    inputMs = timer.elapsed();
+    std::shared_ptr<SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted, false);
     if (input->trains.empty()) {
         if (error != nullptr) {
             *error =
@@ -148,6 +148,10 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
         }
         return nullptr;
     }
+    // The player's work orders (task 07): planned off the main thread.
+    if (!PlanWorkOrders(*input, error))
+        return nullptr;
+    inputMs = timer.elapsed();
     return input;
 }
 

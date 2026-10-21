@@ -1,6 +1,8 @@
 #pragma once
 #include <QString>
 #include <QStringList>
+#include <atomic>
+#include <functional>
 #include <vector>
 #include <tsre/sim/SimulationInput.h>
 
@@ -92,18 +94,29 @@ struct WorkPlan {
     // The trains as the work leaves them: the player's, the cuts standing.
     YardTrain train;
     std::vector<YardTrain> cuts;
+    // Stopped by the user before it was done.
+    bool cancelled = false;
+};
+
+// For a dialog while the work is planned: the wagon events planned so far
+// and in all, reported from the planning's thread; set `cancel` to stop it.
+struct WorkProgress {
+    std::function<void(int done, int total)> report;
+    const std::atomic_bool *cancel = nullptr;
 };
 
 // Plans the work of the input's player's train from where it starts, the
 // activity's loose consists where the input has them (its AI trains not
 // counted).
-WorkPlan PlanWork(const SimulationInput &input);
+WorkPlan PlanWork(const SimulationInput &input, const WorkProgress *progress = nullptr);
 
 // The player's work orders planned (PlanWork) and given to its train to run
 // (task 07, B1 to B5): its path run up to where the work leaves it, the
 // work's moves as route parts (a reversal between two), its cuts as waiting
 // points, back to the path where the way back meets it. The input's work
-// orders say which goals were planned and why not.
-void ApplyWork(SimulationInput &input);
+// orders say which goals were planned and why not. It reads the input only
+// (it may run on another thread); false when cancelled, the input then as
+// it was.
+bool ApplyWork(SimulationInput &input, const WorkProgress *progress = nullptr);
 
 }

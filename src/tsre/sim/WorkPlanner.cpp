@@ -4,10 +4,11 @@
 #include <QSet>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <functional>
-#include <map>
-#include <set>
 #include <queue>
+#include <set>
+#include <unordered_map>
 #include <tsre/sim/TrackNetwork.h>
 
 namespace Sim {
@@ -186,6 +187,8 @@ struct Target {
     int lead = -1;
     int skip = -1;
     double depth = 0.0;
+    // A move to it no longer than so many metres (0 any).
+    double within = 0.0;
 };
 
 struct Move {
@@ -210,18 +213,25 @@ struct PathPiece {
 
 class Planner {
 public:
-    Planner(const SimulationInput &input) : in(input), net(*input.network) {}
+    Planner(const SimulationInput &input, const WorkProgress *progress = nullptr)
+        : in(input), net(*input.network), progress(progress) {}
 
     WorkPlan plan();
 
 private:
     const SimulationInput &in;
     const TrackNetwork &net;
+    const WorkProgress *progress;
+    bool cancelled() const {
+        return progress != nullptr && progress->cancel != nullptr && progress->cancel->load(std::memory_order_relaxed);
+    }
     YardTrain train;
     std::vector<YardTrain> cuts;
     bool lastLeadB = true;
     // The track of the cars last coupled, from where they were met on.
     std::vector<RouteInterval> lastCoupled;
+    // While sorting, moves no longer than so many metres (0 any).
+    double searchWithin = 0.0;
     // The rest of the path, and its stops, waits and event places (part,
     // route distance) on it.
     std::vector<PathPiece> pathPieces;
@@ -470,11 +480,20 @@ Move Planner::route(const Target &target) const {
     std::vector<State> states;
     using Entry = std::pair<double, int>;
     std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> queue;
-    std::map<std::tuple<int, bool, int, int>, double> best;
+    // The least cost found for each state (node, way, leading end, kind).
+    std::unordered_map<std::uint64_t, double> best;
+    const auto keyOf = [](int node, bool forward, int lead, int kind) {
+        return (std::uint64_t(std::uint32_t(node)) << 3) | (forward ? 4u : 0u) | (lead == 1 ? 2u : 0u) | (kind == 2 ? 1u : 0u);
+    };
     const double length = train.length();
+    // No move longer than so many metres (the planner's bound while it
+    // sorts: past it the sorting gives up anyway).
+    const double within = target.within > 0.0 ? target.within : searchWithin;
     const auto push = [&](State state) {
+        if (within > 0.0 && state.cost > within)
+            return;
         if (state.kind != 0) {
-            const auto key = std::make_tuple(state.node, state.forward, state.lead, state.kind);
+            const auto key = keyOf(state.node, state.forward, state.lead, state.kind);
             auto found = best.find(key);
             if (found != best.end() && found->second <= state.cost + Eps)
                 return;
@@ -501,10 +520,26 @@ Move Planner::route(const Target &target) const {
     while (!queue.empty() && expanded < 200000) {
         const auto [cost, index] = queue.top();
         queue.pop();
-        if (cost >= foundCost)
+        if (cost >= foundCost || cancelled())
             break;
+        // (A state reached more cheaply since it was queued: done then.)
+        const State &queued = states[size_t(index)];
+        if (queued.kind != 0) {
+            const auto known = best.find(keyOf(queued.node, queued.forward, queued.lead, queued.kind));
+            if (known != best.end() && known->second < cost - Eps)
+                continue;
+        }
         ++expanded;
-        const State s = states[size_t(index)];
+        // (Its fields, not its piece: pushes below may move the states.)
+        struct Head {
+            int node;
+            bool forward;
+            int lead;
+            double start;
+            int kind;
+            double metres;
+        };
+        const Head s{queued.node, queued.forward, queued.lead, queued.start, queued.kind, queued.metres};
         int hit = -1;
         const double limit = reach(s.node, s.forward, s.start, target.skip, &hit);
         const bool leadOk = target.lead < 0 || target.lead == s.lead;
@@ -1204,6 +1239,14 @@ bool Planner::fetch(WorkGoal &goal, int cut, bool atStart, int lead, const Event
 }
 
 bool Planner::sort(WorkGoal &goal, const EventPlan &event, const Ahead &ahead) {
+    // Its searches go no further than it may drive in all.
+    const double outerWithin = searchWithin;
+    searchWithin = SortGiveUp;
+    struct Restore {
+        double &value;
+        double was;
+        ~Restore() { value = was; }
+    } restoreWithin{searchWithin, outerWithin};
     std::vector<const EventPlan *> drops{&event};
     for (const EventPlan *drop : ahead.drops)
         if (drop != &event && drop->siding && drop->sidingNode >= 0)
@@ -1218,7 +1261,7 @@ bool Planner::sort(WorkGoal &goal, const EventPlan &event, const Ahead &ahead) {
         bool atStart;
         int lead;
     };
-    for (int moves = 0; moves < SortMoves; ++moves) {
+    for (int moves = 0; moves < SortMoves && !cancelled(); ++moves) {
         // Done: the cars in one cut in the siding.
         const int there = gathered(event);
         if (there >= 0 && cuts[size_t(there)].vehicles.size() == event.cars.size())
@@ -1917,7 +1960,15 @@ WorkPlan Planner::plan() {
                 ++level[size_t(k)];
         ended = ended || event.success;
     };
-    for (int guard = 0; guard < 1000 && !ended; ++guard) {
+    int wagonEvents = 0;
+    for (const EventPlan &event : in.events)
+        wagonEvents += event.cars.empty() ? 0 : 1;
+    const auto report = [&]() {
+        if (progress != nullptr && progress->report)
+            progress->report(std::min(int(out.goals.size()), wagonEvents), wagonEvents);
+    };
+    report();
+    for (int guard = 0; guard < 1000 && !ended && !cancelled(); ++guard) {
         // (One ending the activity in success only once no wagon goal is
         // active: it is where the activity ends.)
         std::vector<int> active;
@@ -2021,6 +2072,11 @@ WorkPlan Planner::plan() {
         satisfied.clear();
         out.goals.push_back(chosenGoal);
         fire(chosen);
+        report();
+    }
+    if (cancelled()) {
+        out.cancelled = true;
+        return out;
     }
     for (size_t e = 0; e < in.events.size(); ++e)
         if (!in.events[e].cars.empty() && !fired[e])
@@ -2122,12 +2178,12 @@ double WorkLeg::length() const {
     return lengthOf(way);
 }
 
-WorkPlan PlanWork(const SimulationInput &input) {
-    Planner planner(input);
+WorkPlan PlanWork(const SimulationInput &input, const WorkProgress *progress) {
+    Planner planner(input, progress);
     return planner.plan();
 }
 
-void ApplyWork(SimulationInput &input) {
+bool ApplyWork(SimulationInput &input, const WorkProgress *progress) {
     TrainPlan *player = nullptr;
     for (TrainPlan &plan : input.trains)
         if (plan.player)
@@ -2136,8 +2192,10 @@ void ApplyWork(SimulationInput &input) {
     for (const EventPlan &event : input.events)
         wagons = wagons || !event.cars.empty();
     if (player == nullptr || !wagons || player->route.parts.empty() || input.network == nullptr)
-        return;
-    const WorkPlan work = PlanWork(input);
+        return true;
+    const WorkPlan work = PlanWork(input, progress);
+    if (work.cancelled)
+        return false;
     bool any = false;
     for (const WorkGoal &goal : work.goals) {
         input.workOrders.push_back(SimulationInput::WorkOrder{goal.event, goal.planned, goal.impractical, true, goal.why});
@@ -2153,7 +2211,7 @@ void ApplyWork(SimulationInput &input) {
                                                                   qtTrId("work.why.never.active")});
     }
     if (!any)
-        return;
+        return true;
     // The parts: the path up to where the work leaves it, the work's moves
     // (a new part at each reversal: from where the train stands back over
     // its track, then on), the way back merged into the path's last part.
@@ -2342,6 +2400,7 @@ void ApplyWork(SimulationInput &input) {
     player->limits.assign(parts.size(), {});
     for (size_t p = 0; p < parts.size(); ++p)
         FinishPart(input, *player, parts[p], player->projection[p], player->limits[p]);
+    return true;
 }
 
 }

@@ -2305,7 +2305,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 }
             }
         }
-        // TSRE_SIM_YARD=<activity> (temporary, sorting design): the yard.
+        // TSRE_SIM_YARD=<activity> (task 07's sorting): the yard.
         if (input != nullptr && activity->name.compare(qEnvironmentVariable("TSRE_SIM_YARD"), Qt::CaseInsensitive) == 0
                 && input->network != nullptr) {
             const Sim::TrackNetwork &net = *input->network;

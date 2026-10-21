@@ -1,8 +1,11 @@
 #include <tsre/tests/SimulationTestSuite.h>
 
+#include <QApplication>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QScopedValueRollback>
 #include <algorithm>
+#include <atomic>
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationInput.h>
@@ -10,6 +13,7 @@
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
 #include <tsre/sim/WorkPlanner.h>
+#include <tsre/sim/WorkPlanning.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/PathTrack.h>
@@ -463,6 +467,26 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
         check(goal != nullptr && goal->planned && gathered && apart, "sorting: the cars gathered on siding C: " + describe(plan));
         const Ran ran = runWork(made, 0);
         check(ran.fired && ran.ended, "run: the sorted cars on siding C fire the drop-off: " + told(ran));
+    }
+    // Planning stopped by the user: the input as it was; the editor's
+    // planning off the main thread, quick here (no dialog shown).
+    {
+        auto made = std::const_pointer_cast<Sim::SimulationInput>(
+                inputOf(east, {car(20.0f, true, e1), car(10.0f, false, w2)}, {looseOn(12, 100.0f, {a, b})},
+                        {wagonEvent(Sim::EventPlan::PickUpWagons, {a, b})}));
+        const size_t parts = made->trains[0].route.parts.size();
+        std::atomic_bool cancel{true};
+        Sim::WorkProgress stopped;
+        stopped.cancel = &cancel;
+        const bool applied = Sim::ApplyWork(*made, &stopped);
+        check(!applied && made->trains[0].route.parts.size() == parts && made->workOrders.empty(),
+              "cancelled planning leaves the input as it was");
+        QString error;
+        QElapsedTimer timer;
+        timer.start();
+        const bool planned = Sim::PlanWorkOrders(*made, &error);
+        check(planned && error.isEmpty() && made->trains[0].route.parts.size() > parts && QApplication::activeModalWidget() == nullptr,
+              QString("the editor's planning on a worker thread (%1 ms)").arg(timer.elapsed()));
     }
 
     qInfo().noquote() << QString("simulation-work: %1 passed, %2 failed").arg(passed).arg(failed);
