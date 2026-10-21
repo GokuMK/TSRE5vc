@@ -15,8 +15,25 @@ QString TrainName(const SimulationInput &in, int train);
 QString HolderName(const SimulationInput &in, int holder);
 QString SignalName(const SimulationInput &in, int signal);
 QString WaitText(const SimulationInput &in, WaitFor waitFor, int signal, int holder);
+// Where the cars are when a run ends (task 07: they move as trains couple
+// and cut): each train's vehicles by train id, and the standing trains'
+// not gone: a loose consist of the activity, or cars a train cut off
+// (named after that train).
+struct CarsNow {
+    std::vector<std::vector<Vehicle>> trains;
+    struct Standing {
+        QString name;
+        bool loose = true;
+        std::vector<Vehicle> vehicles;
+    };
+    std::vector<Standing> standing;
+};
+CarsNow CarsOf(const SimulationCore &core);
+CarsNow CarsOf(const struct SimulationFrame &frame);
 // Why the input's event `event` did not fire in a run (task 06, section
-// 7), from its state where the run ended and the activity's end.
-QString WhyNotFired(const SimulationInput &in, int event, const EventState &state, ActivityEnd end, double endedAt);
+// 7), from its state where the run ended and the activity's end; the
+// cars where they are then (else where the input has them).
+QString WhyNotFired(const SimulationInput &in, int event, const EventState &state, ActivityEnd end, double endedAt,
+                    const CarsNow *cars = nullptr);
 
 }

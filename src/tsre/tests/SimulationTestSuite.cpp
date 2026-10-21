@@ -2531,13 +2531,15 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                           .arg(QTime(0, 0).addSecs(int(core.activityEndedAt()) % 86400).toString("HH:mm:ss"));
             qInfo().noquote() << "[tests:simulation-route] events:" << activity->name << "|" << parts.join(", ") << "|"
                               << ending;
-            // Verbose: each event not fired and why (task 06, section 7).
+            // Verbose: each event not fired and why (task 06, section 7),
+            // the cars where the run left them (task 07).
+            const Sim::CarsNow cars = Sim::CarsOf(core);
             if (verbose)
                 for (size_t e = 0; e < input->events.size(); ++e)
                     if (core.eventStates()[e].fired == 0)
                         qInfo().noquote() << "[tests:simulation-route]   not fired:" << input->events[e].name << "|"
                                           << Sim::WhyNotFired(*input, int(e), core.eventStates()[e], end,
-                                                              core.activityEndedAt());
+                                                              core.activityEndedAt(), &cars);
         }
         for (size_t t = 0; t < core.trains().size(); ++t) {
             const Sim::TrainState &state = core.trains()[t];

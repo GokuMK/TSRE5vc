@@ -13,14 +13,37 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
     frame->time = core.time();
     frame->finished = core.finished();
     const std::vector<TrainState> &states = core.trains();
+    if (before != nullptr && before->runId != frame->runId)
+        before = nullptr;
     frame->trains.resize(states.size());
     for (size_t i = 0; i < states.size(); ++i) {
         TrainFrame &train = frame->trains[i];
         train.state = states[i];
         core.vehicleEnds(int(i), train.fronts, train.rears);
+        train.carsVersion = core.carsVersion(int(i));
+        if (before != nullptr && i < before->trains.size() && before->trains[i].vehicles != nullptr
+                && before->trains[i].carsVersion == train.carsVersion)
+            train.vehicles = before->trains[i].vehicles;
+        else
+            train.vehicles = std::make_shared<const std::vector<Vehicle>>(core.vehiclesOf(int(i)));
     }
-    if (before != nullptr && before->runId != frame->runId)
-        before = nullptr;
+    frame->standingSerial = core.standingSerial();
+    if (before != nullptr && before->standing != nullptr && before->standingSerial == frame->standingSerial) {
+        frame->standing = before->standing;
+    } else {
+        auto standing = std::make_shared<std::vector<StandingFrame>>();
+        for (size_t k = 0; k < core.standingTrains().size(); ++k) {
+            const SimulationCore::Standing &st = core.standingTrains()[k];
+            StandingFrame made;
+            made.name = st.name;
+            made.vehicles = st.vehicles;
+            made.gone = st.gone;
+            made.loose = st.object >= 0;
+            core.standingEnds(int(k), made.fronts, made.rears);
+            standing->push_back(std::move(made));
+        }
+        frame->standing = std::move(standing);
+    }
     frame->drawSerial = core.drawSerial();
     if (before != nullptr && before->drawStates != nullptr && before->drawSerial == frame->drawSerial) {
         frame->aspects = before->aspects;

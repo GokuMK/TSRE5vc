@@ -3,7 +3,7 @@
 #include <QString>
 #include <unordered_map>
 #include <vector>
-#include <tsre/sim/SimulationCore.h>
+#include <tsre/sim/SimulationTexts.h>
 
 class Activity;
 
@@ -45,8 +45,9 @@ class EventResultStore : public QObject {
 public:
     static EventResultStore *instance();
     // A run's events (the input's list) as they are now, from `time` on.
+    // The cars where the run left them (task 07), else as the input has them.
     void record(Activity *activity, const SimulationInput &input, const std::vector<EventState> &states,
-                ActivityEnd end, double endedAt, double time, bool complete);
+                ActivityEnd end, double endedAt, double time, bool complete, const CarsNow *cars = nullptr);
     // The run went on to `time` (nothing else changed): no signal.
     void advance(const Activity *activity, double time, bool complete);
     // The activity was edited: its results are from before.

@@ -990,7 +990,12 @@ void Activity::updateSim(float* playerT, float deltaTime){
 }
 
 void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerRot, int renderMode) {
-    for (int i = 0; i < activityObjects.size(); i++) {
+    // While a simulation runs the activity, its trains are where the
+    // simulation has them (SimulationController), not at their starts, and
+    // its loose consists are the simulation's standing trains (task 07).
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const bool atStart = !simulation->shows(this);
+    for (int i = 0; i < activityObjects.size() && showsLooseConsists(); i++) {
         activityObjects[i]->pushRenderItems(queue, playerT, renderMode, i);
     }
 
@@ -1006,10 +1011,6 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
         event[i]->pushRenderItem(queue, playerT, playerRot, renderMode);
     }
 
-    // While a simulation runs the activity, its trains are where the
-    // simulation has them (SimulationController), not at their starts.
-    Sim::SimulationController *simulation = Sim::SimulationController::instance();
-    const bool atStart = !simulation->shows(this);
     if (Service *player = playerService()) {
         const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
                 ? SelectionIdCodec::activityService(0) : 0;
@@ -1025,6 +1026,10 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
     }
     if (!atStart)
         simulation->pushRenderItems(queue, playerT, renderMode);
+}
+
+bool Activity::showsLooseConsists() {
+    return !Sim::SimulationController::instance()->shows(this);
 }
 
 QVector<int> Activity::shownAITrains(){

@@ -180,7 +180,8 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
                     selected.append(own);
             }
         };
-        if (shows(MapActivityKind::LooseConsists))
+        // While simulated, the standing trains are drawn instead (task 07).
+        if (shows(MapActivityKind::LooseConsists) && current->showsLooseConsists())
             collect(current->activityObjects, consists);
         if (shows(MapActivityKind::SpeedZones))
             collect(current->restrictedSpeedZone, zones);
@@ -592,7 +593,8 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
     };
     const int tileX = view.tileX, tileZ = view.tileZ;
     quint32 id = 0;
-    for (int i = 0; i < current->activityObjects.size() && shown(MapActivityKind::LooseConsists); ++i) {
+    for (int i = 0; i < current->activityObjects.size() && shown(MapActivityKind::LooseConsists)
+                    && current->showsLooseConsists(); ++i) {
         ActivityObject *object = current->activityObjects[i];
         if (object == nullptr || !SelectionIdCodec::tryActivityObject(i, 0, id))
             continue;

@@ -254,6 +254,7 @@ void TimetableCalculation::run(const std::atomic<bool> *cancel) {
     last = core.trains();
     endTime = core.time();
     eventStates = core.eventStates();
+    carsAtEnd = CarsOf(core);
     activityEnd = core.activityEnd();
     activityEndedAt = core.activityEndedAt();
     settled = core.settled();
@@ -265,7 +266,7 @@ const TimetableRun &TimetableCalculation::write(Activity *activity) {
     if (outcome.cancelled || activity == nullptr || last.size() != in->trains.size())
         return outcome;
     // What the run did with the activity's events (task 06).
-    EventResultStore::instance()->record(activity, *in, eventStates, activityEnd, activityEndedAt, endTime, settled);
+    EventResultStore::instance()->record(activity, *in, eventStates, activityEnd, activityEndedAt, endTime, settled, &carsAtEnd);
     Memory &memory = memories()[activityKey(activity)];
     const QVector<ActivityTrains::Train> trains = ActivityTrains::List(activity);
     const int step = outcome.options.step;

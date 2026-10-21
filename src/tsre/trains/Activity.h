@@ -164,7 +164,10 @@ public:
     void updateSim(float *playerT, float deltaTime);
     void pushRenderItems(RenderQueue &queue, float * playerT, float playerRot, int renderMode);
     // The AI trains shown (shownAITrain, showAllAITrains): their paths and
-    // their consists at their starts; a service several run, once.
+    // their consists at their starts; a service several run, once.
+    // Its loose consists drawn: not while a simulation shows the activity
+    // (its standing trains are drawn instead, task simulation 07).
+    bool showsLooseConsists();
     QVector<int> shownAITrains();
 
     QString editorConListSelected;

@@ -146,6 +146,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
 void SimulationCore::refreshConsist(int train) {
     const TrainPlan &plan = in->trains[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
+    ++rt.carsVersion;
     rt.length = 0.0;
     for (const Vehicle &vehicle : rt.vehicles)
         rt.length += vehicle.length;
@@ -2375,6 +2376,40 @@ bool SimulationCore::pose(int train, double routeDistance, TrackPose &out) const
     return true;
 }
 
+bool SimulationCore::standingEnds(int standingTrain, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const {
+    fronts.clear();
+    rears.clear();
+    if (standingTrain < 0 || size_t(standingTrain) >= standing.size() || !in->geometry)
+        return false;
+    const Standing &st = standing[size_t(standingTrain)];
+    if (st.gone || st.track.empty())
+        return false;
+    RouteTrack track;
+    for (const RouteInterval &interval : st.track)
+        track.append(interval.node, interval.from, interval.to);
+    const auto at = [&](double distance, TrackPose &out) {
+        const RoutePoint point = track.locate(std::clamp(distance, 0.0, track.length()));
+        if (!in->geometry->pose(point.node, point.distance, out))
+            return;
+        out.node = point.node;
+        out.distance = point.distance;
+        out.forward = point.forward;
+        // As a train running the other way (vehicleEnds, reversed).
+        if (point.forward)
+            out.roll = -out.roll;
+    };
+    double before = 0.0;
+    for (const Vehicle &vehicle : st.vehicles) {
+        TrackPose front, rear;
+        at(before, front);
+        at(before + vehicle.length, rear);
+        fronts.push_back(front);
+        rears.push_back(rear);
+        before += vehicle.length;
+    }
+    return true;
+}
+
 bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const {
     fronts.clear();
     rears.clear();
@@ -2819,6 +2854,7 @@ void SimulationCore::freeSection(int section, int releasing) {
 }
 
 void SimulationCore::holdStanding(int standingTrain) {
+    ++standingChanges;
     const TrackNetwork *network = in->network.get();
     if (network == nullptr)
         return;
@@ -3003,6 +3039,7 @@ void SimulationCore::couple(int train, double time) {
         vehicles.insert(vehicles.end(), rt.vehicles.begin(), rt.vehicles.end());
     }
     st.gone = true;
+    ++standingChanges;
     for (size_t k = 0; k < standingAt.size(); ++k)
         if (standingAt[k] == other) {
             standingAt[k] = -1;

@@ -7,6 +7,7 @@
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/SimulationTexts.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
@@ -149,9 +150,26 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
         assembled.kind = Sim::EventPlan::AssembleTrain;
         assembled.activation = 1;
         assembled.cars = {b, a, 5, 6};
+        // A DropOff of car a on the loop, which the train never takes.
+        Sim::EventPlan elsewhere;
+        elsewhere.kind = Sim::EventPlan::DropOffWagonsAtLocation;
+        elsewhere.activation = 1;
+        elsewhere.cars = {a};
+        elsewhere.siding = true;
+        elsewhere.sidingNode = 12;
+        elsewhere.sidingFrom = 10.0f;
+        elsewhere.sidingTo = 190.0f;
         Sim::SimulationCore core(inputOf({trainOn(east, {vehicle(10.0f, true, 5), vehicle(10.0f, false, 6)}, true)},
-                                         {loose(11, 100.0f, {a, b})}, {assembled}));
+                                         {loose(11, 100.0f, {a, b})}, {assembled, elsewhere}));
         const Run run = runFor(core, 600.0);
+        const Sim::CarsNow carsNow = Sim::CarsOf(core);
+        const QString where = Sim::WhyNotFired(core.input(), 1, core.eventStates()[1], core.activityEnd(),
+                                               core.activityEndedAt(), &carsNow);
+        const QString atStart = Sim::WhyNotFired(core.input(), 1, core.eventStates()[1], core.activityEnd(),
+                                                 core.activityEndedAt());
+        check(core.eventStates()[1].fired == 0 && where.contains(Sim::TrainName(core.input(), 0)) && !where.contains("Loose")
+                  && atStart.contains("Loose"),
+              "why a wagon event did not fire names where the run left the cars: " + where);
         const TrainEvent *coupled = firstOf(run.events, TrainEvent::Coupled);
         const std::vector<unsigned int> ids = idsOf(core.vehiclesOf(0));
         check(coupled != nullptr && coupled->signal == 2 && core.standingTrains()[0].gone
@@ -226,6 +244,17 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
                   && core.trains()[0].stoppedAt == Sim::StopKind::End,
               "4NNSS: the first cars kept, the rest a standing train; the train goes on");
         check(core.eventStates()[0].fired == 1, "DropOff fires on the cars cut off in the siding");
+        Sim::EventPlan assemble;
+        assemble.kind = Sim::EventPlan::AssembleTrain;
+        assemble.activation = 1;
+        assemble.cars = {5, 7};
+        const Sim::CarsNow left = Sim::CarsOf(core);
+        Sim::EventState never;
+        never.activeSince = t0;
+        auto withAssemble = std::make_shared<Sim::SimulationInput>(core.input());
+        withAssemble->events = {assemble};
+        const QString why = Sim::WhyNotFired(*withAssemble, 0, never, Sim::ActivityEnd::None, -1.0, &left);
+        check(why.contains("standing where Player left it"), "cars cut off: where the train left them: " + why);
         Sim::TrainPlan refused = trainOn(east, {vehicle(10.0f, false, 5), vehicle(10.0f, false, 6), vehicle(10.0f, true, 7)}, true);
         refused.waits = {Sim::WaitPlan{0, at, 40105}};
         Sim::SimulationCore none(inputOf({refused}, {}));

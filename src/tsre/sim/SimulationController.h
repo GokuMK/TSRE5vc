@@ -146,8 +146,9 @@ public:
     QString statusText() const;
 
     // The simulated trains in 3D, with the ids of the trains at their starts
-    // (Activity::pushRenderItems); on the map, a train's vehicles (all
-    // trains' for -1).
+    // (Activity::pushRenderItems), and the standing trains (task 07: drawn
+    // in place of the activity's loose consists, not picked); on the map, a
+    // train's vehicles (all trains' and the standing trains' for -1).
     void pushRenderItems(RenderQueue &queue, float *playerT, int renderMode);
     void getMapFeatures(MapFeatures &vehicles, int tileX, int tileZ, int train = -1) const;
     // The 3D and map id of a train: SelectionIdCodec::activityService's;
@@ -162,6 +163,11 @@ public:
     // shown in the properties and ridden by the camera as consists are;
     // gone at Stop, a reset or a new start (trainsRemoving first).
     Consist *consistOf(int train) const;
+    // The standing trains' consists (task 07), null for one gone.
+    Consist *standingConsist(int standingTrain) const;
+    // What changes whenever a frame's cars do (recordedCars).
+    static unsigned long long carsSerial(const SimulationFrame &frame);
+    size_t standingCount() const;
     // The train whose consist it is, -1 none.
     int trainOfObject(const GameObj *object) const;
     // The trains' sounds near the listener (its tile and place, in the
@@ -220,6 +226,9 @@ private:
     // stops (the reasons read where the trains are then).
     unsigned int recordedRun = 0;
     unsigned long long recordedSerial = 0;
+    // The cars as recorded (task 07): the standing trains' serial plus every
+    // train's vehicles' version.
+    unsigned long long recordedCars = 0;
     double recordedTime = -1.0;
     void recordEvents();
     // The world's date at start, and the simulation's time it shows (kept
@@ -238,6 +247,12 @@ private:
     // The trains' consists (consistOf), placed from `placedFrame`; whether
     // each was heard last time.
     mutable std::vector<std::unique_ptr<Consist>> consists;
+    // Task 07: the vehicles' version each copy has (it is made again from
+    // the train's vehicles when the frame's differs); the standing trains'
+    // copies, made again whenever the standing trains change.
+    mutable std::vector<unsigned int> consistVersions;
+    mutable std::vector<std::unique_ptr<Consist>> standingCopies;
+    mutable unsigned long long standingPlaced = ~0ull;
     mutable std::shared_ptr<const SimulationFrame> placedFrame;
     std::shared_ptr<const SimulationFrame> pinnedFrame;
     std::vector<bool> heard;

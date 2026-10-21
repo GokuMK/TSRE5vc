@@ -1092,6 +1092,58 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         Undo::Clear();
     }
 
+    // Task 07: a loose consist ahead of the player's train on its line. The
+    // simulation draws it as a standing train in place of the activity's
+    // object; the player's train takes it, its consist made again with the
+    // cars; the Timetable window lists the coupling; Stop shows the
+    // activity's object again.
+    if (main != nullptr && second != nullptr)
+        for (auto [path, track] : {std::make_pair(main, 10), std::make_pair(second, 30)}) {
+            PathTrack::Result made = PathTrack::startAt(&layout.db, {track, 100.0f});
+            path->apply(PathTrack::endAt(&layout.db, made.nodes, {track, 1900.0f}).nodes);
+        }
+    activity->editorConListSelected = temp.path() + "/TRAINS/CONSISTS/Two.con";
+    float loosePlace[2] = {10.0f, 1500.0f};
+    const int objectsBefore = activity->activityObjects.size();
+    activity->newLooseConsist(loosePlace);
+    ActivityObject *loose = activity->activityObjects.size() > objectsBefore ? activity->activityObjects.back() : nullptr;
+    check(loose != nullptr && loose->con != nullptr && activity->showsLooseConsists(), "a loose consist on the player's line");
+    Undo::Clear();
+    clock->setSpeed(0.0);
+    play->click();
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.standing != nullptr && !x.trains.empty(); }, 10000, pump);
+    pump();
+    Consist *standingCopy = simulation->standingConsist(0);
+    check(f && f->standing->size() == 1 && (*f->standing)[0].vehicles.size() == 2 && (*f->standing)[0].fronts.size() == 2
+              && standingCopy != nullptr && standingCopy->isOnTrack && standingCopy->engItems.size() == 2
+              && standingCopy->engItems[0].engPointer != nullptr && !activity->showsLooseConsists(),
+          "simulated: the loose consist a standing train, drawn in place of the activity's object");
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+            return !x.trains.empty() && x.trains[0].vehicles != nullptr && x.trains[0].vehicles->size() == 4; }, 20000, pump);
+    pump();
+    Consist *taken = simulation->consistOf(simulation->trainOf(true, -1));
+    check(f && f->trains[0].carsVersion > 0 && (*f->standing)[0].gone && simulation->standingConsist(0) == nullptr
+              && taken != nullptr && taken->engItems.size() == 4 && taken->engItems[3].engPointer != nullptr,
+          QString("the player's train takes it: its consist made again with its %1 vehicles, the standing train gone")
+              .arg(taken != nullptr ? taken->engItems.size() : 0));
+    rows->setCurrentItem(rows->topLevelItem(0));
+    rows->topLevelItem(0)->setSelected(true);
+    pump();
+    QStringList coupledListed;
+    for (int i = 0; i < trainEvents->count(); ++i)
+        coupledListed << trainEvents->item(i)->text();
+    check(coupledListed.filter("coupled to 2 cars").size() == 1,
+          "the Timetable window lists the coupling: " + coupledListed.join(" | "));
+    stop->click();
+    pump();
+    clock->setSpeed(1.0);
+    check(!simulation->exists() && activity->showsLooseConsists(), "Stop: the activity's loose consist drawn again");
+    if (loose != nullptr) {
+        activity->activityObjects.removeOne(loose);
+        delete loose;
+    }
+    Undo::Clear();
+
     for (QWidget *window : QList<QWidget *>{&tools, &events, &timetable})
         window->hide();
     for (int id = firstAct; id < ActLib::jestact; ++id) ActLib::Act[id] = nullptr;

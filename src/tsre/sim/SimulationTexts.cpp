@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <algorithm>
 #include <cmath>
+#include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/units/Units.h>
 
@@ -149,9 +150,23 @@ QString WaitText(const SimulationInput &in, WaitFor waitFor, int signal, int hol
 namespace {
 
 // Where a car of a wagon list is: the player's train, a loose consist, no
-// train.
-QString carPlace(const SimulationInput &in, unsigned int car) {
+// train; where the run left it when known.
+QString carPlace(const SimulationInput &in, unsigned int car, const CarsNow *cars) {
     const QString name = QString("%1-%2").arg(car / 65536u).arg(car % 65536u);
+    const auto holds = [car](const std::vector<Vehicle> &vehicles) {
+        return std::any_of(vehicles.begin(), vehicles.end(), [car](const Vehicle &vehicle) { return vehicle.id == car; });
+    };
+    if (cars != nullptr) {
+        for (size_t t = 0; t < cars->trains.size(); ++t)
+            if (holds(cars->trains[t]))
+                return qtTrId("simulation.why.car.train").arg(name, TrainName(in, int(t)));
+        for (const CarsNow::Standing &standing : cars->standing)
+            if (holds(standing.vehicles))
+                return standing.loose ? qtTrId("simulation.why.car.loose").arg(name, standing.name)
+                                      //% "car %1 standing where %2 left it"
+                                      : qtTrId("simulation.why.car.left").arg(name, standing.name);
+        return qtTrId("simulation.why.car.none").arg(name);
+    }
     for (const TrainPlan &plan : in.trains)
         for (const Vehicle &vehicle : plan.vehicles)
             if (vehicle.id == car)
@@ -180,7 +195,29 @@ bool passes(const TrainPlan &plan, const EventPlan &event) {
 
 }
 
-QString WhyNotFired(const SimulationInput &in, int event, const EventState &state, ActivityEnd end, double endedAt) {
+CarsNow CarsOf(const SimulationCore &core) {
+    CarsNow cars;
+    for (size_t t = 0; t < core.trains().size(); ++t)
+        cars.trains.push_back(core.vehiclesOf(int(t)));
+    for (const SimulationCore::Standing &standing : core.standingTrains())
+        if (!standing.gone)
+            cars.standing.push_back({standing.name, standing.object >= 0, standing.vehicles});
+    return cars;
+}
+
+CarsNow CarsOf(const SimulationFrame &frame) {
+    CarsNow cars;
+    for (const TrainFrame &train : frame.trains)
+        cars.trains.push_back(train.vehicles != nullptr ? *train.vehicles : std::vector<Vehicle>());
+    if (frame.standing != nullptr)
+        for (const StandingFrame &standing : *frame.standing)
+            if (!standing.gone)
+                cars.standing.push_back({standing.name, standing.loose, standing.vehicles});
+    return cars;
+}
+
+QString WhyNotFired(const SimulationInput &in, int event, const EventState &state, ActivityEnd end, double endedAt,
+                    const CarsNow *cars) {
     if (event < 0 || size_t(event) >= in.events.size())
         return QString();
     const EventPlan &plan = in.events[size_t(event)];
@@ -255,7 +292,7 @@ QString WhyNotFired(const SimulationInput &in, int event, const EventState &stat
         case EventPlan::PickUpWagons: {
             QStringList places;
             for (unsigned int car : plan.cars)
-                places << carPlace(in, car);
+                places << carPlace(in, car, cars);
             if (plan.kind == EventPlan::AssembleTrainAtLocation && !state.reachedSiding)
                 //% "The player's train did not reach the siding."
                 why = qtTrId("simulation.why.siding") + " ";

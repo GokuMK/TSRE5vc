@@ -266,9 +266,17 @@ public:
     // roll looking from the rear to the front. False for a train not on the
     // track (not started, or an AI train gone at its path's end).
     bool vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const;
+    // The same for a standing train (task 07): its vehicles in its list's
+    // order along its track, each vehicle's front (as the list has it)
+    // toward the track's start. False for one gone.
+    bool standingEnds(int standingTrain, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const;
     // Where a route distance of a train's current part is, its roll
     // looking along the route.
     bool pose(int train, double routeDistance, TrackPose &out) const;
+    // A train's vehicles change (task 07): counted (for the editor's copy
+    // of its consist); the standing trains change (made, joined, gone).
+    unsigned int carsVersion(int train) const { return runtime[size_t(train)].carsVersion; }
+    unsigned long long standingSerial() const { return standingChanges; }
     // The next stop signal ahead of a train's front on its route part and
     // its least restrictive NORMAL head's aspect, how far ahead (m); -1
     // none (comparisons with Open Rails, task 05).
@@ -370,6 +378,7 @@ private:
     std::vector<int> headDraw;
     unsigned long long drawChanges = 0;
     unsigned long long holdChanges = 0;
+    unsigned long long standingChanges = 0;
     // Per section, holdChanges when its holder last changed; claims changed.
     std::vector<unsigned long long> heldStamp;
     unsigned long long claimChanges = 0;
@@ -469,6 +478,7 @@ private:
         // length, performance, kind, rates, driving), as its plan has them
         // until they change (refreshConsist).
         std::vector<Vehicle> vehicles;
+        unsigned int carsVersion = 0;
         double length = 0.0;
         Performance performance;
         bool passenger = false;

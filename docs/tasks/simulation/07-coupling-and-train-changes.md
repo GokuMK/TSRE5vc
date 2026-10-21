@@ -1,7 +1,7 @@
 # Task 07 - Coupling and Train Changes
 
-Status: designed 2026-10-21; phases 1, 2a and 2b done (branch
-`feature/simulation`).
+Status: designed 2026-10-21; phases 1, 2a, 2b and 3 (part A) done
+(branch `feature/simulation`).
 Decisions taken are at the end.
 
 Sources:
@@ -168,6 +168,37 @@ Open Rails' AI (`AITrain.UpdateFollowingState`, `CoupleAI`,
   end in its last section (Open Rails' routes end at whole sections, so it
   may); the editor still names the original player's train the player's
   after it joined another.
+
+**Phase 3, A7: the editor (done 2026-10-21).**
+- **Frames** carry each train's vehicles and their version (shared from
+  frame to frame while unchanged), and the standing trains: name,
+  vehicles, each vehicle's two ends (`standingEnds`, facing as in a train
+  running toward the track's start), whether gone, whether one of the
+  activity's loose consists.
+- **The controller** makes a train's consist copy again from its vehicles
+  when their version changes. The copy stays the same object, so the
+  camera riding it (Follow) and the selection keep it, with its sounds
+  stopped first. Copies of the standing trains are made again whenever
+  they change, drawn in 3D and on the map, not picked.
+- **The activity's loose consists** are not drawn, in 3D or on the map,
+  while a simulation shows the activity (`Activity::showsLooseConsists`):
+  the standing trains are drawn instead.
+- **The Timetable window** lists couplings and cuts with the chosen
+  train's other events (already from phase 2a).
+- **Why an event did not fire** names where the run left the cars: Check
+  Activity's last run from the latest frame (recorded again when cars
+  change), Simulate's from the core, the route suite's too. Cars a train
+  cut off read "standing where X left it".
+- **Fixtures:** `simulation-ui` (66): a loose consist ahead of the player's
+  train drawn as a standing train in place of the activity's object, the
+  player's train taking it and its consist made again with 4 vehicles, the
+  standing train gone, the Timetable window listing "coupled to 2 cars",
+  the object drawn again after Stop; `simulation-coupling` (21): the cars'
+  places in the why texts.
+- **Seen:** captures of USA2 local_cutbank (13:06:40, 13:08): the 13 cars
+  standing ahead of the player's train on the map, then taken along in
+  one line behind its engines, the pickup event's message beside it; the
+  same in 3D.
 
 ## Why
 

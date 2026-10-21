@@ -59,6 +59,37 @@ std::unique_ptr<Consist> copyConsist(const TrainPlan &plan) {
     return copy;
 }
 
+// A consist copy made again from a train's vehicles (task 07: they change
+// as it couples and cuts): each its Eng, flipped as the vehicle is. The
+// copy itself stays (the camera rides it, the selection holds it).
+void refit(Consist &consist, const std::vector<Vehicle> &vehicles) {
+    consist.silenceSounds();
+    for (Consist::EngItem &item : consist.engItems)
+        delete item.engPointer;
+    consist.engItems.clear();
+    for (const Vehicle &vehicle : vehicles) {
+        Consist::EngItem item;
+        item.eng = vehicle.eng;
+        item.flip = vehicle.flip;
+        item.uid = int(vehicle.id % 65536u);
+        Eng *eng = nullptr;
+        if (Game::currentEngLib != nullptr) {
+            auto found = Game::currentEngLib->eng.find(vehicle.eng);
+            if (found != Game::currentEngLib->eng.end())
+                eng = found->second;
+        }
+        if (eng != nullptr) {
+            item.type = eng->wagonTypeId;
+            item.ename = eng->name;
+            item.engPointer = new Eng(eng);
+            item.engPointer->flip = vehicle.flip;
+        }
+        consist.engItems.push_back(item);
+    }
+    if (consist.cameraVehicle >= int(consist.engItems.size()))
+        consist.cameraVehicle = 0;
+}
+
 // How far a train is heard, and how far it goes before it is silenced.
 constexpr float HeardWithin = 1500.0f;
 constexpr float SilencedBeyond = 2000.0f;
@@ -367,7 +398,7 @@ void SimulationController::poll() {
     // The activity's events as the run has them (task 06), for the Event
     // window and the map; the time alone when they have not changed.
     if (latest->eventStates != nullptr) {
-        if (recordedRun != in->runId || recordedSerial != latest->eventSerial
+        if (recordedRun != in->runId || recordedSerial != latest->eventSerial || recordedCars != carsSerial(*latest)
                 || (latest->mode == RunMode::Paused && recordedTime != latest->time))
             recordEvents();
         else
@@ -663,8 +694,17 @@ void SimulationController::recordEvents() {
     recordedRun = in->runId;
     recordedSerial = latest->eventSerial;
     recordedTime = latest->time;
+    recordedCars = carsSerial(*latest);
+    const CarsNow cars = CarsOf(*latest);
     EventResultStore::instance()->record(current, *in, *latest->eventStates, latest->activityEnd,
-                                         latest->activityEndedAt, latest->time, latest->finished);
+                                         latest->activityEndedAt, latest->time, latest->finished, &cars);
+}
+
+unsigned long long SimulationController::carsSerial(const SimulationFrame &frame) {
+    unsigned long long serial = frame.standingSerial;
+    for (const TrainFrame &train : frame.trains)
+        serial += train.carsVersion;
+    return serial;
 }
 
 QString SimulationController::messageOf(int event) const {
@@ -769,6 +809,16 @@ void SimulationController::pushRenderItems(RenderQueue &queue, float *playerT, i
                 ? SelectionIdCodec::activityService(serviceId(int(t))) : 0;
         consist->pushRenderItemsOnTrack(queue, playerT, id, int(t) == chosenTrain);
     }
+    for (size_t k = 0; k < standingCopies.size() && placedFrame->standing != nullptr && k < placedFrame->standing->size(); ++k) {
+        Consist *consist = standingCopies[k].get();
+        const StandingFrame &st = (*placedFrame->standing)[k];
+        if (consist == nullptr || st.fronts.empty())
+            continue;
+        const TrackPose &a = st.fronts.front();
+        if (std::fabs(a.tileX - playerT[0]) > reach || std::fabs(-a.tileZ - playerT[1]) > reach)
+            continue;
+        consist->pushRenderItemsOnTrack(queue, playerT, 0, false);
+    }
 }
 
 void SimulationController::getMapFeatures(MapFeatures &vehicles, int tileX, int tileZ, int only) const {
@@ -782,6 +832,10 @@ void SimulationController::getMapFeatures(MapFeatures &vehicles, int tileX, int 
         if (consist != nullptr && consist->isOnTrack)
             consist->getMapFeatures(vehicles, tileX, tileZ);
     }
+    if (only < 0)
+        for (const std::unique_ptr<Consist> &consist : standingCopies)
+            if (consist != nullptr)
+                consist->getMapFeatures(vehicles, tileX, tileZ);
 }
 
 Consist *SimulationController::consistOf(int train) const {
@@ -812,8 +866,10 @@ void SimulationController::placeTrains() const {
     if (now == placedFrame)
         return;
     placedFrame = now;
-    if (consists.size() != in->trains.size())
+    if (consists.size() != in->trains.size()) {
         consists.resize(in->trains.size());
+        consistVersions.resize(in->trains.size(), 0);
+    }
     for (size_t t = 0; t < in->trains.size(); ++t) {
         const TrainFrame *train = t < now->trains.size() ? &now->trains[t] : nullptr;
         if (train == nullptr || train->fronts.empty() || train->rears.size() != train->fronts.size()) {
@@ -822,11 +878,19 @@ void SimulationController::placeTrains() const {
             continue;
         }
         const TrainPlan &plan = in->trains[t];
-        if (consists[t] == nullptr)
+        if (consists[t] == nullptr) {
+            // The plan's vehicles: the core's version 0.
             consists[t] = copyConsist(plan);
+            consistVersions[t] = 0;
+        }
         Consist *consist = consists[t].get();
         if (consist == nullptr)
             continue;
+        // Its vehicles changed (task 07): the copy made again from them.
+        if (train->vehicles != nullptr && train->carsVersion != consistVersions[t]) {
+            refit(*consist, *train->vehicles);
+            consistVersions[t] = train->carsVersion;
+        }
         // Each vehicle's two ends where the simulation has them, facing the
         // node's way where its front (as the consist lists it) does: the
         // way the train runs there, the other when it runs reversed.
@@ -845,6 +909,48 @@ void SimulationController::placeTrains() const {
                       throttle, brake);
         consist->setSimulated(train->state.speed, float(train->state.travelled), throttle, brake);
     }
+    // The standing trains (task 07), made again whenever they change; each
+    // vehicle facing as in a train running the other way (standingEnds).
+    if (now->standing != nullptr && now->standingSerial != standingPlaced) {
+        standingPlaced = now->standingSerial;
+        for (std::unique_ptr<Consist> &copy : standingCopies)
+            if (copy != nullptr)
+                refit(*copy, {});
+        standingCopies.clear();
+        standingCopies.resize(now->standing->size());
+        for (size_t k = 0; k < now->standing->size(); ++k) {
+            const StandingFrame &st = (*now->standing)[k];
+            if (st.gone || st.fronts.size() != st.vehicles.size() || st.rears.size() != st.vehicles.size())
+                continue;
+            auto copy = std::make_unique<Consist>();
+            copy->name = st.name;
+            copy->displayName = st.name;
+            refit(*copy, st.vehicles);
+            for (size_t v = 0; v < st.vehicles.size() && v < size_t(copy->engItems.size()); ++v) {
+                Eng *eng = copy->engItems[int(v)].engPointer;
+                const TrackPose &front = st.fronts[v];
+                const TrackPose &rear = st.rears[v];
+                if (eng == nullptr || front.node < 0 || rear.node < 0)
+                    continue;
+                eng->placeOnTrack(front.node, front.distance, front.forward ? 1 : 0,
+                                  rear.node, rear.distance, rear.forward ? 1 : 0);
+            }
+            copy->isOnTrack = true;
+            standingCopies[k] = std::move(copy);
+        }
+    }
+}
+
+Consist *SimulationController::standingConsist(int standingTrain) const {
+    placeTrains();
+    if (standingTrain < 0 || size_t(standingTrain) >= standingCopies.size())
+        return nullptr;
+    return standingCopies[size_t(standingTrain)].get();
+}
+
+size_t SimulationController::standingCount() const {
+    placeTrains();
+    return standingCopies.size();
 }
 
 void SimulationController::dropTrains() {
@@ -860,6 +966,12 @@ void SimulationController::dropTrains() {
         }
     }
     consists.clear();
+    consistVersions.clear();
+    for (std::unique_ptr<Consist> &copy : standingCopies)
+        if (copy != nullptr)
+            refit(*copy, {});
+    standingCopies.clear();
+    standingPlaced = ~0ull;
     placedFrame.reset();
     pinnedFrame.reset();
     heard.clear();

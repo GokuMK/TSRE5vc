@@ -25,7 +25,7 @@ EventResultStore::EventResultStore() {
 }
 
 void EventResultStore::record(Activity *activity, const SimulationInput &input, const std::vector<EventState> &states,
-                              ActivityEnd end, double endedAt, double time, bool complete) {
+                              ActivityEnd end, double endedAt, double time, bool complete, const CarsNow *cars) {
     if (activity == nullptr)
         return;
     Entry &entry = entries[activity];
@@ -39,7 +39,7 @@ void EventResultStore::record(Activity *activity, const SimulationInput &input, 
         result.inRun = true;
         result.state = states[e];
         result.by = states[e].firedBy >= 0 ? TrainName(input, states[e].firedBy) : QString();
-        result.why = states[e].fired > 0 ? QString() : WhyNotFired(input, int(e), states[e], end, endedAt);
+        result.why = states[e].fired > 0 ? QString() : WhyNotFired(input, int(e), states[e], end, endedAt, cars);
         if (const ActivityEvent *event = activity->event[index]) {
             result.name = event->name;
             result.completion = states[e].fired > 0 ? event->textToDisplayOnCompletionIfTriggered
