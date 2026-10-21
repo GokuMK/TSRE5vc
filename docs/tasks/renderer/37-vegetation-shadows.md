@@ -196,27 +196,43 @@ A dedicated renderer step after part 1.
   1024). The static cache adds 36 MB, the vegetation set 36 MB at the same
   sizes or 12 MB at 1024 (tree shadows are soft anyway).
 
-### Snapping and redraws
+### Snapped centres (step 4a)
 
-The cached maps are drawn from a centre snapped to a cell (as the enclosure
-maps), with the map grown by a cell to cover the camera anywhere in it. This
-also stops shadow edges crawling as the camera moves (today the maps are
-centred exactly on the camera each frame). A cached map is drawn again when:
+Done (2026-10-21): each map's centre lies on a grid of 32 of its texels in
+the light's frame (`ShadowSnapTexels`; 2.5 m for the near map at 2048,
+9.4 m for the middle one, 43.8 m for the far one at 1024), the depth too;
+the shaders choose the map by the point's place in it, unchanged. The map's
+texels keep their place on the ground while the camera moves: with the
+centre moved 1.5 cm and the camera still, 5.8% of the TREES view's pixels
+changed before (the crawl of shadow edges), none now. A still view differs
+from before only by where the texel grid falls. The camera is at most
+half a cell off the map's middle (1.8 m for the near map); the maps keep
+their size.
 
-- the camera leaves its cell (the near map often, the far map rarely);
-- the sun moves more than about a texel;
-- the world is edited; shapes or cut-out textures finish loading; the
-  season or the LOD bias changes.
+### The static cache and its redraws (step 4b)
 
-The near, mid and far redraws go in different frames. The LOD of static
-objects is kept as it was at the redraw while the camera moves inside a
-cell; harmless.
+A cached map is drawn again when what it holds changes, not when the code
+is told: a signature of its casters (each static casting instance's packet
+and matrix), the map's cell, the sun moved more than about a texel, and the
+shapes and textures still loading. So a static/dynamic choice that is
+wrong costs speed (a redraw each frame, as today), never a ghost shadow.
+One map is drawn again per frame at most, the near one first; a slow
+refresh of each map every few seconds, in turn, stays as a safety net (as
+the enclosure maps' once a second). The LOD of static objects is kept as it
+was at the redraw while the camera moves inside a cell; harmless.
 
 ### What moves
 
-Trains, animated objects (the Animate flag, animated shape states) and
-objects dragged in the editor. Anything that moves but is classed as static
-leaves its shadow behind.
+Drawn on top every frame: trains, animated objects (the Animate flag,
+animated shape states), overlay and frame items, and objects being edited.
+
+Editing (the user's question, 2026-10-21): an object is dynamic while it is
+changed and for about a second after its last change (stamped where it is
+marked modified), then settles into the static map. Marking it until save
+would grow over a session: one forest re-defined, 2000 trees cast every
+frame. An edit costs two static redraws: when the object turns dynamic (or
+its old shadow stays behind) and when it settles. Deleting or adding an
+object changes the signature too.
 
 ### Receivers
 

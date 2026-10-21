@@ -1142,6 +1142,10 @@ constexpr float ShadowBiasReferenceHalfDepth = 200.0f;
 // only has to cover texel quantization.
 constexpr float ShadowNormalOffsetTexels[2] = {1.0f, 1.0f};
 constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
+// The grid each map's centre is snapped to, in its texels (task 37): 2.5 m
+// for the near map at 2048, 9.4 m for the middle one, 43.8 m for the far one
+// at 1024.
+constexpr float ShadowSnapTexels = 32.0f;
 }
 
 void RouteEditorGLWidget::applyTimeOfDay() {
@@ -1538,17 +1542,27 @@ void RouteEditorGLWidget::reportEnvironment(float sunElevation, float sunAzimuth
 }
 
 // Light-space matrices of the near, mid and far shadow maps, centred on the
-// camera. The near and mid maps share the primary map size; the near map
-// covers a third of the mid map's width, so shadows close to the camera get
-// three times the detail.
+// camera's cell. The near and mid maps share the primary map size; the near
+// map covers a third of the mid map's width, so shadows close to the camera
+// get three times the detail.
+// Each map's centre lies on a grid of ShadowSnapTexels of its own texels in
+// the light's frame (task 37): its texels keep their place on the ground
+// while the camera moves, so shadow edges do not crawl, and a map drawn for
+// one centre holds while the camera stays in that cell.
 void RouteEditorGLWidget::computeShadowMatrices() {
-    float* lookAt = Mat4::create();
-    float* out1 = Vec3::create();
-    Vec3::set(out1, 0, 1, 0);
-    float *ld = Vec3::create();
-    Vec3::set(ld, shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]);
-    float *aaa = camera->getPos();
-    Vec3::add(ld, ld, aaa);
+    float up[3] = {0.0f, 1.0f, 0.0f};
+    float sun[3] = {shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]};
+    Vec3::normalize(sun, sun);
+    // The light's frame: the rows of the rotation Mat4::lookAt makes. Its
+    // inverse is its transpose.
+    float rotation[16];
+    float origin[3] = {0.0f, 0.0f, 0.0f};
+    Mat4::lookAt(rotation, sun, origin, up);
+    const float right[3] = {rotation[0], rotation[4], rotation[8]};
+    const float upward[3] = {rotation[1], rotation[5], rotation[9]};
+    // No frame with the sun straight overhead (lookAt leaves right zero).
+    const bool snap = right[0] * right[0] + right[1] * right[1] + right[2] * right[2] > 0.5f;
+    const float *position = camera->getPos();
     float *matrices[3] = {gluu->pShadowMatrix0, gluu->pShadowMatrix, gluu->pShadowMatrix2};
     for (int map = 0; map < 3; map++)
         Mat4::ortho(matrices[map], -ShadowHalfExtent[map], ShadowHalfExtent[map],
@@ -1573,15 +1587,26 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
     }
     gluu->shadowNormalOffset[2] = 0.0f;
-    float lightDirection[3] = {shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]};
-    Vec3::normalize(gluu->shadowLightDirection, lightDirection);
-    Mat4::lookAt(lookAt, ld, aaa, out1);
-    Mat4::multiply(gluu->pShadowMatrix0, gluu->pShadowMatrix0, lookAt);
-    Mat4::multiply(gluu->pShadowMatrix, gluu->pShadowMatrix, lookAt);
-    Mat4::multiply(gluu->pShadowMatrix2, gluu->pShadowMatrix2, lookAt);
-    delete[] lookAt;
-    delete[] out1;
-    delete[] ld;
+    std::copy(sun, sun + 3, gluu->shadowLightDirection);
+    for (int map = 0; map < 3; map++) {
+        const int size = map < 2 ? shadowMapSize : distantShadowMapSize;
+        const float cell = ShadowSnapTexels * 2.0f * ShadowHalfExtent[map] / float(std::max(size, 1));
+        float centre[3] = {position[0], position[1], position[2]};
+        if (snap) {
+            // The camera in the light's frame, on the grid, and back.
+            float q[3] = {right[0] * position[0] + right[1] * position[1] + right[2] * position[2],
+                          upward[0] * position[0] + upward[1] * position[1] + upward[2] * position[2],
+                          sun[0] * position[0] + sun[1] * position[1] + sun[2] * position[2]};
+            for (float &c : q)
+                c = std::round(c / cell) * cell;
+            for (int c = 0; c < 3; ++c)
+                centre[c] = right[c] * q[0] + upward[c] * q[1] + sun[c] * q[2];
+        }
+        float eye[3] = {centre[0] + sun[0], centre[1] + sun[1], centre[2] + sun[2]};
+        float view[16];
+        Mat4::lookAt(view, eye, centre, up);
+        Mat4::multiply(matrices[map], matrices[map], view);
+    }
 }
 
 // Draws the near, middle and far shadow maps from the gathered queue, with
