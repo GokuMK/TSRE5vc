@@ -43,7 +43,7 @@ that colour at 0.55 (alpha 140), about 5 %. To try: leaves in the shadow
 map passing a share of the light for transmission, a brighter transmitted
 colour in the assets (tree-gen). Since [task 37](37-vegetation-shadows.md)
 step 5 (QRhi): vegetation casts into its own shadow maps, which trees read
-at 30%, so leaves in their own crown's shade keep most of the sun.
+at half strength, so leaves in their own crown's shade keep half the sun.
 
 ## Engine scope
 

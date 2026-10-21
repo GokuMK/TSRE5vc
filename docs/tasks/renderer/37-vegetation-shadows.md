@@ -319,8 +319,9 @@ false).
 - The lit shaders (`shadowedVisibility`, `ShadowSampling.glsl`) read both at
   the same coordinates: the main maps' 16 taps (2 far), vegetation's 4 (every
   fourth; 2 far). The shaded share combines as two occluders, `main + s veg
-  - main s veg`, with `s` 1 for ordinary surfaces and 0.3 for vegetation
-  (`vegetationSelfShadow`). Without vegetation's shadow the result is the
+  - main s veg`, with `s` 1 for ordinary surfaces and 0.5 for vegetation
+  (`vegetationSelfShadow`; 0.3 first, raised by the user, 2026-10-22: the
+  shaded parts hard to see; `TSRE_VEGETATION_SELF_SHADOW` tries others). Without vegetation's shadow the result is the
   old one exactly (the switch off: pixel-identical).
 - The fog volume (`RhiFog`, one tap per map) and the light shafts (the far
   map) take both at full strength, so trees still cut the shafts.
@@ -340,11 +341,11 @@ false).
 ### Receivers
 
 - Ordinary surfaces: main and vegetation.
-- Vegetation: main, and the vegetation map at about 30%. Bark could take it
-  at full strength (dappled trunks). Level-2 casters on a level-0 crown
-  would draw the shadows of cards that are not there at full strength; 30%
-  hides it. This fixes the crowns dark from below (task 36) and the stripes
-  of MSTS crossed-quad trees.
+- Vegetation: main, and the vegetation map at half its strength. Bark
+  could take it at full strength (dappled trunks). Level-2 casters on a
+  level-0 crown would draw the shadows of cards that are not there at full
+  strength; half softens it. This fixes the crowns dark from below
+  (task 36) and the stripes of MSTS crossed-quad trees.
 - Later: the strength by the depth gap between the receiver and the
   vegetation caster: light within the tree's own crown, darker in a
   neighbour's shadow a few metres away. Needs a raw depth read (no

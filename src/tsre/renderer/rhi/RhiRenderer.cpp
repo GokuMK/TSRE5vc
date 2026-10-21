@@ -46,8 +46,16 @@ static void debugCount(const QString &key) { if (traceDraws) debugCounts[key]++;
 extern const char *RhiPresentFragment;
 
 namespace {
-// The share of vegetation's shadow maps vegetation itself takes (task 37).
-constexpr float VegetationSelfShadow = 0.3f;
+// The share of vegetation's shadow maps vegetation itself takes (task 37):
+// half; TSRE_VEGETATION_SELF_SHADOW (0 to 1) tries another.
+float vegetationSelfShadow() {
+    static const float share = [] {
+        bool ok = false;
+        const float value = qEnvironmentVariable("TSRE_VEGETATION_SELF_SHADOW").toFloat(&ok);
+        return ok ? std::clamp(value, 0.0f, 1.0f) : 0.5f;
+    }();
+    return share;
+}
 
 constexpr int InstanceFloats = 20;
 constexpr int InstanceStride = InstanceFloats * sizeof(float);
@@ -448,7 +456,7 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     // Vegetation's shadow maps (task 37), and the share vegetation takes of
     // them: its own crown and its neighbours' as a light shade.
     program->setInt("vegetationShadowsOn", vegetationMaps[0].valid() && Game::shadowsEnabled > 0 ? 1 : 0);
-    program->setFloat("vegetationSelfShadow", VegetationSelfShadow);
+    program->setFloat("vegetationSelfShadow", vegetationSelfShadow());
     // MSTS night textures (task 35): the scale of their light, set by the
     // view with the lamps' rule.
     const NightTextures::Frame &night = NightTextures::frame();
