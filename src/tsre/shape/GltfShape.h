@@ -175,6 +175,10 @@ private:
     // the set under key 0 and repeated objects draw instanced.
     QHash<unsigned int, QVector<RenderItem *>> renderItems;
     QHash<unsigned int, unsigned long long> renderItemsTextureHash;
+    // The textures are synced once a frame (Renderer::frameNumber()), not
+    // per object: a forest pushes the shape thousands of times.
+    quint64 texturesSyncedFrame = ~quint64(0);
+    unsigned long long textureStateHash = 0;
 
     void cleanupGpu();
     void cleanupNodeMatrices();

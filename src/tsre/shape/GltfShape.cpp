@@ -1321,8 +1321,11 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
     const int frame = impostorView ? std::clamp(state[stateId].frame, 0, int(impostorDirections.size() / 3) - 1) : -1;
     const unsigned int key = unsigned(level) | (unsigned(frame + 1) << 8);
     if (selectionId == 0) {
-        syncTextureAddresses();
-        const unsigned long long textureStateHash = getTextureStateHash();
+        if (texturesSyncedFrame != Renderer::frameNumber()) {
+            texturesSyncedFrame = Renderer::frameNumber();
+            syncTextureAddresses();
+            textureStateHash = getTextureStateHash();
+        }
         // Only a built set whose textures changed: a level not built yet
         // must not drop the sets of the others (levels alternate between
         // objects).
@@ -1410,6 +1413,7 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
 void GltfShape::invalidateRenderState(bool invalidateMatrixCache) {
     (void)invalidateMatrixCache;
     requiresUpdate = true;
+    texturesSyncedFrame = ~quint64(0);
     cleanupRenderItems();
 }
 

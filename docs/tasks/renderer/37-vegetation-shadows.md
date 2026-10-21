@@ -1,8 +1,9 @@
 # Task 37 - Vegetation shadows and cached shadow maps
 
 Status: the TREES forest measured (2026-10-21). Part 1, the forest's own
-costs (steps 1-3), in progress on `feature/forest-performance`. Part 2,
-cached and vegetation shadow maps (steps 4-5), designed, not started.
+costs (steps 1-3), in progress on `feature/forest-performance`: step 1
+done. Part 2, cached and vegetation shadow maps (steps 4-5), designed, not
+started.
 Updated 2026-10-21.
 
 Related: [task 10](10-shadows-gather-pass.md) (the three shadow maps),
@@ -97,6 +98,12 @@ of them impostor frames): 420 hash lookups per tree and push, long after
 every texture is uploaded. MSTS shapes sync on every push too, but with a
 few lookups per image. Fix: once per shape and frame
 (`Renderer::frameNumber()`).
+
+Done (2026-10-21): `GltfShape` syncs and hashes its textures on the first
+push of a frame, and again after a reload or invalidation. TREES forest
+view at 1280x800: cpu 23.7 to 4.4-4.9 ms, frame 128 to 109 ms, GPU
+unchanged (104 ms), the image identical. Suites `gltf-lod` (42, with
+`--game-root C:/trainsim` for TREES_EXT) and `forest-objects` (7) pass.
 
 ### Step 2: vegetation, outside the sky enclosure
 

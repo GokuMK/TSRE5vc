@@ -153,6 +153,11 @@ still sample the full texture. Other glTF and MSTS shapes keep none until
 decided; `TSRE_GLTF_MIPMAPS` sets one mode for all glTF shapes. The OpenGL
 renderer gets plain mipmaps only.
 
+The loop giving the other maps their mipmaps walked every texture slot of
+every primitive on every push: 18 ms a frame for a forest of 2000 trees
+(2026-10-21). The textures are now synced once per shape and frame;
+[renderer task 37](../renderer/37-vegetation-shadows.md), step 1.
+
 ## Supplied fixtures
 
 [Catalogue](../../../../tree-gen/docs/runtime-catalogue.md) and
