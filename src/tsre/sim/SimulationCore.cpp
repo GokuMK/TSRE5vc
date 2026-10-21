@@ -81,6 +81,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
             if (network->sections()[k].kind == TrackSection::Junction)
                 switchAt[k] = network->sections()[k].mainPin;
     clearedFor.assign(network != nullptr ? network->signalGroups().size() : 0, NoHolder);
+    occupiedBlock.assign(clearedFor.size(), 0);
     headAspect.assign(network != nullptr ? network->heads().size() : 0, 0);
     headDraw.assign(headAspect.size(), 0);
     // Loose consists are standing trains, holding the track they stand on.
@@ -587,6 +588,14 @@ void SimulationCore::advance(int train, double from, double to) {
                         braking = braking || (speed < limit && stops[next].at - s.front
                                 <= (limit * limit - speed * speed) / (2.0 * d) + BrakingZone);
                     }
+                    // Cleared for it at STOP_AND_PROCEED or RESTRICTING (task
+                    // 07): down to the creep speed SignalApproach short of it.
+                    const double approach = stops[next].at - SignalApproach - s.front;
+                    if (approach > 0.0 && clearedFor[size_t(stops[next].signal)] == train && restricted(stops[next].signal)) {
+                        ahead = std::min(ahead, downTo(approach, CreepSpeed));
+                        braking = braking || (CreepSpeed < limit
+                                && approach <= (limit * limit - CreepSpeed * CreepSpeed) / (2.0 * d) + BrakingZone);
+                    }
                 }
             }
             // Coupling (task 07): creeping up to the train it attaches to, at
@@ -872,8 +881,37 @@ void SimulationCore::extendAuthority(int train) {
             for (size_t k = rt.next; k < blockEnd && free; ++k)
                 free = !blockedAt(k);
             if (!free || !mayEnter(train, rt.next, blockEnd)) {
+                // A block another train stands or runs in (task 07, Open
+                // Rails): the signal is cleared for this train with
+                // BLOCK_OCCUPIED; where it then shows more than STOP (a
+                // script's STOP_AND_PROCEED or RESTRICTING), the train takes
+                // the block up to that train (attaching to a standing one
+                // there as anywhere).
+                const int asked = signal.signal;
+                const long first = free ? -1 : occupiedFrom(train, rt.next, blockEnd);
+                const int clearedNow = clearedFor[size_t(asked)];
+                if (first >= 0 && (clearedNow == NoHolder || clearedNow == train)) {
+                    if (clearedNow != train || !occupiedBlock[size_t(asked)]) {
+                        clearedFor[size_t(asked)] = train;
+                        occupiedBlock[size_t(asked)] = 1;
+                        clearedChanged(asked);
+                        evaluateAspects();
+                    }
+                    if (permissive(asked) && mayEnter(train, rt.next, size_t(first))) {
+                        take(train, rt.next, size_t(first));
+                        if (size_t(first) > rt.next)
+                            s.authority = std::max(s.authority, way[size_t(first) - 1].leave);
+                        rt.next = size_t(first);
+                        s.blockedBy = NoHolder;
+                        s.waitSection = -1;
+                        ++rt.nextSignal;
+                        continue;
+                    }
+                } else if (clearedNow == train && occupiedBlock[size_t(asked)]) {
+                    unclear(asked);
+                }
                 rt.endsAtSignal = true;
-                s.atSignal = signal.signal;
+                s.atSignal = asked;
                 break;
             }
             take(train, rt.next, blockEnd);
@@ -881,6 +919,7 @@ void SimulationCore::extendAuthority(int train) {
                 s.authority = std::max(s.authority, way[blockEnd - 1].leave);
             rt.next = blockEnd;
             clearedFor[size_t(signal.signal)] = train;
+            occupiedBlock[size_t(signal.signal)] = 0;
             clearedChanged(signal.signal);
             ++rt.nextSignal;
             continue;
@@ -926,6 +965,15 @@ void SimulationCore::extendAuthority(int train) {
         if (end > rt.next)
             s.authority = std::max(s.authority, way[end - 1].leave);
         rt.next = end;
+        // The rest of a block it went into occupied is its own now: the
+        // signal's block is clear (Open Rails: reserved).
+        if (end == stop && rt.nextSignal > 0) {
+            const int behindSignal = stopSignals[rt.nextSignal - 1].signal;
+            if (clearedFor[size_t(behindSignal)] == train && occupiedBlock[size_t(behindSignal)]) {
+                occupiedBlock[size_t(behindSignal)] = 0;
+                clearedChanged(behindSignal);
+            }
+        }
     }
     if (rt.next >= way.size()) {
         s.authority = partLength;
@@ -1003,6 +1051,85 @@ float SimulationCore::signalSpeedOf(int signal) const {
                 speed = aspect.speed;
     }
     return speed;
+}
+
+bool SimulationCore::permissive(int signal) const {
+    if (in->network == nullptr || signal < 0)
+        return false;
+    const TrackNetwork &network = *in->network;
+    for (int head : network.signalGroups()[size_t(signal)].heads)
+        if (network.isNormal(network.heads()[size_t(head)]) && headAspect[size_t(head)] > 0)
+            return true;
+    return false;
+}
+
+bool SimulationCore::restricted(int signal) const {
+    if (in->network == nullptr || signal < 0)
+        return false;
+    const TrackNetwork &network = *in->network;
+    int best = -1;
+    bool reduce = true;
+    for (int head : network.signalGroups()[size_t(signal)].heads) {
+        const SignalHead &h = network.heads()[size_t(head)];
+        if (!network.isNormal(h) || headAspect[size_t(head)] <= best)
+            continue;
+        best = headAspect[size_t(head)];
+        reduce = true;
+        for (const SignalKind::Aspect &aspect : network.kinds()[size_t(h.kind)].aspects)
+            if (aspect.aspect == best)
+                reduce = !aspect.noSpeedReduction;
+    }
+    // STOP_AND_PROCEED or RESTRICTING.
+    return (best == 1 || best == 2) && reduce;
+}
+
+void SimulationCore::unclear(int signal) {
+    clearedFor[size_t(signal)] = NoHolder;
+    occupiedBlock[size_t(signal)] = 0;
+    clearedChanged(signal);
+}
+
+long SimulationCore::occupiedFrom(int train, size_t from, size_t to) const {
+    const TrainState &s = states[size_t(train)];
+    const std::vector<ProjectedSection> &way = runtime[size_t(train)].ways[size_t(s.part)].sections;
+    const std::vector<TrackSection> &sections = in->network->sections();
+    long first = -1;
+    for (size_t k = from; k < to && k < way.size(); ++k) {
+        const ProjectedSection &mine = way[k];
+        const int h = holder[size_t(mine.section)];
+        if (h == NoHolder || h == train)
+            continue;
+        const TrackSection &section = sections[size_t(mine.section)];
+        if (section.kind == TrackSection::Crossing)
+            return -1;
+        if (section.kind == TrackSection::Junction) {
+            const int pin = mine.pinIn == 0 ? mine.pinOut : mine.pinIn;
+            if ((pin == 1 || pin == 2) && switchAt[size_t(mine.section)] != pin)
+                return -1;
+        }
+        if (h != StandingConsist) {
+            // Another train: standing on it (its rear to its front), at
+            // rest or running this way there; else reserved for it.
+            const TrainState &o = states[size_t(h)];
+            const Runtime &other = runtime[size_t(h)];
+            const double rear = o.front - other.length;
+            const Held *on = nullptr;
+            for (const Held &held : other.held)
+                if (held.section == mine.section && held.leave >= rear - 1e-6 && held.enter <= o.front + 1e-6) {
+                    on = &held;
+                    break;
+                }
+            if (on == nullptr)
+                return -1;
+            const bool same = section.kind == TrackSection::Junction ? (on->pinIn == 0) == (mine.pinIn == 0)
+                                                                     : on->forward == mine.forward;
+            if (std::fabs(o.speed) > 0.5f && !same)
+                return -1;
+        }
+        if (first < 0)
+            first = long(k);
+    }
+    return first;
 }
 
 void SimulationCore::evaluateAspects() {
@@ -1246,9 +1373,14 @@ void SimulationCore::evaluateAspects() {
             return found;
         }
         int enabled() override { return core.clearedFor[size_t(head.signal)] != NoHolder ? 1 : 0; }
-        // Clear while cleared for a train (its block reserved for it);
-        // else, as Open Rails without a train's request, obstructed.
-        int blockState() override { return enabled() ? BlockClear : BlockJunctionObstructed; }
+        // Clear while cleared for a train (its block reserved for it),
+        // occupied while cleared into a block another train is in (task
+        // 07); else, as Open Rails without a train's request, obstructed.
+        int blockState() override {
+            if (!enabled())
+                return BlockJunctionObstructed;
+            return core.occupiedBlock[size_t(head.signal)] ? BlockOccupied : BlockClear;
+        }
         int routeSet() override {
             const int junction = network.junctionSection(head.junction);
             return head.junction < 0 || junction < 0 || core.switchAt[size_t(junction)] == head.junctionPin ? 1 : 0;
@@ -1347,9 +1479,10 @@ void SimulationCore::evaluateAspects() {
                 draw = kind.defaultDrawState;
         } else if (head.kind >= 0 && kinds[size_t(head.kind)].rule == SignalKind::Rule::Basic) {
             // A type without a script on a route with scripts: Open Rails'
-            // least restrictive aspect while cleared, else its most.
+            // least restrictive aspect while cleared (its block clear), else
+            // its most.
             const SignalKind &kind = kinds[size_t(head.kind)];
-            const bool cleared = clearedFor[size_t(head.signal)] != NoHolder;
+            const bool cleared = clearedFor[size_t(head.signal)] != NoHolder && !occupiedBlock[size_t(head.signal)];
             if (kind.aspects.empty()) {
                 aspect = Stop;
                 draw = kind.defaultDrawState;
@@ -1362,7 +1495,7 @@ void SimulationCore::evaluateAspects() {
             int wanted = -1;
             switch (kind.function) {
             case SignalFunction::Normal: {
-                const bool cleared = clearedFor[size_t(head.signal)] != NoHolder;
+                const bool cleared = clearedFor[size_t(head.signal)] != NoHolder && !occupiedBlock[size_t(head.signal)];
                 const int junction = network.junctionSection(head.junction);
                 const bool routeSet = head.junction < 0 || junction < 0 || switchAt[size_t(junction)] == head.junctionPin;
                 wanted = !cleared || !routeSet ? Stop : progression(leastRestrictive(nextOf(head.signal)));
@@ -1979,7 +2112,7 @@ void SimulationCore::take(int train, size_t from, size_t to) {
         const ProjectedSection &pass = way[k];
         holder[size_t(pass.section)] = train;
         heldStamp[size_t(pass.section)] = ++holdChanges;
-        rt.held.push_back({pass.section, pass.enter, pass.leave});
+        rt.held.push_back({pass.section, pass.enter, pass.leave, pass.forward, pass.pinIn});
         // A junction set the train's way: its output where it goes out by
         // one, the output it comes in by trailing.
         if (sections[size_t(pass.section)].kind == TrackSection::Junction) {
@@ -2031,11 +2164,8 @@ void SimulationCore::releaseBehind(int train) {
             // It takes the signal's speed until the next one.
             TrainState &passing = states[size_t(train)];
             passing.signalSpeed = signalSpeedOf(stopSignals[rt.passed].signal);
-            int &cleared = clearedFor[size_t(stopSignals[rt.passed].signal)];
-            if (cleared == train) {
-                cleared = NoHolder;
-                clearedChanged(stopSignals[rt.passed].signal);
-            }
+            if (clearedFor[size_t(stopSignals[rt.passed].signal)] == train)
+                unclear(stopSignals[rt.passed].signal);
             ++rt.passed;
         }
     }
@@ -2070,10 +2200,8 @@ void SimulationCore::releaseAll(int train) {
     rt.passed = 0;
     rt.endsAtSignal = false;
     for (size_t signal = 0; signal < clearedFor.size(); ++signal)
-        if (clearedFor[signal] == train) {
-            clearedFor[signal] = NoHolder;
-            clearedChanged(int(signal));
-        }
+        if (clearedFor[signal] == train)
+            unclear(int(signal));
     for (int &claim : claimedBy)
         if (claim == train) {
             claim = NoHolder;

@@ -72,14 +72,50 @@ Sources:
   (Traffic 05) starts now: it takes the 10 cars standing 85 m ahead of it
   and runs its service with them (worth a look in Open Rails in phase 6).
   Every other train and arrival is unchanged.
-- **Left:** yard_one's Yard_One_Traffic2 still waits, at a signal whose
-  block holds the loose consist (1.5 km in). In Open Rails the script
-  then reads BLOCK_OCCUPIED: USA2's show STOP_AND_PROCEED (number plate)
-  or RESTRICTING (gradient plate), else STOP, and a train runs in on the
-  first two. TSRE's core gives a block only CLEAR or JN_OBSTRUCTED and
-  never lets a train into an occupied block; task 05 left OCCUPIED and
-  call-on for later. Phase 2b: 60001, and couplings with living trains
-  (cars taken or left).
+- **Left:** phase 2b: 60001, and couplings with living trains (cars
+  taken or left).
+
+**Phase 2a, signals into occupied blocks (done 2026-10-21; the user:
+with task 07).** Before, TSRE's core gave a block only CLEAR or
+JN_OBSTRUCTED and never let a train into an occupied one (task 05 left
+OCCUPIED for later). Now as Open Rails (`SignalObject`,
+`TrackCircuitSection.getSectionState`, `AITrain`):
+- **The block:** a train asking a stop signal whose block another train
+  is in gets it cleared with BLOCK_OCCUPIED. That holds when each held
+  section is one a standing train stands in, or one a train stands on at
+  rest or runs along the same way. A section only reserved for another
+  train, a train running the other way, a switch set against the train or
+  a crossing another train holds obstruct the block: the signal is not
+  cleared, as before.
+- **The aspect:** scripts decide (`block_state()` gives BLOCK_OCCUPIED);
+  Open Rails' rule for types without a script and TSRE's built-in rule
+  show STOP. Above STOP (the plated signals of USA2 and BNSF_SCENIC:
+  STOP_AND_PROCEED, RESTRICTING) the train takes the block up to the
+  occupied section, attaching to a standing train there as anywhere.
+  Once it has taken the rest of the block, the block reads clear again.
+- **The approach:** at STOP_AND_PROCEED or RESTRICTING cleared for it, a
+  train is down to the creep speed 20 m short of the signal, then goes on
+  (Open Rails' AI `SIGNAL_ASPECT_RESTRICTED`), unless the aspect is
+  flagged OR_NOSPEEDREDUCTION.
+- A signal stays cleared for a train that waits at its STOP into an
+  occupied block (Open Rails' enabled train). One core check changed for
+  that; two new ones: a plated scripted signal in front of a loose
+  consist (STOP_AND_PROCEED, passed at 2.5 m/s 20 m short, the train goes
+  in and joins the consist) and the same unplated (STOP, the train stands
+  short).
+- **The local routes:** only USA1, USA2 and BNSF_SCENIC have scripts that
+  can show a permissive aspect, and no train runs differently. USA2
+  takes 5.84 s against 5.76 s without the change (three runs each).
+  yard_one's Yard_One_Traffic2 still waits at signal 190: it has no
+  plate, so its script shows STOP for the occupied block. Open Rails does
+  the same (run 2026-10-21, `orts-simulation-compare.sh`): its train
+  stops at 11:12:26 about 34 m short of the signal at STOP, 6.7 mi out,
+  and still stands there at 11:35 (TSRE's: 11:12:38, 30 m short). Open
+  Rails' AI asks to pass a signal at STOP only at waiting point 60002,
+  and the path has none.
+- **Simplified:** the block reads clear again only once the train has
+  taken the rest of it (Open Rails: as soon as the other train has left
+  it); permission at waiting point 60002 and call-on are not done.
 
 ## Why
 

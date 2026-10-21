@@ -1174,10 +1174,12 @@ Engine ( Test
         held.step(400.0);
         const Sim::TrainState &behind = held.trains()[1];
         const int signal1000 = lineNetwork->heads()[size_t(lineNetwork->headOfItem(962))].signal;
+        // (The signal is cleared for it into the occupied block, Open
+        // Rails' BLOCK_OCCUPIED, task 07: the built-in rule shows stop.)
         check(behind.status == Sim::TrainStatus::Stopped && behind.stoppedAt == Sim::StopKind::Blocked
                   && std::fabs(behind.front - (1000.0 - 69.0 - Sim::SimulationCore::SignalMargin)) < 0.5
                   && behind.atSignal == signal1000 && behind.blockedBy == 0
-                  && held.cleared()[size_t(signal1000)] == Sim::NoHolder,
+                  && held.occupiedBlocks()[size_t(signal1000)] && held.aspects()[size_t(lineNetwork->headOfItem(962))] == SignalType::STOP,
               QString("a train at a red signal stands 30 m short of it (front at %1 m), waiting for the train in its block")
                   .arg(behind.front + 69.0));
         held.step(900.0);
@@ -1434,6 +1436,65 @@ Engine ( Test
                   QString("the distant without a script: its most restrictive, never cleared (%1); with a broken "
                           "script: the built-in rule, clear before a signal at caution (%2)")
                       .arg(aspectIn(basicCore, *homeOnly, 974)).arg(aspectIn(brokenCore, *broken, 974)));
+
+            // The loose consist in the block past 1500 m (task 07, Open
+            // Rails' BLOCK_OCCUPIED): the signal is cleared for the train
+            // into it. Plated, its script shows STOP_AND_PROCEED (as USA2's):
+            // the train goes in, down to the creep speed 20 m short of the
+            // signal, and joins the consist (an AI train near its path's
+            // end). Without the plate it shows stop: the train stands short.
+            const QString permissiveScript = R"(SCRIPT Home
+	extern float block_state (), route_set (), next_sig_lr (), sig_feature (), def_draw_state ();
+	extern float state, draw_state, enabled;
+	if (!enabled || block_state() !=# BLOCK_CLEAR || !route_set())
+	{
+		if (sig_feature (SIGFEAT_NUMBER_PLATE))
+			state = SIGASP_STOP_AND_PROCEED;
+		else
+			state = SIGASP_STOP;
+	}
+	else if (next_sig_lr (SIGFN_NORMAL) ==# SIGASP_STOP)
+		state = SIGASP_APPROACH_1;
+	else
+		state = SIGASP_CLEAR_2;
+	draw_state = def_draw_state (state);
+)";
+            if (plated != nullptr)
+                plated->trSignalType1 |= 1u << 4;
+            auto permissiveNetwork = networkWith(permissiveScript + distScript, scripted.path() + "/permissive");
+            if (plated != nullptr)
+                plated->trSignalType1 &= ~(1u << 4);
+            auto stopNetwork = networkWith(permissiveScript + distScript, scripted.path() + "/stop");
+            const int signal1500 = permissiveNetwork->heads()[size_t(permissiveNetwork->headOfItem(973))].signal;
+            Sim::SimulationCore into(run(permissiveNetwork));
+            int shown = -1;
+            double approachSpeed = -1.0;
+            bool joined = false;
+            for (int i = 0; i < 20000 && !joined; ++i) {
+                into.step(0.1);
+                if (into.cleared()[size_t(signal1500)] == 0 && into.occupiedBlocks()[size_t(signal1500)])
+                    shown = aspectIn(into, *permissiveNetwork, 973);
+                if (approachSpeed < 0.0 && into.trains()[0].front + 69.0 >= 1500.0 - Sim::SimulationCore::SignalApproach)
+                    approachSpeed = into.trains()[0].speed;
+                for (const Sim::TrainEvent &e : into.takeEvents())
+                    joined = joined || e.kind == Sim::TrainEvent::Joined;
+            }
+            check(shown == SignalType::STOP_AND_PROCEED && approachSpeed >= 0.0
+                      && approachSpeed <= Sim::SimulationCore::CreepSpeed + 0.3 && joined
+                      && into.trains()[0].status == Sim::TrainStatus::Finished,
+                  QString("a plated signal before a loose consist: STOP_AND_PROCEED (%1), passed at %2 m/s 20 m short, "
+                          "the train goes in and joins it")
+                      .arg(shown).arg(approachSpeed, 0, 'f', 2));
+            Sim::SimulationCore shortOf(run(stopNetwork));
+            shortOf.step(600.0);
+            const Sim::TrainState &standing = shortOf.trains()[0];
+            const int stopSignal = stopNetwork->heads()[size_t(stopNetwork->headOfItem(973))].signal;
+            check(standing.stoppedAt == Sim::StopKind::Blocked && standing.atSignal == stopSignal
+                      && std::fabs(standing.front + 69.0 - (1500.0 - Sim::SimulationCore::SignalMargin)) < 0.5
+                      && aspectIn(shortOf, *stopNetwork, 973) == SignalType::STOP
+                      && shortOf.cleared()[size_t(stopSignal)] == 0 && shortOf.occupiedBlocks()[size_t(stopSignal)],
+                  QString("without the plate it shows stop, cleared for the train into the occupied block; the train "
+                          "stands short of it (front at %1 m)").arg(standing.front + 69.0));
         }
 
         // Open Rails' forced red at station stops: a stop whose platform ends

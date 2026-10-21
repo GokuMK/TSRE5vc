@@ -176,6 +176,11 @@ public:
     static constexpr double AuthorityCreep = 30.0;
     static constexpr double LimitCreep = 10.0;
     static constexpr double BrakingZone = 90.0;
+    // A signal cleared for a train at STOP_AND_PROCEED or RESTRICTING (a
+    // block another train is in, task 07): it is down to the creep speed
+    // this far short of it, then goes on (Open Rails' AI: its restricted
+    // signal action, cleared signalApproachDistanceM short).
+    static constexpr double SignalApproach = 20.0;
 
     // Trains that started before the activity are run up to its start (the
     // pre-run).
@@ -202,8 +207,10 @@ public:
     // Each junction section's switch position (output pin 1 or 2); 0 for
     // other sections.
     const std::vector<int> &switches() const { return switchAt; }
-    // Each signal of the network: the train it is cleared for, NoHolder.
+    // Each signal of the network: the train it is cleared for, NoHolder;
+    // whether into a block another train is in (BLOCK_OCCUPIED).
     const std::vector<int> &cleared() const { return clearedFor; }
+    const std::vector<char> &occupiedBlocks() const { return occupiedBlock; }
     // Single-track stretches (task 02, section 4): track two trains' routes
     // use in opposite directions, between the places where they part and
     // one of them fits clear, as projected section ranges [from, to) of each
@@ -339,8 +346,11 @@ private:
     // Per network section.
     std::vector<int> holder;
     std::vector<int> switchAt;
-    // Per signal of the network.
+    // Per signal of the network; whether its block is occupied (cleared
+    // for a train into a block another train stands or runs in: Open
+    // Rails' BLOCK_OCCUPIED).
     std::vector<int> clearedFor;
+    std::vector<char> occupiedBlock;
     // Per head; evaluated again after a step that changed reservations or
     // switches.
     std::vector<int> headAspect;
@@ -393,6 +403,9 @@ private:
         int section = -1;
         double enter = 0.0;
         double leave = 0.0;
+        // Its way through it (ProjectedSection's forward and pinIn).
+        bool forward = true;
+        int pinIn = -1;
     };
     // Not yet reported waiting.
     static constexpr int Unreported = -100;
@@ -490,6 +503,20 @@ private:
     bool attaches(int train, int standingTrain, double gap);
     double contactOn(int train, int standingTrain) const;
     bool behind(int train, int standingTrain, double rear) const;
+    // Open Rails' state of a block a train asks a signal for (sections
+    // [from, to) of its way): when OCCUPIED (each section another train or
+    // a standing train holds is one it stands in, the train there at rest
+    // or running the same way, the switches set for this train), the first
+    // such section; else -1 (free, or obstructed: reserved for another
+    // train, one running the other way, a switch set against it).
+    long occupiedFrom(int train, size_t from, size_t to) const;
+    // A signal's NORMAL heads: their least restrictive aspect above STOP
+    // (a train may go in); it is STOP_AND_PROCEED or RESTRICTING with a
+    // speed reduction (OR_NOSPEEDREDUCTION not set).
+    bool permissive(int signal) const;
+    bool restricted(int signal) const;
+    // A signal is no longer cleared (for an occupied block or not).
+    void unclear(int signal);
     // At the contact: the standing train's cars taken (the train goes on),
     // or the train joins it (an AI train at its path's end).
     void couple(int train, double time);

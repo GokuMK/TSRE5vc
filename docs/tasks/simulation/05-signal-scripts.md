@@ -161,8 +161,9 @@ are as before.
   quirk), not taken.
 - **Open Rails' additions** (approach control, call-on, timing triggers,
   stored values, clear-ahead control, subtypes): read and reported, run
-  in a later task (decision 3). `block_state` OCCUPIED (a train asking a
-  signal whose block another train occupies: call-on) with them.
+  in a later task (decision 3); call-on with them. `block_state` OCCUPIED
+  (a train asking a signal whose block another train occupies) came with
+  task 07 (2026-10-21).
 
 ## Why
 
