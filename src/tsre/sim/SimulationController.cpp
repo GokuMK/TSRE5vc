@@ -635,6 +635,18 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     case TrainEvent::Uncoupled:
         //% "cut off %1 cars"
         return qtTrId("simulation.event.uncoupled").arg(event.signal);
+    case TrainEvent::TookCars:
+        //% "took %1 cars from %2"
+        return qtTrId("simulation.event.took").arg(event.signal).arg(holderName(event.index));
+    case TrainEvent::LeftCars:
+        //% "left %1 cars to %2"
+        return qtTrId("simulation.event.left").arg(event.signal).arg(holderName(event.index));
+    case TrainEvent::JoinedTrain:
+        //% "joined %1"
+        return qtTrId("simulation.event.joined.train").arg(holderName(event.index));
+    case TrainEvent::Parted:
+        //% "runs on its own again, parted from %1"
+        return qtTrId("simulation.event.parted").arg(holderName(event.index));
     case TrainEvent::Restarted: {
         const ActivityEvent *by = activityEvent(event.index);
         //% "restarted by event %1"

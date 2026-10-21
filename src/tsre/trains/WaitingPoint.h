@@ -11,7 +11,11 @@ enum Kind {
     KeepFirst,    // 4NNSS: uncouple, keep the first NN cars, wait SS s
     KeepLast,     // 5NNSS: uncouple, keep the last NN cars, wait SS s
     Horn,         // 60010 + N: the horn for N (1-10) seconds, no stop
-    CrossingHorn  // 60021: the level crossing horn pattern, no stop
+    CrossingHorn, // 60021: the level crossing horn pattern, no stop
+    Attach,       // 60001: attach to the next train standing ahead, then
+                  // join it (Open Rails' join and split); no wait
+    Permission    // 60002: ask to pass the next signal into an occupied
+                  // block, wait 20 s
 };
 
 struct Point {

@@ -1495,6 +1495,20 @@ Engine ( Test
                       && shortOf.cleared()[size_t(stopSignal)] == 0 && shortOf.occupiedBlocks()[size_t(stopSignal)],
                   QString("without the plate it shows stop, cleared for the train into the occupied block; the train "
                           "stands short of it (front at %1 m)").arg(standing.front + 69.0));
+            // Waiting point 60002 short of it (task 07, Open Rails' permission
+            // request): the train goes in at stop and joins the consist.
+            auto permitted = run(stopNetwork);
+            permitted->trains[0].waits = {Sim::WaitPlan{0, 1465.0 - 69.0, 60002}};
+            Sim::SimulationCore asked(permitted);
+            bool permittedJoin = false;
+            for (int i = 0; i < 9000 && !permittedJoin; ++i) {
+                asked.step(0.1);
+                for (const Sim::TrainEvent &e : asked.takeEvents())
+                    permittedJoin = permittedJoin || e.kind == Sim::TrainEvent::Joined;
+            }
+            check(permittedJoin && aspectIn(asked, *stopNetwork, 973) == SignalType::STOP,
+                  "with permission asked at waiting point 60002 short of it, the train passes it at stop into the "
+                  "occupied block and joins the consist");
         }
 
         // Open Rails' forced red at station stops: a stop whose platform ends
@@ -2428,6 +2442,15 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                              : event.kind == Sim::TrainEvent::Joined ? "joined" : "uncoupled",
                              QJsonObject{{"cars", event.signal}}, event.travelled);
                     break;
+                case Sim::TrainEvent::TookCars:
+                case Sim::TrainEvent::LeftCars:
+                case Sim::TrainEvent::JoinedTrain:
+                case Sim::TrainEvent::Parted: {
+                    const char *kinds[] = {"took", "left", "joinedTrain", "parted"};
+                    logEvent(event.time, event.train, kinds[int(event.kind) - int(Sim::TrainEvent::TookCars)],
+                             QJsonObject{{"cars", event.signal}, {"other", event.index}}, event.travelled);
+                    break;
+                }
                 // The activity's events (task 06; scripts/orts-compare-events.py).
                 case Sim::TrainEvent::EventFired:
                     logEvent(event.time, event.train, "event",

@@ -37,6 +37,9 @@ QString StateText(const SimulationInput &in, const TrainState &s, double time, i
         //% "running %1"
         return qtTrId("simulation.state.running.speed").arg(Units::format(s.speed, Units::Quantity::Speed, 0));
     case TrainStatus::Finished:
+        if (s.joinedTo >= 0)
+            //% "joined %1"
+            return qtTrId("simulation.state.joined").arg(HolderName(in, s.joinedTo));
         //% "finished"
         return qtTrId("simulation.state.finished");
     case TrainStatus::Stopped:

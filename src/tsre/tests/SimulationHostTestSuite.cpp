@@ -1047,12 +1047,16 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
 
     // A deadlock: the two trains either side of a junction, each for the
     // other's side, both on the track from 08:00. The user is told which
-    // trains; the run goes on.
+    // trains; the run goes on. (Each reverses just past the junction,
+    // short of where the other stands 10 m from it: a train standing on its
+    // path's part would be coupled to, task 07, as Open Rails' AI does.)
     if (main != nullptr && second != nullptr) {
-        PathTrack::Result made = PathTrack::startAt(&layout.db, {50, 100.0f});
-        main->apply(PathTrack::endAt(&layout.db, made.nodes, {51, 900.0f}).nodes);
-        made = PathTrack::turnStart(&layout.db, PathTrack::startAt(&layout.db, {51, 900.0f}).nodes);
-        second->apply(PathTrack::endAt(&layout.db, made.nodes, {50, 100.0f}).nodes);
+        PathTrack::Result made = PathTrack::startAt(&layout.db, {50, 500.0f});
+        made = PathTrack::reverseAt(&layout.db, made.nodes, {51, 5.0f});
+        main->apply(PathTrack::endAt(&layout.db, made.nodes, {50, 200.0f}).nodes);
+        made = PathTrack::turnStart(&layout.db, PathTrack::startAt(&layout.db, {51, 450.0f}).nodes);
+        made = PathTrack::reverseAt(&layout.db, made.nodes, {50, 995.0f});
+        second->apply(PathTrack::endAt(&layout.db, made.nodes, {52, 900.0f}).nodes);
     }
     for (int id = firstTraffic; id < ActLib::jesttraffic; ++id)
         if (Traffic *traffic = ActLib::Traffics.value(id))

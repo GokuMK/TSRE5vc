@@ -247,9 +247,11 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
         const TrainEvent *cut = firstOf(run.events, TrainEvent::Uncoupled);
         const TrainEvent *reversed = firstOf(run.events, TrainEvent::Reversed);
         check(cut != nullptr && cut->signal == 2 && reversed != nullptr && reversed->time >= cut->time
+                  && reversed->travelled - cut->travelled < 1.0
                   && idsOf(core.vehiclesOf(0)) == std::vector<unsigned int>({7}) && core.trains()[0].stoppedAt == Sim::StopKind::End
                   && firstOf(run.events, TrainEvent::Coupled) == nullptr,
-              "5NNSS: the engine kept, the cars ahead left; it reverses short of them and runs back without them");
+              QString("5NNSS: the engine kept, the cars ahead left; it reverses where it stands (%1 m on) and runs back "
+                      "without them").arg(reversed != nullptr && cut != nullptr ? reversed->travelled - cut->travelled : -1.0));
     }
 
     // A train cuts a car off, runs on, reverses and comes back the same
@@ -266,6 +268,131 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
         check(cut != nullptr && coupled != nullptr && coupled->time > cut->time && core.vehiclesOf(0).size() == 3
                   && core.standingTrains()[0].gone && core.trains()[0].stoppedAt == Sim::StopKind::End,
               "coming back, it attaches to the car it cut off and takes it to its path's end");
+    }
+
+    // Living trains (Open Rails' AI). The goods train h1 h2 h3 (its engine
+    // leading east) from track 11 at 120 m stands at a waiting point (its
+    // front at track 13 at 60 m) for 15 minutes. A train whose path part
+    // ends in the section h's rear stands in attaches to it: its engine
+    // leading, it takes h's cars up to h's engine; a car leading, it leaves
+    // h its cars up to its own engine; on its path's last part it joins h.
+    const unsigned int h1 = 1u * 65536u, h2 = h1 + 1u, h3 = h1 + 2u, b1 = 2u * 65536u, b2 = b1 + 1u;
+    const auto goods = [&](const std::vector<Sim::WaitPlan> &waits, float from) {
+        PathTrack::Result made = PathTrack::startAt(db, {11, from});
+        made = PathTrack::endAt(db, made.nodes, {13, 90.0f});
+        Sim::TrainPlan p = trainOn(Sim::BuildRoute(db, made.nodes, PathTrack::legs(db, made.nodes), 40.0),
+                                   {vehicle(10.0f, true, h1), vehicle(10.0f, false, h2), vehicle(10.0f, false, h3)}, false);
+        for (Sim::WaitPlan wait : waits) {
+            double at = -1.0;
+            p.route.parts[0].find(wait.part, float(wait.front), at);
+            wait.part = 0;
+            wait.front = at;
+            p.waits.push_back(wait);
+        }
+        return p;
+    };
+    // (Waits given by track node and distance there.)
+    const Sim::TrainPlan standingGoods = goods({Sim::WaitPlan{13, 60.0, 900}}, 120.0f);
+    const auto visitor = [&](const Sim::TrainRoute &route, std::vector<Sim::Vehicle> vehicles) {
+        Sim::TrainPlan p = trainOn(route, std::move(vehicles), false);
+        p.startTime = t0 + 60;
+        return p;
+    };
+    const auto toAndBack = [&] {
+        PathTrack::Result made = PathTrack::startAt(db, {10, 20.0f});
+        made = PathTrack::reverseAt(db, made.nodes, {13, 50.0f});
+        made = PathTrack::endAt(db, made.nodes, {10, 30.0f});
+        return Sim::BuildRoute(db, made.nodes, PathTrack::legs(db, made.nodes), 40.0);
+    }();
+    const auto toThere = [&] {
+        PathTrack::Result made = PathTrack::startAt(db, {10, 20.0f});
+        made = PathTrack::endAt(db, made.nodes, {13, 50.0f});
+        return Sim::BuildRoute(db, made.nodes, PathTrack::legs(db, made.nodes), 40.0);
+    }();
+    const auto eventOf = [](const std::vector<TrainEvent> &all, int train, TrainEvent::Kind kind) -> const TrainEvent * {
+        for (const TrainEvent &e : all)
+            if (e.train == train && e.kind == kind)
+                return &e;
+        return nullptr;
+    };
+    {
+        Sim::SimulationCore core(inputOf({standingGoods, visitor(toAndBack, {vehicle(10.0f, true, b1), vehicle(10.0f, false, b2)})}, {}));
+        const Run run = runFor(core, 1500.0);
+        const TrainEvent *took = eventOf(run.events, 1, TrainEvent::TookCars);
+        check(took != nullptr && took->signal == 2 && took->index == 0 && eventOf(run.events, 0, TrainEvent::LeftCars) != nullptr
+                  && idsOf(core.vehiclesOf(1)) == std::vector<unsigned int>({h2, h3, b1, b2})
+                  && idsOf(core.vehiclesOf(0)) == std::vector<unsigned int>({h1}),
+              QString("its engine leading, it takes the goods train's cars up to that train's engine (%1 cars)")
+                  .arg(core.vehiclesOf(1).size()));
+        const TrainEvent *back = eventOf(run.events, 1, TrainEvent::Reversed);
+        check(core.trains()[1].stoppedAt == Sim::StopKind::End && core.trains()[1].reversed
+                  && back != nullptr && took != nullptr && back->travelled - took->travelled < 1.0
+                  && core.trains()[0].status == Sim::TrainStatus::Finished,
+              "both go on: it reverses where it stands and runs back with them, the goods train to its path's end");
+    }
+    {
+        Sim::SimulationCore core(inputOf({standingGoods, visitor(toAndBack, {vehicle(10.0f, false, b2), vehicle(10.0f, true, b1)})}, {}));
+        const Run run = runFor(core, 1500.0);
+        const TrainEvent *left = eventOf(run.events, 1, TrainEvent::LeftCars);
+        const TrainEvent *back = eventOf(run.events, 1, TrainEvent::Reversed);
+        check(left != nullptr && left->signal == 1 && eventOf(run.events, 0, TrainEvent::TookCars) != nullptr
+                  && back != nullptr && back->travelled - left->travelled < 1.0
+                  && idsOf(core.vehiclesOf(1)) == std::vector<unsigned int>({b1})
+                  && idsOf(core.vehiclesOf(0)) == std::vector<unsigned int>({h1, h2, h3, b2})
+                  && core.trains()[1].stoppedAt == Sim::StopKind::End,
+              "a car leading, it leaves the goods train its cars up to its own engine, reverses short of it and runs back");
+    }
+    {
+        Sim::SimulationCore core(inputOf({standingGoods, visitor(toThere, {vehicle(10.0f, true, b1), vehicle(10.0f, false, b2)})}, {}));
+        const Run run = runFor(core, 1500.0);
+        check(eventOf(run.events, 1, TrainEvent::JoinedTrain) != nullptr && core.trains()[1].status == Sim::TrainStatus::Finished
+                  && core.trains()[1].joinedTo == 0
+                  && idsOf(core.vehiclesOf(0)) == std::vector<unsigned int>({h1, h2, h3, b1, b2})
+                  && core.trains()[0].status == Sim::TrainStatus::Finished,
+              "on its path's last part it joins the goods train, which takes it along to its path's end");
+    }
+    // A train whose path goes on past the goods train (standing on track 11
+    // for two minutes) does not attach: it waits behind it and follows.
+    {
+        const auto past = [&] {
+            PathTrack::Result made = PathTrack::startAt(db, {10, 20.0f});
+            made = PathTrack::endAt(db, made.nodes, {13, 95.0f});
+            return Sim::BuildRoute(db, made.nodes, PathTrack::legs(db, made.nodes), 40.0);
+        }();
+        Sim::SimulationCore core(inputOf({goods({Sim::WaitPlan{11, 150.0, 120}}, 50.0f),
+                                          visitor(past, {vehicle(10.0f, true, b1), vehicle(10.0f, false, b2)})}, {}));
+        const Run run = runFor(core, 1500.0);
+        check(eventOf(run.events, 1, TrainEvent::TookCars) == nullptr && eventOf(run.events, 1, TrainEvent::JoinedTrain) == nullptr
+                  && eventOf(run.events, 1, TrainEvent::Blocked) != nullptr && core.vehiclesOf(1).size() == 2
+                  && eventOf(run.events, 1, TrainEvent::Finished) != nullptr,
+              "its path going on past a standing train, it waits behind it and follows");
+    }
+    // Waiting point 60001 (Open Rails' join and split): the train attaches
+    // to the goods train standing ahead (on track 11, not at its path's
+    // end) and joins it; the goods train's 40305 (keep its first 3 cars)
+    // cuts it off again, and it runs on along its own path.
+    {
+        const auto past = [&] {
+            PathTrack::Result made = PathTrack::startAt(db, {10, 20.0f});
+            made = PathTrack::endAt(db, made.nodes, {13, 95.0f});
+            return Sim::BuildRoute(db, made.nodes, PathTrack::legs(db, made.nodes), 40.0);
+        }();
+        Sim::TrainPlan joining = visitor(past, {vehicle(10.0f, true, b1), vehicle(10.0f, false, b2)});
+        double at = -1.0;
+        joining.route.parts[0].find(10, 60.0f, at);
+        joining.waits = {Sim::WaitPlan{0, at, 60001}};
+        Sim::SimulationCore core(inputOf({goods({Sim::WaitPlan{11, 150.0, 300}, Sim::WaitPlan{13, 60.0, 40305}}, 50.0f), joining}, {}));
+        const Run run = runFor(core, 1500.0);
+        const TrainEvent *joined = eventOf(run.events, 1, TrainEvent::JoinedTrain);
+        const TrainEvent *parted = eventOf(run.events, 1, TrainEvent::Parted);
+        const TrainEvent *finished = eventOf(run.events, 1, TrainEvent::Finished);
+        check(joined != nullptr && joined->index == 0 && eventOf(run.events, 0, TrainEvent::TookCars) != nullptr,
+              "after 60001 it joins the goods train standing ahead, not at its path's end");
+        check(parted != nullptr && parted->time > joined->time && eventOf(run.events, 0, TrainEvent::LeftCars) != nullptr
+                  && idsOf(core.vehiclesOf(1)) == std::vector<unsigned int>({b1, b2})
+                  && idsOf(core.vehiclesOf(0)) == std::vector<unsigned int>({h1, h2, h3})
+                  && finished != nullptr && finished->time > parted->time,
+              "the goods train's cut gives it back its cars; it runs on to its own path's end");
     }
 
     qInfo().noquote() << QString("simulation-coupling: %1 passed, %2 failed").arg(passed).arg(failed);

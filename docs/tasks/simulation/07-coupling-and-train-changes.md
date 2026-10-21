@@ -1,6 +1,6 @@
 # Task 07 - Coupling and Train Changes
 
-Status: designed 2026-10-21; phase 1 and phase 2a done (branch
+Status: designed 2026-10-21; phases 1, 2a and 2b done (branch
 `feature/simulation`).
 Decisions taken are at the end.
 
@@ -72,8 +72,7 @@ Sources:
   (Traffic 05) starts now: it takes the 10 cars standing 85 m ahead of it
   and runs its service with them (worth a look in Open Rails in phase 6).
   Every other train and arrival is unchanged.
-- **Left:** phase 2b: 60001, and couplings with living trains (cars
-  taken or left).
+- **Left:** phase 2b (below).
 
 **Phase 2a, signals into occupied blocks (done 2026-10-21; the user:
 with task 07).** Before, TSRE's core gave a block only CLEAR or
@@ -115,7 +114,60 @@ OCCUPIED for later). Now as Open Rails (`SignalObject`,
   and the path has none.
 - **Simplified:** the block reads clear again only once the train has
   taken the rest of it (Open Rails: as soon as the other train has left
-  it); permission at waiting point 60002 and call-on are not done.
+  it); call-on is not done (permission at 60002: phase 2b).
+
+**Phase 2b, living trains, 60001 and 60002 (done 2026-10-21).** As
+Open Rails' AI (`AITrain.UpdateFollowingState`, `CoupleAI`,
+`StealCarsToLivingTrain`, `LeaveCarsToLivingTrain`, `TerminateCoupling`,
+`TestUncondAttach`, `TestPermission`, `Simulator.UncoupleBehind`):
+- **Attaching to a living train:** the other train must be at rest
+  (below 0.025 m/s) within 600 m ahead on the path part. Its front or
+  rear must be in the part's last section (the part ends there: a
+  reversal or the path's end), or the train has passed waiting point
+  60001. The sections up to it are taken, the other's own not; the
+  authority ends at the contact. If the other moves off first, the attach
+  is dropped and the train stands where it is.
+- **Coupling:** with path parts left and no 60001, a train whose leading
+  vehicle is an engine takes the other's cars from the end it met up to
+  that train's engine. Otherwise it leaves the other its own cars up to
+  its own engine. At least one car stays, both go on, and the train
+  reverses where it stands (Open Rails moves its reversal point under
+  it).
+- **Joining:** on its path's last part, or after 60001, a train joins the
+  other: its cars go on at the end it met, and it is gone. If it was the
+  player's train, the one it joined is the player's from then on (wagon
+  and location events read that one).
+- **Join and split (60001):** the joined train is carried along. When the
+  carrying train next cuts cars off (4NNSS, 5NNSS), the cars cut off are
+  that train again, placed on its own path where the path finds them,
+  and it runs on (Open Rails' incorporated train).
+- **60002:** permission to pass the stop signal at the end of the section
+  the train waits in, into an occupied block, whatever the signal shows;
+  the train waits 20 s there.
+- **Sections shared:** two trains that parted may stand in one section.
+  The one that leaves it gives it to the other, and a train's authority
+  ends at the near end of cars ahead that it parted from, its own cut-off
+  cars too. Before, a 5NNSS cut let the train run on through its cut-off
+  cars to its reversal point beyond them; the fixture did not notice and
+  now checks that the train reverses where it stands.
+- **Texts:** events "took N cars from X", "left N cars to X", "joined X"
+  and "runs on its own again, parted from X"; a train carried along shows
+  "joined X". Waiting points 60001 and 60002 are decoded (before, they
+  were waits of 60001 and 60002 seconds) and described in the editor.
+- **Fixtures:** `simulation-coupling` 19 checks (taking and leaving cars,
+  joining, no attach where the path goes on past the other train, 60001
+  join and split; reversing where it stands after a cut and after taking
+  or leaving cars); a core check for 60002 at the unplated signal; the
+  path suite's waiting point kinds. The UI suite's deadlock fixture had
+  its two trains start at each other's path ends, so under Open Rails'
+  rules one now couples to the other; they now reverse just past the
+  junction, short of each other.
+- **The local routes:** no train runs differently (no local path has
+  60001 or 60002, and no living train is attached to).
+- **Simplified:** no coupling to a train standing beyond the path part's
+  end in its last section (Open Rails' routes end at whole sections, so it
+  may); the editor still names the original player's train the player's
+  after it joined another.
 
 ## Why
 

@@ -18,6 +18,11 @@ WaitingPoint::Point WaitingPoint::decode(int value) {
         point.seconds = value - 60010;
     } else if (value == 60021) {
         point.kind = CrossingHorn;
+    } else if (value == 60001) {
+        point.kind = Attach;
+    } else if (value == 60002) {
+        point.kind = Permission;
+        point.seconds = 20;
     } else {
         point.seconds = value;
     }
@@ -36,6 +41,10 @@ int WaitingPoint::encode(const Point &point) {
         return 60010 + std::clamp(point.seconds, 1, 10);
     case CrossingHorn:
         return 60021;
+    case Attach:
+        return 60001;
+    case Permission:
+        return 60002;
     default:
         return std::clamp(point.seconds, 0, 29999);
     }
@@ -60,6 +69,12 @@ QString WaitingPoint::describe(int value) {
     case CrossingHorn:
         //% "level crossing horn, no stop"
         return qtTrId("waiting.point.crossing.horn");
+    case Attach:
+        //% "attach to the train standing ahead and join it"
+        return qtTrId("waiting.point.attach");
+    case Permission:
+        //% "ask to pass the next signal, wait 20 s"
+        return qtTrId("waiting.point.permission");
     default:
         //% "%1 s"
         return qtTrId("waiting.point.seconds").arg(point.seconds);

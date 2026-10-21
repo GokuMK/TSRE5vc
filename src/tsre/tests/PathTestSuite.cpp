@@ -567,7 +567,7 @@ int TsreTests::runPathEditSuite(bool verbose) {
     // they are.
     {
         bool same = true;
-        for (int value : {1, 90, 29999, 30000, 30830, 32359, 40305, 49999, 50210, 60011, 60020, 60021})
+        for (int value : {1, 90, 29999, 30000, 30830, 32359, 40305, 49999, 50210, 60001, 60002, 60011, 60020, 60021})
             same = same && WaitingPoint::encode(WaitingPoint::decode(value)) == value;
         check(same, "waiting point values decode and encode back");
         const WaitingPoint::Point keep = WaitingPoint::decode(40305);
@@ -575,8 +575,10 @@ int TsreTests::runPathEditSuite(bool verbose) {
         check(keep.kind == WaitingPoint::KeepFirst && keep.cars == 3 && keep.seconds == 5
               && until.kind == WaitingPoint::UntilTime && until.hour == 8 && until.minute == 30
               && WaitingPoint::decode(60015).kind == WaitingPoint::Horn && WaitingPoint::decode(60015).seconds == 5
-              && WaitingPoint::decode(50210).kind == WaitingPoint::KeepLast,
-              "waiting point kinds: uncouple, until a time, horn");
+              && WaitingPoint::decode(50210).kind == WaitingPoint::KeepLast
+              && WaitingPoint::decode(60001).kind == WaitingPoint::Attach
+              && WaitingPoint::decode(60002).kind == WaitingPoint::Permission && WaitingPoint::decode(60002).seconds == 20,
+              "waiting point kinds: uncouple, until a time, horn, attach (60001), permission (60002, 20 s)");
         check(WaitingPoint::decode(30060).kind == WaitingPoint::Seconds && WaitingPoint::decode(60010).kind == WaitingPoint::Seconds,
               "a value of no Open Rails kind is seconds");
     }

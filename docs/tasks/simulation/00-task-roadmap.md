@@ -109,8 +109,9 @@ model as the first operating policy, and threading.
   event did not fire in Check Activity; Simulate records them too. Wagon
   events that need shunting wait for 07.
 - [ ] `07-coupling-and-train-changes.md` (designed 2026-10-21, the
-  user's decisions at its end; phases 1 and 2a done: each train its own
-  cars, standing trains, attaching, coupling and cuts with them): part A, trains that change as Open Rails' AI
+  user's decisions at its end; phases 1, 2a and 2b done: each train its
+  own cars, standing trains, attaching, coupling and cuts, signals into
+  occupied blocks, living trains, 60001 and 60002): part A, trains that change as Open Rails' AI
   does (each train its own cars, loose consists as standing trains,
   attaching and coupling at contact, cuts at waiting points); part B, the
   autopilot's work orders, planned off the player's path (MSTS paths do

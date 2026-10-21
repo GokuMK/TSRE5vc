@@ -62,6 +62,8 @@ struct TrainState {
     // The player's train: the stop-here event (task 06) it brakes for or
     // stands at, -1 none.
     int eventStop = -1;
+    // Finished by joining a train (task 07): that train, -1 none.
+    int joinedTo = -1;
 };
 
 // Something that happened to a train, for the editor (task simulation 01,
@@ -78,9 +80,14 @@ struct TrainEvent {
     // train took the standing train `index` (`signal` its cars); Joined, the
     // train joined the standing train `index` and is gone; Uncoupled, the
     // cars it cut off are the standing train `index` (`signal` their
-    // number).
+    // number). With another train `index`: TookCars, it took `signal` of
+    // that train's cars; LeftCars, it left that train `signal` of its own;
+    // JoinedTrain, it joined that train (and is gone, or carried along
+    // after waiting point 60001); Parted, carried along so far, it runs
+    // again on its own (that train cut it off).
     enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock,
-                EventFired, ActivityEnded, Restarted, Coupled, Joined, Uncoupled };
+                EventFired, ActivityEnded, Restarted, Coupled, Joined, Uncoupled,
+                TookCars, LeftCars, JoinedTrain, Parted };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -295,9 +302,15 @@ public:
     // CouplingReach; it does not attach to cars it cut off until more than
     // UncoupledApart away from them; at its path's end with fewer than
     // JoinSections sections left an AI train joins the standing train.
+    // To a living train (Open Rails' AI): one at rest (below AtRestSpeed)
+    // within AttachReach of it, its front or rear in the
+    // last section of this train's path part, or any after waiting point
+    // 60001.
     static constexpr double CreepReach = 100.0;
     static constexpr double CouplingSpeed = 0.4;
     static constexpr double CouplingReach = 8.0;
+    static constexpr double AttachReach = 600.0;
+    static constexpr double AtRestSpeed = 0.025;
     static constexpr double UncoupledApart = 5.0;
     static constexpr size_t JoinSections = 5;
     // A train's vehicles now (task 07: they change as it couples and cuts),
@@ -462,10 +475,31 @@ private:
         float acceleration = 1.0f;
         float deceleration = 1.0f;
         Driving driving = Driving::Simple;
-        // The standing train it attaches to (-1 none) and the route distance
-        // of the contact on its part.
+        // The standing train it attaches to (-1 none), or the living train,
+        // and the route distance of the contact on its part.
         int attachTo = -1;
+        int attachTrain = -1;
         double contactAt = 0.0;
+        // Waiting point 60001 passed: it attaches to the next train
+        // standing ahead and joins it; 60002: the stop signal it may pass
+        // into an occupied block (a signal of the network, -1 none).
+        bool uncondAttach = false;
+        int permission = -1;
+        // The living train it last parted from (took or left cars, was cut
+        // off from): a section they both stand in is shared, and it does not
+        // attach to that train again until more than UncoupledApart away
+        // (Open Rails' UncoupledFrom).
+        int partedFrom = -1;
+        // The train that joined it after 60001 and runs again with the cars
+        // it next cuts off (Open Rails' incorporated train), -1 none.
+        int carries = -1;
+        // Cars it parted from (its own cut off, or a train it parted from)
+        // standing ahead in a section they share: the route distance of
+        // their near end on its part (-1 none), who they are (a train,
+        // StandingConsist) and the section. Its authority ends there.
+        double barrier = -1.0;
+        int barrierBy = NoHolder;
+        int barrierSection = -1;
         // Activity events (task 06), for a train location events look at:
         // where their points lie on its parts (the event, the part, the
         // route distance; sorted by event), and in the step being taken the
@@ -499,10 +533,34 @@ private:
     // on its part (-1 not on it); whether the standing train is on its
     // part behind `rear`.
     void holdStanding(int standingTrain);
-    void freeSection(int section);
+    void freeSection(int section, int releasing = -1);
     bool attaches(int train, int standingTrain, double gap);
     double contactOn(int train, int standingTrain) const;
     bool behind(int train, int standingTrain, double rear) const;
+    // Living trains (task 07): the track a train stands on (its rear to its
+    // front, its way); whether a train attaches to the living train `other`
+    // `gap` metres ahead (Open Rails' AI); the contact with it on the
+    // train's part (-1 none); whether `other` stands in a section (its
+    // front's or rear's, or any).
+    std::vector<RouteInterval> trackOf(int train) const;
+    bool attachesTrain(int train, int other, double gap);
+    double contactWith(int train, int other) const;
+    bool endIn(int other, int section) const;
+    bool holds(int train, int section) const;
+    // At the contact with a living train: cars taken or left (both go
+    // on), or the train joins it (Open Rails' CoupleAI).
+    void coupleTrain(int train, double time);
+    // A train's vehicles from its front backwards, and set so.
+    std::vector<Vehicle> fromFront(int train) const;
+    void setFromFront(int train, std::vector<Vehicle> vehicles);
+    // The train's front went past its part's end over `away` (track from
+    // `contact` on, its way): the part goes on over it.
+    void extendPart(int train, const std::vector<RouteInterval> &away, double contact);
+    // The train carried along since 60001 runs again with the cars `from`
+    // cut off (their track and vehicles in `from`'s way, rear first),
+    // where its own path finds them; false where it does not.
+    bool revive(int train, int from, const std::vector<RouteInterval> &track, const std::vector<Vehicle> &vehicles,
+                double time);
     // Open Rails' state of a block a train asks a signal for (sections
     // [from, to) of its way): when OCCUPIED (each section another train or
     // a standing train holds is one it stands in, the train there at rest
