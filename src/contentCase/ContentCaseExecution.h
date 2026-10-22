@@ -8,6 +8,14 @@ QJsonObject execute(const QString &root, const QJsonObject &savedPlan,
                     const QString &journalDirectory, QString &error,
                     const std::function<void(const QString &)> &progress = {},
                     const std::function<bool(int)> &continuation = {});
+// Applies an external update tree by case-insensitive path before running the
+// normal content-case repair. Update bytes win, while an existing destination
+// spelling is retained so a case-sensitive filesystem never gains a second
+// case-only variant. Overlay and repair share one rollback journal.
+QJsonObject executeUpdate(const QString &root, const QString &updateRoot,
+                          const QString &journalDirectory, QString &error,
+                          const std::function<void(const QString &)> &progress = {},
+                          const std::function<bool(int)> &continuation = {});
 bool rollback(const QString &root, const QString &journalPath, QString &error,
               const std::function<void(const QString &)> &progress = {});
 bool verifyReferences(const QJsonObject &before, const QJsonObject &after,

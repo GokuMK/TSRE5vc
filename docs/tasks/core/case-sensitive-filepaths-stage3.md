@@ -13,6 +13,9 @@ installation; see the test results below.
 # Default invocation performs supported repairs; a prior dry run is optional.
 .\build\TSRE5vc.exe --contentcase "D:\GameRootCopy" --journal "D:\CaseJournal" --report "D:\conversion.md"
 
+# Overlay an extracted update and repair its references in one transaction.
+.\build\TSRE5vc.exe --contentcase "D:\GameRootCopy" --overlay-update "D:\ExtractedUpdate\GameRoot" --journal "D:\UpdateJournal" --report "D:\update.md"
+
 # Read-only plan; optional JSON and Markdown outputs must be new.
 .\build\TSRE5vc.exe --contentcase "D:\GameRootCopy" --plan "D:\plan.json" --report "D:\plan.md"
 
@@ -40,7 +43,8 @@ and route subdirectories; `TRAINS/TRAINSET`, `TRAINS/CONSISTS`, and
 `TRAINS/CONSISTS/RANDOMSETS`; and recognized route extensions such as
 `OPENRAILS`, `ADDONS`, `PROCEDURAL`, `TRACKPROFILES`, and `TERRAIN_MAPS`.
 Dynamic TRAINSET product folders and arbitrary asset directories are not forced
-to uppercase.
+to uppercase. `ROUTES/<route>/ACTIVITIES/OPENRAILS` is also a fixed structural
+directory and is normalized before activity content is scanned.
 
 If several case variants of a fixed directory exist, an exactly canonical
 directory is preferred. Other variants are moved whole into the transaction
@@ -50,6 +54,27 @@ the alternate stays byte-for-byte in `bootstrap-vault` and is reported. This
 keeps the live game root usable without silently overwriting either version.
 Bootstrap changes, retained conflicts, and later content repairs share one
 rollback journal.
+
+`--overlay-update <update-root>` is an execution-only mode for applying an
+already extracted content update. It runs after the fixed-directory bootstrap
+and before reference analysis. Each update path is resolved component by
+component without case sensitivity. When a destination exists, its one existing
+spelling is retained and the update bytes replace it; this prevents Linux from
+creating pairs such as `Night`/`NIGHT` or `file.ace`/`FILE.ace`. Missing files
+and directories are added, while files absent from the update are not deleted.
+Fixed structural directories newly introduced by the update use their canonical
+spelling. A source with case-only sibling duplicates, a destination with an
+ambiguous case-only match, a type conflict, or a link is refused before overlay
+mutation.
+
+The update source remains read-only. Source and destination inventories and
+hashes are checked again after staging, and the installed overlay is verified
+before content references are repaired. Bootstrap moves, update replacements
+and additions, and content-case repairs share one v2 journal and roll back to
+the exact pre-command target layout. `--overlay-update` cannot be combined with
+`--plan`, `--apply`, `--verify`, or `--rollback`; the update transaction itself
+produces its plan during checked staging. Both the journal and optional report
+must be outside the update source tree as well as outside the game root.
 
 Exit 0 means the requested operation completed with no known outstanding repair
 proposals/errors; missing content warnings are allowed. Exit 1 means a partial
@@ -152,6 +177,8 @@ names; files move before directories, and directories move deepest first. Native
 no-overwrite filesystem renames are used without cross-filesystem copy fallback. Replacement
 writes are atomic, without direct-write fallback. Edited files retain permissions
 and modification times where the platform supports the required calls.
+Update-overlay journals use schema v2; the rollback command accepts both the
+original v1 conversion journals and v2 overlay journals.
 
 A per-root lock prevents overlapping converter processes. A persistent marker
 beside the root identifies an interrupted journal and prevents another conversion

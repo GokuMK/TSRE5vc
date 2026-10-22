@@ -591,6 +591,7 @@ public:
                     "ACTIVITIES","SERVICES","TRAFFIC","PATHS","SOUND","ENVFILES","OPENRAILS",
                     "ADDONS","PROCEDURAL","TRACKPROFILES","TERRAIN_MAPS"})
                 fixedDir(route+"/"+name);
+            fixedDir(route+"/ACTIVITIES/OPENRAILS");
             fixedDir(route+"/ENVFILES/TEXTURES");
             textureBases.insert(route+"/TEXTURES");textureBases.insert(route+"/TERRTEX");
             textureBases.insert(route+"/ENVFILES/TEXTURES");

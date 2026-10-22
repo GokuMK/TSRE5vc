@@ -167,6 +167,7 @@ void runExecutionTests() {
     put(bootstrapRoot + "/Trains/Trainset/Product/Different.ace", "alternate bytes");
     put(bootstrapRoot + "/Trains/Trainset/Product/OnlyMixed.ace", "mixed only");
     put(bootstrapRoot + "/Trains/Consists/Example.con", "Train ( TrainCfg ( Example ) )");
+    put(bootstrapRoot + "/routes/Route/activities/openrails/marker.bin", "nested OR activity");
     const auto bootstrapInitial = snapshot(bootstrapRoot);
     const auto rootSpellings = QDir(bootstrapRoot).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     const bool separateCoreVariants =
@@ -184,6 +185,8 @@ void runExecutionTests() {
     check(QFileInfo::exists(bootstrapRoot + "/TRAINS/TRAINSET/Product/OnlyUpper.ace") &&
               QFileInfo::exists(bootstrapRoot + "/TRAINS/TRAINSET/Product/OnlyMixed.ace") &&
               QFileInfo::exists(bootstrapRoot + "/TRAINS/CONSISTS/Example.con") &&
+              QFileInfo::exists(
+                  bootstrapRoot + "/ROUTES/Route/ACTIVITIES/OPENRAILS/marker.bin") &&
               canonicalRootSpellings.contains("TRAINS") &&
               !canonicalRootSpellings.contains("Trains") &&
               canonicalTrainSpellings.contains("TRAINSET") &&
@@ -209,6 +212,93 @@ void runExecutionTests() {
           "core bootstrap rollback: " + error);
     check(snapshot(bootstrapRoot) == bootstrapInitial,
           "core bootstrap rollback restores every original path and byte");
+
+    // A clean update tree is overlaid by case-insensitive path. Existing target
+    // spelling is retained, update bytes win, new files are added, and the
+    // complete overlay plus subsequent case repair has one rollback journal.
+    const auto overlayRoot = tmp.path() + "/Overlay";
+    put(overlayRoot + "/TRAINS/TRAINSET/Product/Same.ace", "same bytes");
+    put(overlayRoot + "/TRAINS/TRAINSET/Product/Changed.ace", "old bytes");
+    put(overlayRoot + "/TRAINS/TRAINSET/Product/CASE.ace", "old case bytes");
+    put(overlayRoot + "/TRAINS/TRAINSET/common.cab/Cab/NIGHT/Panel.ace", "panel bytes");
+    put(overlayRoot + "/TRAINS/CONSISTS/Update.con", "Train ( TrainCfg ( Old ) )");
+    const auto updateRoot = tmp.path() + "/Update";
+    put(updateRoot + "/Trains/Trainset/Product/Same.ace", "same bytes");
+    put(updateRoot + "/Trains/Trainset/Product/Changed.ace", "update bytes");
+    put(updateRoot + "/Trains/Trainset/Product/case.ace", "update case bytes");
+    put(updateRoot + "/Trains/Trainset/common.cab/Cab/Night/Panel.ace", "panel bytes");
+    put(updateRoot + "/Trains/Trainset/NewPack/Only.ace", "new bytes");
+    put(updateRoot + "/Trains/Consists/Update.con", "Train ( TrainCfg ( Updated ) )");
+    const auto overlayInitial = snapshot(overlayRoot), updateInitial = snapshot(updateRoot);
+    const auto overlaid = ContentCase::executeUpdate(
+        overlayRoot, updateRoot, tmp.path() + "/OverlayJournal", error);
+    check(!overlaid.isEmpty(),
+          "transactional update overlay: " + error +
+              QString::fromUtf8(QJsonDocument(overlaid).toJson()));
+    const auto overlaySummary = overlaid["overlay"].toObject();
+    check(overlaySummary["sourceFiles"].toInt() == 6 &&
+              overlaySummary["identicalFiles"].toInt() == 2 &&
+              overlaySummary["filesReplaced"].toInt() == 3 &&
+              overlaySummary["filesAdded"].toInt() == 1 &&
+              overlaySummary["directoriesCreated"].toInt() == 1,
+          "overlay summary separates identical, replacement, and added content");
+    check(get(overlayRoot + "/TRAINS/TRAINSET/Product/Changed.ace") == "update bytes" &&
+              get(overlayRoot + "/TRAINS/TRAINSET/Product/CASE.ace") ==
+                  "update case bytes" &&
+              get(overlayRoot + "/TRAINS/TRAINSET/NewPack/Only.ace") == "new bytes" &&
+              get(overlayRoot + "/TRAINS/CONSISTS/Update.con") ==
+                  "Train ( TrainCfg ( Updated ) )",
+          "update contents win for matching and new files");
+    const auto productNames = QDir(overlayRoot + "/TRAINS/TRAINSET/Product")
+                                  .entryList(QDir::Files | QDir::NoDotAndDotDot);
+    const auto cabNames = QDir(overlayRoot + "/TRAINS/TRAINSET/common.cab/Cab")
+                              .entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    check(productNames.contains("CASE.ace") && !productNames.contains("case.ace") &&
+              cabNames.contains("NIGHT") && !cabNames.contains("Night"),
+          "case-insensitive overlay retains one existing destination spelling");
+    check(snapshot(updateRoot) == updateInitial, "overlay source remains read-only");
+    const auto overlayJournal =
+        QJsonDocument::fromJson(get(overlaid["journal"].toString())).object();
+    check(overlayJournal["schema"] == "tsre-content-case-journal-v2" &&
+              overlayJournal["updateRoot"] == QFileInfo(updateRoot).canonicalFilePath(),
+          "overlay journal records its source and extended transaction schema");
+    check(ContentCase::rollback(overlayRoot, overlaid["journal"].toString(), error),
+          "overlay rollback: " + error);
+    check(snapshot(overlayRoot) == overlayInitial && snapshot(updateRoot) == updateInitial,
+          "overlay rollback restores the target exactly and never changes the update source");
+
+    const auto interruptedOverlayRoot = tmp.path() + "/InterruptedOverlay";
+    const auto interruptedUpdateRoot = tmp.path() + "/InterruptedUpdate";
+    put(interruptedOverlayRoot + "/TRAINS/TRAINSET/Product/Base.ace", "base");
+    put(interruptedUpdateRoot + "/Trains/Trainset/NewProduct/New.ace", "new");
+    const auto interruptedOverlayInitial = snapshot(interruptedOverlayRoot);
+    const auto interruptedOverlay = ContentCase::executeUpdate(
+        interruptedOverlayRoot, interruptedUpdateRoot,
+        tmp.path() + "/InterruptedOverlayJournal", error, {},
+        [](int completed) { return completed < 2; });
+    check(interruptedOverlay["status"] == "interrupted",
+          "overlay interruption leaves a recoverable journal: " + error);
+    check(ContentCase::rollback(interruptedOverlayRoot,
+                                interruptedOverlay["journal"].toString(), error) &&
+              snapshot(interruptedOverlayRoot) == interruptedOverlayInitial,
+          "interrupted overlay additions roll back exactly: " + error);
+
+    const auto ambiguousRoot = tmp.path() + "/AmbiguousOverlay";
+    const auto ambiguousUpdate = tmp.path() + "/AmbiguousUpdate";
+    put(ambiguousRoot + "/TRAINS/TRAINSET/Product/Base.ace", "base");
+    put(ambiguousUpdate + "/Trains/Trainset/Product/A.ace", "one");
+    const bool separateUpdateVariants =
+        !QFileInfo::exists(ambiguousUpdate + "/Trains/Trainset/Product/a.ace");
+    if (separateUpdateVariants) {
+        put(ambiguousUpdate + "/Trains/Trainset/Product/a.ace", "two");
+        const auto ambiguousInitial = snapshot(ambiguousRoot);
+        check(ContentCase::executeUpdate(ambiguousRoot, ambiguousUpdate,
+                                         tmp.path() + "/AmbiguousOverlayJournal", error)
+                  .isEmpty() &&
+                  error.contains("case-only sibling") &&
+                  snapshot(ambiguousRoot) == ambiguousInitial,
+              "ambiguous update case variants are refused before target mutation");
+    }
 
     const auto renamedMergeRoot = tmp.path() + "/RenamedMerge";
     put(renamedMergeRoot + "/trains/trainset/Product/First.ace", "first tree");
@@ -612,6 +702,31 @@ void runExecutionTests() {
           "CLI direct repair needs no exported plan");
     check(snapshot(cliRoot) == cliApplied,
           "direct and saved-plan execution produce identical output");
+    const auto cliOverlayRoot = tmp.path() + "/CliOverlay";
+    const auto cliUpdateRoot = tmp.path() + "/CliUpdate";
+    const auto cliOverlayJournal = tmp.path() + "/CliOverlayJournal";
+    put(cliOverlayRoot + "/TRAINS/TRAINSET/Product/Asset.ace", "base asset");
+    put(cliUpdateRoot + "/Trains/Trainset/Product/asset.ace", "updated asset");
+    const auto cliOverlayInitial = snapshot(cliOverlayRoot);
+    const auto cliUpdateInitial = snapshot(cliUpdateRoot);
+    check(command({"--contentcase", cliOverlayRoot, "--overlay-update", cliUpdateRoot,
+                   "--report", cliUpdateRoot + "/overlay-report.md"}) == 2,
+          "CLI refuses to write its report into the read-only update source");
+    check(snapshot(cliOverlayRoot) == cliOverlayInitial &&
+              snapshot(cliUpdateRoot) == cliUpdateInitial,
+          "rejected source-local report leaves source and target unchanged");
+    check(command({"--contentcase", cliOverlayRoot, "--overlay-update", cliUpdateRoot,
+                   "--journal", cliOverlayJournal}) == 0,
+          "CLI transactional update overlay");
+    check(get(cliOverlayRoot + "/TRAINS/TRAINSET/Product/Asset.ace") == "updated asset" &&
+              QDir(cliOverlayRoot + "/TRAINS/TRAINSET/Product")
+                      .entryList(QDir::Files | QDir::NoDotAndDotDot) ==
+                  QStringList{"Asset.ace"},
+          "CLI overlay updates bytes without adding a case-only duplicate");
+    check(command({"--contentcase", cliOverlayRoot, "--rollback",
+                   cliOverlayJournal + "/journal.json"}) == 0 &&
+              snapshot(cliOverlayRoot) == cliOverlayInitial,
+          "CLI overlay journal rolls back exactly");
     const auto frozenRoot = tmp.path() + "/Frozen";
     fixture(frozenRoot);
     const auto frozenEnv = QByteArray("world ( terrain_texslot ( Sky.ace ) ) )");
