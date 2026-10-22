@@ -72,8 +72,11 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         }
         findExits(int(i));
     }
-    for (size_t i = 0; i < states.size(); ++i)
+    for (size_t i = 0; i < states.size(); ++i) {
         states[i].front = in->trains[i].startFront;
+        if (in->trains[i].activatedBy >= 0)
+            activated.push_back(int(i));
+    }
     const TrackNetwork *network = in->network.get();
     holder.assign(network != nullptr ? network->sections().size() : 0, NoHolder);
     heldStamp.assign(holder.size(), 0);
@@ -294,11 +297,87 @@ double SimulationCore::departureAt(double ready) const {
 
 double SimulationCore::placeTime(int train) const {
     const TrainPlan &plan = in->trains[size_t(train)];
+    const double never = std::numeric_limits<double>::infinity();
+    double place = plan.createTime >= 0 ? double(std::min(plan.createTime, plan.startTime)) : double(plan.startTime);
     if (plan.formedBy >= 0 && size_t(plan.formedBy) < runtime.size()) {
         const double ended = runtime[size_t(plan.formedBy)].endedAt;
-        return ended < 0.0 ? std::numeric_limits<double>::infinity() : ended;
+        place = ended < 0.0 ? never : ended;
     }
-    return plan.createTime >= 0 ? double(std::min(plan.createTime, plan.startTime)) : double(plan.startTime);
+    // Phase 8: `$activated`, not before another train activates it (one put
+    // on its track before, `$create` or formed of another, stands there
+    // until then); `$create /ahead`, once that train is on its track.
+    if (plan.activatedBy >= 0 && plan.createTime < 0 && plan.formedBy < 0)
+        place = runtime[size_t(train)].activatedAt < 0.0 ? never
+                                                          : std::max(place, runtime[size_t(train)].activatedAt);
+    if (plan.createAhead >= 0 && size_t(plan.createAhead) < states.size()
+            && states[size_t(plan.createAhead)].status == TrainStatus::Waiting)
+        place = never;
+    return place;
+}
+
+void SimulationCore::activate(int train, TrainPlan::Activation when, int stop, double t) {
+    for (int i : activated) {
+        const TrainPlan &plan = in->trains[size_t(i)];
+        Runtime &rt = runtime[size_t(i)];
+        if (plan.activatedBy != train || plan.activation != when || rt.activatedAt >= 0.0
+                || ((when == TrainPlan::Activation::Arrival || when == TrainPlan::Activation::Departure)
+                    && plan.activationStop != stop))
+            continue;
+        rt.activatedAt = t;
+        // One put on its track standing (`$create`): from its start time.
+        TrainState &s = states[size_t(i)];
+        if (s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Created)
+            s.until = std::max(double(plan.startTime), t);
+    }
+}
+
+bool SimulationCore::delayOf(int train, double t, double &delay) const {
+    const Runtime &rt = runtime[size_t(train)];
+    const TrainState &s = states[size_t(train)];
+    bool known = rt.delayKnown;
+    delay = rt.delay;
+    // Past its next stop's booked arrival, not there yet: at least so late
+    // (Open Rails, under 12 hours).
+    if (s.stoppedAt != StopKind::Station && s.nextStop >= 0 && size_t(s.nextStop) < rt.stops.size()
+            && rt.stops[size_t(s.nextStop)].arrival >= 0) {
+        const double late = t - double(rt.stops[size_t(s.nextStop)].arrival);
+        if (late > 0.0 && late < 12 * 3600.0 && (!known || late > delay)) {
+            delay = late;
+            known = true;
+        }
+    }
+    return known;
+}
+
+float SimulationCore::topSpeedOf(int train, double t) const {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    if (plan.cruiseSpeed <= 0.0f)
+        return plan.maxSpeed;
+    double delay = 0.0;
+    if (plan.cruiseMaxDelay >= 0 && delayOf(train, t, delay) && delay > double(plan.cruiseMaxDelay))
+        return plan.maxSpeed;
+    return plan.cruiseSpeed;
+}
+
+bool SimulationCore::aheadFront(int train, double &front) const {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    const int other = plan.createAhead;
+    if (other < 0 || size_t(other) >= states.size() || states[size_t(other)].status == TrainStatus::Waiting
+            || states[size_t(other)].status == TrainStatus::Finished)
+        return false;
+    const TrainState &o = states[size_t(other)];
+    const Runtime &theirs = runtime[size_t(other)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (size_t(o.part) >= theirs.parts.size() || rt.parts.empty())
+        return false;
+    // Its rear 2.5 m beyond that train's front (TTTrain.GetPositionAheadOfTrain,
+    // keepDistanceCloseupM), where its route runs that train's way.
+    const RoutePoint at = theirs.parts[size_t(o.part)].locate(o.front);
+    double there = 0.0;
+    if (!rt.parts.front().find(at.node, at.distance, there) || rt.parts.front().locate(there).forward != at.forward)
+        return false;
+    front = there + 2.5 + rt.length;
+    return front <= rt.parts.front().length();
 }
 
 void SimulationCore::start(int train, double from, double to) {
@@ -308,18 +387,38 @@ void SimulationCore::start(int train, double from, double to) {
     if (s.status != TrainStatus::Waiting || to < place)
         return;
     const double t = std::max(from, place);
+    // Phase 8: of the vehicles of the train it is formed of (`$forms`); ahead
+    // of that train (`$create /ahead`), where its route runs that way.
+    if (plan.formedOfVehicles && plan.formedBy >= 0)
+        takeFormingVehicles(train);
+    double ahead = 0.0;
+    const bool paired = plan.createAhead >= 0 && aheadFront(train, ahead);
+    if (paired) {
+        // In that train's section (Open Rails places it there): partners as
+        // trains parted (task 07), sharing the sections they stand in, the
+        // one behind short of this one.
+        s.front = ahead;
+        runtime[size_t(train)].partedFrom = plan.createAhead;
+        runtime[size_t(plan.createAhead)].partedFrom = train;
+        releaseAll(plan.createAhead);
+    }
     if (!occupy(train)) {
+        if (paired && !occupy(plan.createAhead))
+            blocked(plan.createAhead, t);
         blocked(train, t);
         return;
     }
+    if (paired && !occupy(plan.createAhead))
+        blocked(plan.createAhead, t);
     s.speed = 0.0f;
     s.acceleration = 0.0f;
     s.blockedBy = NoHolder;
     runtime[size_t(train)].reported = Unreported;
     record(t, train, TrainEvent::Started);
     // Put on its track before its start (task 08): it stands there, holding
-    // only that, until then.
-    if (t < double(plan.startTime) - 1e-9) {
+    // only that, until then; and until another train activates it
+    // (`$activated`, phase 8).
+    if (t < double(plan.startTime) - 1e-9 || (plan.activatedBy >= 0 && runtime[size_t(train)].activatedAt < 0.0)) {
         s.status = TrainStatus::Stopped;
         s.stoppedAt = StopKind::Created;
         s.until = double(plan.startTime);
@@ -332,6 +431,7 @@ void SimulationCore::beginRun(int train, double t) {
     TrainState &s = states[size_t(train)];
     s.status = TrainStatus::Running;
     s.stoppedAt = StopKind::None;
+    activate(train, TrainPlan::Activation::Start, -1, t);
     // Starting at its first station (within a train's length of the stop):
     // it stands there its boarding time, and until its departure.
     if (!runtime[size_t(train)].stops.empty() && runtime[size_t(train)].stops.front().part == s.part
@@ -340,11 +440,12 @@ void SimulationCore::beginRun(int train, double t) {
         s.status = TrainStatus::Stopped;
         s.stoppedAt = StopKind::Station;
         s.until = t + stop.boarding;
-        if (stop.departure >= 0)
+        if (stop.departure >= 0 && !stop.departsEarly)
             s.until = std::max(s.until, double(stop.departure));
         s.until = departureAt(s.until);
         s.nextStop = 1;
         record(t, train, TrainEvent::Arrived, 0);
+        activate(train, TrainPlan::Activation::Arrival, 0, t);
     }
 }
 
@@ -406,9 +507,10 @@ void SimulationCore::advance(int train, double from, double to) {
                 continue;
             }
             // Put on its track before its start (task 08): its run begins
-            // at its start time.
+            // at its start time; `$activated`, once activated (phase 8).
             if (s.stoppedAt == StopKind::Created) {
-                if (s.until > to)
+                if (s.until > to || (in->trains[size_t(train)].activatedBy >= 0
+                                     && runtime[size_t(train)].activatedAt < 0.0))
                     break;
                 t = std::max(t, s.until);
                 beginRun(train, t);
@@ -469,7 +571,16 @@ void SimulationCore::advance(int train, double from, double to) {
                     break;
                 }
             } else if (s.stoppedAt == StopKind::Station) {
-                record(t, train, TrainEvent::Departed, s.nextStop - 1);
+                const int left = s.nextStop - 1;
+                record(t, train, TrainEvent::Departed, left);
+                activate(train, TrainPlan::Activation::Departure, left, t);
+                // Its delay on leaving a stop with times (Open Rails).
+                Runtime &rt = runtime[size_t(train)];
+                if (left >= 0 && size_t(left) < rt.stops.size() && rt.stops[size_t(left)].arrival >= 0
+                        && rt.stops[size_t(left)].departure >= 0) {
+                    rt.delay = t - double(rt.stops[size_t(left)].departure);
+                    rt.delayKnown = true;
+                }
             }
             s.status = TrainStatus::Running;
             s.stoppedAt = StopKind::None;
@@ -485,7 +596,11 @@ void SimulationCore::advance(int train, double from, double to) {
         // left behind were passed.
         while (s.nextStop < int(runtime[size_t(train)].stops.size())) {
             const StopPlan &stop = runtime[size_t(train)].stops[size_t(s.nextStop)];
-            if (stop.part > s.part || (stop.part == s.part && stop.front >= s.front - Passed))
+            // A request stop no one needs is given up within RequestSight of
+            // it (Open Rails' AI: it brakes for it until then).
+            const bool givenUp = stop.request && !stop.needed && stop.part == s.part
+                    && stop.front - s.front < RequestSight;
+            if (!givenUp && (stop.part > s.part || (stop.part == s.part && stop.front >= s.front - Passed)))
                 break;
             ++s.nextStop;
         }
@@ -607,7 +722,7 @@ void SimulationCore::advance(int train, double from, double to) {
             // Open Rails' AI plans it (stoppingSpeed).
             const float efficiency = s.nextStop < int(runtime[size_t(train)].stops.size())
                     ? runtime[size_t(train)].stops[size_t(s.nextStop)].efficiency : plan.efficiency;
-            const double top = std::min(double(in->routeSpeedLimit), double(plan.maxSpeed * efficiency));
+            const double top = std::min(double(in->routeSpeedLimit), double(topSpeedOf(train, t) * efficiency));
             double limit = top;
             if (s.signalSpeed > 0.0f)
                 limit = std::min(limit, double(s.signalSpeed));
@@ -764,11 +879,21 @@ void SimulationCore::advance(int train, double from, double to) {
             // It stands at least its boarding time, and leaves at the booked
             // departure when that is later (Open Rails).
             s.until = t + stop.boarding;
-            if (stop.departure >= 0)
+            if (stop.departure >= 0 && !stop.departsEarly)
                 s.until = std::max(s.until, double(stop.departure));
             s.until = departureAt(s.until);
+            // Late at its booked arrival: its delay, kept while it stands
+            // (Open Rails keeps the delay it ran up).
+            if (stop.arrival >= 0 && t > double(stop.arrival) && t - double(stop.arrival) < 12 * 3600.0) {
+                Runtime &late = runtime[size_t(train)];
+                if (!late.delayKnown || t - double(stop.arrival) > late.delay) {
+                    late.delay = t - double(stop.arrival);
+                    late.delayKnown = true;
+                }
+            }
             s.nextStop = index + 1;
             record(t, train, TrainEvent::Arrived, index);
+            activate(train, TrainPlan::Activation::Arrival, index, t);
             break;
         }
         case StopKind::Wait: {
@@ -818,6 +943,7 @@ void SimulationCore::advance(int train, double from, double to) {
         case StopKind::End:
             record(t, train, TrainEvent::Finished);
             runtime[size_t(train)].endedAt = t;
+            activate(train, TrainPlan::Activation::End, -1, t);
             // AI trains leave, giving back their track; the player's train
             // (the one it joined, task 07) stands at its path's end, and so
             // does an Open Rails timetable's train made static there (task
@@ -2340,14 +2466,32 @@ long SimulationCore::followWait(int train, size_t from, size_t to) {
             ++rt.nextFollow;
             continue;
         }
-        // Open Rails (TTTrain.CheckForSingleTrainWait): it waits while the
-        // other train is on the track and its rear has not left the section;
-        // else the point is let go for good.
+        // Open Rails (TTTrain.CheckWaitCondition): it waits while the other
+        // train runs the part of its route with the section and its rear has
+        // not left it; while it has not started or runs an earlier part only
+        // with `/notstarted`; else the point is let go for good. Phase 8's
+        // qualifiers: `/owndelay` (only while this train is so much later
+        // than the other, its own delay known), else `/maxdelay` (only while
+        // the other, its delay known, is less late than that plus this one's
+        // delay).
         const TrainState &other = states[size_t(follow.train)];
         const Runtime &theirs = runtime[size_t(follow.train)];
-        bool wait = other.status != TrainStatus::Waiting && other.status != TrainStatus::Finished
-                && (other.part < follow.otherPart
-                    || (other.part == follow.otherPart && other.front - theirs.length < follow.otherLeave - Same));
+        double ownDelay = 0.0, otherDelay = 0.0;
+        const bool ownKnown = delayOf(train, now, ownDelay);
+        const bool otherKnown = other.status != TrainStatus::Waiting && delayOf(follow.train, now, otherDelay);
+        const bool ownLateEnough = follow.ownDelay < 0 || (ownKnown && ownDelay > double(follow.ownDelay));
+        bool wait = false;
+        if (other.status == TrainStatus::Waiting
+                || (other.status != TrainStatus::Finished && other.part < follow.otherPart)) {
+            wait = follow.notStarted && ownLateEnough;
+        } else if (other.status != TrainStatus::Finished && other.part == follow.otherPart
+                   && other.front - theirs.length < follow.otherLeave - Same) {
+            if (follow.ownDelay >= 0)
+                wait = ownLateEnough && ownDelay - (otherKnown ? otherDelay : 0.0) > double(follow.ownDelay);
+            else
+                wait = follow.maxDelay < 0 || !otherKnown
+                        || otherDelay < double(follow.maxDelay) + (ownKnown ? ownDelay : 0.0);
+        }
         // Not where the other train would have to pass this one first (Open
         // Rails' check against a deadlock): track this train holds lies on
         // the other's way before the section.
@@ -3214,6 +3358,34 @@ std::vector<Vehicle> turned(const std::vector<Vehicle> &vehicles) {
         vehicle.flip = !vehicle.flip;
     return out;
 }
+
+}
+
+void SimulationCore::takeFormingVehicles(int train) {
+    const TrainPlan &plan = in->trains[size_t(train)];
+    if (plan.formedBy < 0 || size_t(plan.formedBy) >= runtime.size())
+        return;
+    const Runtime &from = runtime[size_t(plan.formedBy)];
+    const TrainState &old = states[size_t(plan.formedBy)];
+    Runtime &rt = runtime[size_t(train)];
+    if (from.vehicles.empty() || rt.parts.empty() || size_t(old.part) >= from.parts.size())
+        return;
+    // Front first as that train stood; turned where this one's front is at
+    // that one's rear (Open Rails turns the formed train's consist).
+    std::vector<Vehicle> vehicles = old.reversed ? turned(from.vehicles) : from.vehicles;
+    const RoutePoint front = rt.parts.front().locate(states[size_t(train)].front);
+    const RoutePoint oldFront = from.parts[size_t(old.part)].locate(old.front);
+    const RoutePoint oldRear = from.parts[size_t(old.part)].locate(old.front - from.length);
+    const auto apart = [](const RoutePoint &a, const RoutePoint &b) {
+        return a.node == b.node ? std::fabs(double(a.distance) - double(b.distance)) : 1e12;
+    };
+    if (apart(front, oldRear) < apart(front, oldFront))
+        vehicles = turned(vehicles);
+    rt.vehicles = vehicles;
+    refreshConsist(train);
+}
+
+namespace {
 
 // Whether a track runs along a route part from route distance `at` for
 // `length` metres (each 2 m within 1.5 m of where the part has it).

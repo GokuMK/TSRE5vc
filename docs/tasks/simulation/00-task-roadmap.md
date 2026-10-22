@@ -166,21 +166,23 @@ model as the first operating policy, and threading.
     real consists will.
 - [ ] `08-open-rails-timetables.md` (designed 2026-10-21 with the user's
   ideas, phases 1-7 done 2026-10-22, reopened the same day for phase 8:
-  the commands catalogued, all not run reported, editing commands; open
-  items in the task): Open Rails' timetable mode read, simulated, shown
-  and saved (the user, 2026-10-21: before the player's driving); an Open
-  Rails timetable set is an activity in code. PRUDNIK's timetable, 308
-  trains and no activity, is the local content: on OR_PSK converted with
-  `--contentcase` its trains run with the commands it uses (all 266
-  finish, a median of 50 s ahead of the timetable). The activity panel
-  shows a set's timetables, trains and problems; a train's start and stop
-  times are edited and saved in TSRE's layout (the original kept as
-  `.original`), which Open Rails reads and runs as the original. Against
-  Open Rails (three windows of the day; its Linux build fails or hangs in
-  longer runs): 589 stops of 116 AI trains, a median of 22 s earlier in
-  TSRE, 81 % within a minute; open: PRUDNIK's block signals Open Rails
-  passes unenabled at 25 km/h, and which train takes a junction first at
-  times.
+  every command catalogued, all not run reported, commands edited, the
+  cheap ones run: 27 of 49 commands run, 3 need nothing as in Open Rails,
+  19 reported (shunting, pools, turntables, weather, call-on, connections
+  and the rest, for later tasks); open items in the task): Open Rails'
+  timetable mode read, simulated, shown and saved (the user, 2026-10-21:
+  before the player's driving); an Open Rails timetable set is an activity
+  in code. PRUDNIK's timetable, 308 trains and no activity, is the local
+  content: on OR_PSK converted with `--contentcase` its trains run with
+  the commands it uses (all 266 finish, a median of 50 s ahead of the
+  timetable). The activity panel shows a set's timetables, trains and
+  problems; a train's times and commands are edited and saved in TSRE's
+  layout (the original kept as `.original`), which Open Rails reads and
+  runs as the original. Against Open Rails (three windows of the day; its
+  Linux build fails or hangs in longer runs): 589 stops of 116 AI trains,
+  a median of 22 s earlier in TSRE, 81 % within a minute; open: PRUDNIK's
+  block signals Open Rails passes unenabled at 25 km/h, and which train
+  takes a junction first at times.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a

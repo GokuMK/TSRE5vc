@@ -397,9 +397,64 @@ reported, editing commands).
   column and read back; request and early stops edited keeping their
   marks; commands edited (start, note, dispose emptied, speed row, a
   stop's, a station's) written and read back the same. `timetable-ui`
-  (16): T1's note edited with `$wait` (kept, orange, named in the
+  (16): T1's note edited with `$connect` (kept, orange, named in the
   tooltip), a stop's and its station's commands in the stops list, the
   station's undone and set again, all saved and read back.
+- **The cheap commands run** (the user, 2026-10-22: those that can be
+  checked working), as Open Rails' code runs them
+  (`TTTrain`, `ProcessTimetable`, `StationStop`, `RequestStop`):
+  - Stops: `$stoptime=n` (the least time standing; the station's row's
+    wins, Open Rails adds them after the cell's); `$terminal` (rear 15 m
+    inside the platform's start where the route has no junction before
+    it, else 2.5 m short of the end where none after it, else 15 m short);
+    `$keepclear /front /rear /force` (the value the first qualifier's, as
+    Open Rails reads it); `$restrictplatformtosignal` (the platform's end
+    7 m short of the last signal inside it where none at its end);
+    `x` request stops with `$req /pu /pd` (25 % each by default: needed
+    when a pick-up or a set-down is drawn, from the train's and station's
+    names so a run repeats; one not needed given up 25 m before it, as
+    Open Rails' AI brakes until then); `*` (leaves once it has stood its
+    boarding time; `x` or `*` without a time a stop too). Positions in
+    `placeStops` (MakeInput); the core's `departsEarly`, `RequestSight`.
+  - Trains: `$cruise` and `$maxdelay` (its top speed the cruise speed
+    while not later than `$maxdelay`; `topSpeedOf`); a train's delay as
+    Open Rails keeps one (on leaving a stop with times, how late; once past
+    its next booked arrival, at least that, kept while it stands there;
+    `delayOf`); `$activated` and `$activate` (its start, arriving at a
+    stop, `/depart` leaving it, `#dispose` its end: the activated train
+    starts then, or at its start time if later; one formed of another or
+    put on its track before, `$create`, stands there until then);
+    `$forms` (as `$triggers`, of the forming train's vehicles, turned
+    where it starts the other way); `$create /ahead=` (2.5 m ahead of that
+    train's front in its section: the two as task 07's parted trains,
+    sharing it, the one behind short of the other); `$wait` (one wait
+    where the routes join, run the same way or not) and `$follow`'s and
+    `$wait`'s `/maxdelay`, `/owndelay`, `/notstarted`.
+  - Changed for Open Rails' rule: a `$follow` wait for a train that has
+    not started or runs an earlier part of its route holds only with
+    `/notstarted` (before, TSRE waited for one on an earlier part).
+  - As Open Rails, nothing to run: `$creep` (read; its AI's creep speed is
+    fixed), `$doo` (a player's departure sound), `$endstop` (its AI and
+    autopilot trains run on past it: an Open Rails run showed it).
+  - Not run (reported): `$wait /atstart` (it would wait in the section the
+    train stands in, which it takes when placed; not checkable here), the
+    experimental `/trigger`, `/endtrigger`.
+- **Against Open Rails** (a PRUDNIK copy with the commands, the route's
+  untouched; Open Rails 04:47-06:10): `$stoptime=150` stood 150 s in
+  TSRE, about 142 s in Open Rails (a sample is 17 s); the request stop
+  with `/pu=0 /pd=0` passed in both (the next stop 05:18:47 TSRE,
+  05:19:25 Open Rails); `$cruise=50` the same in both (Katowice 05:37:26
+  TSRE, 05:39:04 Open Rails, as close as without it); `$activated` by a
+  train's `/depart` from Ruda Slaska started 2 min later in both;
+  `$endstop` ran on in Open Rails (now in TSRE too). `*` could not be
+  checked there: at Kedzierzyn-Kozle both waited for the exit signal
+  (TSRE to 05:53, Open Rails to 05:55), and a formed train's `*` left at
+  its start in Open Rails, which gives a formed train the forming one's
+  arrival there and places it at that platform (TSRE at its path's
+  start, phase 4's approximation); the fixture checks it.
+- **Fixtures:** `timetable-commands-more` (25): each command above on a
+  line of its own, the plans and a run; every MSTS route's results and
+  events unchanged, PRUDNIK's original timetable runs as before.
 
 ## Why
 
@@ -501,8 +556,11 @@ more), and what TSRE does with it. **Runs**: the simulation does what Open
 Rails does. **Partly**: runs, the qualifiers named not (reported).
 **Reported**: read, kept when saved, editable in the Timetable window
 (shown in orange), Check Activity warns that TSRE does not run it yet; the
-simulation goes on without it. **As Open Rails**: nothing to
-run (Open Rails ignores it too, or it is Open Rails' own cache).
+simulation goes on without it. **As Open Rails**: nothing to run (Open
+Rails' AI and autopilot trains ignore it too, or it is Open Rails' own
+cache). Each command run is checked in a fixture (`timetable-commands`,
+`timetable-commands-more`); those marked * also against Open Rails on a
+PRUDNIK copy (phase 8's notes).
 
 **Rows, columns, cells**
 
@@ -520,8 +578,8 @@ run (Open Rails ignores it too, or it is Open Rails' own cache).
 | `#briefing` | Read, shown, written | |
 | `#direction` | As Open Rails ("no longer used") | |
 | `HH:mm`, `HH:mm-HH:mm`, with seconds | Runs | |
-| `x` request stop (`13x21`, `x`) | Reported (stops always) | request stops |
-| `*` may leave early (`17*23`, `*`) | Reported (leaves at its time) | |
+| `x` request stop (`13x21`, `x`) | Runs*: stops only when someone gets on or off (`$req /pu /pd`, 25 % each by default), drawn from the train's and station's names (Open Rails draws at random), else given up 25 m before it | |
+| `*` may leave early (`17*23`, `*`) | Runs: leaves once it has stood its boarding time | |
 | `P` passing time (`14P53`) | No stop, as Open Rails; the time (Open Rails' delay there) reported | delays |
 
 **Start commands** (`#start`)
@@ -529,19 +587,19 @@ run (Open Rails ignores it too, or it is Open Rails' own cache).
 | Command | TSRE | Later |
 | --- | --- | --- |
 | `$create[=time]` | Runs | |
-| `$create /ahead=<train>` | Partly: `/ahead` reported | |
+| `$create /ahead=<train>` | Runs: 2.5 m ahead of that train's front, in its section (the two as task 07's parted trains) | |
 | `$next` | Runs | |
 | `$static` | Runs | |
 | `$static /ahead=<train> /pool=<pool>` | Partly: qualifiers reported | pools |
 | `$pool=<pool> /direction /set_consist_name` | Reported | pools |
-| `$activated` | Reported | |
+| `$activated` | Runs* | |
 
 **Note commands** (`#note`; timing commands there too)
 
 | Command | TSRE | Later |
 | --- | --- | --- |
 | `$acc`, `$dec` | Runs | |
-| `$doo` | Reported | sound |
+| `$doo` | As Open Rails (only a player's departure sound) | driving |
 | `$forcereversal` | Reported | |
 
 **Speed and train commands** (the speed row)
@@ -549,7 +607,8 @@ run (Open Rails ignores it too, or it is Open Rails' own cache).
 | Command | TSRE | Later |
 | --- | --- | --- |
 | `$max` | Runs | |
-| `$cruise`, `$maxdelay`, `$creep` | Reported | |
+| `$cruise`, `$maxdelay` | Runs* (`$cruise` its top speed until it is later than `$maxdelay`) | |
+| `$creep` | As Open Rails (read; its AI's creep speed is fixed) | |
 | `$attach`, `$detach`, `$movingtable` (speeds) | Reported | shunting, turntables |
 | `$gradient /perc /speed` | Reported | driving |
 
@@ -560,16 +619,21 @@ run (Open Rails ignores it too, or it is Open Rails' own cache).
 | `$hold`, `$nohold`, `$forcehold` | Runs | |
 | `$forcewait`, `$nowaitsignal`, `$waitsignal` | Runs | |
 | `$closeupsignal`, `$extendplatformtosignal` | Runs | |
-| `$terminal`, `$restrictplatformtosignal`, `$stoptime=n`, `$endstop` | Reported | |
-| `$closeup`, `$keepclear /rear /front /force` | Reported | |
+| `$stoptime=n` | Runs* (the station's row's winning) | |
+| `$terminal`, `$restrictplatformtosignal` | Runs (where it stands) | |
+| `$keepclear /rear /front /force` | Runs (where it stands; the value the first qualifier's, as Open Rails) | |
+| `$endstop` | As Open Rails* (its AI and autopilot trains run on past it) | driving |
+| `$closeup` | Reported (with `$callon`) | |
 
 **Timing commands** (a train's cell, or `#note`)
 
 | Command | TSRE | Later |
 | --- | --- | --- |
 | `$follow=<train>` | Runs | |
-| `$follow /maxdelay /notstarted /owndelay /trigger /endtrigger` | Partly: qualifiers reported | |
-| `$wait=<train>` and the same qualifiers, `/atstart` | Reported | |
+| `$follow /maxdelay /notstarted /owndelay` | Runs | |
+| `$follow` and `$wait` `/trigger /endtrigger` | Reported (experimental in Open Rails) | |
+| `$wait=<train>` with `/maxdelay /notstarted /owndelay` | Runs (one wait where the routes join, either way) | |
+| `$wait /atstart` | Reported (waiting in the section it stands in) | |
 | `$connect=<train> /maxdelay /hold` | Reported | |
 | `$waitany=<path> /both /opposite` | Reported | |
 | `$callon`, `$noclaim` | Reported | |
@@ -577,8 +641,9 @@ run (Open Rails ignores it too, or it is Open Rails' own cache).
 | `$detach` (`/power`, `/leadingpower`, `/allleadingpower`, `/trailingpower`, `/alltrailingpower`, `/nonpower`, `/units`, `/consist`; `/forms`, `/static`) | Reported | shunting |
 | `$pickup=<train> /static` | Reported | shunting |
 | `$transfer=<train> /static` (`/give`, `/take`, `/keep`, `/leave`; `/onepower`, `/allpower`, `/nonpower`, `/units`, `/consist`) | Reported | shunting |
-| `$activate=<train>` | Reported | |
-| `$req /pu /pd /laststop /approach /message /sound` | Reported | request stops |
+| `$activate=<train> [/depart]` | Runs* (arriving; `/depart` leaving) | |
+| `$req /pu /pd` | Runs* | |
+| `$req /laststop /approach /message /sound` | Reported (notices for a player) | driving |
 
 **Dispose commands** (`#dispose`)
 
@@ -586,12 +651,14 @@ run (Open Rails ignores it too, or it is Open Rails' own cache).
 | --- | --- | --- |
 | `$triggers=<train>` | Runs | |
 | `$triggers` with `$forms`' qualifiers | Partly: qualifiers reported | shunting |
+| `$forms=<train>` | Runs (of this train's vehicles, turned where it starts the other way) | |
+| `$forms /runround /rrtime /setstop /atstation /closeup /speed` | Partly: qualifiers reported | shunting |
 | `$static` | Runs | |
 | `$static /closeup` | Partly: `/closeup` reported | |
-| `$forms=<train> /runround /rrtime /setstop /atstation /closeup /speed` | Reported (the train ends) | shunting |
 | `$stable /out_path /out_time /in_path /in_time /closeup /callon /runround /rrtime /rrpos /speed /name /static /forms /triggers` | Reported (the train ends) | shunting |
 | `$pool=<pool> /direction` | Reported (the train ends) | pools |
-| `$attach`, `$detach`, `$pickup`, `$transfer`, `$activate` | Reported | shunting |
+| `$activate` | Runs (when its run ends) | |
+| `$attach`, `$detach`, `$pickup`, `$transfer` | Reported | shunting |
 
 **Other files**
 
@@ -602,8 +669,9 @@ run (Open Rails ignores it too, or it is Open Rails' own cache).
 | `.weather-or` (chosen when Open Rails starts) | Not read | weather |
 
 In all: 49 commands (48 in the manual, `$endatlastsignal` in the code);
-TSRE runs 16, four of them with qualifiers it reports; 33 are reported.
-Of the cell notations, `x`, `*` and `P`'s time are reported.
+TSRE runs 27 (`$static` and `$triggers` with qualifiers it reports), three
+need nothing to run (as Open Rails), 19 are reported. Of the cell
+notations, `x` and `*` run; `P`'s time is reported.
 
 ## Design (proposal)
 

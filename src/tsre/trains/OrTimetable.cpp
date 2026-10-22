@@ -755,18 +755,31 @@ bool OrTimetableGroup::load(const QString &path) {
 }
 
 bool OrTimetableCommandRun(const QString &name) {
+    // Phase 8 adds the station's `$terminal`, `$stoptime`,
+    // `$restrictplatformtosignal`, `$keepclear`, request stops' `$req`,
+    // `$wait`, `$cruise` and `$maxdelay`, `$activate` and `$activated`,
+    // `$forms`; and three Open Rails' AI does nothing with: `$creep` (its
+    // creep speed is fixed), `$doo` (only the player's departure sound),
+    // `$endstop` (its AI and autopilot trains run on past it).
     static const QSet<QString> run = {"acc", "dec", "follow", "nowaitsignal", "create", "hold", "nohold", "forcehold",
                                       "static", "triggers", "closeupsignal", "extendplatformtosignal", "forcewait",
-                                      "max", "waitsignal", "next"};
+                                      "max", "waitsignal", "next", "terminal", "stoptime", "endstop",
+                                      "restrictplatformtosignal", "keepclear", "req", "wait", "cruise", "maxdelay",
+                                      "activate", "activated", "forms", "creep", "doo"};
     return run.contains(name);
 }
 
 bool OrTimetableQualifierRun(const QString &command, const QString &qualifier) {
-    // None yet (the catalogue in task 08's doc: `$create /ahead`, `$static
-    // /ahead /pool /closeup`, `$follow /maxdelay…`, `$triggers /runround…`).
-    Q_UNUSED(command);
-    Q_UNUSED(qualifier);
-    return false;
+    // Phase 8 (the catalogue in task 08's doc). Not yet: `$static /ahead
+    // /pool /closeup`, `$triggers` and `$forms`' /runround…, `$follow` and
+    // `$wait` /trigger /endtrigger (experimental in Open Rails), `$wait
+    // /atstart` (waiting in the section it stands in), `$req`'s
+    // notices for the player (/laststop, /approach, /message, /sound).
+    static const QSet<QString> run = {"create/ahead", "follow/maxdelay", "follow/notstarted", "follow/owndelay",
+                                      "wait/maxdelay", "wait/notstarted", "wait/owndelay",
+                                      "keepclear/front", "keepclear/rear", "keepclear/force", "req/pu", "req/pd",
+                                      "activate/depart"};
+    return run.contains(command + "/" + qualifier);
 }
 
 QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const QString &routeDirectory,
@@ -855,28 +868,13 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
         checkCommands(train, train.speedCommands, qtTrId("timetable.check.where.speed"));
         for (const OrTimetable::Stop &stop : train.stops)
             checkCommands(train, stop.commands, timetable.stations[stop.station].name);
-        // The cell notations and the row TSRE reads but does not run: one
-        // line a kind, its stations.
-        QStringList requests, early, passing;
-        for (const OrTimetable::Stop &stop : train.stops) {
-            const QString &station = timetable.stations[stop.station].name;
-            if (stop.timing.request)
-                requests << station;
-            else if (stop.timing.early)
-                early << station;
+        // The cell notation and the row TSRE reads but does not run: one
+        // line a kind, its stations (request stops and leaving early run
+        // since phase 8).
+        QStringList passing;
+        for (const OrTimetable::Stop &stop : train.stops)
             if (stop.timing.passing >= 0)
-                passing << station;
-        }
-        if (!requests.isEmpty())
-            out.push_back(OrTimetableProblem{train.name,
-                                             //% "request stops (x) at %1 are not run by TSRE yet: it stops there always"
-                                             qtTrId("timetable.check.request").arg(requests.join(", ")),
-                                             OrTimetableProblem::Unsupported});
-        if (!early.isEmpty())
-            out.push_back(OrTimetableProblem{train.name,
-                                             //% "leaving early (*) at %1 is not run by TSRE yet: it leaves at its time"
-                                             qtTrId("timetable.check.early").arg(early.join(", ")),
-                                             OrTimetableProblem::Unsupported});
+                passing << timetable.stations[stop.station].name;
         if (!passing.isEmpty())
             out.push_back(OrTimetableProblem{train.name,
                                              //% "passing times (P) at %1: no stops, as in Open Rails; TSRE does not use the times yet"

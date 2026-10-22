@@ -790,15 +790,174 @@ void stopSwitches(StopPlan &stop, const QVector<OrTimetable::Command> &commands)
     }
 }
 
+// A number 0 to 99 drawn from a text (FNV-1a): a request stop's need the
+// same in every run (Open Rails draws at random).
+int drawOf(const QString &text) {
+    quint32 hash = 2166136261u;
+    for (const QChar c : text) {
+        hash = (hash ^ c.unicode()) * 16777619u;
+    }
+    return int(hash % 100u);
+}
+
+// Task 08, phase 8: a timetable stop's commands that make its times and
+// place (Open Rails' StopInfo.BuildStopInfo; the station's row's added
+// after the cell's): `$stoptime=n` the least time standing (the station's
+// last, so it wins), `$terminal` (either), `$restrictplatformtosignal`
+// (either), `$keepclear /front /rear /force` and `$endstop` (the cell's).
+// A request stop's need (`$req /pu /pd`, the cell's after the station's):
+// a pick-up with /pu per cent, a set-down with /pd, 25 each by default
+// (RequestStop.SetStopDetails, each "<= p" of 0 to 99), drawn from the
+// train's and station's names.
+void stopCommands(StopPlan &stop, int &least, const QVector<OrTimetable::Command> &cell,
+                  const QVector<OrTimetable::Command> &station, const QString &train) {
+    for (const QVector<OrTimetable::Command> *list : {&cell, &station})
+        for (const OrTimetable::Command &command : *list) {
+            if (command.name == "stoptime" && !command.values.isEmpty()) {
+                bool ok = false;
+                const int value = command.values.first().toInt(&ok);
+                if (ok)
+                    least = value;
+            } else if (command.name == "terminal") {
+                stop.terminal = true;
+            } else if (command.name == "restrictplatformtosignal") {
+                stop.restrictToSignal = true;
+            }
+        }
+    for (const OrTimetable::Command &command : cell) {
+        if (command.name == "endstop") {
+            stop.endStop = true;
+        } else if (command.name == "keepclear" && !command.qualifiers.isEmpty()) {
+            // The first of /front and /rear says which; the value is the
+            // first qualifier's (Open Rails reads CommandQualifiers[0]).
+            int side = 0;
+            for (const OrTimetable::Qualifier &qualifier : command.qualifiers) {
+                if (side == 0 && (qualifier.name == "front" || qualifier.name == "rear"))
+                    side = qualifier.name == "front" ? 1 : 2;
+                if (qualifier.name == "force")
+                    stop.forcePosition = true;
+            }
+            bool ok = false;
+            const double value = command.qualifiers.first().values.isEmpty()
+                    ? 0.0 : command.qualifiers.first().values.first().toDouble(&ok);
+            if (side == 1 && ok)
+                stop.keepClearFront = value;
+            else if (side == 2 && ok)
+                stop.keepClearRear = value;
+            if (!ok || side == 0)
+                stop.forcePosition = false;
+        }
+    }
+    if (stop.request) {
+        int pickUp = 25, setDown = 25;
+        for (const QVector<OrTimetable::Command> *list : {&station, &cell})
+            for (const OrTimetable::Command &command : *list)
+                if (command.name == "req")
+                    for (const OrTimetable::Qualifier &qualifier : command.qualifiers) {
+                        bool ok = false;
+                        const int value = qualifier.values.isEmpty() ? -1 : qualifier.values.first().toInt(&ok);
+                        if (ok && qualifier.name == "pu")
+                            pickUp = value;
+                        else if (ok && qualifier.name == "pd")
+                            setDown = value;
+                    }
+        const QString key = train + "@" + stop.platform;
+        stop.needed = (pickUp > 0 && drawOf(key + "/pu") <= pickUp) || (setDown > 0 && drawOf(key + "/pd") <= setDown);
+    }
+}
+
+// Task 08, phase 8: where a timetable train's stops stand on its route's
+// way (TTTrain.CalculateStationStopPosition): the platform's end 7 m short
+// of the last signal inside it where it has none at its end
+// (`$restrictplatformtosignal`), the stop centred on that; at the
+// platform's start end (its rear 15 m, half Open Rails' 30 m clearing,
+// inside it) where its route has no junction before it, else 2.5 m short
+// of the end where the route has none after it, else 15 m short
+// (`$terminal`); so much kept clear ahead (`$keepclear /front`: no more
+// than the train leaves, all of it with /force) or behind (`/rear`: up to
+// 30 m and 1 m short of the signal at the platform's end; past it with
+// /force).
+void placeStops(const SimulationInput &input, TrainPlan &plan) {
+    if (input.network == nullptr)
+        return;
+    const std::vector<TrackSection> &sections = input.network->sections();
+    for (StopPlan &stop : plan.stops) {
+        if (!stop.terminal && !stop.restrictToSignal && stop.keepClearFront < 0.0 && stop.keepClearRear < 0.0)
+            continue;
+        if (size_t(stop.part) >= plan.projection.size() || size_t(stop.part) >= plan.route.parts.size())
+            continue;
+        const Projection &way = plan.projection[size_t(stop.part)];
+        const double partLength = plan.route.parts[size_t(stop.part)].length();
+        // The signal at the platform's end: one in the section its end is in.
+        double sectionEnd = stop.platformEnd;
+        for (const ProjectedSection &pass : way.sections)
+            if (pass.enter <= stop.platformEnd + 1e-6 && pass.leave >= stop.platformEnd - 1e-6) {
+                sectionEnd = pass.leave;
+                break;
+            }
+        double endSignal = -1.0;
+        for (const ProjectedSignal &signal : way.stopSignals)
+            if (signal.at >= stop.platformEnd - 0.5 && signal.at <= sectionEnd + 0.5) {
+                endSignal = signal.at;
+                break;
+            }
+        const double length = plan.length;
+        const auto centred = [&] {
+            return std::clamp(stop.platformEnd - 0.5 * (stop.platformEnd - stop.platformStart - length), 0.0,
+                              stop.platformEnd);
+        };
+        if (stop.restrictToSignal && endSignal < 0.0) {
+            double inside = -1.0;
+            for (const ProjectedSignal &signal : way.stopSignals)
+                if (signal.at > stop.platformStart + 0.5 && signal.at < stop.platformEnd - 0.5)
+                    inside = signal.at;
+            if (inside > 0.0) {
+                stop.platformEnd = inside - 7.0;
+                endSignal = inside;
+                stop.front = centred();
+            }
+        }
+        if (stop.terminal) {
+            bool junctionBefore = false, junctionAfter = false;
+            for (const ProjectedSection &pass : way.sections) {
+                const bool junction = sections[size_t(pass.section)].kind == TrackSection::Junction;
+                junctionBefore = junctionBefore || (junction && pass.leave <= stop.platformStart + 1e-6);
+                junctionAfter = junctionAfter || (junction && pass.enter >= stop.platformEnd - 1e-6);
+            }
+            stop.front = !junctionBefore ? stop.platformStart + 15.0 + length
+                    : !junctionAfter ? stop.platformEnd - 2.5 : stop.platformEnd - 15.0;
+        } else if (stop.keepClearFront >= 0.0) {
+            const double clear = stop.forcePosition
+                    ? stop.keepClearFront
+                    : std::min(stop.keepClearFront, stop.platformEnd - length - stop.platformStart);
+            if (stop.forcePosition || clear > 0.0)
+                stop.front = stop.platformEnd - clear;
+            stop.forcePosition = false;
+        } else if (stop.keepClearRear >= 0.0) {
+            if (stop.forcePosition) {
+                stop.front = stop.platformStart + stop.keepClearRear + length;
+            } else {
+                const double end = endSignal >= 0.0
+                        ? endSignal - (stop.signalClearing >= 0.0 ? stop.signalClearing : 30.0) - 1.0
+                        : stop.platformEnd;
+                stop.front = std::min(stop.platformStart + stop.keepClearRear + length, end);
+            }
+        }
+        stop.front = std::clamp(stop.front, 0.0, partLength);
+    }
+}
+
 // Where train `a`'s route, from route distance `at` on its part `part` on,
 // joins train `b`'s again after running apart (Open Rails'
 // TTTrain.ProcessWaitRequest for `$follow`): the first section of each
 // stretch both run the same way after one they do not share; none where
 // the first section they share is run the other way. `key` tells a
 // section's way: along a track; through a junction or crossing from its
-// input or towards it (from either branch: Open Rails' direction).
+// input or towards it (from either branch: Open Rails' direction). For
+// `$wait` (phase 8): sections shared either way (`anyWay`), the first point
+// only (`single`).
 std::vector<FollowPlan> followPoints(const SimulationInput &input, const TrainPlan &a, int part, double at,
-                                     const TrainPlan &b) {
+                                     const TrainPlan &b, bool anyWay = false, bool single = false) {
     std::vector<FollowPlan> points;
     if (input.network == nullptr)
         return points;
@@ -825,15 +984,20 @@ std::vector<FollowPlan> followPoints(const SimulationInput &input, const TrainPl
         for (const ProjectedSection &pass : a.projection[p].sections)
             if (int(p) > part || pass.leave > at)
                 ours.push_back(Ours{int(p), &pass});
-    const auto shared = [&](size_t i) {
-        auto it = theirs.find(ours[i].pass->section);
-        return it != theirs.end() && it->second.key == key(*ours[i].pass);
-    };
+    // The way the first shared section is run decides (Open Rails'
+    // sameDirection); `$follow` only the same way.
     size_t i = 0;
     while (i < ours.size() && theirs.find(ours[i].pass->section) == theirs.end())
         ++i;
-    if (i >= ours.size() || !shared(i))
+    if (i >= ours.size())
         return points;
+    const bool sameWay = theirs.at(ours[i].pass->section).key == key(*ours[i].pass);
+    if (!sameWay && !anyWay)
+        return points;
+    const auto shared = [&](size_t k) {
+        auto it = theirs.find(ours[k].pass->section);
+        return it != theirs.end() && (!sameWay || it->second.key == key(*ours[k].pass));
+    };
     i = 0;
     while (i < ours.size() && shared(i))
         ++i;
@@ -843,8 +1007,16 @@ std::vector<FollowPlan> followPoints(const SimulationInput &input, const TrainPl
         if (i >= ours.size())
             break;
         const Theirs &there = theirs.at(ours[i].pass->section);
-        points.push_back(FollowPlan{b.id, ours[i].pass->section, ours[i].part, ours[i].pass->enter, there.part,
-                                    there.leave});
+        FollowPlan point;
+        point.train = b.id;
+        point.section = ours[i].pass->section;
+        point.part = ours[i].part;
+        point.at = ours[i].pass->enter;
+        point.otherPart = there.part;
+        point.otherLeave = there.leave;
+        points.push_back(point);
+        if (single)
+            break;
         while (i < ours.size() && shared(i))
             ++i;
     }
@@ -881,17 +1053,47 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
     const QString consists = Game::root + "/TRAINS/CONSISTS";
     int traffic = 0;
     // What the trains made name of other trains, for the second pass:
-    // `$triggers` and where each `$follow` applies from.
+    // `$triggers` and `$forms`, where each `$follow` and `$wait` applies
+    // from (with their qualifiers), `$activate` (when), `$create /ahead`.
     struct Follow {
         QString train;
         int part = 0;
         double at = 0.0;
+        bool wait = false;
+        FollowPlan qualifiers;
+    };
+    struct Activate {
+        QString train;
+        TrainPlan::Activation when = TrainPlan::Activation::Start;
+        QString station;
     };
     struct Made {
         int plan = -1;
         const OrTimetable *timetable = nullptr;
         QString triggers;
+        bool forms = false;
+        bool activated = false;
+        QString ahead;
         std::vector<Follow> follows;
+        std::vector<Activate> activates;
+    };
+    // A `$follow` or `$wait` command's qualifiers (minutes in the
+    // timetable): /maxdelay, /owndelay, /notstarted.
+    const auto followOf = [](const OrTimetable::Command &command, const QString &other, int part, double at) {
+        Follow follow{other, part, at, command.name == "wait", FollowPlan()};
+        bool ok = false;
+        if (const QStringList maxDelay = command.qualifier("maxdelay"); !maxDelay.isEmpty()) {
+            const int minutes = maxDelay.first().toInt(&ok);
+            if (ok)
+                follow.qualifiers.maxDelay = minutes * 60;
+        }
+        if (const QStringList ownDelay = command.qualifier("owndelay"); !ownDelay.isEmpty()) {
+            const int minutes = ownDelay.first().toInt(&ok);
+            if (ok)
+                follow.qualifiers.ownDelay = minutes * 60;
+        }
+        follow.qualifiers.notStarted = command.has("notstarted");
+        return follow;
     };
     std::vector<Made> made;
     for (const std::shared_ptr<OrTimetable> &timetable : set->timetables) {
@@ -953,6 +1155,16 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             if (const OrTimetable::Command *dec = commandIn(train.notes, "dec"); dec != nullptr && !dec->values.isEmpty())
                 plan.decelerationFactor = std::max(0.01f, dec->values.first().toFloat());
             SetRates(plan, std::min(input.routeSpeedLimit, plan.maxSpeed * plan.efficiency));
+            // The speed row's `$cruise` (in its unit, as `$max`) and
+            // `$maxdelay` (minutes): its top speed while on time (phase 8).
+            const float speedUnit = timetable->speedRow == "#speedmph" ? 0.44704f
+                    : timetable->speedRow == "#speedkph" ? 1.0f / 3.6f : 1.0f;
+            if (const OrTimetable::Command *cruise = commandIn(train.speedCommands, "cruise");
+                    cruise != nullptr && !cruise->values.isEmpty() && cruise->values.first().toFloat() > 0.0f)
+                plan.cruiseSpeed = cruise->values.first().toFloat() * speedUnit;
+            if (const OrTimetable::Command *maxDelay = commandIn(train.speedCommands, "maxdelay");
+                    maxDelay != nullptr && !maxDelay->values.isEmpty())
+                plan.cruiseMaxDelay = maxDelay->values.first().toInt() * 60;
             // Times past midnight as Open Rails takes them: the next day's
             // for a train started with `$next`, and a time before 08:00 of a
             // train starting after 16:00 (TTTrain's rule).
@@ -975,7 +1187,9 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             if (!routeOf(input, tdb, plan, path, name))
                 continue;
             // #dispose: the last of its forming commands counts (Open Rails):
-            // `$static` stays at its path's end, `$triggers` forms that train.
+            // `$static` stays at its path's end, `$triggers` forms that train,
+            // `$forms` too, of this one's vehicles (phase 8); `$activate`
+            // starts one when its run ends.
             Made one;
             one.timetable = timetable.get();
             for (const OrTimetable::Command &command : train.dispose) {
@@ -985,14 +1199,28 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                 } else if (command.name == "triggers" || command.name == "forms" || command.name == "stable"
                            || command.name == "pool") {
                     plan.staysAtEnd = false;
-                    one.triggers = command.name == "triggers" && !command.values.isEmpty() ? command.values.first()
-                                                                                         : QString();
+                    one.forms = command.name == "forms";
+                    one.triggers = (command.name == "triggers" || command.name == "forms") && !command.values.isEmpty()
+                            ? command.values.first() : QString();
+                } else if (command.name == "activate" && !command.values.isEmpty()) {
+                    one.activates.push_back(Activate{command.values.first(), TrainPlan::Activation::End, QString()});
                 }
             }
-            // `$follow` in #note: from its path's start.
-            if (const OrTimetable::Command *follow = commandIn(train.notes, "follow"))
-                for (const QString &other : follow->values)
-                    one.follows.push_back(Follow{other, 0, plan.route.pathStart});
+            // #start's `$activated` (started by another's `$activate`) and
+            // `$create /ahead=` (put on its track ahead of that train).
+            one.activated = commandIn(train.startCommands, "activated") != nullptr;
+            if (const OrTimetable::Command *create = commandIn(train.startCommands, "create"))
+                if (const QStringList ahead = create->qualifier("ahead"); !ahead.isEmpty())
+                    one.ahead = ahead.first();
+            // `$follow` and `$wait` in #note: from its path's start;
+            // `$activate` there when it starts.
+            for (const OrTimetable::Command &command : train.notes) {
+                if (command.name == "follow" || command.name == "wait")
+                    for (const QString &other : command.values)
+                        one.follows.push_back(followOf(command, other, 0, plan.route.pathStart));
+                else if (command.name == "activate" && !command.values.isEmpty())
+                    one.activates.push_back(Activate{command.values.first(), TrainPlan::Activation::Start, QString()});
+            }
             // Station stops: each timetable stop at the path's first pass by
             // a platform of its station, in the path's order; a passing
             // time is no stop. Standing at least the booked dwell, or the
@@ -1003,10 +1231,15 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             const auto book = [&](StopPlan &stop, const OrTimetable::Stop &booked, int least) {
                 stop.arrival = when(booked.timing.arrival);
                 stop.departure = when(booked.timing.departure);
+                stop.platform = timetable->stations[booked.station].name;
+                // `*` and `x` (phase 8): it may leave before its time; a
+                // request stop; the least time standing (`$stoptime`).
+                stop.departsEarly = booked.timing.early;
+                stop.request = booked.timing.request;
+                stopCommands(stop, least, booked.commands, timetable->stations[booked.station].commands, train.name);
                 const int dwell = stop.arrival >= 0 && stop.departure >= 0 ? stop.departure - stop.arrival : 0;
                 stop.boarding = dwell > 0 ? std::min(dwell, least) : least;
                 stop.efficiency = plan.efficiency;
-                stop.platform = timetable->stations[booked.station].name;
                 // Open Rails' timetable mode: an exit signal at any distance
                 // on the platform's node, not held, waited for before
                 // leaving, unless the station's row or the cell says
@@ -1029,7 +1262,8 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                     continue;
                 used[size_t(k)] = true;
                 const OrTimetable::Stop &booked = train.stops[k];
-                if (booked.timing.arrival < 0 && booked.timing.departure < 0)
+                if (booked.timing.arrival < 0 && booked.timing.departure < 0 && !booked.timing.request
+                        && !booked.timing.early)
                     continue;
                 StopPlan stop;
                 if (!stopAt(plan, *pass, stop)) {
@@ -1050,7 +1284,8 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             const QVector<PathTrack::Leg> &legs = path->legs();
             for (int s = 0; s < train.stops.size(); ++s) {
                 const OrTimetable::Stop &booked = train.stops[s];
-                if (used[size_t(s)] || (booked.timing.arrival < 0 && booked.timing.departure < 0))
+                if (used[size_t(s)] || (booked.timing.arrival < 0 && booked.timing.departure < 0
+                                        && !booked.timing.request && !booked.timing.early))
                     continue;
                 const QString key = timetable->stations[booked.station].key;
                 float nearEnd = 0.0f, farEnd = 0.0f;
@@ -1098,11 +1333,19 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             }
             for (size_t k = 0; k < plan.stops.size(); ++k)
                 plan.stops[k].entry = int(k);
-            // `$follow` in a station's cell: from where its path passes the
-            // station's platform (its path's start where it does not).
+            // `$follow` and `$wait` in a station's cell: from where its path
+            // passes the station's platform (its path's start where it does
+            // not); `$activate` there when it arrives (`/depart`: leaves).
             for (const OrTimetable::Stop &cell : train.stops) {
+                for (const OrTimetable::Command &command : cell.commands)
+                    if (command.name == "activate" && !command.values.isEmpty())
+                        one.activates.push_back(Activate{command.values.first(),
+                                                         command.has("depart") ? TrainPlan::Activation::Departure
+                                                                               : TrainPlan::Activation::Arrival,
+                                                         timetable->stations[cell.station].name});
                 const OrTimetable::Command *follow = commandIn(cell.commands, "follow");
-                if (follow == nullptr)
+                const OrTimetable::Command *wait = commandIn(cell.commands, "wait");
+                if (follow == nullptr && wait == nullptr)
                     continue;
                 int part = 0;
                 double at = plan.route.pathStart;
@@ -1118,10 +1361,13 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                         }
                         break;
                     }
-                for (const QString &other : follow->values)
-                    one.follows.push_back(Follow{other, part, at});
+                for (const OrTimetable::Command *command : {follow, wait})
+                    if (command != nullptr)
+                        for (const QString &other : command->values)
+                            one.follows.push_back(followOf(*command, other, part, at));
             }
             finishTrain(input, tdb, plan, path);
+            placeStops(input, plan);
             one.plan = plan.id;
             made.push_back(one);
             input.trains.push_back(std::move(plan));
@@ -1138,28 +1384,79 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
     };
     for (const Made &one : made) {
         TrainPlan &plan = input.trains[size_t(one.plan)];
-        // `$triggers`: that train is formed when this one's run ends.
+        // `$triggers`: that train is formed when this one's run ends;
+        // `$forms` of this one's vehicles.
         if (!one.triggers.isEmpty()) {
             const int formed = named(one, one.triggers);
-            if (formed >= 0 && input.trains[size_t(formed)].formedBy < 0)
+            if (formed >= 0 && input.trains[size_t(formed)].formedBy < 0) {
                 input.trains[size_t(formed)].formedBy = plan.id;
-            else
-                input.warnings << QString("%1: $triggers=%2 forms no train").arg(plan.service, one.triggers);
+                input.trains[size_t(formed)].formedOfVehicles = one.forms;
+            } else {
+                input.warnings << QString("%1: $%2=%3 forms no train")
+                                      .arg(plan.service, one.forms ? "forms" : "triggers", one.triggers);
+            }
         }
-        // `$follow`: where its route joins that train's again.
+        // `$follow` and `$wait`: where its route joins that train's again.
         for (const Follow &follow : one.follows) {
             const int other = named(one, follow.train);
             if (other < 0 || other == plan.id) {
-                input.warnings << QString("%1: $follow=%2 follows no train").arg(plan.service, follow.train);
+                input.warnings << QString("%1: $%2=%3 follows no train")
+                                      .arg(plan.service, follow.wait ? "wait" : "follow", follow.train);
                 continue;
             }
-            for (const FollowPlan &point : followPoints(input, plan, follow.part, follow.at, input.trains[size_t(other)]))
+            for (FollowPlan point : followPoints(input, plan, follow.part, follow.at, input.trains[size_t(other)],
+                                                 follow.wait, follow.wait)) {
+                point.maxDelay = follow.qualifiers.maxDelay;
+                point.ownDelay = follow.qualifiers.ownDelay;
+                point.notStarted = follow.qualifiers.notStarted;
                 plan.follows.push_back(point);
+            }
+        }
+        // `$activate`: that train, `$activated`, starts when this one
+        // starts, arrives at or leaves that stop, or ends.
+        for (const Activate &activate : one.activates) {
+            const int other = named(one, activate.train);
+            const auto activated = std::find_if(made.begin(), made.end(),
+                                                [other](const Made &m) { return m.plan == other; });
+            if (other < 0 || activated == made.end() || !activated->activated) {
+                input.warnings << QString("%1: $activate=%2 activates no train ($activated)")
+                                      .arg(plan.service, activate.train);
+                continue;
+            }
+            TrainPlan &target = input.trains[size_t(other)];
+            if (target.activatedBy >= 0)
+                continue;
+            int stop = -1;
+            for (size_t k = 0; k < plan.stops.size() && stop < 0 && !activate.station.isEmpty(); ++k)
+                if (plan.stops[k].platform == activate.station)
+                    stop = int(k);
+            if (!activate.station.isEmpty() && stop < 0) {
+                input.warnings << QString("%1: $activate=%2 at %3, no stop there")
+                                      .arg(plan.service, activate.train, activate.station);
+                continue;
+            }
+            target.activatedBy = plan.id;
+            target.activation = activate.when;
+            target.activationStop = stop;
+        }
+        // `$create /ahead=`: put on its track ahead of that train.
+        if (!one.ahead.isEmpty()) {
+            const int other = named(one, one.ahead);
+            if (other >= 0 && other != plan.id)
+                plan.createAhead = other;
+            else
+                input.warnings << QString("%1: $create /ahead=%2 names no train").arg(plan.service, one.ahead);
         }
         std::sort(plan.follows.begin(), plan.follows.end(), [](const FollowPlan &a, const FollowPlan &b) {
             return a.part != b.part ? a.part < b.part : a.at < b.at;
         });
     }
+    // `$activated` and nothing activates it: it starts at its time (Open
+    // Rails, with a message).
+    for (const Made &one : made)
+        if (one.activated && input.trains[size_t(one.plan)].activatedBy < 0)
+            input.warnings << QString("%1: $activated, but no train activates it: it starts at its time")
+                                  .arg(input.trains[size_t(one.plan)].service);
 }
 
 std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,

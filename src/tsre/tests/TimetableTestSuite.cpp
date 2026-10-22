@@ -370,9 +370,10 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
                   && c.trains[3].pathName() == "p1",
               "the check (P1.pat and p1. the path p1, consist c2 not C2.con): " + texts.join("; "));
         // Phase 8: what TSRE reads and does not run is reported too: a path
-        // cell's command, qualifiers of commands it runs, request stops,
-        // leaving early, passing times, #restartdelay; a station's first
-        // cell after a '/' (not read, nor by Open Rails).
+        // cell's command, qualifiers of commands it runs that it does not,
+        // passing times, #restartdelay; a station's first cell after a '/'
+        // (not read, nor by Open Rails). Request stops, leaving early,
+        // `$create /ahead`, `$follow /maxdelay` run (not reported).
         const QString more = dir.filePath("more.timetable-or");
         writeFile(more,
                   ";T1;T2\n#path;p1 $endatlastsignal /reverse;p1\n#consist;c1;c1\n"
@@ -386,15 +387,13 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         for (const OrTimetableProblem &p : CheckTimetable(m, dir.filePath("route"), dir.filePath("TRAINS/CONSISTS"), nullptr))
             moreTexts << QString("%1%2: %3").arg(p.kind == OrTimetableProblem::Unsupported ? "~" : "", p.train, p.text);
         const QString all = moreTexts.join("\n");
-        check(moreTexts.size() == 10 && all.contains("~T1: path: $endatlastsignal is not run")
-                  && all.contains("~T1: start: $create runs, its /ahead") && all.contains("~T1: note: $follow runs, its /maxdelay")
+        check(moreTexts.size() == 6 && all.contains("~T1: path: $endatlastsignal is not run")
                   && all.contains("~T1: dispose: $static runs, its /closeup")
                   && all.contains("~T2: dispose: $triggers runs, its /runround")
-                  && all.contains("~T1: request stops (x) at A") && all.contains("~T2: leaving early (*) at A")
                   && all.contains("~T1: passing times (P) at B") && all.contains("~T1: #restartdelay")
-                  && all.contains("'/ignored'"),
-              "the check reports what TSRE does not run (qualifiers, x, *, P, #restartdelay, a path's command) and "
-              "a station cell cut at '/': " + moreTexts.join("; "));
+                  && all.contains("'/ignored'") && !all.contains("/ahead") && !all.contains("/maxdelay"),
+              "the check reports what TSRE does not run (qualifiers, P, #restartdelay, a path's command) and a "
+              "station cell cut at '/': " + moreTexts.join("; "));
         ActLib::Paths[path] = nullptr;
     }
 
@@ -981,4 +980,325 @@ int TsreTests::runTimetableCommandsSuite(bool verbose) {
         ActLib::Paths[path] = nullptr;
     qInfo().noquote() << QString("timetable-commands: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
+}
+
+// Task 08, phase 8: the commands added from the catalogue, each on a line of
+// its own (2 km, track 10 + 20k), run in the core: `$stoptime` (the
+// station's row's winning), `$terminal`, `$keepclear /front /rear`,
+// `$restrictplatformtosignal`, leaving early (`*`), request stops (`x`,
+// `$req /pu /pd`), `$endstop` (read; run past as Open Rails' AI does),
+// `$cruise` and `$maxdelay`, `$activate`
+// (start, arrival, departure, end) and `$activated`, `$forms`, `$wait`
+// with `/notstarted`, `/maxdelay`, `/owndelay`, `$create /ahead`.
+int TsreTests::runTimetableMoreCommandsSuite(bool verbose) {
+    int passed = 0, failed = 0;
+    const auto check = [&](bool value, const QString &name) {
+        if (value) { ++passed; if (verbose) qInfo().noquote() << "[tests:timetable-commands-more] PASS" << name; }
+        else { ++failed; qWarning().noquote() << "[tests:timetable-commands-more] FAIL" << name; }
+    };
+    const auto done = [&] {
+        qInfo().noquote() << QString("timetable-commands-more: %1 passed, %2 failed").arg(passed).arg(failed);
+        return failed == 0 ? 0 : 1;
+    };
+
+    // The trains (columns) and their lines, paths (from, to on the line),
+    // starts, notes, dispose, speed row; the stations (rows) with one
+    // train's cell each, their platforms (line, from, to).
+    struct Line {
+        QString train;
+        int k;
+        float from, to;
+        QString start, note, dispose, speed;
+    };
+    const QVector<Line> lines = {
+        {"ST", 0, 100, 1900, "08:00", "", "", ""},
+        {"ST2", 1, 100, 1900, "08:00", "", "", ""},
+        {"TE", 2, 100, 1900, "08:00", "", "", ""},
+        {"KC", 3, 100, 1900, "08:00", "", "", ""},
+        {"RS", 4, 100, 1900, "08:00", "", "", ""},
+        {"EA", 5, 100, 1900, "08:00", "", "", ""},
+        {"RQ", 6, 100, 1900, "08:00", "", "", ""},
+        {"ES", 7, 100, 1900, "08:00", "", "", ""},
+        {"CR", 8, 100, 1900, "08:00", "", "", "$max=72 $cruise=36"},
+        {"CD", 9, 100, 1900, "08:00", "", "", "$max=72 $cruise=36 $maxdelay=1"},
+        {"TR", 10, 100, 1900, "08:00", "$activate=AS", "$activate=AD $activate=FD", ""},
+        {"AV", 11, 100, 1900, "08:00 $activated", "", "", ""},
+        {"AD", 12, 100, 1900, "08:00 $activated", "", "", ""},
+        {"FA", 13, 100, 900, "08:00", "", "$forms=FB", ""},
+        {"FB", 13, 900, 100, "08:00", "", "", ""},
+        {"WA", 14, 100, 1900, "08:00", "$wait=WB", "", ""},
+        {"WB", 14, 600, 1900, "08:00", "", "", ""},
+        {"WC", 15, 100, 1900, "08:00", "$wait=WD /notstarted", "", ""},
+        {"WD", 15, 600, 1900, "08:03", "", "", ""},
+        {"CA", 16, 100, 1900, "08:20 $create=07:59 /ahead=CB", "", "", ""},
+        {"CB", 16, 100, 1900, "08:20 $create=07:58", "", "", ""},
+        {"AW", 17, 100, 1900, "08:00 $activated", "", "", ""},
+        {"AS", 18, 100, 1900, "07:50 $activated", "", "", ""},
+        {"WM", 19, 100, 1900, "08:00", "$wait=WN /maxdelay=1", "", ""},
+        {"WN", 19, 600, 1900, "08:00", "", "", ""},
+        {"WQ", 20, 100, 1900, "08:00", "$wait=WR /owndelay=10", "", ""},
+        {"WR", 20, 600, 1900, "08:03", "", "", ""},
+        {"FC", 21, 100, 900, "08:00", "", "$triggers=FD", ""},
+        {"FD", 21, 900, 1900, "08:01 $activated", "", "", ""},
+    };
+    struct Station {
+        QString row, train, cell;
+        int k;
+        float from, to;
+    };
+    const QVector<Station> stations = {
+        {"Sto $stoptime=60", "ST", "08:01 $stoptime=40", 0, 500, 700},
+        {"Sto2", "ST2", "08:01 $stoptime=40", 1, 500, 700},
+        {"Ter", "TE", "08:02 $terminal", 2, 1000, 1200},
+        {"Kc1", "KC", "08:02 $keepclear /front=100", 3, 500, 900},
+        {"Kc2", "KC", "08:06 $keepclear /rear=50", 3, 1300, 1700},
+        {"Rs", "RS", "08:02 $restrictplatformtosignal", 4, 500, 900},
+        {"Ea", "EA", "08*10", 5, 500, 700},
+        {"Rq1", "RQ", "08x02 $req /pu=99", 6, 500, 700},
+        {"Rq2", "RQ", "08x05 $req /pu=0 /pd=0", 6, 1100, 1300},
+        {"Es", "ES", "08:02 $endstop", 7, 500, 700},
+        {"Cd", "CD", "08:00:30", 9, 1500, 1700},
+        {"Tr", "TR", "08:02 $activate=AV $activate=AW /depart", 10, 500, 700},
+        {"Wn", "WN", "07:59", 19, 1500, 1700},
+        {"Wq", "WQ", "08:00:05", 20, 200, 300},
+    };
+    // Signals splitting a line (k, at): Rs's inside its platform; at 400 m
+    // where two trains share a line.
+    const QVector<QPair<int, float>> signalsAt = {{4, 700}, {14, 400}, {15, 400}, {19, 400}, {20, 400}};
+
+    QTemporaryDir temp;
+    const QString routePath = temp.path() + "/ROUTES/R";
+    const QString folder = routePath + "/ACTIVITIES/OPENRAILS";
+    QDir().mkpath(folder);
+    QDir().mkpath(routePath + "/PATHS");
+    QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
+    QDir().mkpath(temp.path() + "/TRAINS/TRAINSET/TEST");
+    bool written = writeFile(temp.path() + "/TRAINS/CONSISTS/Two.con", consistText, Encoding::Utf16)
+            && writeFile(temp.path() + "/TRAINS/TRAINSET/TEST/loco.eng", QString(vehicleText).arg("loco", "Engine"),
+                         Encoding::Utf16)
+            && writeFile(temp.path() + "/TRAINS/TRAINSET/TEST/car.wag", QString(vehicleText).arg("car", "Carriage"),
+                         Encoding::Utf16)
+            && writeFile(temp.path() + "/sigcfg.dat", commandSigCfg, Encoding::Utf16);
+    QStringList head{""}, path{"#path"}, consist{"#consist"}, start{"#start"}, note{"#note"}, dispose{"#dispose"},
+            speed{"#speedkph"};
+    for (const Line &line : lines) {
+        head << line.train;
+        path << "p" + line.train;
+        consist << "Two";
+        start << line.start;
+        note << line.note;
+        dispose << line.dispose;
+        speed << line.speed;
+        written = written && writeFile(routePath + "/PATHS/p" + line.train + ".pat", QString(pathText).arg("p" + line.train),
+                                       Encoding::Utf16);
+    }
+    QStringList rows{head.join(';'), path.join(';'), consist.join(';'), start.join(';'), note.join(';'),
+                     dispose.join(';'), speed.join(';')};
+    for (const Station &station : stations) {
+        QStringList row{station.row};
+        for (const Line &line : lines)
+            row << (line.train == station.train ? station.cell : QString());
+        rows << row.join(';');
+    }
+    written = written && writeFile(folder + "/more.timetable-or", rows.join("\n") + "\n", Encoding::Utf8);
+    check(temp.isValid() && written, "write the test route");
+
+    TestTrack::Layout layout;
+    for (int k = 0; k <= 21; ++k) {
+        const int track = 10 + 20 * k;
+        layout.end(1001 + 2 * k, track);
+        layout.track(track, 1001 + 2 * k, 1002 + 2 * k, 200);
+        layout.end(1002 + 2 * k, track);
+    }
+    for (int s = 0; s < stations.size(); ++s)
+        TestTrack::platform(layout, 10 + 20 * stations[s].k, 3001 + 2 * s, stations[s].from, stations[s].to,
+                            stations[s].row.section(' ', 0, 0));
+    for (int s = 0; s < signalsAt.size(); ++s)
+        TestTrack::signalHead(layout, 10 + 20 * signalsAt[s].first, 4001 + s, signalsAt[s].second, true, "Home");
+    const QScopedValueRollback<QString> root(Game::root, temp.path());
+    const QScopedValueRollback<QString> routeName(Game::route, "R");
+    const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &layout.db);
+    EngLib engines;
+    const QScopedValueRollback<EngLib *> engineLibrary(Game::currentEngLib, &engines);
+    const int firstPath = ActLib::jestpath;
+    for (const Line &line : lines) {
+        Path *made = ActLib::Paths.value(ActLib::AddPath(routePath + "/PATHS", "p" + line.train + ".pat"));
+        if (made == nullptr)
+            continue;
+        PathTrack::Result laid = PathTrack::startAt(&layout.db, {10 + 20 * line.k, line.from});
+        if (line.from > line.to)
+            laid = PathTrack::turnStart(&layout.db, laid.nodes);
+        laid = PathTrack::endAt(&layout.db, laid.nodes, {10 + 20 * line.k, line.to});
+        made->apply(laid.nodes);
+    }
+    const int id = ActLib::AddTimetableSet(folder, "more.timetable-or");
+    Activity *set = ActLib::TimetableSets.value(id);
+    const SigCfg signalConfig(temp.path() + "/sigcfg.dat");
+    const auto geometry = std::make_shared<const Sim::TrackGeometry>(&layout.db);
+    const auto network = std::make_shared<const Sim::TrackNetwork>(&layout.db, *geometry, &signalConfig, false);
+    const std::shared_ptr<Sim::SimulationInput> input
+            = set != nullptr ? Sim::MakeInput(set, &layout.db, 30.0f, geometry, network) : nullptr;
+    check(input != nullptr && input->trains.size() == size_t(lines.size()),
+          QString("the trains made: %1 of %2; warnings: %3")
+              .arg(input != nullptr ? int(input->trains.size()) : -1).arg(lines.size())
+              .arg(input != nullptr ? input->warnings.join("; ") : QString()));
+    if (input == nullptr || input->trains.size() != size_t(lines.size()))
+        return done();
+    QMap<QString, const Sim::TrainPlan *> t;
+    for (const Sim::TrainPlan &plan : input->trains)
+        t[plan.service] = &plan;
+    for (const Line &line : lines)
+        if (!t.contains(line.train)) {
+            check(false, "train " + line.train + " made");
+            return done();
+        }
+
+    // The plans.
+    const Sim::StopPlan *st = t["ST"]->stops.empty() ? nullptr : &t["ST"]->stops[0];
+    const Sim::StopPlan *st2 = t["ST2"]->stops.empty() ? nullptr : &t["ST2"]->stops[0];
+    check(st && st2 && st->boarding == 60 && st2->boarding == 40,
+          QString("$stoptime: the least time standing (the station's 60 winning, the cell's 40): %1, %2")
+              .arg(st ? st->boarding : -1).arg(st2 ? st2->boarding : -1));
+    const Sim::StopPlan *te = t["TE"]->stops.empty() ? nullptr : &t["TE"]->stops[0];
+    check(te && te->terminal && std::fabs(te->front - (te->platformStart + 15.0 + 40.0)) < 0.01,
+          QString("$terminal, no junction before the platform: its rear 15 m inside the platform's start (front %1 "
+                  "m past it)").arg(te ? te->front - te->platformStart : -1.0, 0, 'f', 1));
+    const std::vector<Sim::StopPlan> &kc = t["KC"]->stops;
+    check(kc.size() == 2 && std::fabs(kc[0].front - (kc[0].platformEnd - 100.0)) < 0.01
+              && std::fabs(kc[1].front - (kc[1].platformStart + 50.0 + 40.0)) < 0.01,
+          "$keepclear /front=100: 100 m of the platform clear ahead; /rear=50: 50 m behind");
+    const Sim::TrainPlan *rs = t["RS"];
+    const double inside = rs->projection.empty() || rs->projection[0].stopSignals.empty()
+            ? -1.0 : rs->projection[0].stopSignals[0].at;
+    check(rs->stops.size() == 1 && inside > 0.0 && std::fabs(rs->stops[0].platformEnd - (inside - 7.0)) < 0.01,
+          "$restrictplatformtosignal: the platform's end 7 m short of the signal inside it");
+    check(t["EA"]->stops.size() == 1 && t["EA"]->stops[0].departsEarly && t["RQ"]->stops.size() == 2
+              && t["RQ"]->stops[0].request && t["RQ"]->stops[0].needed && t["RQ"]->stops[1].request
+              && !t["RQ"]->stops[1].needed && t["ES"]->stops.size() == 1 && t["ES"]->stops[0].endStop,
+          "08*10 may leave early; 08x02 with /pu=99 needed, 08x05 with /pu=0 /pd=0 not; $endstop");
+    check(std::fabs(t["CR"]->cruiseSpeed - 10.0f) < 1e-3f && t["CR"]->cruiseMaxDelay < 0
+              && t["CD"]->cruiseMaxDelay == 60 && std::fabs(t["CD"]->maxSpeed - 20.0f) < 1e-3f,
+          "$cruise=36 km/h (10 m/s), $maxdelay=1 minute");
+    const Sim::TrainPlan *tr = t["TR"];
+    check(t["AV"]->activatedBy == tr->id && t["AV"]->activation == Sim::TrainPlan::Activation::Arrival
+              && t["AV"]->activationStop == 0 && t["AW"]->activatedBy == tr->id
+              && t["AW"]->activation == Sim::TrainPlan::Activation::Departure && t["AD"]->activatedBy == tr->id
+              && t["AD"]->activation == Sim::TrainPlan::Activation::End && t["FD"]->activatedBy == tr->id
+              && t["FD"]->formedBy == t["FC"]->id && t["AS"]->activatedBy == tr->id
+              && t["AS"]->activation == Sim::TrainPlan::Activation::Start,
+          "$activate at Tr (arriving; /depart: leaving), in #dispose (its end), in #note (its start)");
+    check(t["FB"]->formedBy == t["FA"]->id && t["FB"]->formedOfVehicles && t["CA"]->createAhead == t["CB"]->id,
+          "$forms=FB: formed of FA's vehicles; $create /ahead=CB");
+    check(t["WA"]->follows.size() == 1 && t["WA"]->follows[0].train == t["WB"]->id && t["WC"]->follows.size() == 1
+              && t["WC"]->follows[0].notStarted && t["WM"]->follows.size() == 1 && t["WM"]->follows[0].maxDelay == 60
+              && t["WQ"]->follows.size() == 1 && t["WQ"]->follows[0].ownDelay == 600,
+          QString("$wait: one point where the routes join (%1); /notstarted, /maxdelay=1, /owndelay=10")
+              .arg(t["WA"]->follows.size()));
+
+    // The run, 07:50 to 08:40: what happened when, the fastest each ran, the
+    // ways each waited.
+    Sim::SimulationCore core(input);
+    std::vector<Sim::TrainEvent> events;
+    QMap<int, double> fastest;
+    QMap<int, double> fastestAfter;
+    double frontsAhead = -1.0, frontAt0801WC = -1.0, frontAt0801WA = -1.0;
+    bool fdStanding = false;
+    const auto runTo = [&](double time) {
+        while (core.time() < time - 1e-6) {
+            core.step(Sim::SimulationCore::MaxStep);
+            for (const Sim::TrainEvent &e : core.takeEvents())
+                events.push_back(e);
+            for (size_t i = 0; i < core.trains().size(); ++i) {
+                const double v = core.trains()[i].speed;
+                fastest[int(i)] = std::max(fastest.value(int(i)), v);
+                if (core.time() > 8 * 3600 + 100)
+                    fastestAfter[int(i)] = std::max(fastestAfter.value(int(i)), v);
+            }
+        }
+    };
+    const auto when = [&](const QString &train, Sim::TrainEvent::Kind kind, int index = -2) {
+        for (const Sim::TrainEvent &e : events)
+            if (e.train == t[train]->id && e.kind == kind && (index == -2 || e.index == index))
+                return e.time;
+        return -1.0;
+    };
+    const auto waitedFor = [&](const QString &train, Sim::WaitFor how) {
+        for (const Sim::TrainEvent &e : events)
+            if (e.train == t[train]->id && e.kind == Sim::TrainEvent::Blocked && e.waitFor == how)
+                return true;
+        return false;
+    };
+    runTo(7 * 3600 + 59 * 60 + 30);
+    frontsAhead = core.trains()[size_t(t["CA"]->id)].front - core.trains()[size_t(t["CB"]->id)].front;
+    check(std::fabs(frontsAhead - 42.5) < 0.01 && core.trains()[size_t(t["CA"]->id)].status == Sim::TrainStatus::Stopped,
+          QString("$create /ahead=CB: CA put on its track 2.5 m ahead of CB's front (%1 m between the fronts)")
+              .arg(frontsAhead, 0, 'f', 1));
+    runTo(8 * 3600 + 60);
+    frontAt0801WC = core.trains()[size_t(t["WC"]->id)].front;
+    frontAt0801WA = core.trains()[size_t(t["WA"]->id)].front;
+    runTo(8 * 3600 + 4 * 60);
+    fdStanding = core.trains()[size_t(t["FD"]->id)].status == Sim::TrainStatus::Stopped
+            && core.trains()[size_t(t["FD"]->id)].stoppedAt == Sim::StopKind::Created;
+    runTo(8 * 3600 + 40 * 60);
+
+    const double arrivedST = when("ST", Sim::TrainEvent::Arrived, 0), leftST = when("ST", Sim::TrainEvent::Departed, 0);
+    const double arrivedST2 = when("ST2", Sim::TrainEvent::Arrived, 0), leftST2 = when("ST2", Sim::TrainEvent::Departed, 0);
+    check(arrivedST > 0 && std::fabs(leftST - std::max(arrivedST + 60.0, 8 * 3600 + 60.0)) < 0.2 && arrivedST2 > 0
+              && std::fabs(leftST2 - std::max(arrivedST2 + 40.0, 8 * 3600 + 60.0)) < 0.2,
+          QString("$stoptime: ST stands 60 s (%1 to %2), ST2 40 s (%3 to %4), and leaves no earlier than 08:01")
+              .arg(arrivedST).arg(leftST).arg(arrivedST2).arg(leftST2));
+    const double arrivedEA = when("EA", Sim::TrainEvent::Arrived, 0), leftEA = when("EA", Sim::TrainEvent::Departed, 0);
+    check(arrivedEA > 0 && std::fabs(leftEA - (arrivedEA + 180.0)) < 0.2 && leftEA < 8 * 3600 + 600,
+          QString("08*10: EA leaves once it has stood its boarding time (180 s, at %1), before 08:10").arg(leftEA));
+    check(when("RQ", Sim::TrainEvent::Arrived, 0) > 0 && when("RQ", Sim::TrainEvent::Arrived, 1) < 0
+              && when("RQ", Sim::TrainEvent::Finished) > 0,
+          "request stops: RQ stops where needed (Rq1), passes where no one is (Rq2) and ends");
+    const double leftES = when("ES", Sim::TrainEvent::Departed, 0), endES = when("ES", Sim::TrainEvent::Finished);
+    check(leftES > 0 && endES > leftES + 30.0,
+          QString("$endstop: as Open Rails' AI, ES runs on past Es (left %1) to its path's end (%2)").arg(leftES).arg(endES));
+    check(fastest.value(t["CR"]->id) <= 10.0 + 1e-3 && fastest.value(t["CR"]->id) > 9.0
+              && fastestAfter.value(t["CD"]->id) > 15.0,
+          QString("$cruise: CR runs at 10 m/s at most (%1); CD, late more than $maxdelay=1 minute, up to $max (%2 m/s)")
+              .arg(fastest.value(t["CR"]->id), 0, 'f', 2).arg(fastestAfter.value(t["CD"]->id), 0, 'f', 2));
+    const double startedAS = when("AS", Sim::TrainEvent::Started), startedTR = when("TR", Sim::TrainEvent::Started);
+    const double atTr = when("TR", Sim::TrainEvent::Arrived, 0), leftTr = when("TR", Sim::TrainEvent::Departed, 0);
+    const double endTR = when("TR", Sim::TrainEvent::Finished);
+    check(startedTR > 0 && std::fabs(startedAS - startedTR) < 0.2 && std::fabs(when("AV", Sim::TrainEvent::Started) - atTr) < 0.2
+              && std::fabs(when("AW", Sim::TrainEvent::Started) - leftTr) < 0.2
+              && std::fabs(when("AD", Sim::TrainEvent::Started) - endTR) < 0.2 && atTr > 8 * 3600,
+          QString("$activated trains start as TR starts (AS, not at its 07:50: %1), arrives at Tr (AV, %2), leaves it "
+                  "(AW, %3), ends (AD, %4)")
+              .arg(startedAS).arg(when("AV", Sim::TrainEvent::Started)).arg(when("AW", Sim::TrainEvent::Started))
+              .arg(when("AD", Sim::TrainEvent::Started)));
+    const std::vector<Sim::Vehicle> &fb = core.vehiclesOf(t["FB"]->id);
+    const std::vector<Sim::Vehicle> &fa = t["FA"]->vehicles;
+    check(when("FB", Sim::TrainEvent::Started) >= when("FA", Sim::TrainEvent::Finished) - 1e-6 && fb.size() == 2
+              && fa.size() == 2 && fb[0].type == fa[1].type && fb[0].flip != fa[1].flip && fb[1].type == fa[0].type,
+          "$forms=FB: FB formed when FA's run ends, of FA's vehicles turned (it starts back the other way)");
+    check(std::fabs(frontAt0801WA - t["WA"]->startFront) > 1.0 && waitedFor("WA", Sim::WaitFor::Follow)
+              && when("WA", Sim::TrainEvent::Finished) > when("WB", Sim::TrainEvent::Finished),
+          "$wait=WB: WA waits where its route joins WB's until WB has passed");
+    check(waitedFor("WC", Sim::WaitFor::Follow) && when("WC", Sim::TrainEvent::Finished) > when("WD", Sim::TrainEvent::Finished)
+              && frontAt0801WC < 400.0 - 69.0,
+          "$wait=WD /notstarted: WC waits for WD before WD has started (08:03), and after");
+    check(!waitedFor("WM", Sim::WaitFor::Follow) && waitedFor("WM", Sim::WaitFor::Track)
+              && when("WM", Sim::TrainEvent::Finished) > when("WN", Sim::TrainEvent::Finished),
+          "$wait=WN /maxdelay=1: WN more than a minute late (booked at Wn 07:59), WM does not wait for it, only for "
+          "the track it holds");
+    check(fdStanding && std::fabs(when("FD", Sim::TrainEvent::Started) - when("FC", Sim::TrainEvent::Finished)) < 0.2
+              && when("FD", Sim::TrainEvent::Finished) > when("TR", Sim::TrainEvent::Finished) + 10.0,
+          QString("FD, formed of FC ($triggers) and $activated: on its track from FC's end (%1), standing past its "
+                  "08:01 start until TR ends (%2)")
+              .arg(when("FD", Sim::TrainEvent::Started)).arg(when("TR", Sim::TrainEvent::Finished)));
+    check(when("CA", Sim::TrainEvent::Finished) > 0 && when("CB", Sim::TrainEvent::Finished) > 0
+              && when("CA", Sim::TrainEvent::Finished) < when("CB", Sim::TrainEvent::Finished),
+          "CA (ahead) and CB run from 08:20 in that order and end");
+    check(!waitedFor("WQ", Sim::WaitFor::Follow) && when("WQ", Sim::TrainEvent::Departed, 0) > 0,
+          "$wait=WR /owndelay=10: WQ, 200 s late, does not wait for WR");
+
+    delete set;
+    ActLib::TimetableSets.remove(id);
+    for (int pathId = firstPath; pathId < ActLib::jestpath; ++pathId)
+        ActLib::Paths[pathId] = nullptr;
+    return done();
 }

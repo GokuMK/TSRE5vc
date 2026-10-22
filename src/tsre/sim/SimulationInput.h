@@ -100,6 +100,30 @@ struct StopPlan {
     // The platform's end just short of its exit signal
     // (`$extendplatformtosignal`): the stop centred on that.
     bool extendToSignal = false;
+    // Task 08, phase 8 (Open Rails' timetable stops): it may leave once it
+    // has stood its boarding time, before its booked departure (`*`, a
+    // request stop `x` without a time); a request stop (`x`) it stops at
+    // only when someone gets on or off (`needed`, drawn as Open Rails
+    // draws it from `$req /pu /pd`), else it passes, giving it up within
+    // RequestSight of it as Open Rails' AI does; `$endstop` read (Open
+    // Rails' AI and autopilot trains run on past it: only a player driving
+    // is told the train terminates, kept for the player's driving); its
+    // front where it stands kept there even past the exit signal
+    // (`$keepclear /rear /force`).
+    bool departsEarly = false;
+    bool request = false;
+    bool needed = true;
+    bool endStop = false;
+    bool forcePosition = false;
+    // What its place was made from (MakeInput): at the platform's end
+    // where its route goes no further (`$terminal`), the platform's end
+    // short of a signal inside it (`$restrictplatformtosignal`), so much of
+    // the platform kept clear ahead of it or behind it (`$keepclear /front
+    // /rear`, m, -1 none).
+    bool terminal = false;
+    bool restrictToSignal = false;
+    double keepClearFront = -1.0;
+    double keepClearRear = -1.0;
 };
 
 // Where a train's route joins another's again after running apart (task
@@ -113,6 +137,15 @@ struct FollowPlan {
     double at = 0.0;
     int otherPart = 0;
     double otherLeave = 0.0;
+    // Task 08, phase 8 (Open Rails' TTTrain.CheckWaitCondition): it waits
+    // only while the other train is less late than `maxDelay` plus its own
+    // delay (s, -1 always; `/maxdelay`), only while it is itself `ownDelay`
+    // later than the other (s, -1 always; `/owndelay`), and also while the
+    // other has not started or runs an earlier part of its route
+    // (`/notstarted`; without it the wait is given up then).
+    int maxDelay = -1;
+    int ownDelay = -1;
+    bool notStarted = false;
 };
 
 // A speed limit along a route part (route distances), m/s.
@@ -188,6 +221,25 @@ struct TrainPlan {
     int createTime = -1;
     int formedBy = -1;
     bool staysAtEnd = false;
+    // Task 08, phase 8: formed of that train's vehicles where its run
+    // ended, turned where it starts the other way (`$forms`, not
+    // `$triggers`' own consist); put on its track ahead of that train,
+    // 2.5 m beyond its front where its route runs on that train's way,
+    // after that train is (`$create /ahead`); started only once that train
+    // activates it (`$activated`; `activation` the activating train's
+    // `$activate`: when it starts, arrives at or leaves its stop
+    // `activationStop`, or its run ends), -1 none.
+    bool formedOfVehicles = false;
+    int createAhead = -1;
+    enum class Activation : unsigned char { Start, Arrival, Departure, End };
+    int activatedBy = -1;
+    Activation activation = Activation::Start;
+    int activationStop = -1;
+    // Its top speed while on time (`$cruise`, m/s, -1 none), up to `$max`
+    // (its maxSpeed) once it is later than `cruiseMaxDelay` (s, -1 never;
+    // `$maxdelay`).
+    float cruiseSpeed = -1.0f;
+    int cruiseMaxDelay = -1;
     // Where it waits for other trains to pass (`$follow`), in its route's
     // order.
     std::vector<FollowPlan> follows;

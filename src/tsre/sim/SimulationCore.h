@@ -169,6 +169,9 @@ public:
     // Open Rails' clearing ahead of a signal for a timetable stop with
     // `$closeupsignal` (TTTrain.keepDistanceCloseupSignalM).
     static constexpr double CloseupClearing = 7.0;
+    // How near a request stop no one needs a timetable train gives it up
+    // (Open Rails' RequestStop.visDistance, 25 m), m.
+    static constexpr double RequestSight = 25.0;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
@@ -464,6 +467,12 @@ private:
         size_t nextFollow = 0;
         // When its run ended (it reached its path's end), -1 not yet.
         double endedAt = -1.0;
+        // Task 08, phase 8: when another train activated it (`$activated`),
+        // -1 not yet; its delay as Open Rails keeps one (TTTrain.Delay: on
+        // leaving a stop with times, how late; known once it has).
+        double activatedAt = -1.0;
+        double delay = 0.0;
+        bool delayKnown = false;
         std::vector<WaitPlan> waits;
         std::vector<PassingPlan> passing;
         // Each passing path's own track: its track sections, sorted.
@@ -552,6 +561,8 @@ private:
         std::vector<Covered> rests;
     };
     std::vector<Runtime> runtime;
+    // Trains another one's `$activate` starts (task 08, phase 8).
+    std::vector<int> activated;
 
     // All trains from `now` on by one step.
     void stepOnce();
@@ -670,6 +681,18 @@ private:
     // When a train is put on its track: its start, its create time, or when
     // the train it is formed of ended (task 08); never while that one runs.
     double placeTime(int train) const;
+    // Task 08, phase 8: trains another one's `$activate` starts (when it
+    // starts, arrives at or leaves stop `stop`, or ends: `when`); a train's
+    // delay now (Open Rails: the last stop's, or more once its next stop's
+    // booked arrival has passed), false not known; its top speed now
+    // (`$cruise` while not later than `$maxdelay`); a `$forms` train's
+    // vehicles from the train it is formed of; where a `$create /ahead`
+    // train's front stands.
+    void activate(int train, TrainPlan::Activation when, int stop, double t);
+    bool delayOf(int train, double t, double &delay) const;
+    float topSpeedOf(int train, double t) const;
+    void takeFormingVehicles(int train);
+    bool aheadFront(int train, double &front) const;
     // Its run begins (at its start time, on its track): at its first station
     // when it stands there, else running.
     void beginRun(int train, double t);
