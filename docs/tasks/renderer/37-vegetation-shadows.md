@@ -330,7 +330,10 @@ false).
   the dummy depth texture is not initialized, so it must not stand in).
 - Cost, TREES forest view: 1.8 ms at 1280x800, 2.2 ms at 2123x1948 (8
   vegetation taps cost 6 and 14 ms; 4 differ from 8 at shadow edges on
-  0.6% of pixels). Memory: 36 MB, and 36 MB of caches.
+  0.6% of pixels). Memory: 36 MB, and 36 MB of caches. Prudnik's station
+  view (shapes task 11's camera, 2026-10-22): below the noise, GPU 59.6
+  against 57.8 ms at 1280x800 and 117.9 against 117.2 ms at 2123x1948
+  (means of two runs each; runs of one setting differ by 2-5 ms).
 - Look: the spruces' crowns lit evenly, their own shade light (fixed
   exposure: the big tree 7 to 9 levels brighter, the trees behind 8 to 11);
   the ground under them unchanged. With the profile's auto exposure the
