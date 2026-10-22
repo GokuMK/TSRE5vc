@@ -271,6 +271,30 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         reread.load(copy);
         check(first && !saved.modified && kept.readAll() == bytes && fingerprint(reread) == fingerprint(saved),
               "saved: the original kept once as .original, the file read again the same " + error);
+        // Phase 8: a station's command with a qualifier, in its next column
+        // (Open Rails cuts the first cell at a '/'), written there; a
+        // request stop and one it may leave early keep their marks when
+        // edited (one time, the mark in place of the ':').
+        OrTimetable marks;
+        marks.loadText(";;T1\n#path;;p1\n#consist;;c1\n#start;;05:00\nA;$keepclear /rear=50;05:10\nB;;05x20\nC;;05*30\n");
+        const QString markText = marks.toText();
+        OrTimetable marksBack;
+        marksBack.loadText(markText);
+        const bool qualifierKept = marksBack.stations.size() == 3 && marksBack.stations[0].commands.size() == 1
+                && marksBack.stations[0].commands[0].qualifier("rear") == QStringList({"50"})
+                && fingerprint(marksBack) == fingerprint(marks) && !markText.split("\r\n").value(5).section(';', 0, 0).contains('/');
+        marks.setStopTimes(0, 1, 5 * 3600 + 1500, 5 * 3600 + 1560);
+        marks.setStopTimes(0, 2, -1, 5 * 3600 + 2100);
+        OrTimetable edits;
+        edits.loadText(marks.toText());
+        const OrTimetable::Timing request = edits.trains.value(0).stops.value(1).timing;
+        const OrTimetable::Timing early = edits.trains.value(0).stops.value(2).timing;
+        check(qualifierKept && request.request && request.arrival == 5 * 3600 + 1500 && request.departure == request.arrival
+                  && early.early && early.arrival == 5 * 3600 + 2100 && marks.trains[0].stops[1].text == "05x25"
+                  && marks.trains[0].stops[2].text == "05*35",
+              QString("a station's qualified command written in its column and read back (%1); request and early stops "
+                      "edited keep their marks: %2, %3")
+                  .arg(qualifierKept).arg(marks.trains[0].stops[1].text, marks.trains[0].stops[2].text));
     }
 
     // A timetable group: its name and timetables.
@@ -314,6 +338,32 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
                   && texts.join("\n").contains("t7") && c.trains.size() == 4 && c.trains[2].pathName() == "P1"
                   && c.trains[3].pathName() == "p1",
               "the check (P1.pat and p1. the path p1, consist c2 not C2.con): " + texts.join("; "));
+        // Phase 8: what TSRE reads and does not run is reported too: a path
+        // cell's command, qualifiers of commands it runs, request stops,
+        // leaving early, passing times, #restartdelay; a station's first
+        // cell after a '/' (not read, nor by Open Rails).
+        const QString more = dir.filePath("more.timetable-or");
+        writeFile(more,
+                  ";T1;T2\n#path;p1 $endatlastsignal /reverse;p1\n#consist;c1;c1\n"
+                  "#start;05:00 $create=04:30 /ahead=T2;06:00\n#note;$follow=T2 /maxdelay=5;\n"
+                  "#dispose;$static /closeup;$triggers=T1 /runround=rr\n#restartdelay;$station /fix=10;\n"
+                  "A;05x10;05*20\nB;05P30;06:30\nC /ignored;;\n",
+                  Encoding::Utf8);
+        OrTimetable m;
+        m.load(more);
+        QStringList moreTexts;
+        for (const OrTimetableProblem &p : CheckTimetable(m, dir.filePath("route"), dir.filePath("TRAINS/CONSISTS"), nullptr))
+            moreTexts << QString("%1%2: %3").arg(p.kind == OrTimetableProblem::Unsupported ? "~" : "", p.train, p.text);
+        const QString all = moreTexts.join("\n");
+        check(moreTexts.size() == 10 && all.contains("~T1: path: $endatlastsignal is not run")
+                  && all.contains("~T1: start: $create runs, its /ahead") && all.contains("~T1: note: $follow runs, its /maxdelay")
+                  && all.contains("~T1: dispose: $static runs, its /closeup")
+                  && all.contains("~T2: dispose: $triggers runs, its /runround")
+                  && all.contains("~T1: request stops (x) at A") && all.contains("~T2: leaving early (*) at A")
+                  && all.contains("~T1: passing times (P) at B") && all.contains("~T1: #restartdelay")
+                  && all.contains("'/ignored'"),
+              "the check reports what TSRE does not run (qualifiers, x, *, P, #restartdelay, a path's command) and "
+              "a station cell cut at '/': " + moreTexts.join("; "));
         ActLib::Paths[path] = nullptr;
     }
 

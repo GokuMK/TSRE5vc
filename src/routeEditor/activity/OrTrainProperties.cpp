@@ -132,7 +132,15 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
             commands << commandsText(t.stations[s].commands);
         if (!stop.commands.isEmpty())
             commands << commandsText(stop.commands);
-        QTreeWidgetItem *item = new QTreeWidgetItem(&stops, {t.stations[s].name,
+        // A request stop's or early one's mark beside the station (one time).
+        QString station = t.stations[s].name;
+        if (stop.timing.request)
+            //% "%1 (request stop)"
+            station = qtTrId("route.editor.activity.or.train.request").arg(station);
+        else if (stop.timing.early)
+            //% "%1 (may leave early)"
+            station = qtTrId("route.editor.activity.or.train.early").arg(station);
+        QTreeWidgetItem *item = new QTreeWidgetItem(&stops, {station,
             timed ? OrTimetable::TimeText(stop.timing.arrival) : stop.timing.text,
             timed ? OrTimetable::TimeText(stop.timing.departure) : QString(), commands.join(" ")}, k);
         if (timed && !one.isStatic)
@@ -171,6 +179,9 @@ void OrTrainProperties::stopEdited(QTreeWidgetItem *item, int column) {
     const int time = text.isEmpty() ? -1 : OrTimetable::ParseTime(text);
     int arrival = column == ArrivalColumn ? time : was.arrival;
     int departure = column == DepartureColumn ? time : was.departure;
+    // A request stop or an early one has one time: either column sets it.
+    if ((was.request || was.early) && time >= 0)
+        arrival = departure = time;
     // Not a time, or both gone: as it was.
     if ((!text.isEmpty() && time < 0) || (arrival < 0 && departure < 0)) {
         filling = true;

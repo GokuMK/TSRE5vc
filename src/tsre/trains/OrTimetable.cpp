@@ -381,8 +381,11 @@ bool OrTimetable::loadText(const QString &source) {
             // and the station columns' cells after it.
             QString definition = cell(r, 0);
             const int slash = definition.indexOf('/');
-            if (slash >= 0)
+            if (slash >= 0) {
+                //% "row %1: '%2' after the '/' in the station's cell is not read (nor by Open Rails); qualifiers belong in the station's next column"
+                problems << qtTrId("timetable.read.station.slash").arg(r + 1).arg(definition.mid(slash).trimmed());
                 definition = definition.left(slash);
+            }
             for (int c = 1; c < columns && columnKind[c] == Column::StationMore; ++c)
                 if (!cell(r, c).isEmpty())
                     definition += " " + cell(r, c);
@@ -549,19 +552,38 @@ void OrTimetable::setStopTimes(int train, int stop, int arrival, int departure) 
         arrival = departure;
     if (departure < 0)
         departure = arrival;
+    // A request stop ('x') or one it may leave early ('*') has one time,
+    // written in place of the time's ':' (Open Rails reads no departure
+    // after "13x21" or "17*23"): kept so, at the arrival.
+    const bool request = s.timing.request, early = s.timing.early;
+    if (request || early)
+        departure = arrival;
     s.timing = Timing();
+    s.timing.request = request;
+    s.timing.early = early && !request;
     s.timing.arrival = arrival;
     s.timing.departure = departure;
     s.timing.text = arrival < 0 ? QString() : arrival == departure ? TimeText(arrival)
                                                                    : TimeText(arrival) + "-" + TimeText(departure);
+    if ((request || early) && arrival >= 0)
+        s.timing.text.replace(s.timing.text.indexOf(':'), 1, request ? QChar('x') : QChar('*'));
     s.text = joined(s.timing.text, commandsText(s.commands));
     modified = true;
 }
 
 QString OrTimetable::toText() const {
     QVector<QStringList> rows;
-    const auto row = [&](const QString &head, const QString &second, const std::function<QString(const Train &)> &cell) {
-        QStringList r{head, second};
+    // The stations' commands in a station continuation column after their
+    // names: Open Rails reads a station's first cell only up to a '/', its
+    // next columns whole (commands with qualifiers).
+    const bool stationColumn = std::any_of(stations.begin(), stations.end(),
+                                           [](const Station &station) { return !station.commands.isEmpty(); });
+    const auto row = [&](const QString &head, const QString &stationCommands, const QString &second,
+                         const std::function<QString(const Train &)> &cell) {
+        QStringList r{head};
+        if (stationColumn)
+            r << stationCommands;
+        r << second;
         for (const Train &train : trains)
             r << cell(train);
         rows.push_back(r);
@@ -569,28 +591,28 @@ QString OrTimetable::toText() const {
     const auto any = [&](const std::function<bool(const Train &)> &has) {
         return std::any_of(trains.begin(), trains.end(), has);
     };
-    row(QString(), "#comment", [](const Train &t) {
+    row(QString(), QString(), "#comment", [](const Train &t) {
         return t.header.isEmpty() ? (t.isStatic ? QString("$static") : t.name) : t.header;
     });
-    row("#comment", description, [](const Train &t) { return t.comment; });
-    row("#path", QString(), [](const Train &t) { return t.pathText.isEmpty() ? t.path : t.pathText; });
-    row("#consist", QString(), [](const Train &t) { return t.consist; });
+    row("#comment", QString(), description, [](const Train &t) { return t.comment; });
+    row("#path", QString(), QString(), [](const Train &t) { return t.pathText.isEmpty() ? t.path : t.pathText; });
+    row("#consist", QString(), QString(), [](const Train &t) { return t.consist; });
     // (A train static by its column's head has "$static" as its start.)
-    row("#start", QString(), [](const Train &t) {
+    row("#start", QString(), QString(), [](const Train &t) {
         return t.header.startsWith('$') && t.start == "$static" ? QString() : t.start;
     });
     if (any([](const Train &t) { return !t.notes.isEmpty(); }))
-        row("#note", QString(), [](const Train &t) { return commandsText(t.notes); });
+        row("#note", QString(), QString(), [](const Train &t) { return commandsText(t.notes); });
     if (any([](const Train &t) { return !t.dispose.isEmpty(); }))
-        row("#dispose", QString(), [](const Train &t) { return commandsText(t.dispose); });
+        row("#dispose", QString(), QString(), [](const Train &t) { return commandsText(t.dispose); });
     if (!speedRow.isEmpty() && any([](const Train &t) { return !t.speedText.isEmpty(); }))
-        row(speedRow, QString(), [](const Train &t) { return t.speedText; });
+        row(speedRow, QString(), QString(), [](const Train &t) { return t.speedText; });
     if (any([](const Train &t) { return !t.restartDelay.isEmpty(); }))
-        row("#restartdelay", QString(), [](const Train &t) { return t.restartDelay; });
+        row("#restartdelay", QString(), QString(), [](const Train &t) { return t.restartDelay; });
     if (any([](const Train &t) { return !t.briefing.isEmpty(); }))
-        row("#briefing", QString(), [](const Train &t) { return QString(t.briefing).replace("\n", "<br>"); });
+        row("#briefing", QString(), QString(), [](const Train &t) { return QString(t.briefing).replace("\n", "<br>"); });
     for (int s = 0; s < stations.size(); ++s)
-        row(joined(stations[s].name, commandsText(stations[s].commands)), QString(), [s](const Train &t) {
+        row(stations[s].name, commandsText(stations[s].commands), QString(), [s](const Train &t) {
             const Stop *stop = t.stopAt(s);
             return stop != nullptr ? stop->text : QString();
         });
@@ -650,6 +672,14 @@ bool OrTimetableCommandRun(const QString &name) {
     return run.contains(name);
 }
 
+bool OrTimetableQualifierRun(const QString &command, const QString &qualifier) {
+    // None yet (the catalogue in task 08's doc: `$create /ahead`, `$static
+    // /ahead /pool /closeup`, `$follow /maxdelay…`, `$triggers /runround…`).
+    Q_UNUSED(command);
+    Q_UNUSED(qualifier);
+    return false;
+}
+
 QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const QString &routeDirectory,
                                            const QString &consistDirectory, TDB *tdb) {
     QVector<OrTimetableProblem> out;
@@ -684,6 +714,14 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
                                                  //% "%1: $%2 is not run by TSRE yet"
                                                  qtTrId("timetable.check.command").arg(where, command.name),
                                                  OrTimetableProblem::Unsupported});
+            else
+                for (const OrTimetable::Qualifier &qualifier : command.qualifiers)
+                    if (!OrTimetableQualifierRun(command.name, qualifier.name))
+                        out.push_back(OrTimetableProblem{train.name,
+                                                         //% "%1: $%2 runs, its /%3 is not run by TSRE yet"
+                                                         qtTrId("timetable.check.qualifier")
+                                                             .arg(where, command.name, qualifier.name),
+                                                         OrTimetableProblem::Unsupported});
             // (A name with ':' is another timetable's train.)
             if (referring.contains(command.name) && !command.values.isEmpty() && !command.values.first().contains(':')
                     && timetable.trainNamed(command.values.first()) < 0)
@@ -716,6 +754,8 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
         if (train.startTime < 0 && !train.isStatic)
             //% "no start time"
             out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.no.start")});
+        //% "path"
+        checkCommands(train, OrTimetable::Commands(afterCommands(train.pathText)), qtTrId("timetable.check.where.path"));
         //% "start"
         checkCommands(train, train.startCommands, qtTrId("timetable.check.where.start"));
         //% "note"
@@ -726,6 +766,37 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
         checkCommands(train, train.speedCommands, qtTrId("timetable.check.where.speed"));
         for (const OrTimetable::Stop &stop : train.stops)
             checkCommands(train, stop.commands, timetable.stations[stop.station].name);
+        // The cell notations and the row TSRE reads but does not run: one
+        // line a kind, its stations.
+        QStringList requests, early, passing;
+        for (const OrTimetable::Stop &stop : train.stops) {
+            const QString &station = timetable.stations[stop.station].name;
+            if (stop.timing.request)
+                requests << station;
+            else if (stop.timing.early)
+                early << station;
+            if (stop.timing.passing >= 0)
+                passing << station;
+        }
+        if (!requests.isEmpty())
+            out.push_back(OrTimetableProblem{train.name,
+                                             //% "request stops (x) at %1 are not run by TSRE yet: it stops there always"
+                                             qtTrId("timetable.check.request").arg(requests.join(", ")),
+                                             OrTimetableProblem::Unsupported});
+        if (!early.isEmpty())
+            out.push_back(OrTimetableProblem{train.name,
+                                             //% "leaving early (*) at %1 is not run by TSRE yet: it leaves at its time"
+                                             qtTrId("timetable.check.early").arg(early.join(", ")),
+                                             OrTimetableProblem::Unsupported});
+        if (!passing.isEmpty())
+            out.push_back(OrTimetableProblem{train.name,
+                                             //% "passing times (P) at %1: no stops, as in Open Rails; TSRE does not use the times yet"
+                                             qtTrId("timetable.check.passing").arg(passing.join(", ")),
+                                             OrTimetableProblem::Unsupported});
+        if (!train.restartDelay.trimmed().isEmpty())
+            out.push_back(OrTimetableProblem{train.name,
+                                             //% "#restartdelay is not run by TSRE yet: no random restart delays"
+                                             qtTrId("timetable.check.restartdelay"), OrTimetableProblem::Unsupported});
     }
     for (const OrTimetable::Station &station : timetable.stations)
         for (const OrTimetable::Command &command : station.commands)
@@ -734,5 +805,12 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
                                                  //% "station %1: $%2 is not run by TSRE yet"
                                                  qtTrId("timetable.check.station.command").arg(station.name, command.name),
                                                  OrTimetableProblem::Unsupported});
+            else
+                for (const OrTimetable::Qualifier &qualifier : command.qualifiers)
+                    if (!OrTimetableQualifierRun(command.name, qualifier.name))
+                        out.push_back(OrTimetableProblem{QString(),
+                                                         qtTrId("timetable.check.qualifier")
+                                                             .arg(station.name, command.name, qualifier.name),
+                                                         OrTimetableProblem::Unsupported});
     return out;
 }

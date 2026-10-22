@@ -14939,123 +14939,159 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>row %1: %2 is not a row Open Rails knows (skipped)</source>
         <translation>wiersz %1: %2 nie jest wierszem znanym Open Rails (pominięty)</translation>
     </message>
+    <message id="timetable.read.station.slash">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="386"/>
+        <source>row %1: &apos;%2&apos; after the &apos;/&apos; in the station&apos;s cell is not read (nor by Open Rails); qualifiers belong in the station&apos;s next column</source>
+        <translation>wiersz %1: &apos;%2&apos; po &apos;/&apos; w komórce stacji nie jest czytane (ani przez Open Rails); kwalifikatory należą do następnej kolumny stacji</translation>
+    </message>
     <message id="timetable.read.station.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="397"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="400"/>
         <source>row %1: station %2 again (Open Rails matches stations by name)</source>
         <translation>wiersz %1: stacja %2 ponownie (Open Rails dopasowuje stacje po nazwie)</translation>
     </message>
     <message id="timetable.read.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="406"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="409"/>
         <source>no #path row</source>
         <translation>brak wiersza #path</translation>
     </message>
     <message id="timetable.read.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="409"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="412"/>
         <source>no #consist row</source>
         <translation>brak wiersza #consist</translation>
     </message>
     <message id="timetable.read.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="412"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="415"/>
         <source>no #start row</source>
         <translation>brak wiersza #start</translation>
     </message>
     <message id="timetable.read.train.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="440"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="443"/>
         <source>column %1: train %2 again (names must be unique)</source>
         <translation>kolumna %1: pociąg %2 ponownie (nazwy muszą być unikalne)</translation>
     </message>
     <message id="timetable.read.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="456"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="459"/>
         <source>train %1: start %2 is not a time</source>
         <translation>pociąg %1: start %2 nie jest godziną</translation>
     </message>
     <message id="timetable.read.timing">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="502"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="505"/>
         <source>train %1 at %2: %3 is not a timing</source>
         <translation>pociąg %1 na %2: %3 nie jest czasem</translation>
     </message>
     <message id="timetable.save.original">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="609"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="631"/>
         <source>The original %1 could not be kept as %2.</source>
         <translation>Nie udało się zachować oryginału %1 jako %2.</translation>
     </message>
     <message id="timetable.save.unwritable">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="616"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="638"/>
         <source>%1 could not be written.</source>
         <translation>Nie udało się zapisać %1.</translation>
     </message>
     <message id="timetable.check.station">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="669"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="699"/>
         <source>station %1: no platform of the route has it</source>
         <translation>stacja %1: żaden peron trasy jej nie ma</translation>
     </message>
     <message id="timetable.check.command.text">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="681"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="711"/>
         <source>%1: &apos;$%2&apos; is no command; a timing must come before the commands</source>
         <translation>%1: &apos;$%2&apos; nie jest poleceniem; czas musi być przed poleceniami</translation>
     </message>
     <message id="timetable.check.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="685"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="715"/>
         <source>%1: $%2 is not run by TSRE yet</source>
         <translation>%1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
+    <message id="timetable.check.qualifier">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="722"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="812"/>
+        <source>%1: $%2 runs, its /%3 is not run by TSRE yet</source>
+        <translation>%1: $%2 jest wykonywane, jego /%3 jeszcze nie przez TSRE</translation>
+    </message>
     <message id="timetable.check.reference">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="692"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="730"/>
         <source>%1: $%2 names %3, not a train of the timetable</source>
         <translation>%1: $%2 wskazuje %3, nie pociąg tego rozkładu</translation>
     </message>
     <message id="timetable.check.ahead">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="698"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="736"/>
         <source>%1: /ahead=%2 is not a train of the timetable</source>
         <translation>%1: /ahead=%2 nie jest pociągiem tego rozkładu</translation>
     </message>
     <message id="timetable.check.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="704"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="742"/>
         <source>no path</source>
         <translation>brak ścieżki</translation>
     </message>
     <message id="timetable.check.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="707"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="745"/>
         <source>path %1 is not in the route&apos;s PATHS</source>
         <translation>ścieżki %1 nie ma w PATHS trasy</translation>
     </message>
     <message id="timetable.check.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="711"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="749"/>
         <source>no consist</source>
         <translation>brak składu</translation>
     </message>
     <message id="timetable.check.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="715"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="753"/>
         <source>consist %1 is not there</source>
         <translation>składu %1 nie ma</translation>
     </message>
     <message id="timetable.check.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="718"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="756"/>
         <source>no start time</source>
         <translation>brak godziny startu</translation>
     </message>
+    <message id="timetable.check.where.path">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="758"/>
+        <source>path</source>
+        <translation>ścieżka</translation>
+    </message>
     <message id="timetable.check.where.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="720"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="760"/>
         <source>start</source>
         <translation>start</translation>
     </message>
     <message id="timetable.check.where.note">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="722"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="762"/>
         <source>note</source>
         <translation>uwagi</translation>
     </message>
     <message id="timetable.check.where.dispose">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="724"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="764"/>
         <source>dispose</source>
         <translation>koniec biegu</translation>
     </message>
     <message id="timetable.check.where.speed">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="726"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="766"/>
         <source>speed</source>
         <translation>prędkość</translation>
     </message>
+    <message id="timetable.check.request">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="784"/>
+        <source>request stops (x) at %1 are not run by TSRE yet: it stops there always</source>
+        <translation>postoje na żądanie (x) w %1 nie są jeszcze wykonywane przez TSRE: pociąg zawsze tam staje</translation>
+    </message>
+    <message id="timetable.check.early">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="789"/>
+        <source>leaving early (*) at %1 is not run by TSRE yet: it leaves at its time</source>
+        <translation>wcześniejszy odjazd (*) w %1 nie jest jeszcze wykonywany przez TSRE: pociąg odjeżdża o swojej godzinie</translation>
+    </message>
+    <message id="timetable.check.passing">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="794"/>
+        <source>passing times (P) at %1: no stops, as in Open Rails; TSRE does not use the times yet</source>
+        <translation>czasy przejazdu (P) w %1: bez postojów, jak w Open Rails; TSRE jeszcze nie używa tych czasów</translation>
+    </message>
+    <message id="timetable.check.restartdelay">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="799"/>
+        <source>#restartdelay is not run by TSRE yet: no random restart delays</source>
+        <translation>#restartdelay nie jest jeszcze wykonywane przez TSRE: bez losowych opóźnień ruszania</translation>
+    </message>
     <message id="timetable.check.station.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="735"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="806"/>
         <source>station %1: $%2 is not run by TSRE yet</source>
         <translation>stacja %1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
@@ -15128,6 +15164,16 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="117"/>
         <source>In %1.</source>
         <translation>W %1.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.request">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="139"/>
+        <source>%1 (request stop)</source>
+        <translation>%1 (postój na żądanie)</translation>
+    </message>
+    <message id="route.editor.activity.or.train.early">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="142"/>
+        <source>%1 (may leave early)</source>
+        <translation>%1 (może odjechać wcześniej)</translation>
     </message>
 </context>
 </TS>

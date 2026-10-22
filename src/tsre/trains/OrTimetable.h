@@ -107,7 +107,9 @@ public:
     // Task 08, phase 6: the timetable written from the model in TSRE's own
     // layout (the user: not the read file's cells kept), as Open Rails
     // reads it: ';' between cells; the trains' columns after a #comment
-    // column holding the description; #comment, #path, #consist, #start,
+    // column holding the description (and, where a station has commands,
+    // a station column before it for them: Open Rails reads a station's
+    // first cell only up to a '/'); #comment, #path, #consist, #start,
     // then #note, #dispose, the speed row, #restartdelay, #briefing where a
     // train has them; the stations in their order. Saved as UTF-8 with a
     // byte order mark; the first time it overwrites a file TSRE did not
@@ -115,7 +117,9 @@ public:
     QString toText() const;
     bool save(QString *error = nullptr);
     // Edits (the Timetable window): a train's start time, a stop's times
-    // (arrival and departure, -1 none); its cell's text made again.
+    // (arrival and departure, -1 none; a request stop or one it may leave
+    // early keeps its mark and one time, the arrival); its cell's text
+    // made again.
     void setStartTime(int train, int time);
     void setStopTimes(int train, int stop, int arrival, int departure);
     // "HH:mm", or "HH:mm:ss" with seconds.
@@ -185,5 +189,7 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
 
 // The commands TSRE runs (those PRUDNIK's timetable uses, the user's
 // decision of 2026-10-21, with `$waitsignal` and `$next`); the others are
-// read and reported.
+// read and reported. Of a command it runs, the qualifiers it runs (none
+// yet); the others are reported too (task 08's catalogue).
 bool OrTimetableCommandRun(const QString &name);
+bool OrTimetableQualifierRun(const QString &command, const QString &qualifier);

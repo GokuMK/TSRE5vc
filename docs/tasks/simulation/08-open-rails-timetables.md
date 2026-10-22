@@ -1,7 +1,9 @@
 # Task simulation 08: Open Rails timetables
 
 Status: designed 2026-10-21 with the user's ideas (part C), the
-decisions at the end of this document; phases 1 to 7 done.
+decisions at the end of this document; phases 1 to 7 done; reopened
+2026-10-22 for phase 8 (the user: commands catalogued, everything not run
+reported, editing commands).
 
 ## Progress
 
@@ -354,6 +356,34 @@ decisions at the end of this document; phases 1 to 7 done.
   when that train leaves, the train behind goes on (without the fix it
   stands for good). Every MSTS route's results and events unchanged.
 
+**Phase 8, the commands (reopened 2026-10-22).**
+- The catalogue: "Open Rails' commands in TSRE" below, from the manual
+  (`unstable`) and the code: 49 commands, 16 run (four with qualifiers
+  not run), 33 reported; the rows and cell notations.
+- Check Activity reports everything TSRE reads and does not run, as
+  warnings: besides the commands, a command's qualifiers TSRE does not run
+  ("$create runs, its /ahead is not run by TSRE yet"; none run yet,
+  `OrTimetableQualifierRun`), a path cell's commands
+  (`$endatlastsignal`), request stops (x), leaving early (*) and passing
+  times (P), a line a kind and train with its stations, and
+  `#restartdelay`. A station's first cell cut at a '/' is a reading
+  problem (Open Rails reads it only up to there).
+- Fixed: a request stop or one it may leave early lost its mark when its
+  time was edited; it keeps it and its one time (`13x25`, `17*35`, the
+  only forms Open Rails reads), and the Timetable window shows the mark
+  beside the station ("(request stop)", "(may leave early)"), either time
+  column setting the one time.
+- Fixed: the stations' commands were written in their first cell, where
+  Open Rails (and TSRE) cut a qualifier at its '/'
+  (`$keepclear /rear=50`); they are written in a station column after the
+  names (a blank head), which Open Rails reads whole. PRUDNIK's copy has
+  it (its stations' `$hold`) and loads in Open Rails with the original's
+  messages.
+- **Fixtures:** `timetable-read` (29): a timetable using each of those
+  reported (ten reports); a station's qualified command written in its
+  column and read back; request and early stops edited keeping their
+  marks.
+
 ## Why
 
 Open Rails' timetable mode is the other way, beside activities, to define
@@ -445,6 +475,117 @@ turntables 4700).
   past it; after midnight at the day's start unless `$next`.
 - **Running it:** `RunActivity -start -timetable <file> <train> <day>
   <season> <weather>`.
+
+## Open Rails' commands in TSRE (catalogue, phase 8)
+
+Every row, cell notation, command and qualifier of Open Rails' timetable
+chapter (the manual, `unstable`, 2026-10-22, and the code where it has
+more), and what TSRE does with it. **Runs**: the simulation does what Open
+Rails does. **Partly**: runs, the qualifiers named not (reported).
+**Reported**: read, kept when saved, Check Activity warns that TSRE does not
+run it yet; the simulation goes on without it. **As Open Rails**: nothing to
+run (Open Rails ignores it too, or it is Open Rails' own cache).
+
+**Rows, columns, cells**
+
+| Item | TSRE | Later |
+| --- | --- | --- |
+| `#comment` rows and columns, the description | As Open Rails (read, shown, written) | |
+| Blank first cell or head (continuation rows and columns) | Runs (merged into their cells; a station's continuation column for its commands) | |
+| `#path` | Runs | |
+| `#path /binary` | As Open Rails (its binary path cache; TSRE reads the `.pat`) | |
+| Path cell `$endatlastsignal [/reverse]` (code only) | Reported | signals |
+| `#consist` with `+`, `$reverse`, `<…>` | Runs | |
+| `#start` time | Runs | |
+| `#note`, `#dispose`, `#speed`/`#speedkph`/`#speedmph` | Runs (their commands below) | |
+| `#restartdelay` and its delay commands | Reported (no random restart delays) | delays |
+| `#briefing` | Read, shown, written | |
+| `#direction` | As Open Rails ("no longer used") | |
+| `HH:mm`, `HH:mm-HH:mm`, with seconds | Runs | |
+| `x` request stop (`13x21`, `x`) | Reported (stops always) | request stops |
+| `*` may leave early (`17*23`, `*`) | Reported (leaves at its time) | |
+| `P` passing time (`14P53`) | No stop, as Open Rails; the time (Open Rails' delay there) reported | delays |
+
+**Start commands** (`#start`)
+
+| Command | TSRE | Later |
+| --- | --- | --- |
+| `$create[=time]` | Runs | |
+| `$create /ahead=<train>` | Partly: `/ahead` reported | |
+| `$next` | Runs | |
+| `$static` | Runs | |
+| `$static /ahead=<train> /pool=<pool>` | Partly: qualifiers reported | pools |
+| `$pool=<pool> /direction /set_consist_name` | Reported | pools |
+| `$activated` | Reported | |
+
+**Note commands** (`#note`; timing commands there too)
+
+| Command | TSRE | Later |
+| --- | --- | --- |
+| `$acc`, `$dec` | Runs | |
+| `$doo` | Reported | sound |
+| `$forcereversal` | Reported | |
+
+**Speed and train commands** (the speed row)
+
+| Command | TSRE | Later |
+| --- | --- | --- |
+| `$max` | Runs | |
+| `$cruise`, `$maxdelay`, `$creep` | Reported | |
+| `$attach`, `$detach`, `$movingtable` (speeds) | Reported | shunting, turntables |
+| `$gradient /perc /speed` | Reported | driving |
+
+**Station commands** (a station's row, or a train's cell there)
+
+| Command | TSRE | Later |
+| --- | --- | --- |
+| `$hold`, `$nohold`, `$forcehold` | Runs | |
+| `$forcewait`, `$nowaitsignal`, `$waitsignal` | Runs | |
+| `$closeupsignal`, `$extendplatformtosignal` | Runs | |
+| `$terminal`, `$restrictplatformtosignal`, `$stoptime=n`, `$endstop` | Reported | |
+| `$closeup`, `$keepclear /rear /front /force` | Reported | |
+
+**Timing commands** (a train's cell, or `#note`)
+
+| Command | TSRE | Later |
+| --- | --- | --- |
+| `$follow=<train>` | Runs | |
+| `$follow /maxdelay /notstarted /owndelay /trigger /endtrigger` | Partly: qualifiers reported | |
+| `$wait=<train>` and the same qualifiers, `/atstart` | Reported | |
+| `$connect=<train> /maxdelay /hold` | Reported | |
+| `$waitany=<path> /both /opposite` | Reported | |
+| `$callon`, `$noclaim` | Reported | |
+| `$attach=<train> /firstin /setback` | Reported | shunting |
+| `$detach` (`/power`, `/leadingpower`, `/allleadingpower`, `/trailingpower`, `/alltrailingpower`, `/nonpower`, `/units`, `/consist`; `/forms`, `/static`) | Reported | shunting |
+| `$pickup=<train> /static` | Reported | shunting |
+| `$transfer=<train> /static` (`/give`, `/take`, `/keep`, `/leave`; `/onepower`, `/allpower`, `/nonpower`, `/units`, `/consist`) | Reported | shunting |
+| `$activate=<train>` | Reported | |
+| `$req /pu /pd /laststop /approach /message /sound` | Reported | request stops |
+
+**Dispose commands** (`#dispose`)
+
+| Command | TSRE | Later |
+| --- | --- | --- |
+| `$triggers=<train>` | Runs | |
+| `$triggers` with `$forms`' qualifiers | Partly: qualifiers reported | shunting |
+| `$static` | Runs | |
+| `$static /closeup` | Partly: `/closeup` reported | |
+| `$forms=<train> /runround /rrtime /setstop /atstation /closeup /speed` | Reported (the train ends) | shunting |
+| `$stable /out_path /out_time /in_path /in_time /closeup /callon /runround /rrtime /rrpos /speed /name /static /forms /triggers` | Reported (the train ends) | shunting |
+| `$pool=<pool> /direction` | Reported (the train ends) | pools |
+| `$attach`, `$detach`, `$pickup`, `$transfer`, `$activate` | Reported | shunting |
+
+**Other files**
+
+| File | TSRE | Later |
+| --- | --- | --- |
+| `.timetablelist-or` (a group) | Runs | |
+| `.pool-or`, `.turntable-or` | Not read | pools, turntables |
+| `.weather-or` (chosen when Open Rails starts) | Not read | weather |
+
+In all: 49 commands (48 in the manual, `$endatlastsignal` in the code);
+TSRE runs 16, four of them with qualifiers it reports; 33 are reported.
+Of the cell notations, `x`, `*` and `P`'s time are reported.
 
 ## Design (proposal)
 
@@ -557,6 +698,11 @@ arrivals and departures at their stations, the formed and static trains.
 6. **Saving** a timetable in TSRE's own layout, and what the Timetable
    window edits for one.
 7. **Verified** (part D), Open Rails on PRUDNIK.
+8. **The commands catalogued** (reopened 2026-10-22, the user): every
+   Open Rails command, qualifier and notation with what TSRE does with
+   it; Check Activity reporting everything TSRE does not run; stops'
+   marks kept when edited; then editing a train's, a stop's and a
+   station's commands.
 
 ## Decisions (user, 2026-10-21)
 
@@ -576,6 +722,11 @@ arrivals and departures at their stations, the formed and static trains.
   content-case policy; exceptions marked to be fixed); the user converts
   the content (`--contentcase`), which does not read Open Rails
   timetables, so tests use a copy with its names matching.
+- 2026-10-22, after phase 7: reopened. A catalogue of every command and
+  what TSRE does with it; everything read but not run reported (the
+  qualifiers and cell notations too); a request or early stop's mark kept
+  when edited; then the commands editable (unsupported ones kept and
+  marked). Which further commands to run: the user, from the catalogue.
 
 ## Questions for the user (as asked)
 
