@@ -166,7 +166,7 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         //% "Follow"
         qtTrId("route.editor.activity.timetable.window.button.follow"));
     bFollow->setToolTip(
-        //% "The camera follows the chosen train while the simulation runs, at its cab's window. A train that has not started yet: the simulation runs as fast as possible to just before its start (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back."
+        //% "The camera follows the chosen train while the simulation runs, at its cab's window. A train not on the track yet: the simulation runs as fast as possible until it is put there (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back."
         qtTrId("route.editor.activity.timetable.window.button.follow.tooltip"));
     bFollow->setCheckable(true);
     bFollow->setObjectName("timetableFollow");

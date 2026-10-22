@@ -98,13 +98,13 @@ public:
     void choose(int train);
     int followed() const { return followedTrain; }
     void follow(int train);
-    // Follows a train from just before its start (the user, 2026-10-22):
-    // where the simulation is earlier than FollowLead before the train's
-    // start time, as fast as possible to it, then on at the speed; the
-    // camera follows it once it is on the track. False when there is no
-    // such train or the run cannot be asked.
+    // Follows a train from when it is put on the track (the user,
+    // 2026-10-22): one not there yet, the simulation as fast as possible
+    // until the step it is (created, ready to start; FollowWithin after
+    // its start time at the latest), then on at the speed. False when
+    // there is no such train or the run cannot be asked.
     bool followFromStart(int train, QString *error = nullptr);
-    static constexpr double FollowLead = 30.0;
+    static constexpr double FollowWithin = 7200.0;
     // A train's centre and the way it heads (unit, in the camera's space):
     // tile x, tile z (the camera's), x, y, z; its length; false when not on
     // the track.
@@ -215,6 +215,7 @@ private:
     unsigned long long runToSeq = 0;
     double runToTarget = 0.0;
     bool runToThenRun = false;
+    int runToTrain = -1;
     int chosenTrain = -1;
     int followedTrain = -1;
     qint64 inputMs = 0;
@@ -249,7 +250,8 @@ private:
     void sendStart(std::shared_ptr<const SimulationInput> input);
     // To `target` seconds (after midnight of the start day) as fast as
     // possible, from the start again when it is behind.
-    bool runToTime(double target, bool thenRun, QString *error);
+    // With `untilOnTrack`: stopped already when that train is on the track.
+    bool runToTime(double target, bool thenRun, QString *error, int untilOnTrack = -1);
 
     // The trains' consists (consistOf), placed from `placedFrame`; whether
     // each was heard last time.

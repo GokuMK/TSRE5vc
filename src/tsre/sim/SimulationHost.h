@@ -49,8 +49,10 @@ public:
     // Simulated seconds a second; 0 as fast as possible.
     void setSpeed(double speed, unsigned long long seq);
     // As fast as possible up to `time` (seconds after midnight), then
-    // paused there, or running on at the speed when `thenRun`.
-    void runTo(double time, unsigned long long seq, bool thenRun = false);
+    // paused there, or running on at the speed when `thenRun`; with
+    // `untilOnTrack`, already at the first step that train is on the track
+    // (Follow, the user's 2026-10-22).
+    void runTo(double time, unsigned long long seq, bool thenRun = false, int untilOnTrack = -1);
     // The core gone; the host is handed back to `owner`'s thread and its
     // own thread quits.
     void stop(unsigned long long seq, QThread *owner);
@@ -63,6 +65,9 @@ private:
     double speed = 1.0;
     double target = 0.0;
     bool runOn = false;
+    int untilTrain = -1;
+    // That train is on the track (placed, or gone at its end).
+    bool trainPlaced(int train) const;
     unsigned long long acknowledged = 0;
     // The rate reached: simulated seconds over wall time since `rateWall`.
     QElapsedTimer rateWall;
@@ -75,7 +80,8 @@ private:
     size_t droppedEvents = 0;
 
     void tick();
-    // Steps up to `seconds`, until the batch's time is out.
+    // Steps up to `seconds`, until the batch's time is out (or the train
+    // waited for is on the track).
     void stepFor(double seconds, const QElapsedTimer &batch);
     // The timer as the mode wants it.
     void schedule();

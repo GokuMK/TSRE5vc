@@ -782,8 +782,8 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
 
     // Follow before the train starts (the user, 2026-10-22): no
     // simulation; the AI's S2 (08:01) chosen, Follow starts one, runs as
-    // fast as possible to 30 s before its start, then on at the speed,
-    // following it.
+    // fast as possible until S2 is put on the track (its start time), then
+    // on at the speed, following it.
     {
         int s2Row = -1;
         for (int i = 0; i < rows->topLevelItemCount(); ++i)
@@ -801,12 +801,13 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         pump();
         const int s2 = simulation->exists() ? simulation->trainOf(false, 0) : -1;
         FramePointer f2 = waitFor(frame, [&](const Sim::SimulationFrame &x) {
-                return x.time >= 8 * 3600 + 30 - 0.5 && x.mode == Sim::RunMode::Running; }, 10000, pump);
+                return x.mode == Sim::RunMode::Running && s2 >= 0 && size_t(s2) < x.trains.size()
+                        && !x.trains[size_t(s2)].fronts.empty(); }, 10000, pump);
         pump();
         check(offered && f2 && s2 >= 0 && simulation->followed() == s2 && follow->isChecked() && simulation->runs()
-                  && f2->time < 8 * 3600 + 60,
-              QString("Follow before S2 starts: a simulation run to %1 (30 s before 08:01), on at the speed, S2 followed")
-                  .arg(f2 ? f2->time : -1.0));
+                  && f2->time >= 8 * 3600 + 60 - 0.2 && f2->time < 8 * 3600 + 65,
+              QString("Follow before S2 starts: a simulation run until S2 is on the track (%1, its start 08:01), on at "
+                      "the speed, S2 followed").arg(f2 ? f2->time : -1.0, 0, 'f', 1));
         stop->click();
         pump();
         check(!simulation->exists() && !follow->isChecked(), "Stop: Follow off");

@@ -256,7 +256,7 @@ bool SimulationController::runTo(Activity *activity, int timeOfDay, QString *err
     return runToTime(target, false, error);
 }
 
-bool SimulationController::runToTime(double target, bool thenRun, QString *error) {
+bool SimulationController::runToTime(double target, bool thenRun, QString *error, int untilOnTrack) {
     if (!exists())
         return false;
     if (target < frame()->time) {
@@ -278,8 +278,9 @@ bool SimulationController::runToTime(double target, bool thenRun, QString *error
     runToSeq = seq;
     runToTarget = target;
     runToThenRun = thenRun;
+    runToTrain = untilOnTrack;
     SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, target, seq, thenRun] { h->runTo(target, seq, thenRun); },
+    QMetaObject::invokeMethod(host, [h, target, seq, thenRun, untilOnTrack] { h->runTo(target, seq, thenRun, untilOnTrack); },
                               Qt::QueuedConnection);
     emit stateChanged();
     return true;
@@ -430,7 +431,7 @@ void SimulationController::poll() {
         // The host stops at the first whole step at or after the target.
         const bool passed = latest->acknowledged == runToSeq && latest->time > runToTarget + SimulationCore::MaxStep;
         runToSeq = 0;
-        if (passed && runToTime(runToTarget, runToThenRun, nullptr))
+        if (passed && runToTime(runToTarget, runToThenRun, nullptr, runToTrain))
             return;
     }
     // Every command taken: the host's mode is the one (a run to a time ends
@@ -556,10 +557,17 @@ bool SimulationController::followFromStart(int train, QString *error) {
     if (!exists() || in == nullptr || train < 0 || size_t(train) >= in->trains.size())
         return false;
     follow(train);
-    const double target = in->trains[size_t(train)].startTime - FollowLead;
-    if (frame()->time >= target)
+    // On the track already (or gone at its end): followed as it is. Not
+    // yet: as fast as possible until the step it is put on the track
+    // (created, ready to start), FollowWithin after its start time at the
+    // latest (a train that never comes: no run for ever).
+    const std::shared_ptr<const SimulationFrame> now = frame();
+    if (size_t(train) < now->trains.size() && now->trains[size_t(train)].state.status != TrainStatus::Waiting)
         return true;
-    return runToTime(target, true, error);
+    const double latest = in->trains[size_t(train)].startTime + FollowWithin;
+    if (now->time >= latest)
+        return true;
+    return runToTime(latest, true, error, train);
 }
 
 bool SimulationController::trainPlace(int train, int *tile, float *position, float *heading, float *length) const {

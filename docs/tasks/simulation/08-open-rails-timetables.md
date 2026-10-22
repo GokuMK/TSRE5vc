@@ -506,11 +506,14 @@ reported, editing commands).
   "All stations": dropped.)
 - Follow before the train starts (the user: following a train that
   starts at 15:00 took many clicks, easy to get wrong): Follow on a train
-  that has not started runs the simulation as fast as possible to 30 s
-  before its start time (starting one where there is none), then on at
-  the chosen speed, the camera on the train once it is on the track
-  (`SimulationController::followFromStart`); choosing another train while
-  following does the same for it. MSTS activities too.
+  not yet on the track runs the simulation as fast as possible until the
+  step it is put there (created, ready to start: the host's run to a time
+  stops at it; two hours after its start time at the latest), starting
+  one where there is none, then on at the chosen speed, the camera in its
+  cab (`SimulationController::followFromStart`); choosing another train
+  while following does the same for it. MSTS activities too. (A first
+  version ran to 30 s before its start time: the train was not there yet,
+  the camera could not ride it.)
 - **Fixtures:** `timetable-ui` (33): the grid; the note's picker (its
   commands ticked, a qualifier changed, a command ticked, OK, undo), a
   stop's "…" (`$keepclear /rear=50`), the station's picker without

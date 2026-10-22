@@ -144,10 +144,16 @@ void SimulationHost::setSpeed(double value, unsigned long long seq) {
     publish();
 }
 
-void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun) {
+bool SimulationHost::trainPlaced(int train) const {
+    return core != nullptr && train >= 0 && size_t(train) < core->trains().size()
+            && core->trains()[size_t(train)].status != TrainStatus::Waiting;
+}
+
+void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun, int untilOnTrack) {
     acknowledged = seq;
     runOn = thenRun;
-    if (core != nullptr && time > core->time()) {
+    untilTrain = untilOnTrack;
+    if (core != nullptr && time > core->time() && !(untilTrain >= 0 && trainPlaced(untilTrain))) {
         // The simulation steps whole steps: to the first at or after it.
         target = core->onStep(time);
         mode = RunMode::RunningTo;
@@ -192,6 +198,8 @@ void SimulationHost::stepFor(double seconds, const QElapsedTimer &batch) {
         const double h = std::min(SimulationCore::MaxStep, seconds);
         core->step(h);
         seconds -= h;
+        if (mode == RunMode::RunningTo && untilTrain >= 0 && trainPlaced(untilTrain))
+            break;
     }
 }
 
@@ -209,8 +217,9 @@ void SimulationHost::tick() {
         stepFor(speed > 0.0 ? elapsed * speed : 1e12, batch);
     } else if (mode == RunMode::RunningTo) {
         stepFor(target - core->time(), batch);
-        if (core->time() >= target - 1e-6) {
+        if (core->time() >= target - 1e-6 || (untilTrain >= 0 && trainPlaced(untilTrain))) {
             mode = runOn ? RunMode::Running : RunMode::Paused;
+            untilTrain = -1;
             schedule();
         }
     }
