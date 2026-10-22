@@ -1188,6 +1188,43 @@ Engine ( Test
                   .arg(behind.front + 69.0));
         held.step(900.0);
         check(held.trains()[1].front > 1000.0 - 69.0, "it goes on when the block is clear");
+        // A signal asked while another train is in its block, beyond those
+        // the train may clear once it has passed the one before (task 08,
+        // phase 7: Jasiona's 149 behind 150): asked again when its block
+        // empties. Open Rails mode; signals at 500 m (clearing two), 1000 m
+        // (not counted, clearing none beyond) and 1001 m, the train ahead
+        // standing past 1001 m for 5 minutes.
+        {
+            TestTrack::Layout pair;
+            pair.end(1, 10);
+            pair.track(10, 1, 2, 200);
+            pair.end(2, 10);
+            TestTrack::signalHead(pair, 10, 970, 500.0f, true, "Home");
+            TestTrack::signalHead(pair, 10, 971, 1000.0f, true, "Skip");
+            TestTrack::signalHead(pair, 10, 972, 1001.0f, true, "Home");
+            TestTrack::signalHead(pair, 10, 973, 1500.0f, true, "Home");
+            TDB *pairDb = &pair.db;
+            const QScopedValueRollback<TDB *> pairLive(Game::trackDB, pairDb);
+            auto pairGeometry = std::make_shared<const Sim::TrackGeometry>(pairDb);
+            auto pairNetwork = std::make_shared<const Sim::TrackNetwork>(pairDb, *pairGeometry, &signalConfig, true);
+            Sim::TrainPlan ahead = trainOn(routeOf(pairDb, {{10, 1150.0f}, {10, 1990.0f}}, 31.0), *pairNetwork, t0);
+            Sim::WaitPlan stand;
+            stand.front = 1300.0 - 1119.0;
+            stand.value = 300;
+            ahead.waits.push_back(stand);
+            Sim::SimulationCore pairCore(inputOf(pairGeometry, pairNetwork,
+                {ahead, trainOn(routeOf(pairDb, {{10, 100.0f}, {10, 1990.0f}}, 31.0), *pairNetwork, t0)}));
+            const int asked = pairNetwork->heads()[size_t(pairNetwork->headOfItem(972))].signal;
+            pairCore.step(200.0);
+            const bool askedOccupied = pairCore.cleared()[size_t(asked)] == 1 && pairCore.occupiedBlocks()[size_t(asked)]
+                    && pairCore.trains()[1].status == Sim::TrainStatus::Stopped;
+            pairCore.step(600.0);
+            check(askedOccupied && pairCore.trains()[0].status == Sim::TrainStatus::Finished
+                      && pairCore.trains()[1].status == Sim::TrainStatus::Finished,
+                  QString("a signal cleared for a train into an occupied block, beyond those it may clear later, is asked "
+                          "again when the block empties (asked into the occupied block %1; the train behind ends: %2)")
+                      .arg(askedOccupied).arg(pairCore.trains()[1].status == Sim::TrainStatus::Finished));
+        }
         // Physics driving: it creeps up to it, the last SignalCreep metres at
         // half the creep speed.
         Sim::TrainPlan creeping = trainOn(east, *lineNetwork, t0 + 120);

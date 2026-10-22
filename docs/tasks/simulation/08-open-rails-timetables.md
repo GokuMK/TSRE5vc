@@ -1,7 +1,7 @@
 # Task simulation 08: Open Rails timetables
 
 Status: designed 2026-10-21 with the user's ideas (part C), the
-decisions at the end of this document; phases 1 to 6 done.
+decisions at the end of this document; phases 1 to 7 done.
 
 ## Progress
 
@@ -137,8 +137,9 @@ decisions at the end of this document; phases 1 to 6 done.
   (one with wagons whose folder `PL-PKPC_Sggrss_MMP` OR_PSK does not
   have, three "Obserwator" trains of a WM15 without force or power,
   ET22-2033 whose Engine block is inside its Wagon block). 31 stops at
-  Gliwice and Katowice, stations the paths do not reach (Open Rails
-  skips them too).
+  Gliwice and Katowice not made (wrongly thought then not on the paths;
+  phase 7: the paths reverse inside those platforms and Open Rails stops
+  there, as TSRE now does).
 - The stuck trains: all queue behind one, 1027_EC341, at Jasiona's exit
   signal 150 (an entry signal type, USER1, that shows proceed only when
   the block signal 149 0.8 m beyond does; 149 shows RESTRICTING until a
@@ -151,7 +152,10 @@ decisions at the end of this document; phases 1 to 6 done.
   Rails run. Before the vehicles were read (driven simply, other
   timings) the same happened to 0552_R46405, and before the exit
   signals were let go (above) to the first train on that line,
-  0446_R46401, held at the station.
+  0446_R46401, held at the station. (Phase 7 found the cause, TSRE's:
+  149 asked while the train ahead was in its block, cleared with
+  BLOCK_OCCUPIED, was not asked again once that train left; fixed, all
+  266 trains finish.)
 - **Fixtures:** `timetable-trains` (9): three lines with platforms,
   paths, a consist, a timetable of three trains and a static one: the
   path cell naming the file and one ending in '.', the run from the
@@ -286,6 +290,69 @@ decisions at the end of this document; phases 1 to 6 done.
   opens them (`ExtractPathString`), so on a case-sensitive disk it finds
   no path with capitals: the script's view of the route has each path
   also under its lower-case name (the content left as it is).
+
+**Phase 7, against Open Rails (done 2026-10-22).**
+- `scripts/orts-timetable-run.sh` runs a timetable in Open Rails (its
+  Linux build, as tasks 02 and 03 do for activities): the pre-run up to
+  the player's train's start, then the player's train on the autopilot
+  at 17 times real time with the dispatcher page sampled;
+  `scripts/orts-compare-stops.py <events> <samples> <player>` pairs the
+  trains (Open Rails numbers them in the timetable's column order, as
+  TSRE's traffic) and their stops. Open Rails on this machine ran no whole
+  day: it failed at 08:06 (`InvalidOperationException` in
+  `TrackCircuitSection.TestTrainAhead`, its timetable update) and twice
+  its watchdog stopped it (`Thread 'Loader Process' has hung`); three
+  windows were compared, 04:47-08:06, 08:19-09:03 and 18:30-20:32 (the
+  player's trains 0446_R46401, 0835_R46623, 1832_R46631).
+- **Found and fixed in TSRE:**
+  - 31 stops at Gliwice and Katowice, platforms the paths reverse inside
+    (one item before the reversal, the other beyond): Open Rails' route
+    holds the platform's section and the train stops there before
+    reversing (`CalculateStationStopPosition`, the path not through the
+    station); TSRE now stops there too, centred on the platform up to
+    the reversal (MSTS paths' platform passes unchanged).
+  - The Jasiona queue (above): a signal cleared for a train with its
+    block occupied, beyond those the train may clear later on, was not
+    asked again when the block emptied; it is now (Open Rails keeps an
+    enabled signal's request until the train passes it). All 266 running
+    trains finish; Open Rails runs the first of that queue,
+    1839_TOW_Toszek, through Jasiona as TSRE now does.
+- **The comparison:** 116 AI trains, 589 stops paired: TSRE minus Open
+  Rails a median of -22 s (a sample is 17 game seconds), 81 % within a
+  minute, 92 % within two, 14 over five minutes. The player's trains are
+  left out: on the autopilot Open Rails drives them with its full train
+  physics (`AI_PLAYERHOSTING`), not as AI, and they run faster; TSRE runs
+  every train as AI. Open Rails' names of `$static` trains with no name
+  (`S273`) have no TSRE train (TSRE writes no events for standing
+  consists).
+- **Differences left (open items):**
+  - Open Rails passes some of PRUDNIK's block signals (`PKP_BLOK_NORMAL`,
+    whose script shows CLEAR_2 only when enabled for a train and
+    RESTRICTING when not) without enabling them, so they and the signal
+    before them (`PKP_SEM_5k_BC`, RESTRICTING after a RESTRICTING one)
+    show Ms2, 25 km/h; TSRE's clearing ahead (the same counts,
+    `SignalNumClearAhead` 4) enables them and shows CLEAR_2 (e.g.
+    0503_TLK48511 gains 4 minutes on Open Rails between Katowice and
+    Zabrze). Open Rails shows RESTRICTING in about 3 % of a train's signal
+    approaches, TSRE 0.3 %. Elsewhere Open Rails enables the same type
+    5 km ahead (Jasiona's 149); why not there is not found (Open Rails'
+    propagation reads the same as TSRE's; it needs Open Rails traced).
+  - Which train takes a junction first where two lines join differs at
+    times: 0624_IC_4520 passes 0540_KS_S1 at Sosnowiec in Open Rails
+    (both leave at 06:41:31, the KS then held at the next signal) and
+    follows it to Zawiercie in TSRE (11 and 24 minutes late); at
+    Zdzieszowice 1839_TOW_Toszek goes before 1910_R46437 in Open Rails
+    and after it in TSRE (10 minutes).
+  - Open Rails' own faults in these runs: 0500_R99520 removed at its
+    path's end (`OUT_OF_PATH`, overrunning at 38 km/h), the failure and
+    hangs above.
+- **Fixtures:** `timetable-trains` (11): T5 on a fourth line, its path
+  reversing inside platform Zeta: its stop on the part before the
+  reversal, centred on the platform up to it, left at its booked time.
+  `simulation-core` (88): a signal 1 m past one that clears nothing
+  beyond it, asked into a block a standing train holds: asked again
+  when that train leaves, the train behind goes on (without the fix it
+  stands for good). Every MSTS route's results and events unchanged.
 
 ## Why
 

@@ -1005,7 +1005,13 @@ void SimulationCore::extendAuthority(int train) {
         if (rt.nextSignal < stopSignals.size() && stopSignals[rt.nextSignal].section <= rt.next) {
             // A stop signal: cleared with its whole block, or not passed.
             const ProjectedSignal &signal = stopSignals[rt.nextSignal];
-            if (rt.nextSignal >= allowed || (heldAtStop(train, rt.nextSignal) && !dropHold(train, rt.nextSignal))) {
+            // One cleared for it on an occupied block is asked again beyond
+            // those it may clear now: Open Rails keeps a signal's request
+            // until the train passes it, its block reserved once free (task
+            // 08, phase 7: Jasiona's 149, asked from further back).
+            const bool askedOccupied = clearedFor[size_t(signal.signal)] == train && occupiedBlock[size_t(signal.signal)];
+            if ((rt.nextSignal >= allowed && !askedOccupied)
+                    || (heldAtStop(train, rt.nextSignal) && !dropHold(train, rt.nextSignal))) {
                 rt.endsAtSignal = true;
                 break;
             }

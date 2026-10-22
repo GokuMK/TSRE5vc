@@ -702,6 +702,53 @@ const TRitem *platformBeyond(TDB *tdb, int track, float edge, float away, const 
     return nearest < signal ? platform : nullptr;
 }
 
+// A platform of station `key` the path reverses inside: an item of it on
+// the leg before a reversal, its other on the same node beyond (task 08,
+// phase 7). Open Rails' route holds the platform's track section, the stop
+// on the subpath before the reversal (TTTrain.CalculateStationStopPosition,
+// the path not through the station); `stop` there centred on the platform
+// up to the reversal. The first such reversal's; none when there is none.
+const TRitem *reversalInside(TDB *tdb, const QVector<PathTrack::Leg> &legs, const QString &key,
+                             const TrainPlan &plan, StopPlan &stop) {
+    double down = 0.0;
+    for (int i = 0; i + 1 < legs.size(); ++i) {
+        const PathTrack::Leg &leg = legs[i], &next = legs[i + 1];
+        const double legStart = down;
+        down += std::fabs(double(leg.to) - double(leg.from));
+        if (leg.broken || next.track != leg.track || std::fabs(next.from - leg.to) >= PathTrack::SamePlace
+                || next.forward() == leg.forward())
+            continue;
+        auto it = tdb->trackNodes.find(leg.track);
+        const TRnode *vector = it != tdb->trackNodes.end() ? it->second : nullptr;
+        const float away = leg.forward() ? 1.0f : -1.0f;
+        for (int t = 0; vector != nullptr && t < vector->iTri; ++t) {
+            auto found = tdb->trackItems.find(vector->trItemRef[t]);
+            TRitem *item = found != tdb->trackItems.end() ? found->second : nullptr;
+            if (item == nullptr || item->type != "platformitem" || item->platformTrItemData == nullptr
+                    || item->stationName.trimmed().toLower() != key)
+                continue;
+            const float at = item->getTrackPosition();
+            if ((at - leg.from) * away < -PathTrack::SamePlace || (at - leg.to) * away > 0.0f)
+                continue;
+            auto partner = tdb->trackItems.find(int(item->platformTrItemData[1]));
+            if (partner == tdb->trackItems.end() || partner->second == nullptr
+                    || tdb->findTrItemNodeId(int(partner->first)) != leg.track
+                    || (partner->second->getTrackPosition() - leg.to) * away <= 0.0f)
+                continue;
+            int nearPart = 0;
+            double nearAt = 0.0;
+            if (!plan.route.place(legStart + std::fabs(double(at) - double(leg.from)), nearPart, nearAt)
+                    || !plan.route.place(down - 0.01, stop.part, stop.front) || nearPart != stop.part)
+                continue;
+            stop.platformStart = nearAt;
+            stop.platformEnd = stop.front;
+            stop.front = std::clamp(stop.front - 0.5 * (stop.front - nearAt - plan.length), 0.0, stop.front);
+            return item;
+        }
+    }
+    return nullptr;
+}
+
 // An Open Rails timetable's command of that name among `commands`, the
 // last given, or none.
 const OrTimetable::Command *commandIn(const QVector<OrTimetable::Command> &commands, const QString &name) {
@@ -998,7 +1045,8 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             // in Open Rails. Behind the start the train is at the station
             // from the start (its rear past the platform's end,
             // TTTrain.CheckStationPosition) and stands there until it
-            // departs; beyond the end it runs on to the platform and stops.
+            // departs; beyond the end it runs on to the platform and stops;
+            // one the path reverses inside, it stops at before reversing.
             const QVector<PathTrack::Leg> &legs = path->legs();
             for (int s = 0; s < train.stops.size(); ++s) {
                 const OrTimetable::Stop &booked = train.stops[s];
@@ -1016,6 +1064,18 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                         && std::fabs(end.intervals().back().to - last.to) < PathTrack::SamePlace)
                     platform = platformBeyond(tdb, last.track, last.to, last.forward() ? 1.0f : -1.0f, key, nearEnd, farEnd);
                 if (platform == nullptr) {
+                    StopPlan stop;
+                    if (const TRitem *inside = reversalInside(tdb, legs, key, plan, stop)) {
+                        used[size_t(s)] = true;
+                        book(stop, booked, inside->platformMinWaitingTime);
+                        plan.stops.insert(std::find_if(plan.stops.begin(), plan.stops.end(),
+                                                       [&stop](const StopPlan &other) {
+                                                           return other.part > stop.part
+                                                               || (other.part == stop.part && other.front > stop.front);
+                                                       }),
+                                          stop);
+                        continue;
+                    }
                     input.warnings << QString("%1: the stop at %2 is not on its path")
                                           .arg(name, timetable->stations[booked.station].name);
                     continue;

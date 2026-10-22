@@ -470,6 +470,8 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     // path P2 from 100 to 800 m, platform Delta beyond its end (1000-1200),
     // the static train's path P4 from 1500 m. Line 50: platform Epsilon
     // (100-300) behind T3's path P3 from 400 m, a signal between at 330 m.
+    // Line 70: platform Zeta (1000-1200), T5's path P5 from 400 m reversing
+    // inside it at 1100 m, back to 500 m.
     QTemporaryDir temp;
     const QString routePath = temp.path() + "/ROUTES/R";
     const QString folder = routePath + "/ACTIVITIES/OPENRAILS";
@@ -478,7 +480,7 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
     QDir().mkpath(temp.path() + "/TRAINS/TRAINSET/TEST");
     bool written = true;
-    for (const QString &name : {"P1", "P2", "P3", "P4"})
+    for (const QString &name : {"P1", "P2", "P3", "P4", "P5"})
         written = written && writeFile(routePath + "/PATHS/" + name + ".pat", QString(pathText).arg(name), Encoding::Utf16);
     written = written && writeFile(temp.path() + "/TRAINS/CONSISTS/Two.con", consistText, Encoding::Utf16)
             && writeFile(temp.path() + "/TRAINS/TRAINSET/TEST/loco.eng", QString(vehicleText).arg("loco", "Engine"),
@@ -489,20 +491,21 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     // Rails reads both); the stops: Alpha a departure only, Beta booked
     // 2 minutes, Gamma one time.
     written = written && writeFile(folder + "/test.timetable-or",
-                                   ";T1;T2;T3;$static\n"
-                                   "#path;P1.pat;P2.;P3;P4\n"
-                                   "#consist;Two;Two;Two;Two\n"
-                                   "#start;08:00;08:00;08:00;\n"
-                                   "Alpha;08:05;;;\n"
-                                   "Beta;08:10-08:12;;;\n"
-                                   "Gamma;08:20;;;\n"
-                                   "Delta;;08:06;;\n"
-                                   "Epsilon;;;08:01;\n",
+                                   ";T1;T2;T3;$static;T5\n"
+                                   "#path;P1.pat;P2.;P3;P4;P5\n"
+                                   "#consist;Two;Two;Two;Two;Two\n"
+                                   "#start;08:00;08:00;08:00;;08:00\n"
+                                   "Alpha;08:05;;;;\n"
+                                   "Beta;08:10-08:12;;;;\n"
+                                   "Gamma;08:20;;;;\n"
+                                   "Delta;;08:06;;;\n"
+                                   "Epsilon;;;08:01;;\n"
+                                   "Zeta;;;;;08:04-08:06\n",
                                    Encoding::Utf8);
     check(temp.isValid() && written, "write the test route");
 
     TestTrack::Layout layout;
-    for (int k = 0; k < 3; ++k) {
+    for (int k = 0; k < 4; ++k) {
         const int line = 10 + 20 * k;
         layout.end(2 * k + 1, line);
         layout.track(line, 2 * k + 1, 2 * k + 2, 200);
@@ -513,6 +516,7 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     TestTrack::platform(layout, 10, 105, 1700.0f, 1900.0f, "Gamma");
     TestTrack::platform(layout, 30, 201, 1000.0f, 1200.0f, "Delta");
     TestTrack::platform(layout, 50, 301, 100.0f, 300.0f, "Epsilon");
+    TestTrack::platform(layout, 70, 501, 1000.0f, 1200.0f, "Zeta");
     TestTrack::signalHead(layout, 50, 401, 330.0f, true, "Test");
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "R");
@@ -531,6 +535,12 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
         made = PathTrack::endAt(&layout.db, made.nodes, ends.second);
         path->apply(made.nodes);
     }
+    if (Path *path = ActLib::Paths.value(ActLib::AddPath(routePath + "/PATHS", "P5.pat"))) {
+        PathTrack::Result made = PathTrack::startAt(&layout.db, {70, 400.0f});
+        made = PathTrack::reverseAt(&layout.db, made.nodes, {70, 1100.0f});
+        made = PathTrack::endAt(&layout.db, made.nodes, {70, 500.0f});
+        path->apply(made.nodes);
+    }
 
     const int id = ActLib::AddTimetableSet(folder, "test.timetable-or");
     Activity *set = ActLib::TimetableSets.value(id);
@@ -544,17 +554,18 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
                 return &plan;
         return nullptr;
     };
-    check(input != nullptr && input->trains.size() == 3 && input->startTime == 8 * 3600,
+    check(input != nullptr && input->trains.size() == 4 && input->startTime == 8 * 3600,
           QString("the running trains made, the run from the first one's start (08:00): %1 trains; warnings: %2")
               .arg(input != nullptr ? int(input->trains.size()) : -1)
               .arg(input != nullptr ? input->warnings.join("; ") : QString()));
-    if (input == nullptr || input->trains.size() != 3) {
+    if (input == nullptr || input->trains.size() != 4) {
         qInfo().noquote() << QString("timetable-trains: %1 passed, %2 failed").arg(passed).arg(failed);
         return 1;
     }
     const Sim::TrainPlan *t1 = trainNamed("T1");
     const Sim::TrainPlan *t2 = trainNamed("T2");
     const Sim::TrainPlan *t3 = trainNamed("T3");
+    const Sim::TrainPlan *t5 = trainNamed("T5");
     check(t1 != nullptr && t2 != nullptr && t3 != nullptr && std::fabs(t1->length - 40.0) < 0.01
               && t1->startTime == 8 * 3600 && t1->traffic >= 0 && !t1->player,
           "each an AI train of the consist (40 m), from its start time");
@@ -586,6 +597,21 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     // section, not on its route.
     check(t3 != nullptr && t3->stops.empty() && input->warnings.join("\n").contains("T3: the stop at Epsilon is not on its path"),
           "T3: Epsilon behind a signal, not on its route: " + input->warnings.join("; "));
+    // T5: Zeta, the platform its path reverses inside (one item before the
+    // reversal, the other beyond): its stop before the reversal, centred on
+    // the platform up to it (600-700 m along the path from its start, the
+    // train 40 m).
+    check(t5 != nullptr && t5->stops.size() == 1 && t5->stops[0].platform == "Zeta" && t5->stops[0].part == 0
+              && t5->route.parts.size() == 2 && std::fabs(t5->stops[0].platformStart - t5->route.pathStart - 600.0) < 0.5
+              && std::fabs(t5->stops[0].platformEnd - t5->route.pathStart - 700.0) < 0.5
+              && std::fabs(t5->stops[0].front - t5->route.pathStart - 670.0) < 0.5,
+          QString("T5: at Zeta, reversing inside it, on the part before the reversal (%1 to %2 m, front %3; "
+                  "the path from %4 m, %5 parts)")
+              .arg(t5 != nullptr && !t5->stops.empty() ? t5->stops[0].platformStart : -1.0, 0, 'f', 1)
+              .arg(t5 != nullptr && !t5->stops.empty() ? t5->stops[0].platformEnd : -1.0, 0, 'f', 1)
+              .arg(t5 != nullptr && !t5->stops.empty() ? t5->stops[0].front : -1.0, 0, 'f', 1)
+              .arg(t5 != nullptr ? t5->route.pathStart : -1.0, 0, 'f', 1)
+              .arg(t5 != nullptr ? int(t5->route.parts.size()) : -1));
     // The static train: a standing consist from its path's start.
     double from = 1e9, to = -1e9;
     for (const Sim::StaticConsist &standing : input->staticConsists)
@@ -622,6 +648,12 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
         t2Finished = t2Finished || (t2 != nullptr && e.train == t2->id && e.kind == Sim::TrainEvent::Finished);
     check(at(t2, Sim::TrainEvent::Arrived, 0) > 8 * 3600 && t2Finished,
           QString("T2 stops at Delta (%1 s) and ends there").arg(at(t2, Sim::TrainEvent::Arrived, 0)));
+    bool t5Finished = false;
+    for (const Sim::TrainEvent &e : events)
+        t5Finished = t5Finished || (t5 != nullptr && e.train == t5->id && e.kind == Sim::TrainEvent::Finished);
+    const double leftZeta = at(t5, Sim::TrainEvent::Departed, 0);
+    check(at(t5, Sim::TrainEvent::Arrived, 0) > 8 * 3600 && std::fabs(leftZeta - (8 * 3600 + 360)) <= 1.0 && t5Finished,
+          QString("T5 stops at Zeta, leaves at %1 s (booked 29160), reverses and ends").arg(leftZeta));
 
     delete set;
     ActLib::TimetableSets.remove(id);
