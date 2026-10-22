@@ -617,6 +617,52 @@ int TsreTests::runTimetableRouteSuite(bool verbose) {
         if (verbose)
             for (const OrTimetableProblem &p : problems)
                 qInfo().noquote() << "[timetable]     " << (p.train.isEmpty() ? QString("-") : p.train) << ":" << p.text;
+        // The user's review: what the Timetable window's stops lists show,
+        // the trains' stations along their paths: those the timetable does
+        // not have, the stops not on a train's path, at no platform.
+        {
+            const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &database);
+            QElapsedTimer along;
+            along.start();
+            QStringList keys;
+            for (const OrTimetable::Station &station : timetable.stations)
+                keys << station.key;
+            QSet<QString> routeStations;
+            for (const auto &entry : database.trackItems)
+                if (entry.second != nullptr && entry.second->type == "platformitem")
+                    routeStations.insert(entry.second->stationName.trimmed().toLower());
+            QMap<QString, int> missing;
+            QMap<QString, int> offPath;
+            int trains = 0, listed = 0, nowhere = 0;
+            for (const OrTimetable::Train &train : timetable.trains) {
+                Path *path = ActLib::GetPathByName(train.pathName(), routeDirectory);
+                if (path == nullptr)
+                    continue;
+                ++trains;
+                QSet<QString> onPath;
+                for (const Sim::PathStation &station : Sim::TimetablePathStations(&database, path, keys)) {
+                    onPath.insert(station.key);
+                    ++listed;
+                    if (!keys.contains(station.key))
+                        missing[station.name]++;
+                }
+                for (const OrTimetable::Stop &stop : train.stops) {
+                    const QString key = timetable.stations[stop.station].key;
+                    if (!routeStations.contains(key))
+                        ++nowhere;
+                    else if (!onPath.contains(key))
+                        offPath[train.name + " at " + timetable.stations[stop.station].name]++;
+                }
+            }
+            QStringList most;
+            for (auto it = missing.begin(); it != missing.end(); ++it)
+                most << QString("%1 (%2)").arg(it.key()).arg(it.value());
+            qInfo().noquote() << "[timetable] stops lists:" << trains << "trains," << listed
+                              << "stations along their paths in" << along.elapsed() << "ms;" << missing.size()
+                              << "stations not in the timetable:" << most.join(", ") << ";" << offPath.size()
+                              << "stops not on the path:" << QStringList(offPath.keys()).mid(0, 20).join(", ") << ";"
+                              << nowhere << "stops at no platform";
+        }
     }
     forgetPaths();
     qInfo().noquote() << QString("timetable-route: %1 passed, %2 failed").arg(passed).arg(failed);
