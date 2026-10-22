@@ -247,9 +247,14 @@ QWidget *OrCommandPicker::valueField(OrCommandSpec::Value kind, const QString &h
         box->setEditText(value);
         box->lineEdit()->setPlaceholderText(hint);
         QObject::connect(box, &QComboBox::editTextChanged, this, [changed](const QString &text) { changed(text); });
+        // Short: the room left for what it does (the list shows a name
+        // whole).
+        box->setFixedWidth(170);
+        box->view()->setMinimumWidth(240);
         return box;
     }
     QLineEdit *edit = new QLineEdit(value);
+    edit->setFixedWidth(170);
     edit->setPlaceholderText(kind == OrCommandSpec::Speed ? speedUnit : hint);
     QObject::connect(edit, &QLineEdit::textEdited, this, [changed](const QString &text) { changed(text); });
     return edit;
@@ -305,14 +310,10 @@ void OrCommandPicker::showDetails(int k) {
     grid->setContentsMargins(0, 6, 0, 0);
     grid->setHorizontalSpacing(8);
     grid->setVerticalSpacing(3);
-    grid->setColumnMinimumWidth(1, 220);
-    grid->setColumnStretch(1, 2);
-    grid->setColumnStretch(2, 3);
+    grid->setColumnStretch(2, 1);
     int row = 0;
     if (spec.value != OrCommandSpec::None) {
-        grid->addWidget(new QLabel(spec.valueOptional ?
-            //% "Value (may be left out):"
-            qtTrId("route.editor.activity.or.commands.value.optional") :
+        grid->addWidget(new QLabel(
             //% "Value:"
             qtTrId("route.editor.activity.or.commands.value")), row, 0);
         QWidget *field = valueField(spec.value, spec.hint, choice.value, [this, k](const QString &text) {
@@ -320,7 +321,15 @@ void OrCommandPicker::showDetails(int k) {
             setOn(k, true);
         });
         field->setObjectName("orCommandValue");
-        grid->addWidget(field, row++, 1);
+        grid->addWidget(field, row, 1);
+        if (spec.valueOptional) {
+            QLabel *optional = new QLabel(
+                //% "May be left out."
+                qtTrId("route.editor.activity.or.commands.value.optional"));
+            optional->setForegroundRole(QPalette::PlaceholderText);
+            grid->addWidget(optional, row, 2);
+        }
+        ++row;
     }
     if (!spec.qualifiers.isEmpty()) {
         grid->addItem(new QSpacerItem(0, 6), row++, 0);

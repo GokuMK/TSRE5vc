@@ -14,9 +14,11 @@ class Activity;
 // information, commands and problems are in info, which the window puts
 // beside the stops. The "…" of a command field or cell opens the command
 // picker (OrCommandPicker). Its path and consist are chosen (the route's
-// paths, the consists) or typed; with All stations its stops list has
-// every station, a time typed at one without a stop adds it; a stop's only
-// time cleared removes it.
+// paths, the consists) or typed. Its stops list has the stations along its
+// path (those without a stop greyed: a time typed adds the stop, and the
+// station where the timetable lacks it), then its stops not on its path
+// (yellow) or at a station the route has no platform of (red); a stop's
+// only time cleared removes it.
 class OrTrainProperties : public QWidget {
     Q_OBJECT
 public:
@@ -38,9 +40,6 @@ private:
     QLineEdit shownFields[3];
     QComboBox pathBox;
     QComboBox consistBox;
-    QCheckBox allStations;
-    // The problems shown (All stations shows the train again).
-    QStringList shownProblems;
     QTimeEdit startTime;
     // The train's commands: #start's, #note, #dispose, the speed row.
     QLineEdit commandFields[4];

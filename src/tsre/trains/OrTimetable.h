@@ -139,7 +139,7 @@ public:
     // consist or stops; a copy of a train, named so, after it; a train
     // gone (other trains' commands naming it kept); a stop at a station
     // (in the station order; -1 when it has one there) and one gone. Each
-    // returns the train's or stop's place.
+    // returns the train's, stop's or station's place.
     void setTrainPath(int train, const QString &path);
     void setTrainConsist(int train, const QString &consist);
     int addTrain(int after, const QString &name, int startTime);
@@ -147,6 +147,9 @@ public:
     void removeTrain(int train);
     int addStop(int train, int station, int arrival, int departure);
     void removeStop(int train, int stop);
+    // A station row named so before station `before` (-1: after the last),
+    // the trains' stops at the stations after it kept there; its place.
+    int addStation(const QString &name, int before);
     // The trains whose commands name that train ($follow=T2, /ahead=T2).
     QStringList trainsNaming(const QString &name) const;
     // Commands as one text, each with its '$' ("$hold $forcewait"); as

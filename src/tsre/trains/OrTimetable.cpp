@@ -737,6 +737,20 @@ void OrTimetable::removeStop(int train, int stop) {
     modified = true;
 }
 
+int OrTimetable::addStation(const QString &name, int before) {
+    Station station;
+    station.name = name.trimmed();
+    station.key = station.name.toLower();
+    const int at = before >= 0 && before < stations.size() ? before : stations.size();
+    stations.insert(at, station);
+    for (Train &t : trains)
+        for (Stop &stop : t.stops)
+            if (stop.station >= at)
+                ++stop.station;
+    modified = true;
+    return at;
+}
+
 QStringList OrTimetable::trainsNaming(const QString &name) const {
     const QString key = name.trimmed().toLower();
     const auto names = [&key](const QVector<Command> &commands) {

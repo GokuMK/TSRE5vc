@@ -488,19 +488,34 @@ reported, editing commands).
   otherwise. The path and consist chosen from the route's paths
   (`ActLib::RoutePaths`) and the consists (`ConLib`, as the service
   editor) or typed ("C1 + C2 $reverse"); the path cell's commands kept.
-  Stops: All stations lists every station (on for a train without
-  stops), a time typed at one adds the stop, a stop's only time cleared
-  removes it. Each an undo step (`OrTimetable::addTrain`, `cloneTrain`,
-  `removeTrain`, `setTrainPath`, `setTrainConsist`, `addStop`,
-  `removeStop`).
-- **Fixtures:** `timetable-ui` (34): the grid; the note's picker (its
+  Each an undo step (`OrTimetable::addTrain`, `cloneTrain`,
+  `removeTrain`, `setTrainPath`, `setTrainConsist`).
+- Stops (the user: as the MSTS timetable, a train's stations from its
+  path): the stops list has the stations along the train's path in its
+  order, as the simulation finds its stops (`Sim::TimetablePathStations`:
+  the platforms passed, a timetable station behind its start or beyond
+  its end in the track section there, one it reverses inside; the
+  reversal search shared with `TimetableTrains`); one it has no stop at
+  greyed, a time typed adds the stop; one the timetable does not have in
+  italics as well, a time typed adds the station row (before the next of
+  the path's stations the timetable has) and the stop; then its stops not
+  on its path (yellow) and at a station no platform of the route has
+  (red). A stop's only time cleared removes it (`addStop`, `removeStop`,
+  `addStation`). Without the route's track or the path: its stops in the
+  timetable's order. (A first try listed every station of the timetable,
+  "All stations": dropped.)
+- **Fixtures:** `timetable-ui` (33): the grid; the note's picker (its
   commands ticked, a qualifier changed, a command ticked, OK, undo), a
   stop's "…" (`$keepclear /rear=50`), the station's picker without
   `$keepclear`, its `$closeup` kept as typed; a path chosen, a consist
-  typed, a train's name refused, a new train given a stop and it removed,
-  a copy, a train removed, all undone. `timetable-read` (33): the
-  catalogue holds every command TSRE runs, each described; the train
-  operations written and read back.
+  typed, a train's name refused, a new train, a copy, a train removed, all
+  undone. `timetable-read` (33): the catalogue holds every command TSRE
+  runs, each described; the train operations written and read back.
+  `timetable-trains` (15): the stations along each path (behind the
+  start, passed, beyond the end, behind a signal: none, reversed inside);
+  the stops lists (Omega passed, not in the timetable; Epsilon off T3's
+  path, yellow; Nowhere at no platform, red); a time typed at Omega adds
+  the station after Beta and the stop, undone.
 
 ## Why
 

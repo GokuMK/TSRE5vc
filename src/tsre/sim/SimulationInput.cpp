@@ -702,14 +702,12 @@ const TRitem *platformBeyond(TDB *tdb, int track, float edge, float away, const 
     return nearest < signal ? platform : nullptr;
 }
 
-// A platform of station `key` the path reverses inside: an item of it on
-// the leg before a reversal, its other on the same node beyond (task 08,
-// phase 7). Open Rails' route holds the platform's track section, the stop
-// on the subpath before the reversal (TTTrain.CalculateStationStopPosition,
-// the path not through the station); `stop` there centred on the platform
-// up to the reversal. The first such reversal's; none when there is none.
-const TRitem *reversalInside(TDB *tdb, const QVector<PathTrack::Leg> &legs, const QString &key,
-                             const TrainPlan &plan, StopPlan &stop) {
+// Each platform of station `key` the path reverses inside: an item of it
+// on the leg before a reversal, its other on the same node beyond (task 08,
+// phase 7); `take` is given the item and the distances down the path to it
+// and to the reversal. The first it takes; none when it takes none.
+const TRitem *reversalPlatform(TDB *tdb, const QVector<PathTrack::Leg> &legs, const QString &key,
+                               const std::function<bool(const TRitem *, double, double)> &take) {
     double down = 0.0;
     for (int i = 0; i + 1 < legs.size(); ++i) {
         const PathTrack::Leg &leg = legs[i], &next = legs[i + 1];
@@ -735,18 +733,31 @@ const TRitem *reversalInside(TDB *tdb, const QVector<PathTrack::Leg> &legs, cons
                     || tdb->findTrItemNodeId(int(partner->first)) != leg.track
                     || (partner->second->getTrackPosition() - leg.to) * away <= 0.0f)
                 continue;
-            int nearPart = 0;
-            double nearAt = 0.0;
-            if (!plan.route.place(legStart + std::fabs(double(at) - double(leg.from)), nearPart, nearAt)
-                    || !plan.route.place(down - 0.01, stop.part, stop.front) || nearPart != stop.part)
-                continue;
-            stop.platformStart = nearAt;
-            stop.platformEnd = stop.front;
-            stop.front = std::clamp(stop.front - 0.5 * (stop.front - nearAt - plan.length), 0.0, stop.front);
-            return item;
+            if (take(item, legStart + std::fabs(double(at) - double(leg.from)), down))
+                return item;
         }
     }
     return nullptr;
+}
+
+// A platform of station `key` the path reverses inside: Open Rails' route
+// holds the platform's track section, the stop on the subpath before the
+// reversal (TTTrain.CalculateStationStopPosition, the path not through the
+// station); `stop` there centred on the platform up to the reversal. The
+// first such reversal's; none when there is none.
+const TRitem *reversalInside(TDB *tdb, const QVector<PathTrack::Leg> &legs, const QString &key,
+                             const TrainPlan &plan, StopPlan &stop) {
+    return reversalPlatform(tdb, legs, key, [&plan, &stop](const TRitem *, double itemDown, double reversalDown) {
+        int nearPart = 0;
+        double nearAt = 0.0;
+        if (!plan.route.place(itemDown, nearPart, nearAt) || !plan.route.place(reversalDown - 0.01, stop.part, stop.front)
+                || nearPart != stop.part)
+            return false;
+        stop.platformStart = nearAt;
+        stop.platformEnd = stop.front;
+        stop.front = std::clamp(stop.front - 0.5 * (stop.front - nearAt - plan.length), 0.0, stop.front);
+        return true;
+    });
 }
 
 // An Open Rails timetable's command of that name among `commands`, the
@@ -1046,6 +1057,62 @@ std::vector<RouteInterval> standingTrack(TDB *tdb, Path *path, double length) {
     return track;
 }
 
+}
+
+QVector<PathStation> TimetablePathStations(TDB *tdb, Path *path, const QStringList &keys) {
+    QVector<PathStation> out;
+    if (tdb == nullptr || path == nullptr)
+        return out;
+    const QVector<PathTrack::Leg> &legs = path->legs();
+    if (legs.isEmpty())
+        return out;
+    // Each with the distance down the path it is met at.
+    QVector<QPair<double, PathStation>> met;
+    QSet<QString> passed;
+    for (const Path::PathObject *pass : path->pathObjects) {
+        if (pass == nullptr || pass->items.isEmpty())
+            continue;
+        double down = 1e12;
+        for (const QPair<int, float> &item : pass->items)
+            down = std::min(down, double(item.second));
+        const QString name = pass->name.trimmed();
+        met.push_back({down, PathStation{name, name.toLower()}});
+        passed.insert(name.toLower());
+    }
+    double length = 0.0;
+    for (const PathTrack::Leg &leg : legs)
+        length += std::fabs(double(leg.to) - double(leg.from));
+    const PathTrack::Leg &first = legs.first(), &last = legs.last();
+    for (const QString &key : keys) {
+        if (key.isEmpty() || passed.contains(key))
+            continue;
+        float nearEnd = 0.0f, farEnd = 0.0f;
+        const TRitem *platform = first.broken ? nullptr
+                : platformBeyond(tdb, first.track, first.from, first.forward() ? -1.0f : 1.0f, key, nearEnd, farEnd);
+        double down = -1.0;
+        if (platform == nullptr && !last.broken) {
+            platform = platformBeyond(tdb, last.track, last.to, last.forward() ? 1.0f : -1.0f, key, nearEnd, farEnd);
+            down = length + 1.0;
+        }
+        if (platform == nullptr)
+            platform = reversalPlatform(tdb, legs, key, [&down](const TRitem *, double itemDown, double) {
+                down = itemDown;
+                return true;
+            });
+        if (platform != nullptr) {
+            met.push_back({down, PathStation{platform->stationName.trimmed(), key}});
+            passed.insert(key);
+        }
+    }
+    std::stable_sort(met.begin(), met.end(),
+                     [](const QPair<double, PathStation> &a, const QPair<double, PathStation> &b) { return a.first < b.first; });
+    QSet<QString> listed;
+    for (const QPair<double, PathStation> &one : met)
+        if (!one.second.key.isEmpty() && !listed.contains(one.second.key)) {
+            listed.insert(one.second.key);
+            out.push_back(one.second);
+        }
+    return out;
 }
 
 void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {

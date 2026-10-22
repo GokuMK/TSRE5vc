@@ -20,6 +20,10 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/TrackLayoutSupport.h>
+#include <routeEditor/activity/OrTrainProperties.h>
+#include <tsre/Undo.h>
+#include <QApplication>
+#include <QTreeWidget>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTrains.h>
@@ -662,7 +666,8 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
                                    "Gamma;08:20;;;;\n"
                                    "Delta;;08:06;;;\n"
                                    "Epsilon;;;08:01;;\n"
-                                   "Zeta;;;;;08:04-08:06\n",
+                                   "Zeta;;;;;08:04-08:06\n"
+                                   "Nowhere;;08:30;;;\n",
                                    Encoding::Utf8);
     check(temp.isValid() && written, "write the test route");
 
@@ -676,6 +681,8 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     TestTrack::platform(layout, 10, 101, 100.0f, 300.0f, "Alpha");
     TestTrack::platform(layout, 10, 103, 1000.0f, 1200.0f, "Beta");
     TestTrack::platform(layout, 10, 105, 1700.0f, 1900.0f, "Gamma");
+    // Omega: a platform T1 passes that the timetable does not have.
+    TestTrack::platform(layout, 10, 107, 1400.0f, 1500.0f, "Omega");
     TestTrack::platform(layout, 30, 201, 1000.0f, 1200.0f, "Delta");
     TestTrack::platform(layout, 50, 301, 100.0f, 300.0f, "Epsilon");
     TestTrack::platform(layout, 70, 501, 1000.0f, 1200.0f, "Zeta");
@@ -816,6 +823,78 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     const double leftZeta = at(t5, Sim::TrainEvent::Departed, 0);
     check(at(t5, Sim::TrainEvent::Arrived, 0) > 8 * 3600 && std::fabs(leftZeta - (8 * 3600 + 360)) <= 1.0 && t5Finished,
           QString("T5 stops at Zeta, leaves at %1 s (booked 29160), reverses and ends").arg(leftZeta));
+
+    // The user's review: a train's stations along its path, as its stops
+    // are found (Alpha behind T1's start, Omega passed, not in the
+    // timetable; Delta beyond T2's end; none for T3, Epsilon behind a
+    // signal; Zeta, T5 reversing inside it).
+    QStringList keys;
+    for (const OrTimetable::Station &station : set->timetables[0]->stations)
+        keys << station.key;
+    const auto alongPath = [&](const QString &name) {
+        QStringList out;
+        for (const Sim::PathStation &station : Sim::TimetablePathStations(&layout.db, ActLib::GetPathByName(name, routePath), keys))
+            out << station.name;
+        return out.join(", ");
+    };
+    check(alongPath("P1") == "Alpha, Beta, Omega, Gamma" && alongPath("P2") == "Delta" && alongPath("P3").isEmpty()
+              && alongPath("P5") == "Zeta",
+          QString("the stations along the paths: P1 %1; P2 %2; P3 %3; P5 %4")
+              .arg(alongPath("P1"), alongPath("P2"), alongPath("P3"), alongPath("P5")));
+    // The Timetable window's stops list: T1's path's stations, Omega not
+    // in the timetable (a time typed there adds it after Beta and the
+    // stop); T3's Epsilon not on its path; T2's Nowhere at no platform.
+    {
+        OrTrainProperties panel;
+        QTreeWidget *rows = panel.findChild<QTreeWidget *>("orTrainStops");
+        OrTimetable &tt = *set->timetables[0];
+        const auto shown = [&](const QString &train) {
+            panel.showTrain(set, 0, tt.trainNamed(train), {});
+            QStringList out;
+            for (int i = 0; rows != nullptr && i < rows->topLevelItemCount(); ++i) {
+                QTreeWidgetItem *item = rows->topLevelItem(i);
+                const QColor tint = item->background(0).color();
+                out << item->text(0) + (item->text(1).isEmpty() ? QString(" -") : QString())
+                        + (item->font(0).italic() ? QString(" (new)") : QString())
+                        + (item->background(0).style() == Qt::NoBrush ? QString()
+                           : tint.green() > 100 ? QString(" (yellow)") : QString(" (red)"));
+            }
+            return out.join(", ");
+        };
+        const QString t1Rows = shown("T1"), t3Rows = shown("T3"), t2Rows = shown("T2");
+        check(t1Rows == "Alpha, Beta, Omega - (new), Gamma" && t3Rows == "Epsilon (yellow)"
+                  && t2Rows == "Delta, Nowhere (red)",
+              QString("the stops lists: T1 %1; T3 %2; T2 %3").arg(t1Rows, t3Rows, t2Rows));
+        // TSRE_ACTIVITY_UI_SHOTS: T1 with a stop off its path and one at
+        // no platform as well, for a look.
+        if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS")) {
+            const int t1Index = tt.trainNamed("T1");
+            const int epsilon = tt.addStop(t1Index, 4, 8 * 3600 + 1500, -1);
+            const int nowhere = tt.addStop(t1Index, 6, 8 * 3600 + 1800, -1);
+            shown("T1");
+            panel.resize(640, 640);
+            rows->grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-path-stations.png");
+            tt.removeStop(t1Index, nowhere);
+            tt.removeStop(t1Index, epsilon);
+            tt.modified = false;
+        }
+        shown("T1");
+        for (int i = 0; rows != nullptr && i < rows->topLevelItemCount(); ++i)
+            if (rows->topLevelItem(i)->text(0) == "Omega")
+                rows->topLevelItem(i)->setText(1, "08:15");
+        QApplication::processEvents();
+        const int omega = tt.stations.size() > 2 ? 2 : -1;
+        const OrTimetable::Train &one = tt.trains[tt.trainNamed("T1")];
+        const OrTimetable::Train &two = tt.trains[tt.trainNamed("T2")];
+        check(omega == 2 && tt.stations[2].name == "Omega" && tt.stations[3].name == "Gamma" && one.stops.size() == 4
+                  && one.stops[2].station == 2 && one.stops[2].timing.arrival == 8 * 3600 + 900
+                  && one.stops[3].station == 3 && two.stops[0].station == 4 && tt.stations[4].name == "Delta"
+                  && shown("T1") == "Alpha, Beta, Omega, Gamma",
+              "a time typed at Omega: the station added after Beta, T1 stops there, the other stops kept");
+        Undo::UndoLast();
+        check(set->timetables[0]->stations.size() == 7 && set->timetables[0]->stations[2].name == "Gamma",
+              "undo: Omega not in the timetable again");
+    }
 
     delete set;
     ActLib::TimetableSets.remove(id);

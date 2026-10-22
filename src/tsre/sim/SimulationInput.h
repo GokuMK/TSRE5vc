@@ -9,6 +9,7 @@
 
 class Activity;
 class TDB;
+class Path;
 
 namespace Sim {
 
@@ -437,6 +438,19 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
 // times; static trains standing trains; the set's chosen train the
 // player's. MakeInput uses it for a set.
 void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb);
+
+// An Open Rails timetable train's stations along its path, as
+// TimetableTrains finds its stops (the Timetable window lists them, the
+// user's review of task 08): the stations of the platforms it passes, and
+// of `keys` (the timetable's stations, in lower case) one with a platform
+// behind its start or beyond its end in the track section there, or one it
+// reverses inside; in the order it meets them, each once. The name as the
+// platform has it.
+struct PathStation {
+    QString name;
+    QString key;
+};
+QVector<PathStation> TimetablePathStations(TDB *tdb, Path *path, const QStringList &keys);
 
 // A route part's way and speed limits (the zones it passes at the input's
 // restricted speed), as MakeInput makes them.

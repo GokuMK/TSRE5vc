@@ -347,6 +347,18 @@ int runTimetableUiSuite(bool verbose) {
     if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS") && picker != nullptr)
         picker->grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-commands.png");
     closePicker(picker, true);
+    // TSRE_ACTIVITY_UI_SHOTS: the start's picker, $create chosen.
+    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS")) {
+        if (QAction *pick = timetable.findChild<QAction *>("orTrainStartCommandsPick"))
+            pick->trigger();
+        if (OrCommandPicker *start = openPicker()) {
+            QTreeWidget *startList = start->findChild<QTreeWidget *>("orCommandList");
+            if (QTreeWidgetItem *create = commandItem(startList, "$create"))
+                startList->setCurrentItem(create);
+            start->grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-commands-start.png");
+            closePicker(start, false);
+        }
+    }
     const OrTimetable::Train &picked = set->timetables[0]->trains[t1];
     note = timetable.findChild<QLineEdit *>("orTrainNote");
     check(picked.notes.size() == 3 && picked.notes[2].name == "doo" && picked.notes[1].qualifier("hold") == QStringList{"3"}
@@ -466,28 +478,13 @@ int runTimetableUiSuite(bool verbose) {
     OrTimetable &after = *set->timetables[0];
     const int t3 = after.trainNamed("T3");
     stops = timetable.findChild<QTreeWidget *>("orTrainStops");
-    QCheckBox *every = timetable.findChild<QCheckBox *>("orTrainAllStations");
+    // (Its stations come from its path on the route's track:
+    // timetable-trains; none here.)
     check(after.trains[t1].consist == "C1" && !refused.isEmpty() && added.isEmpty() && after.trains.size() == 4
               && t3 == t1 + 1 && after.trains[t3].startTime == 8 * 3600 + 120 && after.trains[t3].stops.isEmpty()
               && trains->currentItem() != nullptr && trains->currentItem()->text(1) == "T3" && stops != nullptr
-              && stops->topLevelItemCount() == 2 && stops->topLevelItem(1)->text(1).isEmpty() && every != nullptr
-              && every->isChecked(),
-          "New Train: t2 refused (T2 is there), T3 after T1 from its start, chosen, every station listed: "
-              + refused);
-    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
-        timetable.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-new-train.png");
-    if (stops != nullptr && stops->topLevelItemCount() > 1)
-        stops->topLevelItem(1)->setText(1, "09:10");
-    QApplication::processEvents();
-    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
-    check(set->timetables[0]->trains[t3].stops.size() == 1 && set->timetables[0]->trains[t3].stops[0].station == 1
-              && set->timetables[0]->trains[t3].stops[0].timing.arrival == 9 * 3600 + 600 && stops != nullptr
-              && stops->topLevelItemCount() == 2 && stops->topLevelItem(1)->text(2) == "09:10",
-          "a time typed at Beta: T3 stops there, still every station listed");
-    if (stops != nullptr && stops->topLevelItemCount() > 1)
-        stops->topLevelItem(1)->setText(2, "");
-    QApplication::processEvents();
-    check(set->timetables[0]->trains[t3].stops.isEmpty(), "its only time cleared: the stop gone");
+              && stops->topLevelItemCount() == 0,
+          "New Train: t2 refused (T2 is there), T3 after T1 from its start, chosen, no stops: " + refused);
     chooseT("T1");
     const QString copied = timetable.addTimetableTrain("T1_2", true);
     const int copy = set->timetables[0]->trainNamed("T1_2");
@@ -500,11 +497,11 @@ int runTimetableUiSuite(bool verbose) {
     check(set->timetables[0]->trainNamed("T1_2") < 0 && set->timetables[0]->trains.size() == 4
               && naming.contains("T1") && naming.contains("T1_2"),
           "Remove Train: T1_2 gone; T1 and T1_2 named as naming T2 ($connect)");
-    for (int k = 0; k < 5; ++k)
+    for (int k = 0; k < 3; ++k)
         Undo::UndoLast();
     check(set->timetables[0]->trains.size() == 3 && set->timetables[0]->trainNamed("T3") < 0
               && set->timetables[0]->trains[t1].stops.size() == 2,
-          "undo, five steps: the three trains as they were");
+          "undo, three steps: the three trains as they were");
     chooseT("T1");
     // TSRE_ACTIVITY_UI_SHOTS: the window as it is now, for a look.
     if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
