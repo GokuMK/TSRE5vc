@@ -133,6 +133,22 @@ public:
     void setTrainCommands(int train, TrainCommands which, const QString &text);
     void setStopCommands(int train, int stop, const QString &text);
     void setStationCommands(int station, const QString &text);
+    // The user's review (2026-10-22): a train's path (by name; the path
+    // cell's commands kept) and its consist cell ("a + b $reverse"); a new
+    // train after another (-1: at the end), with a start time and no path,
+    // consist or stops; a copy of a train, named so, after it; a train
+    // gone (other trains' commands naming it kept); a stop at a station
+    // (in the station order; -1 when it has one there) and one gone. Each
+    // returns the train's or stop's place.
+    void setTrainPath(int train, const QString &path);
+    void setTrainConsist(int train, const QString &consist);
+    int addTrain(int after, const QString &name, int startTime);
+    int cloneTrain(int train, const QString &name);
+    void removeTrain(int train);
+    int addStop(int train, int station, int arrival, int departure);
+    void removeStop(int train, int stop);
+    // The trains whose commands name that train ($follow=T2, /ahead=T2).
+    QStringList trainsNaming(const QString &name) const;
     // Commands as one text, each with its '$' ("$hold $forcewait"); as
     // typed, made a cell's (as the setters take it).
     static QString CommandsText(const QVector<Command> &commands);

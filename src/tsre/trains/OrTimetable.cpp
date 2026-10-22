@@ -660,6 +660,110 @@ void OrTimetable::setStationCommands(int station, const QString &typed) {
     modified = true;
 }
 
+void OrTimetable::setTrainPath(int train, const QString &path) {
+    if (train < 0 || train >= trains.size())
+        return;
+    Train &t = trains[train];
+    const QString cell = t.pathText.isEmpty() ? t.path : t.pathText;
+    const int dollar = cell.indexOf('$');
+    const QString commands = dollar >= 0 ? cell.mid(dollar).trimmed() : QString();
+    t.path = path.trimmed();
+    t.pathText = joined(t.path, commands);
+    modified = true;
+}
+
+void OrTimetable::setTrainConsist(int train, const QString &consist) {
+    if (train < 0 || train >= trains.size())
+        return;
+    Train &t = trains[train];
+    t.consist = consist.trimmed();
+    t.consists = ParseConsist(t.consist);
+    modified = true;
+}
+
+int OrTimetable::addTrain(int after, const QString &name, int startTime) {
+    Train t;
+    t.name = name.trimmed();
+    t.startTime = startTime;
+    t.start = TimeText(startTime);
+    for (const Train &other : trains)
+        t.column = std::max(t.column, other.column + 1);
+    const int at = after >= 0 && after < trains.size() ? after + 1 : trains.size();
+    trains.insert(at, t);
+    modified = true;
+    return at;
+}
+
+int OrTimetable::cloneTrain(int train, const QString &name) {
+    if (train < 0 || train >= trains.size())
+        return -1;
+    Train t = trains[train];
+    t.name = name.trimmed();
+    // A train static by its column's head stays so, now named.
+    t.header = t.header.contains("$static", Qt::CaseInsensitive) ? t.name + " $static" : QString();
+    for (const Train &other : trains)
+        t.column = std::max(t.column, other.column + 1);
+    trains.insert(train + 1, t);
+    modified = true;
+    return train + 1;
+}
+
+void OrTimetable::removeTrain(int train) {
+    if (train < 0 || train >= trains.size())
+        return;
+    trains.remove(train);
+    modified = true;
+}
+
+int OrTimetable::addStop(int train, int station, int arrival, int departure) {
+    if (train < 0 || train >= trains.size() || station < 0 || station >= stations.size()
+            || trains[train].stopAt(station) != nullptr)
+        return -1;
+    QVector<Stop> &list = trains[train].stops;
+    int at = 0;
+    while (at < list.size() && list[at].station < station)
+        ++at;
+    Stop stop;
+    stop.station = station;
+    list.insert(at, stop);
+    setStopTimes(train, at, arrival, departure);
+    return at;
+}
+
+void OrTimetable::removeStop(int train, int stop) {
+    if (train < 0 || train >= trains.size() || stop < 0 || stop >= trains[train].stops.size())
+        return;
+    trains[train].stops.remove(stop);
+    modified = true;
+}
+
+QStringList OrTimetable::trainsNaming(const QString &name) const {
+    const QString key = name.trimmed().toLower();
+    const auto names = [&key](const QVector<Command> &commands) {
+        for (const Command &command : commands) {
+            for (const QString &value : command.values)
+                if (value == key || value.startsWith(key + ":"))
+                    return true;
+            for (const Qualifier &qualifier : command.qualifiers)
+                for (const QString &value : qualifier.values)
+                    if (value == key || value.startsWith(key + ":"))
+                        return true;
+        }
+        return false;
+    };
+    QStringList out;
+    for (const Train &t : trains) {
+        if (t.name.toLower() == key)
+            continue;
+        bool named = names(t.startCommands) || names(t.notes) || names(t.dispose) || names(t.speedCommands);
+        for (const Stop &stop : t.stops)
+            named = named || names(stop.commands);
+        if (named)
+            out << t.name;
+    }
+    return out;
+}
+
 QString OrTimetable::toText() const {
     QVector<QStringList> rows;
     // The stations' commands in a station continuation column after their

@@ -95,7 +95,9 @@ int runTimetableUiSuite(bool verbose) {
                          "Beta;;08:20;08:50 $nowaitsignal;\n";
     QDir().mkpath(routePath + "/PATHS");
     QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
-    check(writeUtf16(file, text) && writeUtf16(routePath + "/PATHS/P1.pat", QString(timetablePath).arg("P1")),
+    check(writeUtf16(file, text) && writeUtf16(routePath + "/PATHS/P1.pat", QString(timetablePath).arg("P1"))
+              && writeUtf16(routePath + "/PATHS/P2.pat", QString(timetablePath).arg("P2"))
+              && writeUtf16(temp.path() + "/TRAINS/CONSISTS/C2.con", "SIMISA@@@@@@@@@@JINX0D0t______\n"),
           "write the test route");
     QFile originalFile(file);
     originalFile.open(QIODevice::ReadOnly);
@@ -199,12 +201,13 @@ int runTimetableUiSuite(bool verbose) {
           "its panel");
     // Its information in a grid of boxes left of the stops: shown only.
     QLineEdit *name = timetable.findChild<QLineEdit *>("orTrainName");
-    QLineEdit *path = timetable.findChild<QLineEdit *>("orTrainPath");
+    QComboBox *path = timetable.findChild<QComboBox *>("orTrainPath");
     QLabel *savedIn = timetable.findChild<QLabel *>("timetableSavedIn");
-    check(name != nullptr && name->text() == "T1" && !name->isEnabled() && path != nullptr && path->text() == "P1"
+    check(name != nullptr && name->text() == "T1" && !name->isEnabled() && path != nullptr && path->currentText() == "P1"
+              && path->isEnabled()
               && stops != nullptr && name->mapTo(&timetable, QPoint()).x() < stops->mapTo(&timetable, QPoint()).x()
               && savedIn != nullptr && savedIn->mapTo(&timetable, QPoint()).y() > name->mapTo(&timetable, QPoint()).y(),
-          "T1's name and path in boxes not edited, left of its stops, where it is saved under them");
+          "T1's name in a box not edited, its path chosen, left of its stops, where it is saved under them");
 
     // T1's departure from Alpha edited: the set unsaved, one undo step.
     if (stops != nullptr && stops->topLevelItemCount() > 0)
@@ -415,6 +418,88 @@ int runTimetableUiSuite(bool verbose) {
             trains->setCurrentItem(trains->topLevelItem(i));
             trains->topLevelItem(i)->setSelected(true);
         }
+    // The user's review: the train's path and consist chosen from the
+    // route's paths and the consists (or typed); a new train, a copy, one
+    // removed; each an undo step, undone.
+    const auto chooseT = [&](const QString &trainName) {
+        timetable.showTimetable(set);
+        for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+            if (trains->topLevelItem(i)->text(1) == trainName) {
+                trains->setCurrentItem(trains->topLevelItem(i));
+                trains->topLevelItem(i)->setSelected(true);
+            }
+    };
+    OrTimetable &tt = *set->timetables[0];
+    QComboBox *pathBox = timetable.findChild<QComboBox *>("orTrainPath");
+    QComboBox *consistBox = timetable.findChild<QComboBox *>("orTrainConsist");
+    check(pathBox != nullptr && pathBox->findText("P1") >= 0 && pathBox->findText("P2") >= 0
+              && pathBox->currentText() == "P1" && consistBox != nullptr && consistBox->findText("C2") >= 0
+              && consistBox->currentText() == "C1",
+          "T1's path and consist offered from the route's paths (P1, P2) and the consists (C2)");
+    if (pathBox != nullptr) {
+        pathBox->setCurrentIndex(pathBox->findText("P2"));
+        emit pathBox->activated(pathBox->currentIndex());
+        QApplication::processEvents();
+    }
+    check(tt.trains[t1].path == "P2" && set->isUnSaved() && pathBox->currentText() == "P2", "P2 chosen for T1");
+    Undo::UndoLast();
+    chooseT("T1");
+    if (consistBox != nullptr) {
+        consistBox->setEditText("C1 + C2 $reverse");
+        emit consistBox->lineEdit()->editingFinished();
+        QApplication::processEvents();
+    }
+    check(set->timetables[0]->trains[t1].path == "P1" && set->timetables[0]->trains[t1].consist == "C1 + C2 $reverse"
+              && set->timetables[0]->trains[t1].consists.size() == 2
+              && set->timetables[0]->trains[t1].consists[1].reverse,
+          "undo: P1 again; a consist typed: C1 + C2 $reverse");
+    Undo::UndoLast();
+    chooseT("T1");
+    const QString refused = timetable.addTimetableTrain("t2", false);
+    const QString added = timetable.addTimetableTrain("T3", false);
+    OrTimetable &after = *set->timetables[0];
+    const int t3 = after.trainNamed("T3");
+    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
+    QCheckBox *every = timetable.findChild<QCheckBox *>("orTrainAllStations");
+    check(after.trains[t1].consist == "C1" && !refused.isEmpty() && added.isEmpty() && after.trains.size() == 4
+              && t3 == t1 + 1 && after.trains[t3].startTime == 8 * 3600 + 120 && after.trains[t3].stops.isEmpty()
+              && trains->currentItem() != nullptr && trains->currentItem()->text(1) == "T3" && stops != nullptr
+              && stops->topLevelItemCount() == 2 && stops->topLevelItem(1)->text(1).isEmpty() && every != nullptr
+              && every->isChecked(),
+          "New Train: t2 refused (T2 is there), T3 after T1 from its start, chosen, every station listed: "
+              + refused);
+    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
+        timetable.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-new-train.png");
+    if (stops != nullptr && stops->topLevelItemCount() > 1)
+        stops->topLevelItem(1)->setText(1, "09:10");
+    QApplication::processEvents();
+    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
+    check(set->timetables[0]->trains[t3].stops.size() == 1 && set->timetables[0]->trains[t3].stops[0].station == 1
+              && set->timetables[0]->trains[t3].stops[0].timing.arrival == 9 * 3600 + 600 && stops != nullptr
+              && stops->topLevelItemCount() == 2 && stops->topLevelItem(1)->text(2) == "09:10",
+          "a time typed at Beta: T3 stops there, still every station listed");
+    if (stops != nullptr && stops->topLevelItemCount() > 1)
+        stops->topLevelItem(1)->setText(2, "");
+    QApplication::processEvents();
+    check(set->timetables[0]->trains[t3].stops.isEmpty(), "its only time cleared: the stop gone");
+    chooseT("T1");
+    const QString copied = timetable.addTimetableTrain("T1_2", true);
+    const int copy = set->timetables[0]->trainNamed("T1_2");
+    check(copied.isEmpty() && copy == t1 + 1 && set->timetables[0]->trains[copy].stops.size() == 2
+              && set->timetables[0]->trains[copy].notes.size() == 2 && set->timetables[0]->trains[copy].path == "P1"
+              && trains->currentItem() != nullptr && trains->currentItem()->text(1) == "T1_2",
+          "Clone Train: T1_2 after T1 with its stops and commands, chosen");
+    const QStringList naming = set->timetables[0]->trainsNaming("T2");
+    timetable.removeTimetableTrain();
+    check(set->timetables[0]->trainNamed("T1_2") < 0 && set->timetables[0]->trains.size() == 4
+              && naming.contains("T1") && naming.contains("T1_2"),
+          "Remove Train: T1_2 gone; T1 and T1_2 named as naming T2 ($connect)");
+    for (int k = 0; k < 5; ++k)
+        Undo::UndoLast();
+    check(set->timetables[0]->trains.size() == 3 && set->timetables[0]->trainNamed("T3") < 0
+              && set->timetables[0]->trains[t1].stops.size() == 2,
+          "undo, five steps: the three trains as they were");
+    chooseT("T1");
     // TSRE_ACTIVITY_UI_SHOTS: the window as it is now, for a look.
     if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
         timetable.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-train.png");

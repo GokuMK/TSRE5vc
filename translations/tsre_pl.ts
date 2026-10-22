@@ -1358,7 +1358,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
     </message>
     <message id="route.editor.activity.tools.button.act.events.open">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="403"/>
-        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="155"/>
+        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="157"/>
         <source>Open Event Editor</source>
         <translation>Otwórz edytor zdarzeń</translation>
     </message>
@@ -5383,159 +5383,229 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</source>
         <translation>Kamera podąża za wybranym pociągiem, gdy symulacja trwa, przy oknie jego kabiny. W 3D klawisz 1 pokazuje widok z kabiny, klawisz 2 jego czoło, a klawisz 3 jego koniec.</translation>
     </message>
+    <message id="route.editor.activity.timetable.window.button.new.train">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="175"/>
+        <source>New Train...</source>
+        <translation>Nowy pociąg...</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.button.clone.train">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="178"/>
+        <source>Clone Train...</source>
+        <translation>Klonuj pociąg...</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.button.remove.train">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="181"/>
+        <source>Remove Train</source>
+        <translation>Usuń pociąg</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.button.new.train.tooltip">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="184"/>
+        <source>A new train in the chosen train&apos;s timetable, after it: then choose its path and consist and type its times (All stations).</source>
+        <translation>Nowy pociąg w rozkładzie wybranego pociągu, za nim: potem wybierz jego drogę przejazdu i skład i wpisz jego godziny (Wszystkie stacje).</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.button.clone.train.tooltip">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="187"/>
+        <source>A copy of the chosen train, with all its times and commands, under a new name.</source>
+        <translation>Kopia wybranego pociągu, ze wszystkimi jego godzinami i poleceniami, pod nową nazwą.</translation>
+    </message>
     <message id="route.editor.activity.timetable.window.button.copy">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="176"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="194"/>
         <source>Make Own Copy...</source>
         <translation>Utwórz własną kopię...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.copy.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="179"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="197"/>
         <source>A new traffic pattern with the same runs, for this activity alone.</source>
         <translation>Nowy ruch pociągów z tymi samymi kursami, tylko dla tego scenariusza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.simulate">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="209"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="230"/>
         <source>Simulate</source>
         <translation>Symuluj</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.simulate.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="212"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="233"/>
         <source>Runs the activity as fast as possible and writes the times it gives into the timetables. Departures you set since the last Simulate are kept: the train leaves no earlier.</source>
         <translation>Uruchamia scenariusz najszybciej jak się da i zapisuje uzyskane czasy w rozkładach jazdy. Odjazdy ustawione przez ciebie od ostatniego Symuluj są zachowane: pociąg nie odjedzie wcześniej.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="220"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="241"/>
         <source>Departures rounded up to it, the train waiting for them; arrivals rounded down.</source>
         <translation>Odjazdy zaokrąglone w górę do tej wartości, pociąg na nie czeka; przyjazdy zaokrąglone w dół.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="223"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="244"/>
         <source>All trains</source>
         <translation>Wszystkie pociągi</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="226"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="247"/>
         <source>The player&apos;s train</source>
         <translation>Pociąg gracza</translation>
     </message>
     <message id="route.editor.activity.timetable.window.from.scratch">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="229"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="250"/>
         <source>From scratch</source>
         <translation>Od nowa</translation>
     </message>
     <message id="route.editor.activity.timetable.window.from.scratch.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="232"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="253"/>
         <source>Every departure calculated again: the ones you set are not kept.</source>
         <translation>Wszystkie odjazdy obliczone ponownie: ustawione przez ciebie nie są zachowane.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="247"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="268"/>
         <source>Round to:</source>
         <translation>Zaokrąglaj do:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="251"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="272"/>
         <source>Times for:</source>
         <translation>Czasy dla:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.section.info">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="282"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="303"/>
         <source>Info:</source>
         <translation>Informacje:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.section.simulation">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="288"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="309"/>
         <source>Simulation:</source>
         <translation>Symulacja:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.events">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="301"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="322"/>
         <source>Events in the simulation:</source>
         <translation>Zdarzenia w symulacji:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="425"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="449"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="862"/>
         <source>%1 (player)</source>
         <translation>%1 (gracz)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.not.in.activity">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="428"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="452"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="863"/>
         <source>%1 (not in the activity)</source>
         <translation>%1 (poza scenariuszem)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="519"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="551"/>
         <source>The times and commands are saved in the timetable: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</source>
         <translation>Czasy i polecenia są zapisywane w rozkładzie: Zapisz aktywności zapisuje go w układzie TSRE, za pierwszym razem zachowując obok oryginał.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="534"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="566"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="889"/>
         <source>The player&apos;s times are saved in the activity.</source>
         <translation>Czasy pociągu gracza są zapisane w scenariuszu.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.pattern.only">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="538"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="570"/>
         <source>A run of the traffic pattern %1 that the activity does not have: Add to Activity puts it in.</source>
         <translation>Kurs z ruchu pociągów %1, którego scenariusz nie ma: Dodaj do scenariusza go wstawia.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="542"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="574"/>
         <source>Not in the traffic pattern %1: this train has no times.</source>
         <translation>Brak w ruchu pociągów %1: ten pociąg nie ma czasów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.own">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="548"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="580"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="885"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="915"/>
         <source>The times are saved in the traffic pattern %1, used by this activity only.</source>
         <translation>Czasy są zapisane w ruchu pociągów %1, używanym tylko przez ten scenariusz.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="552"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="584"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="905"/>
         <source>The times are saved in the traffic pattern %1, shared with: %2. Changing them changes those activities too.</source>
         <translation>Czasy są zapisane w ruchu pociągów %1, wspólnym z: %2. Ich zmiana zmienia też te scenariusze.</translation>
     </message>
+    <message id="route.editor.activity.timetable.window.train.name.invalid">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="619"/>
+        <source>A train&apos;s name cannot be empty, start with # or hold $ ; , or a tab.</source>
+        <translation>Nazwa pociągu nie może być pusta, zaczynać się od # ani zawierać $ ; , lub tabulatora.</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.train.name.exists">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="623"/>
+        <source>A train named %1 is in the timetables already.</source>
+        <translation>Pociąg o nazwie %1 jest już w rozkładach.</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.new.train.title">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="654"/>
+        <source>New Train</source>
+        <translation>Nowy pociąg</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.train.name">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="656"/>
+        <source>The new train&apos;s name:</source>
+        <translation>Nazwa nowego pociągu:</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.clone.train.title">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="671"/>
+        <source>Clone Train</source>
+        <translation>Klonuj pociąg</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.clone.name">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="673"/>
+        <source>The copy&apos;s name:</source>
+        <translation>Nazwa kopii:</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.remove.train.question">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="687"/>
+        <source>Remove the train %1 from the timetable?</source>
+        <translation>Usunąć pociąg %1 z rozkładu?</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.remove.train.naming">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="692"/>
+        <source>These trains&apos; commands name it and are kept: %1</source>
+        <translation>Polecenia tych pociągów go wymieniają i zostają: %1</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.remove.train.title">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="695"/>
+        <source>Remove Train</source>
+        <translation>Usuń pociąg</translation>
+    </message>
     <message id="route.editor.activity.timetable.window.copy.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="636"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="761"/>
         <source>Own Copy of the Traffic Pattern</source>
         <translation>Własna kopia ruchu pociągów</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="645"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="770"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>Nazwa pliku nie może być pusta ani zawierać \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="651"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="776"/>
         <source>A traffic pattern named %1 exists already.</source>
         <translation>Ruch pociągów o nazwie %1 już istnieje.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="767"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="892"/>
         <source>The traffic pattern %1 is shared with: %2. Only the player&apos;s times are written; Make Own Copy... to write the AI trains&apos; too.</source>
         <translation>Ruch pociągów %1 jest wspólny z: %2. Zapisywane są tylko czasy gracza; Utwórz własną kopię..., by zapisać też czasy pociągów AI.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.no.pattern">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="771"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="896"/>
         <source>The activity has no traffic pattern: the player&apos;s times alone.</source>
         <translation>Scenariusz nie ma ruchu pociągów: tylko czasy gracza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="775"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="900"/>
         <source>Whose times Simulate writes: the player&apos;s in the activity, the AI trains&apos; in the traffic pattern.</source>
         <translation>Czyje czasy zapisuje Symuluj: gracza w scenariuszu, pociągów AI w ruchu pociągów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="799"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="924"/>
         <source>Simulating the activity...</source>
         <translation>Symulowanie scenariusza...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating.cancel">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="801"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="926"/>
         <source>Cancel</source>
         <translation>Anuluj</translation>
     </message>
@@ -14980,248 +15050,263 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>pociąg %1 na %2: %3 nie jest czasem</translation>
     </message>
     <message id="timetable.save.original">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="720"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="824"/>
         <source>The original %1 could not be kept as %2.</source>
         <translation>Nie udało się zachować oryginału %1 jako %2.</translation>
     </message>
     <message id="timetable.save.unwritable">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="727"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="831"/>
         <source>%1 could not be written.</source>
         <translation>Nie udało się zapisać %1.</translation>
     </message>
     <message id="timetable.check.station">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="801"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="905"/>
         <source>station %1: no platform of the route has it</source>
         <translation>stacja %1: żaden peron trasy jej nie ma</translation>
     </message>
     <message id="timetable.check.command.text">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="813"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="917"/>
         <source>%1: &apos;$%2&apos; is no command; a timing must come before the commands</source>
         <translation>%1: &apos;$%2&apos; nie jest poleceniem; czas musi być przed poleceniami</translation>
     </message>
     <message id="timetable.check.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="817"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="921"/>
         <source>%1: $%2 is not run by TSRE yet</source>
         <translation>%1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
     <message id="timetable.check.qualifier">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="824"/>
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="899"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="928"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1003"/>
         <source>%1: $%2 runs, its /%3 is not run by TSRE yet</source>
         <translation>%1: $%2 jest wykonywane, jego /%3 jeszcze nie przez TSRE</translation>
     </message>
     <message id="timetable.check.reference">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="832"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="936"/>
         <source>%1: $%2 names %3, not a train of the timetable</source>
         <translation>%1: $%2 wskazuje %3, nie pociąg tego rozkładu</translation>
     </message>
     <message id="timetable.check.ahead">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="838"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="942"/>
         <source>%1: /ahead=%2 is not a train of the timetable</source>
         <translation>%1: /ahead=%2 nie jest pociągiem tego rozkładu</translation>
     </message>
     <message id="timetable.check.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="844"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="948"/>
         <source>no path</source>
         <translation>brak ścieżki</translation>
     </message>
     <message id="timetable.check.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="847"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="951"/>
         <source>path %1 is not in the route&apos;s PATHS</source>
         <translation>ścieżki %1 nie ma w PATHS trasy</translation>
     </message>
     <message id="timetable.check.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="851"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="955"/>
         <source>no consist</source>
         <translation>brak składu</translation>
     </message>
     <message id="timetable.check.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="855"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="959"/>
         <source>consist %1 is not there</source>
         <translation>składu %1 nie ma</translation>
     </message>
     <message id="timetable.check.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="858"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="962"/>
         <source>no start time</source>
         <translation>brak godziny startu</translation>
     </message>
     <message id="timetable.check.where.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="860"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="964"/>
         <source>path</source>
         <translation>ścieżka</translation>
     </message>
     <message id="timetable.check.where.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="862"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="966"/>
         <source>start</source>
         <translation>start</translation>
     </message>
     <message id="timetable.check.where.note">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="864"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="968"/>
         <source>note</source>
         <translation>uwagi</translation>
     </message>
     <message id="timetable.check.where.dispose">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="866"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="970"/>
         <source>dispose</source>
         <translation>koniec biegu</translation>
     </message>
     <message id="timetable.check.where.speed">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="868"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="972"/>
         <source>speed</source>
         <translation>prędkość</translation>
     </message>
     <message id="timetable.check.passing">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="881"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="985"/>
         <source>passing times (P) at %1: no stops, as in Open Rails; TSRE does not use the times yet</source>
         <translation>czasy przejazdu (P) w %1: bez postojów, jak w Open Rails; TSRE jeszcze nie używa tych czasów</translation>
     </message>
     <message id="timetable.check.restartdelay">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="886"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="990"/>
         <source>#restartdelay is not run by TSRE yet: no random restart delays</source>
         <translation>#restartdelay nie jest jeszcze wykonywane przez TSRE: bez losowych opóźnień ruszania</translation>
     </message>
     <message id="timetable.check.station.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="893"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="997"/>
         <source>station %1: $%2 is not run by TSRE yet</source>
         <translation>stacja %1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
     <message id="route.editor.activity.or.train.not.run">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="39"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="42"/>
         <source>Not run by TSRE yet (kept in the timetable): %1</source>
         <translation>Jeszcze niewykonywane przez TSRE (zachowane w rozkładzie): %1</translation>
     </message>
+    <message id="route.editor.activity.or.train.all.stations">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="127"/>
+        <source>All stations</source>
+        <translation>Wszystkie stacje</translation>
+    </message>
+    <message id="route.editor.activity.or.train.all.stations.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="130"/>
+        <source>Every station of the timetable in the list: a time typed at one the train has no stop at adds the stop. A stop&apos;s only time cleared removes it.</source>
+        <translation>Każda stacja rozkładu na liście: godzina wpisana przy stacji, na której pociąg nie staje, dodaje postój. Wyczyszczenie jedynej godziny postoju go usuwa.</translation>
+    </message>
     <message id="route.editor.activity.or.train.pick">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="118"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="145"/>
         <source>Choose the commands from a list...</source>
         <translation>Wybierz polecenia z listy...</translation>
     </message>
     <message id="route.editor.activity.or.train.column.station">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="125"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="152"/>
         <source>Station</source>
         <translation>Stacja</translation>
     </message>
     <message id="route.editor.activity.or.train.column.arrival">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="127"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="154"/>
         <source>Arrival</source>
         <translation>Przyjazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.departure">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="129"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="156"/>
         <source>Departure</source>
         <translation>Odjazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="131"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="158"/>
         <source>Commands</source>
         <translation>Polecenia</translation>
     </message>
     <message id="route.editor.activity.or.train.column.station.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="133"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="160"/>
         <source>Station&apos;s commands</source>
         <translation>Polecenia stacji</translation>
     </message>
     <message id="route.editor.activity.or.train.stops.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="151"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="180"/>
         <source>Arrival and departure as HH:mm or HH:mm:ss; Commands this train&apos;s at the station, Station&apos;s commands every train&apos;s there (double-click to change, … to choose them from a list).</source>
         <translation>Przyjazd i odjazd jako GG:mm lub GG:mm:ss; Polecenia tego pociągu na stacji, Polecenia stacji dla każdego pociągu na niej (dwuklik, by zmienić, … by wybrać je z listy).</translation>
     </message>
     <message id="route.editor.activity.or.train.section.info">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="176"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="205"/>
         <source>Info:</source>
         <translation>Informacje:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.name">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="178"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="207"/>
         <source>Train:</source>
         <translation>Pociąg:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.path">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="180"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="209"/>
         <source>Path:</source>
         <translation>Droga przejazdu:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.consist">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="182"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="211"/>
         <source>Consist:</source>
         <translation>Skład:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.comment">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="184"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="213"/>
         <source>Comment:</source>
         <translation>Komentarz:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.file">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="186"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="215"/>
         <source>Timetable:</source>
         <translation>Rozkład:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.start.time">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="188"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="217"/>
         <source>Start Time:</source>
         <translation>Czas rozpoczęcia:</translation>
     </message>
     <message id="route.editor.activity.or.train.section.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="190"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="219"/>
         <source>Commands:</source>
         <translation>Polecenia:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.start">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="192"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="221"/>
         <source>Start:</source>
         <translation>Start:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.note">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="194"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="223"/>
         <source>Note:</source>
         <translation>Uwagi (#note):</translation>
     </message>
     <message id="route.editor.activity.or.train.field.dispose">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="196"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="225"/>
         <source>Dispose:</source>
         <translation>Zakończenie (#dispose):</translation>
     </message>
     <message id="route.editor.activity.or.train.field.speed">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="198"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="227"/>
         <source>Speed row:</source>
         <translation>Wiersz prędkości:</translation>
     </message>
+    <message id="route.editor.activity.or.train.no.stop">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="347"/>
+        <source>No stop: type a time to add one.</source>
+        <translation>Brak postoju: wpisz godzinę, by go dodać.</translation>
+    </message>
     <message id="route.editor.activity.or.train.request">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="278"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="356"/>
         <source>%1 (request stop)</source>
         <translation>%1 (postój na żądanie)</translation>
     </message>
     <message id="route.editor.activity.or.train.early">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="281"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="359"/>
         <source>%1 (may leave early)</source>
         <translation>%1 (może odjechać wcześniej)</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.start">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="437"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="581"/>
         <source>%1, start</source>
         <translation>%1, start</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.note">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="439"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="583"/>
         <source>%1, note</source>
         <translation>%1, uwagi</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.dispose">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="441"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="585"/>
         <source>%1, dispose</source>
         <translation>%1, koniec</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.speed">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="443"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="587"/>
         <source>%1, speed row</source>
         <translation>%1, wiersz prędkości</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.stop">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="461"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="607"/>
         <source>%1 at %2</source>
         <translation>%1 w %2</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.station">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="463"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="609"/>
         <source>%1, every train</source>
         <translation>%1, każdy pociąg</translation>
     </message>

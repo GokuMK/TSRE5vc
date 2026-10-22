@@ -43,6 +43,14 @@ public slots:
     // Undo replaces activity data (ActivityNotifier).
     void activityDataRestoring();
     void activityDataRestored();
+    // An Open Rails timetable set's trains (the user's review of task
+    // simulation 08): a new train, or a copy of the chosen one, named so, in
+    // the chosen train's timetable after it (the first timetable's end
+    // without one), then chosen; the chosen train gone. Each an undo step.
+    // A name already in the set, empty or one Open Rails reads otherwise
+    // ('#', '$', the separator) is refused: the reason, else empty.
+    QString addTimetableTrain(const QString &name, bool copy);
+    void removeTimetableTrain();
     
 signals:
     void jumpTo(PreciseTileCoordinate *c);
@@ -68,6 +76,9 @@ private slots:
     // Simulate: the run, the times written (one undo step).
     void simulateTimetables();
     void orTrainEdited();
+    void newTrainAsked();
+    void cloneTrainAsked();
+    void removeTrainAsked();
     
 private:
     QTreeWidget trains;
@@ -83,6 +94,11 @@ private:
     QWidget *mstsStops = NULL;
     QWidget *orInfo = NULL;
     QWidget *orBox = NULL;
+    QPushButton *bNewTrain = NULL;
+    QPushButton *bCloneTrain = NULL;
+    QPushButton *bRemoveTrain = NULL;
+    // The train to choose after the list is filled again.
+    void chooseTrainNamed(const QString &name);
     OrTrainProperties *orTrain = NULL;
     QListWidget events;
     QLabel savedIn;

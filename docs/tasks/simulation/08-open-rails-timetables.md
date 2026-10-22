@@ -477,11 +477,28 @@ reported, editing commands).
   `#note` row takes `$acc`, `$dec`, `$doo`, `$forcereversal` and the
   timing commands; a station's row only the commands its `StationInfo`
   reads (no `$keepclear`, `$endstop`, `$closeup`, `$waitsignal`).
-- **Fixtures:** `timetable-ui` (25): the grid; the note's picker (its
+- Trains (the user: in the Timetable window, as the Traffic window shows
+  only the check's log for a set): New Train... (after the chosen one in
+  its timetable, from its start time, no path, consist or stops), Clone
+  Train... (a copy with its stops and commands; an unnamed static stays
+  static, named), Remove Train (the trains whose commands name it listed
+  in the question, kept); names unique in the set, none Open Rails reads
+  otherwise. The path and consist chosen from the route's paths
+  (`ActLib::RoutePaths`) and the consists (`ConLib`, as the service
+  editor) or typed ("C1 + C2 $reverse"); the path cell's commands kept.
+  Stops: All stations lists every station (on for a train without
+  stops), a time typed at one adds the stop, a stop's only time cleared
+  removes it. Each an undo step (`OrTimetable::addTrain`, `cloneTrain`,
+  `removeTrain`, `setTrainPath`, `setTrainConsist`, `addStop`,
+  `removeStop`).
+- **Fixtures:** `timetable-ui` (34): the grid; the note's picker (its
   commands ticked, a qualifier changed, a command ticked, OK, undo), a
   stop's "…" (`$keepclear /rear=50`), the station's picker without
-  `$keepclear`, its `$closeup` kept as typed. `timetable-read` (31): the
-  catalogue holds every command TSRE runs, each described.
+  `$keepclear`, its `$closeup` kept as typed; a path chosen, a consist
+  typed, a train's name refused, a new train given a stop and it removed,
+  a copy, a train removed, all undone. `timetable-read` (33): the
+  catalogue holds every command TSRE runs, each described; the train
+  operations written and read back.
 
 ## Why
 

@@ -439,6 +439,40 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         ActLib::TimetableSets.remove(group);
     }
 
+    // The user's review: trains added, copied, removed, their path (the
+    // cell's commands kept) and consist set, stops added and removed;
+    // written and read back the same.
+    {
+        OrTimetable edited;
+        edited.loadText(";#comment;A;$static\n"
+                        "#path;;PA $endatlastsignal;PS\n"
+                        "#consist;;CA;CS\n"
+                        "#start;;06:00;\n"
+                        "One;;06:10;\n"
+                        "Two;;06:20;\n");
+        edited.setTrainPath(0, "PB");
+        edited.setTrainConsist(0, "CA + CB $reverse");
+        const int fresh = edited.addTrain(0, "N", 7 * 3600);
+        const int copy = edited.cloneTrain(2, "SC");
+        const int stop = edited.addStop(fresh, 1, 7 * 3600 + 600, 7 * 3600 + 660);
+        edited.addStop(0, 1, 6 * 3600 + 1200, -1);
+        edited.removeStop(0, 0);
+        OrTimetable back;
+        back.loadText(edited.toText());
+        const int a = back.trainNamed("A"), n = back.trainNamed("N"), sc = back.trainNamed("SC");
+        check(fresh == 1 && copy == 3 && stop == 0 && back.trains.size() == 4 && a == 0 && n == 1 && sc == 3
+                  && back.trains[a].path == "PB" && back.trains[a].pathText == "PB $endatlastsignal"
+                  && back.trains[a].consists.size() == 2 && back.trains[a].consists[1].reverse
+                  && back.trains[a].stops.size() == 1 && back.trains[a].stops[0].station == 1
+                  && back.trains[n].startTime == 7 * 3600 && back.trains[n].stops.size() == 1
+                  && back.trains[n].stops[0].timing.departure == 7 * 3600 + 660 && back.trains[sc].isStatic
+                  && back.trains[sc].path == "PS" && back.trains[2].isStatic && back.trains[2].header == "$static",
+              "trains added (N), copied (the unnamed static as SC, static), paths and consists set, stops added and "
+              "removed: read back the same");
+        edited.removeTrain(n);
+        check(edited.trains.size() == 3 && edited.trainNamed("N") < 0, "a train removed");
+    }
+
     // The command picker's catalogue: the manual's 48 (44 names: the speed
     // row's $attach and $detach, #dispose's $static and $pool apart), every
     // command TSRE runs there, each described; no name twice at one place;

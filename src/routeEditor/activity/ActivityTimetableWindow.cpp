@@ -170,6 +170,24 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         qtTrId("route.editor.activity.timetable.window.button.follow.tooltip"));
     bFollow->setCheckable(true);
     bFollow->setObjectName("timetableFollow");
+    bNewTrain = new QPushButton(
+        //% "New Train..."
+        qtTrId("route.editor.activity.timetable.window.button.new.train"));
+    bCloneTrain = new QPushButton(
+        //% "Clone Train..."
+        qtTrId("route.editor.activity.timetable.window.button.clone.train"));
+    bRemoveTrain = new QPushButton(
+        //% "Remove Train"
+        qtTrId("route.editor.activity.timetable.window.button.remove.train"));
+    bNewTrain->setToolTip(
+        //% "A new train in the chosen train's timetable, after it: then choose its path and consist and type its times (All stations)."
+        qtTrId("route.editor.activity.timetable.window.button.new.train.tooltip"));
+    bCloneTrain->setToolTip(
+        //% "A copy of the chosen train, with all its times and commands, under a new name."
+        qtTrId("route.editor.activity.timetable.window.button.clone.train.tooltip"));
+    bNewTrain->setObjectName("timetableNewTrain");
+    bCloneTrain->setObjectName("timetableCloneTrain");
+    bRemoveTrain->setObjectName("timetableRemoveTrain");
     events.setObjectName("timetableEvents");
     bCopy = new QPushButton(
         //% "Make Own Copy..."
@@ -193,6 +211,9 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     buttons->addStretch(1);
     buttons->addWidget(bAdd);
     buttons->addWidget(bRemove);
+    buttons->addWidget(bNewTrain);
+    buttons->addWidget(bCloneTrain);
+    buttons->addWidget(bRemoveTrain);
     buttons->addWidget(bJump);
     buttons->addWidget(bFollow);
     QWidget *top = new QWidget;
@@ -347,6 +368,9 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     QObject::connect(bRemove, &QPushButton::released, this, &ActivityTimetableWindow::removeFromActivity);
     QObject::connect(bJump, &QPushButton::released, this, &ActivityTimetableWindow::jumpToTrain);
     QObject::connect(bCopy, &QPushButton::released, this, &ActivityTimetableWindow::makeOwnCopy);
+    QObject::connect(bNewTrain, &QPushButton::released, this, &ActivityTimetableWindow::newTrainAsked);
+    QObject::connect(bCloneTrain, &QPushButton::released, this, &ActivityTimetableWindow::cloneTrainAsked);
+    QObject::connect(bRemoveTrain, &QPushButton::released, this, &ActivityTimetableWindow::removeTrainAsked);
     QObject::connect(timetableProperties, &ActivityTimetableProperties::edited,
                      this, &ActivityTimetableWindow::timetableEdited);
     QObject::connect(bFollow, &QPushButton::toggled, this, &ActivityTimetableWindow::followToggled);
@@ -506,6 +530,14 @@ void ActivityTimetableWindow::showChosen(){
     orBox->setVisible(timetables);
     bAdd->setVisible(!timetables);
     bRemove->setVisible(!timetables);
+    bNewTrain->setVisible(timetables);
+    bCloneTrain->setVisible(timetables);
+    bRemoveTrain->setVisible(timetables);
+    const bool timetableTrain = timetables && train != NULL && train->orTimetable >= 0
+            && train->orTimetable < int(activity->timetables.size());
+    bNewTrain->setEnabled(timetables && !locked && !activity->timetables.empty());
+    bCloneTrain->setEnabled(timetableTrain && !locked);
+    bRemoveTrain->setEnabled(timetableTrain && !locked);
     showAll.setVisible(!timetables);
     if(timetables){
         timetableProperties->showTimetable(NULL);
@@ -560,16 +592,109 @@ void ActivityTimetableWindow::showChosen(){
 // A start or stop time changed: the list again, the same train chosen.
 void ActivityTimetableWindow::orTrainEdited(){
     const ActivityTrains::Train *was = chosen();
-    const QString service = was != NULL ? was->service : QString();
+    chooseTrainNamed(was != NULL ? was->service : QString());
+}
+
+void ActivityTimetableWindow::chooseTrainNamed(const QString &name){
     fillTrains();
     for(int i = 0; i < list.size(); i++)
-        if(list[i].service == service){
+        if(list[i].service == name){
             QTreeWidgetItem *item = trains.topLevelItem(i);
             trains.setCurrentItem(item);
             item->setSelected(true);
             break;
         }
     showChosen();
+}
+
+QString ActivityTimetableWindow::addTimetableTrain(const QString &typed, bool copy){
+    const QString name = typed.trimmed();
+    const ActivityTrains::Train *train = chosen();
+    if(activity == NULL || !activity->isTimetables() || activity->timetables.empty()
+            || (copy && (train == NULL || train->orTimetable < 0)))
+        return QString();
+    if(name.isEmpty() || name.startsWith('#') || name.contains('$') || name.contains(';') || name.contains(',')
+            || name.contains('\t'))
+        //% "A train's name cannot be empty, start with # or hold $ ; , or a tab."
+        return qtTrId("route.editor.activity.timetable.window.train.name.invalid");
+    for(const std::shared_ptr<OrTimetable> &timetable : activity->timetables)
+        if(timetable->trainNamed(name) >= 0)
+            //% "A train named %1 is in the timetables already."
+            return qtTrId("route.editor.activity.timetable.window.train.name.exists").arg(name);
+    const bool inTimetable = train != NULL && train->orTimetable >= 0 && train->orTimetable < int(activity->timetables.size());
+    OrTimetable &timetable = *activity->timetables[size_t(inTimetable ? train->orTimetable : 0)];
+    {
+        ActivityEdit edit(activity);
+        if(copy)
+            timetable.cloneTrain(train->orTrain, name);
+        else
+            timetable.addTrain(inTimetable ? train->orTrain : -1, name,
+                               inTimetable ? std::max(0, timetable.trains[train->orTrain].startTime) : 0);
+    }
+    chooseTrainNamed(name);
+    return QString();
+}
+
+void ActivityTimetableWindow::removeTimetableTrain(){
+    const ActivityTrains::Train *train = chosen();
+    if(activity == NULL || !activity->isTimetables() || train == NULL || train->orTimetable < 0
+            || train->orTimetable >= int(activity->timetables.size()))
+        return;
+    {
+        ActivityEdit edit(activity);
+        activity->timetables[size_t(train->orTimetable)]->removeTrain(train->orTrain);
+    }
+    chooseTrainNamed(QString());
+}
+
+void ActivityTimetableWindow::newTrainAsked(){
+    bool ok = false;
+    const QString name = QInputDialog::getText(this,
+        //% "New Train"
+        qtTrId("route.editor.activity.timetable.window.new.train.title"),
+        //% "The new train's name:"
+        qtTrId("route.editor.activity.timetable.window.train.name"), QLineEdit::Normal, QString(), &ok);
+    if(!ok)
+        return;
+    const QString problem = addTimetableTrain(name, false);
+    if(!problem.isEmpty())
+        QMessageBox::warning(this, windowTitle(), problem);
+}
+
+void ActivityTimetableWindow::cloneTrainAsked(){
+    const ActivityTrains::Train *train = chosen();
+    if(train == NULL)
+        return;
+    bool ok = false;
+    const QString name = QInputDialog::getText(this,
+        //% "Clone Train"
+        qtTrId("route.editor.activity.timetable.window.clone.train.title"),
+        //% "The copy's name:"
+        qtTrId("route.editor.activity.timetable.window.clone.name"), QLineEdit::Normal, train->service + "_2", &ok);
+    if(!ok)
+        return;
+    const QString problem = addTimetableTrain(name, true);
+    if(!problem.isEmpty())
+        QMessageBox::warning(this, windowTitle(), problem);
+}
+
+void ActivityTimetableWindow::removeTrainAsked(){
+    const ActivityTrains::Train *train = chosen();
+    if(activity == NULL || train == NULL || train->orTimetable < 0 || train->orTimetable >= int(activity->timetables.size()))
+        return;
+    QString question =
+        //% "Remove the train %1 from the timetable?"
+        qtTrId("route.editor.activity.timetable.window.remove.train.question").arg(train->service);
+    const QStringList naming = activity->timetables[size_t(train->orTimetable)]->trainsNaming(train->service);
+    if(!naming.isEmpty())
+        question += "\n\n" +
+            //% "These trains' commands name it and are kept: %1"
+            qtTrId("route.editor.activity.timetable.window.remove.train.naming").arg(naming.join(", "));
+    if(QMessageBox::question(this,
+            //% "Remove Train"
+            qtTrId("route.editor.activity.timetable.window.remove.train.title"), question) != QMessageBox::Yes)
+        return;
+    removeTimetableTrain();
 }
 
 void ActivityTimetableWindow::selectTrain(int shownId){

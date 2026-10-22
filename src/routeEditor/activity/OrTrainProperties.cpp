@@ -2,18 +2,21 @@
 #include <routeEditor/activity/ActivityEdit.h>
 #include <routeEditor/activity/OrCommandPicker.h>
 #include <tsre/gui/GuiFunct.h>
+#include <tsre/Game.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/ConLib.h>
 #include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/Path.h>
 
 namespace {
 
 enum Column { StationColumn, ArrivalColumn, DepartureColumn, CommandsColumn, StationCommandsColumn, Columns };
-// An item's data: its stop's place in the train, whether it has times to
-// edit.
+// An item's data: its stop's place in the train (-1: a station it has no
+// stop at), whether it has times to edit, its station.
 constexpr int StopRole = Qt::UserRole;
 constexpr int TimedRole = Qt::UserRole + 1;
+constexpr int StationRole = Qt::UserRole + 2;
 
 constexpr OrTimetable::TrainCommands TrainCommandKinds[4] = {
     OrTimetable::TrainCommands::Start, OrTimetable::TrainCommands::Note, OrTimetable::TrainCommands::Dispose,
@@ -85,8 +88,10 @@ public:
 
 private:
     std::function<void(const QModelIndex &)> pick;
+    // A station's commands; a stop's own where the train stops there.
     static bool commands(const QModelIndex &index) {
-        return index.column() == CommandsColumn || index.column() == StationCommandsColumn;
+        return index.column() == StationCommandsColumn
+                || (index.column() == CommandsColumn && index.sibling(index.row(), StationColumn).data(StopRole).toInt() >= 0);
     }
     static QRect button(const QRect &cell) {
         return QRect(cell.right() - 19, cell.top(), 20, cell.height());
@@ -97,12 +102,36 @@ private:
 
 OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     setObjectName("orTrainProperties");
-    const char *shownNames[5] = {"orTrainName", "orTrainPath", "orTrainConsist", "orTrainComment", "orTrainFile"};
-    for (int k = 0; k < 5; ++k) {
+    const char *shownNames[3] = {"orTrainName", "orTrainComment", "orTrainFile"};
+    for (int k = 0; k < 3; ++k) {
         shownFields[k].setObjectName(shownNames[k]);
         shownFields[k].setReadOnly(true);
         shownFields[k].setEnabled(false);
     }
+    // Chosen from the route's paths and the consists, or typed (a consist
+    // cell may join several: "a + b $reverse").
+    for (QComboBox *box : {&pathBox, &consistBox}) {
+        box->setEditable(true);
+        box->setInsertPolicy(QComboBox::NoInsert);
+        box->setStyleSheet("combobox-popup: 0;");
+        box->setMaxVisibleItems(35);
+        box->view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    }
+    pathBox.setObjectName("orTrainPath");
+    consistBox.setObjectName("orTrainConsist");
+    QObject::connect(&pathBox, QOverload<int>::of(&QComboBox::activated), this, &OrTrainProperties::pathEdited);
+    QObject::connect(pathBox.lineEdit(), &QLineEdit::editingFinished, this, &OrTrainProperties::pathEdited);
+    QObject::connect(&consistBox, QOverload<int>::of(&QComboBox::activated), this, &OrTrainProperties::consistEdited);
+    QObject::connect(consistBox.lineEdit(), &QLineEdit::editingFinished, this, &OrTrainProperties::consistEdited);
+    allStations.setObjectName("orTrainAllStations");
+    allStations.setText(
+        //% "All stations"
+        qtTrId("route.editor.activity.or.train.all.stations"));
+    allStations.setToolTip(
+        //% "Every station of the timetable in the list: a time typed at one the train has no stop at adds the stop. A stop's only time cleared removes it."
+        qtTrId("route.editor.activity.or.train.all.stations.tooltip"));
+    QObject::connect(&allStations, &QCheckBox::toggled, this,
+                     [this] { showTrain(set, timetable, train, QStringList(shownProblems)); });
     startTime.setDisplayFormat("HH:mm:ss");
     startTime.setObjectName("orTrainStart");
     const char *names[4] = {"orTrainStartCommands", "orTrainNote", "orTrainDispose", "orTrainSpeed"};
@@ -140,10 +169,12 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     stops.header()->resizeSection(DepartureColumn, 70);
     stops.header()->resizeSection(CommandsColumn, 150);
     stops.setItemDelegate(new CommandCells(this, [this](const QModelIndex &index) {
-        const int stop = index.sibling(index.row(), StationColumn).data(StopRole).toInt();
+        const QModelIndex first = index.sibling(index.row(), StationColumn);
+        const int stop = first.data(StopRole).toInt();
+        const int station = first.data(StationRole).toInt();
         const int column = index.column();
         // After the view's mouse event.
-        QMetaObject::invokeMethod(this, [this, stop, column] { pickStopCommands(stop, column); },
+        QMetaObject::invokeMethod(this, [this, stop, station, column] { pickStopCommands(stop, station, column); },
                                   Qt::QueuedConnection);
     }));
     stops.setToolTip(
@@ -177,13 +208,13 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     //% "Train:"
     field(qtTrId("route.editor.activity.or.train.field.name"), &shownFields[0]);
     //% "Path:"
-    field(qtTrId("route.editor.activity.or.train.field.path"), &shownFields[1]);
+    field(qtTrId("route.editor.activity.or.train.field.path"), &pathBox);
     //% "Consist:"
-    field(qtTrId("route.editor.activity.or.train.field.consist"), &shownFields[2]);
+    field(qtTrId("route.editor.activity.or.train.field.consist"), &consistBox);
     //% "Comment:"
-    field(qtTrId("route.editor.activity.or.train.field.comment"), &shownFields[3]);
+    field(qtTrId("route.editor.activity.or.train.field.comment"), &shownFields[1]);
     //% "Timetable:"
-    field(qtTrId("route.editor.activity.or.train.field.file"), &shownFields[4]);
+    field(qtTrId("route.editor.activity.or.train.field.file"), &shownFields[2]);
     //% "Start Time:"
     field(qtTrId("route.editor.activity.or.train.field.start.time"), &startTime);
     //% "Commands:"
@@ -208,6 +239,7 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     layout->setSpacing(4);
     layout->addWidget(info);
     layout->addWidget(&stops, 1);
+    layout->addWidget(&allStations, 0, Qt::AlignLeft);
     QObject::connect(&startTime, &QTimeEdit::editingFinished, this, &OrTrainProperties::startEdited);
     QObject::connect(&stops, &QTreeWidget::itemChanged, this, &OrTrainProperties::stopEdited);
     showTrain(nullptr, -1, -1, {});
@@ -217,11 +249,15 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     set = chosenSet;
     timetable = chosenTimetable;
     train = chosenTrain;
+    shownProblems = found;
     filling = true;
     stops.clear();
     const bool valid = set != nullptr && timetable >= 0 && timetable < int(set->timetables.size()) && train >= 0
             && train < set->timetables[size_t(timetable)]->trains.size();
     startTime.setEnabled(valid);
+    pathBox.setEnabled(valid);
+    consistBox.setEnabled(valid);
+    allStations.setEnabled(valid);
     for (QLineEdit &field : commandFields) {
         field.setEnabled(valid);
         if (!valid)
@@ -230,6 +266,8 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     if (!valid) {
         for (QLineEdit &field : shownFields)
             field.clear();
+        pathBox.clear();
+        consistBox.clear();
         problems.clear();
         problems.hide();
         filling = false;
@@ -237,12 +275,34 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     }
     const OrTimetable &t = *set->timetables[size_t(timetable)];
     const OrTimetable::Train &one = t.trains[train];
-    const QString shown[5] = {one.name, one.pathText.isEmpty() ? one.path : one.pathText, one.consist, one.comment,
-                              QFileInfo(t.file).fileName()};
-    for (int k = 0; k < 5; ++k) {
+    const QString shown[3] = {one.name, one.comment, QFileInfo(t.file).fileName()};
+    for (int k = 0; k < 3; ++k) {
         shownFields[k].setText(shown[k]);
         shownFields[k].setCursorPosition(0);
         shownFields[k].setToolTip(shown[k]);
+    }
+    {
+        QSignalBlocker pathBlocker(pathBox);
+        QSignalBlocker consistBlocker(consistBox);
+        pathBox.clear();
+        for (Path *path : ActLib::RoutePaths(ActivityTrains::RouteDirectory(set)))
+            pathBox.addItem(path->nameId);
+        pathBox.setCurrentIndex(-1);
+        pathBox.setEditText(one.path);
+        pathBox.setToolTip(one.pathText.isEmpty() ? one.path : one.pathText);
+        consistBox.clear();
+        ConLib::loadSimpleList(Game::root);
+        for (const QString &file : ConLib::conFileList) {
+            QString name = file.section('/', -1);
+            if (name.endsWith(".con", Qt::CaseInsensitive))
+                name.chop(4);
+            consistBox.addItem(name);
+        }
+        consistBox.setCurrentIndex(-1);
+        consistBox.setEditText(one.consist);
+        consistBox.setToolTip(one.consist);
+        pathBox.lineEdit()->setCursorPosition(0);
+        consistBox.lineEdit()->setCursorPosition(0);
     }
     {
         QSignalBlocker blocker(startTime);
@@ -261,14 +321,34 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     }
     // A train static by its column's head has no start cell.
     commandFields[0].setEnabled(!one.header.startsWith('$'));
-    // The stops in the timetable's station order.
+    // The stops in the timetable's station order; with All stations (on
+    // for a train without stops) every station, those without a stop
+    // greyed.
+    if (one.stops.isEmpty()) {
+        QSignalBlocker blocker(allStations);
+        allStations.setChecked(true);
+    }
+    const bool every = allStations.isChecked();
     for (int s = 0; s < t.stations.size(); ++s) {
         int k = -1;
         for (int i = 0; i < one.stops.size() && k < 0; ++i)
             if (one.stops[i].station == s)
                 k = i;
-        if (k < 0)
+        if (k < 0) {
+            if (!every)
+                continue;
+            QTreeWidgetItem *item = new QTreeWidgetItem(&stops, {t.stations[s].name, QString(), QString(), QString(),
+                OrTimetable::CommandsText(t.stations[s].commands)});
+            item->setData(StationColumn, StopRole, -1);
+            item->setData(StationColumn, TimedRole, !one.isStatic);
+            item->setData(StationColumn, StationRole, s);
+            item->setFlags(item->flags() | Qt::ItemIsEditable);
+            for (int column = StationColumn; column <= CommandsColumn; ++column)
+                item->setForeground(column, stops.palette().color(QPalette::Disabled, QPalette::Text));
+            //% "No stop: type a time to add one."
+            item->setToolTip(StationColumn, qtTrId("route.editor.activity.or.train.no.stop"));
             continue;
+        }
         const OrTimetable::Stop &stop = one.stops[k];
         const bool timed = stop.timing.passing < 0 && (stop.timing.arrival >= 0 || stop.timing.departure >= 0);
         // A request stop's or early one's mark beside the station (one time).
@@ -285,6 +365,7 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
             OrTimetable::CommandsText(stop.commands), OrTimetable::CommandsText(t.stations[s].commands)});
         item->setData(StationColumn, StopRole, k);
         item->setData(StationColumn, TimedRole, timed && !one.isStatic);
+        item->setData(StationColumn, StationRole, s);
         item->setFlags(item->flags() | Qt::ItemIsEditable);
         for (int column = 0; column < Columns; ++column)
             item->setToolTip(column, item->text(column));
@@ -345,20 +426,50 @@ void OrTrainProperties::stopEdited(QTreeWidgetItem *item, int column) {
         return;
     OrTimetable &t = *set->timetables[size_t(timetable)];
     const int k = item->data(StationColumn, StopRole).toInt();
-    if (train < 0 || train >= t.trains.size() || k < 0 || k >= t.trains[train].stops.size())
+    const int station = item->data(StationColumn, StationRole).toInt();
+    if (train < 0 || train >= t.trains.size() || k >= t.trains[train].stops.size() || station < 0
+            || station >= t.stations.size())
         return;
-    const OrTimetable::Stop &stop = t.trains[train].stops[k];
-    if (column == CommandsColumn || column == StationCommandsColumn) {
-        const bool own = column == CommandsColumn;
-        const QString was = OrTimetable::CommandsText(own ? stop.commands : t.stations[stop.station].commands);
-        if (OrTimetable::CommandsText(OrTimetable::Commands(OrTimetable::TypedCommands(item->text(column)))) == was)
+    const auto putBack = [this, item, column](const QString &text) {
+        filling = true;
+        item->setText(column, text);
+        filling = false;
+    };
+    if (column == StationCommandsColumn) {
+        if (OrTimetable::CommandsText(OrTimetable::Commands(OrTimetable::TypedCommands(item->text(column))))
+                == OrTimetable::CommandsText(t.stations[station].commands))
             return;
         {
             ActivityEdit edit(set);
-            if (own)
-                t.setStopCommands(train, k, item->text(column));
-            else
-                t.setStationCommands(stop.station, item->text(column));
+            t.setStationCommands(station, item->text(column));
+        }
+        editedLater();
+        return;
+    }
+    // A station without a stop: a time adds one there.
+    if (k < 0) {
+        const QString text = item->text(column).trimmed();
+        const int time = OrTimetable::ParseTime(text);
+        if ((column != ArrivalColumn && column != DepartureColumn) || time < 0
+                || !item->data(StationColumn, TimedRole).toBool()) {
+            putBack(QString());
+            return;
+        }
+        {
+            ActivityEdit edit(set);
+            t.addStop(train, station, time, time);
+        }
+        editedLater();
+        return;
+    }
+    const OrTimetable::Stop &stop = t.trains[train].stops[k];
+    if (column == CommandsColumn) {
+        if (OrTimetable::CommandsText(OrTimetable::Commands(OrTimetable::TypedCommands(item->text(column))))
+                == OrTimetable::CommandsText(stop.commands))
+            return;
+        {
+            ActivityEdit edit(set);
+            t.setStopCommands(train, k, item->text(column));
         }
         editedLater();
         return;
@@ -373,15 +484,22 @@ void OrTrainProperties::stopEdited(QTreeWidgetItem *item, int column) {
     // A request stop or an early one has one time: either column sets it.
     if ((was.request || was.early) && time >= 0)
         arrival = departure = time;
-    // A passing time or a cell without times, not a time, or both gone: as
-    // it was.
-    if (!item->data(StationColumn, TimedRole).toBool() || (!text.isEmpty() && time < 0)
-            || (arrival < 0 && departure < 0)) {
-        filling = true;
-        const bool timed = was.passing < 0 && (was.arrival >= 0 || was.departure >= 0);
-        item->setText(column, column == ArrivalColumn ? (timed ? OrTimetable::TimeText(was.arrival) : was.text)
-                                                      : (timed ? OrTimetable::TimeText(was.departure) : QString()));
-        filling = false;
+    // A passing time or a cell without times, or not a time: as it was.
+    const bool timed = item->data(StationColumn, TimedRole).toBool();
+    if (!timed || (!text.isEmpty() && time < 0)) {
+        const bool times = was.passing < 0 && (was.arrival >= 0 || was.departure >= 0);
+        putBack(column == ArrivalColumn ? (times ? OrTimetable::TimeText(was.arrival) : was.text)
+                                        : (times ? OrTimetable::TimeText(was.departure) : QString()));
+        return;
+    }
+    // Its only time gone (one time, or a request or early stop): the stop
+    // gone.
+    if ((arrival < 0 && departure < 0) || (time < 0 && (was.arrival == was.departure || was.request || was.early))) {
+        {
+            ActivityEdit edit(set);
+            t.removeStop(train, k);
+        }
+        editedLater();
         return;
     }
     if (arrival == was.arrival && departure == was.departure)
@@ -389,6 +507,34 @@ void OrTrainProperties::stopEdited(QTreeWidgetItem *item, int column) {
     {
         ActivityEdit edit(set);
         t.setStopTimes(train, k, arrival, departure);
+    }
+    editedLater();
+}
+
+void OrTrainProperties::pathEdited() {
+    if (filling || set == nullptr || timetable < 0)
+        return;
+    OrTimetable &t = *set->timetables[size_t(timetable)];
+    const QString path = pathBox.currentText().trimmed();
+    if (train < 0 || train >= t.trains.size() || t.trains[train].path == path)
+        return;
+    {
+        ActivityEdit edit(set);
+        t.setTrainPath(train, path);
+    }
+    editedLater();
+}
+
+void OrTrainProperties::consistEdited() {
+    if (filling || set == nullptr || timetable < 0)
+        return;
+    OrTimetable &t = *set->timetables[size_t(timetable)];
+    const QString consist = consistBox.currentText().trimmed();
+    if (train < 0 || train >= t.trains.size() || t.trains[train].consist == consist)
+        return;
+    {
+        ActivityEdit edit(set);
+        t.setTrainConsist(train, consist);
     }
     editedLater();
 }
@@ -447,25 +593,27 @@ void OrTrainProperties::pickTrainCommands(int field) {
     });
 }
 
-void OrTrainProperties::pickStopCommands(int stop, int column) {
+void OrTrainProperties::pickStopCommands(int stop, int station, int column) {
     if (set == nullptr || timetable < 0 || train < 0 || !stops.isEnabled())
         return;
     const OrTimetable &t = *set->timetables[size_t(timetable)];
-    if (train >= t.trains.size() || stop < 0 || stop >= t.trains[train].stops.size())
+    if (train >= t.trains.size() || stop >= t.trains[train].stops.size() || station < 0 || station >= t.stations.size())
         return;
-    const OrTimetable::Stop &at = t.trains[train].stops[stop];
-    const QString station = at.station >= 0 && at.station < t.stations.size() ? t.stations[at.station].name : QString();
     const bool own = column == CommandsColumn;
+    // A station the train has no stop at: only the station's commands.
+    if (own && stop < 0)
+        return;
+    const QString name = t.stations[station].name;
     const QString title = own ?
         //% "%1 at %2"
-        qtTrId("route.editor.activity.or.train.pick.stop").arg(t.trains[train].name, station) :
+        qtTrId("route.editor.activity.or.train.pick.stop").arg(t.trains[train].name, name) :
         //% "%1, every train"
-        qtTrId("route.editor.activity.or.train.pick.station").arg(station);
-    const QString text = OrTimetable::CommandsText(own ? at.commands : t.stations[at.station].commands);
-    openPicker(own ? OrCommandSpec::Stop : OrCommandSpec::Station, title, text, [this, stop, column](const QString &chosen) {
+        qtTrId("route.editor.activity.or.train.pick.station").arg(name);
+    const QString text = OrTimetable::CommandsText(own ? t.trains[train].stops[stop].commands : t.stations[station].commands);
+    openPicker(own ? OrCommandSpec::Stop : OrCommandSpec::Station, title, text, [this, station, column](const QString &chosen) {
         for (int i = 0; i < stops.topLevelItemCount(); ++i) {
             QTreeWidgetItem *item = stops.topLevelItem(i);
-            if (item->data(StationColumn, StopRole).toInt() == stop) {
+            if (item->data(StationColumn, StationRole).toInt() == station) {
                 // As typed: stopEdited takes it.
                 item->setText(column, chosen);
                 return;

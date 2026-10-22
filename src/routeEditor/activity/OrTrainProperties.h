@@ -13,7 +13,10 @@ class Activity;
 // unsaved (Save Activities writes it in TSRE's layout). The train's
 // information, commands and problems are in info, which the window puts
 // beside the stops. The "…" of a command field or cell opens the command
-// picker (OrCommandPicker).
+// picker (OrCommandPicker). Its path and consist are chosen (the route's
+// paths, the consists) or typed; with All stations its stops list has
+// every station, a time typed at one without a stop adds it; a stop's only
+// time cleared removes it.
 class OrTrainProperties : public QWidget {
     Q_OBJECT
 public:
@@ -31,8 +34,13 @@ private:
     Activity *set = nullptr;
     int timetable = -1;
     int train = -1;
-    // The train's name, path, consist, comment and timetable file.
-    QLineEdit shownFields[5];
+    // The train's name, comment and timetable file.
+    QLineEdit shownFields[3];
+    QComboBox pathBox;
+    QComboBox consistBox;
+    QCheckBox allStations;
+    // The problems shown (All stations shows the train again).
+    QStringList shownProblems;
     QTimeEdit startTime;
     // The train's commands: #start's, #note, #dispose, the speed row.
     QLineEdit commandFields[4];
@@ -42,11 +50,13 @@ private:
     void startEdited();
     void commandsEdited(OrTimetable::TrainCommands which);
     void stopEdited(QTreeWidgetItem *item, int column);
+    void pathEdited();
+    void consistEdited();
     // The picker for a command field (its index) or a stop's command cell
     // (the stop's place in the train, its column); OK sets the field or
     // cell as typing does.
     void pickTrainCommands(int field);
-    void pickStopCommands(int stop, int column);
+    void pickStopCommands(int stop, int station, int column);
     void openPicker(int place, const QString &title, const QString &text,
                     const std::function<void(const QString &)> &apply);
     // After the field's or item's own signal: the window fills the panel
