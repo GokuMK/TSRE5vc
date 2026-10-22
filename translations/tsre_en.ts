@@ -5246,374 +5246,399 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>NONE</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="49"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="51"/>
         <source>none</source>
         <translation>none</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.minutes">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="52"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="54"/>
         <source>%1 min</source>
         <translation>%1 min</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.seconds">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="54"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="56"/>
         <source>%1 s</source>
         <translation>%1 s</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.step">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="63"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="65"/>
         <source>departures rounded up to %1</source>
         <translation>departures rounded up to %1</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.no.step">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="65"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="67"/>
         <source>departures not rounded</source>
         <translation>departures not rounded</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.run">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="67"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="69"/>
         <source>Simulated from %1 to %2 in %3 s, %4.</source>
         <translation>Simulated from %1 to %2 in %3 s, %4.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="84"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="86"/>
         <source>No times written.</source>
         <translation>No times written.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.player.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="87"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="89"/>
         <source>The player&apos;s times written (the traffic pattern is shared with %1).</source>
         <translation>The player&apos;s times written (the traffic pattern is shared with %1).</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="90"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="92"/>
         <source>The player&apos;s times written.</source>
         <translation>The player&apos;s times written.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="93"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="95"/>
         <source>Times written for %1 trains.</source>
         <translation>Times written for %1 trains.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.unchanged">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="98"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="100"/>
         <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="899"/>
         <source>Nothing changed.</source>
         <translation>Nothing changed.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.changed">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="101"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="103"/>
         <source>%1 changed, the largest change %2.</source>
         <translation>%1 changed, the largest change %2.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.new">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="104"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="106"/>
         <source>%1 with new times.</source>
         <translation>%1 with new times.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.stuck">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="109"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="111"/>
         <source>%1 did not finish: %2.</source>
         <translation>%1 did not finish: %2.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.title.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="119"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="121"/>
         <source>Timetable</source>
         <translation>Timetable</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.start">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="126"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="128"/>
         <source>Start</source>
         <translation>Start</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="128"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="130"/>
         <source>Train</source>
         <translation>Train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.state">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="130"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="132"/>
         <source>State</source>
         <translation>State</translation>
     </message>
+    <message id="route.editor.activity.timetable.window.column.timetable">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="134"/>
+        <source>Timetable</source>
+        <translation>Timetable</translation>
+    </message>
     <message id="route.editor.activity.timetable.window.column.path">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="132"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="136"/>
         <source>Path</source>
         <translation>Path</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.consist">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="134"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="138"/>
         <source>Consist</source>
         <translation>Consist</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.first">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="136"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="140"/>
         <source>First Stop</source>
         <translation>First Stop</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.last">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="138"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="142"/>
         <source>Last Stop</source>
         <translation>Last Stop</translation>
     </message>
     <message id="route.editor.activity.timetable.window.show.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="152"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="158"/>
         <source>Show All Trains</source>
         <translation>Show All Trains</translation>
     </message>
     <message id="route.editor.activity.timetable.window.show.all.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="155"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="161"/>
         <source>The activity&apos;s AI trains on the map and in 3D: their paths and their consists at their starts.</source>
         <translation>The activity&apos;s AI trains on the map and in 3D: their paths and their consists at their starts.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.add">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="158"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="164"/>
         <source>Add to Activity</source>
         <translation>Add to Activity</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.remove">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="161"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="167"/>
         <source>Remove from Activity</source>
         <translation>Remove from Activity</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.jump">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="164"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="170"/>
         <source>Jump To</source>
         <translation>Jump To</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.follow">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="167"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="173"/>
         <source>Follow</source>
         <translation>Follow</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.follow.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="170"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="176"/>
         <source>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. A train not on the track yet: the simulation runs as fast as possible until it is put there (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</source>
         <translation>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. A train not on the track yet: the simulation runs as fast as possible until it is put there (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.new.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="175"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="181"/>
         <source>New Train...</source>
         <translation>New Train...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.clone.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="178"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="184"/>
         <source>Clone Train...</source>
         <translation>Clone Train...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.remove.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="181"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="187"/>
         <source>Remove Train</source>
         <translation>Remove Train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.new.train.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="184"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="190"/>
         <source>A new train in the chosen train&apos;s timetable, after it: then choose its path and consist and type its times (All stations).</source>
         <translation>A new train in the chosen train&apos;s timetable, after it: then choose its path and consist and type its times (All stations).</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.clone.train.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="187"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="193"/>
         <source>A copy of the chosen train, with all its times and commands, under a new name.</source>
         <translation>A copy of the chosen train, with all its times and commands, under a new name.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.copy">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="194"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="200"/>
         <source>Make Own Copy...</source>
         <translation>Make Own Copy...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.copy.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="197"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="203"/>
         <source>A new traffic pattern with the same runs, for this activity alone.</source>
         <translation>A new traffic pattern with the same runs, for this activity alone.</translation>
     </message>
+    <message id="route.editor.activity.timetable.window.filter.timetable">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="228"/>
+        <source>Timetable:</source>
+        <translation>Timetable:</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.filter.statics">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="235"/>
+        <source>Static trains</source>
+        <translation>Static trains</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.filter.statics.tooltip">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="238"/>
+        <source>The static trains (standing for the whole run, no times) in the list too.</source>
+        <translation>The static trains (standing for the whole run, no times) in the list too.</translation>
+    </message>
     <message id="route.editor.activity.timetable.window.button.simulate">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="230"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="260"/>
         <source>Simulate</source>
         <translation>Simulate</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.simulate.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="233"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="263"/>
         <source>Runs the activity as fast as possible and writes the times it gives into the timetables. Departures you set since the last Simulate are kept: the train leaves no earlier.</source>
         <translation>Runs the activity as fast as possible and writes the times it gives into the timetables. Departures you set since the last Simulate are kept: the train leaves no earlier.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="241"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="271"/>
         <source>Departures rounded up to it, the train waiting for them; arrivals rounded down.</source>
         <translation>Departures rounded up to it, the train waiting for them; arrivals rounded down.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="244"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="274"/>
         <source>All trains</source>
         <translation>All trains</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="247"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="277"/>
         <source>The player&apos;s train</source>
         <translation>The player&apos;s train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.from.scratch">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="250"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="280"/>
         <source>From scratch</source>
         <translation>From scratch</translation>
     </message>
     <message id="route.editor.activity.timetable.window.from.scratch.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="253"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="283"/>
         <source>Every departure calculated again: the ones you set are not kept.</source>
         <translation>Every departure calculated again: the ones you set are not kept.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="268"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="298"/>
         <source>Round to:</source>
         <translation>Round to:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="272"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="302"/>
         <source>Times for:</source>
         <translation>Times for:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.section.info">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="303"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="333"/>
         <source>Info:</source>
         <translation>Info:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.section.simulation">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="309"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="339"/>
         <source>Simulation:</source>
         <translation>Simulation:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.events">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="322"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="352"/>
         <source>Events in the simulation:</source>
         <translation>Events in the simulation:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="457"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="499"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="862"/>
         <source>%1 (player)</source>
         <translation>%1 (player)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.not.in.activity">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="460"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="502"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="863"/>
         <source>%1 (not in the activity)</source>
         <translation>%1 (not in the activity)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="566"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="609"/>
         <source>The times and commands are saved in the timetable: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</source>
         <translation>The times and commands are saved in the timetable: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="581"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="624"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="889"/>
         <source>The player&apos;s times are saved in the activity.</source>
         <translation>The player&apos;s times are saved in the activity.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.pattern.only">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="585"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="628"/>
         <source>A run of the traffic pattern %1 that the activity does not have: Add to Activity puts it in.</source>
         <translation>A run of the traffic pattern %1 that the activity does not have: Add to Activity puts it in.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="589"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="632"/>
         <source>Not in the traffic pattern %1: this train has no times.</source>
         <translation>Not in the traffic pattern %1: this train has no times.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.own">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="595"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="638"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="885"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="915"/>
         <source>The times are saved in the traffic pattern %1, used by this activity only.</source>
         <translation>The times are saved in the traffic pattern %1, used by this activity only.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="599"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="642"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="905"/>
         <source>The times are saved in the traffic pattern %1, shared with: %2. Changing them changes those activities too.</source>
         <translation>The times are saved in the traffic pattern %1, shared with: %2. Changing them changes those activities too.</translation>
     </message>
+    <message id="route.editor.activity.timetable.window.filter.all">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="702"/>
+        <source>All</source>
+        <translation>All</translation>
+    </message>
     <message id="route.editor.activity.timetable.window.train.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="634"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="741"/>
         <source>A train&apos;s name cannot be empty, start with # or hold $ ; , or a tab.</source>
         <translation>A train&apos;s name cannot be empty, start with # or hold $ ; , or a tab.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="638"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="745"/>
         <source>A train named %1 is in the timetables already.</source>
         <translation>A train named %1 is in the timetables already.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.new.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="669"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="780"/>
         <source>New Train</source>
         <translation>New Train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="671"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="782"/>
         <source>The new train&apos;s name:</source>
         <translation>The new train&apos;s name:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.clone.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="686"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="797"/>
         <source>Clone Train</source>
         <translation>Clone Train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.clone.name">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="688"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="799"/>
         <source>The copy&apos;s name:</source>
         <translation>The copy&apos;s name:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.question">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="702"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="813"/>
         <source>Remove the train %1 from the timetable?</source>
         <translation>Remove the train %1 from the timetable?</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.naming">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="707"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="818"/>
         <source>These trains&apos; commands name it and are kept: %1</source>
         <translation>These trains&apos; commands name it and are kept: %1</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="710"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="821"/>
         <source>Remove Train</source>
         <translation>Remove Train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.copy.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="776"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="899"/>
         <source>Own Copy of the Traffic Pattern</source>
         <translation>Own Copy of the Traffic Pattern</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="785"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="908"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="791"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="914"/>
         <source>A traffic pattern named %1 exists already.</source>
         <translation>A traffic pattern named %1 exists already.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="950"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1073"/>
         <source>The traffic pattern %1 is shared with: %2. Only the player&apos;s times are written; Make Own Copy... to write the AI trains&apos; too.</source>
         <translation>The traffic pattern %1 is shared with: %2. Only the player&apos;s times are written; Make Own Copy... to write the AI trains&apos; too.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.no.pattern">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="954"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1077"/>
         <source>The activity has no traffic pattern: the player&apos;s times alone.</source>
         <translation>The activity has no traffic pattern: the player&apos;s times alone.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="958"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1081"/>
         <source>Whose times Simulate writes: the player&apos;s in the activity, the AI trains&apos; in the traffic pattern.</source>
         <translation>Whose times Simulate writes: the player&apos;s in the activity, the AI trains&apos; in the traffic pattern.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="982"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1105"/>
         <source>Simulating the activity...</source>
         <translation>Simulating the activity...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating.cancel">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="984"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1107"/>
         <source>Cancel</source>
         <translation>Cancel</translation>
     </message>

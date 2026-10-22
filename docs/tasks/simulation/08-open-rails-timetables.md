@@ -504,6 +504,14 @@ reported, editing commands).
   `addStation`). Without the route's track or the path: its stops in the
   timetable's order. (A first try listed every station of the timetable,
   "All stations": dropped.)
+- The trains list's filters (the user asked whether a group's timetables
+  should be tabs; filters chosen instead: the time order across the
+  timetables kept, Open Rails running a group as one): for a timetable
+  set, Static trains (off by default: they have no times and filled
+  PRUDNIK's list with 42) and, for a group, Timetable: All or one of them,
+  with a Timetable column. A train chosen elsewhere (map, 3D, a new or
+  copied train) that the filters hide is shown by them; New Train without
+  a train chosen goes into the timetable shown.
 - Follow before the train starts (the user: following a train that
   starts at 15:00 took many clicks, easy to get wrong): Follow on a train
   not yet on the track runs the simulation as fast as possible until the

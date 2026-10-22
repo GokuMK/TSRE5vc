@@ -194,12 +194,29 @@ int runTimetableUiSuite(bool verbose) {
         trains->setCurrentItem(trains->topLevelItem(row));
         trains->topLevelItem(row)->setSelected(true);
     }
-    check(trains != nullptr && trains->topLevelItemCount() == 3 && panel != nullptr && panel->isVisible()
+    check(trains != nullptr && trains->topLevelItemCount() == 2 && panel != nullptr && panel->isVisible()
               && !timetable.timetableProperties->isVisible() && stops != nullptr && stops->topLevelItemCount() == 2
               && stops->topLevelItem(0)->text(1) == "08:05" && stops->topLevelItem(0)->text(2) == "08:07"
               && stops->topLevelItem(0)->text(3).isEmpty() && stops->topLevelItem(0)->text(4) == "$hold",
-          "the Timetable window: the set's trains; T1's stops at Alpha 08:05-08:07 (the station's $hold) and Beta in "
-          "its panel");
+          "the Timetable window: the set's running trains (the static S5 hidden); T1's stops at Alpha 08:05-08:07 (the "
+          "station's $hold) and Beta in its panel");
+    // The filters: static trains on and off; one timetable, no choice of
+    // it, no Timetable column.
+    QCheckBox *statics = timetable.findChild<QCheckBox *>("timetableShowStatics");
+    QComboBox *timetableChoice = timetable.findChild<QComboBox *>("timetableFilter");
+    if (statics != nullptr)
+        statics->setChecked(true);
+    const int withStatics = trains != nullptr ? trains->topLevelItemCount() : -1;
+    if (statics != nullptr)
+        statics->setChecked(false);
+    check(statics != nullptr && statics->isVisible() && timetableChoice != nullptr && !timetableChoice->isVisible()
+              && withStatics == 3 && trains->topLevelItemCount() == 2 && trains->isColumnHidden(3),
+          "Static trains shows S5 too (3 rows), off by default; one timetable: no choice, no Timetable column");
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        if (trains->topLevelItem(i)->text(1) == "T1") {
+            trains->setCurrentItem(trains->topLevelItem(i));
+            trains->topLevelItem(i)->setSelected(true);
+        }
     // Its information in a grid of boxes left of the stops: shown only.
     QLineEdit *name = timetable.findChild<QLineEdit *>("orTrainName");
     QComboBox *path = timetable.findChild<QComboBox *>("orTrainPath");
@@ -521,6 +538,47 @@ int runTimetableUiSuite(bool verbose) {
               && reread.trainNamed("T2") >= 0 && reread.trains.size() == 3,
           "saved: the timetable written with T1 from 08:02, its departure 08:10 and its commands, the original kept "
           "as .original");
+
+    // A group of two timetables (the user's review): All or one of them,
+    // the Timetable column; New Train without a train chosen goes into the
+    // one shown.
+    {
+        writeUtf16(routePath + "/ACTIVITIES/OPENRAILS/two.timetable-or", ";X;Y;$static\n#path;P1;P1;P1\n"
+                                                                      "#consist;C1;C1;C1\n#start;07:00;09:00;\n");
+        QFile groupFile(routePath + "/ACTIVITIES/OPENRAILS/both.timetablelist-or");
+        if (groupFile.open(QIODevice::WriteOnly))
+            groupFile.write("#Both\ntest.timetable-or\ntwo.timetable-or\n");
+        groupFile.close();
+        const int groupId = ActLib::AddTimetableSet(routePath + "/ACTIVITIES/OPENRAILS", "both.timetablelist-or");
+        Activity *group = ActLib::TimetableSets.value(groupId);
+        timetable.showTimetable(group);
+        const auto names = [&] {
+            QStringList out;
+            for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+                out << trains->topLevelItem(i)->text(1) + "/" + trains->topLevelItem(i)->text(3);
+            return out.join(" ");
+        };
+        const QString all = names();
+        if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
+            timetable.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-group.png");
+        const bool offered = timetableChoice != nullptr && timetableChoice->isVisible() && timetableChoice->count() == 3
+                && !trains->isColumnHidden(3);
+        if (timetableChoice != nullptr) {
+            timetableChoice->setCurrentIndex(2);
+            emit timetableChoice->activated(2);
+        }
+        const QString second = names();
+        trains->clearSelection();
+        trains->setCurrentItem(nullptr);
+        const QString addedZ = group != nullptr ? timetable.addTimetableTrain("Z", false) : QString("no group");
+        check(group != nullptr && offered && all == "X/two T1/UI timetable T2/UI timetable Y/two"
+                  && second == "X/two Y/two" && addedZ.isEmpty() && group->timetables[1]->trainNamed("Z") >= 0
+                  && group->timetables[0]->trainNamed("Z") < 0,
+              "a group: All (" + all + "), the second timetable only (" + second + "), New Train into it " + addedZ);
+        timetable.showTimetable(set);
+        delete group;
+        ActLib::TimetableSets.remove(groupId);
+    }
 
     // Check Activity: the set's problems (its consist is not there).
     const QVector<ActivityFinding> findings = CheckActivity(set);

@@ -83,6 +83,21 @@ private slots:
 private:
     QTreeWidget trains;
     QCheckBox showAll;
+    // An Open Rails timetable set's list (the user's review of task 08):
+    // one timetable of a group or all, static trains or not.
+    QWidget *filters = NULL;
+    QLabel *timetableLabel = NULL;
+    QComboBox timetableFilter;
+    QCheckBox showStatics;
+    // The filters' timetables made for this set, of this many.
+    const Activity *filtersFor = NULL;
+    int filtersCount = -1;
+    void fillFilters();
+    bool shownByFilters(const ActivityTrains::Train &train) const;
+    // The filters set so that the train shows; whether they changed.
+    bool reveal(const ActivityTrains::Train &train);
+    // A timetable's name in the list: its description, else its file's.
+    QString timetableName(int timetable) const;
     QPushButton *bAdd = NULL;
     QPushButton *bRemove = NULL;
     QPushButton *bJump = NULL;

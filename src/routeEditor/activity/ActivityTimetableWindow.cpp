@@ -25,11 +25,13 @@
 #include <routeEditor/activity/ActivityEditLock.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sim/TimetableCalculation.h>
+#include <algorithm>
 #include <atomic>
 
 namespace {
 
-enum Column { StartColumn, TrainColumn, StateColumn, PathColumn, ConsistColumn, FirstColumn, LastColumn, Columns };
+enum Column { StartColumn, TrainColumn, StateColumn, TimetableColumn, PathColumn, ConsistColumn, FirstColumn, LastColumn,
+              Columns };
 
 QString clock(int seconds) {
     return QTime::fromMSecsSinceStartOfDay((seconds % 86400 + 86400) % 86400 * 1000).toString("HH:mm:ss");
@@ -128,6 +130,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         qtTrId("route.editor.activity.timetable.window.column.train"),
         //% "State"
         qtTrId("route.editor.activity.timetable.window.column.state"),
+        //% "Timetable"
+        qtTrId("route.editor.activity.timetable.window.column.timetable"),
         //% "Path"
         qtTrId("route.editor.activity.timetable.window.column.path"),
         //% "Consist"
@@ -143,6 +147,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     trains.header()->resizeSection(TrainColumn, 170);
     trains.header()->resizeSection(StateColumn, 190);
     trains.setColumnHidden(StateColumn, true);
+    trains.header()->resizeSection(TimetableColumn, 130);
+    trains.setColumnHidden(TimetableColumn, true);
     trains.header()->resizeSection(PathColumn, 130);
     trains.header()->resizeSection(ConsistColumn, 130);
     trains.header()->resizeSection(FirstColumn, 130);
@@ -216,10 +222,34 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     buttons->addWidget(bRemoveTrain);
     buttons->addWidget(bJump);
     buttons->addWidget(bFollow);
+    // An Open Rails timetable set's filters, above its trains.
+    timetableLabel = new QLabel(
+        //% "Timetable:"
+        qtTrId("route.editor.activity.timetable.window.filter.timetable"));
+    timetableFilter.setObjectName("timetableFilter");
+    timetableFilter.setStyleSheet("combobox-popup: 0;");
+    timetableFilter.setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    showStatics.setObjectName("timetableShowStatics");
+    showStatics.setText(
+        //% "Static trains"
+        qtTrId("route.editor.activity.timetable.window.filter.statics"));
+    showStatics.setToolTip(
+        //% "The static trains (standing for the whole run, no times) in the list too."
+        qtTrId("route.editor.activity.timetable.window.filter.statics.tooltip"));
+    filters = new QWidget;
+    QHBoxLayout *filterLayout = new QHBoxLayout(filters);
+    filterLayout->setContentsMargins(0, 0, 0, 0);
+    filterLayout->addWidget(timetableLabel);
+    filterLayout->addWidget(&timetableFilter);
+    filterLayout->addSpacing(12);
+    filterLayout->addWidget(&showStatics);
+    filterLayout->addStretch(1);
+    filters->hide();
     QWidget *top = new QWidget;
     QVBoxLayout *topLayout = new QVBoxLayout(top);
     topLayout->setContentsMargins(0, 0, 0, 0);
     topLayout->setSpacing(2);
+    topLayout->addWidget(filters);
     topLayout->addWidget(&trains);
     topLayout->addLayout(buttons);
 
@@ -375,6 +405,14 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     QObject::connect(bRemove, &QPushButton::released, this, &ActivityTimetableWindow::removeFromActivity);
     QObject::connect(bJump, &QPushButton::released, this, &ActivityTimetableWindow::jumpToTrain);
     QObject::connect(bCopy, &QPushButton::released, this, &ActivityTimetableWindow::makeOwnCopy);
+    QObject::connect(&timetableFilter, QOverload<int>::of(&QComboBox::activated), this, [this] {
+        fillTrains();
+        showChosen();
+    });
+    QObject::connect(&showStatics, &QCheckBox::toggled, this, [this] {
+        fillTrains();
+        showChosen();
+    });
     QObject::connect(bNewTrain, &QPushButton::released, this, &ActivityTimetableWindow::newTrainAsked);
     QObject::connect(bCloneTrain, &QPushButton::released, this, &ActivityTimetableWindow::cloneTrainAsked);
     QObject::connect(bRemoveTrain, &QPushButton::released, this, &ActivityTimetableWindow::removeTrainAsked);
@@ -446,7 +484,11 @@ void ActivityTimetableWindow::fillTrains(){
     const int time = was != NULL ? was->time : -1;
     QSignalBlocker blocker(trains);
     trains.clear();
+    fillFilters();
     list = ActivityTrains::List(activity);
+    list.erase(std::remove_if(list.begin(), list.end(),
+                              [this](const ActivityTrains::Train &train) { return !shownByFilters(train); }),
+               list.end());
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const bool simulating = simulation->shows(activity);
     for(int i = 0; i < list.size(); i++){
@@ -460,7 +502,8 @@ void ActivityTimetableWindow::fillTrains(){
             name = qtTrId("route.editor.activity.timetable.window.not.in.activity").arg(train.service);
         const int simulatedTrain = simulating ? simulated(train) : -1;
         QTreeWidgetItem *item = new QTreeWidgetItem(&trains, {clock(train.time), name,
-            simulatedTrain >= 0 ? simulation->stateText(simulatedTrain) : QString(), train.path,
+            simulatedTrain >= 0 ? simulation->stateText(simulatedTrain) : QString(),
+            train.orTimetable >= 0 ? timetableName(train.orTimetable) : QString(), train.path,
             train.consist, train.firstStop, train.lastStop}, i);
         for(int column = 0; column < Columns; column++)
             item->setToolTip(column, item->text(column));
@@ -612,6 +655,16 @@ void ActivityTimetableWindow::orTrainEdited(){
 
 void ActivityTimetableWindow::chooseTrainNamed(const QString &name){
     fillTrains();
+    // One the filters hide (a new static train, a copy in another
+    // timetable): they show it.
+    const auto named = [&name](const ActivityTrains::Train &train) { return train.service == name; };
+    if(!name.isEmpty() && std::none_of(list.begin(), list.end(), named))
+        for(const ActivityTrains::Train &train : ActivityTrains::List(activity))
+            if(named(train)){
+                if(reveal(train))
+                    fillTrains();
+                break;
+            }
     for(int i = 0; i < list.size(); i++)
         if(list[i].service == name){
             QTreeWidgetItem *item = trains.topLevelItem(i);
@@ -620,6 +673,60 @@ void ActivityTimetableWindow::chooseTrainNamed(const QString &name){
             break;
         }
     showChosen();
+}
+
+QString ActivityTimetableWindow::timetableName(int timetable) const {
+    if(activity == NULL || timetable < 0 || timetable >= int(activity->timetables.size()))
+        return QString();
+    const OrTimetable &t = *activity->timetables[size_t(timetable)];
+    return !t.description.isEmpty() ? t.description : QFileInfo(t.file).completeBaseName();
+}
+
+// The filters as the set is: shown for a timetable set, the timetable
+// choice for a group; made again for another set or another number of
+// timetables, the choice kept otherwise.
+void ActivityTimetableWindow::fillFilters(){
+    const bool timetables = activity != NULL && activity->isTimetables();
+    const int count = timetables ? int(activity->timetables.size()) : 0;
+    filters->setVisible(timetables);
+    timetableLabel->setVisible(count > 1);
+    timetableFilter.setVisible(count > 1);
+    trains.setColumnHidden(TimetableColumn, count <= 1);
+    if(filtersFor == activity && filtersCount == count)
+        return;
+    filtersFor = activity;
+    filtersCount = count;
+    QSignalBlocker blocker(timetableFilter);
+    timetableFilter.clear();
+    //% "All"
+    timetableFilter.addItem(qtTrId("route.editor.activity.timetable.window.filter.all"), -1);
+    for(int t = 0; t < count; t++)
+        timetableFilter.addItem(timetableName(t), t);
+    timetableFilter.setCurrentIndex(0);
+}
+
+bool ActivityTimetableWindow::shownByFilters(const ActivityTrains::Train &train) const {
+    if(activity == NULL || !activity->isTimetables())
+        return true;
+    if(train.staticTrain && !showStatics.isChecked())
+        return false;
+    const int shown = timetableFilter.currentData().isValid() ? timetableFilter.currentData().toInt() : -1;
+    return shown < 0 || train.orTimetable == shown;
+}
+
+bool ActivityTimetableWindow::reveal(const ActivityTrains::Train &train){
+    if(shownByFilters(train))
+        return false;
+    if(train.staticTrain && !showStatics.isChecked()){
+        QSignalBlocker blocker(showStatics);
+        showStatics.setChecked(true);
+    }
+    const int shown = timetableFilter.currentData().isValid() ? timetableFilter.currentData().toInt() : -1;
+    if(shown >= 0 && train.orTimetable != shown){
+        QSignalBlocker blocker(timetableFilter);
+        timetableFilter.setCurrentIndex(0);
+    }
+    return true;
 }
 
 QString ActivityTimetableWindow::addTimetableTrain(const QString &typed, bool copy){
@@ -637,7 +744,11 @@ QString ActivityTimetableWindow::addTimetableTrain(const QString &typed, bool co
             //% "A train named %1 is in the timetables already."
             return qtTrId("route.editor.activity.timetable.window.train.name.exists").arg(name);
     const bool inTimetable = train != NULL && train->orTimetable >= 0 && train->orTimetable < int(activity->timetables.size());
-    OrTimetable &timetable = *activity->timetables[size_t(inTimetable ? train->orTimetable : 0)];
+    // Without a train chosen: the timetable the list shows, else the first.
+    const int shown = timetableFilter.currentData().isValid() ? timetableFilter.currentData().toInt() : -1;
+    const int into = inTimetable ? train->orTimetable
+            : shown >= 0 && shown < int(activity->timetables.size()) ? shown : 0;
+    OrTimetable &timetable = *activity->timetables[size_t(into)];
     {
         ActivityEdit edit(activity);
         if(copy)
@@ -717,6 +828,18 @@ void ActivityTimetableWindow::selectTrain(int shownId){
         return;
     if(shownId > 0)
         activity->shownAITrain = shownId - 1;
+    const auto shownIs = [shownId](const ActivityTrains::Train &train) {
+        return (shownId == 0 && train.kind == ActivityTrains::Player)
+            || (shownId > 0 && train.kind == ActivityTrains::AI && train.index == shownId - 1);
+    };
+    // One the filters hide: they show it.
+    if(std::none_of(list.begin(), list.end(), shownIs))
+        for(const ActivityTrains::Train &train : ActivityTrains::List(activity))
+            if(shownIs(train)){
+                if(reveal(train))
+                    fillTrains();
+                break;
+            }
     for(int i = 0; i < list.size(); i++){
         const bool player = shownId == 0 && list[i].kind == ActivityTrains::Player;
         const bool ai = shownId > 0 && list[i].kind == ActivityTrains::AI && list[i].index == shownId - 1;

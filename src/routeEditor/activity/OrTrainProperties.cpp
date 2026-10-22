@@ -259,10 +259,15 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     consistBox.setEnabled(valid);
     for (QLineEdit &field : commandFields) {
         field.setEnabled(valid);
-        if (!valid)
+        if (!valid) {
             field.clear();
+            field.setStyleSheet(QString());
+            field.setToolTip(QString());
+        }
     }
     if (!valid) {
+        QSignalBlocker blocker(startTime);
+        startTime.setTime(QTime(0, 0));
         for (QLineEdit &field : shownFields)
             field.clear();
         pathBox.clear();
