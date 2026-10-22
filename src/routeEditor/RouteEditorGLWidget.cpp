@@ -3940,7 +3940,17 @@ void RouteEditorGLWidget::setDiagnosticActivity(const QString &activity, const Q
     if (!activity.isEmpty()) {
         const int id = ActLib::GetAct(Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES",
                                       activity);
-        if (id >= 0 && ActLib::Act[id] != NULL)
+        // An MSTS activity, else an Open Rails timetable set by its file
+        // (task simulation 08).
+        Activity *set = NULL;
+        for (int setId : route->timetableSetId) {
+            Activity *candidate = ActLib::TimetableSets.value(setId);
+            if (candidate != NULL && candidate->name.compare(activity, Qt::CaseInsensitive) == 0)
+                set = candidate;
+        }
+        if (set != NULL)
+            route->activitySelected(set);
+        else if (id >= 0 && ActLib::Act[id] != NULL)
             route->activitySelected(ActLib::Act[id]);
         else
             qWarning() << "diagnostic activity not found" << activity;

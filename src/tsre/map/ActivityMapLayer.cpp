@@ -136,6 +136,8 @@ std::vector<const void *> ActivityMapLayer::sources(Route *route, bool activity,
     count(qsizetype(Sim::EventResultStore::instance()->version()));
     for (int i : current->shownAITrains())
         list.push_back(current->aiTrainService(i));
+    for (const std::shared_ptr<Consist> &standing : current->timetableStatics())
+        list.push_back(standing.get());
     return list;
 }
 
@@ -181,8 +183,15 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
             }
         };
         // While simulated, the standing trains are drawn instead (task 07).
-        if (shows(MapActivityKind::LooseConsists) && current->showsLooseConsists())
+        if (shows(MapActivityKind::LooseConsists) && current->showsLooseConsists()) {
             collect(current->activityObjects, consists);
+            // A timetable set's static trains (task 08).
+            for (const std::shared_ptr<Consist> &standing : current->timetableStatics()) {
+                MapFeatures own;
+                standing->getMapFeatures(own, tileX, tileZ);
+                consists.append(own);
+            }
+        }
         if (shows(MapActivityKind::SpeedZones))
             collect(current->restrictedSpeedZone, zones);
         if (shows(MapActivityKind::FailedSignals))

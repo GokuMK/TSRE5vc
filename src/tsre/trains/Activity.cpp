@@ -12,6 +12,7 @@
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -74,6 +75,80 @@ void Activity::loadTimetableSet(const QString &directory, const QString &file) {
         header->startTime[2] = start % 60;
     }
     loaded = 1;
+}
+
+const std::vector<std::shared_ptr<Consist>> &Activity::timetableStatics() {
+    if (!isTimetables() || Game::currentEngLib == NULL) {
+        statics.clear();
+        staticsMadeOf.clear();
+        return statics;
+    }
+    QStringList madeOf;
+    for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+        for (const OrTimetable::Train &train : timetable->trains)
+            if (train.isStatic)
+                madeOf << train.name + "|" + train.path + "|" + train.consist;
+    const QString key = madeOf.join('\n');
+    if (key == staticsMadeOf)
+        return statics;
+    staticsMadeOf = key;
+    statics.clear();
+    const QString routeDirectory = ActivityTrains::RouteDirectory(this);
+    const QString consists = Game::root + "/TRAINS/CONSISTS/";
+    for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+        for (const OrTimetable::Train &train : timetable->trains) {
+            if (!train.isStatic)
+                continue;
+            Path *path = ActLib::GetPathByName(train.pathName(), routeDirectory);
+            if (path == NULL || path->nodes().size() < 2)
+                continue;
+            // Its consist's parts in order, a turned one ($reverse) turned.
+            std::shared_ptr<Consist> standing;
+            bool whole = !train.consists.isEmpty();
+            for (const OrTimetable::ConsistPart &part : train.consists) {
+                const int id = ConLib::addCon(consists, OrTimetable::ConsistFile(part.name));
+                auto found = ConLib::con.find(id);
+                Consist *source = found != ConLib::con.end() ? found->second : NULL;
+                if (source == NULL || source->loaded != 1 || source->engItems.isEmpty()) {
+                    whole = false;
+                    break;
+                }
+                if (standing == nullptr) {
+                    standing = std::make_shared<Consist>(source, true);
+                    standing->engItems.clear();
+                    standing->displayName = standing->showName = train.name;
+                }
+                QVector<Consist::EngItem> items;
+                for (const Consist::EngItem &item : source->engItems) {
+                    Consist::EngItem copy;
+                    copy.type = item.type;
+                    copy.ename = item.ename;
+                    copy.epath = item.epath;
+                    copy.eng = item.eng;
+                    copy.flip = item.flip;
+                    copy.kept = item.kept;
+                    items.push_back(copy);
+                }
+                if (part.reverse) {
+                    std::reverse(items.begin(), items.end());
+                    for (Consist::EngItem &item : items)
+                        item.flip = !item.flip;
+                }
+                standing->engItems += items;
+            }
+            if (!whole || standing == nullptr)
+                continue;
+            for (int i = 0; i < standing->engItems.size(); ++i)
+                standing->engItems[i].uid = i;
+            standing->initPos();
+            // (Placed on the terrain: not without one, as in tests.)
+            float start[4];
+            if (Game::terrainLib != NULL)
+                standing->initOnTrack(path->getStartPositionTXZ(start), path->getStartDirection(),
+                                      path->getJunctionDirections(), true);
+            statics.push_back(standing);
+        }
+    return statics;
 }
 
 void Activity::init(QString route, QString name) {
@@ -1072,6 +1147,10 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
     for (int i = 0; i < activityObjects.size() && showsLooseConsists(); i++) {
         activityObjects[i]->pushRenderItems(queue, playerT, renderMode, i);
     }
+    // A timetable set's static trains, as loose consists (task 08).
+    if (isTimetables() && showsLooseConsists() && renderMode != RenderQueue::RENDER_SELECTION)
+        for (const std::shared_ptr<Consist> &standing : timetableStatics())
+            standing->pushRenderItemsOnTrack(queue, playerT, 0);
 
     for (int i = 0; i < activityFailedSignal.size(); i++) {
         activityFailedSignal[i]->pushRenderItems(queue, playerT, renderMode, i + 3500);

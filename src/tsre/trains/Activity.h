@@ -135,6 +135,12 @@ public:
     // timetables beside it): its name the group's or the timetable's
     // description, its start the first train's.
     void loadTimetableSet(const QString &directory, const QString &file);
+    // A timetable set's static trains (the user's review of task 08): their
+    // consists standing at their paths' starts, as Open Rails places them
+    // (the rear there), drawn in 3D and on the map as loose consists are
+    // (not while a simulation shows the set: its standing trains then).
+    // Made again when a static train's path or consist changes.
+    const std::vector<std::shared_ptr<Consist>> &timetableStatics();
 
     ActivityServiceDefinition *playerServiceDefinition = NULL;
     ActivityHeader *header = NULL;
@@ -271,6 +277,9 @@ public:
 private:
     bool modified = false;
     bool nowe = false;
+    std::vector<std::shared_ptr<Consist>> statics;
+    // What they were made of (each static train's name, path, consist).
+    QString staticsMadeOf;
     // Times saved: a state restored from before a save is not on disk.
     int saves = 0;
     void parse(FileBuffer *data);

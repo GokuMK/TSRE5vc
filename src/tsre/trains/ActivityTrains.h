@@ -20,8 +20,10 @@ struct Train {
     Kind kind = AI;
     QString service;
     int time = 0;
-    // AI: its place in the activity's traffic (Activity::traffic->service);
-    // PatternOnly: the run's place in the pattern.
+    // AI: its place in the activity's traffic (Activity::traffic->service),
+    // an Open Rails timetable set's train its place among the set's trains
+    // (the simulation's traffic); PatternOnly: the run's place in the
+    // pattern.
     int index = -1;
     // Where its times are, or none.
     ActivityTimetable *timetable = nullptr;

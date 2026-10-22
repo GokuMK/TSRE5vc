@@ -105,6 +105,9 @@ QVector<Train> timetableTrains(Activity *activity) {
     QVector<Train> trains;
     const QString routeDirectory = ActivityTrains::RouteDirectory(activity);
     const QString consists = Game::root + "/TRAINS/CONSISTS";
+    // Each train's place among the set's trains, as the simulation numbers
+    // them (TimetableTrains: its traffic).
+    int traffic = 0;
     for (int t = 0; t < int(activity->timetables.size()); ++t) {
         const OrTimetable &timetable = *activity->timetables[size_t(t)];
         const QVector<OrTimetableProblem> problems = CheckTimetable(timetable, routeDirectory, consists, Game::trackDB);
@@ -117,6 +120,7 @@ QVector<Train> timetableTrains(Activity *activity) {
             train.time = std::max(0, one.startTime);
             train.orTimetable = t;
             train.orTrain = k;
+            train.index = traffic++;
             train.staticTrain = one.isStatic;
             train.path = one.pathName();
             train.consist = one.consist;

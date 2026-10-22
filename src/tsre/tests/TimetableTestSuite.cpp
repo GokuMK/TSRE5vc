@@ -27,6 +27,7 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTrains.h>
+#include <tsre/trains/Consist.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/OrTimetableCommands.h>
@@ -869,6 +870,23 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     const double leftZeta = at(t5, Sim::TrainEvent::Departed, 0);
     check(at(t5, Sim::TrainEvent::Arrived, 0) > 8 * 3600 && std::fabs(leftZeta - (8 * 3600 + 360)) <= 1.0 && t5Finished,
           QString("T5 stops at Zeta, leaves at %1 s (booked 29160), reverses and ends").arg(leftZeta));
+
+    // The user's review: the Timetable window's trains numbered as the
+    // simulation numbers them (Follow and Jump To find the simulated
+    // train so); the static train's consist made to stand at its path's
+    // start, as loose consists are drawn.
+    {
+        QStringList wrong;
+        const QVector<ActivityTrains::Train> listed = ActivityTrains::List(set);
+        for (const Sim::TrainPlan &plan : input->trains)
+            for (const ActivityTrains::Train &train : listed)
+                if (train.service == plan.service && train.index != plan.traffic)
+                    wrong << QString("%1 %2/%3").arg(train.service).arg(train.index).arg(plan.traffic);
+        const std::vector<std::shared_ptr<Consist>> &statics = set->timetableStatics();
+        check(wrong.isEmpty() && statics.size() == 1 && statics[0]->engItems.size() == 2
+                  && statics[0]->displayName == "S4",
+              "the listed trains numbered as simulated (" + wrong.join(", ") + "); the static S4's consist made");
+    }
 
     // The user's review: a train's stations along its path, as its stops
     // are found (Alpha behind T1's start, Omega passed, not in the

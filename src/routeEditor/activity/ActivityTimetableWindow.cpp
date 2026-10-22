@@ -516,7 +516,8 @@ void ActivityTimetableWindow::showChosen(){
     bRemove->setEnabled(!locked && train != NULL && train->kind == ActivityTrains::AI);
     bCopy->setEnabled(!locked);
     float start[4];
-    bJump->setEnabled(train != NULL && ActivityTrains::StartPosition(activity, *train, start));
+    bJump->setEnabled(train != NULL && (ActivityTrains::StartPosition(activity, *train, start)
+                                        || (Sim::SimulationController::instance()->shows(activity) && simulated(*train) >= 0)));
     // The simulation's train: outlined, followed when Follow is on, its
     // events listed.
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
@@ -793,13 +794,28 @@ void ActivityTimetableWindow::makeOwnCopy(){
     emit trafficPatternAdded();
 }
 
+// To where the simulation has the train, else to its start.
 void ActivityTimetableWindow::jumpToTrain(){
     const ActivityTrains::Train *train = chosen();
-    float start[4];
-    if(train == NULL || !ActivityTrains::StartPosition(activity, *train, start))
+    if(train == NULL)
         return;
     if(coordinate == NULL)
         coordinate = new PreciseTileCoordinate();
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int simulatedTrain = simulation->shows(activity) ? simulated(*train) : -1;
+    int tile[2];
+    float position[3], heading[3];
+    if(simulatedTrain >= 0 && simulation->trainPlace(simulatedTrain, tile, position, heading)){
+        // The camera's space has tile z and z the other way round.
+        coordinate->TileX = tile[0];
+        coordinate->TileZ = -tile[1];
+        coordinate->setWxyz(position[0], position[1], -position[2]);
+        emit jumpTo(coordinate);
+        return;
+    }
+    float start[4];
+    if(!ActivityTrains::StartPosition(activity, *train, start))
+        return;
     coordinate->TileX = start[0];
     coordinate->TileZ = start[1];
     coordinate->setWxyz(start[2], 0, start[3]);
