@@ -265,12 +265,23 @@ void QueueRenderer::sortByTexture(std::vector<DrawInstance> &instances){
     });
 }
 
-void QueueRenderer::collectTwoPartBlended(const std::vector<DrawInstance> &blended){
+bool QueueRenderer::opaqueTexelsIn(int pass, bool enabled){
+    bool take = false;
+    if(pass == PASS_ALPHA_TEST){
+        take = enabled;
+        opaqueTexelsDrawn = take;
+    } else if(pass == PASS_BLENDED){
+        take = enabled && !opaqueTexelsDrawn;
+        opaqueTexelsDrawn = false;
+    }
     twoPartBlended.clear();
-    for(const DrawInstance &instance : blended)
+    if(!take)
+        return false;
+    for(const DrawInstance &instance : passes[PASS_BLENDED].grouped)
         if(instance.packet->blendsInTwoParts())
             twoPartBlended.push_back(instance);
     sortByTexture(twoPartBlended);
+    return !twoPartBlended.empty();
 }
 
 bool QueueRenderer::blendedInTwo(){

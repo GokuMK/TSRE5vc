@@ -98,14 +98,19 @@ protected:
     void sortByTexture(std::vector<DrawInstance> &instances);
     void sortBackToFront(std::vector<DrawInstance> &instances);
     // Blended packets drawn in two (RenderItem::blendsInTwoParts): the
-    // blended pass first draws twoPartBlended, by texture, with
-    // TEXELS_OPAQUE (depth written), then its own list back to front, whose
-    // two-part packets take TEXELS_TRANSLUCENT (no depth writes). The
-    // shaders' blendedTexels.
+    // alpha-tested pass ends with twoPartBlended, the blended pass's
+    // two-part instances by texture, with TEXELS_OPAQUE (depth written, so
+    // the ambient occlusion, clouds and fog see them); the blended pass
+    // draws its list back to front, two-part packets with
+    // TEXELS_TRANSLUCENT (no depth writes). The shaders' blendedTexels.
     enum BlendedTexels { TEXELS_ALL = 0, TEXELS_OPAQUE = 1, TEXELS_TRANSLUCENT = 2 };
     int blendedTexels = TEXELS_ALL;
     std::vector<DrawInstance> twoPartBlended;
-    void collectTwoPartBlended(const std::vector<DrawInstance> &blended);
+    // Whether this pass draws the opaque texels (collected into
+    // twoPartBlended): the alpha-tested pass, or the blended pass when no
+    // alpha-tested pass came before it. enabled: the view draws them in two.
+    bool opaqueTexelsIn(int pass, bool enabled);
+    bool opaqueTexelsDrawn = false;
     // TSRE_BLENDED_IN_TWO=0 draws blended packets whole, as before.
     static bool blendedInTwo();
     // The texels a draw of the packet takes now.

@@ -846,7 +846,13 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
     bool drew = false;
     for(int pass = first; pass <= last; ++pass){
         PassQueue &queue = passes[pass];
-        if(queue.ordered.empty() && queue.grouped.empty())
+        // Blended parts in two, as Open Rails draws them: their opaque
+        // texels after the alpha-tested ones, depth written; the rest back
+        // to front in the blended pass without (not in the selection pass,
+        // drawn without blending).
+        const bool twoParts = canDraw && f->glIsEnabled(GL_BLEND) && blendedInTwo();
+        const bool opaqueTexels = opaqueTexelsIn(pass, twoParts);
+        if(queue.ordered.empty() && queue.grouped.empty() && !opaqueTexels)
             continue;
         if(canDraw){
             if(!drew){
@@ -865,20 +871,21 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
             gluu->setBrightness(1.0f);
             gluu->enableTextures();
             gluu->enableNormals();
-            // Blended parts in two, as Open Rails draws them: their opaque
-            // texels first, depth written, then the rest back to front
-            // without (not in the selection pass, drawn without blending).
-            if(pass == PASS_BLENDED && f->glIsEnabled(GL_BLEND) && blendedInTwo()){
-                collectTwoPartBlended(queue.grouped);
+            if(pass == PASS_BLENDED && opaqueTexels){
                 blendedTexels = TEXELS_OPAQUE;
                 drawGrouped(gluu, base, twoPartBlended, pass);
-                blendedTexels = TEXELS_TRANSLUCENT;
             }
+            if(pass == PASS_BLENDED && twoParts)
+                blendedTexels = TEXELS_TRANSLUCENT;
             if(pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
                 sortBackToFront(queue.grouped);
             else
                 sortByTexture(queue.grouped);
             drawGrouped(gluu, base, queue.grouped, pass);
+            if(pass == PASS_ALPHA_TEST && opaqueTexels){
+                blendedTexels = TEXELS_OPAQUE;
+                drawGrouped(gluu, base, twoPartBlended, pass);
+            }
             blendedTexels = TEXELS_ALL;
             drew = true;
         }

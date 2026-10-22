@@ -10,7 +10,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [x] [05-sfile-legacy-load-gl.md](05-sfile-legacy-load-gl.md) — SFileLegacy consolidates legacy parsing/rendering with separate CPU loading and GL initialization; stock regression checks and repeated SFileX/C comparisons complete.
 - [x] [06-gltf-pbr-materials.md](06-gltf-pbr-materials.md) — glTF metallic-roughness materials with image-based light from the environment map; simplifications and new-renderer requirements listed.
-- [x] [07-blended-msts-parts.md](07-blended-msts-parts.md) — MSTS blended parts with opaque textures drawn as opaque (`core.rendering.blendedParts`); blended parts drawn in two as Open Rails draws them, opaque texels first (a window no longer hides a cab behind it).
+- [x] [07-blended-msts-parts.md](07-blended-msts-parts.md) — MSTS blended parts with opaque textures drawn as opaque (`core.rendering.blendedParts`); blended parts drawn in two as Open Rails draws them, their opaque texels with the alpha-tested pass (a window no longer hides a cab behind it; ambient occlusion on blended parts); next: such roofs in the sky enclosure.
 - [ ] [08-threaded-shape-loading.md](08-threaded-shape-loading.md) — MSTS and glTF shapes load on worker threads into detached copies the main thread adopts; the first view loads before it is shown; editor review of synchronous expectations.
 - [ ] [09-shape-seasonal-textures.md](09-shape-seasonal-textures.md) — seasonal texture directory of MSTS shapes: clear and rain seasons fixed; the rule is still to compare with Open Rails (small fixes only, no seasonal rework).
 

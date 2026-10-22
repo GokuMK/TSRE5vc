@@ -2364,7 +2364,13 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         // The falling drops over the scene, before the UI.
         if (pass == PASS_UI && first < PASS_UI)
             applyRain();
-        if (queue.ordered.empty() && queue.grouped.empty())
+        // Blended parts in two, as Open Rails draws them: their opaque
+        // texels after the alpha-tested ones, depth written; the rest back
+        // to front in the blended pass without, so a window never hides the
+        // cab behind it.
+        const bool twoParts = blending && baseProgram != PROGRAM_SELECTION && blendedInTwo();
+        const bool opaqueTexels = opaqueTexelsIn(pass, twoParts);
+        if (queue.ordered.empty() && queue.grouped.empty() && !opaqueTexels)
             continue;
         // Occlusion of the opaque scene, before blended and later passes.
         if (pass > PASS_ALPHA_TEST) {
@@ -2378,20 +2384,21 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (pass == PASS_WATER)
             waterSceneLevels = copyFrameForWater();
         recordInstances(queue.ordered, pass, false);
-        // Blended parts in two, as Open Rails draws them: their opaque
-        // texels first, depth written, then the rest back to front without,
-        // so a window never hides the cab behind it.
-        if (pass == PASS_BLENDED && blending && baseProgram != PROGRAM_SELECTION && blendedInTwo()) {
-            collectTwoPartBlended(queue.grouped);
+        if (pass == PASS_BLENDED && opaqueTexels) {
             blendedTexels = TEXELS_OPAQUE;
             recordInstances(twoPartBlended, pass, true);
-            blendedTexels = TEXELS_TRANSLUCENT;
         }
+        if (pass == PASS_BLENDED && twoParts)
+            blendedTexels = TEXELS_TRANSLUCENT;
         if (pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
             sortBackToFront(queue.grouped);
         else
             sortByTexture(queue.grouped);
         recordInstances(queue.grouped, pass, true);
+        if (pass == PASS_ALPHA_TEST && opaqueTexels) {
+            blendedTexels = TEXELS_OPAQUE;
+            recordInstances(twoPartBlended, pass, true);
+        }
         blendedTexels = TEXELS_ALL;
         sceneCopyLevels = 0.0f;
         waterSceneLevels = 0.0f;
