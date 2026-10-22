@@ -389,8 +389,10 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     v->setContentsMargins(1,1,1,1);
     v->addWidget(splitter);
     this->setLayout(v);
-    resize(960, 600);
-    bottom->setSizes({384, 576});
+    // Wide enough for every column: with a simulation's State and a
+    // timetable group's Timetable too.
+    resize(1120, 600);
+    bottom->setSizes({450, 670});
     // The stops and times the most of the height.
     splitter->setSizes({200, 400});
     
