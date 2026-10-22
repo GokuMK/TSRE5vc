@@ -404,6 +404,39 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
     const double fast = rateAt(64.0);
     check(fast > 24.0 && fast < 96.0, QString("at 64× (%1×)").arg(fast));
 
+    // A run until a train is on the track (Follow, the user's 2026-10-22):
+    // from the start again, until the second train is put on the track at
+    // 08:01, then on at the speed; a third, started only by an activation
+    // that never comes, is waited for up to the time asked, then paused.
+    {
+        auto waits = std::make_shared<Sim::SimulationInput>(*input);
+        Sim::TrainPlan never = waits->trains[1];
+        never.id = 2;
+        never.startTime = t0 + 120;
+        never.activatedBy = 0;
+        never.activation = Sim::TrainPlan::Activation::Arrival;
+        never.activationStop = 99;
+        waits->trains.push_back(never);
+        const std::shared_ptr<const Sim::SimulationInput> withWaiting = waits;
+        s = send([withWaiting](Sim::SimulationHost *h, unsigned long long n) { h->start(withWaiting, n); });
+        waitFor(latest, acknowledged(s), 5000);
+        send([](Sim::SimulationHost *h, unsigned long long n) { h->setSpeed(1.0, n); });
+        s = send([t0](Sim::SimulationHost *h, unsigned long long n) { h->runTo(t0 + 600, n, true, 1); });
+        f = waitFor(latest, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= s && x.mode == Sim::RunMode::Running; }, 10000);
+        check(f && f->time >= t0 + 60 - 1e-6 && f->time < t0 + 62 && f->trains[1].state.status != Sim::TrainStatus::Waiting,
+              QString("until the second train is on the track: at %1 s, running on").arg(f ? f->time - t0 : -1));
+        s = send([t0](Sim::SimulationHost *h, unsigned long long n) { h->runTo(t0 + 300, n, true, 2); });
+        f = waitFor(latest, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= s && x.mode == Sim::RunMode::Paused; }, 10000);
+        check(f && std::fabs(f->time - (t0 + 300)) < 0.2 && f->trains[2].state.status == Sim::TrainStatus::Waiting,
+              QString("a train never activated: waited for up to the time asked, paused there (%1 s)")
+                  .arg(f ? f->time - t0 : -1));
+        const QString why = f ? Sim::StateText(*withWaiting, f->trains[2].state, f->time, 2) : QString();
+        check(why.contains("activate") || why.contains("simulation.state.waiting.activated"),
+              "its state says what it waits for: " + why);
+    }
+
     // Stop with work queued: the thread ends, the host comes back.
     send([](Sim::SimulationHost *h, unsigned long long n) { h->setSpeed(0.0, n); });
     send([](Sim::SimulationHost *h, unsigned long long n) { h->play(n); });

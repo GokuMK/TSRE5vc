@@ -508,10 +508,13 @@ reported, editing commands).
   starts at 15:00 took many clicks, easy to get wrong): Follow on a train
   not yet on the track runs the simulation as fast as possible until the
   step it is put there (created, ready to start: the host's run to a time
-  stops at it; two hours after its start time at the latest), starting
-  one where there is none, then on at the chosen speed, the camera in its
-  cab (`SimulationController::followFromStart`); choosing another train
-  while following does the same for it. MSTS activities too. (A first
+  stops at it), starting one where there is none, then on at the chosen
+  speed, the camera in its cab (`SimulationController::followFromStart`);
+  not there 15 minutes after its start time (late, waiting to be formed
+  or activated, its track held), paused there with Follow kept, the State
+  column saying what it waits for ("to start: waits for X to activate
+  it", "formed of X where its run ends", "its track is held by X");
+  choosing another train while following does the same for it. MSTS activities too. (A first
   version ran to 30 s before its start time: the train was not there yet,
   the camera could not ride it.)
 - **Fixtures:** `timetable-ui` (33): the grid; the note's picker (its

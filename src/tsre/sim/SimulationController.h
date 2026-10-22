@@ -100,11 +100,13 @@ public:
     void follow(int train);
     // Follows a train from when it is put on the track (the user,
     // 2026-10-22): one not there yet, the simulation as fast as possible
-    // until the step it is (created, ready to start; FollowWithin after
-    // its start time at the latest), then on at the speed. False when
-    // there is no such train or the run cannot be asked.
+    // until the step it is (created, ready to start), then on at the
+    // speed; not there FollowWithin after its start time (late, waiting
+    // to be formed or activated, its track held), paused there with Follow
+    // kept, its state saying why. False when there is no such train or the
+    // run cannot be asked.
     bool followFromStart(int train, QString *error = nullptr);
-    static constexpr double FollowWithin = 7200.0;
+    static constexpr double FollowWithin = 900.0;
     // A train's centre and the way it heads (unit, in the camera's space):
     // tile x, tile z (the camera's), x, y, z; its length; false when not on
     // the track.

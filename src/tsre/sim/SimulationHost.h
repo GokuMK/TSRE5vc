@@ -51,7 +51,8 @@ public:
     // As fast as possible up to `time` (seconds after midnight), then
     // paused there, or running on at the speed when `thenRun`; with
     // `untilOnTrack`, already at the first step that train is on the track
-    // (Follow, the user's 2026-10-22).
+    // (Follow, the user's 2026-10-22), paused at `time` when it is not
+    // there by then.
     void runTo(double time, unsigned long long seq, bool thenRun = false, int untilOnTrack = -1);
     // The core gone; the host is handed back to `owner`'s thread and its
     // own thread quits.

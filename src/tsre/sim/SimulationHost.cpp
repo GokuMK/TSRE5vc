@@ -217,8 +217,11 @@ void SimulationHost::tick() {
         stepFor(speed > 0.0 ? elapsed * speed : 1e12, batch);
     } else if (mode == RunMode::RunningTo) {
         stepFor(target - core->time(), batch);
-        if (core->time() >= target - 1e-6 || (untilTrain >= 0 && trainPlaced(untilTrain))) {
-            mode = runOn ? RunMode::Running : RunMode::Paused;
+        const bool placed = untilTrain >= 0 && trainPlaced(untilTrain);
+        if (core->time() >= target - 1e-6 || placed) {
+            // A train waited for that is not there by the time: paused
+            // there (what it waits for is in its state).
+            mode = runOn && (untilTrain < 0 || placed) ? RunMode::Running : RunMode::Paused;
             untilTrain = -1;
             schedule();
         }

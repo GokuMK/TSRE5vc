@@ -560,7 +560,7 @@ bool SimulationController::followFromStart(int train, QString *error) {
     // On the track already (or gone at its end): followed as it is. Not
     // yet: as fast as possible until the step it is put on the track
     // (created, ready to start), FollowWithin after its start time at the
-    // latest (a train that never comes: no run for ever).
+    // latest, paused there.
     const std::shared_ptr<const SimulationFrame> now = frame();
     if (size_t(train) < now->trains.size() && now->trains[size_t(train)].state.status != TrainStatus::Waiting)
         return true;

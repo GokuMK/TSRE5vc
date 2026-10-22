@@ -32,6 +32,15 @@ QString StateText(const SimulationInput &in, const TrainState &s, double time, i
             //% "to start: its track is held by %1"
             return qtTrId("simulation.state.waiting.track").arg(HolderName(in, s.blockedBy));
         }
+        // Past its start time, not on its track yet: formed of another
+        // train where that one's run ends, or started by another
+        // (`$activated`, task 08).
+        if (time >= plan.startTime && plan.formedBy >= 0)
+            //% "to start: formed of %1 where its run ends"
+            return qtTrId("simulation.state.waiting.formed").arg(TrainName(in, plan.formedBy));
+        if (time >= plan.startTime && plan.activatedBy >= 0)
+            //% "to start: waits for %1 to activate it"
+            return qtTrId("simulation.state.waiting.activated").arg(TrainName(in, plan.activatedBy));
         //% "starts at %1"
         return qtTrId("simulation.state.waiting").arg(clock(plan.startTime));
     case TrainStatus::Running:
