@@ -32,6 +32,19 @@ constexpr float TrainEmission = 4.0f;
 constexpr float FrontOffset = 0.01f;
 // Lenses of one colour within a cell this wide share a glow splat.
 constexpr float ClusterCell = 0.25f;
+// A glow as Open Rails draws it (its LightGlow.png on a square Radius
+// wide): bright at its centre, fading to nothing at its edge. Its light
+// across the radius (share of the radius, alpha), as rings; LED dots of a
+// few centimetres with fewer. A large glow (MSTS content's Radius 5 m) is
+// a soft halo about a small core, not a 5 m disc.
+constexpr float GlowRings[][2] = {{0.0f, 0.94f},   {0.125f, 0.62f}, {0.25f, 0.45f}, {0.375f, 0.33f},
+                                  {0.5f, 0.22f},   {0.625f, 0.125f}, {0.75f, 0.067f}, {1.0f, 0.0f}};
+constexpr float DotRings[][2] = {{0.0f, 0.94f}, {0.25f, 0.45f}, {0.5f, 0.22f}, {1.0f, 0.0f}};
+// Its light in all, as a fully lit disc this share of the radius wide
+// (the rings' alpha summed over their area).
+constexpr float GlowCore = 0.38f;
+// The colour's alpha in the PBR vertex layout.
+constexpr int VertexAlpha = 18;
 // A beam's spot cone: full light within this share of the cone's
 // half-angle, none beyond the outer share; half at the cone's own edge, as
 // Open Rails' headlight falls off (the shader squares a ramp in the
@@ -79,13 +92,36 @@ void appendLens(std::vector<float> &out, RenderItem::VertexAttr layout, const Ca
                 out[at + 9 + c] = u[c];
             }
     };
+    // Rings from the centre out, each fading as Open Rails' glow does.
+    const bool dot = lens.radius < 0.05f;
+    const float (*rings)[2] = dot ? DotRings : GlowRings;
+    const int ringCount = dot ? int(std::size(DotRings)) : int(std::size(GlowRings));
+    const auto at = [&](float r, float angle, float alpha) {
+        const size_t first = out.size();
+        vertex(r * std::cos(angle), r * std::sin(angle));
+        if (layout == RenderItem::PBR)
+            out[first + VertexAlpha] = alpha;
+    };
     const int segments = segmentsFor(lens.radius);
     for (int i = 0; i < segments; ++i) {
         const float a = float(2.0 * M_PI * i / segments);
         const float b = float(2.0 * M_PI * (i + 1) / segments);
-        vertex(0.0f, 0.0f);
-        vertex(std::cos(a), std::sin(a));
-        vertex(std::cos(b), std::sin(b));
+        for (int k = 0; k + 1 < ringCount; ++k) {
+            const float r0 = rings[k][0], r1 = rings[k + 1][0];
+            const float a0 = rings[k][1], a1 = rings[k + 1][1];
+            if (r0 <= 0.0f) {
+                at(0.0f, 0.0f, a0);
+                at(r1, a, a1);
+                at(r1, b, a1);
+                continue;
+            }
+            at(r0, a, a0);
+            at(r1, a, a1);
+            at(r1, b, a1);
+            at(r0, a, a0);
+            at(r1, b, a1);
+            at(r0, b, a0);
+        }
     }
 }
 
@@ -110,7 +146,8 @@ void addEmitters(RenderItem *r, const std::vector<const CarLights::Lens *> &grou
                 int(std::floor(lens->position[2] / ClusterCell)), int(std::lround(d[0])), int(std::lround(d[1])),
                 int(std::lround(d[2])));
         Cell &cell = cells[key];
-        const double area = M_PI * lens->radius * lens->radius;
+        // Its light: the glow's soft disc as a fully lit one.
+        const double area = M_PI * double(GlowCore * lens->radius) * double(GlowCore * lens->radius);
         for (int c = 0; c < 3; ++c) {
             cell.sum[c] += lens->position[c] * area;
             cell.facing[c] += d[c] * area;
@@ -265,7 +302,8 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train, fl
     std::map<quint32, std::vector<const Lens *>> byColour;
     for (const Lens &lens : all)
         byColour[lens.colour].push_back(&lens);
-    const RenderItem::VertexAttr layout = emissive ? RenderItem::PBR : RenderItem::V;
+    // Glows fade out to their edge: blended, the PBR layout's vertex alpha.
+    const RenderItem::VertexAttr layout = RenderItem::PBR;
     for (const auto &entry : byColour) {
         const quint32 colour = entry.first;
         const std::vector<const Lens *> &group = entry.second;
@@ -289,7 +327,7 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train, fl
         r->mesh.first = 0;
         r->mesh.count = count;
         r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
-        r->material.surface = RenderItem::SURFACE_OPAQUE;
+        r->material.surface = RenderItem::SURFACE_BLENDED;
         r->material.brightness = 1.0f;
         // The shape's mirrored root turns the winding over.
         r->material.doubleSided = true;
@@ -302,12 +340,13 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train, fl
         r->setBounds(centre, std::sqrt(extent) * 0.5f);
         const float rgb[3] = {((colour >> 16) & 255) / 255.0f, ((colour >> 8) & 255) / 255.0f,
                               (colour & 255) / 255.0f};
+        r->mesh.layout = RenderItem::PBR;
         if (emissive) {
-            r->mesh.layout = RenderItem::PBR;
             r->material.lit = true;
             r->disableTextures(1.0f, 1.0f, 1.0f, 1.0f);
             RenderItem::Pbr &p = r->pbr;
             p.enabled = true;
+            p.blend = true;
             std::fill(p.baseColor, p.baseColor + 3, 0.0f);
             p.metallic = 0.0f;
             p.roughness = 1.0f;
@@ -321,9 +360,17 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train, fl
                 p.emissive[c] = toLinear(rgb[c]) * alpha * TrainEmission;
             addEmitters(r, group, p.emissive);
         } else {
-            r->setVertexAttributes(RenderItem::V);
+            // Plain: the colour unlit, its alpha the lamp's strength (Open
+            // Rails blends its glow by it).
             r->material.lit = false;
-            r->disableTextures(rgb[0], rgb[1], rgb[2], 1.0f);
+            r->disableTextures(1.0f, 1.0f, 1.0f, 1.0f);
+            RenderItem::Pbr &p = r->pbr;
+            p.enabled = true;
+            p.unlit = true;
+            p.blend = true;
+            for (int c = 0; c < 3; ++c)
+                p.baseColor[c] = toLinear(rgb[c]);
+            p.baseColor[3] = (colour >> 24) / 255.0f;
         }
         packets.push_back(r);
     }

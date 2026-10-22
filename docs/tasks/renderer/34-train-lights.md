@@ -124,6 +124,17 @@ Open Rails rules kept:
   direction, double-sided (as signal lights), inside the car's transform,
   so lamps follow the car through curves and grades. Built once the shape
   has loaded, as signal lights.
+- Soft, as Open Rails' glow (2026-10-22, the user: MSTS locomotives'
+  lamps far too large): Open Rails draws a glow as its LightGlow.png on a
+  square `Radius` wide, bright at the centre and fading to nothing at the
+  edge; MSTS content writes large radii for that halo (EUROPE1's
+  Pendennis: `Radius ( 5.0 )`), which as a solid disc was a 5 m white
+  blob. The lens is drawn in rings fading as that texture does (its alpha
+  sampled from the centre out; LED dots with fewer rings), blended,
+  through the PBR layout's vertex alpha on both paths (emissive, and
+  plain: unlit in the lamp's colour, its alpha the lamp's strength); the
+  glow emitters count the disc's light as a fully lit disc 0.38 of the
+  radius wide.
 - QRhi with local lights on: emissive, `LightColour` in linear light times
   its alpha times an emission constant (signals: 4); glow at the signal
   daylight scale (task 26: 50 % by day, full at night), as train lamps must
