@@ -412,6 +412,10 @@ void ActivityTimetableWindow::fillTrains(){
     list = ActivityTrains::List(activity);
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const bool simulating = simulation->shows(activity);
+    // Native standard icons can be expensive on Windows. Resolve the
+    // warning once for this refresh and share it between the rows.
+    QIcon warningIcon;
+    bool warningIconLoaded = false;
     for(int i = 0; i < list.size(); i++){
         const ActivityTrains::Train &train = list[i];
         QString name = train.service;
@@ -440,7 +444,11 @@ void ActivityTimetableWindow::fillTrains(){
                 item->setFont(column, font);
             }
         if(!train.problems.isEmpty()){
-            item->setIcon(TrainColumn, style()->standardIcon(QStyle::SP_MessageBoxWarning));
+            if(!warningIconLoaded){
+                warningIcon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
+                warningIconLoaded = true;
+            }
+            item->setIcon(TrainColumn, warningIcon);
             item->setToolTip(TrainColumn, train.problems.join("\n"));
         }
     }
