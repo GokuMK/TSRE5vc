@@ -50,6 +50,21 @@ geometry pass.
 Cost on llvmpipe (EUROPE1, 960 x 540, frame time with shadows, which the
 geometry dominates there): Low +4 %, Medium +7 %, High +9 %.
 
+Steam Deck (2026-10-22, QRhi Vulkan; EUROPE1 parity view `down`, ground
+over the whole view; frame time over Off, medians of two runs; the CPU is
+the same at every level):
+
+| Quality | 1280 x 800 | 2123 x 1948 |
+|---|---|---|
+| Low | +0.6 ms | +1 ms |
+| Medium | +1.6 ms | +7.6 ms |
+| High | +9.8 ms | +39 ms |
+
+The taps per view pixel (pixels share x slices x steps x 2) are 1, 9 and
+64 times Low's. Since 2026-10-22 blended MSTS parts are in the depth the
+occlusion reads ([shapes task 07](../shapes/07-blended-msts-parts.md)); the
+pass costs the same.
+
 ## Debugging
 
 `TSRE_AO_DEBUG=1` shows the visibility term in place of the view;
