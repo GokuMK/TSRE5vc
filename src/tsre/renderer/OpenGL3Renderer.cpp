@@ -430,12 +430,12 @@ void drawItemInstanced(QOpenGLFunctions *f, RenderItem *item, quint32 selectionI
 // restored afterwards.
 class PacketRasterState {
 public:
-    PacketRasterState(QOpenGLFunctions *f, const RenderItem *item)
+    PacketRasterState(QOpenGLFunctions *f, const RenderItem *item, bool translucentTexels)
         : f(f),
           lineWidth(item->material.lineWidth > 0 && item->material.lineWidth != Game::oglDefaultLineWidth),
           wireframe(item->material.wireframe),
           bothSides(item->material.doubleSided && f->glIsEnabled(GL_CULL_FACE)),
-          keepDepth(item->pbr.enabled && item->pbr.blend && depthWrites(f)) {
+          keepDepth(((item->pbr.enabled && item->pbr.blend) || translucentTexels) && depthWrites(f)) {
         if(lineWidth)
             f->glLineWidth(item->material.lineWidth);
         if(wireframe)
@@ -443,7 +443,8 @@ public:
         if(bothSides)
             f->glDisable(GL_CULL_FACE);
         // glTF BLEND surfaces are sorted by origin only: one drawn first
-        // must not hide others behind it (lights behind a glass shell).
+        // must not hide others behind it (lights behind a glass shell); so
+        // the translucent texels of blended parts drawn in two.
         if(keepDepth)
             f->glDepthMask(GL_FALSE);
     }
@@ -744,7 +745,9 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
         applyProceduralTerrainState(gluu,f,item,caches.procedural);
         setModelMatrix(gluu, item->msMatrix);
         setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, instanceMatrix(instance.matrix));
-        PacketRasterState raster(f, item);
+        // Set for every item, as the transparency.
+        gluu->currentShader->setUniformValue(gluu->currentShader->blendedTexels, int(TEXELS_ALL));
+        PacketRasterState raster(f, item, false);
         MeshBinding mesh(*this, item);
         if(!mesh.bound)
             continue;
@@ -791,7 +794,9 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         applyTerrainState(gluu, item, caches.terrain);
         applyProceduralTerrainState(gluu,f,item,caches.procedural);
         setModelMatrix(gluu, item->msMatrix);
-        PacketRasterState raster(f, item);
+        const int texels = texelsOf(item);
+        gluu->currentShader->setUniformValue(gluu->currentShader->blendedTexels, texels);
+        PacketRasterState raster(f, item, texels == TEXELS_TRANSLUCENT);
         MeshBinding mesh(*this, item);
         if(!mesh.bound)
             continue;
@@ -860,11 +865,21 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
             gluu->setBrightness(1.0f);
             gluu->enableTextures();
             gluu->enableNormals();
+            // Blended parts in two, as Open Rails draws them: their opaque
+            // texels first, depth written, then the rest back to front
+            // without (not in the selection pass, drawn without blending).
+            if(pass == PASS_BLENDED && f->glIsEnabled(GL_BLEND) && blendedInTwo()){
+                collectTwoPartBlended(queue.grouped);
+                blendedTexels = TEXELS_OPAQUE;
+                drawGrouped(gluu, base, twoPartBlended, pass);
+                blendedTexels = TEXELS_TRANSLUCENT;
+            }
             if(pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
                 sortBackToFront(queue.grouped);
             else
                 sortByTexture(queue.grouped);
             drawGrouped(gluu, base, queue.grouped, pass);
+            blendedTexels = TEXELS_ALL;
             drew = true;
         }
         if(pass == PASS_TRANSMISSION)
@@ -885,6 +900,7 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
     }
     gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
     gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
+    gluu->currentShader->setUniformValue(gluu->currentShader->blendedTexels, int(TEXELS_ALL));
     gluu->setBrightness(1.0f);
     gluu->enableTextures();
     gluu->enableNormals();

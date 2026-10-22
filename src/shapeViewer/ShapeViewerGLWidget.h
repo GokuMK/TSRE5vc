@@ -55,8 +55,9 @@ public:
     QImage *screenShot = NULL;
     void setMode(QString n);
     void resetRot();
-    // Turns the shown model by yaw radians from the default view.
-    void setModelRotation(float yaw);
+    // Turns the shown model by yaw radians from the default view, and tilts
+    // it by pitch radians (as dragging with the right button).
+    void setModelRotation(float yaw, float pitch = 0.0f);
     void getImg();
     void setBackgroundGlColor(float r, float g, float b);
     void fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo *info);

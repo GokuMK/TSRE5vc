@@ -533,9 +533,9 @@ void ShapeViewerGLWidget::resetRot(){
     rotZ = 0;
 }
 
-void ShapeViewerGLWidget::setModelRotation(float yaw){
+void ShapeViewerGLWidget::setModelRotation(float yaw, float pitch){
     rotY = M_PI + yaw;
-    rotZ = 0;
+    rotZ = std::clamp(pitch, -1.57f, 1.57f);
 }
 
 

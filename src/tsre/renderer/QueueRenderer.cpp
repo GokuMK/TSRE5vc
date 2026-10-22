@@ -265,6 +265,23 @@ void QueueRenderer::sortByTexture(std::vector<DrawInstance> &instances){
     });
 }
 
+void QueueRenderer::collectTwoPartBlended(const std::vector<DrawInstance> &blended){
+    twoPartBlended.clear();
+    for(const DrawInstance &instance : blended)
+        if(instance.packet->blendsInTwoParts())
+            twoPartBlended.push_back(instance);
+    sortByTexture(twoPartBlended);
+}
+
+bool QueueRenderer::blendedInTwo(){
+    static const bool enabled = qEnvironmentVariable("TSRE_BLENDED_IN_TWO", "1") != "0";
+    return enabled;
+}
+
+int QueueRenderer::texelsOf(const RenderItem *packet) const{
+    return blendedTexels != TEXELS_ALL && packet->blendsInTwoParts() ? blendedTexels : TEXELS_ALL;
+}
+
 void QueueRenderer::sortBackToFront(std::vector<DrawInstance> &instances){
     std::sort(instances.begin(), instances.end(), [](const DrawInstance &a, const DrawInstance &b){
         if(a.distance != b.distance)

@@ -526,6 +526,7 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     program->setFloat("materialTransparency", 1.0f - item->material.opacity);
     // Vegetation is never under a roof: no sky enclosure lookups (task 37).
     program->setInt("materialVegetation", item->material.vegetation ? 1 : 0);
+    program->setInt("blendedTexels", texelsOf(item));
     program->setUint("selectionId", selectionId);
     const QVector3D remap = item->terrain.textureRemap;
     program->setVec("terrainTextureRemap", remap.x(), remap.y(), remap.z());
@@ -2277,7 +2278,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.format = quint8(buffers.format);
     key.blend = blending && baseProgram != PROGRAM_SELECTION && target().attachments != nullptr
             && target().attachments->color != nullptr;
-    key.depthWrite = !(item->pbr.enabled && item->pbr.blend);
+    key.depthWrite = !(item->pbr.enabled && item->pbr.blend) && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
     // The sky enclosure maps look down on everything: single-sided roofs and
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow
@@ -2377,11 +2378,21 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (pass == PASS_WATER)
             waterSceneLevels = copyFrameForWater();
         recordInstances(queue.ordered, pass, false);
+        // Blended parts in two, as Open Rails draws them: their opaque
+        // texels first, depth written, then the rest back to front without,
+        // so a window never hides the cab behind it.
+        if (pass == PASS_BLENDED && blending && baseProgram != PROGRAM_SELECTION && blendedInTwo()) {
+            collectTwoPartBlended(queue.grouped);
+            blendedTexels = TEXELS_OPAQUE;
+            recordInstances(twoPartBlended, pass, true);
+            blendedTexels = TEXELS_TRANSLUCENT;
+        }
         if (pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
             sortBackToFront(queue.grouped);
         else
             sortByTexture(queue.grouped);
         recordInstances(queue.grouped, pass, true);
+        blendedTexels = TEXELS_ALL;
         sceneCopyLevels = 0.0f;
         waterSceneLevels = 0.0f;
         if (consume)

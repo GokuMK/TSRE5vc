@@ -1195,8 +1195,14 @@ struct ViewerItem {
     QString path;
     QString file;
     QString textures;
-    // Degrees the model is turned from the default view (shapes only).
+    // Degrees the model is turned from the default view and tilted
+    // (shapes only).
     double yaw = 0.0;
+    double pitch = 0.0;
+    // Once the camera has fitted the shape: degrees of view (a zoom; 0
+    // keeps the fit) and degrees the camera looks up.
+    double fov = 0.0;
+    double look = 0.0;
 };
 
 struct ViewerOptions {
@@ -1248,6 +1254,9 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.file = object.value("file").toString();
         item.textures = object.value("textures").toString();
         item.yaw = object.value("yaw").toDouble(0.0);
+        item.pitch = object.value("pitch").toDouble(0.0);
+        item.fov = object.value("fov").toDouble(0.0);
+        item.look = object.value("look").toDouble(0.0);
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";
             return false;
@@ -1323,7 +1332,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
                     ? ShapeViewerGLWidget::textureDirectory(path)
                     : itemRoot.absoluteFilePath(item.textures);
             widget.showShape(path, textures);
-            widget.setModelRotation(float(item.yaw * M_PI / 180.0));
+            widget.setModelRotation(float(item.yaw * M_PI / 180.0), float(item.pitch * M_PI / 180.0));
         } else if (item.type == "eng") {
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");
@@ -1352,6 +1361,8 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         unsigned lastShapeProgress = ShapeLoader::progress();
         bool settled = false;
         QImage image;
+        const float fittedFov = shapeCamera.fov;
+        bool zoomPending = item.type == "shape" && (item.fov > 0.0 || item.look != 0.0);
         while (frames < options.settle.maxFrames
                && settleTimer.elapsed() < qint64(options.settle.maxSeconds) * 1000) {
             pumpEvents(options.settle.frameIntervalMs);
@@ -1367,10 +1378,22 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             lastShapeProgress = shapeProgress;
             if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
                     && !ShapeLoader::busy()) {
+                // The camera has fitted the loaded shape: zoom, and settle
+                // again.
+                if (zoomPending) {
+                    zoomPending = false;
+                    if (item.fov > 0.0)
+                        shapeCamera.fov = float(item.fov);
+                    shapeCamera.setPlayerRot(M_PI / 2.0, float(item.look * M_PI / 180.0));
+                    stableCount = 0;
+                    continue;
+                }
                 settled = true;
                 break;
             }
         }
+        shapeCamera.fov = fittedFov;
+        shapeCamera.setPlayerRot(M_PI / 2.0, 0);
         image.save(QDir(outputDir).filePath(item.name + ".png"));
         items.append(QJsonObject{{"name", item.name}, {"settled", settled}, {"frames", frames}});
         qInfo().noquote() << ViewerCaptureLog << item.name

@@ -1,0 +1,15 @@
+{
+  "output": "build/shape-viewer-blended",
+  "width": 900,
+  "height": 600,
+  "diffTolerance": 16,
+  "settle": { "minFrames": 10, "stableFrames": 3, "maxFrames": 200, "maxSeconds": 120 },
+  "items": [
+    { "name": "st44-end-level", "type": "shape", "path": "TRAINS/TRAINSET/PKP_ST44-OR/PKP_ST44-002.s", "yaw": 90, "pitch": 0, "fov": 14, "look": 7 },
+    { "name": "st44-end-above", "type": "shape", "path": "TRAINS/TRAINSET/PKP_ST44-OR/PKP_ST44-002.s", "yaw": 90, "pitch": -12, "fov": 14, "look": 7 },
+    { "name": "st44-end-below", "type": "shape", "path": "TRAINS/TRAINSET/PKP_ST44-OR/PKP_ST44-002.s", "yaw": 90, "pitch": 12, "fov": 14, "look": 7 },
+    { "name": "st44-quarter-above", "type": "shape", "path": "TRAINS/TRAINSET/PKP_ST44-OR/PKP_ST44-002.s", "yaw": 75, "pitch": -12, "fov": 18, "look": 6 },
+    { "name": "st44-quarter-below", "type": "shape", "path": "TRAINS/TRAINSET/PKP_ST44-OR/PKP_ST44-002.s", "yaw": 75, "pitch": 12, "fov": 18, "look": 6 },
+    { "name": "st44-side", "type": "shape", "path": "TRAINS/TRAINSET/PKP_ST44-OR/PKP_ST44-002.s", "yaw": 0, "pitch": -8 }
+  ]
+}

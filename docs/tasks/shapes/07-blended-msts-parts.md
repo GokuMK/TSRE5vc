@@ -56,6 +56,44 @@ lies behind.
 - Classes of hand-made texels and DXT1, DXT3 and DXT5 blocks are checked
   by `tsre_ace_tool --self-test`.
 
+## Drawn in two (2026-10-22)
+
+The PKP ST44 (`TRAINS/TRAINSET/PKP_ST44-OR/PKP_ST44-002.s`) marks almost
+every part `BlendATexDiff`, its windows and its cab interior too, and its
+textures have partial alpha. Blended parts were sorted by their matrix's
+origin and wrote depth. The interior hangs on `Inside`, 3.1 m above the
+shape's origin, the windows mostly on `Main` (at rail level). Seen from
+above, the windows were the farther and drew first, and the interior behind
+them failed the depth test; from below the order turned and it showed.
+
+Now the blended pass draws such packets in two, as Open Rails'
+`SceneryMaterial` does (both renderers):
+
+- first their opaque texels (alpha 250 of 255 or more, Open Rails'
+  threshold), grouped by texture, depth written;
+- then the other texels, back to front as before, without depth writes.
+
+So glass never hides what lies behind it, and translucent parts sort against
+each other only for their blending order. `RenderItem::blendsInTwoParts`
+picks the packets: textured, blended (by `drawSurface`), of full opacity, not
+PBR, water or decals. The shaders' `blendedTexels` (`StandardFog`,
+`StandardFast`) picks the texels. The selection pass draws them whole.
+`TSRE_BLENDED_IN_TWO=0` draws them whole everywhere, as before.
+
+Unlike Open Rails, the opaque texels are drawn at the start of the blended
+pass, not with the opaque scene, so they still get no ambient occlusion. Open
+Rails blends texels down to alpha 10 of 255; the parts keep their vertex
+alpha's threshold (`GLUU::alphaTest`, 0.3).
+
+Results (`tests/renderer/shape-viewer-blended.json`, Shape Viewer views
+with the new `pitch`, `fov` and `look` keys):
+
+- ST44 from above: the cab interior shows through the windows, in QRhi and
+  OpenGL; from below and level, unchanged but for a few edge pixels.
+- EUROPE1 parity views (QRhi and OpenGL) and Prudnik's station view: at most
+  single pixels change, at the opaque threshold.
+- Prudnik's station view: 5369 draws instead of 5059.
+
 ## Later
 
 - The per-vertex alpha mode written by `SFileLegacy` still encodes

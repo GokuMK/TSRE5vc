@@ -268,6 +268,12 @@ public:
     // texture has no partly transparent texels draws as opaque, and one whose
     // texture alpha is binary as alpha-tested (core.rendering.blendedParts).
     unsigned char drawSurface() const;
+    // Whether the blended pass draws the packet in two, as Open Rails draws
+    // MSTS blended parts: its opaque texels first, depth written, then the
+    // rest without depth writes, so glass never hides what lies behind it
+    // (QueueRenderer::BlendedTexels). Textured blended packets of full
+    // opacity, not PBR, water or decals.
+    bool blendsInTwoParts() const;
     // Sets the bounds from a sphere in mesh space, moved into the submission
     // space by transform (normally msMatrix; null is identity). A negative
     // radius clears them.
