@@ -89,8 +89,8 @@ player's, works another way.
   work starts.
 
 ## Execution Order (first steps)
-- [ ] Core: `docs/tasks/core/si-units.md`, SI inside and the user's units
-  in the editors' fields.
+- [x] Core: `docs/tasks/core/si-units.md`, SI inside and the user's units
+  in the editors' fields. Done, merged into main 2026-10-19.
 - [ ] `01-vehicle-definitions.md` (to design; the ENG refactor, before any
   driving task): one vehicle definition per ENG/WAG file, read once and
   not changed after loading. It holds typed fields in SI for what C++

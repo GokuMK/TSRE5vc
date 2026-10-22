@@ -49,6 +49,9 @@ model as the first operating policy, and threading.
 - 2026-10-17: next come activity events (06), then coupling and trains
   changing (07); the player's driving is a task set of its own
   (`docs/tasks/driving/00-task-roadmap.md`).
+- 2026-10-20: the player's work orders are done by TSRE's own full
+  autopilot (task 07), so an activity can be checked end to end; Open
+  Rails' autopilot only asks the player to shunt.
 
 ## Execution Order
 - [x] `01-simulation-thread-and-train-motion.md`: the simulation thread and
@@ -91,31 +94,39 @@ model as the first operating policy, and threading.
   aspects trains see agree with Open Rails' at 62 to 100 % of samples,
   the rest where signals are cleared, task 02). Open Rails' script
   additions later.
-- [ ] `06-activity-events.md` (to design): the activity's events run in
-  the simulation. Agreed so far (2026-10-17):
-  - Events are checks on the world, as in Open Rails
-    (`Activity.cs`, `EventCategoryActionWrapper`): AssembleTrain fires
-    when any train holds exactly the listed cars (in order or reversed),
-    DropOffWagonsAtLocation when the cars stand as a standing consist
-    inside the siding (whoever left them), PickUpWagons,
-    AssembleTrainAtLocation and ReachSpeed look at the player's train
-    only, PickUpPassengers never fires; AllStops, location events (with
-    Open Rails' AI train trigger, `triggeringService`) and time events;
-    outcomes (events activated, restored, cancelled; messages; the
-    activity's end).
-  - Shown: each event's firing time in the Timetable window's event list
-    and on the map; events that never fire warned; outcome messages at
-    the time they would show in game. Reused: TSRE's `ActivityEvent`
-    parser, the simulation's event list, the map's Events layer, the
-    Event window.
-  - AI trains could carry out work-order events too (user). Open
-    decision: the player's work orders, messages only (as Open Rails'
-    autopilot, which asks the player to shunt) or TSRE's autopilot doing
-    them (TSRE's own; it would make an activity checkable end to end).
-  - Wagon events work fully only after 07; time, location, station and
-    speed events need only 06.
-- [ ] `07-coupling-and-train-changes.md` (to design): trains that meet,
-  couple and split.
+- [x] `06-activity-events.md` (designed 2026-10-20, done 2026-10-21; open
+  for investigation: location events on the other track of a double line,
+  MSTS's rule against Open Rails'; decided 2026-10-21: no stopping at
+  stop-here events, trains placed at their start as Open Rails places
+  them): the activity's
+  events run in the simulation as Open Rails checks them (`Activity.cs`):
+  time, location (the point within 2.5 m of the track, the front within
+  the radius; Open Rails' triggering AI train), AllStops, ReachSpeed and
+  the wagon events on fixed car lists; outcomes (levels, the activity's
+  end, restarting a waiting train); the fixed step of 2026-10-17. Shown:
+  firing times in the Event window, the Timetable window and on the map
+  (messages beside the train that fired them, no message boxes), why an
+  event did not fire in Check Activity; Simulate records them too. Wagon
+  events that need shunting wait for 07.
+- [x] `07-coupling-and-train-changes.md` (designed 2026-10-21, done
+  2026-10-21, phase 6 verified against task 06 and Open Rails; the
+  user's decisions at its end; part A done (phases 1 to 3): each train its
+  own cars, standing trains, attaching, coupling and cuts, signals into
+  occupied blocks, living trains, 60001 and 60002, the editor drawing the
+  changed trains and the standing ones; B0 done: 42 of 48 goals planned,
+  20 of 22 activities whole, sorting and run-arounds beyond it; run-arounds
+  and B1 to B5 done: the autopilot runs its plans, back to the path or to
+  the place ending the activity, 41 of the 48 wagon events fire and 19 of
+  the 22 work-order activities end in success; sorting done: 47 of 48
+  wagon events fire, 20 of the 22 end in success (homestre and winterun
+  never end, not for their work); phase 6: couplings close in as Open
+  Rails' AI does, a train taking cars off its path removed as there): part A, trains that change as Open Rails' AI
+  does (each train its own cars, loose consists as standing trains,
+  attaching and coupling at contact, cuts at waiting points); part B, the
+  autopilot's work orders, planned off the player's path (MSTS paths do
+  not lead through the work: 20 of the 22 local activities with wagon
+  events), with a feasibility phase first. Notes from 2026-10-17 kept
+  below.
   - Open Rails' AI shunts only where the author coded it in the path
     (`AITrain.cs`): waiting point 4NNSS / 5NNSS uncouples keeping the
     first / last NN cars and waits SS s (the cars left become a standing
@@ -133,9 +144,13 @@ model as the first operating policy, and threading.
     and the core works in whole sections: a train stops a section short
     of another train or a loose consist (it never passes through, it
     never meets either).
+  - The player's work orders: TSRE's full autopilot carries them out
+    (user, 2026-10-20), its moves planned from the wagon events. AI
+    trains could carry out work-order events too (user, 2026-10-17).
   - Needed: one table of the activity's vehicles (trains' and loose
     consists') with stable ids, so events' wagon lists name them (Open
-    Rails' CarID from the UiD); each train's own vehicle list in its
+    Rails' CarID from the UiD; the ids come in 06, the lists changing
+    here); each train's own vehicle list in its
     state, its performance summed again when it changes; loose consists
     as standing trains of the simulation; frames carry each train's
     vehicles and the controller makes its consist copy again when they
@@ -149,6 +164,25 @@ model as the first operating policy, and threading.
     append, delete, reverse, move, flip); the simulation does not need
     them (its copies are made from frames). The player's driving with
     real consists will.
+- [ ] `08-open-rails-timetables.md` (designed 2026-10-21 with the user's
+  ideas, phases 1-7 done 2026-10-22, reopened the same day for phase 8:
+  every command catalogued, all not run reported, commands edited, the
+  cheap ones run: 27 of 49 commands run, 3 need nothing as in Open Rails,
+  19 reported (shunting, pools, turntables, weather, call-on, connections
+  and the rest, for later tasks); open items in the task): Open Rails'
+  timetable mode read, simulated, shown and saved (the user, 2026-10-21:
+  before the player's driving); an Open Rails timetable set is an activity
+  in code. PRUDNIK's timetable, 308 trains and no activity, is the local
+  content: on OR_PSK converted with `--contentcase` its trains run with
+  the commands it uses (all 266 finish, a median of 50 s ahead of the
+  timetable). The activity panel shows a set's timetables, trains and
+  problems; a train's times and commands are edited and saved in TSRE's
+  layout (the original kept as `.original`), which Open Rails reads and
+  runs as the original. Against Open Rails (three windows of the day; its
+  Linux build fails or hangs in longer runs): 589 stops of 116 AI trains,
+  a median of 22 s earlier in TSRE, 81 % within a minute; open: PRUDNIK's
+  block signals Open Rails passes unenabled at 25 km/h, and which train
+  takes a junction first at times.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a
@@ -164,6 +198,27 @@ model as the first operating policy, and threading.
 - Open Rails' script additions to `sigscr.dat` (task 05, later).
 - Offered, not decided: Jump To going to where a simulated train is; the
   efficiency after a train's last stop.
+- Kept for later (user, 2026-10-21, after task 07):
+  - whitefishydsw's 13-car drop-off (Whitefish Siding 529) is skipped as
+    impractical: a block would have to come to the cars gathered there
+    the other way round (a run-round for a delivery to cars gathered).
+  - Location events on another track than the train's: Open Rails fires
+    them only within 2.5 m of the train's track, MSTS by a 2D distance from
+    the player's train (task 06); the user wants both modes, their
+    definition open.
+  - Coupling: after a reversal Open Rails' AI creeps for some 50 s before
+    its authority reaches the cars it closes on (local_cutbank, 91 s
+    later than ours); ours follows the approach rule at once.
+  - Single-track arbitration (task 02's decision 2: later):
+    BNSF_SCENIC 3_CanadianImports still deadlocks.
+  - AI trains doing work orders themselves (the user's idea of
+    2026-10-17), with the same planner.
+  - Two Open Rails crashes found, not reported upstream: an AI path
+    waiting point "until 08:30" on EUROPE1 lclsrvce (2026-10-14), and
+    JAPAN1 itr from 12:00 at about 12:23 ("Collection was modified" in
+    `TrackCircuitSection.TestTrainAhead`).
+- Separate tasks: Open Rails' timetable mode (task 08); the flagged
+  refactors below.
 
 ## Flagged refactors (user, 2026-10-17)
 - `Sim::TrackGeometry` repeats `TDB::getDrawPositionOnTrNode`'s section

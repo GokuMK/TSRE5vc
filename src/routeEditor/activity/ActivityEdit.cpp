@@ -1,6 +1,7 @@
 #include <routeEditor/activity/ActivityEdit.h>
 #include <tsre/Undo.h>
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/Service.h>
@@ -8,6 +9,8 @@
 ActivityEdit::ActivityEdit(Activity *activity, bool typing) : typing(typing) {
     begin();
     Undo::PushActivityData(activity);
+    // Its last run's event results are from before (task simulation 06).
+    Sim::EventResultStore::instance()->outdate(activity);
 }
 
 ActivityEdit::ActivityEdit(Service *service, bool typing) : typing(typing) {
@@ -29,6 +32,7 @@ void ActivityEdit::begin() {
 
 void ActivityEdit::also(Activity *activity) {
     Undo::PushActivityData(activity);
+    Sim::EventResultStore::instance()->outdate(activity);
 }
 
 void ActivityEdit::also(Service *service) {

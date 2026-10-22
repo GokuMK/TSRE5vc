@@ -7,7 +7,9 @@ class Activity;
 // A problem Check Activity finds in an activity or a file it uses, and
 // what its row in the list jumps to.
 struct ActivityFinding {
-    enum Severity { Error, Warning };
+    // Run: from the activity's last simulated run (task simulation 06), not
+    // a problem of its files.
+    enum Severity { Error, Warning, Run };
     enum Target { None, Event, Service, Traffic, Path, Position };
     Severity severity = Error;
     // A fixed name of the kind of problem ("service.missing"), for tests.

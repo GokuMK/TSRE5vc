@@ -13,9 +13,14 @@
 #include <tsre/map/MapFeatures.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/map/MapLabelLayer.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationTexts.h>
+#include <tsre/sim/WorkPlanning.h>
 #include <tsre/sound/SoundSystem.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
@@ -34,15 +39,27 @@ QString clock(double seconds) {
     return QTime::fromMSecsSinceStartOfDay(s * 1000).toString("HH:mm:ss");
 }
 
+void refit(Consist &consist, const std::vector<Vehicle> &vehicles);
+
 // A copy of a train's consist for the editor (SimulationController::
 // consistOf), each vehicle its own Eng as a consist placed on the track has.
+// Where the name is no consist file (an Open Rails timetable's consist of
+// several parts or turned, task 08): made from the train's vehicles.
 std::unique_ptr<Consist> copyConsist(const TrainPlan &plan) {
     if (Game::currentEngLib == nullptr || plan.consist.isEmpty())
         return nullptr;
     const int id = ConLib::addCon(Game::root + "/TRAINS/CONSISTS/", plan.consist + ".con");
     auto found = ConLib::con.find(id);
-    if (found == ConLib::con.end() || found->second == nullptr || found->second->loaded != 1)
-        return nullptr;
+    if (found == ConLib::con.end() || found->second == nullptr || found->second->loaded != 1) {
+        if (plan.vehicles.empty())
+            return nullptr;
+        std::unique_ptr<Consist> made = std::make_unique<Consist>();
+        made->displayName = plan.consist;
+        made->showName = plan.consist;
+        made->isOnTrack = false;
+        refit(*made, plan.vehicles);
+        return made;
+    }
     std::unique_ptr<Consist> copy = std::make_unique<Consist>(found->second, true);
     for (Consist::EngItem &item : copy->engItems) {
         auto eng = Game::currentEngLib->eng.find(item.eng);
@@ -53,6 +70,37 @@ std::unique_ptr<Consist> copyConsist(const TrainPlan &plan) {
     }
     copy->isOnTrack = false;
     return copy;
+}
+
+// A consist copy made again from a train's vehicles (task 07: they change
+// as it couples and cuts): each its Eng, flipped as the vehicle is. The
+// copy itself stays (the camera rides it, the selection holds it).
+void refit(Consist &consist, const std::vector<Vehicle> &vehicles) {
+    consist.silenceSounds();
+    for (Consist::EngItem &item : consist.engItems)
+        delete item.engPointer;
+    consist.engItems.clear();
+    for (const Vehicle &vehicle : vehicles) {
+        Consist::EngItem item;
+        item.eng = vehicle.eng;
+        item.flip = vehicle.flip;
+        item.uid = int(vehicle.id % 65536u);
+        Eng *eng = nullptr;
+        if (Game::currentEngLib != nullptr) {
+            auto found = Game::currentEngLib->eng.find(vehicle.eng);
+            if (found != Game::currentEngLib->eng.end())
+                eng = found->second;
+        }
+        if (eng != nullptr) {
+            item.type = eng->wagonTypeId;
+            item.ename = eng->name;
+            item.engPointer = new Eng(eng);
+            item.engPointer->flip = vehicle.flip;
+        }
+        consist.engItems.push_back(item);
+    }
+    if (consist.cameraVehicle >= int(consist.engItems.size()))
+        consist.cameraVehicle = 0;
 }
 
 // How far a train is heard, and how far it goes before it is silenced.
@@ -101,8 +149,7 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     Route *route = Game::currentRoute;
     const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
     const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;
-    std::shared_ptr<const SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted);
-    inputMs = timer.elapsed();
+    std::shared_ptr<SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted, false);
     if (input->trains.empty()) {
         if (error != nullptr) {
             *error =
@@ -113,6 +160,10 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
         }
         return nullptr;
     }
+    // The player's work orders (task 07): planned off the main thread.
+    if (!PlanWorkOrders(*input, error))
+        return nullptr;
+    inputMs = timer.elapsed();
     return input;
 }
 
@@ -136,8 +187,10 @@ bool SimulationController::start(Activity *activity, QString *error) {
     current = activity;
     dropTrains();
     in = input;
+    EventResultStore::instance()->recordInput(current, input->warnings);
     latest.reset();
     history.clear();
+    messages.clear();
     asked = RunMode::Paused;
     chosenTrain = -1;
     thread = new QThread();
@@ -203,7 +256,7 @@ bool SimulationController::runTo(Activity *activity, int timeOfDay, QString *err
     return runToTime(target, false, error);
 }
 
-bool SimulationController::runToTime(double target, bool thenRun, QString *error) {
+bool SimulationController::runToTime(double target, bool thenRun, QString *error, int untilOnTrack) {
     if (!exists())
         return false;
     if (target < frame()->time) {
@@ -213,8 +266,10 @@ bool SimulationController::runToTime(double target, bool thenRun, QString *error
             return false;
         dropTrains();
         in = input;
+        EventResultStore::instance()->recordInput(current, input->warnings);
         latest.reset();
         history.clear();
+        messages.clear();
         sendStart(input);
         emit eventsAdded(0);
     }
@@ -223,8 +278,9 @@ bool SimulationController::runToTime(double target, bool thenRun, QString *error
     runToSeq = seq;
     runToTarget = target;
     runToThenRun = thenRun;
+    runToTrain = untilOnTrack;
     SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, target, seq, thenRun] { h->runTo(target, seq, thenRun); },
+    QMetaObject::invokeMethod(host, [h, target, seq, thenRun, untilOnTrack] { h->runTo(target, seq, thenRun, untilOnTrack); },
                               Qt::QueuedConnection);
     emit stateChanged();
     return true;
@@ -241,8 +297,10 @@ void SimulationController::reset() {
     }
     dropTrains();
     in = input;
+    EventResultStore::instance()->recordInput(current, input->warnings);
     latest.reset();
     history.clear();
+    messages.clear();
     sendStart(input);
     if (asked != RunMode::Paused) {
         asked = RunMode::Running;
@@ -262,6 +320,9 @@ void SimulationController::stop() {
     if (WorldClock::instance()->source() == this)
         WorldClock::instance()->setSource(nullptr);
     SignalLights::setStateSource(nullptr);
+    // The events as the run left them (task 06).
+    if (recordedTime != (latest != nullptr ? latest->time : -1.0))
+        recordEvents();
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
     QThread *owner = QThread::currentThread();
@@ -278,6 +339,8 @@ void SimulationController::stop() {
     in.reset();
     latest.reset();
     history.clear();
+    messages.clear();
+    ++messageChanges;
     asked = RunMode::Paused;
     chosenTrain = -1;
     if (followedTrain != -1) {
@@ -325,17 +388,50 @@ void SimulationController::poll() {
     if (!fresh.empty()) {
         const int first = int(history.size());
         history.insert(history.end(), fresh.begin(), fresh.end());
+        // Events with a message: shown beside the train that fired them.
+        for (const TrainEvent &event : fresh) {
+            if (event.kind != TrainEvent::EventFired)
+                continue;
+            const QString text = messageOf(event.index);
+            if (text.isEmpty())
+                continue;
+            int train = event.train;
+            if (train < 0)
+                for (const TrainPlan &plan : in->trains)
+                    if (plan.player)
+                        train = plan.id;
+            if (train < 0)
+                continue;
+            if (!messageClock.isValid())
+                messageClock.start();
+            messages.erase(std::remove_if(messages.begin(), messages.end(),
+                                          [train](const Message &m) { return m.train == train; }), messages.end());
+            const ActivityEvent *fired = activityEvent(event.index);
+            messages.push_back({train, (fired != nullptr ? fired->name + QStringLiteral(": ") : QString()) + text,
+                                messageClock.elapsed()});
+            ++messageChanges;
+        }
         emit eventsAdded(first);
     }
     if (!changed)
         return;
+    // The activity's events as the run has them (task 06), for the Event
+    // window and the map; the time alone when they have not changed.
+    if (latest->eventStates != nullptr) {
+        if (recordedRun != in->runId || recordedSerial != latest->eventSerial || recordedCars != carsSerial(*latest)
+                || (latest->mode == RunMode::Paused && recordedTime != latest->time))
+            recordEvents();
+        else
+            EventResultStore::instance()->advance(current, latest->time, latest->finished);
+    }
     // A run to a time the host had passed when it took the command (running
     // as fast as possible, a day can go by while the command waits): from
     // the start again to that time, as for a time behind.
     if (runToSeq != 0 && latest->acknowledged >= runToSeq) {
-        const bool passed = latest->acknowledged == runToSeq && latest->time > runToTarget + 1e-6;
+        // The host stops at the first whole step at or after the target.
+        const bool passed = latest->acknowledged == runToSeq && latest->time > runToTarget + SimulationCore::MaxStep;
         runToSeq = 0;
-        if (passed && runToTime(runToTarget, runToThenRun, nullptr))
+        if (passed && runToTime(runToTarget, runToThenRun, nullptr, runToTrain))
             return;
     }
     // Every command taken: the host's mode is the one (a run to a time ends
@@ -457,6 +553,23 @@ void SimulationController::follow(int train) {
     emit followChanged(train);
 }
 
+bool SimulationController::followFromStart(int train, QString *error) {
+    if (!exists() || in == nullptr || train < 0 || size_t(train) >= in->trains.size())
+        return false;
+    follow(train);
+    // On the track already (or gone at its end): followed as it is. Not
+    // yet: as fast as possible until the step it is put on the track
+    // (created, ready to start), FollowWithin after its start time at the
+    // latest, paused there.
+    const std::shared_ptr<const SimulationFrame> now = frame();
+    if (size_t(train) < now->trains.size() && now->trains[size_t(train)].state.status != TrainStatus::Waiting)
+        return true;
+    const double latest = in->trains[size_t(train)].startTime + FollowWithin;
+    if (now->time >= latest)
+        return true;
+    return runToTime(latest, true, error, train);
+}
+
 bool SimulationController::trainPlace(int train, int *tile, float *position, float *heading, float *length) const {
     const std::shared_ptr<const SimulationFrame> now = viewFrame();
     if (train < 0 || size_t(train) >= now->trains.size())
@@ -561,8 +674,134 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     case TrainEvent::Deadlock:
         //% "deadlocked: waits for %1, which waits for it in turn"
         return qtTrId("simulation.event.deadlock").arg(holderName(event.index));
+    case TrainEvent::EventFired: {
+        const ActivityEvent *fired = activityEvent(event.index);
+        const QString name = fired == nullptr ? QString::number(event.index)
+                           : fired->name.isEmpty() ? QString::number(fired->id) : fired->name;
+        QString text = event.signal == 1
+                //% "event %1 (by the player's train: its triggering train had not started)"
+                ? qtTrId("simulation.event.activity.standin").arg(name)
+                //% "event %1"
+                : qtTrId("simulation.event.activity").arg(name);
+        const QString message = messageOf(event.index);
+        if (!message.isEmpty())
+            text += QStringLiteral(": ") + message;
+        return text;
+    }
+    case TrainEvent::ActivityEnded:
+        return event.index == 1
+                //% "the activity ends: success"
+                ? qtTrId("simulation.event.activity.success")
+                //% "the activity ends without success"
+                : qtTrId("simulation.event.activity.failure");
+    case TrainEvent::Coupled:
+        //% "coupled to %1 cars"
+        return qtTrId("simulation.event.coupled").arg(event.signal);
+    case TrainEvent::Joined:
+        //% "joined the cars standing ahead"
+        return qtTrId("simulation.event.joined");
+    case TrainEvent::Uncoupled:
+        //% "cut off %1 cars"
+        return qtTrId("simulation.event.uncoupled").arg(event.signal);
+    case TrainEvent::TookCars:
+        //% "took %1 cars from %2"
+        return qtTrId("simulation.event.took").arg(event.signal).arg(holderName(event.index));
+    case TrainEvent::LeftCars:
+        //% "left %1 cars to %2"
+        return qtTrId("simulation.event.left").arg(event.signal).arg(holderName(event.index));
+    case TrainEvent::JoinedTrain:
+        //% "joined %1"
+        return qtTrId("simulation.event.joined.train").arg(holderName(event.index));
+    case TrainEvent::Parted:
+        //% "runs on its own again, parted from %1"
+        return qtTrId("simulation.event.parted").arg(holderName(event.index));
+    case TrainEvent::Removed:
+        //% "removed: the cars it took stand off its path (as Open Rails does)"
+        return qtTrId("simulation.event.removed");
+    case TrainEvent::WorkSkipped: {
+        const ActivityEvent *skipped = activityEvent(event.index);
+        const QString name = skipped == nullptr ? QString::number(event.index)
+                           : skipped->name.isEmpty() ? QString::number(skipped->id) : skipped->name;
+        return WorkSkippedText(*in, event.index, name);
+    }
+    case TrainEvent::Restarted: {
+        const ActivityEvent *by = activityEvent(event.index);
+        //% "restarted by event %1"
+        return qtTrId("simulation.event.restarted")
+                .arg(by == nullptr ? QString::number(event.index) : by->name.isEmpty() ? QString::number(by->id) : by->name);
+    }
     }
     return QString();
+}
+
+void SimulationController::recordEvents() {
+    if (in == nullptr || latest == nullptr || latest->eventStates == nullptr || latest->runId != in->runId)
+        return;
+    recordedRun = in->runId;
+    recordedSerial = latest->eventSerial;
+    recordedTime = latest->time;
+    recordedCars = carsSerial(*latest);
+    const CarsNow cars = CarsOf(*latest);
+    EventResultStore::instance()->record(current, *in, *latest->eventStates, latest->activityEnd,
+                                         latest->activityEndedAt, latest->time, latest->finished, &cars);
+}
+
+unsigned long long SimulationController::carsSerial(const SimulationFrame &frame) {
+    unsigned long long serial = frame.standingSerial;
+    for (const TrainFrame &train : frame.trains)
+        serial += train.carsVersion;
+    return serial;
+}
+
+QString SimulationController::messageOf(int event) const {
+    const ActivityEvent *fired = activityEvent(event);
+    if (fired != nullptr)
+        for (const ActivityEvent::Outcome *outcome : fired->outcomes)
+            if (outcome != nullptr && outcome->type == ActivityEvent::Outcome::TypeDisplayMessage
+                    && !outcome->value.toString().isEmpty())
+                return outcome->value.toString().simplified();
+    return QString();
+}
+
+void SimulationController::messageLabels(std::vector<MapLabel> &out) const {
+    if (!exists() || !messageClock.isValid())
+        return;
+    const qint64 now = messageClock.elapsed();
+    for (const Message &message : messages) {
+        int tile[2];
+        float position[3], heading[3];
+        if (now - message.at > MessageMs || !trainPlace(message.train, tile, position, heading))
+            continue;
+        MapLabel label;
+        label.tileX = tile[0];
+        label.tileZ = tile[1];
+        label.x = position[0];
+        label.z = position[2];
+        // A long message is cut: the Timetable window lists it whole.
+        label.text = message.text.size() > 80 ? message.text.left(79) + QChar(0x2026) : message.text;
+        label.kind = MapLabelKind::Event;
+        // Before every other label.
+        label.priority = 1e15;
+        out.push_back(std::move(label));
+    }
+}
+
+unsigned long long SimulationController::messagesVersion() const {
+    // Changes as messages come and as they go.
+    unsigned long long shown = 0;
+    if (messageClock.isValid()) {
+        const qint64 now = messageClock.elapsed();
+        for (const Message &message : messages)
+            shown += now - message.at <= MessageMs ? 1 : 0;
+    }
+    return messageChanges * 1000 + shown;
+}
+
+const ActivityEvent *SimulationController::activityEvent(int event) const {
+    if (in == nullptr || current == nullptr || event < 0 || size_t(event) >= in->events.size())
+        return nullptr;
+    const int index = in->events[size_t(event)].index;
+    return index >= 0 && index < current->event.size() ? current->event[index] : nullptr;
 }
 
 QString SimulationController::statusText() const {
@@ -592,9 +831,6 @@ QString SimulationController::statusText() const {
     if (!deadlocked.isEmpty())
         //% "Deadlock: %1 wait for each other."
         text += " " + qtTrId("simulation.status.deadlock").arg(deadlocked.join(", "));
-    if (in != nullptr && !in->warnings.isEmpty())
-        //% "Not simulated: %1."
-        text += " " + qtTrId("simulation.status.warnings").arg(in->warnings.join("; "));
     return text;
 }
 
@@ -616,6 +852,16 @@ void SimulationController::pushRenderItems(RenderQueue &queue, float *playerT, i
                 ? SelectionIdCodec::activityService(serviceId(int(t))) : 0;
         consist->pushRenderItemsOnTrack(queue, playerT, id, int(t) == chosenTrain);
     }
+    for (size_t k = 0; k < standingCopies.size() && placedFrame->standing != nullptr && k < placedFrame->standing->size(); ++k) {
+        Consist *consist = standingCopies[k].get();
+        const StandingFrame &st = (*placedFrame->standing)[k];
+        if (consist == nullptr || st.fronts.empty())
+            continue;
+        const TrackPose &a = st.fronts.front();
+        if (std::fabs(a.tileX - playerT[0]) > reach || std::fabs(-a.tileZ - playerT[1]) > reach)
+            continue;
+        consist->pushRenderItemsOnTrack(queue, playerT, 0, false);
+    }
 }
 
 void SimulationController::getMapFeatures(MapFeatures &vehicles, int tileX, int tileZ, int only) const {
@@ -629,6 +875,10 @@ void SimulationController::getMapFeatures(MapFeatures &vehicles, int tileX, int 
         if (consist != nullptr && consist->isOnTrack)
             consist->getMapFeatures(vehicles, tileX, tileZ);
     }
+    if (only < 0)
+        for (const std::unique_ptr<Consist> &consist : standingCopies)
+            if (consist != nullptr)
+                consist->getMapFeatures(vehicles, tileX, tileZ);
 }
 
 Consist *SimulationController::consistOf(int train) const {
@@ -659,8 +909,10 @@ void SimulationController::placeTrains() const {
     if (now == placedFrame)
         return;
     placedFrame = now;
-    if (consists.size() != in->trains.size())
+    if (consists.size() != in->trains.size()) {
         consists.resize(in->trains.size());
+        consistVersions.resize(in->trains.size(), 0);
+    }
     for (size_t t = 0; t < in->trains.size(); ++t) {
         const TrainFrame *train = t < now->trains.size() ? &now->trains[t] : nullptr;
         if (train == nullptr || train->fronts.empty() || train->rears.size() != train->fronts.size()) {
@@ -669,11 +921,19 @@ void SimulationController::placeTrains() const {
             continue;
         }
         const TrainPlan &plan = in->trains[t];
-        if (consists[t] == nullptr)
+        if (consists[t] == nullptr) {
+            // The plan's vehicles: the core's version 0.
             consists[t] = copyConsist(plan);
+            consistVersions[t] = 0;
+        }
         Consist *consist = consists[t].get();
         if (consist == nullptr)
             continue;
+        // Its vehicles changed (task 07): the copy made again from them.
+        if (train->vehicles != nullptr && train->carsVersion != consistVersions[t]) {
+            refit(*consist, *train->vehicles);
+            consistVersions[t] = train->carsVersion;
+        }
         // Each vehicle's two ends where the simulation has them, facing the
         // node's way where its front (as the consist lists it) does: the
         // way the train runs there, the other when it runs reversed.
@@ -692,6 +952,48 @@ void SimulationController::placeTrains() const {
                       throttle, brake);
         consist->setSimulated(train->state.speed, float(train->state.travelled), throttle, brake);
     }
+    // The standing trains (task 07), made again whenever they change; each
+    // vehicle facing as in a train running the other way (standingEnds).
+    if (now->standing != nullptr && now->standingSerial != standingPlaced) {
+        standingPlaced = now->standingSerial;
+        for (std::unique_ptr<Consist> &copy : standingCopies)
+            if (copy != nullptr)
+                refit(*copy, {});
+        standingCopies.clear();
+        standingCopies.resize(now->standing->size());
+        for (size_t k = 0; k < now->standing->size(); ++k) {
+            const StandingFrame &st = (*now->standing)[k];
+            if (st.gone || st.fronts.size() != st.vehicles.size() || st.rears.size() != st.vehicles.size())
+                continue;
+            auto copy = std::make_unique<Consist>();
+            copy->name = st.name;
+            copy->displayName = st.name;
+            refit(*copy, st.vehicles);
+            for (size_t v = 0; v < st.vehicles.size() && v < size_t(copy->engItems.size()); ++v) {
+                Eng *eng = copy->engItems[int(v)].engPointer;
+                const TrackPose &front = st.fronts[v];
+                const TrackPose &rear = st.rears[v];
+                if (eng == nullptr || front.node < 0 || rear.node < 0)
+                    continue;
+                eng->placeOnTrack(front.node, front.distance, front.forward ? 1 : 0,
+                                  rear.node, rear.distance, rear.forward ? 1 : 0);
+            }
+            copy->isOnTrack = true;
+            standingCopies[k] = std::move(copy);
+        }
+    }
+}
+
+Consist *SimulationController::standingConsist(int standingTrain) const {
+    placeTrains();
+    if (standingTrain < 0 || size_t(standingTrain) >= standingCopies.size())
+        return nullptr;
+    return standingCopies[size_t(standingTrain)].get();
+}
+
+size_t SimulationController::standingCount() const {
+    placeTrains();
+    return standingCopies.size();
 }
 
 void SimulationController::dropTrains() {
@@ -707,6 +1009,12 @@ void SimulationController::dropTrains() {
         }
     }
     consists.clear();
+    consistVersions.clear();
+    for (std::unique_ptr<Consist> &copy : standingCopies)
+        if (copy != nullptr)
+            refit(*copy, {});
+    standingCopies.clear();
+    standingPlaced = ~0ull;
     placedFrame.reset();
     pinnedFrame.reset();
     heard.clear();

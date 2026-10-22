@@ -17,6 +17,7 @@
 
 class Activity;
 class ActivityTimetableProperties;
+class OrTrainProperties;
 class PreciseTileCoordinate;
 
 // The activity's trains (task editor 07, phase 7): the player's, its AI
@@ -42,6 +43,14 @@ public slots:
     // Undo replaces activity data (ActivityNotifier).
     void activityDataRestoring();
     void activityDataRestored();
+    // An Open Rails timetable set's trains (the user's review of task
+    // simulation 08): a new train, or a copy of the chosen one, named so, in
+    // the chosen train's timetable after it (the first timetable's end
+    // without one), then chosen; the chosen train gone. Each an undo step.
+    // A name already in the set, empty or one Open Rails reads otherwise
+    // ('#', '$', the separator) is refused: the reason, else empty.
+    QString addTimetableTrain(const QString &name, bool copy);
+    void removeTimetableTrain();
     
 signals:
     void jumpTo(PreciseTileCoordinate *c);
@@ -66,15 +75,50 @@ private slots:
     void showEvents(int first);
     // Simulate: the run, the times written (one undo step).
     void simulateTimetables();
+    void orTrainEdited();
+    void newTrainAsked();
+    void cloneTrainAsked();
+    void removeTrainAsked();
     
 private:
     QTreeWidget trains;
     QCheckBox showAll;
+    // An Open Rails timetable set's list (the user's review of task 08):
+    // one timetable of a group or all, static trains or not.
+    QWidget *filters = NULL;
+    QLabel *timetableLabel = NULL;
+    QComboBox timetableFilter;
+    QCheckBox showStatics;
+    // The filters' timetables made for this set, of this many.
+    const Activity *filtersFor = NULL;
+    int filtersCount = -1;
+    void fillFilters();
+    bool shownByFilters(const ActivityTrains::Train &train) const;
+    // The filters set so that the train shows; whether they changed.
+    bool reveal(const ActivityTrains::Train &train);
+    // A timetable's name in the list: its description, else its file's.
+    QString timetableName(int timetable) const;
     QPushButton *bAdd = NULL;
     QPushButton *bRemove = NULL;
     QPushButton *bJump = NULL;
     QPushButton *bFollow = NULL;
     QWidget *simulationBox = NULL;
+    // An MSTS activity's train's information and stops, an Open Rails
+    // timetable's train's (task simulation 08).
+    QWidget *mstsInfo = NULL;
+    QWidget *mstsStops = NULL;
+    QWidget *orInfo = NULL;
+    QWidget *orBox = NULL;
+    QPushButton *bNewTrain = NULL;
+    QPushButton *bCloneTrain = NULL;
+    QPushButton *bRemoveTrain = NULL;
+    // The train to choose after the list is filled again.
+    void chooseTrainNamed(const QString &name);
+    // The State column and the chosen train's events while a simulation
+    // shows the activity: when it starts or stops, and when the window
+    // opens (it may have started while the window was closed).
+    void showSimulating();
+    OrTrainProperties *orTrain = NULL;
     QListWidget events;
     QLabel savedIn;
     QPushButton *bCopy = NULL;

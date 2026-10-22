@@ -11,6 +11,8 @@
 #include "ActivityTimetableWindow.h"
 #include <tsre/trains/ActivityNotifier.h>
 #include "ActivityTimetableProperties.h"
+#include <routeEditor/activity/OrTrainProperties.h>
+#include <tsre/trains/OrTimetable.h>
 #include <routeEditor/activity/ActivityEdit.h>
 #include <routeEditor/properties/EditFileNameDialog.h>
 #include <tsre/Game.h>
@@ -23,11 +25,13 @@
 #include <routeEditor/activity/ActivityEditLock.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sim/TimetableCalculation.h>
+#include <algorithm>
 #include <atomic>
 
 namespace {
 
-enum Column { StartColumn, TrainColumn, StateColumn, PathColumn, ConsistColumn, FirstColumn, LastColumn, Columns };
+enum Column { StartColumn, TrainColumn, StateColumn, TimetableColumn, PathColumn, ConsistColumn, FirstColumn, LastColumn,
+              Columns };
 
 QString clock(int seconds) {
     return QTime::fromMSecsSinceStartOfDay((seconds % 86400 + 86400) % 86400 * 1000).toString("HH:mm:ss");
@@ -126,6 +130,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         qtTrId("route.editor.activity.timetable.window.column.train"),
         //% "State"
         qtTrId("route.editor.activity.timetable.window.column.state"),
+        //% "Timetable"
+        qtTrId("route.editor.activity.timetable.window.column.timetable"),
         //% "Path"
         qtTrId("route.editor.activity.timetable.window.column.path"),
         //% "Consist"
@@ -141,6 +147,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     trains.header()->resizeSection(TrainColumn, 170);
     trains.header()->resizeSection(StateColumn, 190);
     trains.setColumnHidden(StateColumn, true);
+    trains.header()->resizeSection(TimetableColumn, 130);
+    trains.setColumnHidden(TimetableColumn, true);
     trains.header()->resizeSection(PathColumn, 130);
     trains.header()->resizeSection(ConsistColumn, 130);
     trains.header()->resizeSection(FirstColumn, 130);
@@ -164,10 +172,28 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         //% "Follow"
         qtTrId("route.editor.activity.timetable.window.button.follow"));
     bFollow->setToolTip(
-        //% "The camera follows the chosen train while the simulation runs, at its cab's window. In 3D, key 1 views from its cab, key 2 its front and key 3 its back."
+        //% "The camera follows the chosen train while the simulation runs, at its cab's window. A train not on the track yet: the simulation runs as fast as possible until it is put there (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back."
         qtTrId("route.editor.activity.timetable.window.button.follow.tooltip"));
     bFollow->setCheckable(true);
     bFollow->setObjectName("timetableFollow");
+    bNewTrain = new QPushButton(
+        //% "New Train..."
+        qtTrId("route.editor.activity.timetable.window.button.new.train"));
+    bCloneTrain = new QPushButton(
+        //% "Clone Train..."
+        qtTrId("route.editor.activity.timetable.window.button.clone.train"));
+    bRemoveTrain = new QPushButton(
+        //% "Remove Train"
+        qtTrId("route.editor.activity.timetable.window.button.remove.train"));
+    bNewTrain->setToolTip(
+        //% "A new train in the chosen train's timetable, after it: then choose its path and consist and type its times (All stations)."
+        qtTrId("route.editor.activity.timetable.window.button.new.train.tooltip"));
+    bCloneTrain->setToolTip(
+        //% "A copy of the chosen train, with all its times and commands, under a new name."
+        qtTrId("route.editor.activity.timetable.window.button.clone.train.tooltip"));
+    bNewTrain->setObjectName("timetableNewTrain");
+    bCloneTrain->setObjectName("timetableCloneTrain");
+    bRemoveTrain->setObjectName("timetableRemoveTrain");
     events.setObjectName("timetableEvents");
     bCopy = new QPushButton(
         //% "Make Own Copy..."
@@ -191,12 +217,39 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     buttons->addStretch(1);
     buttons->addWidget(bAdd);
     buttons->addWidget(bRemove);
+    buttons->addWidget(bNewTrain);
+    buttons->addWidget(bCloneTrain);
+    buttons->addWidget(bRemoveTrain);
     buttons->addWidget(bJump);
     buttons->addWidget(bFollow);
+    // An Open Rails timetable set's filters, above its trains.
+    timetableLabel = new QLabel(
+        //% "Timetable:"
+        qtTrId("route.editor.activity.timetable.window.filter.timetable"));
+    timetableFilter.setObjectName("timetableFilter");
+    timetableFilter.setStyleSheet("combobox-popup: 0;");
+    timetableFilter.setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    showStatics.setObjectName("timetableShowStatics");
+    showStatics.setText(
+        //% "Static trains"
+        qtTrId("route.editor.activity.timetable.window.filter.statics"));
+    showStatics.setToolTip(
+        //% "The static trains (standing for the whole run, no times) in the list too."
+        qtTrId("route.editor.activity.timetable.window.filter.statics.tooltip"));
+    filters = new QWidget;
+    QHBoxLayout *filterLayout = new QHBoxLayout(filters);
+    filterLayout->setContentsMargins(0, 0, 0, 0);
+    filterLayout->addWidget(timetableLabel);
+    filterLayout->addWidget(&timetableFilter);
+    filterLayout->addSpacing(12);
+    filterLayout->addWidget(&showStatics);
+    filterLayout->addStretch(1);
+    filters->hide();
     QWidget *top = new QWidget;
     QVBoxLayout *topLayout = new QVBoxLayout(top);
     topLayout->setContentsMargins(0, 0, 0, 0);
     topLayout->setSpacing(2);
+    topLayout->addWidget(filters);
     topLayout->addWidget(&trains);
     topLayout->addLayout(buttons);
 
@@ -260,21 +313,34 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     savedLayout->setContentsMargins(0, 0, 0, 0);
     savedLayout->setSpacing(4);
     savedIn.setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    // An Open Rails timetable's train (task simulation 08): its information
+    // and commands first, where it is saved under them.
+    orTrain = new OrTrainProperties;
+    orInfo = ActivityEditLock::Box(orTrain->info);
+    orInfo->layout()->setContentsMargins(0, 0, 0, 6);
+    savedLayout->addWidget(orInfo);
     savedLayout->addWidget(&savedIn);
     savedLayout->addWidget(bCopy, 0, Qt::AlignLeft);
-    savedLayout->addSpacing(6);
-    savedLayout->addWidget(GuiFunct::newTQLabel(
+    // What only an MSTS activity's train has: its information and Simulate
+    // (an Open Rails timetable's train, task simulation 08, has neither).
+    mstsInfo = new QWidget;
+    QVBoxLayout *mstsLayout = new QVBoxLayout(mstsInfo);
+    mstsLayout->setContentsMargins(0, 0, 0, 0);
+    mstsLayout->setSpacing(4);
+    mstsLayout->addSpacing(6);
+    mstsLayout->addWidget(GuiFunct::newTQLabel(
         //% "Info:"
         qtTrId("route.editor.activity.timetable.window.section.info")));
     QWidget *info = ActivityEditLock::Box(timetableProperties->info);
-    savedLayout->addWidget(info);
-    savedLayout->addSpacing(6);
-    savedLayout->addWidget(GuiFunct::newTQLabel(
+    mstsLayout->addWidget(info);
+    mstsLayout->addSpacing(6);
+    mstsLayout->addWidget(GuiFunct::newTQLabel(
         //% "Simulation:"
         qtTrId("route.editor.activity.timetable.window.section.simulation")));
-    savedLayout->addWidget(bSimulate, 0, Qt::AlignLeft);
-    savedLayout->addLayout(simulateOptions);
-    savedLayout->addWidget(&lastRun);
+    mstsLayout->addWidget(bSimulate, 0, Qt::AlignLeft);
+    mstsLayout->addLayout(simulateOptions);
+    mstsLayout->addWidget(&lastRun);
+    savedLayout->addWidget(mstsInfo);
     // The chosen train's events while a simulation runs, taking the room
     // left (a spacer does without a simulation).
     simulationBox = new QWidget;
@@ -289,9 +355,26 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     savedLayout->addWidget(simulationBox, 1);
     savedLayout->addStretch(0);
     QWidget *stops = ActivityEditLock::Box(timetableProperties);
+    // An Open Rails timetable's train's stops in place of an MSTS
+    // activity's.
+    QWidget *orStops = ActivityEditLock::Box(orTrain);
+    QWidget *right = new QWidget;
+    QVBoxLayout *rightLayout = new QVBoxLayout(right);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->addWidget(stops);
+    rightLayout->addWidget(orStops);
+    mstsStops = stops;
+    orBox = orStops;
+    // The left column scrolls: the trains above may take the height.
+    QScrollArea *savedScroll = new QScrollArea;
+    savedScroll->setObjectName("timetableInfoScroll");
+    savedScroll->setWidget(saved);
+    savedScroll->setWidgetResizable(true);
+    savedScroll->setFrameShape(QFrame::NoFrame);
+    savedScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     QSplitter *bottom = new QSplitter(Qt::Horizontal);
-    bottom->addWidget(saved);
-    bottom->addWidget(stops);
+    bottom->addWidget(savedScroll);
+    bottom->addWidget(right);
     bottom->setChildrenCollapsible(false);
     // The information about 40% of the width, the times the rest.
     bottom->setStretchFactor(0, 2);
@@ -306,8 +389,10 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     v->setContentsMargins(1,1,1,1);
     v->addWidget(splitter);
     this->setLayout(v);
-    resize(960, 600);
-    bottom->setSizes({384, 576});
+    // Wide enough for every column: with a simulation's State and a
+    // timetable group's Timetable too.
+    resize(1120, 600);
+    bottom->setSizes({450, 670});
     // The stops and times the most of the height.
     splitter->setSizes({200, 400});
     
@@ -322,6 +407,17 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     QObject::connect(bRemove, &QPushButton::released, this, &ActivityTimetableWindow::removeFromActivity);
     QObject::connect(bJump, &QPushButton::released, this, &ActivityTimetableWindow::jumpToTrain);
     QObject::connect(bCopy, &QPushButton::released, this, &ActivityTimetableWindow::makeOwnCopy);
+    QObject::connect(&timetableFilter, QOverload<int>::of(&QComboBox::activated), this, [this] {
+        fillTrains();
+        showChosen();
+    });
+    QObject::connect(&showStatics, &QCheckBox::toggled, this, [this] {
+        fillTrains();
+        showChosen();
+    });
+    QObject::connect(bNewTrain, &QPushButton::released, this, &ActivityTimetableWindow::newTrainAsked);
+    QObject::connect(bCloneTrain, &QPushButton::released, this, &ActivityTimetableWindow::cloneTrainAsked);
+    QObject::connect(bRemoveTrain, &QPushButton::released, this, &ActivityTimetableWindow::removeTrainAsked);
     QObject::connect(timetableProperties, &ActivityTimetableProperties::edited,
                      this, &ActivityTimetableWindow::timetableEdited);
     QObject::connect(bFollow, &QPushButton::toggled, this, &ActivityTimetableWindow::followToggled);
@@ -331,7 +427,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         timesFor.setProperty("chosen", index);
     });
     // While a simulation exists its times show but are not edited.
-    ActivityEditLock::Follow(this, {info, stops});
+    ActivityEditLock::Follow(this, {info, stops, orInfo, orStops});
+    QObject::connect(orTrain, &OrTrainProperties::edited, this, &ActivityTimetableWindow::orTrainEdited);
     QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged,
                      this, [this] { showChosen(); });
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
@@ -368,6 +465,7 @@ void ActivityTimetableWindow::showTimetable(Activity *a){
         QSignalBlocker blocker(showAll);
         showAll.setChecked(a != NULL && a->showAllAITrains);
     }
+    showSimulating();
     fillTrains();
     showChosen();
 }
@@ -388,9 +486,17 @@ void ActivityTimetableWindow::fillTrains(){
     const int time = was != NULL ? was->time : -1;
     QSignalBlocker blocker(trains);
     trains.clear();
+    fillFilters();
     list = ActivityTrains::List(activity);
+    list.erase(std::remove_if(list.begin(), list.end(),
+                              [this](const ActivityTrains::Train &train) { return !shownByFilters(train); }),
+               list.end());
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const bool simulating = simulation->shows(activity);
+    // Native standard icons can be expensive on Windows. Resolve the
+    // warning once for this refresh and share it between the rows.
+    QIcon warningIcon;
+    bool warningIconLoaded = false;
     for(int i = 0; i < list.size(); i++){
         const ActivityTrains::Train &train = list[i];
         QString name = train.service;
@@ -402,7 +508,8 @@ void ActivityTimetableWindow::fillTrains(){
             name = qtTrId("route.editor.activity.timetable.window.not.in.activity").arg(train.service);
         const int simulatedTrain = simulating ? simulated(train) : -1;
         QTreeWidgetItem *item = new QTreeWidgetItem(&trains, {clock(train.time), name,
-            simulatedTrain >= 0 ? simulation->stateText(simulatedTrain) : QString(), train.path,
+            simulatedTrain >= 0 ? simulation->stateText(simulatedTrain) : QString(),
+            train.orTimetable >= 0 ? timetableName(train.orTimetable) : QString(), train.path,
             train.consist, train.firstStop, train.lastStop}, i);
         for(int column = 0; column < Columns; column++)
             item->setToolTip(column, item->text(column));
@@ -419,7 +526,11 @@ void ActivityTimetableWindow::fillTrains(){
                 item->setFont(column, font);
             }
         if(!train.problems.isEmpty()){
-            item->setIcon(TrainColumn, style()->standardIcon(QStyle::SP_MessageBoxWarning));
+            if(!warningIconLoaded){
+                warningIcon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
+                warningIconLoaded = true;
+            }
+            item->setIcon(TrainColumn, warningIcon);
             item->setToolTip(TrainColumn, train.problems.join("\n"));
         }
     }
@@ -459,18 +570,56 @@ void ActivityTimetableWindow::showChosen(){
     bRemove->setEnabled(!locked && train != NULL && train->kind == ActivityTrains::AI);
     bCopy->setEnabled(!locked);
     float start[4];
-    bJump->setEnabled(train != NULL && ActivityTrains::StartPosition(activity, *train, start));
+    bJump->setEnabled(train != NULL && (ActivityTrains::StartPosition(activity, *train, start)
+                                        || (Sim::SimulationController::instance()->shows(activity) && simulated(*train) >= 0)));
     // The simulation's train: outlined, followed when Follow is on, its
     // events listed.
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const int simulatedTrain = train != NULL && simulation->shows(activity) ? simulated(*train) : -1;
     simulation->choose(simulatedTrain);
-    bFollow->setEnabled(simulatedTrain >= 0);
-    if(simulation->followed() >= 0)
-        simulation->follow(simulatedTrain);
+    // Follow before a simulation too: it starts one (followToggled).
+    const bool followable = train != NULL && activity != NULL && !train->staticTrain
+            && (train->kind == ActivityTrains::Player || train->kind == ActivityTrains::AI);
+    bFollow->setEnabled(simulatedTrain >= 0 || (!simulation->exists() && followable));
+    // Another train chosen while following: followed instead, from just
+    // before its start when it has not started.
+    if(simulation->followed() >= 0 && simulation->followed() != simulatedTrain
+            && (simulatedTrain < 0 || !simulation->followFromStart(simulatedTrain)))
+        simulation->follow(-1);
     showEvents(0);
     bCopy->setVisible(false);
     savedIn.setStyleSheet(QString());
+    // An Open Rails timetable set (task simulation 08): its train's
+    // timetable, start and stops, edited there; no traffic pattern.
+    const bool timetables = activity != NULL && activity->isTimetables();
+    mstsInfo->setVisible(!timetables);
+    mstsStops->setVisible(!timetables);
+    orInfo->setVisible(timetables);
+    orBox->setVisible(timetables);
+    bAdd->setVisible(!timetables);
+    bRemove->setVisible(!timetables);
+    bNewTrain->setVisible(timetables);
+    bCloneTrain->setVisible(timetables);
+    bRemoveTrain->setVisible(timetables);
+    const bool timetableTrain = timetables && train != NULL && train->orTimetable >= 0
+            && train->orTimetable < int(activity->timetables.size());
+    bNewTrain->setEnabled(timetables && !locked && !activity->timetables.empty());
+    bCloneTrain->setEnabled(timetableTrain && !locked);
+    bRemoveTrain->setEnabled(timetableTrain && !locked);
+    showAll.setVisible(!timetables);
+    if(timetables){
+        timetableProperties->showTimetable(NULL);
+        if(train == NULL || train->orTimetable < 0 || train->orTimetable >= int(activity->timetables.size())){
+            savedIn.clear();
+            orTrain->showTrain(NULL, -1, -1, {});
+            return;
+        }
+        savedIn.setText(
+            //% "The times and commands are saved in the timetable: Save Activities writes it in TSRE's layout, the original kept beside it the first time."
+            qtTrId("route.editor.activity.timetable.window.saved.timetable"));
+        orTrain->showTrain(activity, train->orTimetable, train->orTrain, train->problems);
+        return;
+    }
     if(train == NULL){
         savedIn.clear();
         timetableProperties->showTimetable(NULL);
@@ -508,11 +657,199 @@ void ActivityTimetableWindow::showChosen(){
     timetableProperties->showTimetable(ActivityTrains::Definition(activity, *train), activity);
 }
 
+// A start or stop time changed: the list again, the same train chosen.
+void ActivityTimetableWindow::orTrainEdited(){
+    const ActivityTrains::Train *was = chosen();
+    chooseTrainNamed(was != NULL ? was->service : QString());
+}
+
+void ActivityTimetableWindow::chooseTrainNamed(const QString &name){
+    fillTrains();
+    // One the filters hide (a new static train, a copy in another
+    // timetable): they show it.
+    const auto named = [&name](const ActivityTrains::Train &train) { return train.service == name; };
+    if(!name.isEmpty() && std::none_of(list.begin(), list.end(), named))
+        for(const ActivityTrains::Train &train : ActivityTrains::List(activity))
+            if(named(train)){
+                if(reveal(train))
+                    fillTrains();
+                break;
+            }
+    for(int i = 0; i < list.size(); i++)
+        if(list[i].service == name){
+            QTreeWidgetItem *item = trains.topLevelItem(i);
+            trains.setCurrentItem(item);
+            item->setSelected(true);
+            break;
+        }
+    showChosen();
+}
+
+QString ActivityTimetableWindow::timetableName(int timetable) const {
+    if(activity == NULL || timetable < 0 || timetable >= int(activity->timetables.size()))
+        return QString();
+    const OrTimetable &t = *activity->timetables[size_t(timetable)];
+    return !t.description.isEmpty() ? t.description : QFileInfo(t.file).completeBaseName();
+}
+
+// The filters as the set is: shown for a timetable set, the timetable
+// choice for a group; made again for another set or another number of
+// timetables, the choice kept otherwise.
+void ActivityTimetableWindow::fillFilters(){
+    const bool timetables = activity != NULL && activity->isTimetables();
+    const int count = timetables ? int(activity->timetables.size()) : 0;
+    filters->setVisible(timetables);
+    timetableLabel->setVisible(count > 1);
+    timetableFilter.setVisible(count > 1);
+    trains.setColumnHidden(TimetableColumn, count <= 1);
+    if(filtersFor == activity && filtersCount == count)
+        return;
+    filtersFor = activity;
+    filtersCount = count;
+    QSignalBlocker blocker(timetableFilter);
+    timetableFilter.clear();
+    //% "All"
+    timetableFilter.addItem(qtTrId("route.editor.activity.timetable.window.filter.all"), -1);
+    for(int t = 0; t < count; t++)
+        timetableFilter.addItem(timetableName(t), t);
+    timetableFilter.setCurrentIndex(0);
+}
+
+bool ActivityTimetableWindow::shownByFilters(const ActivityTrains::Train &train) const {
+    if(activity == NULL || !activity->isTimetables())
+        return true;
+    if(train.staticTrain && !showStatics.isChecked())
+        return false;
+    const int shown = timetableFilter.currentData().isValid() ? timetableFilter.currentData().toInt() : -1;
+    return shown < 0 || train.orTimetable == shown;
+}
+
+bool ActivityTimetableWindow::reveal(const ActivityTrains::Train &train){
+    if(shownByFilters(train))
+        return false;
+    if(train.staticTrain && !showStatics.isChecked()){
+        QSignalBlocker blocker(showStatics);
+        showStatics.setChecked(true);
+    }
+    const int shown = timetableFilter.currentData().isValid() ? timetableFilter.currentData().toInt() : -1;
+    if(shown >= 0 && train.orTimetable != shown){
+        QSignalBlocker blocker(timetableFilter);
+        timetableFilter.setCurrentIndex(0);
+    }
+    return true;
+}
+
+QString ActivityTimetableWindow::addTimetableTrain(const QString &typed, bool copy){
+    const QString name = typed.trimmed();
+    const ActivityTrains::Train *train = chosen();
+    if(activity == NULL || !activity->isTimetables() || activity->timetables.empty()
+            || (copy && (train == NULL || train->orTimetable < 0)))
+        return QString();
+    if(name.isEmpty() || name.startsWith('#') || name.contains('$') || name.contains(';') || name.contains(',')
+            || name.contains('\t'))
+        //% "A train's name cannot be empty, start with # or hold $ ; , or a tab."
+        return qtTrId("route.editor.activity.timetable.window.train.name.invalid");
+    for(const std::shared_ptr<OrTimetable> &timetable : activity->timetables)
+        if(timetable->trainNamed(name) >= 0)
+            //% "A train named %1 is in the timetables already."
+            return qtTrId("route.editor.activity.timetable.window.train.name.exists").arg(name);
+    const bool inTimetable = train != NULL && train->orTimetable >= 0 && train->orTimetable < int(activity->timetables.size());
+    // Without a train chosen: the timetable the list shows, else the first.
+    const int shown = timetableFilter.currentData().isValid() ? timetableFilter.currentData().toInt() : -1;
+    const int into = inTimetable ? train->orTimetable
+            : shown >= 0 && shown < int(activity->timetables.size()) ? shown : 0;
+    OrTimetable &timetable = *activity->timetables[size_t(into)];
+    {
+        ActivityEdit edit(activity);
+        if(copy)
+            timetable.cloneTrain(train->orTrain, name);
+        else
+            timetable.addTrain(inTimetable ? train->orTrain : -1, name,
+                               inTimetable ? std::max(0, timetable.trains[train->orTrain].startTime) : 0);
+    }
+    chooseTrainNamed(name);
+    return QString();
+}
+
+void ActivityTimetableWindow::removeTimetableTrain(){
+    const ActivityTrains::Train *train = chosen();
+    if(activity == NULL || !activity->isTimetables() || train == NULL || train->orTimetable < 0
+            || train->orTimetable >= int(activity->timetables.size()))
+        return;
+    {
+        ActivityEdit edit(activity);
+        activity->timetables[size_t(train->orTimetable)]->removeTrain(train->orTrain);
+    }
+    chooseTrainNamed(QString());
+}
+
+void ActivityTimetableWindow::newTrainAsked(){
+    bool ok = false;
+    const QString name = QInputDialog::getText(this,
+        //% "New Train"
+        qtTrId("route.editor.activity.timetable.window.new.train.title"),
+        //% "The new train's name:"
+        qtTrId("route.editor.activity.timetable.window.train.name"), QLineEdit::Normal, QString(), &ok);
+    if(!ok)
+        return;
+    const QString problem = addTimetableTrain(name, false);
+    if(!problem.isEmpty())
+        QMessageBox::warning(this, windowTitle(), problem);
+}
+
+void ActivityTimetableWindow::cloneTrainAsked(){
+    const ActivityTrains::Train *train = chosen();
+    if(train == NULL)
+        return;
+    bool ok = false;
+    const QString name = QInputDialog::getText(this,
+        //% "Clone Train"
+        qtTrId("route.editor.activity.timetable.window.clone.train.title"),
+        //% "The copy's name:"
+        qtTrId("route.editor.activity.timetable.window.clone.name"), QLineEdit::Normal, train->service + "_2", &ok);
+    if(!ok)
+        return;
+    const QString problem = addTimetableTrain(name, true);
+    if(!problem.isEmpty())
+        QMessageBox::warning(this, windowTitle(), problem);
+}
+
+void ActivityTimetableWindow::removeTrainAsked(){
+    const ActivityTrains::Train *train = chosen();
+    if(activity == NULL || train == NULL || train->orTimetable < 0 || train->orTimetable >= int(activity->timetables.size()))
+        return;
+    QString question =
+        //% "Remove the train %1 from the timetable?"
+        qtTrId("route.editor.activity.timetable.window.remove.train.question").arg(train->service);
+    const QStringList naming = activity->timetables[size_t(train->orTimetable)]->trainsNaming(train->service);
+    if(!naming.isEmpty())
+        question += "\n\n" +
+            //% "These trains' commands name it and are kept: %1"
+            qtTrId("route.editor.activity.timetable.window.remove.train.naming").arg(naming.join(", "));
+    if(QMessageBox::question(this,
+            //% "Remove Train"
+            qtTrId("route.editor.activity.timetable.window.remove.train.title"), question) != QMessageBox::Yes)
+        return;
+    removeTimetableTrain();
+}
+
 void ActivityTimetableWindow::selectTrain(int shownId){
     if(activity == NULL || shownId < 0)
         return;
     if(shownId > 0)
         activity->shownAITrain = shownId - 1;
+    const auto shownIs = [shownId](const ActivityTrains::Train &train) {
+        return (shownId == 0 && train.kind == ActivityTrains::Player)
+            || (shownId > 0 && train.kind == ActivityTrains::AI && train.index == shownId - 1);
+    };
+    // One the filters hide: they show it.
+    if(std::none_of(list.begin(), list.end(), shownIs))
+        for(const ActivityTrains::Train &train : ActivityTrains::List(activity))
+            if(shownIs(train)){
+                if(reveal(train))
+                    fillTrains();
+                break;
+            }
     for(int i = 0; i < list.size(); i++){
         const bool player = shownId == 0 && list[i].kind == ActivityTrains::Player;
         const bool ai = shownId > 0 && list[i].kind == ActivityTrains::AI && list[i].index == shownId - 1;
@@ -597,13 +934,28 @@ void ActivityTimetableWindow::makeOwnCopy(){
     emit trafficPatternAdded();
 }
 
+// To where the simulation has the train, else to its start.
 void ActivityTimetableWindow::jumpToTrain(){
     const ActivityTrains::Train *train = chosen();
-    float start[4];
-    if(train == NULL || !ActivityTrains::StartPosition(activity, *train, start))
+    if(train == NULL)
         return;
     if(coordinate == NULL)
         coordinate = new PreciseTileCoordinate();
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int simulatedTrain = simulation->shows(activity) ? simulated(*train) : -1;
+    int tile[2];
+    float position[3], heading[3];
+    if(simulatedTrain >= 0 && simulation->trainPlace(simulatedTrain, tile, position, heading)){
+        // The camera's space has tile z and z the other way round.
+        coordinate->TileX = tile[0];
+        coordinate->TileZ = -tile[1];
+        coordinate->setWxyz(position[0], position[1], -position[2]);
+        emit jumpTo(coordinate);
+        return;
+    }
+    float start[4];
+    if(!ActivityTrains::StartPosition(activity, *train, start))
+        return;
     coordinate->TileX = start[0];
     coordinate->TileZ = start[1];
     coordinate->setWxyz(start[2], 0, start[3]);
@@ -619,19 +971,47 @@ int ActivityTimetableWindow::simulated(const ActivityTrains::Train &train) const
     return -1;
 }
 
+// Follow: the chosen train from just before its start (the user,
+// 2026-10-22), a simulation started where there is none.
 void ActivityTimetableWindow::followToggled(bool on){
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
-    simulation->follow(on ? simulation->chosen() : -1);
+    if(!on){
+        simulation->follow(-1);
+        return;
+    }
+    const ActivityTrains::Train *train = chosen();
+    QString error;
+    bool following = false;
+    if(train != NULL){
+        const ActivityTrains::Train picked = *train;
+        if(simulation->exists() || simulation->start(activity, &error)){
+            const int id = simulation->shows(activity) ? simulated(picked) : -1;
+            if(id >= 0 && simulation->followFromStart(id, &error)){
+                simulation->choose(id);
+                following = true;
+            }
+        }
+    }
+    if(!following){
+        QSignalBlocker blocker(bFollow);
+        bFollow->setChecked(false);
+        if(!error.isEmpty())
+            QMessageBox::warning(this, windowTitle(), error);
+    }
 }
 
 void ActivityTimetableWindow::simulationChanged(){
     if(isHidden())
         return;
+    showSimulating();
+    showChosen();
+    showStates();
+}
+
+void ActivityTimetableWindow::showSimulating(){
     const bool simulating = Sim::SimulationController::instance()->shows(activity);
     trains.setColumnHidden(StateColumn, !simulating);
     simulationBox->setVisible(simulating);
-    showChosen();
-    showStates();
 }
 
 // Each train's state in the simulation.
@@ -660,9 +1040,15 @@ void ActivityTimetableWindow::showEvents(int first){
         return;
     const std::vector<Sim::TrainEvent> &all = simulation->events();
     const bool atEnd = events.count() == 0 || events.verticalScrollBar()->value() == events.verticalScrollBar()->maximum();
-    for(size_t i = size_t(std::max(0, first)); i < all.size(); i++)
-        if(all[i].train == train)
+    // The activity's events (task simulation 06) are the player's: listed
+    // with its train's, and with an AI train's that fired them.
+    const std::shared_ptr<const Sim::SimulationInput> input = simulation->input();
+    const bool player = input != NULL && size_t(train) < input->trains.size() && input->trains[size_t(train)].player;
+    for(size_t i = size_t(std::max(0, first)); i < all.size(); i++){
+        const bool activityEvent = all[i].kind == Sim::TrainEvent::EventFired || all[i].kind == Sim::TrainEvent::ActivityEnded;
+        if(all[i].train == train || (player && activityEvent))
             events.addItem(clock(int(all[i].time)) + "  " + simulation->eventText(all[i]));
+    }
     if(atEnd)
         events.scrollToBottom();
 }

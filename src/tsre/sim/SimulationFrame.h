@@ -9,11 +9,28 @@ namespace Sim {
 enum class RunMode { Paused, Running, RunningTo };
 
 // A train in a frame: its state and its vehicles' two ends
-// (SimulationCore::vehicleEnds), none when it is not on the track.
+// (SimulationCore::vehicleEnds), none when it is not on the track; its
+// vehicles as they are now and their version (task 07: they change as it
+// couples and cuts; shared with the frame before while the same).
 struct TrainFrame {
     TrainState state;
     std::vector<TrackPose> fronts;
     std::vector<TrackPose> rears;
+    std::shared_ptr<const std::vector<Vehicle>> vehicles;
+    unsigned int carsVersion = 0;
+};
+
+// A standing train (task 07: the activity's loose consists, cars cut off):
+// its name, vehicles and their two ends (SimulationCore::standingEnds),
+// none for one gone.
+struct StandingFrame {
+    QString name;
+    std::vector<Vehicle> vehicles;
+    std::vector<TrackPose> fronts;
+    std::vector<TrackPose> rears;
+    bool gone = false;
+    // One of the activity's loose consists (else cars a train cut off).
+    bool loose = false;
 };
 
 // The simulation at one moment, as the host publishes it for the main
@@ -46,6 +63,16 @@ struct SimulationFrame {
     std::shared_ptr<const std::vector<SimulationCore::SectionUse>> sectionUses;
     unsigned long long holdSerial = 0;
     std::vector<size_t> standsOn;
+    // The activity's events (task 06): their states (the input's list),
+    // shared with the frame before while unchanged; the activity's end and
+    // when (seconds after midnight, -1 not yet).
+    std::shared_ptr<const std::vector<EventState>> eventStates;
+    unsigned long long eventSerial = 0;
+    // The standing trains, shared with the frame before while unchanged.
+    std::shared_ptr<const std::vector<StandingFrame>> standing;
+    unsigned long long standingSerial = 0;
+    ActivityEnd activityEnd = ActivityEnd::None;
+    double activityEndedAt = -1.0;
 };
 
 // The core's state now, with its vehicles' poses; what has not changed

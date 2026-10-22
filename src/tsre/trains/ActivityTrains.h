@@ -20,18 +20,29 @@ struct Train {
     Kind kind = AI;
     QString service;
     int time = 0;
-    // AI: its place in the activity's traffic (Activity::traffic->service);
-    // PatternOnly: the run's place in the pattern.
+    // AI: its place in the activity's traffic (Activity::traffic->service),
+    // an Open Rails timetable set's train its place among the set's trains
+    // (the simulation's traffic); PatternOnly: the run's place in the
+    // pattern.
     int index = -1;
     // Where its times are, or none.
     ActivityTimetable *timetable = nullptr;
+    // An Open Rails timetable set's train (task simulation 08): its
+    // timetable and place there (Activity::timetables), static or not.
+    int orTimetable = -1;
+    int orTrain = -1;
+    bool staticTrain = false;
     QString path, consist;
     QString firstStop, lastStop;
     QStringList problems;
 };
 
-// Sorted by start time, the player's first at equal times.
+// Sorted by start time, the player's first at equal times. An Open Rails
+// timetable set's trains: AI, the one chosen (Activity::playerTrain) the
+// player's.
 QVector<Train> List(Activity *activity);
+// The route's folder of an activity of either kind.
+QString RouteDirectory(Activity *activity);
 // The traffic pattern the activity names, or none.
 Traffic *Pattern(Activity *activity);
 // The other activities naming the pattern.

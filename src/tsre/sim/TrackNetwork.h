@@ -189,14 +189,15 @@ public:
     // The next stop signal facing a train going from a place on a vector
     // node, along the switches as set (`switches` by section; the main route
     // where empty), within `reach` metres; -1 none. `facing`: the facing
-    // junctions passed (whose switches it depends on).
+    // junctions passed (whose switches it depends on). From a signal's own
+    // place, `self`: its heads not counted (a group spans OneSignal).
     int nextStopSignal(int node, float distance, bool forward, const std::vector<int> &switches, double reach,
-                       std::vector<int> *facing = nullptr) const;
+                       std::vector<int> *facing = nullptr, int self = -1) const;
     // The same for the next signal with a head `wanted` takes, facing the
     // train (or, `opposite`, facing the other way: task 05's opp_sig).
     int nextSignalWhere(int node, float distance, bool forward, const std::vector<int> &switches, double reach,
                         std::vector<int> *facing, const std::function<bool(const SignalHead &)> &wanted,
-                        bool opposite = false) const;
+                        bool opposite = false, int self = -1) const;
     bool isNormal(const SignalHead &head) const {
         return head.kind >= 0 && types[size_t(head.kind)].function == SignalFunction::Normal;
     }

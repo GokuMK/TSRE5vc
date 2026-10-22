@@ -2733,7 +2733,7 @@ int TDB::findNearestPositionOnTDB(float* posT, float* pos, float * q, float* tpo
     return minDistance;
 }
 
-int TDB::findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::IntersectionPoint> &points, float maxDistance){
+int TDB::findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::IntersectionPoint> &points, float maxDistance, bool useHeight){
     float *lineBuffer;
     int length = 0;
     getLines(lineBuffer, length, posT);
@@ -2743,16 +2743,27 @@ int TDB::findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::Inters
     float minDistance = 99999;
     
     for(int i = 0; i < length*12; i+=12){
-        dist = Intersections::pointSegmentDistance(lineBuffer + i, lineBuffer + i+6, pos, (float*)&intersectionPoint);
+        // Along the line, 0 to 1, where it comes nearest.
+        float along = 0;
+        if(useHeight){
+            dist = Intersections::pointSegmentDistance(lineBuffer + i, lineBuffer + i+6, pos, (float*)&intersectionPoint);
+            const float dist1 = Vec3::distance(lineBuffer + i, lineBuffer + i+6);
+            along = dist1 > 0 ? Vec3::distance(lineBuffer + i, intersectionPoint)/dist1 : 0;
+        } else {
+            const float dx = lineBuffer[i+6] - lineBuffer[i], dz = lineBuffer[i+8] - lineBuffer[i+2];
+            const float squared = dx*dx + dz*dz;
+            along = squared > 0 ? ((pos[0] - lineBuffer[i])*dx + (pos[2] - lineBuffer[i+2])*dz)/squared : 0;
+            along = std::min(1.0f, std::max(0.0f, along));
+            const float ex = lineBuffer[i] + along*dx - pos[0], ez = lineBuffer[i+2] + along*dz - pos[2];
+            dist = std::sqrt(ex*ex + ez*ez);
+        }
         if(dist < maxDistance){
             points.push_back(TDB::IntersectionPoint());
             points.back().distance = dist;
             points.back().idx = lineBuffer[i+3];
             points.back().m = this->getVectorSectionLengthToIdx(lineBuffer[i+3], lineBuffer[i+4]);
             
-            float dist1 = Vec3::distance(lineBuffer + i, lineBuffer + i+6);
-            float dist2 = Vec3::distance(lineBuffer + i, intersectionPoint);
-            dist1 = dist2/dist1;
+            const float dist1 = along;
             points.back().m += lineBuffer[i+5] + (lineBuffer[i+11] - lineBuffer[i+5])*dist1;
         }
         if(dist < minDistance)

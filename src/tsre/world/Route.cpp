@@ -172,6 +172,7 @@ void Route::load(){
     loadTraffic();
     loadPaths();
     loadActivities();
+    loadTimetableSets();
 
     soundList = new SoundList();
     soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
@@ -720,6 +721,16 @@ void Route::loadActivities(){
 
     qDebug() << "activity loaded";
     return;
+}
+
+void Route::loadTimetableSets() {
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES/OPENRAILS";
+    if (!QDir(folder).exists())
+        return;
+    for (const QString &file : QDir(folder).entryList(QDir::Files, QDir::Name))
+        for (const QString &ending : {".timetable-or", ".timetable_or", ".timetablelist-or", ".timetablelist_or"})
+            if (file.endsWith(ending, Qt::CaseInsensitive))
+                timetableSetId.push_back(ActLib::AddTimetableSet(folder, file));
 }
 
 void Route::loadServices(){

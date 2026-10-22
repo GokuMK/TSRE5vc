@@ -13,6 +13,9 @@ installation; see the test results below.
 # Default invocation performs supported repairs; a prior dry run is optional.
 .\build\TSRE5vc.exe --contentcase "D:\GameRootCopy" --journal "D:\CaseJournal" --report "D:\conversion.md"
 
+# Overlay an extracted update and repair its references in one transaction.
+.\build\TSRE5vc.exe --contentcase "D:\GameRootCopy" --overlay-update "D:\ExtractedUpdate\GameRoot" --journal "D:\UpdateJournal" --report "D:\update.md"
+
 # Read-only plan; optional JSON and Markdown outputs must be new.
 .\build\TSRE5vc.exe --contentcase "D:\GameRootCopy" --plan "D:\plan.json" --report "D:\plan.md"
 
@@ -32,6 +35,46 @@ filesystem, with an existing parent. If omitted, execution chooses a unique
 No journal is needed when nothing can or needs to change. Plans from older
 scanner versions must be regenerated: saved plans must exactly match the fresh
 planner's inventory, reference data, and decisions.
+
+Execution now begins with a lightweight core-directory bootstrap, before the
+reference/content analysis. It canonicalizes fixed root directories, including
+`ROUTES`, `GLOBAL`, `TRAINS`, `SOUND`, and `TEMPLATE`; fixed `GLOBAL`, `TRAINS`,
+and route subdirectories; `TRAINS/TRAINSET`, `TRAINS/CONSISTS`, and
+`TRAINS/CONSISTS/RANDOMSETS`; and recognized route extensions such as
+`OPENRAILS`, `ADDONS`, `PROCEDURAL`, `TRACKPROFILES`, and `TERRAIN_MAPS`.
+Dynamic TRAINSET product folders and arbitrary asset directories are not forced
+to uppercase. `ROUTES/<route>/ACTIVITIES/OPENRAILS` is also a fixed structural
+directory and is normalized before activity content is scanned.
+
+If several case variants of a fixed directory exist, an exactly canonical
+directory is preferred. Other variants are moved whole into the transaction
+vault, then unique subtrees are moved back into the canonical tree. Matching
+directories are merged recursively. A colliding canonical-side file is kept;
+the alternate stays byte-for-byte in `bootstrap-vault` and is reported. This
+keeps the live game root usable without silently overwriting either version.
+Bootstrap changes, retained conflicts, and later content repairs share one
+rollback journal.
+
+`--overlay-update <update-root>` is an execution-only mode for applying an
+already extracted content update. It runs after the fixed-directory bootstrap
+and before reference analysis. Each update path is resolved component by
+component without case sensitivity. When a destination exists, its one existing
+spelling is retained and the update bytes replace it; this prevents Linux from
+creating pairs such as `Night`/`NIGHT` or `file.ace`/`FILE.ace`. Missing files
+and directories are added, while files absent from the update are not deleted.
+Fixed structural directories newly introduced by the update use their canonical
+spelling. A source with case-only sibling duplicates, a destination with an
+ambiguous case-only match, a type conflict, or a link is refused before overlay
+mutation.
+
+The update source remains read-only. Source and destination inventories and
+hashes are checked again after staging, and the installed overlay is verified
+before content references are repaired. Bootstrap moves, update replacements
+and additions, and content-case repairs share one v2 journal and roll back to
+the exact pre-command target layout. `--overlay-update` cannot be combined with
+`--plan`, `--apply`, `--verify`, or `--rollback`; the update transaction itself
+produces its plan during checked staging. Both the journal and optional report
+must be outside the update source tree as well as outside the game root.
 
 Exit 0 means the requested operation completed with no known outstanding repair
 proposals/errors; missing content warnings are allowed. Exit 1 means a partial
@@ -87,17 +130,19 @@ failed preservation writer uses the same local constraints. No error propagates
 through a shared shape/texture graph merely because files are connected. The
 planner still coordinates seasonal and alternate-representation names globally.
 
-Physical collisions remain local errors: colliding names and directory subtrees
-are retained, without merging or overwriting files. Their containing runtime
-directories can still be renamed. Links and ancestors carrying links remain
+Physical file collisions remain local errors and are never overwritten. During
+the fixed-directory bootstrap, alternate directory trees are merged by moving
+only unique entries into the canonical tree; colliding alternates remain in the
+transaction vault and are reported. Collisions elsewhere remain in place and are
+withheld by the normal planner. Links and ancestors carrying links remain
 protected. Excluded entries receive no individual repair operations, but can move
 with a repaired containing directory. Undiscovered references in unreadable or
 unknown content cannot be verified; this limitation remains explicit rather than
 preventing supported repairs elsewhere.
 
 Missing content remains a warning. It is not substituted from another scope.
-Case-only duplicate-file consolidation and directory-collision merging are **not
-enabled in execution v1**. They retain planner errors and are withheld; the
+Directory-collision merging is deliberately limited to fixed structural roles in
+the bootstrap phase. General duplicate-file consolidation is not enabled: the
 executor never overwrites one case variant with another. Unknown ENV water-map
 lookup rules, optional-empty-field semantics, and undiscovered include owners
 remain explicit limitations from stage 1. Root-wide compatibility is not claimed.
@@ -113,6 +158,13 @@ withheld operations, writer errors, missing-content warnings, and remaining coun
 
 ## Transaction and recovery
 
+The core-directory bootstrap inventories the tree without parsing content, writes
+its recovery manifest and active marker, and applies no-overwrite renames before
+the first full content scan. Directory content hashes protect recovery; cached
+Merkle-style hashing avoids rereading the same bootstrap files for nested merges.
+The resulting lightweight path/type/metadata inventory is checked before content
+analysis starts.
+
 All edited sources receive exact-byte backups and staged replacements before
 content mutation. A second full preflight scan detects changes during preparation.
 This adds scan cost; large-installation performance still needs evaluation.
@@ -125,6 +177,8 @@ names; files move before directories, and directories move deepest first. Native
 no-overwrite filesystem renames are used without cross-filesystem copy fallback. Replacement
 writes are atomic, without direct-write fallback. Edited files retain permissions
 and modification times where the platform supports the required calls.
+Update-overlay journals use schema v2; the rollback command accepts both the
+original v1 conversion journals and v2 overlay journals.
 
 A per-root lock prevents overlapping converter processes. A persistent marker
 beside the root identifies an interrupted journal and prevents another conversion
@@ -143,9 +197,12 @@ errors before the transaction begins. After interruption, explicitly invoke
 `--rollback`. Recovery infers whether an intent-only move happened by checking
 exact paths and hashes. A torn final log record can be discarded. Rollback is
 idempotent and itself recoverable; original edited bytes come from checked backups.
-It refuses to overwrite later changed files or directory contents. Recovery also
-checks the original path/type layout; unexpected entries (including possible
-writer temporaries) are reported and never blindly deleted. If it cannot
+It refuses to overwrite later changed files. A bootstrap directory whose bytes
+changed can be moved back only if its complete entry structure still matches the
+recorded tree, so later file edits are preserved while additions, removals, and
+type changes stop automatic recovery. Recovery also checks the original path/type
+layout; unexpected entries (including possible writer temporaries) are reported
+and never blindly deleted. If it cannot
 finish, keep the journal and backups and resolve the reported obstruction.
 Power-loss behavior still depends on filesystem/platform guarantees; tests cover
 process-interruption states, not physical power loss. Backups are retained after
@@ -163,8 +220,9 @@ Temporary-fixture tests cover text encodings and compression, exact binary paylo
 preservation, SD root edits, pure renames, conflicting incoming spellings, two-part
 vehicle references, shared routes/shapes, seasonal DDS names, stale plans,
 interrupted temporary-name moves, torn journal tails, automatic rollback on a
-concurrent file change, refusal to overwrite a later edit, and isolation of an
-independent broken route. CLI cases cover direct execution, read-only plans,
+concurrent file change, refusal to overwrite a later edit, fixed-directory
+case-variant merging with identical and different file collisions, exact bootstrap
+rollback, and isolation of an independent broken route. CLI cases cover direct execution, read-only plans,
 saved-plan execution, strict verification, rollback, and identical direct/saved
 outputs. Final checks passed:
 

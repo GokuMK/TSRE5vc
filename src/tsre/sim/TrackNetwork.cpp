@@ -74,12 +74,11 @@ SignalKind kindOf(const SignalType &type, const SigCfg *config, bool openRailsCo
     return kind;
 }
 
-// A file in a folder by name, in any letter case; empty for none.
+// A file in a folder by its name as spelled; empty for none (content in
+// another letter case is for the content-case converter).
 QString fileIn(const QString &folder, const QString &name) {
-    for (const QFileInfo &file : QDir(folder).entryInfoList(QDir::Files))
-        if (file.fileName().compare(name, Qt::CaseInsensitive) == 0)
-            return file.filePath();
-    return QString();
+    const QString path = folder + "/" + name;
+    return QFileInfo(path).isFile() ? path : QString();
 }
 
 double wrap(double angle) {
@@ -527,14 +526,15 @@ Projection TrackNetwork::project(const RouteTrack &route) const {
 }
 
 int TrackNetwork::nextStopSignal(int node, float distance, bool forward, const std::vector<int> &switches,
-                                 double reach, std::vector<int> *facing) const {
+                                 double reach, std::vector<int> *facing, int self) const {
     return nextSignalWhere(node, distance, forward, switches, reach, facing,
-                           [this](const SignalHead &head) { return isNormal(head); });
+                           [this](const SignalHead &head) { return isNormal(head); }, false, self);
 }
 
 int TrackNetwork::nextSignalWhere(int node, float distance, bool forward, const std::vector<int> &switches,
                                   double reach, std::vector<int> *facing,
-                                  const std::function<bool(const SignalHead &)> &wanted, bool opposite) const {
+                                  const std::function<bool(const SignalHead &)> &wanted, bool opposite,
+                                  int self) const {
     double travelled = 0.0;
     float from = distance;
     for (int hops = 0; hops < 256 && travelled <= reach; ++hops) {
@@ -544,12 +544,12 @@ int TrackNetwork::nextSignalWhere(int node, float distance, bool forward, const 
         if (forward) {
             for (const OnNode &o : on)
                 if (o.distance > from + Same && signalHeads[size_t(o.index)].forward != opposite
-                        && wanted(signalHeads[size_t(o.index)]))
+                        && signalHeads[size_t(o.index)].signal != self && wanted(signalHeads[size_t(o.index)]))
                     return signalHeads[size_t(o.index)].signal;
         } else {
             for (auto o = on.rbegin(); o != on.rend(); ++o)
                 if (o->distance < from - Same && signalHeads[size_t(o->index)].forward == opposite
-                        && wanted(signalHeads[size_t(o->index)]))
+                        && signalHeads[size_t(o->index)].signal != self && wanted(signalHeads[size_t(o->index)]))
                     return signalHeads[size_t(o->index)].signal;
         }
         const float length = nodes[size_t(node)].length;
@@ -597,20 +597,16 @@ size_t TrackNetwork::memory() const {
 std::shared_ptr<const SigCfg> SimulationSigCfg(TDB *tdb, bool *openRails) {
     if (openRails != nullptr)
         *openRails = false;
-    // The route's OpenRails folder first (any letter case).
-    const QDir route(Game::root + "/ROUTES/" + Game::route);
-    for (const QFileInfo &folder : route.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-        if (folder.fileName().compare("openrails", Qt::CaseInsensitive) != 0)
-            continue;
-        for (const QFileInfo &file : QDir(folder.filePath()).entryInfoList(QDir::Files))
-            if (file.fileName().compare("sigcfg.dat", Qt::CaseInsensitive) == 0) {
-                auto config = std::make_shared<const SigCfg>(file.filePath());
-                if (config->loaded) {
-                    if (openRails != nullptr)
-                        *openRails = true;
-                    return config;
-                }
-            }
+    // The route's OPENRAILS/sigcfg.dat first (by its fixed names: content in
+    // another letter case is for the content-case converter).
+    const QString orConfig = Game::root + "/ROUTES/" + Game::route + "/OPENRAILS/sigcfg.dat";
+    if (QFileInfo(orConfig).isFile()) {
+        auto config = std::make_shared<const SigCfg>(orConfig);
+        if (config->loaded) {
+            if (openRails != nullptr)
+                *openRails = true;
+            return config;
+        }
     }
     if (tdb != nullptr && tdb->sigCfg != nullptr)
         return std::shared_ptr<const SigCfg>(tdb->sigCfg, [](const SigCfg *) {});

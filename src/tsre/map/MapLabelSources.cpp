@@ -12,9 +12,11 @@
 #include "TrackItemMapLayer.h"
 #include <QHash>
 #include <QSet>
+#include <QTime>
 #include <cmath>
 #include <tsre/coords/Coords.h>
 #include <tsre/coords/CoordsRoutePlaces.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Activity.h>
@@ -140,7 +142,12 @@ void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database, bool platfor
 void appendActivity(std::vector<MapLabel> &out, Activity *activity) {
     if (activity == nullptr)
         return;
-    for (const ActivityEvent *e : activity->event) {
+    bool fresh = false;
+    const Sim::EventResults *results = Sim::EventResultStore::instance()->of(activity, &fresh);
+    for (int i = 0; i < activity->event.size(); ++i) {
+        const ActivityEvent *e = activity->event[i];
+        if (e == nullptr)
+            continue;
         const ActivityEvent &event = *e;
         if (event.category != ActivityEvent::CategoryLocation || event.location == nullptr || event.name.isEmpty())
             continue;
@@ -151,6 +158,10 @@ void appendActivity(std::vector<MapLabel> &out, Activity *activity) {
         label.x = event.location[2];
         label.z = -event.location[3];
         label.text = event.name;
+        if (results != nullptr && fresh && size_t(i) < results->events.size() && results->events[size_t(i)].inRun
+                && results->events[size_t(i)].state.fired > 0)
+            label.text += QStringLiteral("  ")
+                    + QTime(0, 0).addSecs(int(results->events[size_t(i)].state.firedAt) % 86400).toString("HH:mm:ss");
         label.kind = MapLabelKind::Event;
         label.priority = EventPriority;
         out.push_back(std::move(label));

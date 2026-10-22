@@ -1,4 +1,5 @@
 #pragma once
+#include <QElapsedTimer>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -9,7 +10,9 @@
 #include <tsre/world/objects/SignalLights.h>
 
 class Activity;
+class ActivityEvent;
 class Consist;
+struct MapLabel;
 class GameObj;
 class QThread;
 class RenderQueue;
@@ -95,6 +98,15 @@ public:
     void choose(int train);
     int followed() const { return followedTrain; }
     void follow(int train);
+    // Follows a train from when it is put on the track (the user,
+    // 2026-10-22): one not there yet, the simulation as fast as possible
+    // until the step it is (created, ready to start), then on at the
+    // speed; not there FollowWithin after its start time (late, waiting
+    // to be formed or activated, its track held), paused there with Follow
+    // kept, its state saying why. False when there is no such train or the
+    // run cannot be asked.
+    bool followFromStart(int train, QString *error = nullptr);
+    static constexpr double FollowWithin = 900.0;
     // A train's centre and the way it heads (unit, in the camera's space):
     // tile x, tile z (the camera's), x, y, z; its length; false when not on
     // the track.
@@ -121,6 +133,17 @@ public:
     // and an event as the Timetable window lists it.
     QString stateText(int train) const;
     QString eventText(const TrainEvent &event) const;
+    // The activity's event of the input's event `event`, or null; its
+    // message ("" none).
+    const ActivityEvent *activityEvent(int event) const;
+    QString messageOf(int event) const;
+    // Messages of the activity's events that fired (task 06), on the map
+    // beside the train that fired them (the player's train for events of no
+    // train) for MessageMs, the latest of each train; what tells they have
+    // changed (shown or gone).
+    static constexpr qint64 MessageMs = 10000;
+    void messageLabels(std::vector<MapLabel> &out) const;
+    unsigned long long messagesVersion() const;
     // A train as the Timetable window names it ("Local 09:30"); a section's
     // holder (a train, a standing consist).
     QString trainName(int train) const;
@@ -132,8 +155,9 @@ public:
     QString statusText() const;
 
     // The simulated trains in 3D, with the ids of the trains at their starts
-    // (Activity::pushRenderItems); on the map, a train's vehicles (all
-    // trains' for -1).
+    // (Activity::pushRenderItems), and the standing trains (task 07: drawn
+    // in place of the activity's loose consists, not picked); on the map, a
+    // train's vehicles (all trains' and the standing trains' for -1).
     void pushRenderItems(RenderQueue &queue, float *playerT, int renderMode);
     void getMapFeatures(MapFeatures &vehicles, int tileX, int tileZ, int train = -1) const;
     // The 3D and map id of a train: SelectionIdCodec::activityService's;
@@ -148,6 +172,11 @@ public:
     // shown in the properties and ridden by the camera as consists are;
     // gone at Stop, a reset or a new start (trainsRemoving first).
     Consist *consistOf(int train) const;
+    // The standing trains' consists (task 07), null for one gone.
+    Consist *standingConsist(int standingTrain) const;
+    // What changes whenever a frame's cars do (recordedCars).
+    static unsigned long long carsSerial(const SimulationFrame &frame);
+    size_t standingCount() const;
     // The train whose consist it is, -1 none.
     int trainOfObject(const GameObj *object) const;
     // The trains' sounds near the listener (its tile and place, in the
@@ -188,9 +217,30 @@ private:
     unsigned long long runToSeq = 0;
     double runToTarget = 0.0;
     bool runToThenRun = false;
+    int runToTrain = -1;
     int chosenTrain = -1;
     int followedTrain = -1;
     qint64 inputMs = 0;
+    // Messages shown on the map: by train, its text and when it came (on
+    // messageClock).
+    struct Message {
+        int train = -1;
+        QString text;
+        qint64 at = 0;
+    };
+    std::vector<Message> messages;
+    QElapsedTimer messageClock;
+    unsigned long long messageChanges = 0;
+    // The events' states recorded last (EventResultStore), by run, and the
+    // time then; recorded again when they change, and when the run pauses or
+    // stops (the reasons read where the trains are then).
+    unsigned int recordedRun = 0;
+    unsigned long long recordedSerial = 0;
+    // The cars as recorded (task 07): the standing trains' serial plus every
+    // train's vehicles' version.
+    unsigned long long recordedCars = 0;
+    double recordedTime = -1.0;
+    void recordEvents();
     // The world's date at start, and the simulation's time it shows (kept
     // while a run as fast as possible goes on).
     QString startDate;
@@ -202,11 +252,18 @@ private:
     void sendStart(std::shared_ptr<const SimulationInput> input);
     // To `target` seconds (after midnight of the start day) as fast as
     // possible, from the start again when it is behind.
-    bool runToTime(double target, bool thenRun, QString *error);
+    // With `untilOnTrack`: stopped already when that train is on the track.
+    bool runToTime(double target, bool thenRun, QString *error, int untilOnTrack = -1);
 
     // The trains' consists (consistOf), placed from `placedFrame`; whether
     // each was heard last time.
     mutable std::vector<std::unique_ptr<Consist>> consists;
+    // Task 07: the vehicles' version each copy has (it is made again from
+    // the train's vehicles when the frame's differs); the standing trains'
+    // copies, made again whenever the standing trains change.
+    mutable std::vector<unsigned int> consistVersions;
+    mutable std::vector<std::unique_ptr<Consist>> standingCopies;
+    mutable unsigned long long standingPlaced = ~0ull;
     mutable std::shared_ptr<const SimulationFrame> placedFrame;
     std::shared_ptr<const SimulationFrame> pinnedFrame;
     std::vector<bool> heard;

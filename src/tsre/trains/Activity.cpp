@@ -12,6 +12,7 @@
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -21,6 +22,7 @@
 #include <tsre/renderer/SelectionId.h>
 #include <QDebug>
 #include <QFile>
+#include <QFileInfo>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Traffic.h>
@@ -28,10 +30,125 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/OrTimetable.h>
 #include <tsre/sim/SimulationController.h>
 #include <algorithm>
 
 Activity::Activity() {
+}
+
+void Activity::loadTimetableSet(const QString &directory, const QString &file) {
+    kind = Kind::OrTimetables;
+    path = directory;
+    name = file;
+    nameid = QFileInfo(file).completeBaseName();
+    pathid = ContentPath::normalize(directory + "/" + file);
+    hashid = ContentPath::key(pathid);
+    timetables.clear();
+    QString display;
+    QStringList files;
+    if (file.contains(".timetablelist", Qt::CaseInsensitive)) {
+        OrTimetableGroup group;
+        if (group.load(pathid)) {
+            display = group.name;
+            files = group.timetables;
+        }
+    } else {
+        files << file;
+    }
+    int start = -1;
+    for (const QString &one : files) {
+        auto timetable = std::make_shared<OrTimetable>();
+        timetable->load(directory + "/" + one);
+        if (display.isEmpty())
+            display = timetable->description;
+        for (const OrTimetable::Train &train : timetable->trains)
+            if (!train.isStatic && train.startTime >= 0 && (start < 0 || train.startTime < start))
+                start = train.startTime;
+        timetables.push_back(timetable);
+    }
+    delete header;
+    header = new ActivityHeader(Game::route, display.isEmpty() ? nameid : display);
+    if (start >= 0) {
+        header->startTime[0] = start / 3600;
+        header->startTime[1] = start / 60 % 60;
+        header->startTime[2] = start % 60;
+    }
+    loaded = 1;
+}
+
+const std::vector<std::shared_ptr<Consist>> &Activity::timetableStatics() {
+    if (!isTimetables() || Game::currentEngLib == NULL) {
+        statics.clear();
+        staticsMadeOf.clear();
+        return statics;
+    }
+    QStringList madeOf;
+    for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+        for (const OrTimetable::Train &train : timetable->trains)
+            if (train.isStatic)
+                madeOf << train.name + "|" + train.path + "|" + train.consist;
+    const QString key = madeOf.join('\n');
+    if (key == staticsMadeOf)
+        return statics;
+    staticsMadeOf = key;
+    statics.clear();
+    const QString routeDirectory = ActivityTrains::RouteDirectory(this);
+    const QString consists = Game::root + "/TRAINS/CONSISTS/";
+    for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+        for (const OrTimetable::Train &train : timetable->trains) {
+            if (!train.isStatic)
+                continue;
+            Path *path = ActLib::GetPathByName(train.pathName(), routeDirectory);
+            if (path == NULL || path->nodes().size() < 2)
+                continue;
+            // Its consist's parts in order, a turned one ($reverse) turned.
+            std::shared_ptr<Consist> standing;
+            bool whole = !train.consists.isEmpty();
+            for (const OrTimetable::ConsistPart &part : train.consists) {
+                const int id = ConLib::addCon(consists, OrTimetable::ConsistFile(part.name));
+                auto found = ConLib::con.find(id);
+                Consist *source = found != ConLib::con.end() ? found->second : NULL;
+                if (source == NULL || source->loaded != 1 || source->engItems.isEmpty()) {
+                    whole = false;
+                    break;
+                }
+                if (standing == nullptr) {
+                    standing = std::make_shared<Consist>(source, true);
+                    standing->engItems.clear();
+                    standing->displayName = standing->showName = train.name;
+                }
+                QVector<Consist::EngItem> items;
+                for (const Consist::EngItem &item : source->engItems) {
+                    Consist::EngItem copy;
+                    copy.type = item.type;
+                    copy.ename = item.ename;
+                    copy.epath = item.epath;
+                    copy.eng = item.eng;
+                    copy.flip = item.flip;
+                    copy.kept = item.kept;
+                    items.push_back(copy);
+                }
+                if (part.reverse) {
+                    std::reverse(items.begin(), items.end());
+                    for (Consist::EngItem &item : items)
+                        item.flip = !item.flip;
+                }
+                standing->engItems += items;
+            }
+            if (!whole || standing == nullptr)
+                continue;
+            for (int i = 0; i < standing->engItems.size(); ++i)
+                standing->engItems[i].uid = i;
+            standing->initPos();
+            // (Placed on the terrain: not without one, as in tests.)
+            float start[4];
+            if (Game::terrainLib != NULL)
+                standing->initOnTrack(path->getStartPositionTXZ(start), path->getStartDirection(),
+                                      path->getJunctionDirections(), true);
+            statics.push_back(standing);
+        }
+    return statics;
 }
 
 void Activity::init(QString route, QString name) {
@@ -346,6 +463,16 @@ void Activity::parse(FileBuffer *data) {
 }
 
 void Activity::save() {
+    // A timetable set (task 08, phase 6): each changed timetable written in
+    // TSRE's layout (the original kept beside it the first time).
+    if (isTimetables()) {
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables) {
+            QString error;
+            if (timetable->modified && !timetable->save(&error))
+                qWarning() << error;
+        }
+        return;
+    }
     QString tpath;
     
     QDir dir(path);
@@ -416,6 +543,14 @@ std::shared_ptr<TextSnapshot> Activity::snapshot() {
 }
 
 void Activity::restore(const TextSnapshot &snapshot) {
+    if (isTimetables()) {
+        const QStringList parts = snapshot.text.split(QChar(0x1e));
+        for (int i = 0; i < parts.size() && i < int(timetables.size()); ++i) {
+            timetables[size_t(i)]->loadText(parts[i].mid(1));
+            timetables[size_t(i)]->modified = parts[i].startsWith('1');
+        }
+        return;
+    }
     mergedOverlay = snapshot.pending;
     clearContent();
     FileBuffer *data = FileBuffer::fromText(snapshot.text);
@@ -456,6 +591,14 @@ void Activity::clearContent() {
 }
 
 QString Activity::toText() {
+    // A timetable set: its timetables' texts, each after whether it was
+    // changed (for undo, task 08).
+    if (isTimetables()) {
+        QStringList parts;
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+            parts << QString(timetable->modified ? "1" : "0") + timetable->toText();
+        return parts.join(QChar(0x1e));
+    }
     QString text;
     QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0a0t______\n";
@@ -893,6 +1036,12 @@ void Activity::initToPlay(){
 }
 
 bool Activity::isUnSaved(){
+    if (isTimetables()) {
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+            if (timetable->modified)
+                return true;
+        return false;
+    }
     for(int i = 0; i < activityObjects.size(); i++){
         if(activityObjects[i]->isUnSaved())
             return true;
@@ -990,9 +1139,18 @@ void Activity::updateSim(float* playerT, float deltaTime){
 }
 
 void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerRot, int renderMode) {
-    for (int i = 0; i < activityObjects.size(); i++) {
+    // While a simulation runs the activity, its trains are where the
+    // simulation has them (SimulationController), not at their starts, and
+    // its loose consists are the simulation's standing trains (task 07).
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const bool atStart = !simulation->shows(this);
+    for (int i = 0; i < activityObjects.size() && showsLooseConsists(); i++) {
         activityObjects[i]->pushRenderItems(queue, playerT, renderMode, i);
     }
+    // A timetable set's static trains, as loose consists (task 08).
+    if (isTimetables() && showsLooseConsists() && renderMode != RenderQueue::RENDER_SELECTION)
+        for (const std::shared_ptr<Consist> &standing : timetableStatics())
+            standing->pushRenderItemsOnTrack(queue, playerT, 0);
 
     for (int i = 0; i < activityFailedSignal.size(); i++) {
         activityFailedSignal[i]->pushRenderItems(queue, playerT, renderMode, i + 3500);
@@ -1006,10 +1164,6 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
         event[i]->pushRenderItem(queue, playerT, playerRot, renderMode);
     }
 
-    // While a simulation runs the activity, its trains are where the
-    // simulation has them (SimulationController), not at their starts.
-    Sim::SimulationController *simulation = Sim::SimulationController::instance();
-    const bool atStart = !simulation->shows(this);
     if (Service *player = playerService()) {
         const quint32 selectionId = renderMode == RenderQueue::RENDER_SELECTION
                 ? SelectionIdCodec::activityService(0) : 0;
@@ -1025,6 +1179,10 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
     }
     if (!atStart)
         simulation->pushRenderItems(queue, playerT, renderMode);
+}
+
+bool Activity::showsLooseConsists() {
+    return !Sim::SimulationController::instance()->shows(this);
 }
 
 QVector<int> Activity::shownAITrains(){

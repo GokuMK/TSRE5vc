@@ -410,8 +410,8 @@ Not in scope: `sigscr.dat` and other scripts (task 05); Open Rails
 additions that need data from the world files (`HASHEAD`, exact signal
 grouping: they wait for the TDB fields proposed in
 `tdb-signal-extension.md`); location-linked passing paths; permissive
-working, call-on and coupling; curve and gradient speeds; the player
-driving.
+working, call-on and coupling (permissive working and coupling: task 07);
+curve and gradient speeds; the player driving.
 
 ## Current state (task 01)
 

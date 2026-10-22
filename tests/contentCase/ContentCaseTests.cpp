@@ -140,6 +140,7 @@ int main(int argc,char **argv) {
         put(root+"/GLOBAL/TSECTION.DAT","TrackSections ( 0 ) TrackShapes ( 0 )");
         put(root+"/GLOBAL/SHAPES/Unused.s",s);
         put(root+"/routes/RouteOne/ACTIVITIES/a.act","Tr_Activity ( Player_Service_Definition ( Express ) )");
+        put(root+"/routes/RouteOne/ACTIVITIES/openrails/marker.bin","nested OR activity");
         put(root+"/routes/RouteOne/SERVICES/Express.srv","Service_Definition ( Train_Config ( FastTrain ) PathID ( Morning ) )");
         put(root+"/routes/RouteOne/PATHS/Morning.pat","TrackPath ( TrPathName ( Morning ) )");
         put(root+"/routes/Backups/Snapshot/Snapshot.trk","Tr_RouteFile ( Name ( Snapshot ) )");
@@ -155,6 +156,15 @@ int main(int argc,char **argv) {
         bool fixedName=false;for(const auto &v:before["operations"].toArray())if(v.toObject()["from"]=="GLOBAL/TSECTION.DAT")
             fixedName=v.toObject()["to"]=="GLOBAL/tsection.dat";
         check(fixedName,"fixed system basename convention planned");
+        bool nestedActivityOpenRails=false;
+        for(const auto &v:before["operations"].toArray()) {
+            const auto op=v.toObject();
+            if(op["from"]=="routes/RouteOne/ACTIVITIES/openrails")
+                nestedActivityOpenRails=op["to"].toString().endsWith(
+                    "/ACTIVITIES/OPENRAILS");
+        }
+        check(nestedActivityOpenRails,
+              "nested activity OPENRAILS directory has fixed structural spelling");
         check(edge(before,"service","exact")&&edge(before,"consist","exact")&&edge(before,"enginedata","exact"),"activity-to-train graph");
         for(const auto &v:before["references"].toArray()) {
             const auto e=v.toObject();if(e["spelling"]=="Local.pat")
@@ -180,6 +190,8 @@ int main(int argc,char **argv) {
         check(a==b,"repeat scan deterministic and unchanged inputs");
         check(command({"--contentcase",root+"/Missing"})==2,"default repair requires an existing root");
         check(command({"--contentcase",root,"--apply","anything.json"})==2,"missing saved plan rejected");
+        check(command({"--contentcase",root,"--overlay-update",descriptorRoot,"--plan"})==2,
+              "update overlay cannot be mixed with read-only planning");
         check(command({"--refreshpmaptextures","--contentcase",root,"--plan"})==2,"mixed command modes refused");
         check(command({"--contentcase",root,"--plan","--report",root+"/forbidden.md"})==2,"root output refused");
         check(!QFile::exists(root+"/forbidden.md"),"root output never created");

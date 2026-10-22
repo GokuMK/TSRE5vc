@@ -27,6 +27,7 @@
 #include <routeEditor/ActivityTools.h>
 #include <routeEditor/activity/ActivityEdit.h>
 #include <routeEditor/activity/ActivityEventProperties.h>
+#include <routeEditor/activity/ActivityCheckWindow.h>
 #include <routeEditor/activity/ActivityEventWindow.h>
 #include <routeEditor/activity/ActivityTimetableProperties.h>
 #include <routeEditor/activity/ActivityTimetableWindow.h>
@@ -35,22 +36,27 @@
 #include <tsre/Undo.h>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/map/MapFeatures.h>
+#include <tsre/map/MapLabelLayer.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TimetableCalculation.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/Service.h>
 #include <tsre/trains/PathTrack.h>
 #include <tsre/trains/Traffic.h>
+#include <tsre/world/TerrainLib.h>
 
 namespace {
 
@@ -253,6 +259,31 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
         p.startFront = route.pathStart + 10.0;
         input->trains.push_back(p);
     }
+    // Activity events (task simulation 06): a time event activating a
+    // location event, location events each train triggers; the host fires
+    // them at the times the core alone does (the fixed step).
+    {
+        const auto event = [&](Sim::EventPlan::Kind kind, int level) {
+            Sim::EventPlan e;
+            e.kind = kind;
+            e.activation = level;
+            e.index = int(input->events.size());
+            e.name = QString("E%1").arg(e.index);
+            return e;
+        };
+        Sim::EventPlan time = event(Sim::EventPlan::Time, 1);
+        time.time = 30;
+        time.activate = {2};
+        input->events.push_back(time);
+        for (const auto &[train, distance, level] : {std::make_tuple(0, 600.0f, 1), std::make_tuple(0, 1100.0f, 0),
+                                                     std::make_tuple(1, 300.0f, 1)}) {
+            Sim::EventPlan place = event(Sim::EventPlan::Location, level);
+            place.places = {Sim::TrackPlace{10, distance}};
+            place.radius = 5.0f;
+            place.trigger = train;
+            input->events.push_back(place);
+        }
+    }
     const std::shared_ptr<const Sim::SimulationInput> shared = input;
 
     QThread thread;
@@ -314,9 +345,13 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
                          || events[i].index != expected[i].index || std::fabs(events[i].time - expected[i].time) > 1e-6))
                 same = false;
         }
+        int fired = 0;
+        for (const Sim::TrainEvent &e : events)
+            fired += e.kind == Sim::TrainEvent::EventFired ? 1 : 0;
         check(ordered, "events come in order");
-        check(same, QString("the thread's run gives the synchronous core's events (%1 and %2)")
-                        .arg(events.size()).arg(expected.size()));
+        check(same && fired == 4, QString("the thread's run gives the synchronous core's events (%1 and %2), the "
+                                          "activity's %3 among them at the same times")
+                                      .arg(events.size()).arg(expected.size()).arg(fired));
     }
 
     // The track edited while the simulation runs: its copy stays.
@@ -368,6 +403,39 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
     check(realTime > 0.5 && realTime < 1.5, QString("at 1× the simulation keeps to the clock (%1×)").arg(realTime));
     const double fast = rateAt(64.0);
     check(fast > 24.0 && fast < 96.0, QString("at 64× (%1×)").arg(fast));
+
+    // A run until a train is on the track (Follow, the user's 2026-10-22):
+    // from the start again, until the second train is put on the track at
+    // 08:01, then on at the speed; a third, started only by an activation
+    // that never comes, is waited for up to the time asked, then paused.
+    {
+        auto waits = std::make_shared<Sim::SimulationInput>(*input);
+        Sim::TrainPlan never = waits->trains[1];
+        never.id = 2;
+        never.startTime = t0 + 120;
+        never.activatedBy = 0;
+        never.activation = Sim::TrainPlan::Activation::Arrival;
+        never.activationStop = 99;
+        waits->trains.push_back(never);
+        const std::shared_ptr<const Sim::SimulationInput> withWaiting = waits;
+        s = send([withWaiting](Sim::SimulationHost *h, unsigned long long n) { h->start(withWaiting, n); });
+        waitFor(latest, acknowledged(s), 5000);
+        send([](Sim::SimulationHost *h, unsigned long long n) { h->setSpeed(1.0, n); });
+        s = send([t0](Sim::SimulationHost *h, unsigned long long n) { h->runTo(t0 + 600, n, true, 1); });
+        f = waitFor(latest, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= s && x.mode == Sim::RunMode::Running; }, 10000);
+        check(f && f->time >= t0 + 60 - 1e-6 && f->time < t0 + 62 && f->trains[1].state.status != Sim::TrainStatus::Waiting,
+              QString("until the second train is on the track: at %1 s, running on").arg(f ? f->time - t0 : -1));
+        s = send([t0](Sim::SimulationHost *h, unsigned long long n) { h->runTo(t0 + 300, n, true, 2); });
+        f = waitFor(latest, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= s && x.mode == Sim::RunMode::Paused; }, 10000);
+        check(f && std::fabs(f->time - (t0 + 300)) < 0.2 && f->trains[2].state.status == Sim::TrainStatus::Waiting,
+              QString("a train never activated: waited for up to the time asked, paused there (%1 s)")
+                  .arg(f ? f->time - t0 : -1));
+        const QString why = f ? Sim::StateText(*withWaiting, f->trains[2].state, f->time, 2) : QString();
+        check(why.contains("activate") || why.contains("simulation.state.waiting.activated"),
+              "its state says what it waits for: " + why);
+    }
 
     // Stop with work queued: the thread ends, the host comes back.
     send([](Sim::SimulationHost *h, unsigned long long n) { h->setSpeed(0.0, n); });
@@ -427,6 +495,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "R");
     const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &layout.db);
+    // The editor places consists on the terrain: none here (height 0).
+    TerrainLib terrain;
+    const QScopedValueRollback<TerrainLib *> flat(Game::terrainLib, &terrain);
     const QScopedValueRollback<float> hours(Game::timeOfDayHours, 12.0f);
     const QScopedValueRollback<QString> day(Game::timeOfDayDate, "2026-10-15");
     EngLib engines;
@@ -510,6 +581,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     };
     speed->setCurrentIndex(speed->findData(0.0));
     emit speed->activated(speed->currentIndex());
+    // Played with the Timetable window closed: opened later, it shows the
+    // simulation's states.
+    timetable.hide();
     play->click();
     check(simulation->exists() && simulation->shows(activity) && simulation->input()->trains.size() == 2,
           "Play: a simulation of the activity, the player's train and the AI train");
@@ -530,10 +604,23 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
             return x.acknowledged >= simulation->lastCommand(); }, 5000, pump);
     pump();
     check(f && !simulation->runs() && play->isEnabled() && f->mode == Sim::RunMode::Paused, "paused");
+    // The panel: the trains' states, and the run's notes on its trains only
+    // counted, linked to Check Activity (which lists them).
+    QLabel *panelStatus = tools.findChild<QLabel *>("simulationStatus");
+    QLabel *notes = tools.findChild<QLabel *>("simulationWarnings");
+    check(panelStatus != nullptr && notes != nullptr && !panelStatus->text().contains("driven simply") && notes->isVisible()
+              && notes->text().startsWith("2 ") && notes->text().contains("<a href"),
+          "the panel counts the run's notes, linked: " + (notes ? notes->text() : QString()));
+    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
+        tools.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/simulation-panel.png");
 
-    // The Timetable window: states, the chosen train's events, Follow.
+    // The Timetable window, opened now: states, the chosen train's events,
+    // Follow.
+    timetable.show();
+    timetable.showTimetable(activity);
+    pump();
     check(!rows->isColumnHidden(2) && rows->topLevelItemCount() == 2 && !rows->topLevelItem(0)->text(2).isEmpty(),
-          "each train's state: " + (rows->topLevelItemCount() ? rows->topLevelItem(0)->text(2) : QString()));
+          "opened while it runs: each train's state: " + (rows->topLevelItemCount() ? rows->topLevelItem(0)->text(2) : QString()));
     rows->setCurrentItem(rows->topLevelItem(0));
     rows->topLevelItem(0)->setSelected(true);
     pump();
@@ -726,6 +813,40 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(Undo::UndoLast() && activity->header->name == "Simulated", "after Stop the activity's step undoes");
     Undo::Clear();
 
+    // Follow before the train starts (the user, 2026-10-22): no
+    // simulation; the AI's S2 (08:01) chosen, Follow starts one, runs as
+    // fast as possible until S2 is put on the track (its start time), then
+    // on at the speed, following it.
+    {
+        int s2Row = -1;
+        for (int i = 0; i < rows->topLevelItemCount(); ++i)
+            if (rows->topLevelItem(i)->text(1).startsWith("S2"))
+                s2Row = i;
+        if (s2Row >= 0) {
+            rows->setCurrentItem(rows->topLevelItem(s2Row));
+            rows->topLevelItem(s2Row)->setSelected(true);
+        }
+        pump();
+        speed->setCurrentIndex(speed->findData(1.0));
+        emit speed->activated(speed->currentIndex());
+        const bool offered = follow->isEnabled() && !simulation->exists();
+        follow->click();
+        pump();
+        const int s2 = simulation->exists() ? simulation->trainOf(false, 0) : -1;
+        FramePointer f2 = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.mode == Sim::RunMode::Running && s2 >= 0 && size_t(s2) < x.trains.size()
+                        && !x.trains[size_t(s2)].fronts.empty(); }, 10000, pump);
+        pump();
+        check(offered && f2 && s2 >= 0 && simulation->followed() == s2 && follow->isChecked() && simulation->runs()
+                  && f2->time >= 8 * 3600 + 60 - 0.2 && f2->time < 8 * 3600 + 65,
+              QString("Follow before S2 starts: a simulation run until S2 is on the track (%1, its start 08:01), on at "
+                      "the speed, S2 followed").arg(f2 ? f2->time : -1.0, 0, 'f', 1));
+        stop->click();
+        pump();
+        check(!simulation->exists() && !follow->isChecked(), "Stop: Follow off");
+        Undo::Clear();
+    }
+
     // Simulate (task 04): the activity run as fast as possible, its times
     // written. The file books the player's S to leave Middle at 08:02:40, the
     // AI's S2 Middle 2 at 08:04:20: departures that hold them, rounded up
@@ -853,14 +974,175 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         Undo::Clear();
     }
 
+    // Where trains stand at their start (task simulation 06, decided
+    // 2026-10-21): their rear at the path's start, the whole train ahead, as
+    // Open Rails places them; the editor shows the player's train where the
+    // simulation starts it.
+    {
+        QString error;
+        check(simulation->runTo(activity, 8 * 3600 + 1, &error), "a run to a second after the start: " + error);
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 10000, pump);
+        pump();
+        const Sim::TrainPlan &first = simulation->input()->trains[0];
+        MapFeatures shown, simulated;
+        if (Service *service = activity->playerService())
+            service->getMapFeatures(shown, 0, 0);
+        if (Consist *train = simulation->consistOf(simulation->trainOf(true, -1)))
+            train->getMapFeatures(simulated, 0, 0);
+        const bool both = shown.vehicles.size() >= MapFeatures::VehicleFloats && simulated.vehicles.size() >= MapFeatures::VehicleFloats;
+        // The test track's 10 m pieces lie side by side, not end to end: a
+        // place on the track is within one piece of another a metre along it
+        // (the old placement, the first car across the start, is 30 m off).
+        const float apart = both ? std::max(std::fabs(shown.vehicles[0] - simulated.vehicles[0]),
+                                            std::fabs(shown.vehicles[1] - simulated.vehicles[1])) : -1.0f;
+        check(f && first.player && std::fabs(first.startFront - (first.route.pathStart + first.length)) < 1e-6
+                  && both && apart <= 11.0f,
+              QString("the player's train starts with its rear at its path's start; the editor shows it there (%1 m apart "
+                      "on this track after a second)").arg(apart));
+        stop->click();
+        pump();
+    }
+
+    // Activity events (task simulation 06): a time event, a location event
+    // the player's train passes (both with messages), one on the other line
+    // and one not active. Run to 08:03: the Event window shows when each
+    // fired, the Timetable window lists them with the player's train, the
+    // map the latest message beside it; an edit puts the results out of
+    // date, Simulate brings them back.
+    {
+        const auto messageOf = [](ActivityEvent *event, const QString &text) {
+            ActivityEvent::Outcome *outcome = event->outcomes[event->newOutcome()];
+            outcome->setToNewType(ActivityEvent::Outcome::TypeDisplayMessage);
+            outcome->setMessage(text);
+        };
+        const auto placeAt = [&](ActivityEvent *event, int track, float distance) {
+            float at[7];
+            layout.db.getDrawPositionOnTrNode(at, track, distance);
+            event->setLocation(int(at[5]), int(at[6]), at[0], at[2]);
+            event->setLocationRadius(10);
+        };
+        ActivityEvent *half = activity->newEvent(ActivityEvent::CategoryTime);
+        half->setName("Half a minute");
+        half->setTime(30);
+        messageOf(half, "Thirty seconds in");
+        ActivityEvent *marker = activity->newEvent(ActivityEvent::CategoryLocation);
+        marker->setName("Marker");
+        placeAt(marker, 10, 700.0f);
+        messageOf(marker, "Passing the marker");
+        ActivityEvent *elsewhere = activity->newEvent(ActivityEvent::CategoryLocation);
+        elsewhere->setName("Elsewhere");
+        placeAt(elsewhere, 30, 700.0f);
+        ActivityEvent *sleeping = activity->newEvent(ActivityEvent::CategoryTime);
+        sleeping->setName("Sleeping");
+        sleeping->setActivationLevel(0);
+        events.showEvents(activity);
+        runToTime->setTime(QTime(8, 3, 0));
+        runTo->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Paused; }, 20000, pump);
+        pump();
+        bool current = false;
+        const Sim::EventResults *results = Sim::EventResultStore::instance()->of(activity, &current);
+        const auto resultOf = [&](ActivityEvent *event) -> const Sim::EventResult * {
+            const int index = activity->event.indexOf(event);
+            return results != nullptr && index >= 0 && size_t(index) < results->events.size() ? &results->events[size_t(index)] : nullptr;
+        };
+        check(f && results != nullptr && current && resultOf(half) && resultOf(half)->state.fired == 1
+                  && std::fabs(resultOf(half)->state.firedAt - (8 * 3600 + 30)) < 1e-6
+                  && resultOf(marker) && resultOf(marker)->state.fired == 1 && resultOf(marker)->by.contains("S")
+                  && resultOf(elsewhere) && resultOf(elsewhere)->state.fired == 0
+                  && resultOf(sleeping) && resultOf(sleeping)->state.fired == 0,
+              "Run to 08:03: the time and passed location events fired, the others not");
+        const auto rowOf = [&](const char *list, const QString &name) -> QListWidgetItem * {
+            QListWidget *shown = events.findChild<QListWidget *>(list);
+            for (int i = 0; shown != nullptr && i < shown->count(); ++i)
+                if (shown->item(i)->text().endsWith(name))
+                    return shown->item(i);
+            return nullptr;
+        };
+        QLabel *eventRun = events.findChild<QLabel *>("eventLastRun");
+        QListWidgetItem *markerRow = rowOf("eventLocationList", "Marker");
+        QListWidgetItem *elsewhereRow = rowOf("eventLocationList", "Elsewhere");
+        check(markerRow != nullptr && markerRow->text().startsWith("08:00:") && elsewhereRow != nullptr
+                  && elsewhereRow->text() == "Elsewhere" && elsewhereRow->data(Qt::ForegroundRole).isValid()
+                  && eventRun != nullptr && !eventRun->isHidden() && eventRun->text().contains("2 of 4"),
+              QString("the Event window: when each fired, grey those that did not, the run under the lists (%1; %2)")
+                  .arg(markerRow != nullptr ? markerRow->text() : QString("-"), eventRun != nullptr ? eventRun->text() : QString("-")));
+        // The player's train is the first row.
+        if (rows->topLevelItemCount() > 0) {
+            rows->setCurrentItem(rows->topLevelItem(0));
+            rows->topLevelItem(0)->setSelected(true);
+        }
+        pump();
+        QStringList listed;
+        for (int i = 0; i < trainEvents->count(); ++i)
+            listed << trainEvents->item(i)->text();
+        check(simulation->chosen() == simulation->trainOf(true, -1) && listed.join("\n").contains("Passing the marker")
+                  && listed.join("\n").contains("Thirty seconds in"),
+              "the Timetable window lists the activity's events with the player's train: " + listed.filter("event").join(" | "));
+        // Why the others did not fire (section 7), in the tooltip and in
+        // Check Activity's last run.
+        check(elsewhereRow != nullptr && elsewhereRow->toolTip().contains("does not pass its point")
+                  && rowOf("eventTimeList", "Sleeping") != nullptr
+                  && rowOf("eventTimeList", "Sleeping")->toolTip().contains("Never active"),
+              QString("why not fired: \"%1\"").arg(elsewhereRow != nullptr ? elsewhereRow->toolTip() : QString("-")));
+        {
+            ActivityCheckWindow checker(nullptr);
+            checker.check(activity);
+            QTreeWidget *found = checker.findChild<QTreeWidget *>();
+            QStringList run;
+            for (int i = 0; found != nullptr && i < found->topLevelItemCount(); ++i)
+                if (found->topLevelItem(i)->text(0) == "Last run")
+                    run << found->topLevelItem(i)->text(1);
+            // (And the notes on the trains made: driven simply, no mass.)
+            check(run.size() == 5 && run.filter("did not fire").size() == 2 && run.filter("up to 08:03:00").size() == 1
+                      && run.filter("driven simply").size() == 2,
+                  "Check Activity's last run: the trains' notes, the run up to 08:03, the two events not fired: "
+                      + run.join(" | "));
+        }
+        std::vector<MapLabel> labels;
+        simulation->messageLabels(labels);
+        check(labels.size() == 1 && labels[0].text.contains("Marker") && labels[0].kind == MapLabelKind::Event,
+              QString("the map shows the latest message beside the player's train (%1)")
+                  .arg(labels.empty() ? QString("none") : labels[0].text));
+        stop->click();
+        pump();
+        {
+            ActivityEdit edit(activity);
+            half->setTime(31);
+        }
+        Undo::StateEnd();
+        Sim::EventResultStore::instance()->of(activity, &current);
+        markerRow = rowOf("eventLocationList", "Marker");
+        check(!current && markerRow != nullptr && markerRow->font().italic() && eventRun->text().contains("edited"),
+              "an edit puts the last run's results out of date: shown so");
+        if (simulate != nullptr)
+            simulate->click();
+        QApplication::processEvents();
+        results = Sim::EventResultStore::instance()->of(activity, &current);
+        markerRow = rowOf("eventLocationList", "Marker");
+        check(current && results != nullptr && results->complete && markerRow != nullptr && !markerRow->font().italic()
+                  && resultOf(half) && std::fabs(resultOf(half)->state.firedAt - (8 * 3600 + 31)) < 1e-6,
+              "Simulate records the events' results for the activity as it is");
+        for (ActivityEvent *added : {half, marker, elsewhere, sleeping})
+            activity->deleteEvent(added);
+        events.showEvents(activity);
+        Undo::Clear();
+    }
+
     // A deadlock: the two trains either side of a junction, each for the
     // other's side, both on the track from 08:00. The user is told which
-    // trains; the run goes on.
+    // trains; the run goes on. (Each reverses just past the junction,
+    // short of where the other stands 10 m from it: a train standing on its
+    // path's part would be coupled to, task 07, as Open Rails' AI does.)
     if (main != nullptr && second != nullptr) {
-        PathTrack::Result made = PathTrack::startAt(&layout.db, {50, 100.0f});
-        main->apply(PathTrack::endAt(&layout.db, made.nodes, {51, 900.0f}).nodes);
-        made = PathTrack::turnStart(&layout.db, PathTrack::startAt(&layout.db, {51, 900.0f}).nodes);
-        second->apply(PathTrack::endAt(&layout.db, made.nodes, {50, 100.0f}).nodes);
+        PathTrack::Result made = PathTrack::startAt(&layout.db, {50, 500.0f});
+        made = PathTrack::reverseAt(&layout.db, made.nodes, {51, 5.0f});
+        main->apply(PathTrack::endAt(&layout.db, made.nodes, {50, 200.0f}).nodes);
+        made = PathTrack::turnStart(&layout.db, PathTrack::startAt(&layout.db, {51, 450.0f}).nodes);
+        made = PathTrack::reverseAt(&layout.db, made.nodes, {50, 995.0f});
+        second->apply(PathTrack::endAt(&layout.db, made.nodes, {52, 900.0f}).nodes);
     }
     for (int id = firstTraffic; id < ActLib::jesttraffic; ++id)
         if (Traffic *traffic = ActLib::Traffics.value(id))
@@ -895,6 +1177,58 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
               QString("Simulate in a deadlock: the trains that did not finish named (%1)").arg(lastRun->text()));
         Undo::Clear();
     }
+
+    // Task 07: a loose consist ahead of the player's train on its line. The
+    // simulation draws it as a standing train in place of the activity's
+    // object; the player's train takes it, its consist made again with the
+    // cars; the Timetable window lists the coupling; Stop shows the
+    // activity's object again.
+    if (main != nullptr && second != nullptr)
+        for (auto [path, track] : {std::make_pair(main, 10), std::make_pair(second, 30)}) {
+            PathTrack::Result made = PathTrack::startAt(&layout.db, {track, 100.0f});
+            path->apply(PathTrack::endAt(&layout.db, made.nodes, {track, 1900.0f}).nodes);
+        }
+    activity->editorConListSelected = temp.path() + "/TRAINS/CONSISTS/Two.con";
+    float loosePlace[2] = {10.0f, 1500.0f};
+    const int objectsBefore = activity->activityObjects.size();
+    activity->newLooseConsist(loosePlace);
+    ActivityObject *loose = activity->activityObjects.size() > objectsBefore ? activity->activityObjects.back() : nullptr;
+    check(loose != nullptr && loose->con != nullptr && activity->showsLooseConsists(), "a loose consist on the player's line");
+    Undo::Clear();
+    clock->setSpeed(0.0);
+    play->click();
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.standing != nullptr && !x.trains.empty(); }, 10000, pump);
+    pump();
+    Consist *standingCopy = simulation->standingConsist(0);
+    check(f && f->standing->size() == 1 && (*f->standing)[0].vehicles.size() == 2 && (*f->standing)[0].fronts.size() == 2
+              && standingCopy != nullptr && standingCopy->isOnTrack && standingCopy->engItems.size() == 2
+              && standingCopy->engItems[0].engPointer != nullptr && !activity->showsLooseConsists(),
+          "simulated: the loose consist a standing train, drawn in place of the activity's object");
+    f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+            return !x.trains.empty() && x.trains[0].vehicles != nullptr && x.trains[0].vehicles->size() == 4; }, 20000, pump);
+    pump();
+    Consist *taken = simulation->consistOf(simulation->trainOf(true, -1));
+    check(f && f->trains[0].carsVersion > 0 && (*f->standing)[0].gone && simulation->standingConsist(0) == nullptr
+              && taken != nullptr && taken->engItems.size() == 4 && taken->engItems[3].engPointer != nullptr,
+          QString("the player's train takes it: its consist made again with its %1 vehicles, the standing train gone")
+              .arg(taken != nullptr ? taken->engItems.size() : 0));
+    rows->setCurrentItem(rows->topLevelItem(0));
+    rows->topLevelItem(0)->setSelected(true);
+    pump();
+    QStringList coupledListed;
+    for (int i = 0; i < trainEvents->count(); ++i)
+        coupledListed << trainEvents->item(i)->text();
+    check(coupledListed.filter("coupled to 2 cars").size() == 1,
+          "the Timetable window lists the coupling: " + coupledListed.join(" | "));
+    stop->click();
+    pump();
+    clock->setSpeed(1.0);
+    check(!simulation->exists() && activity->showsLooseConsists(), "Stop: the activity's loose consist drawn again");
+    if (loose != nullptr) {
+        activity->activityObjects.removeOne(loose);
+        delete loose;
+    }
+    Undo::Clear();
 
     for (QWidget *window : QList<QWidget *>{&tools, &events, &timetable})
         window->hide();

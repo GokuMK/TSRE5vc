@@ -13,14 +13,37 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
     frame->time = core.time();
     frame->finished = core.finished();
     const std::vector<TrainState> &states = core.trains();
+    if (before != nullptr && before->runId != frame->runId)
+        before = nullptr;
     frame->trains.resize(states.size());
     for (size_t i = 0; i < states.size(); ++i) {
         TrainFrame &train = frame->trains[i];
         train.state = states[i];
         core.vehicleEnds(int(i), train.fronts, train.rears);
+        train.carsVersion = core.carsVersion(int(i));
+        if (before != nullptr && i < before->trains.size() && before->trains[i].vehicles != nullptr
+                && before->trains[i].carsVersion == train.carsVersion)
+            train.vehicles = before->trains[i].vehicles;
+        else
+            train.vehicles = std::make_shared<const std::vector<Vehicle>>(core.vehiclesOf(int(i)));
     }
-    if (before != nullptr && before->runId != frame->runId)
-        before = nullptr;
+    frame->standingSerial = core.standingSerial();
+    if (before != nullptr && before->standing != nullptr && before->standingSerial == frame->standingSerial) {
+        frame->standing = before->standing;
+    } else {
+        auto standing = std::make_shared<std::vector<StandingFrame>>();
+        for (size_t k = 0; k < core.standingTrains().size(); ++k) {
+            const SimulationCore::Standing &st = core.standingTrains()[k];
+            StandingFrame made;
+            made.name = st.name;
+            made.vehicles = st.vehicles;
+            made.gone = st.gone;
+            made.loose = st.object >= 0;
+            core.standingEnds(int(k), made.fronts, made.rears);
+            standing->push_back(std::move(made));
+        }
+        frame->standing = std::move(standing);
+    }
     frame->drawSerial = core.drawSerial();
     if (before != nullptr && before->drawStates != nullptr && before->drawSerial == frame->drawSerial) {
         frame->aspects = before->aspects;
@@ -38,6 +61,13 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         frame->sectionUses = before->sectionUses;
     else
         frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
+    frame->eventSerial = core.eventSerial();
+    frame->activityEnd = core.activityEnd();
+    frame->activityEndedAt = core.activityEndedAt();
+    if (before != nullptr && before->eventStates != nullptr && before->eventSerial == frame->eventSerial)
+        frame->eventStates = before->eventStates;
+    else
+        frame->eventStates = std::make_shared<const std::vector<EventState>>(core.eventStates());
     return frame;
 }
 
@@ -114,11 +144,18 @@ void SimulationHost::setSpeed(double value, unsigned long long seq) {
     publish();
 }
 
-void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun) {
+bool SimulationHost::trainPlaced(int train) const {
+    return core != nullptr && train >= 0 && size_t(train) < core->trains().size()
+            && core->trains()[size_t(train)].status != TrainStatus::Waiting;
+}
+
+void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun, int untilOnTrack) {
     acknowledged = seq;
     runOn = thenRun;
-    if (core != nullptr && time > core->time()) {
-        target = time;
+    untilTrain = untilOnTrack;
+    if (core != nullptr && time > core->time() && !(untilTrain >= 0 && trainPlaced(untilTrain))) {
+        // The simulation steps whole steps: to the first at or after it.
+        target = core->onStep(time);
         mode = RunMode::RunningTo;
     } else {
         mode = core != nullptr && thenRun ? RunMode::Running : RunMode::Paused;
@@ -161,6 +198,8 @@ void SimulationHost::stepFor(double seconds, const QElapsedTimer &batch) {
         const double h = std::min(SimulationCore::MaxStep, seconds);
         core->step(h);
         seconds -= h;
+        if (mode == RunMode::RunningTo && untilTrain >= 0 && trainPlaced(untilTrain))
+            break;
     }
 }
 
@@ -178,8 +217,12 @@ void SimulationHost::tick() {
         stepFor(speed > 0.0 ? elapsed * speed : 1e12, batch);
     } else if (mode == RunMode::RunningTo) {
         stepFor(target - core->time(), batch);
-        if (core->time() >= target - 1e-6) {
-            mode = runOn ? RunMode::Running : RunMode::Paused;
+        const bool placed = untilTrain >= 0 && trainPlaced(untilTrain);
+        if (core->time() >= target - 1e-6 || placed) {
+            // A train waited for that is not there by the time: paused
+            // there (what it waits for is in its state).
+            mode = runOn && (untilTrain < 0 || placed) ? RunMode::Running : RunMode::Paused;
+            untilTrain = -1;
             schedule();
         }
     }

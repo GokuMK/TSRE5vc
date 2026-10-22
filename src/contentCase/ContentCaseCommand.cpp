@@ -60,7 +60,7 @@ int run(int argc, char **argv) {
         err << "Content case: " << message << "\n";
         return 2;
     };
-    QString root, planInput, reportInput, applyInput, rollbackInput, journalInput;
+    QString root, planInput, reportInput, applyInput, rollbackInput, journalInput, overlayInput;
     bool plan = false, help = false, mode = false, verify = false;
     const auto args = app.arguments();
     for (int i = 1; i < args.size(); ++i) {
@@ -87,11 +87,13 @@ int run(int argc, char **argv) {
                 planInput = args[++i];
             continue;
         }
-        if (arg == "--report" || arg == "--apply" || arg == "--rollback" || arg == "--journal") {
+        if (arg == "--report" || arg == "--apply" || arg == "--rollback" ||
+            arg == "--journal" || arg == "--overlay-update") {
             QString &target = arg == "--report"     ? reportInput
                               : arg == "--apply"    ? applyInput
                               : arg == "--rollback" ? rollbackInput
-                                                    : journalInput;
+                              : arg == "--journal"  ? journalInput
+                                                    : overlayInput;
             if (!target.isEmpty() || i + 1 >= args.size() || args[i + 1].startsWith('-'))
                 return fail(arg + " requires one path");
             target = args[++i];
@@ -112,6 +114,8 @@ int run(int argc, char **argv) {
     if (help) {
         out << "Usage: TSRE5vc --contentcase <gameroot> [--journal new-directory] [--report "
                "new-report.md]\n"
+               "       TSRE5vc --contentcase <gameroot> --overlay-update <update-root> "
+               "[--journal new-directory] [--report new-report.md]\n"
                "       TSRE5vc --contentcase <gameroot> --plan [new-plan.json] [--report "
                "new-report.md]\n"
                "       TSRE5vc --contentcase <gameroot> --apply plan.json [--journal "
@@ -122,7 +126,10 @@ int run(int argc, char **argv) {
                "journal.\n"
                "--plan and --verify are read-only. Existing output files are never overwritten.\n"
                "Journal directories must be new, outside gameroot, and on the same filesystem.\n"
-               "Unresolved components and directory collisions are retained and reported.\n"
+               "Fixed core-directory variants are merged first; colliding files are retained "
+               "in the journal vault and reported. --overlay-update then merges an external "
+               "update by case-insensitive path; update bytes win without creating case-only "
+               "duplicates, and normal reference repair follows in the same transaction.\n"
                "Exit 0: requested operation completed; 1: unresolved/partial result; 2: usage or "
                "execution error.\n";
         return 0;
@@ -133,6 +140,9 @@ int run(int argc, char **argv) {
         return fail("Choose one of --plan, --apply, --verify, --rollback");
     if ((plan || verify || !rollbackInput.isEmpty()) && !journalInput.isEmpty())
         return fail("--journal is only for execution");
+    if (!overlayInput.isEmpty() &&
+        (plan || verify || !applyInput.isEmpty() || !rollbackInput.isEmpty()))
+        return fail("--overlay-update is only supported with direct execution");
     if (!rollbackInput.isEmpty() && !reportInput.isEmpty())
         return fail("--report is not supported with rollback");
     const QFileInfo rootInfo(root);
@@ -143,6 +153,11 @@ int run(int argc, char **argv) {
     if (!outputPath(canonicalRoot, planInput, planPath, error) ||
         !outputPath(canonicalRoot, reportInput, reportPath, error))
         return fail(error);
+    if (!overlayInput.isEmpty() && !reportPath.isEmpty()) {
+        const QString canonicalUpdateRoot = QFileInfo(overlayInput).canonicalFilePath();
+        if (!canonicalUpdateRoot.isEmpty() && inside(canonicalUpdateRoot, reportPath))
+            return fail("Report must be outside the update root");
+    }
     if (!planPath.isEmpty() && planPath.compare(reportPath, Qt::CaseInsensitive) == 0)
         return fail("Plan and report must have different paths");
     auto progress = [&](const QString &message) {
@@ -171,7 +186,10 @@ int run(int argc, char **argv) {
         if (journalInput.isEmpty())
             journalInput = QFileInfo(canonicalRoot).absolutePath() + "/TSRE-case-" +
                            QUuid::createUuid().toString(QUuid::Id128);
-        const auto result = execute(canonicalRoot, saved, journalInput, error, progress);
+        const auto result = overlayInput.isEmpty()
+                                ? execute(canonicalRoot, saved, journalInput, error, progress)
+                                : executeUpdate(canonicalRoot, overlayInput, journalInput, error,
+                                                progress);
         if (result.isEmpty())
             return fail(error);
         if (!reportPath.isEmpty()) {
@@ -184,6 +202,42 @@ int run(int argc, char **argv) {
             QString report = "# Content case conversion\n\nStatus: **" +
                              result["status"].toString() + "**\n\nJournal: `" +
                              result["journal"].toString() + "`\n\n";
+            const auto bootstrap = result["bootstrap"].toObject();
+            report += "## Core directory bootstrap\n\n";
+            report += "Renamed directories: " +
+                      QString::number(bootstrap["directoriesRenamed"].toInt()) +
+                      ". Merged directory trees: " +
+                      QString::number(bootstrap["directoryTreesMerged"].toInt()) +
+                      ". Unique entries moved: " +
+                      QString::number(bootstrap["uniqueEntriesMoved"].toInt()) +
+                      ". Identical entries retained in the recovery vault: " +
+                      QString::number(bootstrap["identicalEntriesVaulted"].toInt()) + ".\n\n";
+            report += "| Kept path | Vaulted source | Reason |\n| --- | --- | --- |\n";
+            for (const auto &v : result["bootstrapConflicts"].toArray()) {
+                const auto conflict = v.toObject();
+                report += "| " + cell(conflict["kept"].toString()) + " | " +
+                          cell(conflict["alternate"].toString()) + " -> " +
+                          cell(conflict["vault"].toString()) + " | " +
+                          cell(conflict["reason"].toString()) + " |\n";
+            }
+            report += '\n';
+            if (result.contains("overlay")) {
+                const auto overlay = result["overlay"].toObject();
+                report += "## Update overlay\n\nSource: `" +
+                          cell(overlay["sourceRoot"].toString()) + "`\n\n";
+                report += "Files inspected: " +
+                          QString::number(overlay["sourceFiles"].toInt()) +
+                          ". Identical files retained: " +
+                          QString::number(overlay["identicalFiles"].toInt()) +
+                          ". Files replaced: " +
+                          QString::number(overlay["filesReplaced"].toInt()) +
+                          ". Files added: " +
+                          QString::number(overlay["filesAdded"].toInt()) +
+                          ". Directories created: " +
+                          QString::number(overlay["directoriesCreated"].toInt()) +
+                          ". Case-insensitive name matches: " +
+                          QString::number(overlay["caseMatchedEntries"].toInt()) + ".\n\n";
+            }
             report += "## Errors\n\n| Source | Reason |\n| --- | --- |\n";
             for (const auto &v : result["errors"].toArray()) {
                 const auto f = v.toObject();
@@ -232,8 +286,10 @@ int run(int argc, char **argv) {
         summary.remove("missingTargets");
         summary.remove("skippedOperations");
         summary.remove("writerErrors");
+        summary.remove("bootstrapConflicts");
         summary["skippedOperationCount"] = result["skippedOperations"].toArray().size();
         summary["writerErrorCount"] = result["writerErrors"].toArray().size();
+        summary["bootstrapConflictCount"] = result["bootstrapConflicts"].toArray().size();
         out << QJsonDocument(summary).toJson(QJsonDocument::Indented);
         return result["status"] == "complete" || (result["status"] == "no-changes" &&
                                                   result["preExistingErrors"].toInt() == 0 &&

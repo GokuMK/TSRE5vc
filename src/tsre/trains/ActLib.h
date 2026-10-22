@@ -27,6 +27,10 @@ public:
     static int jesttraffic;
     static int jestpath;
     static QHash<int, Activity*> Act;
+    // Open Rails timetable sets as activities (task simulation 08), apart
+    // from Act: code going through Act knows .act files.
+    static QHash<int, Activity*> TimetableSets;
+    static int AddTimetableSet(QString path, QString name);
     static QHash<int, Service*> Services;
     static QHash<int, Traffic*> Traffics;
     static QHash<int, Path*> Paths;
@@ -40,6 +44,9 @@ public:
     static Service* GetServiceByName(QString name, QString routePath = {});
     static Traffic* GetTrafficByName(QString name, QString routePath = {});
     static Path* GetPathByName(QString name, QString routePath = {});
+    // The route's paths read, by name (an Open Rails timetable's #path
+    // cells name them).
+    static QVector<Path*> RoutePaths(QString routePath = {});
     static bool IsServiceInUse(QString n, QString routePath = {});
     static bool IsTrafficInUse(QString n, QString routePath = {});
     static QVector<QString> GetServiceInUseList(QString n, QString routePath = {});

@@ -23,6 +23,7 @@
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/SignalType.h>
@@ -53,8 +54,10 @@ ActivityMapLayer::ActivityMapLayer()
     : pathBand(std::make_unique<OglObj>()), aiBand(std::make_unique<OglObj>()),
       chosenBand(std::make_unique<OglObj>()), halos(std::make_unique<OglObj>()),
       borders(std::make_unique<OglObj>()),
-      areas(std::make_unique<OglObj>()), simulatedHalos(std::make_unique<OglObj>()),
+      simulatedHalos(std::make_unique<OglObj>()),
       simulatedBorders(std::make_unique<OglObj>()), aspectBorders(std::make_unique<OglObj>()) {
+    for (auto &area : areas)
+        area = std::make_unique<OglObj>();
     for (auto &fill : fills)
         fill = std::make_unique<OglObj>();
     for (auto &fill : simulatedFills)
@@ -78,6 +81,8 @@ QColor ActivityMapLayer::colour(const MapPalette &palette, int group) {
     case SpeedZone: return palette.speedZone;
     case FailedSignal: return palette.failedSignal;
     case Event: return palette.event;
+    case EventFired: return palette.eventFired;
+    case EventInactive: return palette.eventInactive;
     default: return palette.itemBorder;
     }
 }
@@ -127,8 +132,12 @@ std::vector<const void *> ActivityMapLayer::sources(Route *route, bool activity,
     list.push_back(current->playerService());
     count(current->shownAITrain);
     count(Sim::SimulationController::instance()->shows(current) ? 1 : 0);
+    // The last runs' event results (task 06).
+    count(qsizetype(Sim::EventResultStore::instance()->version()));
     for (int i : current->shownAITrains())
         list.push_back(current->aiTrainService(i));
+    for (const std::shared_ptr<Consist> &standing : current->timetableStatics())
+        list.push_back(standing.get());
     return list;
 }
 
@@ -137,7 +146,9 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     static const bool trace = qEnvironmentVariableIsSet("TSRE_MAP_TRACE");
     QElapsedTimer timer;
     timer.start();
-    MapFeatures path, aiPaths, chosenPath, consists, zones, failedSignals, events, selected;
+    MapFeatures path, aiPaths, chosenPath, consists, zones, failedSignals, selected;
+    // Location events: as they are, fired, not active (task 06).
+    MapFeatures events[3];
     const int tileX = view.tileX, tileZ = view.tileZ;
     // The selected paths and the activity's player path, each once.
     std::vector<::Path *> shownPaths;
@@ -171,15 +182,36 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
                     selected.append(own);
             }
         };
-        if (shows(MapActivityKind::LooseConsists))
+        // While simulated, the standing trains are drawn instead (task 07).
+        if (shows(MapActivityKind::LooseConsists) && current->showsLooseConsists()) {
             collect(current->activityObjects, consists);
+            // A timetable set's static trains (task 08).
+            for (const std::shared_ptr<Consist> &standing : current->timetableStatics()) {
+                MapFeatures own;
+                standing->getMapFeatures(own, tileX, tileZ);
+                consists.append(own);
+            }
+        }
         if (shows(MapActivityKind::SpeedZones))
             collect(current->restrictedSpeedZone, zones);
         if (shows(MapActivityKind::FailedSignals))
             collect(current->activityFailedSignal, failedSignals);
-        if (shows(MapActivityKind::Events))
-            for (ActivityEvent *event : current->event)
-                event->getMapFeatures(events, tileX, tileZ);
+        if (shows(MapActivityKind::Events)) {
+            // By the last run's results while they are for the activity as it is.
+            bool fresh = false;
+            const Sim::EventResults *results = Sim::EventResultStore::instance()->of(current, &fresh);
+            for (int i = 0; i < current->event.size(); ++i) {
+                ActivityEvent *event = current->event[i];
+                if (event == nullptr)
+                    continue;
+                int state = 0;
+                if (results != nullptr && fresh && size_t(i) < results->events.size() && results->events[size_t(i)].inRun) {
+                    const Sim::EventState &run = results->events[size_t(i)].state;
+                    state = run.fired > 0 ? 1 : run.level <= 0 ? 2 : 0;
+                }
+                event->getMapFeatures(events[state], tileX, tileZ);
+            }
+        }
         const bool trains = shows(MapActivityKind::Trains);
         if (player != nullptr && atStart && trains) {
             MapFeatures own;
@@ -210,7 +242,7 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     const float border = BorderPixels * mpp;
     const float radius = 0.5f * MarkerPixels * mpp;
     std::vector<float> bandVertices, aiBandVertices, chosenBandVertices, haloVertices,
-            borderVertices, areaVertices, fillVertices[GroupCount];
+            borderVertices, areaVertices[3], fillVertices[GroupCount];
     auto lines = [&](std::vector<float> &segments, int group) {
         const int count = int(segments.size() / 6);
         setHeight(segments, BorderHeight);
@@ -258,24 +290,28 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     circles(zones.points, SpeedZone);
     circles(failedSignals.points, FailedSignal);
     // Location events: squares, north up, and rings at the trigger radius.
-    for (size_t i = 0; i + 2 < events.points.size(); i += 3) {
-        const float x = events.points[i], z = events.points[i + 2];
-        TrackMapLayer::appendSquare(borderVertices, x, BorderHeight, z,
-                                    MarkerPixels * mpp + 2.0f * border, 1, 0, 0, -1);
-        TrackMapLayer::appendSquare(fillVertices[Event], x, FillHeight + Event, z,
-                                    MarkerPixels * mpp, 1, 0, 0, -1);
-    }
     std::vector<float> ring;
-    for (size_t i = 0; i + 2 < events.areas.size(); i += 3) {
-        const float x = events.areas[i], z = events.areas[i + 1], r = events.areas[i + 2];
-        ring.clear();
-        for (int s = 0; s < RingSegments; ++s)
-            for (int end = 0; end < 2; ++end) {
-                const float angle = (s + end) * 6.28318531f / RingSegments;
-                ring.insert(ring.end(), {x + r * std::cos(angle), AreaHeight,
-                                         z + r * std::sin(angle)});
-            }
-        TrackMapLayer::appendRibbons(areaVertices, ring.data(), RingSegments, BorderPixels * mpp);
+    for (int state = 0; state < 3; ++state) {
+        const int group = state == 1 ? EventFired : state == 2 ? EventInactive : Event;
+        const MapFeatures &shown = events[state];
+        for (size_t i = 0; i + 2 < shown.points.size(); i += 3) {
+            const float x = shown.points[i], z = shown.points[i + 2];
+            TrackMapLayer::appendSquare(borderVertices, x, BorderHeight, z,
+                                        MarkerPixels * mpp + 2.0f * border, 1, 0, 0, -1);
+            TrackMapLayer::appendSquare(fillVertices[group], x, FillHeight + group, z,
+                                        MarkerPixels * mpp, 1, 0, 0, -1);
+        }
+        for (size_t i = 0; i + 2 < shown.areas.size(); i += 3) {
+            const float x = shown.areas[i], z = shown.areas[i + 1], r = shown.areas[i + 2];
+            ring.clear();
+            for (int s = 0; s < RingSegments; ++s)
+                for (int end = 0; end < 2; ++end) {
+                    const float angle = (s + end) * 6.28318531f / RingSegments;
+                    ring.insert(ring.end(), {x + r * std::cos(angle), AreaHeight,
+                                             z + r * std::sin(angle)});
+                }
+            TrackMapLayer::appendRibbons(areaVertices[state], ring.data(), RingSegments, BorderPixels * mpp);
+        }
     }
 
     // Halos around what is selected.
@@ -297,7 +333,9 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
     upload(*chosenBand, chosenBandVertices, palette.aiPathChosen);
     upload(*halos, haloVertices, palette.selection);
     upload(*borders, borderVertices, palette.itemBorder);
-    upload(*areas, areaVertices, palette.event);
+    upload(*areas[0], areaVertices[0], palette.event);
+    upload(*areas[1], areaVertices[1], palette.eventFired);
+    upload(*areas[2], areaVertices[2], palette.eventInactive);
     for (int group = 0; group < GroupCount; ++group)
         upload(*fills[group], fillVertices[group], colour(palette, group));
 
@@ -310,7 +348,8 @@ void ActivityMapLayer::build(const MapView &view, const MapPalette &palette, Rou
         qInfo().noquote() << "map-trace activity m/px" << mpp << "path segments"
                           << path.lines.size() / 6 << "vehicles" << vehicleCount << "zones"
                           << zones.points.size() / 6 << "failed signals"
-                          << failedSignals.points.size() / 3 << "events" << events.points.size() / 3
+                          << failedSignals.points.size() / 3 << "events"
+                          << (events[0].points.size() + events[1].points.size() + events[2].points.size()) / 3
                           << "ms" << timer.nsecsElapsed() / 1e6;
 }
 
@@ -333,7 +372,8 @@ void ActivityMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     chosenBand->pushRenderItem(queue);
     pathBand->pushRenderItem(queue);
     halos->pushRenderItem(queue);
-    areas->pushRenderItem(queue);
+    for (auto &area : areas)
+        area->pushRenderItem(queue);
     borders->pushRenderItem(queue);
     for (auto &fill : fills)
         fill->pushRenderItem(queue);
@@ -562,7 +602,8 @@ void ActivityMapLayer::pushSelection(MapSelection &selection, const MapView &vie
     };
     const int tileX = view.tileX, tileZ = view.tileZ;
     quint32 id = 0;
-    for (int i = 0; i < current->activityObjects.size() && shown(MapActivityKind::LooseConsists); ++i) {
+    for (int i = 0; i < current->activityObjects.size() && shown(MapActivityKind::LooseConsists)
+                    && current->showsLooseConsists(); ++i) {
         ActivityObject *object = current->activityObjects[i];
         if (object == nullptr || !SelectionIdCodec::tryActivityObject(i, 0, id))
             continue;

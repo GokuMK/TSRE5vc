@@ -3,24 +3,30 @@
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
+#include <set>
+#include <queue>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <QTime>
 #include <QFileInfo>
 #include <QRandomGenerator>
 #include <QScopedValueRollback>
 #include <algorithm>
+#include <map>
 #include <cmath>
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SignalScript.h>
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/SimulationTexts.h>
 #include <tsre/sim/TimetableCalculation.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
+#include <tsre/sim/WorkPlanner.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/tdb/TRitem.h>
@@ -37,6 +43,7 @@
 #include <tsre/trains/Traffic.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
+#include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/PathTrack.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Trk.h>
@@ -1034,18 +1041,20 @@ Engine ( Test
             check(ringed, "three trains in a ring, each waiting for the next: a deadlock, reported for all three");
         }
 
-        // A loose consist on the track a train starts on: it never starts.
+        // A loose consist where a train would stand (70 to 110 m) at its
+        // start: it never starts. (One clear of it in the same section does
+        // not stop it: task 07, Open Rails' CanPlaceTrain.)
         auto blockedInput = inputOf(lineGeometry, lineNetwork, {trainOn(east, *lineNetwork, t0)});
         Sim::StaticConsist standing;
-        standing.track.push_back(Sim::RouteInterval{10, 120.0f, 140.0f, 0.0});
+        standing.track.push_back(Sim::RouteInterval{10, 80.0f, 100.0f, 0.0});
         blockedInput->staticConsists.push_back(standing);
         Sim::SimulationCore stuck(blockedInput);
         stuck.step(60.0);
         const std::vector<Sim::TrainEvent> stuckEvents = stuck.takeEvents();
         const Sim::TrainEvent *stuckBlocked = firstEvent(stuckEvents, 0, Sim::TrainEvent::Blocked);
         check(stuck.trains()[0].status == Sim::TrainStatus::Waiting && stuckBlocked != nullptr
-                  && stuckBlocked->index == Sim::StandingConsist && stuck.holders()[size_t(lineNetwork->sectionAt(10, 130.0f, true))] == Sim::StandingConsist,
-              "a train starting on a loose consist's track waits, blocked by it");
+                  && stuckBlocked->index == Sim::StandingConsist && stuck.holders()[size_t(lineNetwork->sectionAt(10, 90.0f, true))] == Sim::StandingConsist,
+              "a train whose start place a loose consist stands in waits, blocked by it");
 
         // The passing loop: two trains for track 10 from the loop's two
         // branches take turns at the junction; one on track 13 alone runs.
@@ -1169,14 +1178,53 @@ Engine ( Test
         held.step(400.0);
         const Sim::TrainState &behind = held.trains()[1];
         const int signal1000 = lineNetwork->heads()[size_t(lineNetwork->headOfItem(962))].signal;
+        // (The signal is cleared for it into the occupied block, Open
+        // Rails' BLOCK_OCCUPIED, task 07: the built-in rule shows stop.)
         check(behind.status == Sim::TrainStatus::Stopped && behind.stoppedAt == Sim::StopKind::Blocked
                   && std::fabs(behind.front - (1000.0 - 69.0 - Sim::SimulationCore::SignalMargin)) < 0.5
                   && behind.atSignal == signal1000 && behind.blockedBy == 0
-                  && held.cleared()[size_t(signal1000)] == Sim::NoHolder,
+                  && held.occupiedBlocks()[size_t(signal1000)] && held.aspects()[size_t(lineNetwork->headOfItem(962))] == SignalType::STOP,
               QString("a train at a red signal stands 30 m short of it (front at %1 m), waiting for the train in its block")
                   .arg(behind.front + 69.0));
         held.step(900.0);
         check(held.trains()[1].front > 1000.0 - 69.0, "it goes on when the block is clear");
+        // A signal asked while another train is in its block, beyond those
+        // the train may clear once it has passed the one before (task 08,
+        // phase 7: Jasiona's 149 behind 150): asked again when its block
+        // empties. Open Rails mode; signals at 500 m (clearing two), 1000 m
+        // (not counted, clearing none beyond) and 1001 m, the train ahead
+        // standing past 1001 m for 5 minutes.
+        {
+            TestTrack::Layout pair;
+            pair.end(1, 10);
+            pair.track(10, 1, 2, 200);
+            pair.end(2, 10);
+            TestTrack::signalHead(pair, 10, 970, 500.0f, true, "Home");
+            TestTrack::signalHead(pair, 10, 971, 1000.0f, true, "Skip");
+            TestTrack::signalHead(pair, 10, 972, 1001.0f, true, "Home");
+            TestTrack::signalHead(pair, 10, 973, 1500.0f, true, "Home");
+            TDB *pairDb = &pair.db;
+            const QScopedValueRollback<TDB *> pairLive(Game::trackDB, pairDb);
+            auto pairGeometry = std::make_shared<const Sim::TrackGeometry>(pairDb);
+            auto pairNetwork = std::make_shared<const Sim::TrackNetwork>(pairDb, *pairGeometry, &signalConfig, true);
+            Sim::TrainPlan ahead = trainOn(routeOf(pairDb, {{10, 1150.0f}, {10, 1990.0f}}, 31.0), *pairNetwork, t0);
+            Sim::WaitPlan stand;
+            stand.front = 1300.0 - 1119.0;
+            stand.value = 300;
+            ahead.waits.push_back(stand);
+            Sim::SimulationCore pairCore(inputOf(pairGeometry, pairNetwork,
+                {ahead, trainOn(routeOf(pairDb, {{10, 100.0f}, {10, 1990.0f}}, 31.0), *pairNetwork, t0)}));
+            const int asked = pairNetwork->heads()[size_t(pairNetwork->headOfItem(972))].signal;
+            pairCore.step(200.0);
+            const bool askedOccupied = pairCore.cleared()[size_t(asked)] == 1 && pairCore.occupiedBlocks()[size_t(asked)]
+                    && pairCore.trains()[1].status == Sim::TrainStatus::Stopped;
+            pairCore.step(600.0);
+            check(askedOccupied && pairCore.trains()[0].status == Sim::TrainStatus::Finished
+                      && pairCore.trains()[1].status == Sim::TrainStatus::Finished,
+                  QString("a signal cleared for a train into an occupied block, beyond those it may clear later, is asked "
+                          "again when the block empties (asked into the occupied block %1; the train behind ends: %2)")
+                      .arg(askedOccupied).arg(pairCore.trains()[1].status == Sim::TrainStatus::Finished));
+        }
         // Physics driving: it creeps up to it, the last SignalCreep metres at
         // half the creep speed.
         Sim::TrainPlan creeping = trainOn(east, *lineNetwork, t0 + 120);
@@ -1429,6 +1477,79 @@ Engine ( Test
                   QString("the distant without a script: its most restrictive, never cleared (%1); with a broken "
                           "script: the built-in rule, clear before a signal at caution (%2)")
                       .arg(aspectIn(basicCore, *homeOnly, 974)).arg(aspectIn(brokenCore, *broken, 974)));
+
+            // The loose consist in the block past 1500 m (task 07, Open
+            // Rails' BLOCK_OCCUPIED): the signal is cleared for the train
+            // into it. Plated, its script shows STOP_AND_PROCEED (as USA2's):
+            // the train goes in, down to the creep speed 20 m short of the
+            // signal, and joins the consist (an AI train near its path's
+            // end). Without the plate it shows stop: the train stands short.
+            const QString permissiveScript = R"(SCRIPT Home
+	extern float block_state (), route_set (), next_sig_lr (), sig_feature (), def_draw_state ();
+	extern float state, draw_state, enabled;
+	if (!enabled || block_state() !=# BLOCK_CLEAR || !route_set())
+	{
+		if (sig_feature (SIGFEAT_NUMBER_PLATE))
+			state = SIGASP_STOP_AND_PROCEED;
+		else
+			state = SIGASP_STOP;
+	}
+	else if (next_sig_lr (SIGFN_NORMAL) ==# SIGASP_STOP)
+		state = SIGASP_APPROACH_1;
+	else
+		state = SIGASP_CLEAR_2;
+	draw_state = def_draw_state (state);
+)";
+            if (plated != nullptr)
+                plated->trSignalType1 |= 1u << 4;
+            auto permissiveNetwork = networkWith(permissiveScript + distScript, scripted.path() + "/permissive");
+            if (plated != nullptr)
+                plated->trSignalType1 &= ~(1u << 4);
+            auto stopNetwork = networkWith(permissiveScript + distScript, scripted.path() + "/stop");
+            const int signal1500 = permissiveNetwork->heads()[size_t(permissiveNetwork->headOfItem(973))].signal;
+            Sim::SimulationCore into(run(permissiveNetwork));
+            int shown = -1;
+            double approachSpeed = -1.0;
+            bool joined = false;
+            for (int i = 0; i < 20000 && !joined; ++i) {
+                into.step(0.1);
+                if (into.cleared()[size_t(signal1500)] == 0 && into.occupiedBlocks()[size_t(signal1500)])
+                    shown = aspectIn(into, *permissiveNetwork, 973);
+                if (approachSpeed < 0.0 && into.trains()[0].front + 69.0 >= 1500.0 - Sim::SimulationCore::SignalApproach)
+                    approachSpeed = into.trains()[0].speed;
+                for (const Sim::TrainEvent &e : into.takeEvents())
+                    joined = joined || e.kind == Sim::TrainEvent::Joined;
+            }
+            check(shown == SignalType::STOP_AND_PROCEED && approachSpeed >= 0.0
+                      && approachSpeed <= Sim::SimulationCore::CreepSpeed + 0.3 && joined
+                      && into.trains()[0].status == Sim::TrainStatus::Finished,
+                  QString("a plated signal before a loose consist: STOP_AND_PROCEED (%1), passed at %2 m/s 20 m short, "
+                          "the train goes in and joins it")
+                      .arg(shown).arg(approachSpeed, 0, 'f', 2));
+            Sim::SimulationCore shortOf(run(stopNetwork));
+            shortOf.step(600.0);
+            const Sim::TrainState &standing = shortOf.trains()[0];
+            const int stopSignal = stopNetwork->heads()[size_t(stopNetwork->headOfItem(973))].signal;
+            check(standing.stoppedAt == Sim::StopKind::Blocked && standing.atSignal == stopSignal
+                      && std::fabs(standing.front + 69.0 - (1500.0 - Sim::SimulationCore::SignalMargin)) < 0.5
+                      && aspectIn(shortOf, *stopNetwork, 973) == SignalType::STOP
+                      && shortOf.cleared()[size_t(stopSignal)] == 0 && shortOf.occupiedBlocks()[size_t(stopSignal)],
+                  QString("without the plate it shows stop, cleared for the train into the occupied block; the train "
+                          "stands short of it (front at %1 m)").arg(standing.front + 69.0));
+            // Waiting point 60002 short of it (task 07, Open Rails' permission
+            // request): the train goes in at stop and joins the consist.
+            auto permitted = run(stopNetwork);
+            permitted->trains[0].waits = {Sim::WaitPlan{0, 1465.0 - 69.0, 60002}};
+            Sim::SimulationCore asked(permitted);
+            bool permittedJoin = false;
+            for (int i = 0; i < 9000 && !permittedJoin; ++i) {
+                asked.step(0.1);
+                for (const Sim::TrainEvent &e : asked.takeEvents())
+                    permittedJoin = permittedJoin || e.kind == Sim::TrainEvent::Joined;
+            }
+            check(permittedJoin && aspectIn(asked, *stopNetwork, 973) == SignalType::STOP,
+                  "with permission asked at waiting point 60002 short of it, the train passes it at stop into the "
+                  "occupied block and joins the consist");
         }
 
         // Open Rails' forced red at station stops: a stop whose platform ends
@@ -2121,6 +2242,166 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                   .arg(network->scriptWarnings.isEmpty() ? QString() : ": " + network->scriptWarnings.join("; ")));
     }
 
+    // TSRE_SIM_BENCH (task 07): the work planner on this route's network
+    // without an activity of its own: in the yard with the most stub
+    // sidings near each other, cuts of cars, a drop-off that sorts five of
+    // them into another siding and a pickup; planned from beside the yard
+    // and from about 25 km away.
+    if (qEnvironmentVariableIsSet("TSRE_SIM_BENCH")) {
+        const std::vector<Sim::TrackSection> &sections = network->sections();
+        std::map<int, double> lengths;
+        for (const Sim::TrackSection &section : sections)
+            if (section.kind == Sim::TrackSection::Track)
+                lengths[section.node] = std::max(lengths[section.node], double(section.to));
+        const auto junctionAt = [&](int node, int end) {
+            const int j = network->endSection(node, end);
+            return j >= 0 && sections[size_t(j)].kind == Sim::TrackSection::Junction ? j : -1;
+        };
+        const auto neighbours = [&](int node) {
+            std::vector<int> out;
+            for (int end : {0, 1}) {
+                const int j = junctionAt(node, end);
+                if (j < 0)
+                    continue;
+                for (int pin : {0, 1, 2}) {
+                    const int t = sections[size_t(j)].link[pin];
+                    if (t >= 0 && sections[size_t(t)].node != node)
+                        out.push_back(sections[size_t(t)].node);
+                }
+            }
+            return out;
+        };
+        // Nodes by distance through the junctions (either way), within a
+        // radius.
+        const auto around = [&](int seed, double radius) {
+            std::vector<std::pair<double, int>> out;
+            std::map<int, double> seen{{seed, 0.0}};
+            using Entry = std::pair<double, int>;
+            std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> queue;
+            queue.push({0.0, seed});
+            while (!queue.empty()) {
+                const auto [d, node] = queue.top();
+                queue.pop();
+                if (d > seen[node] + 1e-6)
+                    continue;
+                out.push_back({d, node});
+                for (int next : neighbours(node)) {
+                    const double nd = d + lengths[next];
+                    if (nd <= radius && (seen.count(next) == 0 || nd < seen[next])) {
+                        seen[next] = nd;
+                        queue.push({nd, next});
+                    }
+                }
+            }
+            return out;
+        };
+        const auto stub = [&](int node) {
+            const double length = lengths[node];
+            return length >= 200.0 && length <= 1500.0 && ((junctionAt(node, 0) >= 0) != (junctionAt(node, 1) >= 0));
+        };
+        int seed = -1;
+        size_t most = 0;
+        for (const auto &[node, length] : lengths) {
+            if (!stub(node))
+                continue;
+            size_t count = 0;
+            for (const auto &[d, other] : around(node, 1500.0))
+                count += stub(other) ? 1 : 0;
+            if (count > most) {
+                most = count;
+                seed = node;
+            }
+        }
+        std::vector<int> yard;
+        std::vector<int> through;
+        if (seed >= 0)
+            for (const auto &[d, node] : around(seed, 1500.0)) {
+                if (stub(node))
+                    yard.push_back(node);
+                else if (junctionAt(node, 0) >= 0 && junctionAt(node, 1) >= 0 && lengths[node] >= 100.0)
+                    through.push_back(node);
+            }
+        qInfo().noquote() << "[bench]" << lengths.size() << "vector nodes; the yard round node" << seed << "with" << yard.size()
+                          << "stub sidings within 1.5 km";
+        if (yard.size() >= 5 && !through.empty()) {
+            const auto car = [](unsigned int consist, unsigned int uid, bool engine) {
+                Sim::Vehicle v;
+                v.length = engine ? 20.0f : 15.0f;
+                v.type = engine ? 5 : 2;
+                v.id = consist * 65536u + uid;
+                return v;
+            };
+            // A cut at a siding's buffer end.
+            const auto cutIn = [&](int node, unsigned int consist, int count) {
+                Sim::StaticConsist c;
+                c.name = QString("Cut %1").arg(consist);
+                for (int k = 0; k < count; ++k)
+                    c.vehicles.push_back(car(consist, unsigned(k), false));
+                c.length = 15.0f * float(count);
+                const double length = lengths[node];
+                if (junctionAt(node, 0) < 0)
+                    c.track.push_back(Sim::RouteInterval{node, 5.0f, 5.0f + c.length, 0.0});
+                else
+                    c.track.push_back(Sim::RouteInterval{node, float(length - 5.0 - c.length), float(length - 5.0), 0.0});
+                return c;
+            };
+            const auto plan = [&](int startNode, const QString &where) {
+                auto input = std::make_shared<Sim::SimulationInput>();
+                input->geometry = geometry;
+                input->network = network;
+                Sim::TrainPlan p;
+                p.player = true;
+                p.service = "Bench";
+                p.vehicles = {car(0, 0, true)};
+                p.length = 20.0;
+                const double length = lengths[startNode];
+                Sim::RouteTrack part;
+                part.append(startNode, 10.0f, float(length - 10.0));
+                p.route.parts.push_back(part);
+                p.startFront = 40.0;
+                input->trains.push_back(p);
+                input->staticConsists = {cutIn(yard[0], 1, 8), cutIn(yard[1], 2, 6), cutIn(yard[2], 3, 5), cutIn(yard[4], 4, 4)};
+                Sim::EventPlan drop;
+                drop.kind = Sim::EventPlan::DropOffWagonsAtLocation;
+                drop.name = "sort five";
+                drop.activation = 1;
+                drop.cars = {1u * 65536u + 1u, 1u * 65536u + 4u, 2u * 65536u + 0u, 2u * 65536u + 5u, 3u * 65536u + 2u};
+                drop.siding = true;
+                drop.sidingNode = yard[3];
+                drop.sidingFrom = 20.0f;
+                drop.sidingTo = float(lengths[yard[3]] - 20.0);
+                drop.index = 0;
+                Sim::EventPlan pick;
+                pick.kind = Sim::EventPlan::PickUpWagons;
+                pick.name = "pick up two";
+                pick.activation = 1;
+                pick.cars = {4u * 65536u + 0u, 4u * 65536u + 1u};
+                pick.index = 1;
+                input->events = {drop, pick};
+                QElapsedTimer timer;
+                timer.start();
+                const Sim::WorkPlan work = Sim::PlanWork(*input);
+                const qint64 ms = timer.elapsed();
+                QStringList goals;
+                for (const Sim::WorkGoal &goal : work.goals)
+                    goals << QString("%1 %2 (%3 m, %4 reversals, %5 steps)%6").arg(goal.name)
+                                 .arg(goal.planned ? "planned" : "NOT planned").arg(goal.metres, 0, 'f', 0).arg(goal.reversals)
+                                 .arg(goal.steps.size()).arg(goal.planned ? QString() : ": " + goal.why);
+                qInfo().noquote() << "[bench]" << where << "(node" << startNode << "):" << ms << "ms |" << goals.join("; ")
+                                  << "| back" << QString::number(work.back, 'f', 0) << "m";
+            };
+            plan(through.front(), "beside the yard");
+            int far = -1;
+            for (const auto &[d, node] : around(through.front(), 40000.0))
+                if (d >= 25000.0 && junctionAt(node, 0) >= 0 && junctionAt(node, 1) >= 0 && lengths[node] >= 200.0) {
+                    far = node;
+                    break;
+                }
+            if (far >= 0)
+                plan(far, "about 25 km away");
+        }
+    }
+
     // Every activity: its input, run to its end.
     Route *content = new Route();
     content->loadServices();
@@ -2136,14 +2417,243 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
     std::vector<double> lateness;
     double simulated = 0.0;
     qint64 inputMs = 0, runMs = 0;
-    for (int id : content->activityId) {
-        Activity *activity = ActLib::Act.value(id);
+    // The route's activities, then its Open Rails timetable sets (task
+    // 08), each run as an activity with every train AI.
+    content->loadTimetableSets();
+    QVector<Activity *> runs;
+    for (int id : content->activityId)
+        runs << ActLib::Act.value(id);
+    for (int id : content->timetableSetId)
+        runs << ActLib::TimetableSets.value(id);
+    for (Activity *activity : runs) {
         if (activity == nullptr || activity->loaded != 1)
             continue;
         ++activities;
         timer.restart();
+        // (TSRE_SIM_NOWORK: the player's path as it is, no work orders: for
+        // comparisons with Open Rails' autopilot, task 07 phase 6.)
         auto input = Sim::MakeInput(activity, &database, speedLimit, geometry, network,
-                                    content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f);
+                                    content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f,
+                                    !qEnvironmentVariableIsSet("TSRE_SIM_NOWORK"));
+        // TSRE_SIM_WORK (task 07's design, temporary): for activities with
+        // wagon events, the player's path against the loose consists and
+        // the events' sidings.
+        if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_WORK")) {
+            bool wagons = false;
+            for (const Sim::EventPlan &e : input->events)
+                wagons = wagons || !e.cars.empty();
+            const Sim::TrainPlan *player = nullptr;
+            for (const Sim::TrainPlan &t : input->trains)
+                if (t.player)
+                    player = &t;
+            if (wagons && player != nullptr) {
+                const auto overlaps = [](const Sim::RouteInterval &a, int node, float from, float to) {
+                    const float lo = std::min(a.from, a.to), hi = std::max(a.from, a.to);
+                    return a.node == node && std::max(lo, std::min(from, to)) < std::min(hi, std::max(from, to)) + 1e-3f;
+                };
+                QStringList parts;
+                for (const Sim::RouteTrack &part : player->route.parts)
+                    parts << QString::number(part.length(), 'f', 0);
+                qInfo().noquote() << "[work]" << activity->name << "| player" << player->service << player->vehicles.size()
+                                  << "cars," << player->length << "m | parts" << parts.join(" ") << "| waits"
+                                  << player->waits.size();
+                for (const Sim::StaticConsist &c : input->staticConsists) {
+                    QStringList met;
+                    for (size_t p = 0; p < player->route.parts.size(); ++p) {
+                        const Sim::RouteTrack &part = player->route.parts[p];
+                        double first = -1.0;
+                        for (const Sim::RouteInterval &iv : part.intervals())
+                            for (const Sim::RouteInterval &ci : c.track)
+                                if (overlaps(iv, ci.node, ci.from, ci.to)) {
+                                    double at = -1.0;
+                                    for (float d : {ci.from, ci.to}) {
+                                        double here = -1.0;
+                                        if (part.find(ci.node, d, here))
+                                            at = at < 0.0 ? here : std::min(at, here);
+                                    }
+                                    if (at >= 0.0)
+                                        first = first < 0.0 ? at : std::min(first, at);
+                                }
+                        if (first >= 0.0)
+                            met << QString("part %1 at %2 of %3").arg(p).arg(first, 0, 'f', 0).arg(part.length(), 0, 'f', 0);
+                    }
+                    qInfo().noquote() << "[work]   loose" << c.name << c.vehicles.size() << "cars," << c.length << "m:"
+                                      << (met.isEmpty() ? QString("not on the path") : met.join("; "));
+                }
+                for (const Sim::EventPlan &e : input->events) {
+                    if (e.cars.empty())
+                        continue;
+                    QString siding = "-";
+                    if (e.siding && e.sidingNode >= 0) {
+                        QStringList on;
+                        for (size_t p = 0; p < player->route.parts.size(); ++p) {
+                            const Sim::RouteTrack &part = player->route.parts[p];
+                            bool in = false;
+                            for (const Sim::RouteInterval &iv : part.intervals())
+                                in = in || overlaps(iv, e.sidingNode, e.sidingFrom, e.sidingTo);
+                            if (in) {
+                                // The part's end in the siding (a reversal or the path's end).
+                                const Sim::RoutePoint end = part.locate(part.length());
+                                const bool endsIn = end.node == e.sidingNode && end.distance >= e.sidingFrom - 1.0f
+                                        && end.distance <= e.sidingTo + 1.0f;
+                                on << QString("part %1%2").arg(p).arg(endsIn ? " ends in it" : "");
+                            }
+                        }
+                        siding = QString("%1 m, %2").arg(e.sidingTo - e.sidingFrom, 0, 'f', 0)
+                                .arg(on.isEmpty() ? QString("not on the path") : on.join("; "));
+                    } else if (e.siding) {
+                        siding = "not placed";
+                    }
+                    int mine = 0;
+                    for (unsigned int car : e.cars)
+                        mine += car / 65536u == 0 ? 1 : 0;
+                    const char *kinds[] = {"time", "location", "allstops", "assemble", "assemble-at", "dropoff", "pickup",
+                                           "passengers", "speed", "other"};
+                    qInfo().noquote() << "[work]   event" << kinds[int(e.kind)] << e.name << "|" << e.cars.size() << "cars ("
+                                      << mine << "player's) | level" << e.activation << "| siding" << siding;
+                }
+            }
+        }
+        // TSRE_SIM_YARD=<activity> (task 07's sorting): the yard.
+        if (input != nullptr && activity->name.compare(qEnvironmentVariable("TSRE_SIM_YARD"), Qt::CaseInsensitive) == 0
+                && input->network != nullptr) {
+            const Sim::TrackNetwork &net = *input->network;
+            const auto car = [](unsigned int id) { return QString("%1-%2").arg(id / 65536u).arg(id % 65536u); };
+            const auto length = [&](int node) {
+                const auto [first, count] = net.nodeSections(node);
+                return count > 0 ? net.sections()[size_t(first + count - 1)].to : 0.0f;
+            };
+            std::set<int> nodes;
+            for (const Sim::StaticConsist &c : input->staticConsists) {
+                QStringList ids, track;
+                for (const Sim::Vehicle &v : c.vehicles)
+                    ids << car(v.id) + (v.type >= 4 ? "E" : "");
+                for (const Sim::RouteInterval &iv : c.track) {
+                    track << QString("%1:%2-%3").arg(iv.node).arg(iv.from, 0, 'f', 0).arg(iv.to, 0, 'f', 0);
+                    nodes.insert(iv.node);
+                }
+                qInfo().noquote() << "[yard] consist" << c.name << c.vehicles.size() << "cars" << QString::number(c.length, 'f', 0)
+                                  << "m on" << track.join(" ") << "|" << ids.join(" ");
+            }
+            for (const Sim::TrainPlan &t : input->trains)
+                if (t.player) {
+                    QStringList ids;
+                    for (const Sim::Vehicle &v : t.vehicles)
+                        ids << car(v.id) + (v.type >= 4 ? "E" : "");
+                    QStringList track;
+                    for (const Sim::RouteInterval &iv : t.route.parts.front().intervals()) {
+                        track << QString("%1:%2-%3").arg(iv.node).arg(iv.from, 0, 'f', 0).arg(iv.to, 0, 'f', 0);
+                        nodes.insert(iv.node);
+                    }
+                    qInfo().noquote() << "[yard] player" << t.vehicles.size() << "cars, front first:" << ids.join(" ")
+                                      << "| start front" << t.startFront << "| part 0:" << track.join(" ");
+                }
+            for (const Sim::EventPlan &e : input->events) {
+                if (e.cars.empty())
+                    continue;
+                QStringList ids;
+                for (unsigned int id : e.cars)
+                    ids << car(id);
+                qInfo().noquote() << "[yard] event" << e.index << int(e.kind) << e.name << "| level" << e.activation << "| siding"
+                                  << (e.siding ? QString("%1:%2-%3").arg(e.sidingNode).arg(e.sidingFrom, 0, 'f', 0).arg(e.sidingTo, 0, 'f', 0)
+                                               : QString("-"))
+                                  << "| act" << e.activate.size() << "inc" << e.increase.size() << "dec" << e.decrease.size() << "succ" << e.success
+                                  << "|" << ids.join(" ");
+                if (e.siding)
+                    nodes.insert(e.sidingNode);
+            }
+            // Two hops round them.
+            for (int hop = 0; hop < 2; ++hop) {
+                std::set<int> more = nodes;
+                for (int node : nodes)
+                    for (int end : {0, 1}) {
+                        const int j = net.endSection(node, end);
+                        if (j < 0 || net.sections()[size_t(j)].kind != Sim::TrackSection::Junction)
+                            continue;
+                        for (int pin : {0, 1, 2}) {
+                            const int t = net.sections()[size_t(j)].link[pin];
+                            if (t >= 0)
+                                more.insert(net.sections()[size_t(t)].node);
+                        }
+                    }
+                nodes = more;
+            }
+            for (int node : nodes) {
+                QStringList ends;
+                for (int end : {0, 1}) {
+                    const int j = net.endSection(node, end);
+                    if (j < 0 || net.sections()[size_t(j)].kind != Sim::TrackSection::Junction) {
+                        ends << QString("end%1: buffer").arg(end);
+                        continue;
+                    }
+                    const Sim::TrackSection &js = net.sections()[size_t(j)];
+                    QStringList pins;
+                    for (int pin : {0, 1, 2})
+                        pins << (js.link[pin] >= 0 ? QString::number(net.sections()[size_t(js.link[pin])].node) : QString("-"));
+                    ends << QString("end%1: J%2 pin%3 [in %4 | %5 %6]").arg(end).arg(js.node).arg(net.endPin(node, end))
+                                .arg(pins[0], pins[1], pins[2]);
+                }
+                qInfo().noquote() << "[yard] node" << node << QString::number(length(node), 'f', 0) << "m |" << ends.join(" | ");
+            }
+        }
+        // TSRE_SIM_PLAN (task 07, phase B0): the player's work orders as the
+        // planner would do them, with the activity's briefing.
+        // (TSRE_SIM_PLAN=<activity file name>: that activity only.)
+        const QString planOnly = qEnvironmentVariable("TSRE_SIM_PLAN");
+        if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_PLAN")
+                && (planOnly == "1" || activity->name.compare(planOnly, Qt::CaseInsensitive) == 0)) {
+            bool wagons = false;
+            for (const Sim::EventPlan &e : input->events)
+                wagons = wagons || !e.cars.empty();
+            if (wagons) {
+                // (From the input as it is before the work is applied.)
+                const auto plain = Sim::MakeInput(activity, &database, speedLimit, geometry, network,
+                                                  content->trk != nullptr ? content->trk->tempRestrictedSpeed : -1.0f, false);
+                QElapsedTimer planning;
+                planning.start();
+                const Sim::WorkPlan plan = Sim::PlanWork(plain != nullptr ? *plain : *input);
+                const qint64 ms = planning.elapsed();
+                QString briefing = activity->header != nullptr ? activity->header->briefing : QString();
+                briefing.replace("\\n", " / ").replace('\n', " / ");
+                qInfo().noquote() << "[plan]" << activity->name << "|" << ms << "ms | briefing:" << briefing.left(700);
+                const char *kinds[] = {"time", "location", "allstops", "assemble", "assemble-at", "dropoff", "pickup",
+                                       "passengers", "speed", "other"};
+                for (const Sim::WorkGoal &goal : plan.goals) {
+                    QStringList steps;
+                    for (const Sim::WorkStep &step : goal.steps) {
+                        double metres = 0.0;
+                        for (const Sim::WorkLeg &leg : step.legs)
+                            metres += leg.length();
+                        steps << QString("%1 (%2 legs, %3 m)").arg(step.what).arg(step.legs.size()).arg(metres, 0, 'f', 0);
+                    }
+                    qInfo().noquote() << "[plan]   " << kinds[int(goal.kind)] << goal.name << "|" << goal.cars << "cars |"
+                                      << (goal.planned ? QString("planned: %1 m, %2 reversals, %3 couplings, %4 cuts")
+                                                             .arg(goal.metres, 0, 'f', 0).arg(goal.reversals)
+                                                             .arg(goal.couplings).arg(goal.cuts)
+                                                       : "NOT planned: " + goal.why)
+                                      << "|" << steps.join("; ");
+                }
+                double work = 0.0;
+                for (const Sim::WorkGoal &goal : plan.goals)
+                    work += goal.metres;
+                qInfo().noquote() << "[plan]    path" << QString::number(plan.path, 'f', 0) << "m, work" << QString::number(work, 'f', 0)
+                                  << "m (from" << QString::number(plan.departure, 'f', 0) << "m); back"
+                                  << (plan.rejoinPart >= 0 ? QString("to the path (part %1 at %2 m, %3 skipped):").arg(plan.rejoinPart)
+                                                                     .arg(plan.rejoinAt, 0, 'f', 0).arg(plan.skipped)
+                                      : plan.endEvent >= 0 ? QString("to %1:").arg(input->events[size_t(plan.endEvent)].name)
+                                                           : QString("to the path's end:"))
+                                  << (plan.back >= 0.0 ? QString("%1 m, %2 reversals").arg(plan.back, 0, 'f', 0).arg(plan.backReversals)
+                                                       : QString("no way"))
+                                  << (plan.notes.isEmpty() ? QString() : "| " + plan.notes.join("; "));
+            }
+        }
+        // TSRE_SIM_EVENT_STOPS (platforms, all): where the player's train
+        // stops at stop-here events (task 06's comparisons; none by default).
+        if (input != nullptr && qEnvironmentVariableIsSet("TSRE_SIM_EVENT_STOPS"))
+            std::const_pointer_cast<Sim::SimulationInput>(input)->eventStops
+                    = qEnvironmentVariable("TSRE_SIM_EVENT_STOPS") == "all" ? Sim::SimulationInput::EventStops::All
+                    : qEnvironmentVariable("TSRE_SIM_EVENT_STOPS") == "platforms" ? Sim::SimulationInput::EventStops::Platforms
+                    : Sim::SimulationInput::EventStops::None;
         inputMs += timer.elapsed();
         // Each route part projected onto the network, end to end.
         for (const Sim::TrainPlan &plan : input->trains)
@@ -2167,6 +2677,10 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         for (const ActivityObject *object : activity->activityObjects)
             looseConsists += object != nullptr && object->objectTypeId == ActivityObject::WAGONLIST
                     && object->con != nullptr ? 1 : 0;
+        // A timetable set's static trains (task 08) stand as they do.
+        for (const std::shared_ptr<OrTimetable> &timetable : activity->timetables)
+            for (const OrTimetable::Train &train : timetable->trains)
+                looseConsists += train.isStatic ? 1 : 0;
         placedConsists += int(input->staticConsists.size());
         trains += int(input->trains.size());
         warnings += input->warnings.size();
@@ -2264,8 +2778,39 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 case Sim::TrainEvent::Finished:
                     logEvent(event.time, event.train, "finished", {}, event.travelled);
                     break;
+                case Sim::TrainEvent::Removed:
+                    logEvent(event.time, event.train, "removed", QJsonObject{{"other", event.index}}, event.travelled);
+                    break;
                 case Sim::TrainEvent::Deadlock:
                     logEvent(event.time, event.train, "deadlock", QJsonObject{{"by", event.index}}, event.travelled);
+                    break;
+                // Couplings and cuts (task 07): the cars taken or cut off.
+                case Sim::TrainEvent::Coupled:
+                case Sim::TrainEvent::Joined:
+                case Sim::TrainEvent::Uncoupled:
+                    logEvent(event.time, event.train,
+                             event.kind == Sim::TrainEvent::Coupled ? "coupled"
+                             : event.kind == Sim::TrainEvent::Joined ? "joined" : "uncoupled",
+                             QJsonObject{{"cars", event.signal}}, event.travelled);
+                    break;
+                case Sim::TrainEvent::TookCars:
+                case Sim::TrainEvent::LeftCars:
+                case Sim::TrainEvent::JoinedTrain:
+                case Sim::TrainEvent::Parted: {
+                    const char *kinds[] = {"took", "left", "joinedTrain", "parted"};
+                    logEvent(event.time, event.train, kinds[int(event.kind) - int(Sim::TrainEvent::TookCars)],
+                             QJsonObject{{"cars", event.signal}, {"other", event.index}}, event.travelled);
+                    break;
+                }
+                // The activity's events (task 06; scripts/orts-compare-events.py).
+                case Sim::TrainEvent::EventFired:
+                    logEvent(event.time, event.train, "event",
+                             QJsonObject{{"name", input->events[size_t(event.index)].name},
+                                         {"message", input->events[size_t(event.index)].message},
+                                         {"standIn", event.signal == 1}});
+                    break;
+                case Sim::TrainEvent::ActivityEnded:
+                    logEvent(event.time, -1, "activityEnd", QJsonObject{{"success", event.index == 1}});
                     break;
                 default:
                     break;
@@ -2294,6 +2839,13 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                                       << event.time << "by" << event.index << "for" << int(event.waitFor) << "signal"
                                       << event.signal << "front" << core.trains()[size_t(event.train)].front;
                 }
+                if ((event.kind == Sim::TrainEvent::Reversed || event.kind == Sim::TrainEvent::Coupled)
+                        && qEnvironmentVariableIsSet("TSRE_SIM_TRACE")) {
+                    const Sim::TrainPlan &p = input->trains[size_t(event.train)];
+                    qInfo().noquote() << "[sim-trace]" << activity->name << p.service << p.serviceTime
+                                      << (event.kind == Sim::TrainEvent::Reversed ? "reversed at" : "coupled at") << event.time
+                                      << "travelled" << core.trains()[size_t(event.train)].travelled;
+                }
                 if (event.kind != Sim::TrainEvent::Arrived)
                     continue;
                 ++stopsMade;
@@ -2317,6 +2869,36 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         }
         runMs += timer.elapsed();
         simulated += core.time() - input->startTime;
+        // The activity's events (task 06): how many of each kind fired, and
+        // its end.
+        if (!input->events.empty()) {
+            const char *kinds[] = {"time", "location", "allstops", "assemble", "assemble-at", "dropoff", "pickup",
+                                   "passengers", "speed", "other"};
+            std::map<QString, std::pair<int, int>> tally;
+            for (size_t e = 0; e < input->events.size(); ++e) {
+                std::pair<int, int> &count = tally[kinds[int(input->events[e].kind)]];
+                count.first += core.eventStates()[e].fired > 0 ? 1 : 0;
+                ++count.second;
+            }
+            QStringList parts;
+            for (const auto &[kind, count] : tally)
+                parts << QString("%1 %2/%3").arg(kind).arg(count.first).arg(count.second);
+            const Sim::ActivityEnd end = core.activityEnd();
+            const QString ending = end == Sim::ActivityEnd::None ? QString("no end")
+                    : QString("%1 at %2").arg(end == Sim::ActivityEnd::Success ? "success" : "failure")
+                          .arg(QTime(0, 0).addSecs(int(core.activityEndedAt()) % 86400).toString("HH:mm:ss"));
+            qInfo().noquote() << "[tests:simulation-route] events:" << activity->name << "|" << parts.join(", ") << "|"
+                              << ending;
+            // Verbose: each event not fired and why (task 06, section 7),
+            // the cars where the run left them (task 07).
+            const Sim::CarsNow cars = Sim::CarsOf(core);
+            if (verbose)
+                for (size_t e = 0; e < input->events.size(); ++e)
+                    if (core.eventStates()[e].fired == 0)
+                        qInfo().noquote() << "[tests:simulation-route]   not fired:" << input->events[e].name << "|"
+                                          << Sim::WhyNotFired(*input, int(e), core.eventStates()[e], end,
+                                                              core.activityEndedAt(), &cars);
+        }
         for (size_t t = 0; t < core.trains().size(); ++t) {
             const Sim::TrainState &state = core.trains()[t];
             const bool done = state.status == Sim::TrainStatus::Finished || state.stoppedAt == Sim::StopKind::End;
@@ -2332,6 +2914,11 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                                       : by >= 0 ? input->trains[size_t(by)].service + (input->trains[size_t(by)].player ? " (player)" : "")
                                       : QString("-"))
                                   << (by >= 0 && core.trains()[size_t(by)].stoppedAt == Sim::StopKind::End ? "(at its path's end)" : "");
+            } else if (!done && verbose) {
+                // Not finished, waiting for no train: what it does.
+                const Sim::TrainPlan &p = input->trains[t];
+                qInfo().noquote() << "[tests:simulation-route] not finished:" << activity->name << p.service
+                                  << p.serviceTime << "|" << Sim::StateText(*input, state, core.time(), int(t));
             }
         }
     }

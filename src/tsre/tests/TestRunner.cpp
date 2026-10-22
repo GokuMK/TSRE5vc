@@ -4164,6 +4164,7 @@ QStringList TsreTests::listSuites() {
         "osm-data",
         "elevation-ui",
         "activity-ui",
+        "timetable-ui",
         "activity-roundtrip",
         "activity-edit",
         "activity-check",
@@ -4174,6 +4175,14 @@ QStringList TsreTests::listSuites() {
         "simulation-host",
         "simulation-ui",
         "simulation-scaling",
+        "simulation-events",
+        "simulation-coupling",
+        "simulation-work",
+        "timetable-read",
+        "timetable-route",
+        "timetable-trains",
+        "timetable-commands",
+        "timetable-commands-more",
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
@@ -4346,6 +4355,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "activity-ui")
         return runActivityUiSuite(opts.verbose);
+    if (suite == "timetable-ui")
+        return runTimetableUiSuite(opts.verbose);
 
     if (suite == "activity-roundtrip")
         return runActivityRoundTripSuite(opts.casesFile, opts.verbose);
@@ -4364,6 +4375,22 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "simulation-core")
         return runSimulationCoreSuite(opts.verbose);
+    if (suite == "simulation-events")
+        return runSimulationEventsSuite(opts.verbose);
+    if (suite == "simulation-coupling")
+        return runSimulationCouplingSuite(opts.verbose);
+    if (suite == "simulation-work")
+        return runSimulationWorkSuite(opts.verbose);
+    if (suite == "timetable-read")
+        return runTimetableReadSuite(opts.verbose);
+    if (suite == "timetable-route")
+        return runTimetableRouteSuite(opts.verbose);
+    if (suite == "timetable-trains")
+        return runTimetableTrainsSuite(opts.verbose);
+    if (suite == "timetable-commands")
+        return runTimetableCommandsSuite(opts.verbose);
+    if (suite == "timetable-commands-more")
+        return runTimetableMoreCommandsSuite(opts.verbose);
 
     if (suite == "simulation-route")
         return runSimulationRouteSuite(opts.verbose);

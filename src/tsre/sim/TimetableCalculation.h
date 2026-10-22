@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <tsre/sim/SimulationCore.h>
+#include <tsre/sim/SimulationTexts.h>
 
 class Activity;
 
@@ -113,6 +114,12 @@ private:
     std::vector<std::vector<double>> departed;
     std::vector<TrainState> last;
     double endTime = 0.0;
+    // The activity's events at the end (task 06), for EventResultStore.
+    std::vector<EventState> eventStates;
+    CarsNow carsAtEnd;
+    ActivityEnd activityEnd = ActivityEnd::None;
+    double activityEndedAt = -1.0;
+    bool settled = false;
 };
 
 }

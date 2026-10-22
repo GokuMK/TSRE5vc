@@ -7,7 +7,9 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/Game.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationTexts.h>
+#include <tsre/sim/WorkPlanning.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Activity.h>
@@ -138,7 +140,7 @@ std::unique_ptr<TimetableCalculation> TimetableCalculation::Prepare(Activity *ac
     const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
     const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;
     const std::shared_ptr<const SimulationInput> made = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr,
-                                                                  restricted);
+                                                                  restricted, false);
     if (made->trains.empty()) {
         if (error != nullptr) {
             *error =
@@ -160,6 +162,9 @@ std::unique_ptr<TimetableCalculation> TimetableCalculation::Prepare(Activity *ac
     run.options.playerOnly = options.playerOnly || !run.sharedWith.isEmpty() || ActivityTrains::Pattern(activity) == nullptr;
 
     auto input = std::make_shared<SimulationInput>(*made);
+    // The player's work orders (task 07): planned off the main thread.
+    if (!PlanWorkOrders(*input, error))
+        return nullptr;
     input->departureStep = run.options.step;
     const Memory &memory = memories()[activityKey(activity)];
     const QVector<ActivityTrains::Train> trains = ActivityTrains::List(activity);
@@ -252,6 +257,11 @@ void TimetableCalculation::run(const std::atomic<bool> *cancel) {
     }
     last = core.trains();
     endTime = core.time();
+    eventStates = core.eventStates();
+    carsAtEnd = CarsOf(core);
+    activityEnd = core.activityEnd();
+    activityEndedAt = core.activityEndedAt();
+    settled = core.settled();
     outcome.to = endTime;
     outcome.ms = timer.elapsed();
 }
@@ -259,6 +269,8 @@ void TimetableCalculation::run(const std::atomic<bool> *cancel) {
 const TimetableRun &TimetableCalculation::write(Activity *activity) {
     if (outcome.cancelled || activity == nullptr || last.size() != in->trains.size())
         return outcome;
+    // What the run did with the activity's events (task 06).
+    EventResultStore::instance()->record(activity, *in, eventStates, activityEnd, activityEndedAt, endTime, settled, &carsAtEnd);
     Memory &memory = memories()[activityKey(activity)];
     const QVector<ActivityTrains::Train> trains = ActivityTrains::List(activity);
     const int step = outcome.options.step;

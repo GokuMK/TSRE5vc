@@ -107,6 +107,10 @@ public slots:
     void actOverlayMergeEnabled();
     
     void reloadActivityList();
+    // The kind of activity chosen (task simulation 08); a timetable set's
+    // player's train.
+    void kindChosen(int index);
+    void cPlayerTrainEnabled(int index);
     void reloadServicesList();
     void reloadTrafficsList();
     void reloadPathsList();
@@ -132,6 +136,8 @@ signals:
     void jumpTo(PreciseTileCoordinate* c);
     
 private:
+    void showKind();
+    void showTimetableSet(Activity *a);
     // Selects the path chosen in the list, which the path tool edits.
     void selectCurrentPath();
     // The list shows the paths' names as they are now (path properties).
@@ -180,6 +186,12 @@ private:
     QComboBox cWeather;
     QCheckBox cHornAtCrossings;
 
+    QComboBox cKind;
+    QComboBox cPlayerTrain;
+    QLabel timetableSummary;
+    // What only an MSTS activity, or only a timetable set, has.
+    QList<QWidget*> mstsOnly;
+    QList<QWidget*> timetablesOnly;
     QComboBox cService;
     QComboBox cTraffic;
     QComboBox cPath;
@@ -200,6 +212,9 @@ private:
     QTimeEdit simRunToTime;
     QLabel simTime;
     QLabel simStatus;
+    // The run's notes on the trains it made, counted, linked to Check
+    // Activity (which lists them).
+    QLabel simWarnings;
     // Tells of deadlocks as they happen; the run goes on.
     QPointer<QMessageBox> deadlockBox;
     QStringList deadlocked;

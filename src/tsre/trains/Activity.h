@@ -27,6 +27,7 @@ class Consist;
 class Path;
 class Service;
 class Traffic;
+class OrTimetable;
 class QTextStream;
 class GLUU;
 
@@ -119,6 +120,28 @@ public:
     int loaded = -1;
     int ref = 0;
 
+    // What the activity is (task simulation 08): an MSTS activity (its .act
+    // file), or an Open Rails timetable set (a timetable or a group of
+    // them, in the route's ACTIVITIES/OpenRails): no activity file, its
+    // trains in the timetables, the player's train chosen for a run (none:
+    // every train AI). Kept apart (ActLib::TimetableSets); its events and
+    // objects for later (the user, 2026-10-21).
+    enum class Kind { Msts, OrTimetables };
+    Kind kind = Kind::Msts;
+    std::vector<std::shared_ptr<OrTimetable>> timetables;
+    QString playerTrain;
+    bool isTimetables() const { return kind == Kind::OrTimetables; }
+    // Reads a timetable set from its file (a timetable, or a group naming
+    // timetables beside it): its name the group's or the timetable's
+    // description, its start the first train's.
+    void loadTimetableSet(const QString &directory, const QString &file);
+    // A timetable set's static trains (the user's review of task 08): their
+    // consists standing at their paths' starts, as Open Rails places them
+    // (the rear there), drawn in 3D and on the map as loose consists are
+    // (not while a simulation shows the set: its standing trains then).
+    // Made again when a static train's path or consist changes.
+    const std::vector<std::shared_ptr<Consist>> &timetableStatics();
+
     ActivityServiceDefinition *playerServiceDefinition = NULL;
     ActivityHeader *header = NULL;
     TrafficDefinition *traffic = NULL;
@@ -164,7 +187,10 @@ public:
     void updateSim(float *playerT, float deltaTime);
     void pushRenderItems(RenderQueue &queue, float * playerT, float playerRot, int renderMode);
     // The AI trains shown (shownAITrain, showAllAITrains): their paths and
-    // their consists at their starts; a service several run, once.
+    // their consists at their starts; a service several run, once.
+    // Its loose consists drawn: not while a simulation shows the activity
+    // (its standing trains are drawn instead, task simulation 07).
+    bool showsLooseConsists();
     QVector<int> shownAITrains();
 
     QString editorConListSelected;
@@ -251,6 +277,9 @@ public:
 private:
     bool modified = false;
     bool nowe = false;
+    std::vector<std::shared_ptr<Consist>> statics;
+    // What they were made of (each static train's name, path, consist).
+    QString staticsMadeOf;
     // Times saved: a state restored from before a save is not on disk.
     int saves = 0;
     void parse(FileBuffer *data);

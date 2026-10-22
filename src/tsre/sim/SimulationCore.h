@@ -9,13 +9,17 @@ namespace Sim {
 
 enum class TrainStatus { Waiting, Running, Stopped, Finished };
 // Why a train stands. Blocked: at the end of its authority, the track ahead
-// held by another train or a standing consist.
-enum class StopKind { None, Station, Wait, Reversal, End, Blocked };
+// held by another train or a standing consist. Event: the player's train at
+// an activity's stop-here event (task 06), until it fires. Couple: at the
+// standing train it attaches to (task 07), coupling. Created: put on its
+// track before its start (an Open Rails timetable's `$create`, a train
+// formed of another, task 08), standing until then.
+enum class StopKind { None, Station, Wait, Reversal, End, Blocked, Event, Couple, Created };
 
 // What a waiting train waits for: track held by another train (or a
 // consist), the single track ahead claimed for an opposing train (task 02,
 // section 4), the passing track it would take held.
-enum class WaitFor { Track, SingleTrack, PassingTrack };
+enum class WaitFor { Track, SingleTrack, PassingTrack, Follow };
 
 // Who holds a section: a train's id, or these.
 constexpr int NoHolder = -1;
@@ -57,15 +61,40 @@ struct TrainState {
     float signalSpeed = -1.0f;
     // It is in a deadlock (reported once).
     bool deadlocked = false;
+    // The player's train: the stop-here event (task 06) it brakes for or
+    // stands at, -1 none.
+    int eventStop = -1;
+    // Finished by joining a train (task 07): that train, -1 none.
+    int joinedTo = -1;
 };
 
 // Something that happened to a train, for the editor (task simulation 01,
-// section 6).
+// section 6), or to the activity (task 06).
 struct TrainEvent {
     // Blocked: waiting for `index` (a train, StandingConsist) as `waitFor`
     // says, at `signal` (a signal of the network, -1 none); Deadlock: in a
     // ring of trains waiting for each other, waiting for train `index`.
-    enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock };
+    // EventFired: the activity's event `index` (in the input's list) fired,
+    // `train` the train it looked at (-1 none); `signal` is 1 when that was
+    // the player's train standing in for a triggering train not yet
+    // started. ActivityEnded: `index` 1 success, 0 failure. Restarted: the
+    // event `index` restarted the waiting `train`. Task 07: Coupled, the
+    // train took the standing train `index` (`signal` its cars); Joined, the
+    // train joined the standing train `index` and is gone; Uncoupled, the
+    // cars it cut off are the standing train `index` (`signal` their
+    // number). With another train `index`: TookCars, it took `signal` of
+    // that train's cars; LeftCars, it left that train `signal` of its own;
+    // JoinedTrain, it joined that train (and is gone, or carried along
+    // after waiting point 60001); Parted, carried along so far, it runs
+    // again on its own (that train cut it off). WorkSkipped: the work order
+    // of the activity's event `index` is not done by the autopilot (the
+    // input's work orders say why). Removed: the cars of the standing
+    // train `index` it took stand off the rest of its path (across a
+    // junction onto another way): it cannot go on, and is gone as Open
+    // Rails removes such a train (the player's train stands there).
+    enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock,
+                EventFired, ActivityEnded, Restarted, Coupled, Joined, Uncoupled,
+                TookCars, LeftCars, JoinedTrain, Parted, WorkSkipped, Removed };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -77,12 +106,44 @@ struct TrainEvent {
     double travelled = 0.0;
 };
 
+// An activity event's state in a run (task 06).
+struct EventState {
+    // Its activation level: looked at while above 0.
+    int level = 0;
+    // Times fired; a reversible event fired is disabled until its condition
+    // no longer holds.
+    int fired = 0;
+    bool disabled = false;
+    // When it last fired (seconds after midnight), -1 never; the train it
+    // looked at then (-1 none), and whether that was the player's train
+    // standing in for a triggering train not yet started.
+    double firedAt = -1.0;
+    int firedBy = -1;
+    bool standIn = false;
+    // Why one did not fire (task 06, section 7): when it was first active
+    // (-1 never); a location event: when the train it looks at first came
+    // within its radius without firing it (-1 never), and whether it was
+    // active then; ReachSpeed: the highest speed the player's train reached
+    // while it was active (m/s); AssembleTrainAtLocation: the player's train
+    // had an end in the siding while it was active.
+    double activeSince = -1.0;
+    double passedAt = -1.0;
+    bool passedActive = false;
+    float bestSpeed = 0.0f;
+    bool reachedSiding = false;
+};
+
+// How the activity ended: not yet, successfully, or not.
+enum class ActivityEnd { None, Success, Failure };
+
 // The simulation's state and its stepping: plain C++, no QObject, nothing
 // read but its input, so tests call it directly and the host runs it on its
 // own thread.
 class SimulationCore {
 public:
-    // The longest step taken at once: longer steps are cut into these.
+    // The step: the simulation advances in steps of exactly this; time asked
+    // for beyond whole steps waits for the next call (task 06, the fixed
+    // step decided 2026-10-17).
     static constexpr double MaxStep = 0.1;
     // A train stops this far short of the end of its authority, and this
     // far short of a stop signal not cleared for it (Open Rails' AI aims
@@ -105,6 +166,12 @@ public:
     // Rails' clearing distance at station stops: 15 m for every AI train,
     // its 10-car rule never applied as its trains are made).
     static constexpr double StationClearing = 15.0;
+    // Open Rails' clearing ahead of a signal for a timetable stop with
+    // `$closeupsignal` (TTTrain.keepDistanceCloseupSignalM).
+    static constexpr double CloseupClearing = 7.0;
+    // How near a request stop no one needs a timetable train gives it up
+    // (Open Rails' RequestStop.visDistance, 25 m), m.
+    static constexpr double RequestSight = 25.0;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
@@ -129,6 +196,11 @@ public:
     static constexpr double AuthorityCreep = 30.0;
     static constexpr double LimitCreep = 10.0;
     static constexpr double BrakingZone = 90.0;
+    // A signal cleared for a train at STOP_AND_PROCEED or RESTRICTING (a
+    // block another train is in, task 07): it is down to the creep speed
+    // this far short of it, then goes on (Open Rails' AI: its restricted
+    // signal action, cleared signalApproachDistanceM short).
+    static constexpr double SignalApproach = 20.0;
 
     // Trains that started before the activity are run up to its start (the
     // pre-run).
@@ -140,8 +212,12 @@ public:
     double time() const { return now; }
     // Steps taken since the activity's start (the pre-run not counted).
     unsigned long long steps() const { return stepCount; }
-    // Advances the simulation by `seconds`, in steps of at most MaxStep.
+    // Advances the simulation by `seconds`, in whole steps of MaxStep; the
+    // rest is taken with the next call.
     void step(double seconds);
+    // A time of day as the simulation reaches it: rounded up to a whole
+    // step from now.
+    double onStep(double time) const;
     const std::vector<TrainState> &trains() const { return states; }
     // The events since the last call.
     std::vector<TrainEvent> takeEvents();
@@ -151,8 +227,10 @@ public:
     // Each junction section's switch position (output pin 1 or 2); 0 for
     // other sections.
     const std::vector<int> &switches() const { return switchAt; }
-    // Each signal of the network: the train it is cleared for, NoHolder.
+    // Each signal of the network: the train it is cleared for, NoHolder;
+    // whether into a block another train is in (BLOCK_OCCUPIED).
     const std::vector<int> &cleared() const { return clearedFor; }
+    const std::vector<char> &occupiedBlocks() const { return occupiedBlock; }
     // Single-track stretches (task 02, section 4): track two trains' routes
     // use in opposite directions, between the places where they part and
     // one of them fits clear, as projected section ranges [from, to) of each
@@ -201,13 +279,74 @@ public:
     // roll looking from the rear to the front. False for a train not on the
     // track (not started, or an AI train gone at its path's end).
     bool vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const;
+    // The same for a standing train (task 07): its vehicles in its list's
+    // order along its track, each vehicle's front (as the list has it)
+    // toward the track's start. False for one gone.
+    bool standingEnds(int standingTrain, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const;
     // Where a route distance of a train's current part is, its roll
     // looking along the route.
     bool pose(int train, double routeDistance, TrackPose &out) const;
+    // A train's vehicles change (task 07): counted (for the editor's copy
+    // of its consist); the standing trains change (made, joined, gone).
+    unsigned int carsVersion(int train) const { return runtime[size_t(train)].carsVersion; }
+    unsigned long long standingSerial() const { return standingChanges; }
     // The next stop signal ahead of a train's front on its route part and
     // its least restrictive NORMAL head's aspect, how far ahead (m); -1
     // none (comparisons with Open Rails, task 05).
     int nextSignalAhead(int train, int *aspect = nullptr, double *distance = nullptr) const;
+    // The activity's events (the input's list): their states, the
+    // activity's end and when (seconds after midnight, -1 not yet); the
+    // serial changes whenever any of them does.
+    const std::vector<EventState> &eventStates() const { return eventState; }
+    ActivityEnd activityEnd() const { return ended; }
+    double activityEndedAt() const { return endedAt; }
+    unsigned long long eventSerial() const { return eventChanges; }
+    // Standing trains (task 07): the activity's loose consists and, later,
+    // cars cut off trains; gone when a train couples to them. Their track
+    // runs from their first vehicle's end to their last's.
+    struct Standing {
+        QString name;
+        // Its place among the activity's objects (a loose consist), -1.
+        int object = -1;
+        std::vector<Vehicle> vehicles;
+        double length = 0.0;
+        std::vector<RouteInterval> track;
+        bool gone = false;
+        // The train that cut it off (-1 none): that train attaches to it
+        // only once it has been more than UncoupledApart away (Open Rails'
+        // UncoupledFrom).
+        int uncoupledFrom = -1;
+        // The sections it stands in (holdStanding).
+        std::vector<int> sections;
+    };
+    const std::vector<Standing> &standingTrains() const { return standing; }
+    // Coupling (task 07, Open Rails' AI): a train attaching closes on the
+    // contact at most at √(distance × its deceleration) / 2, not below the
+    // creep speed, and comes in at CouplingSpeed over the last
+    // CouplingReach; it does not attach to cars it cut off until more than
+    // UncoupledApart away from them; at its path's end with fewer than
+    // JoinSections sections left an AI train joins the standing train.
+    // To a living train (Open Rails' AI): one at rest (below AtRestSpeed)
+    // within AttachReach of it, its front or rear in the
+    // last section of this train's path part, or any after waiting point
+    // 60001.
+    static constexpr double CouplingSpeed = 0.4;
+    static constexpr double CouplingReach = 8.0;
+    static constexpr double AttachReach = 600.0;
+    static constexpr double AtRestSpeed = 0.025;
+    static constexpr double UncoupledApart = 5.0;
+    static constexpr size_t JoinSections = 5;
+    // A train's vehicles now (task 07: they change as it couples and cuts),
+    // and its length.
+    const std::vector<Vehicle> &vehiclesOf(int train) const { return runtime[size_t(train)].vehicles; }
+    double lengthOf(int train) const { return runtime[size_t(train)].length; }
+    // Open Rails' limits: standing is at most this speed (a location event
+    // on stopping, m/s); PickUpWagons needs the train at most this fast.
+    static constexpr double StandingSpeed = 0.032;
+    static constexpr double PickUpSpeed = 1.0;
+    // The player's train at a stop-here event stands until it fires, at
+    // most this long (seconds).
+    static constexpr double EventStandLimit = 60.0;
     // Every train has finished its path.
     bool finished() const;
     // Nothing more will happen: every train has finished, stands at its
@@ -219,19 +358,42 @@ private:
     std::shared_ptr<const SimulationInput> in;
     double now = 0.0;
     unsigned long long stepCount = 0;
+    // The fixed step: time is `origin` plus `ticks` steps; `pending` the time
+    // asked for that is not yet a whole step.
+    double origin = 0.0;
+    unsigned long long ticks = 0;
+    double pending = 0.0;
+    // Activity events (task 06): their states; the player's train (-1
+    // none); the activity's end; events held until this time by a message
+    // staying (ORTSContinue); events are not checked in the pre-run.
+    std::vector<EventState> eventState;
+    unsigned long long eventChanges = 0;
+    int playerTrain = -1;
+    // Standing trains (task 07), and per section the standing train holding
+    // it (-1 none; the holder is StandingConsist).
+    std::vector<Standing> standing;
+    std::vector<int> standingAt;
+    ActivityEnd ended = ActivityEnd::None;
+    double endedAt = -1.0;
+    double holdUntil = -1.0;
+    bool prerunning = false;
     std::vector<TrainState> states;
     std::vector<TrainEvent> events;
     // Per network section.
     std::vector<int> holder;
     std::vector<int> switchAt;
-    // Per signal of the network.
+    // Per signal of the network; whether its block is occupied (cleared
+    // for a train into a block another train stands or runs in: Open
+    // Rails' BLOCK_OCCUPIED).
     std::vector<int> clearedFor;
+    std::vector<char> occupiedBlock;
     // Per head; evaluated again after a step that changed reservations or
     // switches.
     std::vector<int> headAspect;
     std::vector<int> headDraw;
     unsigned long long drawChanges = 0;
     unsigned long long holdChanges = 0;
+    unsigned long long standingChanges = 0;
     // Per section, holdChanges when its holder last changed; claims changed.
     std::vector<unsigned long long> heldStamp;
     unsigned long long claimChanges = 0;
@@ -278,6 +440,9 @@ private:
         int section = -1;
         double enter = 0.0;
         double leave = 0.0;
+        // Its way through it (ProjectedSection's forward and pinIn).
+        bool forward = true;
+        int pinIn = -1;
     };
     // Not yet reported waiting.
     static constexpr int Unreported = -100;
@@ -293,6 +458,21 @@ private:
         // none; its hold let go (dropHold).
         std::vector<int> exits;
         std::vector<bool> letGo;
+        // Each stop's exit signal held or not (task 08: an Open Rails
+        // timetable's train waits for it to clear before it leaves), -1
+        // none.
+        std::vector<int> exitSignals;
+        // Its next follow point (`$follow`, task 08) not yet passed or let
+        // go.
+        size_t nextFollow = 0;
+        // When its run ended (it reached its path's end), -1 not yet.
+        double endedAt = -1.0;
+        // Task 08, phase 8: when another train activated it (`$activated`),
+        // -1 not yet; its delay as Open Rails keeps one (TTTrain.Delay: on
+        // leaving a stop with times, how late; known once it has).
+        double activatedAt = -1.0;
+        double delay = 0.0;
+        bool delayKnown = false;
         std::vector<WaitPlan> waits;
         std::vector<PassingPlan> passing;
         // Each passing path's own track: its track sections, sorted.
@@ -324,11 +504,171 @@ private:
         double triedAt = -1.0;
         unsigned long long triedHold = 0;
         unsigned long long triedClaims = 0;
+        // Its consist (task 07): its vehicles and what they make of it (its
+        // length, performance, kind, rates, driving), as its plan has them
+        // until they change (refreshConsist).
+        std::vector<Vehicle> vehicles;
+        unsigned int carsVersion = 0;
+        double length = 0.0;
+        Performance performance;
+        bool passenger = false;
+        float acceleration = 1.0f;
+        float deceleration = 1.0f;
+        Driving driving = Driving::Simple;
+        // The standing train it attaches to (-1 none), or the living train,
+        // and the route distance of the contact on its part.
+        int attachTo = -1;
+        int attachTrain = -1;
+        double contactAt = 0.0;
+        // Waiting point 60001 passed: it attaches to the next train
+        // standing ahead and joins it; 60002: the stop signal it may pass
+        // into an occupied block (a signal of the network, -1 none).
+        bool uncondAttach = false;
+        int permission = -1;
+        // The living train it last parted from (took or left cars, was cut
+        // off from): a section they both stand in is shared, and it does not
+        // attach to that train again until more than UncoupledApart away
+        // (Open Rails' UncoupledFrom).
+        int partedFrom = -1;
+        // The train that joined it after 60001 and runs again with the cars
+        // it next cuts off (Open Rails' incorporated train), -1 none.
+        int carries = -1;
+        // Cars it parted from (its own cut off, or a train it parted from)
+        // standing ahead in a section they share: the route distance of
+        // their near end on its part (-1 none), who they are (a train,
+        // StandingConsist) and the section. Its authority ends there.
+        double barrier = -1.0;
+        int barrierBy = NoHolder;
+        int barrierSection = -1;
+        // Activity events (task 06), for a train location events look at:
+        // where their points lie on its parts (the event, the part, the
+        // route distance; sorted by event), and in the step being taken the
+        // stretches its front covered and where it came to rest (part, from,
+        // to).
+        bool watched = false;
+        struct Spot {
+            int event = -1;
+            int part = 0;
+            double at = 0.0;
+        };
+        std::vector<Spot> spots;
+        struct Covered {
+            int part = 0;
+            double from = 0.0;
+            double to = 0.0;
+        };
+        std::vector<Covered> swept;
+        std::vector<Covered> rests;
     };
     std::vector<Runtime> runtime;
+    // Trains another one's `$activate` starts (task 08, phase 8).
+    std::vector<int> activated;
 
-    // All trains from `now` on by `seconds`, in steps of at most MaxStep.
-    void run(double seconds);
+    // All trains from `now` on by one step.
+    void stepOnce();
+    // A train's consist worked out again from its vehicles (task 07).
+    void refreshConsist(int train);
+    // Standing trains (task 07): the sections under one (marked standing
+    // there, held where free); a section a train gives back (to the
+    // standing train under it, else free); whether a train attaches to a
+    // standing train ahead `gap` metres away; the contact's route distance
+    // on its part (-1 not on it); whether the standing train is on its
+    // part behind `rear`.
+    void holdStanding(int standingTrain);
+    void freeSection(int section, int releasing = -1);
+    bool attaches(int train, int standingTrain, double gap);
+    double contactOn(int train, int standingTrain) const;
+    bool behind(int train, int standingTrain, double rear) const;
+    // The standing trains in a section (several may stand in one: cars set
+    // out beside others, task 07); the nearest of them ahead of a train on
+    // its part (-1 none) and its contact; whether a standing train lies on
+    // a train's part beyond route distance `from`.
+    std::vector<int> standingIn(int section) const;
+    int standingAhead(int train, int section, double *contact = nullptr) const;
+    bool onPart(int train, int standingTrain, double from) const;
+    // Living trains (task 07): the track a train stands on (its rear to its
+    // front, its way); whether a train attaches to the living train `other`
+    // `gap` metres ahead (Open Rails' AI); the contact with it on the
+    // train's part (-1 none); whether `other` stands in a section (its
+    // front's or rear's, or any).
+    std::vector<RouteInterval> trackOf(int train) const;
+    bool attachesTrain(int train, int other, double gap);
+    double contactWith(int train, int other) const;
+    bool endIn(int other, int section) const;
+    bool holds(int train, int section) const;
+    // At the contact with a living train: cars taken or left (both go
+    // on), or the train joins it (Open Rails' CoupleAI).
+    void coupleTrain(int train, double time);
+    // A train's vehicles from its front backwards, and set so.
+    std::vector<Vehicle> fromFront(int train) const;
+    void setFromFront(int train, std::vector<Vehicle> vehicles);
+    // The train's front went past its part's end over `away` (track from
+    // `contact` on, its way): the part goes on over it.
+    void extendPart(int train, const std::vector<RouteInterval> &away, double contact);
+    // The train carried along since 60001 runs again with the cars `from`
+    // cut off (their track and vehicles in `from`'s way, rear first),
+    // where its own path finds them; false where it does not.
+    bool revive(int train, int from, const std::vector<RouteInterval> &track, const std::vector<Vehicle> &vehicles,
+                double time);
+    // Open Rails' state of a block a train asks a signal for (sections
+    // [from, to) of its way): when OCCUPIED (each section another train or
+    // a standing train holds is one it stands in, the train there at rest
+    // or running the same way, the switches set for this train), the first
+    // such section; else -1 (free, or obstructed: reserved for another
+    // train, one running the other way, a switch set against it).
+    long occupiedFrom(int train, size_t from, size_t to) const;
+    // A signal's NORMAL heads: their least restrictive aspect above STOP
+    // (a train may go in); it is STOP_AND_PROCEED or RESTRICTING with a
+    // speed reduction (OR_NOSPEEDREDUCTION not set).
+    bool permissive(int signal) const;
+    bool restricted(int signal) const;
+    // A signal is no longer cleared (for an occupied block or not).
+    void unclear(int signal);
+    // At the contact: the standing train's cars taken (the train goes on),
+    // or the train joins it (an AI train at its path's end).
+    void couple(int train, double time);
+    // Cars cut off the train: keeping `keep` cars from its front (in the
+    // direction of travel) or from its rear; the others a standing train
+    // where they stand. False when the kept part would have no engine.
+    bool cut(int train, int keep, bool keepFront, double time);
+    // The track of a route part between two route distances, in the
+    // route's order.
+    static std::vector<RouteInterval> slice(const RouteTrack &part, double from, double to);
+    // A train's route part again after it changed (projection, limits,
+    // stretches, exits, event places).
+    void reprojectPart(int train, int part);
+    // Activity events (task 06): checked after a step as Open Rails checks
+    // them each frame, events firing one after another (each at most once)
+    // until none does; whether an event's condition holds now (the train
+    // it looked at, and whether the player's stood in for its triggering
+    // train); its outcomes (true when the activity ends); a waiting train
+    // restarted.
+    void checkEvents();
+    bool holds(int event, int *by, bool *standIn) const;
+    // A train on the track (an AI train gone at its path's end is not).
+    bool onTrack(int train) const;
+    // The train a location event looks at now (its triggering train once
+    // started, else the player's), -1 none; whether that is the player's
+    // standing in.
+    int lookedAt(const EventPlan &plan, bool *standIn) const;
+    // That train's front within the event's radius in this step: at any
+    // moment, or standing (brought to rest, or standing at its end).
+    bool isNearEvent(int event, int train, bool standing) const;
+    // What the events not fired met in this step (EventState's why fields).
+    void noteMisses();
+    // The event can still fire: active, not fired (or reversible and
+    // enabled again), the activity not ended.
+    bool wanted(int event) const;
+    bool actOn(int event);
+    void restart(int train, int event);
+    // Where the events a watched train may trigger lie on one of its parts
+    // (again when the part changes).
+    void findSpots(int train, int part);
+    // Its front moved over [from, to] on its current part in this step.
+    void sweep(int train, double from, double to);
+    // Its front, or its rear, within the siding (the event's).
+    bool inSiding(const EventPlan &plan, int train) const;
+    bool inSiding(const EventPlan &plan, const Standing &consist) const;
     // One train from `from` to `to` (seconds after midnight, at most
     // MaxStep apart), once it has started.
     void advance(int train, double from, double to);
@@ -338,6 +678,31 @@ private:
     // A single-track stretch it would stand in at its start is claimed for
     // another train, or the other is in it: who.
     bool startClaimed(int train, int *blocker) const;
+    // When a train is put on its track: its start, its create time, or when
+    // the train it is formed of ended (task 08); never while that one runs.
+    double placeTime(int train) const;
+    // Task 08, phase 8: trains another one's `$activate` starts (when it
+    // starts, arrives at or leaves stop `stop`, or ends: `when`); a train's
+    // delay now (Open Rails: the last stop's, or more once its next stop's
+    // booked arrival has passed), false not known; its top speed now
+    // (`$cruise` while not later than `$maxdelay`); a `$forms` train's
+    // vehicles from the train it is formed of; where a `$create /ahead`
+    // train's front stands.
+    void activate(int train, TrainPlan::Activation when, int stop, double t);
+    bool delayOf(int train, double t, double &delay) const;
+    float topSpeedOf(int train, double t) const;
+    void takeFormingVehicles(int train);
+    bool aheadFront(int train, double &front) const;
+    // Its run begins (at its start time, on its track): at its first station
+    // when it stands there, else running.
+    void beginRun(int train, double t);
+    // Task 08's `$follow`: the first of projected sections [from, to) the
+    // train must not take yet, the train it follows not having passed it
+    // (-1 none); follow points it need not wait at are let go.
+    long followWait(int train, size_t from, size_t to);
+    // Standing at a station: its exit signal is next and shows STOP while
+    // it waits for it (task 08).
+    bool waitsAtExit(int train) const;
     void record(double time, int train, TrainEvent::Kind kind, int index = -1);
     // Reservation (task 02): the sections under a train standing at its
     // start, all or nothing; the track ahead up to its lookahead, a section

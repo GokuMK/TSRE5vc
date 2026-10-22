@@ -119,10 +119,12 @@ public:
     void reverse();
     void setTextColor(float *bgColor);
     void setDurability(float val);
-    // The vehicles behind the position, the first one across it. A
-    // service's train (fitOnTrack) with less track behind its start than
-    // it is long moves ahead until its rear is 1 m before the track's end.
-    void initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections = NULL, bool fitOnTrack = false);
+    // The vehicles behind the position, the first one across it (a loose
+    // consist, as MSTS and Open Rails place them). A service's train at its
+    // path's start (rearAtStart) stands ahead of it, its rear at the
+    // position, as Open Rails places trains (Simulator.InitializePlayerTrain,
+    // AI.cs; task simulation 06).
+    void initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections = NULL, bool rearAtStart = false);
     // The track behind the track position (node, distance) in the
     // direction, up to `wanted` metres: less where the track ends.
     static float roomBehind(const float *tpos, int direction, QMap<int, int> *junctionDirections, float wanted);

@@ -10,14 +10,6 @@ namespace {
 
 using Outcome = ActivityEvent::Outcome;
 
-// A directory entry in any case.
-QString entry(const QString &folder, const QString &name, QDir::Filters filter) {
-    for (const QString &found : QDir(folder).entryList(filter))
-        if (found.compare(name, Qt::CaseInsensitive) == 0)
-            return folder + "/" + found;
-    return {};
-}
-
 QString text(Outcome *outcome) {
     QString written;
     QTextStream out(&written);
@@ -42,10 +34,10 @@ QString outcomeName(const Outcome *outcome) {
 QString ActivityOverlay::PathOf(const Activity *activity) {
     if (activity == nullptr)
         return {};
-    const QString folder = entry(activity->path, "OPENRAILS", QDir::Dirs | QDir::NoDotAndDotDot);
-    if (folder.isEmpty())
-        return {};
-    return entry(folder, activity->name, QDir::Files);
+    // The activity's file name as spelled in the fixed OPENRAILS folder
+    // (content in another letter case is for the content-case converter).
+    const QString path = activity->path + "/OPENRAILS/" + activity->name;
+    return QFileInfo(path).isFile() ? path : QString();
 }
 
 ActivityOverlay::Result ActivityOverlay::Merge(Activity *activity, const QString &overlayPath, bool apply) {
