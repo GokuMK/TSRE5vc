@@ -18,6 +18,7 @@
 #include <math.h>
 #include <algorithm>
 #include <QString>
+#include <QElapsedTimer>
 #include <tsre/world/objects/StaticObj.h>
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/ForestObj.h>
@@ -59,6 +60,8 @@ void WorldObj::loadingFixes(){
 
 void WorldObj::setModified(bool val){
     modified = val;
+    if(val)
+        changedAt = clock();
     
     if(Game::serverClient != NULL){
         if(val){
@@ -903,6 +906,19 @@ void WorldObj::setCustomDetailLevel(int val){
 bool WorldObj::customDetailLevelEnabled(){
     if(staticDetailLevel >= 0) return true;
     return false;
+}
+
+qint64 WorldObj::clock(){
+    static const QElapsedTimer started = []{ QElapsedTimer t; t.start(); return t; }();
+    return started.elapsed();
+}
+
+bool WorldObj::castsMovingShadow(qint64 now){
+    // Being edited: drawn on top until it settles into the cache (two
+    // cache redraws per edit, none while it is dragged).
+    if(recentlyChanged(now))
+        return true;
+    return isAnimated() || typeID == carspawner || typeID == levelcr || typeID == signal;
 }
 
 bool WorldObj::isAnimated(){

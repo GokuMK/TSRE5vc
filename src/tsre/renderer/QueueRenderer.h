@@ -60,6 +60,8 @@ public:
         quint8 category = 0;
         bool owned = false;
         bool castsShadow = false;
+        // Moving: cast on top of the cached static shadow maps (task 37).
+        bool dynamicShadow = false;
         // Its object's light reach (m), 0 for the default.
         float lightReach = 0.0f;
     };
@@ -95,6 +97,24 @@ protected:
                        SubmitOrder order, bool owned);
     void sortByTexture(std::vector<DrawInstance> &instances);
     void sortBackToFront(std::vector<DrawInstance> &instances);
+    // Blended packets drawn in two (RenderItem::blendsInTwoParts): the
+    // alpha-tested pass ends with twoPartBlended, the blended pass's
+    // two-part instances by texture, with TEXELS_OPAQUE (depth written, so
+    // the ambient occlusion, clouds and fog see them); the blended pass
+    // draws its list back to front, two-part packets with
+    // TEXELS_TRANSLUCENT (no depth writes). The shaders' blendedTexels.
+    enum BlendedTexels { TEXELS_ALL = 0, TEXELS_OPAQUE = 1, TEXELS_TRANSLUCENT = 2 };
+    int blendedTexels = TEXELS_ALL;
+    std::vector<DrawInstance> twoPartBlended;
+    // Whether this pass draws the opaque texels (collected into
+    // twoPartBlended): the alpha-tested pass, or the blended pass when no
+    // alpha-tested pass came before it. enabled: the view draws them in two.
+    bool opaqueTexelsIn(int pass, bool enabled);
+    bool opaqueTexelsDrawn = false;
+    // TSRE_BLENDED_IN_TWO=0 draws blended packets whole, as before.
+    static bool blendedInTwo();
+    // The texels a draw of the packet takes now.
+    int texelsOf(const RenderItem *packet) const;
     void consumePass(PassQueue &queue);
     void clearQueues();
 
@@ -108,10 +128,12 @@ protected:
     // Shadow casters within range on the ground plane (measured to their
     // bounds) and inside the light view, grouped by packet: shadowCasters,
     // groupPlans and instanceUpload.
-    // Shadow casters in range and inside the light's view; with enclosure,
-    // terrain and every opaque surface instead (the sky enclosure, task 27).
+    // Shadow casters in range and inside the light's view, shadow-only
+    // submissions included; with enclosure, terrain and every opaque surface
+    // but vegetation instead (the sky enclosure, task 27).
     void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
-                           float minRadius = 0.0f, bool alphaTested = false);
+                           float minRadius = 0.0f, bool alphaTested = false,
+                           ShadowCasters casters = CASTERS_ALL, ShadowSet set = SET_ALL);
     // The lights of every queued instance in submission space, punctual
     // lights scaled by exposure and emissive ones by emissiveGain, with
     // ranges derived where missing (task 21). emittersOnly keeps only the
@@ -129,6 +151,9 @@ protected:
     std::vector<float> instanceUpload;
     // Frame storage is cleared, not freed, so steady frames do not allocate.
     PassQueue passes[PASS_COUNT];
+    // Shadow-only submissions (RenderQueue::setShadowOnly): read by the
+    // shadow maps' planning only, never drawn in a view pass.
+    std::vector<DrawInstance> shadowOnlyInstances;
     std::vector<float> instanceMatrices;
     std::vector<quint32> sortOrder;
     std::vector<RenderItem*> ownedItems;

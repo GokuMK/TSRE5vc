@@ -522,6 +522,8 @@ void ForestObj::pushRenderShape(RenderQueue &queue, quint32 selectionId){
         texturePath = new QString(resPath+"/"+treeTexture);
         shape.setMaterial(texturePath);
         shape.init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
+        // Crossed tree quads (task renderer 37).
+        shape.setVegetation(true);
         /*shape.VAO.create();
         QOpenGLVertexArrayObject::Binder vaoBinder(&shape.VAO);
 

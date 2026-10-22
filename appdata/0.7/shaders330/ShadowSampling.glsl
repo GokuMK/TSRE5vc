@@ -186,6 +186,16 @@ uniform vec2 skyEnclosureFar;
 uniform sampler2D skyEnclosureOpenMap;
 uniform sampler2D skyEnclosureFarOpenMap;
 uniform vec2 skyEnclosureOpen;
+// Vegetation (1): trees, bushes and hedges are never under a roof, and the
+// maps leave them out; open sky without lookups (task 37).
+uniform int materialVegetation;
+// Vegetation's own shadow maps (task 37), with the main maps' matrices:
+// whether they are drawn, and the share of them vegetation itself takes.
+uniform sampler2DShadow vegetationShadow0;
+uniform sampler2DShadow vegetationShadow1;
+uniform sampler2DShadow vegetationShadow2;
+uniform int vegetationShadowsOn;
+uniform float vegetationSelfShadow;
 
 // Where a map has the point: its map coordinates and depth, and how much the
 // map counts there (1 inside, fading to 0 towards its edge; 0 outside it or
@@ -233,7 +243,7 @@ float enclosureTapsCoarse(sampler2D map, vec3 m, float spacing) {
 // (user, 2026-10-12).
 float skyEnclosed(vec3 position, vec3 normal, out float shade) {
     shade = 0.0;
-    if (skyEnclosureParams.x <= 0.0)
+    if (skyEnclosureParams.x <= 0.0 || materialVegetation != 0)
         return 0.0;
     vec2 side = normal.xz;
     float sideLength = length(side);
@@ -340,18 +350,63 @@ float shadowedVisibility(float cosTheta) {
     // Up to a slope of about 70 degrees across the filter.
     float limit0 = 3.0*shadowDepthBias.x;
     float limitMid = 3.0*shadowDepthBias.y;
-    // One map per fragment: the weights below are 0 or 1.
+    // The share of the filter's taps in shadow, in the main maps and in
+    // vegetation's at the same places (task 37; every fourth tap, soft
+    // anyway), then the weight and contrast of the map the fragment uses.
+    // One map per fragment: the weights are 0 or 1.
+    float occluded = 0.0;
+    float vegetation = 0.0;
+    float weight = 0.0;
+    float contrast = 0.0;
+#ifdef TSRE_RHI
+    bool vegetationMaps = vegetationShadowsOn != 0;
+#else
+    bool vegetationMaps = false;
+#endif
     if (t0 > 0.0) {
-        for (int i = 0; i < 16; i++)
-            visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[i]/shadow0Res,
-                    shadow0Pos2.z - bias0 + receiverPlaneBias(gradient0, poissonDisk[i]/shadow0Res, limit0)) ));
+        for (int i = 0; i < 16; i++) {
+            vec3 tap = vec3(shadow0Pos2.xy + poissonDisk[i]/shadow0Res,
+                    shadow0Pos2.z - bias0 + receiverPlaneBias(gradient0, poissonDisk[i]/shadow0Res, limit0));
+            occluded += (1.0 - texture(shadow0, tap))/16.0;
+#ifdef TSRE_RHI
+            if (vegetationMaps && (i & 3) == 0)
+                vegetation += (1.0 - texture(vegetationShadow0, tap))/4.0;
+#endif
+        }
+        weight = t0;
+        contrast = 16.0*shadowIntensity;
     } else if (t > 0.0) {
-        for (int i = 0; i < 16; i++)
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[i]/shadowMidRes,
-                    shadowPos2.z - biasMid + receiverPlaneBias(gradientMid, poissonDisk[i]/shadowMidRes, limitMid)) ));
+        for (int i = 0; i < 16; i++) {
+            vec3 tap = vec3(shadowPos2.xy + poissonDisk[i]/shadowMidRes,
+                    shadowPos2.z - biasMid + receiverPlaneBias(gradientMid, poissonDisk[i]/shadowMidRes, limitMid));
+            occluded += (1.0 - texture(shadow1, tap))/16.0;
+#ifdef TSRE_RHI
+            if (vegetationMaps && (i & 3) == 0)
+                vegetation += (1.0 - texture(vegetationShadow1, tap))/4.0;
+#endif
+        }
+        weight = t;
+        contrast = 16.0*shadowIntensity;
     } else {
-        for (int i = 0; i < 2; i++)
-            visibility -= shadowsEnabled2*(1.0-tMid)*t2*farShadowIntensity*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, (shadow2Pos2.z-bias2)) ));
+        for (int i = 0; i < 2; i++) {
+            vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
+            occluded += (1.0 - texture(shadow2, tap))/2.0;
+#ifdef TSRE_RHI
+            if (vegetationMaps)
+                vegetation += (1.0 - texture(vegetationShadow2, tap))/2.0;
+#endif
+        }
+        weight = (1.0 - tMid)*t2;
+        contrast = 2.0*farShadowIntensity;
     }
+    // Vegetation itself takes vegetation's shadow at a share: its own crown
+    // and its neighbours' a light shade, not the dark of a hard map.
+#ifdef TSRE_RHI
+    float share = materialVegetation != 0 ? vegetationSelfShadow : 1.0;
+#else
+    float share = 1.0;
+#endif
+    float shaded = occluded + share*vegetation - occluded*share*vegetation;
+    visibility -= shadowsEnabled2*weight*contrast*shaded;
     return visibility;
 }

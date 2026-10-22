@@ -1142,6 +1142,8 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                     r->material.brightness = 0.5;
                 else
                     r->material.brightness = 1.0;
+                // Cruciform light materials: trees, bushes, hedges (task renderer 37).
+                r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
 
                 r->setSelectionId(selectionId);
                 r->material.surface = gatherSurface(prim_state);
@@ -1211,6 +1213,8 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                     r->material.brightness = 0.5;
                 else
                     r->material.brightness = 1.0;
+                // Cruciform light materials: trees, bushes, hedges (task renderer 37).
+                r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
 
                 r->material.surface = gatherSurface(prim_state);
                 setGatherTexture(r, prim_state, texEnabled);

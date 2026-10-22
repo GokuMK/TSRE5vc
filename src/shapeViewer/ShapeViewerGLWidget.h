@@ -55,8 +55,21 @@ public:
     QImage *screenShot = NULL;
     void setMode(QString n);
     void resetRot();
-    // Turns the shown model by yaw radians from the default view.
-    void setModelRotation(float yaw);
+    // Turns the shown model by yaw radians from the default view, and tilts
+    // it by pitch radians (as dragging with the right button).
+    void setModelRotation(float yaw, float pitch = 0.0f);
+    // The light the view draws with, whatever the route's sun (task
+    // renderer 23): the direction towards the sun in the view's frame (the
+    // camera looks along +x, y up) and the sun's and the ambient light's
+    // greys. By default a studio light: the sun above, behind the camera and
+    // to one side, the ambient light strong enough for the ambient
+    // occlusion to show.
+    struct Light {
+        float sun[3] = {-0.597f, 0.6965f, 0.398f};
+        float sunColor = 0.6f;
+        float ambient = 0.5f;
+    };
+    void setLight(const Light &light);
     void getImg();
     void setBackgroundGlColor(float r, float g, float b);
     void fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo *info);
@@ -144,6 +157,7 @@ private:
     QString mode = "";
     float rotY = M_PI;
     float rotZ = 0;
+    Light light;
     bool selection = false;
     bool getImage = false;
     float backgroundGlColor[3];

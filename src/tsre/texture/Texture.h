@@ -67,6 +67,9 @@ class Texture {
     std::atomic<unsigned char> alphaClass{0};
     int ref = 0;
     bool glLoaded = false;
+    // Textures uploaded so far (glLoaded set), for caches drawn from them:
+    // a cut-out finishing its upload changes a shadow (task renderer 37).
+    static unsigned uploads;
     bool editable = false;
     bool missing = false;
     bool error = false;

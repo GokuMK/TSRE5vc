@@ -90,6 +90,10 @@ public:
         // Below 1 the surface is drawn blended, its alpha times this (terrain
         // tile overlays, task editor 04).
         float opacity = 1.0f;
+        // Trees, bushes and hedges (task renderer 37): glTF shapes with an
+        // impostor, MSTS cruciform light materials, forests. Never under a
+        // roof: no sky enclosure lookups, left out of the enclosure maps.
+        bool vegetation = false;
     };
 
     // Metallic-roughness material (glTF), drawn by the PBR program variant.
@@ -264,6 +268,12 @@ public:
     // texture has no partly transparent texels draws as opaque, and one whose
     // texture alpha is binary as alpha-tested (core.rendering.blendedParts).
     unsigned char drawSurface() const;
+    // Whether the blended pass draws the packet in two, as Open Rails draws
+    // MSTS blended parts: its opaque texels first, depth written, then the
+    // rest without depth writes, so glass never hides what lies behind it
+    // (QueueRenderer::BlendedTexels). Textured blended packets of full
+    // opacity, not PBR, water or decals.
+    bool blendsInTwoParts() const;
     // Sets the bounds from a sphere in mesh space, moved into the submission
     // space by transform (normally msMatrix; null is identity). A negative
     // radius clears them.

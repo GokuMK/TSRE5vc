@@ -255,6 +255,8 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             item->material.wireframe = false;
             item->material.lit = mat.light >= -7;
             item->material.brightness = mat.light == -12 ? 0.5f : 1.0f;
+            // Cruciform light materials: trees, bushes, hedges (task renderer 37).
+            item->material.vegetation = mat.light == -9 || mat.light == -10;
             // Same classes as the alpha written into the vertices.
             item->material.surface = mat.alpha == 1 ? RenderItem::SURFACE_OPAQUE
                     : mat.alphaTest ? RenderItem::SURFACE_ALPHA_TEST

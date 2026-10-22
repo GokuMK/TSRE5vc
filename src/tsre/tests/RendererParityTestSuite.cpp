@@ -37,6 +37,7 @@
 #include <tsre/camera/CameraRot.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/EngLib.h>
+#include <tsre/trains/Eng.h>
 #include <tsre/Game.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/GeoPresetData.h>
@@ -141,6 +142,10 @@ struct ViewSpec {
     double lat = 0.0, lon = 0.0;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
     bool editDistant = false;
+    // Move the placed objects by this much (metres) before the view, as the
+    // editor moves an object (cached shadow maps, task renderer 37).
+    bool hasMoveObjects = false;
+    float moveObjects[3] = {0.0f, 0.0f, 0.0f};
     // Height above the terrain, replacing the view's own height.
     bool hasAboveGround = false;
     float aboveGround = 0.0f;
@@ -421,6 +426,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
             view.lon = latLon[1].toDouble();
         }
         view.editDistant = object.value("editDistant").toBool(false);
+        view.hasMoveObjects = readFloatArray(object.value("moveObjects"), view.moveObjects, 3);
         view.hasAboveGround = object.contains("aboveGround");
         if (object.value("windowSize").isArray() && object.value("windowSize").toArray().size() == 2) {
             view.windowWidth = object.value("windowSize").toArray()[0].toInt(0);
@@ -633,6 +639,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     float startPos[3];
     float startRot[2];
     widget.diagnosticView(startTileX, startTileZ, startPos, startRot[0], startRot[1]);
+    QVector<WorldObj *> placedObjects;
     for (const PlacedObject &placed : options.objects) {
         Ref::RefItem item;
         item.type = "static";
@@ -668,9 +675,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         float rotation[4];
         float up[3] = {0.0f, 1.0f, 0.0f};
         Quat::setAxisAngle(rotation, up, placed.yaw * float(M_PI) / 180.0f);
-        if (widget.currentRoute() == nullptr
-                || widget.currentRoute()->placeObject(tileX, tileZ, position, rotation, 0.0f, &item) == nullptr)
+        WorldObj *placedObject = widget.currentRoute() != nullptr
+                ? widget.currentRoute()->placeObject(tileX, tileZ, position, rotation, 0.0f, &item) : nullptr;
+        if (placedObject == nullptr)
             qWarning() << CaptureLog << "could not place" << placed.file;
+        else
+            placedObjects.push_back(placedObject);
     }
 
     widget.setDiagnosticActivity(options.activity, options.path);
@@ -758,6 +768,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         }
         Game::viewMarkers = spec.viewMarkers && !options.hideAll;
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
+        if (spec.hasMoveObjects)
+            for (WorldObj *placedObject : placedObjects)
+                placedObject->translate(spec.moveObjects[0], spec.moveObjects[1], spec.moveObjects[2]);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
                                         spec.bearing);
@@ -1183,8 +1196,21 @@ struct ViewerItem {
     QString path;
     QString file;
     QString textures;
-    // Degrees the model is turned from the default view (shapes only).
+    // Degrees the model is turned from the default view and tilted
+    // (shapes only).
     double yaw = 0.0;
+    double pitch = 0.0;
+    // Once the camera has fitted the shape: degrees of view (a zoom; 0
+    // keeps the fit) and degrees the camera looks up.
+    double fov = 0.0;
+    double look = 0.0;
+    // The view's light (ShapeViewerGLWidget::Light; "light": {"sun": [x, y,
+    // z] towards it, "sunColor": grey, "ambient": grey}); otherwise the
+    // view's default.
+    bool hasLight = false;
+    float sun[3] = {-1.0f, 0.0f, 0.0f};
+    float sunColor = 0.7f;
+    float ambient = 0.3f;
 };
 
 struct ViewerOptions {
@@ -1236,6 +1262,14 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.file = object.value("file").toString();
         item.textures = object.value("textures").toString();
         item.yaw = object.value("yaw").toDouble(0.0);
+        item.pitch = object.value("pitch").toDouble(0.0);
+        item.fov = object.value("fov").toDouble(0.0);
+        item.look = object.value("look").toDouble(0.0);
+        const QJsonObject light = object.value("light").toObject();
+        item.hasLight = !light.isEmpty();
+        readFloatArray(light.value("sun"), item.sun, 3);
+        item.sunColor = float(light.value("sunColor").toDouble(item.sunColor));
+        item.ambient = float(light.value("ambient").toDouble(item.ambient));
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";
             return false;
@@ -1311,11 +1345,17 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
                     ? ShapeViewerGLWidget::textureDirectory(path)
                     : itemRoot.absoluteFilePath(item.textures);
             widget.showShape(path, textures);
-            widget.setModelRotation(float(item.yaw * M_PI / 180.0));
+            widget.setModelRotation(float(item.yaw * M_PI / 180.0), float(item.pitch * M_PI / 180.0));
         } else if (item.type == "eng") {
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");
             widget.showEng(path, item.file);
+            // As the Consist Editor's engine view: back by its length.
+            const int engine = Game::currentEngLib->addEng(path, item.file);
+            const float back = engine >= 0 ? -Game::currentEngLib->eng[engine]->sizez - 1.0f : -15.0f;
+            shapeCamera.setPos(std::min(back, -15.0f), 2.5f, 0.0f);
+            shapeCamera.setPlayerRot(M_PI / 2.0, 0);
+            widget.setModelRotation(float(item.yaw * M_PI / 180.0), float(item.pitch * M_PI / 180.0));
         } else if (item.type == "consist") {
             const int id = ConLib::addCon(path, item.file);
             if (id < 0) {
@@ -1332,6 +1372,13 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             qWarning() << ViewerCaptureLog << item.name << "could not be shown";
             continue;
         }
+        ShapeViewerGLWidget::Light light;
+        if (item.hasLight) {
+            std::copy(item.sun, item.sun + 3, light.sun);
+            light.sunColor = item.sunColor;
+            light.ambient = item.ambient;
+        }
+        widget.setLight(light);
 
         QElapsedTimer settleTimer;
         settleTimer.start();
@@ -1340,6 +1387,8 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         unsigned lastShapeProgress = ShapeLoader::progress();
         bool settled = false;
         QImage image;
+        const float fittedFov = shapeCamera.fov;
+        bool zoomPending = item.type == "shape" && (item.fov > 0.0 || item.look != 0.0);
         while (frames < options.settle.maxFrames
                && settleTimer.elapsed() < qint64(options.settle.maxSeconds) * 1000) {
             pumpEvents(options.settle.frameIntervalMs);
@@ -1355,10 +1404,22 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             lastShapeProgress = shapeProgress;
             if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
                     && !ShapeLoader::busy()) {
+                // The camera has fitted the loaded shape: zoom, and settle
+                // again.
+                if (zoomPending) {
+                    zoomPending = false;
+                    if (item.fov > 0.0)
+                        shapeCamera.fov = float(item.fov);
+                    shapeCamera.setPlayerRot(M_PI / 2.0, float(item.look * M_PI / 180.0));
+                    stableCount = 0;
+                    continue;
+                }
                 settled = true;
                 break;
             }
         }
+        shapeCamera.fov = fittedFov;
+        shapeCamera.setPlayerRot(M_PI / 2.0, 0);
         image.save(QDir(outputDir).filePath(item.name + ".png"));
         items.append(QJsonObject{{"name", item.name}, {"settled", settled}, {"frames", frames}});
         qInfo().noquote() << ViewerCaptureLog << item.name

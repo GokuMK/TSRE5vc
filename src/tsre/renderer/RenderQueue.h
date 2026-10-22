@@ -92,6 +92,31 @@ public:
     // cast, excluding terrain and terrain decals.
     void setShadowCasting(bool cast);
     bool shadowCastingEnabled() const { return shadowCasting; }
+    // Whether following submissions are drawn into the shadow maps only,
+    // never in a view: a coarser level of detail standing in for the view's
+    // mesh, which is then submitted without casting (task renderer 37). A new
+    // frame turns it off.
+    void setShadowOnly(bool only);
+    bool shadowOnlyEnabled() const { return shadowOnly; }
+    // Whether following submissions move (trains, animated objects, objects
+    // being edited): their shadows are drawn on top of the cached static
+    // shadow maps every frame (task renderer 37). Overlay and frame items
+    // always count as moving. A new frame turns it off.
+    void setShadowDynamic(bool dynamic);
+    bool shadowDynamicEnabled() const { return shadowDynamic; }
+    // What the cached static shadow maps hold (task renderer 37): producers
+    // add a hash of each loaded object that casts and is not being edited
+    // (its identity, place and last change), in range or not, drawn or not,
+    // so edits, additions, deletions and loaded tiles change the sum, and
+    // the camera moving or turning and levels of detail switching do not.
+    // A new frame starts it at 0.
+    void addShadowSignature(quint64 hash) { shadowSignatureSum += hash; }
+    quint64 shadowSignature() const { return shadowSignatureSum; }
+    // The same of every loaded object, being edited too: what maps of all
+    // surfaces hold (the sky enclosure), so an object dragged in the editor
+    // redraws them every frame.
+    void addSceneSignature(quint64 hash) { sceneSignatureSum += hash; }
+    quint64 sceneSignature() const { return sceneSignatureSum; }
     // The reach (m) of the lights of following submissions, set by a placed
     // object that asks for more than the default; 0 for the default. A new
     // frame turns it back to 0.
@@ -105,6 +130,10 @@ protected:
     float *mvMatrix = nullptr;
     Layer currentLayer = LAYER_SCENE;
     bool shadowCasting = true;
+    bool shadowOnly = false;
+    bool shadowDynamic = false;
+    quint64 shadowSignatureSum = 0;
+    quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;
 
 private:

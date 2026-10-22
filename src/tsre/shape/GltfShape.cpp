@@ -1283,6 +1283,16 @@ void GltfShape::setCameraDirection(unsigned int stateId, const float direction[3
     state[stateId].frame = best;
 }
 
+int GltfShape::shadowFloorLevel() const {
+    return loaded == 1 && impostorLevel > 0 ? impostorLevel - 1 : -1;
+}
+
+void GltfShape::setShadowDistanceLevel(unsigned int stateId, int level) {
+    if (stateId >= (unsigned int)state.size())
+        return;
+    state[stateId].shadowLevel = level >= 0 && level < impostorLevel ? level : -1;
+}
+
 void GltfShape::updateSim(float deltaTime, unsigned int stateId) {
     (void)deltaTime;
     (void)stateId;
@@ -1313,16 +1323,44 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             return;
     }
 
+    if (selectionId == 0 && texturesSyncedFrame != Renderer::frameNumber()) {
+        texturesSyncedFrame = Renderer::frameNumber();
+        syncTextureAddresses();
+        textureStateHash = getTextureStateHash();
+    }
+
     // A packet set per level of detail, shared by the states drawing it.
     const int level = lodLevels > 1 ? std::clamp(state[stateId].level, 0, lodLevels - 1) : 0;
     // At the impostor's level, one per frame: only the frame facing the
     // camera, no mesh.
     const bool impostorView = level == impostorLevel;
     const int frame = impostorView ? std::clamp(state[stateId].frame, 0, int(impostorDirections.size() / 3) - 1) : -1;
+    // A coarser level cast into the shadow maps (task renderer 37) instead
+    // of the view's, which then casts none.
+    const int shadow = selectionId == 0 && queue.shadowCastingEnabled() ? state[stateId].shadowLevel : -1;
+    const bool shadowStandIn = shadow >= 0 && shadow != level;
+    // One level's packets at a time: taking another's may grow the table.
+    if (shadowStandIn)
+        queue.setShadowCasting(false);
+    {
+        const QVector<RenderItem *> &packets = levelPackets(level, frame, selectionId == 0);
+        if (!packets.isEmpty())
+            queue.submit(packets, selectionId);
+    }
+    if (shadowStandIn) {
+        queue.setShadowCasting(true);
+        queue.setShadowOnly(true);
+        const QVector<RenderItem *> &packets = levelPackets(shadow, -1, true);
+        if (!packets.isEmpty())
+            queue.submit(packets);
+        queue.setShadowOnly(false);
+    }
+}
+
+QVector<RenderItem *> &GltfShape::levelPackets(int level, int frame, bool checkTextures) {
+    const bool impostorView = frame >= 0;
     const unsigned int key = unsigned(level) | (unsigned(frame + 1) << 8);
-    if (selectionId == 0) {
-        syncTextureAddresses();
-        const unsigned long long textureStateHash = getTextureStateHash();
+    if (checkTextures) {
         // Only a built set whose textures changed: a level not built yet
         // must not drop the sets of the others (levels alternate between
         // objects).
@@ -1332,11 +1370,12 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
         }
     }
 
-    if (renderItems[key].size() == 0 || requiresUpdate) {
+    QVector<RenderItem *> &items = renderItems[key];
+    if (items.size() == 0 || requiresUpdate) {
         const bool globalInvalidateRequested = requiresUpdate;
         requiresUpdate = false;
         renderItemsTextureHash.remove(key);
-        retireRenderItems(renderItems[key]);
+        retireRenderItems(items);
 
         for (int u = 0; u < drawUnits.size(); u++) {
             const DrawUnit& unit = drawUnits[u];
@@ -1365,6 +1404,8 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             r->material.brightness = 1.0f;
             r->material.surface = prim->material.surface;
             r->material.doubleSided = prim->material.doubleSided;
+            // Trees: shapes with an impostor (task renderer 37).
+            r->material.vegetation = impostorLevel >= 0;
             r->pbr = prim->material.pbr;
             r->pbr.enabled = true;
             // Node world matrices are fixed at load, so the bounds hold.
@@ -1381,7 +1422,7 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
                 r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
             }
 
-            renderItems[key].push_back(r);
+            items.push_back(r);
         }
 
         // Punctual lights travel in a packet without a mesh.
@@ -1389,7 +1430,7 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             RenderItem *lights = new RenderItem();
             lights->shared = true;
             lights->lights = punctualLights;
-            renderItems[key].push_back(lights);
+            items.push_back(lights);
         }
 
         if (globalInvalidateRequested) {
@@ -1401,15 +1442,13 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
         }
         renderItemsTextureHash[key] = getTextureStateHash();
     }
-
-    if (renderItems[key].size() > 0) {
-        queue.submit(renderItems[key], selectionId);
-    }
+    return items;
 }
 
 void GltfShape::invalidateRenderState(bool invalidateMatrixCache) {
     (void)invalidateMatrixCache;
     requiresUpdate = true;
+    texturesSyncedFrame = ~quint64(0);
     cleanupRenderItems();
 }
 

@@ -51,6 +51,20 @@ Noted in their tasks:
 - The cloud shadow map's 47 m texels show as a grid edge on the terrain;
   slight steps at bright cloud edges by the sun, in motion (task 28, "Still
   open").
-- The cost of glTF draws in the environment map's faces (task 17).
+- The cost of glTF draws in the environment map's faces (task 17). In a
+  forest a face draws the trees within 300 m at the view's level, up to
+  1.4 M triangles (task 37).
+- `shape-complex-gl` crashes offscreen (`QT_QPA_PLATFORM=offscreen`, access
+  violation) after "SFileLegacy: level 0 within its distance", with main's
+  build of 2026-10-20 too; it passes on the real platform (task 37,
+  2026-10-21).
+- On QRhi, `RenderStats` counts indices as primitives (3 times the
+  triangles): `RhiRenderer::recordDraw` passes primitive 0 (task 37).
+- `StaticObj::pushRenderItems` skips objects behind the camera beyond their
+  size and 150 m (a CPU saving from the immediate renderer; the queue culls
+  each instance against the view anyway). Their shadows are missing from
+  the middle and far maps (long shadows of a low sun), and the cached
+  shadow maps redraw in turn when the view has turned 30 degrees so that
+  those that appear cast (task 37).
 
 ## Done

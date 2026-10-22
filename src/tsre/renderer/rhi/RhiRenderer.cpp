@@ -46,6 +46,16 @@ static void debugCount(const QString &key) { if (traceDraws) debugCounts[key]++;
 extern const char *RhiPresentFragment;
 
 namespace {
+// The share of vegetation's shadow maps vegetation itself takes (task 37):
+// half; TSRE_VEGETATION_SELF_SHADOW (0 to 1) tries another.
+float vegetationSelfShadow() {
+    static const float share = [] {
+        bool ok = false;
+        const float value = qEnvironmentVariable("TSRE_VEGETATION_SELF_SHADOW").toFloat(&ok);
+        return ok ? std::clamp(value, 0.0f, 1.0f) : 0.5f;
+    }();
+    return share;
+}
 
 constexpr int InstanceFloats = 20;
 constexpr int InstanceStride = InstanceFloats * sizeof(float);
@@ -287,6 +297,11 @@ void RhiRenderer::releaseResources() {
     releaseAttachments(selection);
     for (Attachments &map : shadowMaps)
         releaseAttachments(map);
+    for (Attachments &map : vegetationMaps)
+        releaseAttachments(map);
+    releaseShadowCopy();
+    for (Attachments &cache : shadowCaches)
+        releaseAttachments(cache);
     delete uniformArena.buffer;
     uniformArena.buffer = nullptr;
     delete instanceArena.buffer;
@@ -438,6 +453,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     // With auto exposure lamps keep one scale (gathered at it), enclosed or
     // not: the exposure finds the tunnel dark.
     program->setFloat("localLightDay", enclosed && !exposureActive() ? gluu->localLightAdaptation : 1.0f);
+    // Vegetation's shadow maps (task 37), and the share vegetation takes of
+    // them: its own crown and its neighbours' as a light shade.
+    program->setInt("vegetationShadowsOn", vegetationMaps[0].valid() && Game::shadowsEnabled > 0 ? 1 : 0);
+    program->setFloat("vegetationSelfShadow", vegetationSelfShadow());
     // MSTS night textures (task 35): the scale of their light, set by the
     // view with the lamps' rule.
     const NightTextures::Frame &night = NightTextures::frame();
@@ -505,6 +524,9 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     program->setFloat("enableNormals", item->material.lit ? 1.0f : 0.0f);
     program->setFloat("colorBrightness", item->material.brightness);
     program->setFloat("materialTransparency", 1.0f - item->material.opacity);
+    // Vegetation is never under a roof: no sky enclosure lookups (task 37).
+    program->setInt("materialVegetation", item->material.vegetation ? 1 : 0);
+    program->setInt("blendedTexels", texelsOf(item));
     program->setUint("selectionId", selectionId);
     const QVector3D remap = item->terrain.textureRemap;
     program->setVec("terrainTextureRemap", remap.x(), remap.y(), remap.z());
@@ -1075,7 +1097,106 @@ void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
             createAttachments(shadowMaps[map], QRhiTexture::UnknownFormat, size, {});
         shadowMaps[map].openGlRows = true;
         targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
+        // Vegetation's (task 37), as the map.
+        if (!vegetationMaps[map].valid() || vegetationMaps[map].size != size)
+            createAttachments(vegetationMaps[map], QRhiTexture::UnknownFormat, size, {});
+        vegetationMaps[map].openGlRows = true;
+        targets[TARGET_VEGETATION_NEAR + map].attachments = &vegetationMaps[map];
     }
+}
+
+bool RhiRenderer::beginShadowCache(int map) {
+    beginFrameIfNeeded();
+    if (map < 0 || map > 5)
+        return false;
+    const Attachments &source = map < 3 ? shadowMaps[map] : vegetationMaps[map - 3];
+    if (!source.valid())
+        return false;
+    flushTarget();
+    Attachments &cache = shadowCaches[map];
+    const QSize size = source.size;
+    if ((!cache.valid() || cache.size != size)
+            && !createAttachments(cache, QRhiTexture::UnknownFormat, size, {}))
+        return false;
+    // Rows as in the map, which takes it texel for texel.
+    cache.openGlRows = true;
+    targets[TargetShadowCache + map].attachments = &cache;
+    currentTarget = TargetShadowCache + map;
+    TargetState &state = target();
+    state.clearColor = false;
+    state.clearDepth = true;
+    setViewport(0, 0, size.width(), size.height());
+    return true;
+}
+
+bool RhiRenderer::copyShadowCache(int map) {
+    if (map < 0 || map > 5 || !shadowCaches[map].valid())
+        return false;
+    // Over the map's clear: a failed copy leaves it empty, never stale.
+    target().copyCache = map;
+    return true;
+}
+
+bool RhiRenderer::drawShadowCopy(QRhiCommandBuffer *cb, int map, const Attachments &into) {
+    const Attachments &cache = shadowCaches[map];
+    if (!cache.valid() || cache.depth == nullptr || cache.size != into.size)
+        return false;
+    ShadowCopy &copy = shadowCopy;
+    if (copy.sampler == nullptr) {
+        copy.sampler = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
+                                       QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+        if (!copy.sampler->create()) {
+            releaseShadowCopy();
+            return false;
+        }
+    }
+    if (copy.bindings[map] == nullptr || copy.bound[map] != cache.depth) {
+        if (copy.bindings[map] == nullptr)
+            copy.bindings[map] = rhi->newShaderResourceBindings();
+        copy.bindings[map]->setBindings({QRhiShaderResourceBinding::sampledTexture(
+                0, QRhiShaderResourceBinding::FragmentStage, cache.depth, copy.sampler)});
+        if (!copy.bindings[map]->create())
+            return false;
+        copy.bound[map] = cache.depth;
+    }
+    if (copy.pipeline == nullptr) {
+        // Every texel's depth as the cache has it; the maps' passes are
+        // alike, so one pipeline serves the three.
+        static const char *fragment = R"(#version 440
+layout(binding = 0) uniform sampler2D cache;
+void main() {
+    gl_FragDepth = texelFetch(cache, ivec2(gl_FragCoord.xy), 0).r;
+}
+)";
+        copy.pipeline = rhi->newGraphicsPipeline();
+        copy.pipeline->setShaderStages(
+                {{QRhiShaderStage::Vertex, bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi)},
+                 {QRhiShaderStage::Fragment, bakeInline(fragment, QShader::FragmentStage, rhi)}});
+        copy.pipeline->setDepthTest(true);
+        copy.pipeline->setDepthWrite(true);
+        copy.pipeline->setDepthOp(QRhiGraphicsPipeline::Always);
+        copy.pipeline->setShaderResourceBindings(copy.bindings[map]);
+        copy.pipeline->setRenderPassDescriptor(into.pipelinePass());
+        if (!copy.pipeline->create()) {
+            delete copy.pipeline;
+            copy.pipeline = nullptr;
+            return false;
+        }
+    }
+    cb->setGraphicsPipeline(copy.pipeline);
+    cb->setViewport(QRhiViewport(0, 0, float(into.size.width()), float(into.size.height())));
+    cb->setShaderResources(copy.bindings[map]);
+    cb->draw(3);
+    return true;
+}
+
+void RhiRenderer::releaseShadowCopy() {
+    ShadowCopy &copy = shadowCopy;
+    delete copy.pipeline;
+    for (QRhiShaderResourceBindings *bindings : copy.bindings)
+        delete bindings;
+    delete copy.sampler;
+    copy = ShadowCopy();
 }
 
 bool RhiRenderer::enclosureTarget(int which) const {
@@ -1988,6 +2109,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             const int map = slot.binding == 9 ? 0 : slot.binding == 2 ? 1 : slot.binding == 3 ? 2 : -1;
             if (map >= 0 && shadowMaps[map].valid() && Game::shadowsEnabled > 0)
                 texture = shadowMaps[map].depth;
+            // Vegetation's (task 37).
+            const int vegetation = slot.binding - RhiShaderSource::VegetationShadowBinding;
+            if (vegetation >= 0 && vegetation < 3 && vegetationMaps[vegetation].valid() && Game::shadowsEnabled > 0)
+                texture = vegetationMaps[vegetation].depth;
             break;
         }
         case 4:
@@ -2153,7 +2278,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.format = quint8(buffers.format);
     key.blend = blending && baseProgram != PROGRAM_SELECTION && target().attachments != nullptr
             && target().attachments->color != nullptr;
-    key.depthWrite = !(item->pbr.enabled && item->pbr.blend);
+    key.depthWrite = !(item->pbr.enabled && item->pbr.blend) && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
     // The sky enclosure maps look down on everything: single-sided roofs and
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow
@@ -2239,7 +2364,13 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         // The falling drops over the scene, before the UI.
         if (pass == PASS_UI && first < PASS_UI)
             applyRain();
-        if (queue.ordered.empty() && queue.grouped.empty())
+        // Blended parts in two, as Open Rails draws them: their opaque
+        // texels after the alpha-tested ones, depth written; the rest back
+        // to front in the blended pass without, so a window never hides the
+        // cab behind it.
+        const bool twoParts = blending && baseProgram != PROGRAM_SELECTION && blendedInTwo();
+        const bool opaqueTexels = opaqueTexelsIn(pass, twoParts);
+        if (queue.ordered.empty() && queue.grouped.empty() && !opaqueTexels)
             continue;
         // Occlusion of the opaque scene, before blended and later passes.
         if (pass > PASS_ALPHA_TEST) {
@@ -2253,11 +2384,22 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (pass == PASS_WATER)
             waterSceneLevels = copyFrameForWater();
         recordInstances(queue.ordered, pass, false);
+        if (pass == PASS_BLENDED && opaqueTexels) {
+            blendedTexels = TEXELS_OPAQUE;
+            recordInstances(twoPartBlended, pass, true);
+        }
+        if (pass == PASS_BLENDED && twoParts)
+            blendedTexels = TEXELS_TRANSLUCENT;
         if (pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
             sortBackToFront(queue.grouped);
         else
             sortByTexture(queue.grouped);
         recordInstances(queue.grouped, pass, true);
+        if (pass == PASS_ALPHA_TEST && opaqueTexels) {
+            blendedTexels = TEXELS_OPAQUE;
+            recordInstances(twoPartBlended, pass, true);
+        }
+        blendedTexels = TEXELS_ALL;
         sceneCopyLevels = 0.0f;
         waterSceneLevels = 0.0f;
         if (consume)
@@ -2277,12 +2419,13 @@ void RhiRenderer::renderPassesMeasured(RenderPass first, RenderPass last) {
     drawPasses(first, last, true);
 }
 
-void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *viewProjection) {
+void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *viewProjection,
+                                      ShadowCasters casters, ShadowSet set) {
     beginFrameIfNeeded();
     if (!targetReady())
         return;
     // Casters in range and inside the light view, instanced by packet.
-    planShadowCasters(range, viewProjection);
+    planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
     recordCasters(statsSlot);
 }
 
@@ -2304,7 +2447,8 @@ void RhiRenderer::flushTarget() {
     if (s == nullptr || s->frame().commandBuffer == nullptr)
         return;
     const bool splatsPending = glowSplats.pending && currentTarget == TARGET_VIEW;
-    if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending)
+    if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending
+            && state.copyCache < 0)
         return;
     if (!targetReady())
         return;
@@ -2370,6 +2514,10 @@ void RhiRenderer::flushTarget() {
     }
     cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
     frameBatch = nullptr;
+    // A shadow map starting as its cached static casters (task 37), with the
+    // moving ones drawn on top.
+    if (state.copyCache >= 0 && !drawShadowCopy(cb, state.copyCache, *state.attachments))
+        qWarning() << "QRhi: could not copy the cached shadow map" << state.copyCache;
     // State a draw shares with the one before is not set again: on OpenGL
     // every setShaderResources applies all uniforms and textures, and every
     // setVertexInput all attributes. The instance and index offsets go to
@@ -2460,6 +2608,7 @@ void RhiRenderer::flushTarget() {
     state.keys.clear();
     state.bindings.clear();
     state.clearColor = state.clearDepth = false;
+    state.copyCache = -1;
 }
 
 void RhiRenderer::present() {

@@ -52,6 +52,8 @@ public:
     unsigned int shaderBrightness;
     unsigned int shaderFogDensity;
     unsigned int shaderTransparency;
+    // Blended packets drawn in two (QueueRenderer::BlendedTexels).
+    int blendedTexels = -1;
     unsigned int shadow1Res;
     unsigned int shadow2Res;
     unsigned int shadow2Bias;

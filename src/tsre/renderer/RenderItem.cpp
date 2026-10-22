@@ -91,6 +91,12 @@ unsigned char RenderItem::drawSurface() const{
     return SURFACE_BLENDED;
 }
 
+bool RenderItem::blendsInTwoParts() const{
+    return material.surface == SURFACE_BLENDED && material.textured && material.opacity >= 1.0f
+            && !material.decal && !pbr.enabled && !water.enabled
+            && drawSurface() == SURFACE_BLENDED;
+}
+
 void RenderItem::setBounds(const float *center, float radius, const float *transform){
     if(radius < 0.0f){
         bounds = Bounds();

@@ -32,7 +32,9 @@ struct Preset {
     int steps;
     bool blur;
 };
-const Preset Presets[4] = {{0, 0, 0, false}, {4, 2, 4, true}, {2, 3, 6, true}, {1, 4, 8, true}};
+// High: full resolution keeps thin occluders (rails, foliage); 3 x 6 is as
+// good as 4 x 8 after the blur (task 23, 2026-10-22).
+const Preset Presets[4] = {{0, 0, 0, false}, {4, 2, 4, true}, {2, 3, 6, true}, {1, 3, 6, true}};
 
 // Metres a surface looks for occluders, the curve applied to the result and
 // the distances over which occlusion fades out.
@@ -48,6 +50,8 @@ struct Parameters {
     float settings[4];    // radius, slices, steps, power
     float fade[4];        // fade start and end, largest screen radius in pixels, 0
     float occlusion[4];   // 1 / occlusion width and height, 0, 0
+    float distance[4];    // a depth's view distance: x / (y - depth * z); 1 / radius^2
+    float unproject[4];   // 1 / x and y scale, view width and height
 };
 
 const char *OcclusionFragment = R"(#version 440
@@ -59,38 +63,44 @@ layout(std140, binding = 0) uniform Parameters {
     vec4 settings;
     vec4 fade;
     vec4 occlusion;
+    vec4 distanceFromDepth;
+    vec4 unproject;
 };
 layout(binding = 1) uniform sampler2D depthTexture;
+
+// The preset's slice directions and steps per side, baked in so that the
+// loops unroll and the depth reads are issued together.
+#ifndef SLICES
+#define SLICES 4
+#define STEPS 8
+#endif
 
 const float Pi = 3.14159265;
 
 // Distance along the view axis of a depth in the scene band; -1 outside it
-// (sky and distant terrain).
+// (sky and distant terrain). The band's and the projection's terms are
+// folded into distanceFromDepth.
 float viewDistance(float depth) {
-    if (depth >= slice.y)
-        return -1.0;
-    float z = (depth - slice.x) / (slice.y - slice.x) * 2.0 - 1.0;
-    float near = projection.z, far = projection.w;
-    return 2.0 * near * far / ((far + near) - z * (far - near));
+    return depth >= slice.y ? -1.0 : distanceFromDepth.x / (distanceFromDepth.y - depth * distanceFromDepth.z);
 }
 
-// The view position of the depth texel at p: positions are rebuilt at the
-// texel's centre, the point its depth belongs to (elsewhere sloping surfaces
-// would turn into steps that look like occluders).
-vec3 positionAt(vec2 p, out bool valid) {
-    p = (floor(p / slice.zw) + 0.5) * slice.zw;
-    float distance = viewDistance(textureLod(depthTexture, p, 0.0).r);
+// The view position of a view texel: positions are rebuilt at the texel's
+// centre, the point its depth belongs to (elsewhere sloping surfaces would
+// turn into steps that look like occluders).
+vec3 positionAt(ivec2 pixel, out bool valid) {
+    pixel = clamp(pixel, ivec2(0), ivec2(unproject.zw) - 1);
+    float distance = viewDistance(texelFetch(depthTexture, pixel, 0).r);
     valid = distance > 0.0;
-    vec2 ndc = p * 2.0 - 1.0;
+    vec2 ndc = (vec2(pixel) + 0.5) * slice.zw * 2.0 - 1.0;
     distance = max(distance, 0.0);
-    return vec3(ndc.x * distance / projection.x, ndc.y * distance / projection.y, -distance);
+    return vec3(ndc * unproject.xy * distance, -distance);
 }
 
 void main() {
     bool valid;
     // The view texel under this pixel's centre.
-    vec2 centre = (floor(uv / slice.zw) + 0.5) * slice.zw;
-    vec3 position = positionAt(centre, valid);
+    ivec2 pixel = ivec2(uv * unproject.zw);
+    vec3 position = positionAt(pixel, valid);
 #ifdef SHOW_DEPTH
     result = vec4(fract(-position.z / 10.0), textureLod(depthTexture, uv, 0.0).r, valid ? 1.0 : 0.0, 1.0);
     return;
@@ -103,10 +113,10 @@ void main() {
     // so it does not bend across silhouettes.
     vec2 texel = slice.zw;
     bool rightValid, leftValid, upValid, downValid;
-    vec3 right = positionAt(centre + vec2(texel.x, 0.0), rightValid) - position;
-    vec3 left = position - positionAt(centre - vec2(texel.x, 0.0), leftValid);
-    vec3 up = positionAt(centre + vec2(0.0, texel.y), upValid) - position;
-    vec3 down = position - positionAt(centre - vec2(0.0, texel.y), downValid);
+    vec3 right = positionAt(pixel + ivec2(1, 0), rightValid) - position;
+    vec3 left = position - positionAt(pixel - ivec2(1, 0), leftValid);
+    vec3 up = positionAt(pixel + ivec2(0, 1), upValid) - position;
+    vec3 down = position - positionAt(pixel - ivec2(0, 1), downValid);
     vec3 dx = (!leftValid || (rightValid && abs(right.z) < abs(left.z))) ? right : left;
     vec3 dy = (!downValid || (upValid && abs(up.z) < abs(down.z))) ? up : down;
     vec3 view = normalize(-position);
@@ -128,8 +138,10 @@ void main() {
     // Interleaved gradient noise turns the slices and spreads the steps;
     // the blur averages it away.
     float noise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
-    int slices = int(settings.y);
-    int steps = int(settings.z);
+    const int slices = SLICES;
+    const int steps = STEPS;
+    float stepScale = 1.0 / float(steps);
+    vec2 centrePixel = vec2(pixel) + 0.5;
     float visibility = 0.0;
     for (int s = 0; s < slices; ++s) {
         float angle = (float(s) + noise) / float(slices) * Pi;
@@ -148,19 +160,19 @@ void main() {
             float sideSign = side == 0 ? -1.0 : 1.0;
             float highest = -1.0;
             for (int j = 0; j < steps; ++j) {
-                float t = (float(j) + fract(noise + float(j) * 0.618034)) / float(steps);
-                // Denser near the pixel, at least a pixel away.
-                vec2 tap = centre + sideSign * direction * (1.0 + t * t * radiusPixels) * texel;
-                if (any(lessThan(tap, vec2(0.0))) || any(greaterThan(tap, vec2(1.0))))
-                    break;
+                float t = (float(j) + fract(noise + float(j) * 0.618034)) * stepScale;
+                // Denser near the pixel, at least a pixel away (in view
+                // pixels from this one's centre).
+                vec2 tap = centrePixel + sideSign * direction * (1.0 + t * t * radiusPixels);
+                // Outside the view (and so every step after it) or without
+                // depth: no occluder.
+                bool inside = all(greaterThanEqual(tap, vec2(0.0))) && all(lessThan(tap, unproject.zw));
                 bool sampleValid;
-                vec3 delta = positionAt(tap, sampleValid) - position;
-                if (!sampleValid)
-                    continue;
+                vec3 delta = positionAt(ivec2(tap), sampleValid) - position;
                 float length2 = dot(delta, delta);
                 float cosHorizon = dot(delta, view) * inversesqrt(max(length2, 1e-8));
                 // Occluders fade out towards the radius.
-                float weight = clamp(1.0 - length2 / (radius * radius), 0.0, 1.0);
+                float weight = inside && sampleValid ? clamp(1.0 - length2 * distanceFromDepth.w, 0.0, 1.0) : 0.0;
                 highest = max(highest, mix(-1.0, cosHorizon, weight));
             }
             horizons[side] = sideSign * acos(clamp(highest, -1.0, 1.0));
@@ -190,6 +202,8 @@ layout(std140, binding = 0) uniform Parameters {
     vec4 settings;
     vec4 fade;
     vec4 occlusion;
+    vec4 distanceFromDepth;
+    vec4 unproject;
 };
 layout(binding = 1) uniform sampler2D occlusionTexture;
 
@@ -301,15 +315,24 @@ bool RhiRenderer::createAmbientOcclusion(int quality) {
     QRhiTexture *occlusion = preset.blur ? ao.blurred : ao.raw;
     ao.compositeBindings = bindings({QRhiShaderResourceBinding::sampledTexture(1, fragment, view.color2, ao.nearest),
                                      QRhiShaderResourceBinding::sampledTexture(2, fragment, occlusion, ao.linear)});
-    static QShader vertex, occlusionShader, blurShader, compositeShader;
+    static QShader vertex, blurShader, compositeShader;
+    // An occlusion shader per preset's slices and steps.
+    static QHash<int, QShader> occlusionShaders;
+    const int occlusionKey = preset.slices * 1000 + preset.steps;
+    if (!occlusionShaders.contains(occlusionKey)) {
+        QByteArray defines = "#version 440\n#define SLICES " + QByteArray::number(preset.slices)
+                + "\n#define STEPS " + QByteArray::number(preset.steps) + "\n";
+        if (qgetenv("TSRE_AO_DEBUG") == "depth")
+            defines += "#define SHOW_DEPTH\n";
+        if (qgetenv("TSRE_AO_DEBUG") == "normal")
+            defines += "#define SHOW_NORMAL\n";
+        QByteArray occlusionSource(OcclusionFragment);
+        occlusionSource.replace("#version 440\n", defines);
+        occlusionShaders.insert(occlusionKey, bakeInline(occlusionSource.constData(), QShader::FragmentStage, rhi));
+    }
+    const QShader &occlusionShader = occlusionShaders[occlusionKey];
     if (!vertex.isValid()) {
         vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
-        QByteArray occlusionSource(OcclusionFragment);
-        if (qgetenv("TSRE_AO_DEBUG") == "depth")
-            occlusionSource.replace("#version 440\n", "#version 440\n#define SHOW_DEPTH\n");
-        if (qgetenv("TSRE_AO_DEBUG") == "normal")
-            occlusionSource.replace("#version 440\n", "#version 440\n#define SHOW_NORMAL\n");
-        occlusionShader = bakeInline(occlusionSource.constData(), QShader::FragmentStage, rhi);
         blurShader = bakeInline(BlurFragment, QShader::FragmentStage, rhi);
         QByteArray composite(CompositeFragment);
         if (qgetenv("TSRE_AO_DEBUG") == "normal" || qgetenv("TSRE_AO_DEBUG") == "depth")
@@ -386,6 +409,19 @@ void RhiRenderer::applyAmbientOcclusion() {
     parameters.fade[2] = 0.15f * float(view.size.height());
     parameters.occlusion[0] = 1.0f / float(ao.size.width());
     parameters.occlusion[1] = 1.0f / float(ao.size.height());
+    // The view distance of a depth in the scene band: its NDC z is
+    // depth * k + m, and the distance 2nf / ((f + n) - z (f - n)).
+    const float near = sceneProjection[2], far = sceneProjection[3];
+    const float band = std::max(sceneDepthRange[1] - sceneDepthRange[0], 1e-6f);
+    const float k = 2.0f / band, m = -2.0f * sceneDepthRange[0] / band - 1.0f;
+    parameters.distance[0] = 2.0f * near * far;
+    parameters.distance[1] = (far + near) - m * (far - near);
+    parameters.distance[2] = k * (far - near);
+    parameters.distance[3] = 1.0f / (Radius * Radius);
+    parameters.unproject[0] = 1.0f / sceneProjection[0];
+    parameters.unproject[1] = 1.0f / sceneProjection[1];
+    parameters.unproject[2] = float(view.size.width());
+    parameters.unproject[3] = float(view.size.height());
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
     batch->updateDynamicBuffer(ao.uniforms, 0, sizeof(parameters), &parameters);
     QRhiCommandBuffer *cb = s->frame().commandBuffer;

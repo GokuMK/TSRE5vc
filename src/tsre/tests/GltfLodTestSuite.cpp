@@ -16,18 +16,27 @@
 
 namespace {
 
-// Records the packets a shape submits.
+// Records the packets a shape submits, each with the queue's shadow state:
+// shadow-only, or casting.
 struct PacketRecorder : RenderQueue {
     QVector<RenderItem *> packets;
+    QVector<bool> shadowOnly;
+    QVector<bool> casting;
     using RenderQueue::submit;
-    void submit(RenderItem *item, quint32 = 0, SubmitOrder = SUBMIT_GROUPED) override {
+    void record(RenderItem *item) {
         packets.push_back(item);
+        shadowOnly.push_back(shadowOnlyEnabled());
+        casting.push_back(shadowCastingEnabled());
+    }
+    void submit(RenderItem *item, quint32 = 0, SubmitOrder = SUBMIT_GROUPED) override {
+        record(item);
     }
     void submit(const QVector<RenderItem *> &items, quint32 = 0) override {
-        packets += items;
+        for (RenderItem *item : items)
+            record(item);
     }
     void submitFrameItem(RenderItem *item) override {
-        packets.push_back(item);
+        record(item);
     }
 };
 
@@ -333,6 +342,76 @@ Impostor (
         write("version/tree.impostor", stf("Append", 2));
         test.check(load(dir, "version/tree.gltf", gltf(R"([{"mesh": 0}])", "[]")).shape->distanceLevelCount() == 0,
                    "an impostor of another version: none");
+
+        // Trees cast a coarser level (task renderer 37): the level of three
+        // times the distance, down to the last mesh level before the
+        // impostor; the view's level then casts none.
+        {
+            auto pinLodBias = [](int value) { SettingsManager::instance().setSessionValue("core.rendering.lodBias", value); };
+            const auto unpinLodBias = qScopeGuard([] { SettingsManager::instance().clearSessionValue("core.rendering.lodBias"); });
+            pinLodBias(0);
+            QScopedValueRollback<float> fov(Game::cameraFov, 55.0f);
+            test.check(tree.shape->shadowFloorLevel() == 2 && replaced.shape->shadowFloorLevel() == 1
+                           && single.shape->shadowFloorLevel() == 0,
+                       "shadow floor: the last mesh level before the impostor (Append, ReplaceLast, no levels)");
+            // 10 m high, coverages 0.3, 0.1 and 0.01: level 0 within 32 m,
+            // 1 within 96 m, 2 within 960 m, then the impostor.
+            auto shadowAt = [&](Loaded &shape, float distance) {
+                const ShapeLod::Place place{distance, -5.0f};
+                return ShapeLod::shadowLevel(*shape.shape, place, ShapeLod::level(*shape.shape, place));
+            };
+            test.check(shadowAt(tree, 20.0f) == 1 && shadowAt(tree, 50.0f) == 2,
+                       "shadow level: the view's at three times the distance (0 casts 1, 1 casts 2)");
+            test.check(shadowAt(tree, 5.0f) == -1 && shadowAt(tree, 200.0f) == -1 && shadowAt(tree, 5000.0f) == -1,
+                       "shadow level: the view's own when the same, at the last mesh level and at the impostor");
+            Loaded plain = load(dir, "noimpostor.gltf", gltf(lodNodes("[2, 3]")));
+            test.check(plain.shape->isLoaded() && plain.shape->shadowFloorLevel() == -1
+                           && shadowAt(plain, 20.0f) == -1,
+                       "shadow level: shapes without an impostor cast their view's");
+
+            struct Pushed {
+                Counts view, shadow;
+                bool viewCasts = false, vegetation = true, restored = false;
+            };
+            auto push = [&](Loaded &shape, int shadowLevel, quint32 selectionId = 0, bool casting = true) {
+                PacketRecorder recorder;
+                recorder.setShadowCasting(casting);
+                shape.shape->setCurrentDistanceLevel(shape.state, 0);
+                shape.shape->setShadowDistanceLevel(shape.state, shadowLevel);
+                shape.shape->pushRenderItem(recorder, selectionId, shape.state);
+                shape.shape->setShadowDistanceLevel(shape.state, -1);
+                Pushed pushed;
+                for (int i = 0; i < recorder.packets.size(); ++i) {
+                    const RenderItem *packet = recorder.packets[i];
+                    if (!packet->mesh.handle.valid())
+                        continue;
+                    pushed.vegetation = pushed.vegetation && packet->material.vegetation;
+                    if (recorder.shadowOnly[i]) {
+                        pushed.shadow.push_back(packet->mesh.count);
+                    } else {
+                        pushed.view.push_back(packet->mesh.count);
+                        pushed.viewCasts = pushed.viewCasts || recorder.casting[i];
+                    }
+                }
+                std::sort(pushed.view.begin(), pushed.view.end());
+                std::sort(pushed.shadow.begin(), pushed.shadow.end());
+                pushed.restored = recorder.shadowCastingEnabled() == casting && !recorder.shadowOnlyEnabled();
+                return pushed;
+            };
+            const Pushed coarser = push(tree, 1);
+            test.check(coarser.view == Counts{3, 12} && !coarser.viewCasts && coarser.shadow == Counts{6, 12}
+                           && coarser.restored,
+                       "a coarser shadow: the view's level without casting, level 1 shadow-only, the queue restored");
+            const Pushed same = push(tree, -1);
+            test.check(same.view == Counts{3, 12} && same.viewCasts && same.shadow.isEmpty(),
+                       "the view's own shadow: one set, casting");
+            const Pushed picking = push(tree, 1, 7);
+            const Pushed uncast = push(tree, 1, 0, false);
+            test.check(picking.shadow.isEmpty() && uncast.shadow.isEmpty() && !uncast.viewCasts && uncast.restored,
+                       "no shadow packets when picking or when the object casts none");
+            test.check(coarser.vegetation && !push(plain, -1).vegetation,
+                       "packets of shapes with an impostor are vegetation, of others not");
+        }
     }
 
     // The supplied spruce (TREES_EXT under the game root): external levels

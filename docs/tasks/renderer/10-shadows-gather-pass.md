@@ -157,6 +157,10 @@ scene casts into them.
 - Shadows near the camera have three times the texel density. On EUROPE1
   and BNSF_SCENIC only shadow edges near the camera change (RMSE up to 3.1,
   at most 1.3% of pixels); views without shadows are unchanged.
+- In a forest the maps draw 8 times the main view's triangles: every tree
+  all round the camera, at the level the view chose (TREES, 2026-10-21).
+  [Task 37](37-vegetation-shadows.md): vegetation casting its lowest level,
+  then cached static maps and a vegetation map set.
 
 ## PBR cascade contrast correction (2026-10-20)
 

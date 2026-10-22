@@ -478,7 +478,23 @@ Open (for the user):
   by day (wrong, rare).
 - Working distance: done with the far map (see above).
 
+### Next: thin and blended roofs (2026-10-22)
+
+The CMK hall's thin roofs (alpha-tested) still do not enclose from above.
+Alpha-tested parts were kept out of the downward map for tree canopies;
+vegetation is now flagged and left out of the enclosure (task 37), and
+blended MSTS parts draw their opaque texels with the alpha-tested pass
+([shapes task 07](../shapes/07-blended-msts-parts.md)). Next step: let both
+count as roofs from above, then check MSTS trees without the cruciform
+light materials.
+
 ## Known Limitation (0.7.8)
 
 Lamps in tunnels are dimmed by daylight as in the open. Today this affects
 only routes with glTF lamps or emissive surfaces in tunnels.
+
+### Edited objects (2026-10-21)
+
+The maps are also drawn again when an object is moved, edited, added or
+deleted (the queue's scene signature, task 37): a roof dragged in the
+editor took its cover along only every 60 frames before.

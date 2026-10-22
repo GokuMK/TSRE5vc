@@ -70,6 +70,13 @@ the selection box is the area's, not the trees'.
 Performance test view (heavy, for the optimisations to come): route TREES,
 `core.startup.camera=96,-118,314.17,8.05,303.92,656.38,7.15`.
 
+Measured 2026-10-21 from inside the forest
+(`96,-118,142.12,8.32,320.64,-626.51,7.15`): the forest costs 153 ms of GPU
+time at the user's 2123x1948 (main view 107, shadow maps 40, environment
+map 11) and 18 ms of CPU, nearly all of it the glTF texture sync. Draw calls
+are not the cost (73 instanced draws for 2,500 trees), so grouped
+instancing waits. The work: [renderer task 37](../renderer/37-vegetation-shadows.md).
+
 ## Engine changes
 
 1. Extend Forest with optional `Shape ( "<id>.gltf" )` and

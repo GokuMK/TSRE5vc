@@ -64,10 +64,17 @@ float coverage(const ComplexShape &shape, const Place &place, float fieldOfView)
 // The level to draw at this place, -1 for none (past the last level in Cull
 // mode).
 int level(const ComplexShape &shape, const Place &place);
+// How many times farther away the shadow's level is chosen (task renderer 37).
+constexpr float ShadowDistanceScale = 3.0f;
+// The level cast into the shadow maps for the view's level at this place, -1
+// for the view's own: the level the view would choose ShadowDistanceScale
+// times farther away, down to the shape's shadowFloorLevel(). An impostor in
+// the view casts itself.
+int shadowLevel(const ComplexShape &shape, const Place &place, int viewLevel);
 
 // The level for this object, set on its shape state with the direction to
-// the camera in the shape's space; false when it draws none. No level is set
-// while the mode is Off.
+// the camera in the shape's space and its shadow's level; false when it
+// draws none. No level is set while the mode is Off.
 bool apply(ComplexShape &shape, unsigned int stateId, const Place &place);
 
 }

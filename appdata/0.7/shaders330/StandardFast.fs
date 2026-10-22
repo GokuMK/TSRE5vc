@@ -12,6 +12,11 @@ uniform float textureEnabled;
 uniform vec4 shapeColor;
 // 1 - RenderItem::Material::opacity; 0 (opaque) where nothing sets it.
 uniform float materialTransparency;
+// Blended packets drawn in two, as Open Rails draws them
+// (QueueRenderer::BlendedTexels): 1 only the opaque texels (from Open
+// Rails' 250 of 255), 2 only the others, 0 all.
+uniform int blendedTexels;
+const float BlendedOpaqueAlpha = 250.0 / 255.0;
 uniform vec4 skyColor;
 uniform vec4 diffuseColor;
 uniform vec4 ambientColor;
@@ -58,6 +63,13 @@ void main() {
     fragColor.a = max(fragColor.a, vAlpha);
     if (fragColor.a < -vAlpha)
         discard;
+    if (blendedTexels == 1) {
+        if (fragColor.a < BlendedOpaqueAlpha)
+            discard;
+        fragColor.a = 1.0;
+    } else if (blendedTexels == 2 && fragColor.a >= BlendedOpaqueAlpha) {
+        discard;
+    }
     fragColor.a *= 1.0 - materialTransparency;
 
 #ifdef TSRE_UNLIT

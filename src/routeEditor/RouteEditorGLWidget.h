@@ -323,6 +323,26 @@ protected:
     // to know whether water was on screen (Renderer::measuredSamples).
     void renderWaterPass(bool measure);
     void computeShadowMatrices();
+    // Each map's centre this frame and the view's direction on the ground
+    // (computeShadowMatrices); not snapped with the sun straight overhead.
+    float shadowCentres[3][3] = {};
+    float shadowForward[2] = {0.0f, 1.0f};
+    bool shadowSnapped = false;
+    // Cached static shadow casters (task renderer 37): each map's cache and
+    // what it was drawn for.
+    struct ShadowCache {
+        bool valid = false;
+        float matrix[16] = {};
+        float centre[3] = {};
+        float forward[2] = {};
+        int tile[2] = {};
+        float sun[3] = {};
+        int size = 0;
+        quint64 signature = 0;
+        unsigned uploads = 0;
+        unsigned shapes = 0;
+        qint64 drawnAt = 0;
+    } shadowCaches[3];
     // Time of day (Game::timeOfDayEnabled): puts the sun where it stands over
     // the camera and lights the scene for it; off, restores the fixed light.
     void applyTimeOfDay();
@@ -339,6 +359,11 @@ protected:
     int enclosureAge = -1;
     float farEnclosureEye[3] = {0.0f, 0.0f, 0.0f};
     int farEnclosureAge = -1;
+    // The objects and shapes the near and far maps were drawn with (the
+    // queue's scene signature, shapes loaded): an object moved, edited,
+    // added or deleted draws them again (task 37).
+    quint64 enclosureScene = 0;
+    quint64 farEnclosureScene = 0;
     Renderer::Clouds cloudState;
     quint64 weatherRevision = 0;
     quint64 cloudWeatherRevision = ~0ull;

@@ -78,7 +78,9 @@ int forcedLevel() {
     return forced;
 }
 
-int level(const ComplexShape &shape, const Place &place) {
+namespace {
+// The level at this place with the detail scaled (1 for the view's).
+int levelAt(const ComplexShape &shape, const Place &place, float scale) {
     const int count = shape.distanceLevelCount();
     if (count <= 0)
         return 0;
@@ -89,7 +91,7 @@ int level(const ComplexShape &shape, const Place &place) {
         return 0;
     if (lodBias() <= -100)
         return count - 1;
-    const float detail = 1.0f + lodBias() / 100.0f;
+    const float detail = (1.0f + lodBias() / 100.0f) * scale;
     if (shape.distanceLevelCoverage(0) > 0.0f) {
         const float covered = coverage(shape, place, Game::cameraFov) * detail;
         for (int i = 0; i < count - 1; ++i)
@@ -103,6 +105,24 @@ int level(const ComplexShape &shape, const Place &place) {
         if (place.distance < shape.distanceLevelDistance(i) * detail + radius)
             return i;
     return mode() == Mode::Cull ? -1 : count - 1;
+}
+}
+
+int level(const ComplexShape &shape, const Place &place) {
+    return levelAt(shape, place, 1.0f);
+}
+
+int shadowLevel(const ComplexShape &shape, const Place &place, int viewLevel) {
+    const int floor = shape.shadowFloorLevel();
+    // The floor itself, an impostor past it, or levels compared on purpose
+    // (TSRE_SHAPE_LEVEL): the shadow is the view's.
+    if (floor < 0 || viewLevel < 0 || viewLevel >= floor || forcedLevel() >= 0)
+        return -1;
+    int farther = levelAt(shape, place, 1.0f / ShadowDistanceScale);
+    if (farther < 0)
+        farther = floor;
+    const int chosen = std::clamp(farther, viewLevel, floor);
+    return chosen == viewLevel ? -1 : chosen;
 }
 
 bool apply(ComplexShape &shape, unsigned int stateId, const Place &place) {
@@ -126,6 +146,7 @@ bool apply(ComplexShape &shape, unsigned int stateId, const Place &place) {
     if (chosen < 0)
         return false;
     shape.setCurrentDistanceLevel(stateId, chosen);
+    shape.setShadowDistanceLevel(stateId, shadowLevel(shape, place, chosen));
     return true;
 }
 

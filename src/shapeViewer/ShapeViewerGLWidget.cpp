@@ -244,6 +244,15 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     // disable shadows temporaily
     int shadowsState = Game::shadowsEnabled;
     Game::shadowsEnabled = 0;
+    // Its own light for this frame: the route's sun and light stay for the
+    // route editor's views.
+    float routeSun[3], routeSunColor[4], routeAmbient[4];
+    std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, routeSun);
+    std::copy(gluu->diffuseColor, gluu->diffuseColor + 4, routeSunColor);
+    std::copy(gluu->ambientColor, gluu->ambientColor + 4, routeAmbient);
+    std::copy(light.sun, light.sun + 3, Game::sunLightDirection);
+    std::fill(gluu->diffuseColor, gluu->diffuseColor + 3, light.sunColor);
+    std::fill(gluu->ambientColor, gluu->ambientColor + 3, light.ambient);
     
     renderer->clear(false, false, backgroundGlColor);
     
@@ -346,6 +355,9 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     renderer->releaseProgram();
     Game::shadowsEnabled = shadowsState;
+    std::copy(routeSun, routeSun + 3, Game::sunLightDirection);
+    std::copy(routeSunColor, routeSunColor + 4, gluu->diffuseColor);
+    std::copy(routeAmbient, routeAmbient + 4, gluu->ambientColor);
 }
 
 void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
@@ -533,9 +545,13 @@ void ShapeViewerGLWidget::resetRot(){
     rotZ = 0;
 }
 
-void ShapeViewerGLWidget::setModelRotation(float yaw){
+void ShapeViewerGLWidget::setLight(const Light &newLight){
+    light = newLight;
+}
+
+void ShapeViewerGLWidget::setModelRotation(float yaw, float pitch){
     rotY = M_PI + yaw;
-    rotZ = 0;
+    rotZ = std::clamp(pitch, -1.57f, 1.57f);
 }
 
 

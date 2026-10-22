@@ -31,6 +31,8 @@
 #include <cstring>
 #include <cmath>
 
+unsigned Texture::uploads = 0;
+
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
 #define GL_COMPRESSED_RGB_S3TC_DXT1_EXT 0x83F0
 #endif
@@ -643,6 +645,7 @@ void Texture::update() {
     glTexImage2D(GL_TEXTURE_2D, 0, internal, width, height, 0, type, GL_UNSIGNED_BYTE, imageData);
     gpuInternalFormat = internal;
     glLoaded = true;
+    ++uploads;
     gpuMipLevels = 1;
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1000);
@@ -754,6 +757,7 @@ static bool uploadCompressedForRhi(Texture &t, bool mipmaps) {
     t.compressedGLFormat = 0;
     t.sourceMipmaps.clear();
     t.glLoaded = true;
+    ++Texture::uploads;
     return true;
 }
 
@@ -900,6 +904,7 @@ bool Texture::uploadForRhi(bool mipmaps) {
     compressedGLFormat = 0;
     sourceMipmaps.clear();
     glLoaded = true;
+    ++uploads;
     return true;
 }
 
@@ -1040,6 +1045,7 @@ bool Texture::GLTextures(bool mipmaps) {
     compressedGLFormat = 0;
     sourceMipmaps.clear();
     glLoaded = true;
+    ++uploads;
     return true;
 }
 

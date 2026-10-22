@@ -56,7 +56,65 @@ lies behind.
 - Classes of hand-made texels and DXT1, DXT3 and DXT5 blocks are checked
   by `tsre_ace_tool --self-test`.
 
+## Drawn in two (2026-10-22)
+
+The PKP ST44 (`TRAINS/TRAINSET/PKP_ST44-OR/PKP_ST44-002.s`) marks almost
+every part `BlendATexDiff`, its windows and its cab interior too, and its
+textures have partial alpha. Blended parts were sorted by their matrix's
+origin and wrote depth. The interior hangs on `Inside`, 3.1 m above the
+shape's origin, the windows mostly on `Main` (at rail level). Seen from
+above, the windows were the farther and drew first, and the interior behind
+them failed the depth test; from below the order turned and it showed.
+
+Now such packets are drawn in two, as Open Rails' `SceneryMaterial` does
+(both renderers):
+
+- their opaque texels (alpha 250 of 255 or more, Open Rails' threshold)
+  at the end of the alpha-tested pass, grouped by texture, depth written;
+- the other texels in the blended pass, back to front as before, without
+  depth writes.
+
+So glass never hides what lies behind it, and translucent parts sort against
+each other only for their blending order. `RenderItem::blendsInTwoParts`
+picks the packets: textured, blended (by `drawSurface`), of full opacity, not
+PBR, water or decals. The shaders' `blendedTexels` (`StandardFog`,
+`StandardFast`) picks the texels. The selection pass draws them whole. A
+call that draws the blended pass without the alpha-tested one before it
+draws the opaque texels at its start (`QueueRenderer::opaqueTexelsIn`; no
+caller does today). `TSRE_BLENDED_IN_TWO=0` draws them whole everywhere, as
+before.
+
+As the opaque texels are in the depth buffer before the ambient occlusion,
+the clouds' composite and the sky's fog (QRhi), blended parts now take and
+cast ambient occlusion: rolling stock as its `TexDiff` parts, the ground and
+track under a train, blended track shapes along their sleepers. Open Rails
+blends texels down to alpha 10 of 255; the parts keep their vertex alpha's
+threshold (`GLUU::alphaTest`, 0.3).
+
+Results (`tests/renderer/shape-viewer-blended.json`, Shape Viewer views
+with the new `pitch`, `fov` and `look` keys):
+
+- ST44 from above: the cab interior shows through the windows, in QRhi and
+  OpenGL; from below and level, unchanged but for a few edge pixels.
+- With the opaque texels in the blended pass (the first version), EUROPE1's
+  parity views (QRhi and OpenGL) and Prudnik's station view changed in
+  single pixels at most, at the opaque threshold. Moved to the alpha-tested
+  pass, with the profile's ambient occlusion (low): the ST44's body takes it
+  (under the sunshade, the window recesses, the grille); Prudnik's and
+  EUROPE1's blended track along the sleepers (3% and up to 6.5% of pixels,
+  1-2 levels). OpenGL, without ambient occlusion: unchanged by the move.
+- Cost, Prudnik's station view at 1280x800: 5369 draws instead of 5059; GPU
+  about 3.7 ms more and CPU 1-1.7 ms (two pairs of runs, either place of the
+  opaque texels).
+
 ## Later
+
+- The sky enclosure (renderer task 27) could take the opaque texels of
+  blended parts, and alpha-tested parts from above too, as roofs: the CMK
+  station hall's thin roofs are alpha-tested, kept out of the downward map
+  to keep tree canopies out. Since renderer task 37 vegetation is flagged
+  and kept out of the enclosure anyway; MSTS trees without the cruciform
+  light materials would count as roofs.
 
 - The per-vertex alpha mode written by `SFileLegacy` still encodes
   "blended" (alpha test at `GLUU::alphaTest`). Alpha-tested parts in mode 2

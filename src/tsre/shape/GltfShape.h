@@ -54,6 +54,10 @@ public:
     int distanceLevelCount() const override;
     float distanceLevelCoverage(int level) const override;
     void setCameraDirection(unsigned int stateId, const float direction[3]) override;
+    // Trees (an impostor): the last mesh level before the impostor, a real
+    // mesh in both bindings (ReplaceLast's cruciform is never drawn).
+    int shadowFloorLevel() const override;
+    void setShadowDistanceLevel(unsigned int stateId, int level) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
 
     void pushRenderItem(RenderQueue &queue) override;
@@ -74,6 +78,8 @@ private:
         int level = 0;
         // The impostor's frame facing the camera, set by ShapeLod.
         int frame = 0;
+        // The level cast into the shadow maps, -1 for the view's (ShapeLod).
+        int shadowLevel = -1;
     };
 
     struct MaterialRuntime {
@@ -175,6 +181,10 @@ private:
     // the set under key 0 and repeated objects draw instanced.
     QHash<unsigned int, QVector<RenderItem *>> renderItems;
     QHash<unsigned int, unsigned long long> renderItemsTextureHash;
+    // The textures are synced once a frame (Renderer::frameNumber()), not
+    // per object: a forest pushes the shape thousands of times.
+    quint64 texturesSyncedFrame = ~quint64(0);
+    unsigned long long textureStateHash = 0;
 
     void cleanupGpu();
     void cleanupNodeMatrices();
@@ -191,6 +201,9 @@ private:
     // the frame's capture plane, after the last mesh level (Append) or
     // instead of it (ReplaceLast).
     void loadImpostor();
+    // The packets of a level (and an impostor frame, -1 for meshes), built
+    // or rebuilt when missing or their textures changed.
+    QVector<RenderItem *> &levelPackets(int level, int frame, bool checkTextures);
     void syncTextureAddresses();
     unsigned long long getTextureStateHash() const;
 };

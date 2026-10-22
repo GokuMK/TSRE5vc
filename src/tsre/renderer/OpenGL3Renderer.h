@@ -59,7 +59,9 @@ public:
     float readDepth(int x, int y) override;
     void readColor(int x, int y, int width, int height, unsigned char *rgba) override;
     void renderShadowCasters(float range, int statsSlot,
-                             const float *viewProjection = nullptr) override;
+                             const float *viewProjection = nullptr,
+                             ShadowCasters casters = CASTERS_ALL,
+                             ShadowSet set = SET_ALL) override;
     void renderFrame() override;
 
 private:
