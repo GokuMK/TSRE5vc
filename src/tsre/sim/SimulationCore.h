@@ -653,7 +653,7 @@ private:
     int lookedAt(const EventPlan &plan, bool *standIn) const;
     // That train's front within the event's radius in this step: at any
     // moment, or standing (brought to rest, or standing at its end).
-    bool near(int event, int train, bool standing) const;
+    bool isNearEvent(int event, int train, bool standing) const;
     // What the events not fired met in this step (EventState's why fields).
     void noteMisses();
     // The event can still fire: active, not fired (or reversible and

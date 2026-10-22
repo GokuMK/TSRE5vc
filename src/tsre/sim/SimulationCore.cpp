@@ -2886,7 +2886,7 @@ int SimulationCore::lookedAt(const EventPlan &plan, bool *standIn) const {
     return playerTrain;
 }
 
-bool SimulationCore::near(int event, int train, bool standing) const {
+bool SimulationCore::isNearEvent(int event, int train, bool standing) const {
     const EventPlan &plan = in->events[size_t(event)];
     const TrainState &s = states[size_t(train)];
     const Runtime &rt = runtime[size_t(train)];
@@ -2936,7 +2936,7 @@ void SimulationCore::noteMisses() {
                 break;
             bool standIn = false;
             const int train = lookedAt(plan, &standIn);
-            if (onTrack(train) && near(int(e), train, false)) {
+            if (onTrack(train) && isNearEvent(int(e), train, false)) {
                 state.passedAt = now;
                 state.passedActive = active;
                 ++eventChanges;
@@ -3013,7 +3013,7 @@ bool SimulationCore::holds(int event, int *by, bool *standIn) const {
     case EventPlan::Location: {
         bool stand = false;
         const int train = lookedAt(plan, &stand);
-        if (!onTrack(train) || !near(event, train, plan.onStop))
+        if (!onTrack(train) || !isNearEvent(event, train, plan.onStop))
             return false;
         *by = train;
         *standIn = stand;
