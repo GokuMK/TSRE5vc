@@ -165,13 +165,13 @@ model as the first operating policy, and threading.
     them (its copies are made from frames). The player's driving with
     real consists will.
 - [ ] `08-open-rails-timetables.md` (designed 2026-10-21 with the user's
-  ideas; phases 1 to 3 done 2026-10-22): Open Rails' timetable mode read,
+  ideas; phases 1 to 4 done 2026-10-22): Open Rails' timetable mode read,
   simulated, shown and saved (the user, 2026-10-21: before the player's
   driving); an Open Rails timetable set is an activity in code. PRUDNIK's
   timetable, 308 trains and no activity, is the local content: on
-  OR_PSK converted with `--contentcase` its trains run (239 of 266
-  finish, a median of 11 s early; the rest wait behind one at a signal
-  pair, see the task).
+  OR_PSK converted with `--contentcase` its trains run with the commands
+  it uses (262 of 266 finish, a median of 50 s early; the rest wait
+  behind one at a signal pair, see the task).
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a

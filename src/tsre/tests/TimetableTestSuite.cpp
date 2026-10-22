@@ -13,8 +13,10 @@
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/SimulationTexts.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
+#include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/TrackLayoutSupport.h>
@@ -541,5 +543,244 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     for (int path = firstPath; path < ActLib::jestpath; ++path)
         ActLib::Paths[path] = nullptr;
     qInfo().noquote() << QString("timetable-trains: %1 passed, %2 failed").arg(passed).arg(failed);
+    return failed == 0 ? 0 : 1;
+}
+
+namespace {
+
+// A sigcfg.dat of one NORMAL signal type, STOP or CLEAR_2 (no script: the
+// built-in rule, clear when cleared for a train into a clear block).
+const char *commandSigCfg = R"(SIMISA@@@@@@@@@@JINX0G0t______
+
+LightTextures ( 1
+	LightTex ( "ltex" "SigLight.ace" 0 0 1 1 )
+)
+LightsTab ( 2
+	LightsTabEntry ( "Red Light" colour ( 255 255 40 40 ) )
+	LightsTabEntry ( "Green Light" colour ( 255 40 255 40 ) )
+)
+SignalTypes ( 1
+	SignalType ( "Home"
+		SignalFnType ( NORMAL )
+		SignalLightTex ( "ltex" )
+		SignalLights ( 2
+			SignalLight ( 0 "Red Light" Position ( 0 0 0 ) Radius ( 0.1 ) )
+			SignalLight ( 1 "Green Light" Position ( 0 0.3 0 ) Radius ( 0.1 ) )
+		)
+		SignalDrawStates ( 2
+			SignalDrawState ( 0 "Red" DrawLights ( 1 DrawLight ( 0 ) ) )
+			SignalDrawState ( 1 "Green" DrawLights ( 1 DrawLight ( 1 ) ) )
+		)
+		SignalAspects ( 2
+			SignalAspect ( STOP "Red" )
+			SignalAspect ( CLEAR_2 "Green" )
+		)
+		SignalNumClearAhead ( 2 )
+	)
+)
+SignalShapes ( 0 )
+ScriptFiles ( 0 )
+)";
+
+}
+
+int TsreTests::runTimetableCommandsSuite(bool verbose) {
+    int passed = 0, failed = 0;
+    const auto check = [&](bool value, const QString &name) {
+        if (value) { ++passed; if (verbose) qInfo().noquote() << "[tests:timetable-commands] PASS" << name; }
+        else { ++failed; qWarning().noquote() << "[tests:timetable-commands] FAIL" << name; }
+    };
+
+    // Six 2 km lines (track 10 + 20k, k = 0..5) and a passing loop: on
+    // lines 0 to 3 a platform from 500 to 700 m and a signal at 750 m;
+    // standing trains beyond the signals of lines 2 and 3 (their blocks
+    // never clear). Line 0: H holds its exit signal (`$hold`); line 1: G
+    // does not (the default); line 2: W waits for its signal (the
+    // default); line 3: N does not (`$nowaitsignal`); line 4: C is put on
+    // its track at 08:00 and starts at 08:10 (`$create`), staying at its
+    // path's end (`#dispose $static`); line 5: T1 forms T2 when its run
+    // ends (`$triggers`). The loop: A, on its branch, follows B coming
+    // along the main line (`$follow`). M starts before midnight and stops
+    // after it; X starts after midnight with `$next`.
+    QTemporaryDir temp;
+    const QString routePath = temp.path() + "/ROUTES/R";
+    const QString folder = routePath + "/ACTIVITIES/OPENRAILS";
+    QDir().mkpath(folder);
+    QDir().mkpath(routePath + "/PATHS");
+    QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
+    QDir().mkpath(temp.path() + "/TRAINS/TRAINSET/TEST");
+    const QStringList pathNames = {"L0", "L1", "L2", "L3", "L4", "L5a", "L5b", "LA", "LB", "S2", "S3"};
+    bool written = true;
+    for (const QString &name : pathNames)
+        written = written && writeFile(routePath + "/PATHS/" + name + ".pat", QString(pathText).arg(name), Encoding::Utf16);
+    written = written && writeFile(temp.path() + "/TRAINS/CONSISTS/Two.con", consistText, Encoding::Utf16)
+            && writeFile(temp.path() + "/TRAINS/TRAINSET/TEST/loco.eng", QString(vehicleText).arg("loco", "Engine"),
+                         Encoding::Utf16)
+            && writeFile(temp.path() + "/TRAINS/TRAINSET/TEST/car.wag", QString(vehicleText).arg("car", "Carriage"),
+                         Encoding::Utf16)
+            && writeFile(temp.path() + "/sigcfg.dat", commandSigCfg, Encoding::Utf16);
+    written = written && writeFile(folder + "/commands.timetable-or",
+                                   ";H;G;W;N;C;T1;T2;A;B;M;X;$static;$static\n"
+                                   "#path;L0;L1;L2;L3;L4;L5a;L5b;LA;LB;L1;L0;S2;S3\n"
+                                   "#consist;Two;Two;Two;Two;Two;Two;Two;Two;Two;Two;Two;Two;Two\n"
+                                   "#start;08:00;08:00;08:00;08:00;08:10 $create=08:00;08:00;08:00;08:00;08:00;23:50;00:30 $next;;\n"
+                                   "#note;$acc=2 $dec=3;;;;;;;$follow=B;;;;;\n"
+                                   "#dispose;;;;;$static;$triggers=T2;;;;;;;\n"
+                                   "Holdton;08:05-08:10 $hold;;;;;;;;;;;;\n"
+                                   "Freeton;;08:05-08:10;;;;;;;;00:10;;;\n"
+                                   "Waitton;;;08:05-08:06;;;;;;;;;;\n"
+                                   "Nowaiton;;;;08:05-08:06 $nowaitsignal;;;;;;;;;\n",
+                                   Encoding::Utf8);
+    check(temp.isValid() && written, "write the test route");
+
+    TestTrack::Layout layout;
+    for (int k = 0; k < 6; ++k) {
+        const int line = 10 + 20 * k;
+        layout.end(1001 + 2 * k, line);
+        layout.track(line, 1001 + 2 * k, 1002 + 2 * k, 200);
+        layout.end(1002 + 2 * k, line);
+    }
+    layout.end(201, 120);
+    layout.track(120, 201, 202, 30);
+    layout.junction(202, 120, 121, 122);
+    layout.track(121, 202, 203, 20);
+    layout.track(122, 202, 203, 22);
+    layout.junction(203, 123, 121, 122);
+    layout.track(123, 203, 204, 30);
+    layout.end(204, 123);
+    const QStringList stations = {"Holdton", "Freeton", "Waitton", "Nowaiton"};
+    for (int k = 0; k < 4; ++k) {
+        TestTrack::platform(layout, 10 + 20 * k, 301 + 2 * k, 500.0f, 700.0f, stations[k]);
+        TestTrack::signalHead(layout, 10 + 20 * k, 501 + k, 750.0f, true, "Home");
+    }
+    const QScopedValueRollback<QString> root(Game::root, temp.path());
+    const QScopedValueRollback<QString> routeName(Game::route, "R");
+    const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &layout.db);
+    EngLib engines;
+    const QScopedValueRollback<EngLib *> engineLibrary(Game::currentEngLib, &engines);
+    const int firstPath = ActLib::jestpath;
+    const std::pair<const char *, std::pair<PathTrack::TrackPoint, PathTrack::TrackPoint>> laid[] = {
+        {"L0.pat", {{10, 100.0f}, {10, 1900.0f}}},   {"L1.pat", {{30, 100.0f}, {30, 1900.0f}}},
+        {"L2.pat", {{50, 100.0f}, {50, 1900.0f}}},   {"L3.pat", {{70, 100.0f}, {70, 1900.0f}}},
+        {"L4.pat", {{90, 100.0f}, {90, 1500.0f}}},   {"L5a.pat", {{110, 100.0f}, {110, 800.0f}}},
+        {"L5b.pat", {{110, 800.0f}, {110, 1800.0f}}}, {"LA.pat", {{122, 150.0f}, {123, 250.0f}}},
+        {"LB.pat", {{120, 50.0f}, {123, 280.0f}}},    {"S2.pat", {{50, 1000.0f}, {50, 1100.0f}}},
+        {"S3.pat", {{70, 1000.0f}, {70, 1100.0f}}}};
+    for (const auto &[file, ends] : laid) {
+        Path *path = ActLib::Paths.value(ActLib::AddPath(routePath + "/PATHS", file));
+        if (path == nullptr)
+            continue;
+        PathTrack::Result made = PathTrack::startAt(&layout.db, ends.first);
+        made = PathTrack::endAt(&layout.db, made.nodes, ends.second);
+        path->apply(made.nodes);
+    }
+
+    const int id = ActLib::AddTimetableSet(folder, "commands.timetable-or");
+    Activity *set = ActLib::TimetableSets.value(id);
+    const SigCfg signalConfig(temp.path() + "/sigcfg.dat");
+    const auto geometry = std::make_shared<const Sim::TrackGeometry>(&layout.db);
+    const auto network = std::make_shared<const Sim::TrackNetwork>(&layout.db, *geometry, &signalConfig, false);
+    const std::shared_ptr<Sim::SimulationInput> input
+            = set != nullptr ? Sim::MakeInput(set, &layout.db, 30.0f, geometry, network) : nullptr;
+    const auto trainNamed = [&](const QString &name) -> const Sim::TrainPlan * {
+        for (const Sim::TrainPlan &plan : input->trains)
+            if (plan.service == name)
+                return &plan;
+        return nullptr;
+    };
+    check(input != nullptr && input->trains.size() == 11 && input->staticConsists.size() == 2,
+          QString("the trains made: %1 and %2 static; warnings: %3")
+              .arg(input != nullptr ? int(input->trains.size()) : -1)
+              .arg(input != nullptr ? int(input->staticConsists.size()) : -1)
+              .arg(input != nullptr ? input->warnings.join("; ") : QString()));
+    if (input == nullptr || input->trains.size() != 11) {
+        qInfo().noquote() << QString("timetable-commands: %1 passed, %2 failed").arg(passed).arg(failed);
+        return 1;
+    }
+    const Sim::TrainPlan *h = trainNamed("H"), *g = trainNamed("G"), *w = trainNamed("W"), *n = trainNamed("N");
+    const Sim::TrainPlan *c = trainNamed("C"), *t1 = trainNamed("T1"), *t2 = trainNamed("T2");
+    const Sim::TrainPlan *a = trainNamed("A"), *b = trainNamed("B"), *m = trainNamed("M"), *x = trainNamed("X");
+    check(h && g && w && n && c && t1 && t2 && a && b && m && x, "every train by its name");
+    if (!(h && g && w && n && c && t1 && t2 && a && b && m && x)) {
+        qInfo().noquote() << QString("timetable-commands: %1 passed, %2 failed").arg(passed).arg(failed);
+        return 1;
+    }
+    check(h->accelerationFactor == 2.0f && h->decelerationFactor == 3.0f
+              && std::fabs(h->acceleration - 2.0f * g->acceleration) < 1e-4f
+              && std::fabs(h->deceleration - 3.0f * g->deceleration) < 1e-4f,
+          "$acc=2 $dec=3: the rates times 2 and 3");
+    check(h->stops.size() == 1 && h->stops[0].holdsExit && h->stops[0].waitsForSignal && g->stops.size() == 1
+              && !g->stops[0].holdsExit && g->stops[0].waitsForSignal && n->stops.size() == 1
+              && !n->stops[0].waitsForSignal && g->stops[0].exit == Sim::StopPlan::Exit::Timetable,
+          "stops: $hold holds the exit signal, none by default; waiting for it by default, not with $nowaitsignal");
+    check(c->createTime == 8 * 3600 && c->startTime == 8 * 3600 + 600 && c->staysAtEnd && t2->formedBy == t1->id
+              && t1->formedBy < 0 && !a->follows.empty() && a->follows.front().train == b->id && b->follows.empty(),
+          QString("$create=08:00, #dispose $static, $triggers=T2, $follow=B (%1 follow points)").arg(a->follows.size()));
+    check(m->startTime == 23 * 3600 + 50 * 60 && m->stops.size() == 1 && m->stops[0].arrival == 86400 + 600
+              && x->startTime == 86400 + 30 * 60,
+          QString("midnight: M's 00:10 the next day (%1), X's $next start (%2)")
+              .arg(m->stops.empty() ? -1 : m->stops[0].arrival).arg(x->startTime));
+
+    Sim::SimulationCore core(input);
+    std::vector<Sim::TrainEvent> events;
+    const auto runTo = [&](int time) {
+        while (core.time() < time - 1e-6) {
+            core.step(Sim::SimulationCore::MaxStep);
+            for (const Sim::TrainEvent &e : core.takeEvents())
+                events.push_back(e);
+        }
+    };
+    const auto signalOf = [&](int item) {
+        const int head = network->headOfItem(item);
+        return head >= 0 ? network->heads()[size_t(head)].signal : -1;
+    };
+    const auto eventOf = [&](const Sim::TrainPlan *plan, Sim::TrainEvent::Kind kind) -> const Sim::TrainEvent * {
+        for (const Sim::TrainEvent &e : events)
+            if (e.train == plan->id && e.kind == kind)
+                return &e;
+        return nullptr;
+    };
+    runTo(8 * 3600 + 5);
+    const Sim::TrainState &created = core.trains()[size_t(c->id)];
+    check(created.status == Sim::TrainStatus::Stopped && created.stoppedAt == Sim::StopKind::Created
+              && eventOf(c, Sim::TrainEvent::Started) != nullptr
+              && std::fabs(eventOf(c, Sim::TrainEvent::Started)->time - 8 * 3600) < 0.2,
+          "$create: on its track from 08:00, standing until its start");
+    runTo(8 * 3600 + 6 * 60);
+    check(core.cleared()[size_t(signalOf(501))] != h->id && core.cleared()[size_t(signalOf(502))] == g->id,
+          "at 08:06 H's held exit signal is not cleared for it; G's (not held) is");
+    runTo(8 * 3600 + 9 * 60);
+    check(core.cleared()[size_t(signalOf(501))] == h->id, "two minutes before its 08:10 departure H's signal clears");
+    const double frontW = core.trains()[size_t(w->id)].front;
+    check(std::fabs(core.trains()[size_t(c->id)].front - c->startFront) < 0.01, "C stands until 08:10");
+    runTo(8 * 3600 + 20 * 60);
+    check(core.trains()[size_t(w->id)].stoppedAt == Sim::StopKind::Station
+              && std::fabs(core.trains()[size_t(w->id)].front - frontW) < 0.01
+              && core.trains()[size_t(n->id)].front > frontW + 10.0 && eventOf(n, Sim::TrainEvent::Departed) != nullptr
+              && eventOf(w, Sim::TrainEvent::Departed) == nullptr,
+          QString("its signal at STOP, W waits at Waitton; N ($nowaitsignal) leaves and draws up to it (%1 m on)")
+              .arg(core.trains()[size_t(n->id)].front - frontW, 0, 'f', 1));
+    check(core.trains()[size_t(c->id)].status == Sim::TrainStatus::Stopped
+              && core.trains()[size_t(c->id)].stoppedAt == Sim::StopKind::End
+              && eventOf(c, Sim::TrainEvent::Finished) != nullptr,
+          "C ran from 08:10 and stays at its path's end ($static)");
+    const Sim::TrainEvent *ended = eventOf(t1, Sim::TrainEvent::Finished), *formed = eventOf(t2, Sim::TrainEvent::Started);
+    check(ended != nullptr && formed != nullptr && formed->time >= ended->time - 1e-6,
+          QString("T2 is put on its track when T1's run ends (%1, %2)")
+              .arg(ended ? ended->time : -1.0, 0, 'f', 1).arg(formed ? formed->time : -1.0, 0, 'f', 1));
+    bool followed = false;
+    for (const Sim::TrainEvent &e : events)
+        followed = followed || (e.train == a->id && e.kind == Sim::TrainEvent::Blocked && e.waitFor == Sim::WaitFor::Follow
+                                && e.index == b->id);
+    const Sim::TrainEvent *endA = eventOf(a, Sim::TrainEvent::Finished), *endB = eventOf(b, Sim::TrainEvent::Finished);
+    check(followed && endA != nullptr && endB != nullptr && endB->time < endA->time,
+          QString("A waits where its route joins B's until B has passed, then runs (B ends %1, A %2)")
+              .arg(endB ? endB->time : -1.0, 0, 'f', 1).arg(endA ? endA->time : -1.0, 0, 'f', 1));
+
+    delete set;
+    ActLib::TimetableSets.remove(id);
+    for (int path = firstPath; path < ActLib::jestpath; ++path)
+        ActLib::Paths[path] = nullptr;
+    qInfo().noquote() << QString("timetable-commands: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }

@@ -150,5 +150,6 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
                                            const QString &consistDirectory, TDB *tdb);
 
 // The commands TSRE runs (those PRUDNIK's timetable uses, the user's
-// decision of 2026-10-21); the others are read and reported.
+// decision of 2026-10-21, with `$waitsignal` and `$next`); the others are
+// read and reported.
 bool OrTimetableCommandRun(const QString &name);

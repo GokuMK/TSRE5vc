@@ -1,7 +1,7 @@
 # Task simulation 08: Open Rails timetables
 
 Status: designed 2026-10-21 with the user's ideas (part C), the
-decisions at the end of this document; phases 1 to 3 done.
+decisions at the end of this document; phases 1 to 4 done.
 
 ## Progress
 
@@ -162,6 +162,62 @@ decisions at the end of this document; phases 1 to 3 done.
   static train placed. `simulation-route` counts a set's static trains
   among the consists to place. Every MSTS route's results and events
   unchanged.
+
+**Phase 4, the commands (done 2026-10-22).** As Open Rails runs them
+(its manual and `TTTrain`, `ProcessTimetable`):
+- `$create[=time]`: the train is put on its track then (before the first
+  train's start without a time) and stands, holding only the track it
+  stands on and asking for none ahead, until its start
+  (`TrainPlan::createTime`, the core's `StopKind::Created`).
+- `#dispose`: the last of its forming commands counts (so `$static
+  $triggers=X` triggers). `$static`: the train stays at its path's end,
+  holding its track (`staysAtEnd`). `$triggers=X`: X is put on its track
+  when this train's run ends and stands until its start time, starting
+  at once when that has passed (`formedBy`); X with its own consist, at
+  its path's start (Open Rails puts it where the other stood: the paths
+  meet there).
+- `$follow=X` (in `#note` from the path's start, in a station's cell
+  from that station): the first section of each stretch where the routes
+  join again, run the same way, after one they do not share
+  (`TTTrain.ProcessWaitRequest`; none where the first shared section is
+  run the other way); a junction is run the same way when both come from
+  its branches or both from its input. The train does not take such a
+  section while the other train is on the track and its rear has not left
+  it; a point it need not wait at is let go for good, and so is one where
+  it stands on track the other's way passes before it (Open Rails'
+  check against a deadlock). Without `/maxdelay` it waits whatever the
+  delays (the manual says 0; the code: none). The core's `followWait`,
+  `WaitFor::Follow` ("following X").
+- Stops: the exit signal found as Open Rails' timetable mode finds it
+  (beyond the platform on its track node at any distance;
+  `StopPlan::Exit`); held only with `$hold` (`$nohold`; `$forcehold`
+  the first signal beyond the platform wherever it is); the train leaves
+  only once its exit signal, the next ahead, shows more than STOP
+  (`waitsForSignal`, asking for it meanwhile; not with `$nowaitsignal`,
+  again with `$waitsignal`; `$forcewait` the first signal beyond);
+  `$closeupsignal` stops 7 m short of the signal (Open Rails'
+  `keepDistanceCloseupSignalM`), `$extendplatformtosignal` puts the
+  platform's end there. The station's row first, then the cell.
+- `$acc`, `$dec`: factors on the train's rates (`accelerationFactor`,
+  `decelerationFactor`, kept when the consist changes).
+- Midnight: a time before 08:00 of a train starting after 16:00 is the
+  next day's, `$next` starts a train the next day (TTTrain's rule).
+- Found on the way and fixed: a signal's script read its own aspect as
+  the next signal's where its heads are a few centimetres apart (the
+  next-signal search skipped only 5 cm from its start;
+  `TrackNetwork::nextSignalWhere` now skips the signal's own heads).
+  PRUDNIK's signal 1009 at Raclawice never cleared. And the runtime
+  searches in another letter case left: the route's `OPENRAILS/sigcfg.dat`
+  and the Timetable window's consist check now by their exact names.
+- **PRUDNIK** (Release, 24 h in 5 s): 266 trains, 262 finish, 3 stuck,
+  no deadlocks, 1643 station stops, a median of 50 s early (1404 timed
+  stops). The stuck ones queue behind 1839_TOW at Jasiona's signals
+  150/149, the block beyond 149 occupied (to compare with Open Rails,
+  phase 7). 8 `$follow` name no train of the timetable (the check's).
+- **Fixtures:** `timetable-commands` (15): `$hold` and the default, the
+  signal wait and `$nowaitsignal`, `$create`, `#dispose $static`,
+  `$triggers`, `$follow` on a passing loop, `$acc`/`$dec`, midnight and
+  `$next`. Every MSTS route's results and events unchanged.
 
 ## Why
 

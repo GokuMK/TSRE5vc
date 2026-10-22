@@ -11,13 +11,15 @@ enum class TrainStatus { Waiting, Running, Stopped, Finished };
 // Why a train stands. Blocked: at the end of its authority, the track ahead
 // held by another train or a standing consist. Event: the player's train at
 // an activity's stop-here event (task 06), until it fires. Couple: at the
-// standing train it attaches to (task 07), coupling.
-enum class StopKind { None, Station, Wait, Reversal, End, Blocked, Event, Couple };
+// standing train it attaches to (task 07), coupling. Created: put on its
+// track before its start (an Open Rails timetable's `$create`, a train
+// formed of another, task 08), standing until then.
+enum class StopKind { None, Station, Wait, Reversal, End, Blocked, Event, Couple, Created };
 
 // What a waiting train waits for: track held by another train (or a
 // consist), the single track ahead claimed for an opposing train (task 02,
 // section 4), the passing track it would take held.
-enum class WaitFor { Track, SingleTrack, PassingTrack };
+enum class WaitFor { Track, SingleTrack, PassingTrack, Follow };
 
 // Who holds a section: a train's id, or these.
 constexpr int NoHolder = -1;
@@ -164,6 +166,9 @@ public:
     // Rails' clearing distance at station stops: 15 m for every AI train,
     // its 10-car rule never applied as its trains are made).
     static constexpr double StationClearing = 15.0;
+    // Open Rails' clearing ahead of a signal for a timetable stop with
+    // `$closeupsignal` (TTTrain.keepDistanceCloseupSignalM).
+    static constexpr double CloseupClearing = 7.0;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
@@ -450,6 +455,15 @@ private:
         // none; its hold let go (dropHold).
         std::vector<int> exits;
         std::vector<bool> letGo;
+        // Each stop's exit signal held or not (task 08: an Open Rails
+        // timetable's train waits for it to clear before it leaves), -1
+        // none.
+        std::vector<int> exitSignals;
+        // Its next follow point (`$follow`, task 08) not yet passed or let
+        // go.
+        size_t nextFollow = 0;
+        // When its run ended (it reached its path's end), -1 not yet.
+        double endedAt = -1.0;
         std::vector<WaitPlan> waits;
         std::vector<PassingPlan> passing;
         // Each passing path's own track: its track sections, sorted.
@@ -653,6 +667,19 @@ private:
     // A single-track stretch it would stand in at its start is claimed for
     // another train, or the other is in it: who.
     bool startClaimed(int train, int *blocker) const;
+    // When a train is put on its track: its start, its create time, or when
+    // the train it is formed of ended (task 08); never while that one runs.
+    double placeTime(int train) const;
+    // Its run begins (at its start time, on its track): at its first station
+    // when it stands there, else running.
+    void beginRun(int train, double t);
+    // Task 08's `$follow`: the first of projected sections [from, to) the
+    // train must not take yet, the train it follows not having passed it
+    // (-1 none); follow points it need not wait at are let go.
+    long followWait(int train, size_t from, size_t to);
+    // Standing at a station: its exit signal is next and shows STOP while
+    // it waits for it (task 08).
+    bool waitsAtExit(int train) const;
     void record(double time, int train, TrainEvent::Kind kind, int index = -1);
     // Reservation (task 02): the sections under a train standing at its
     // start, all or nothing; the track ahead up to its lookahead, a section

@@ -2877,6 +2877,11 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                                       : by >= 0 ? input->trains[size_t(by)].service + (input->trains[size_t(by)].player ? " (player)" : "")
                                       : QString("-"))
                                   << (by >= 0 && core.trains()[size_t(by)].stoppedAt == Sim::StopKind::End ? "(at its path's end)" : "");
+            } else if (!done && verbose) {
+                // Not finished, waiting for no train: what it does.
+                const Sim::TrainPlan &p = input->trains[t];
+                qInfo().noquote() << "[tests:simulation-route] not finished:" << activity->name << p.service
+                                  << p.serviceTime << "|" << Sim::StateText(*input, state, core.time(), int(t));
             }
         }
     }

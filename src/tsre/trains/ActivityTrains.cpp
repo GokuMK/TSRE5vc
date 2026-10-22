@@ -1,6 +1,7 @@
 #include <tsre/trains/ActivityTrains.h>
 
 #include <QDir>
+#include <QFileInfo>
 #include <QTime>
 #include <algorithm>
 #include <tsre/Game.h>
@@ -35,11 +36,10 @@ QString station(int platformId) {
     return qtTrId("activity.trains.platform").arg(platformId);
 }
 
+// A file by its name as spelled (content in another letter case is for the
+// content-case converter).
 bool fileInFolder(const QString &folder, const QString &name) {
-    for (const QString &entry : QDir(folder).entryList(QDir::Files))
-        if (entry.compare(name, Qt::CaseInsensitive) == 0)
-            return true;
-    return false;
+    return QFileInfo(folder + "/" + name).isFile();
 }
 
 // Service, path, consist and stops of the train, and what is missing.

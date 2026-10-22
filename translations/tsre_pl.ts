@@ -12457,12 +12457,12 @@ TSRE pobierze teraz dane aplikacji.</translation>
         <translation>&amp;Odwróć zaznaczone</translation>
     </message>
     <message id="tsre.world.route.dialog.title.procedural.terrain">
-        <location filename="../src/tsre/world/Route.cpp" line="327"/>
+        <location filename="../src/tsre/world/Route.cpp" line="328"/>
         <source>Procedural terrain</source>
         <translation>Teren proceduralny</translation>
     </message>
     <message id="tsre.world.route.title.tdb.error">
-        <location filename="../src/tsre/world/Route.cpp" line="551"/>
+        <location filename="../src/tsre/world/Route.cpp" line="552"/>
         <source>TDB Error</source>
         <translation>Błąd TDB</translation>
     </message>
@@ -13973,14 +13973,14 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Na końcu zdarzenie %1 pokazuje: %2</translation>
     </message>
     <message id="activity.trains.name.case">
-        <location filename="../src/tsre/tests/ActivityEditTestSuite.cpp" line="638"/>
-        <location filename="../src/tsre/tests/ActivityEditTestSuite.cpp" line="640"/>
-        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="121"/>
+        <location filename="../src/tsre/tests/ActivityEditTestSuite.cpp" line="643"/>
+        <location filename="../src/tsre/tests/ActivityEditTestSuite.cpp" line="645"/>
+        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="195"/>
         <source>The traffic pattern names it %1: Open Rails matches names exactly and finds no times.</source>
         <translation>Ruch pociągów nazywa go %1: Open Rails porównuje nazwy dokładnie i nie znajduje czasów.</translation>
     </message>
     <message id="activity.follow.passing.dropped">
-        <location filename="../src/tsre/trains/ActLib.cpp" line="241"/>
+        <location filename="../src/tsre/trains/ActLib.cpp" line="257"/>
         <source>%1: %2 passing paths the edit went through are dropped.</source>
         <translation>%1: usunięto drogi mijania, przez które przeszła edycja: %2.</translation>
     </message>
@@ -14158,72 +14158,72 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Luźny skład %1: brakuje plików niektórych pojazdów.</translation>
     </message>
     <message id="activity.overlay.horn.same">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="63"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="55"/>
         <source>AI horn at crossings: the activity has it already.</source>
         <translation>Sygnał AI na przejazdach: scenariusz już go ma.</translation>
     </message>
     <message id="activity.overlay.horn">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="66"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="58"/>
         <source>AI horn at crossings: %1.</source>
         <translation>Sygnał AI na przejazdach: %1.</translation>
     </message>
     <message id="activity.overlay.pattern.same">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="74"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="66"/>
         <source>AI horn pattern: the activity has it already.</source>
         <translation>Wzór sygnału AI: scenariusz już go ma.</translation>
     </message>
     <message id="activity.overlay.pattern">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="77"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="69"/>
         <source>AI horn pattern: %1.</source>
         <translation>Wzór sygnału AI: %1.</translation>
     </message>
     <message id="activity.overlay.event.missing">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="91"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="83"/>
         <source>Event %1: not in the activity.</source>
         <translation>Zdarzenie %1: nie ma go w scenariuszu.</translation>
     </message>
     <message id="activity.overlay.event.category">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="96"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="88"/>
         <source>Event %1: of another kind in the activity.</source>
         <translation>Zdarzenie %1: w scenariuszu jest innego rodzaju.</translation>
     </message>
     <message id="activity.overlay.event.same">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="106"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="98"/>
         <source>Event %1: %2, the activity has it already.</source>
         <translation>Zdarzenie %1: %2, scenariusz już to ma.</translation>
     </message>
     <message id="activity.overlay.event.field">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="110"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="102"/>
         <source>Event %1: %2.</source>
         <translation>Zdarzenie %1: %2.</translation>
     </message>
     <message id="activity.overlay.replacing">
-        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="160"/>
+        <location filename="../src/tsre/trains/ActivityOverlay.cpp" line="152"/>
         <source>(replacing the activity&apos;s)</source>
         <translation>(zastępuje wartość scenariusza)</translation>
     </message>
     <message id="activity.trains.platform">
-        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="34"/>
+        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="36"/>
         <source>platform %1</source>
         <translation>peron %1</translation>
     </message>
     <message id="activity.trains.service.missing">
-        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="49"/>
+        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="50"/>
         <source>The service %1 does not exist.</source>
         <translation>Kurs %1 nie istnieje.</translation>
     </message>
     <message id="activity.trains.path.missing">
-        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="55"/>
+        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="56"/>
         <source>The path %1 does not exist.</source>
         <translation>Droga przejazdu %1 nie istnieje.</translation>
     </message>
     <message id="activity.trains.consist.missing">
-        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="59"/>
+        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="60"/>
         <source>The consist %1 does not exist.</source>
         <translation>Skład %1 nie istnieje.</translation>
     </message>
     <message id="activity.trains.no.times">
-        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="124"/>
+        <location filename="../src/tsre/trains/ActivityTrains.cpp" line="198"/>
         <source>Not in the traffic pattern: it has no times.</source>
         <translation>Brak w ruchu pociągów: nie ma czasów.</translation>
     </message>
@@ -14357,181 +14357,196 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>coupling</source>
         <translation>sprzęganie</translation>
     </message>
+    <message id="simulation.state.created">
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="88"/>
+        <source>standing, starts at %1</source>
+        <translation>stoi, start o %1</translation>
+    </message>
     <message id="simulation.wait.single">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="131"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="134"/>
         <source>waiting for the single track ahead, claimed by %1</source>
         <translation>czeka na odcinek jednotorowy przed nim, zarezerwowany przez %1</translation>
     </message>
     <message id="simulation.wait.single.signal">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="133"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="136"/>
         <source>at signal %1: the single track beyond is claimed by %2</source>
         <translation>przy semaforze %1: odcinek jednotorowy za nim zarezerwował %2</translation>
     </message>
     <message id="simulation.wait.passing">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="137"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="140"/>
         <source>waiting for the passing track, held by %1</source>
         <translation>czeka na tor mijankowy zajęty przez %1</translation>
     </message>
     <message id="simulation.wait.passing.signal">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="139"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="142"/>
         <source>at signal %1: the passing track is held by %2</source>
         <translation>przy semaforze %1: tor mijankowy zajmuje %2</translation>
     </message>
+    <message id="simulation.wait.follow">
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="146"/>
+        <source>following %1, waiting for it to pass</source>
+        <translation>jedzie za %1, czeka, aż przejedzie</translation>
+    </message>
+    <message id="simulation.wait.follow.signal">
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="148"/>
+        <source>at signal %1: following %2, waiting for it to pass</source>
+        <translation>przy semaforze %1: jedzie za %2, czeka, aż przejedzie</translation>
+    </message>
     <message id="simulation.state.blocked">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="145"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="154"/>
         <source>waiting for track held by %1</source>
         <translation>czeka na tor zajęty przez %1</translation>
     </message>
     <message id="simulation.wait.track.signal">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="147"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="156"/>
         <source>at signal %1: the track beyond is held by %2</source>
         <translation>przy semaforze %1: tor za nim zajmuje %2</translation>
     </message>
     <message id="simulation.why.car.train">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="162"/>
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="174"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="171"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="183"/>
         <source>car %1 in %2</source>
         <translation>wagon %1 w %2</translation>
     </message>
     <message id="simulation.why.car.loose">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="165"/>
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="179"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="174"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="188"/>
         <source>car %1 in the loose consist %2</source>
         <translation>wagon %1 w luźnym składzie %2</translation>
     </message>
     <message id="simulation.why.car.left">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="167"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="176"/>
         <source>car %1 standing where %2 left it</source>
         <translation>wagon %1 stoi tam, gdzie zostawił go %2</translation>
     </message>
     <message id="simulation.why.car.none">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="168"/>
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="181"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="177"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="190"/>
         <source>car %1 in no train</source>
         <translation>wagon %1 w żadnym pociągu</translation>
     </message>
     <message id="simulation.work.impractical">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="235"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="244"/>
         <source>work order %1 skipped, too complicated: %2</source>
         <translation>zlecenie %1 pominięte jako zbyt skomplikowane: %2</translation>
     </message>
     <message id="simulation.work.skipped">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="237"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="246"/>
         <source>work order %1 skipped, no plan for it: %2</source>
         <translation>zlecenie %1 pominięte, brak planu: %2</translation>
     </message>
     <message id="simulation.why.passengers">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="252"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="261"/>
         <source>PickUpPassengers never fires (as in Open Rails).</source>
         <translation>PickUpPassengers nigdy nie jest wywoływane (jak w Open Rails).</translation>
     </message>
     <message id="simulation.why.inactive">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="255"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="264"/>
         <source>Never active (its level stayed at %1).</source>
         <translation>Nigdy nieaktywne (jego poziom pozostał %1).</translation>
     </message>
     <message id="simulation.why.time">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="260"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="269"/>
         <source>Its time, %1, is after the run&apos;s end.</source>
         <translation>Jego czas, %1, wypada po końcu przebiegu.</translation>
     </message>
     <message id="simulation.why.trigger.missing">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="267"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="276"/>
         <source>Its triggering train %1 is not in the activity: the player&apos;s train is looked at.</source>
         <translation>Jego pociągu wyzwalającego %1 nie ma w scenariuszu: sprawdzany jest pociąg gracza.</translation>
     </message>
     <message id="simulation.why.off.track">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="271"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="280"/>
         <source>Its point is %1 m from the track: within 2.5 m it would be on it (Open Rails).</source>
         <translation>Jego punkt leży %1 m od toru: w odległości 2,5 m byłby na nim (Open Rails).</translation>
     </message>
     <message id="simulation.why.no.track">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="274"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="283"/>
         <source>Its point is not near any track.</source>
         <translation>Jego punkt nie leży przy żadnym torze.</translation>
     </message>
     <message id="simulation.why.other.track">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="278"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="287"/>
         <source>Its point is on another track, %1 m from the path of %2: within 2.5 m of the track a train runs on it would fire (Open Rails).</source>
         <translation>Jego punkt leży na innym torze, %1 m od drogi przejazdu %2: w odległości 2,5 m od toru, po którym jedzie pociąg, zostałoby wywołane (Open Rails).</translation>
     </message>
     <message id="simulation.why.not.on.path">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="281"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="290"/>
         <source>The path of %1 does not pass its point.</source>
         <translation>Droga przejazdu %1 nie przechodzi przez jego punkt.</translation>
     </message>
     <message id="simulation.why.passed.inactive">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="284"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="293"/>
         <source>%1 passed it at %2, before it was active (from %3).</source>
         <translation>%1 minął je o %2, zanim stało się aktywne (od %3).</translation>
     </message>
     <message id="simulation.why.passed.lowered">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="288"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="297"/>
         <source>%1 passed it at %2, when it was no longer active (active from %3).</source>
         <translation>%1 minął je o %2, gdy nie było już aktywne (aktywne od %3).</translation>
     </message>
     <message id="simulation.why.passed.no.stop">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="291"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="300"/>
         <source>%1 passed it at %2 without stopping: active too late to stop.</source>
         <translation>%1 minął je o %2 bez zatrzymania: aktywne za późno, by się zatrzymać.</translation>
     </message>
     <message id="simulation.why.passed">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="294"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="303"/>
         <source>%1 passed it at %2.</source>
         <translation>%1 minął je o %2.</translation>
     </message>
     <message id="simulation.why.not.there">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="297"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="306"/>
         <source>%1 did not get there.</source>
         <translation>%1 tam nie dojechał.</translation>
     </message>
     <message id="simulation.why.no.stops">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="304"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="313"/>
         <source>The player&apos;s train has no station stops.</source>
         <translation>Pociąg gracza nie ma postojów na stacjach.</translation>
     </message>
     <message id="simulation.why.last.stop">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="307"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="316"/>
         <source>The player&apos;s train did not leave its last station stop.</source>
         <translation>Pociąg gracza nie odjechał z ostatniego postoju na stacji.</translation>
     </message>
     <message id="simulation.why.speed">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="311"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="320"/>
         <source>The player&apos;s train reached %1 at most, %2 asked.</source>
         <translation>Pociąg gracza osiągnął najwyżej %1, wymagane %2.</translation>
     </message>
     <message id="simulation.why.siding">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="323"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="332"/>
         <source>The player&apos;s train did not reach the siding.</source>
         <translation>Pociąg gracza nie dojechał na tor boczny.</translation>
     </message>
     <message id="simulation.why.work.impractical">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="328"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="337"/>
         <source>The autopilot skipped it as too complicated: %1.</source>
         <translation>Autopilot pominął je jako zbyt skomplikowane: %1.</translation>
     </message>
     <message id="simulation.why.work.none">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="331"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="340"/>
         <source>The autopilot found no plan for it: %1.</source>
         <translation>Autopilot nie znalazł dla niego planu: %1.</translation>
     </message>
     <message id="simulation.why.work.off">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="334"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="343"/>
         <source>The autopilot was not asked to do the work.</source>
         <translation>Autopilot nie miał wykonać tej pracy.</translation>
     </message>
     <message id="simulation.why.cars.at">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="336"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="345"/>
         <source>The cars: %1.</source>
         <translation>Wagony: %1.</translation>
     </message>
     <message id="simulation.why.ended">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="345"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="354"/>
         <source>The activity ended at %1.</source>
         <translation>Scenariusz zakończył się o %1.</translation>
     </message>
     <message id="simulation.train.player">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="98"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="101"/>
         <source>%1 (player)</source>
         <translation>%1 (gracz)</translation>
     </message>
@@ -14541,12 +14556,12 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>jedzie %1</translation>
     </message>
     <message id="simulation.train.ai">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="100"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="103"/>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
     </message>
     <message id="simulation.holder.consist">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="106"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="109"/>
         <source>a standing consist</source>
         <translation>stojący skład</translation>
     </message>
@@ -14826,142 +14841,142 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Planowanie zadań manewrowych gracza zostało przerwane.</translation>
     </message>
     <message id="timetable.read.unreadable">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="244"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="239"/>
         <source>cannot read %1</source>
         <translation>nie można odczytać %1</translation>
     </message>
     <message id="timetable.read.empty">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="254"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="249"/>
         <source>the file is empty</source>
         <translation>plik jest pusty</translation>
     </message>
     <message id="timetable.read.separator">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="260"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="255"/>
         <source>the first character is &apos;%1&apos;, not a separator (&apos;;&apos;, &apos;,&apos; or a tab)</source>
         <translation>pierwszy znak to &apos;%1&apos;, nie separator (&apos;;&apos;, &apos;,&apos; lub tabulator)</translation>
     </message>
     <message id="timetable.read.column">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="308"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="303"/>
         <source>column %1: %2 is not a column Open Rails knows (skipped)</source>
         <translation>kolumna %1: %2 nie jest kolumną znaną Open Rails (pominięta)</translation>
     </message>
     <message id="timetable.read.speed.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="353"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="348"/>
         <source>row %1: a second speed row (skipped)</source>
         <translation>wiersz %1: drugi wiersz prędkości (pominięty)</translation>
     </message>
     <message id="timetable.read.row">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="369"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="364"/>
         <source>row %1: %2 is not a row Open Rails knows (skipped)</source>
         <translation>wiersz %1: %2 nie jest wierszem znanym Open Rails (pominięty)</translation>
     </message>
     <message id="timetable.read.station.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="389"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="384"/>
         <source>row %1: station %2 again (Open Rails matches stations by name)</source>
         <translation>wiersz %1: stacja %2 ponownie (Open Rails dopasowuje stacje po nazwie)</translation>
     </message>
     <message id="timetable.read.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="398"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="393"/>
         <source>no #path row</source>
         <translation>brak wiersza #path</translation>
     </message>
     <message id="timetable.read.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="401"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="396"/>
         <source>no #consist row</source>
         <translation>brak wiersza #consist</translation>
     </message>
     <message id="timetable.read.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="404"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="399"/>
         <source>no #start row</source>
         <translation>brak wiersza #start</translation>
     </message>
     <message id="timetable.read.train.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="429"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="424"/>
         <source>column %1: train %2 again (names must be unique)</source>
         <translation>kolumna %1: pociąg %2 ponownie (nazwy muszą być unikalne)</translation>
     </message>
     <message id="timetable.read.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="443"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="438"/>
         <source>train %1: start %2 is not a time</source>
         <translation>pociąg %1: start %2 nie jest godziną</translation>
     </message>
     <message id="timetable.read.timing">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="488"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="483"/>
         <source>train %1 at %2: %3 is not a timing</source>
         <translation>pociąg %1 na %2: %3 nie jest czasem</translation>
     </message>
     <message id="timetable.check.station">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="559"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="535"/>
         <source>station %1: no platform of the route has it</source>
         <translation>stacja %1: żaden peron trasy jej nie ma</translation>
     </message>
     <message id="timetable.check.command.text">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="572"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="547"/>
         <source>%1: &apos;$%2&apos; is no command; a timing must come before the commands</source>
         <translation>%1: &apos;$%2&apos; nie jest poleceniem; czas musi być przed poleceniami</translation>
     </message>
     <message id="timetable.check.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="576"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="551"/>
         <source>%1: $%2 is not run by TSRE yet</source>
         <translation>%1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
     <message id="timetable.check.reference">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="582"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="557"/>
         <source>%1: $%2 names %3, not a train of the timetable</source>
         <translation>%1: $%2 wskazuje %3, nie pociąg tego rozkładu</translation>
     </message>
     <message id="timetable.check.ahead">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="588"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="563"/>
         <source>%1: /ahead=%2 is not a train of the timetable</source>
         <translation>%1: /ahead=%2 nie jest pociągiem tego rozkładu</translation>
     </message>
     <message id="timetable.check.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="594"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="569"/>
         <source>no path</source>
         <translation>brak ścieżki</translation>
     </message>
     <message id="timetable.check.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="597"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="572"/>
         <source>path %1 is not in the route&apos;s PATHS</source>
         <translation>ścieżki %1 nie ma w PATHS trasy</translation>
     </message>
     <message id="timetable.check.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="600"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="575"/>
         <source>no consist</source>
         <translation>brak składu</translation>
     </message>
     <message id="timetable.check.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="604"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="579"/>
         <source>consist %1 is not there</source>
         <translation>składu %1 nie ma</translation>
     </message>
     <message id="timetable.check.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="607"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="582"/>
         <source>no start time</source>
         <translation>brak godziny startu</translation>
     </message>
     <message id="timetable.check.where.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="609"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="584"/>
         <source>start</source>
         <translation>start</translation>
     </message>
     <message id="timetable.check.where.note">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="611"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="586"/>
         <source>note</source>
         <translation>uwagi</translation>
     </message>
     <message id="timetable.check.where.dispose">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="613"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="588"/>
         <source>dispose</source>
         <translation>koniec biegu</translation>
     </message>
     <message id="timetable.check.where.speed">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="615"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="590"/>
         <source>speed</source>
         <translation>prędkość</translation>
     </message>
     <message id="timetable.check.station.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="624"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="599"/>
         <source>station %1: $%2 is not run by TSRE yet</source>
         <translation>stacja %1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>

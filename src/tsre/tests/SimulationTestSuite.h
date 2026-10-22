@@ -36,6 +36,10 @@ int runTimetableRouteSuite(bool verbose);
 // A timetable set's trains (task simulation 08, phase 3) made and run on
 // hand-made track: paths, consists, stops, a static train.
 int runTimetableTrainsSuite(bool verbose);
+// The Open Rails timetable commands TSRE runs (task simulation 08, phase
+// 4), each on hand-made track: holds and signal waits, $create, $static,
+// $triggers, $follow, $acc and $dec, midnight.
+int runTimetableCommandsSuite(bool verbose);
 // The scaling workloads (task simulation 02): the route enlarged with the
 // same traffic, more traffic, more trains at one junction, on hand-made
 // track; measured.

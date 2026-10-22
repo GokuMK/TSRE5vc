@@ -512,7 +512,7 @@ bool OrTimetableGroup::load(const QString &path) {
 bool OrTimetableCommandRun(const QString &name) {
     static const QSet<QString> run = {"acc", "dec", "follow", "nowaitsignal", "create", "hold", "nohold", "forcehold",
                                       "static", "triggers", "closeupsignal", "extendplatformtosignal", "forcewait",
-                                      "max"};
+                                      "max", "waitsignal", "next"};
     return run.contains(name);
 }
 
