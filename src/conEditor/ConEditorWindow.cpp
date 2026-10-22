@@ -45,7 +45,6 @@ static int consistViewHeight(int width) {
 ConEditorWindow::ConEditorWindow() : QMainWindow() {
     Game::shadowsEnabled = 0;
     Game::fogDensity = 0;
-    Vec3::set((float*)Game::sunLightDirection,-1.0,0.0,0.0);
     aboutWindow = new AboutWindow(this);
     connect(Units::Notifier::instance(), &Units::Notifier::changed, this, [this] {
         showEngValues();

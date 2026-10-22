@@ -100,6 +100,24 @@ Later: a depth-aware upsample in the composite for Low and Medium (tried: it
 keeps their occlusion from bleeding across silhouettes, cost not measured);
 a separable blur (the 5 x 5 one costs about 6 ms at full resolution).
 
+### Previews (2026-10-23)
+
+The Shape Viewer, the Consist Editor's views and the route editor's shape
+window (`ShapeViewerGLWidget`) take the setting too, but their light hid
+it: the windows set a level sun from behind the camera (0.7) with the
+default ambient light (0.3), about 13 % of a sunlit side's light in linear
+terms, and the occlusion takes only the ambient share; the underframes,
+where most of it lies, are dark anyway. They now draw with a studio light
+of their own (`ShapeViewerGLWidget::Light`), set for each of their frames
+and restored after it, so the route's sun stays for the route editor: the
+sun above, behind the camera and to one side (towards it (-0.6, 0.7, 0.4)
+in the view's frame, the camera looking along +x), grey 0.6, the ambient
+light 0.5. Of four lightings tried (`tests/renderer/preview-lighting.json`;
+the capture's per-item `light`), this keeps the sun's modelling and
+doubles the occlusion's effect (ST44, three-quarter view, High: 0.9 to 1.5
+levels on average). It stays subtle: the previews have no ground, the
+strongest occluder in a route.
+
 ## Debugging
 
 `TSRE_AO_DEBUG=1` shows the visibility term in place of the view;

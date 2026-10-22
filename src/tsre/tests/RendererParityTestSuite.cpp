@@ -38,7 +38,6 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Eng.h>
-#include <tsre/ogl/GLUU.h>
 #include <tsre/Game.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/GeoPresetData.h>
@@ -1205,9 +1204,9 @@ struct ViewerItem {
     // keeps the fit) and degrees the camera looks up.
     double fov = 0.0;
     double look = 0.0;
-    // The view's light, as the Consist Editor sets the sun ("light": {"sun":
-    // [x, y, z] towards it, "sunColor": grey, "ambient": grey}); otherwise as
-    // it is.
+    // The view's light (ShapeViewerGLWidget::Light; "light": {"sun": [x, y,
+    // z] towards it, "sunColor": grey, "ambient": grey}); otherwise the
+    // view's default.
     bool hasLight = false;
     float sun[3] = {-1.0f, 0.0f, 0.0f};
     float sunColor = 0.7f;
@@ -1373,16 +1372,13 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             qWarning() << ViewerCaptureLog << item.name << "could not be shown";
             continue;
         }
-        GLUU *gluu = GLUU::get();
-        float sun[3], sunColor[4], ambient[4];
-        std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, sun);
-        std::copy(gluu->diffuseColor, gluu->diffuseColor + 4, sunColor);
-        std::copy(gluu->ambientColor, gluu->ambientColor + 4, ambient);
+        ShapeViewerGLWidget::Light light;
         if (item.hasLight) {
-            std::copy(item.sun, item.sun + 3, Game::sunLightDirection);
-            std::fill(gluu->diffuseColor, gluu->diffuseColor + 3, item.sunColor);
-            std::fill(gluu->ambientColor, gluu->ambientColor + 3, item.ambient);
+            std::copy(item.sun, item.sun + 3, light.sun);
+            light.sunColor = item.sunColor;
+            light.ambient = item.ambient;
         }
+        widget.setLight(light);
 
         QElapsedTimer settleTimer;
         settleTimer.start();
@@ -1424,9 +1420,6 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         }
         shapeCamera.fov = fittedFov;
         shapeCamera.setPlayerRot(M_PI / 2.0, 0);
-        std::copy(sun, sun + 3, Game::sunLightDirection);
-        std::copy(sunColor, sunColor + 4, gluu->diffuseColor);
-        std::copy(ambient, ambient + 4, gluu->ambientColor);
         image.save(QDir(outputDir).filePath(item.name + ".png"));
         items.append(QJsonObject{{"name", item.name}, {"settled", settled}, {"frames", frames}});
         qInfo().noquote() << ViewerCaptureLog << item.name

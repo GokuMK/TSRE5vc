@@ -151,7 +151,6 @@ bool chooseShapeSave(QWidget *parent, const QString &sourcePath,
 ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     Game::shadowsEnabled = 0;
     Game::fogDensity = 0;
-    Vec3::set((float*)Game::sunLightDirection,-1.0,0.0,0.0);
     aboutWindow = new AboutWindow(this);
     englib = new EngLib();
     Game::currentEngLib = englib;
