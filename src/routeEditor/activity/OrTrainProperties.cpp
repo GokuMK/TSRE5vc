@@ -1,5 +1,6 @@
 #include <routeEditor/activity/OrTrainProperties.h>
 #include <routeEditor/activity/ActivityEdit.h>
+#include <tsre/gui/GuiFunct.h>
 #include <tsre/trains/Activity.h>
 
 namespace {
@@ -40,10 +41,12 @@ const QColor NotRunColour(200, 120, 0);
 
 OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     setObjectName("orTrainProperties");
-    heading.setStyleSheet("QLabel { font-weight: bold; }");
-    details.setWordWrap(true);
-    details.setTextInteractionFlags(Qt::TextSelectableByMouse);
-    details.setObjectName("orTrainDetails");
+    const char *shownNames[5] = {"orTrainName", "orTrainPath", "orTrainConsist", "orTrainComment", "orTrainFile"};
+    for (int k = 0; k < 5; ++k) {
+        shownFields[k].setObjectName(shownNames[k]);
+        shownFields[k].setReadOnly(true);
+        shownFields[k].setEnabled(false);
+    }
     startTime.setDisplayFormat("HH:mm:ss");
     startTime.setObjectName("orTrainStart");
     const char *names[4] = {"orTrainStartCommands", "orTrainNote", "orTrainDispose", "orTrainSpeed"};
@@ -80,34 +83,63 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
         qtTrId("route.editor.activity.or.train.stops.tooltip"));
     problems.setWordWrap(true);
     problems.setStyleSheet("QLabel { color : rgb(200, 120, 0); }");
+    problems.setContentsMargins(3, 0, 3, 0);
     problems.setObjectName("orTrainProblems");
 
-    QHBoxLayout *startLine = new QHBoxLayout;
-    startLine->setContentsMargins(0, 0, 0, 0);
-    startLine->addWidget(new QLabel(
-        //% "Start:"
-        qtTrId("route.editor.activity.or.train.start")));
-    startLine->addWidget(&startTime);
-    startLine->addStretch(1);
-    QFormLayout *commands = new QFormLayout;
-    commands->setContentsMargins(0, 0, 0, 0);
-    //% "Start commands:"
-    commands->addRow(qtTrId("route.editor.activity.or.train.field.start"), &commandFields[0]);
+    // One grid, a label and a box a row: what the train is, then its
+    // commands.
+    info = new QWidget(this);
+    QGridLayout *grid = new QGridLayout;
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setSpacing(2);
+    int row = 0;
+    auto section = [grid, &row](const QString &text) {
+        if (row > 0)
+            grid->addItem(new QSpacerItem(0, 6), row++, 0);
+        grid->addWidget(GuiFunct::newTQLabel(text), row++, 0, 1, 2);
+    };
+    auto field = [grid, &row](const QString &text, QWidget *box) {
+        QLabel *label = new QLabel(text);
+        label->setContentsMargins(3, 0, 0, 0);
+        grid->addWidget(label, row, 0);
+        grid->addWidget(box, row++, 1);
+    };
+    //% "Info:"
+    section(qtTrId("route.editor.activity.or.train.section.info"));
+    //% "Train:"
+    field(qtTrId("route.editor.activity.or.train.field.name"), &shownFields[0]);
+    //% "Path:"
+    field(qtTrId("route.editor.activity.or.train.field.path"), &shownFields[1]);
+    //% "Consist:"
+    field(qtTrId("route.editor.activity.or.train.field.consist"), &shownFields[2]);
+    //% "Comment:"
+    field(qtTrId("route.editor.activity.or.train.field.comment"), &shownFields[3]);
+    //% "Timetable:"
+    field(qtTrId("route.editor.activity.or.train.field.file"), &shownFields[4]);
+    //% "Start Time:"
+    field(qtTrId("route.editor.activity.or.train.field.start.time"), &startTime);
+    //% "Commands:"
+    section(qtTrId("route.editor.activity.or.train.section.commands"));
+    //% "Start:"
+    field(qtTrId("route.editor.activity.or.train.field.start"), &commandFields[0]);
     //% "Note:"
-    commands->addRow(qtTrId("route.editor.activity.or.train.field.note"), &commandFields[1]);
+    field(qtTrId("route.editor.activity.or.train.field.note"), &commandFields[1]);
     //% "Dispose:"
-    commands->addRow(qtTrId("route.editor.activity.or.train.field.dispose"), &commandFields[2]);
+    field(qtTrId("route.editor.activity.or.train.field.dispose"), &commandFields[2]);
     //% "Speed row:"
-    commands->addRow(qtTrId("route.editor.activity.or.train.field.speed"), &commandFields[3]);
+    field(qtTrId("route.editor.activity.or.train.field.speed"), &commandFields[3]);
+    grid->setColumnStretch(1, 1);
+    QVBoxLayout *infoLayout = new QVBoxLayout(info);
+    infoLayout->setContentsMargins(0, 0, 0, 0);
+    infoLayout->setSpacing(4);
+    infoLayout->addLayout(grid);
+    infoLayout->addWidget(&problems);
+    // Until the window takes it: above the stops.
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(4);
-    layout->addWidget(&heading);
-    layout->addLayout(startLine);
-    layout->addLayout(commands);
-    layout->addWidget(&details);
+    layout->addWidget(info);
     layout->addWidget(&stops, 1);
-    layout->addWidget(&problems);
     QObject::connect(&startTime, &QTimeEdit::editingFinished, this, &OrTrainProperties::startEdited);
     QObject::connect(&stops, &QTreeWidget::itemChanged, this, &OrTrainProperties::stopEdited);
     showTrain(nullptr, -1, -1, {});
@@ -128,15 +160,22 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
             field.clear();
     }
     if (!valid) {
-        heading.clear();
-        details.clear();
+        for (QLineEdit &field : shownFields)
+            field.clear();
         problems.clear();
+        problems.hide();
         filling = false;
         return;
     }
     const OrTimetable &t = *set->timetables[size_t(timetable)];
     const OrTimetable::Train &one = t.trains[train];
-    heading.setText(one.name);
+    const QString shown[5] = {one.name, one.pathText.isEmpty() ? one.path : one.pathText, one.consist, one.comment,
+                              QFileInfo(t.file).fileName()};
+    for (int k = 0; k < 5; ++k) {
+        shownFields[k].setText(shown[k]);
+        shownFields[k].setCursorPosition(0);
+        shownFields[k].setToolTip(shown[k]);
+    }
     {
         QSignalBlocker blocker(startTime);
         startTime.setTime(QTime::fromMSecsSinceStartOfDay(std::max(0, one.startTime) % 86400 * 1000));
@@ -148,22 +187,12 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
         const QStringList missing = notRun(commands);
         QSignalBlocker blocker(field);
         field.setText(OrTimetable::CommandsText(commands));
+        field.setCursorPosition(0);
         field.setToolTip(notRunText(missing));
         field.setStyleSheet(missing.isEmpty() ? QString() : QString("QLineEdit { color: %1; }").arg(NotRunColour.name()));
     }
     // A train static by its column's head has no start cell.
     commandFields[0].setEnabled(!one.header.startsWith('$'));
-    QStringList lines;
-    //% "Path: %1"
-    lines << qtTrId("route.editor.activity.or.train.path").arg(one.pathText.isEmpty() ? one.path : one.pathText);
-    //% "Consist: %1"
-    lines << qtTrId("route.editor.activity.or.train.consist").arg(one.consist);
-    if (!one.comment.isEmpty())
-        //% "Comment: %1"
-        lines << qtTrId("route.editor.activity.or.train.comment").arg(one.comment);
-    //% "In %1."
-    lines << qtTrId("route.editor.activity.or.train.file").arg(QFileInfo(t.file).fileName());
-    details.setText(lines.join("\n"));
     // The stops in the timetable's station order.
     for (int s = 0; s < t.stations.size(); ++s) {
         int k = -1;
@@ -203,6 +232,7 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
         }
     }
     problems.setText(found.join("\n"));
+    problems.setVisible(!found.isEmpty());
     filling = false;
 }
 

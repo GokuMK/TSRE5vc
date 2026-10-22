@@ -196,6 +196,14 @@ int runTimetableUiSuite(bool verbose) {
               && stops->topLevelItem(0)->text(3).isEmpty() && stops->topLevelItem(0)->text(4) == "$hold",
           "the Timetable window: the set's trains; T1's stops at Alpha 08:05-08:07 (the station's $hold) and Beta in "
           "its panel");
+    // Its information in a grid of boxes left of the stops: shown only.
+    QLineEdit *name = timetable.findChild<QLineEdit *>("orTrainName");
+    QLineEdit *path = timetable.findChild<QLineEdit *>("orTrainPath");
+    QLabel *savedIn = timetable.findChild<QLabel *>("timetableSavedIn");
+    check(name != nullptr && name->text() == "T1" && !name->isEnabled() && path != nullptr && path->text() == "P1"
+              && stops != nullptr && name->mapTo(&timetable, QPoint()).x() < stops->mapTo(&timetable, QPoint()).x()
+              && savedIn != nullptr && savedIn->mapTo(&timetable, QPoint()).y() > name->mapTo(&timetable, QPoint()).y(),
+          "T1's name and path in boxes not edited, left of its stops, where it is saved under them");
 
     // T1's departure from Alpha edited: the set unsaved, one undo step.
     if (stops != nullptr && stops->topLevelItemCount() > 0)

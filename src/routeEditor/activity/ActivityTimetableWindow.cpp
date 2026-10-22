@@ -262,6 +262,12 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     savedLayout->setContentsMargins(0, 0, 0, 0);
     savedLayout->setSpacing(4);
     savedIn.setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    // An Open Rails timetable's train (task simulation 08): its information
+    // and commands first, where it is saved under them.
+    orTrain = new OrTrainProperties;
+    orInfo = ActivityEditLock::Box(orTrain->info);
+    orInfo->layout()->setContentsMargins(0, 0, 0, 6);
+    savedLayout->addWidget(orInfo);
     savedLayout->addWidget(&savedIn);
     savedLayout->addWidget(bCopy, 0, Qt::AlignLeft);
     // What only an MSTS activity's train has: its information and Simulate
@@ -298,9 +304,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     savedLayout->addWidget(simulationBox, 1);
     savedLayout->addStretch(0);
     QWidget *stops = ActivityEditLock::Box(timetableProperties);
-    // An Open Rails timetable's train (task simulation 08) in place of an
-    // MSTS activity's stops and times.
-    orTrain = new OrTrainProperties;
+    // An Open Rails timetable's train's stops in place of an MSTS
+    // activity's.
     QWidget *orStops = ActivityEditLock::Box(orTrain);
     QWidget *right = new QWidget;
     QVBoxLayout *rightLayout = new QVBoxLayout(right);
@@ -351,7 +356,7 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         timesFor.setProperty("chosen", index);
     });
     // While a simulation exists its times show but are not edited.
-    ActivityEditLock::Follow(this, {info, stops, orStops});
+    ActivityEditLock::Follow(this, {info, stops, orInfo, orStops});
     QObject::connect(orTrain, &OrTrainProperties::edited, this, &ActivityTimetableWindow::orTrainEdited);
     QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged,
                      this, [this] { showChosen(); });
@@ -497,6 +502,7 @@ void ActivityTimetableWindow::showChosen(){
     const bool timetables = activity != NULL && activity->isTimetables();
     mstsInfo->setVisible(!timetables);
     mstsStops->setVisible(!timetables);
+    orInfo->setVisible(timetables);
     orBox->setVisible(timetables);
     bAdd->setVisible(!timetables);
     bRemove->setVisible(!timetables);
@@ -509,9 +515,8 @@ void ActivityTimetableWindow::showChosen(){
             return;
         }
         savedIn.setText(
-            //% "The times and commands are saved in the timetable %1: Save Activities writes it in TSRE's layout, the original kept beside it the first time."
-            qtTrId("route.editor.activity.timetable.window.saved.timetable")
-                .arg(QFileInfo(activity->timetables[size_t(train->orTimetable)]->file).fileName()));
+            //% "The times and commands are saved in the timetable: Save Activities writes it in TSRE's layout, the original kept beside it the first time."
+            qtTrId("route.editor.activity.timetable.window.saved.timetable"));
         orTrain->showTrain(activity, train->orTimetable, train->orTrain, train->problems);
         return;
     }

@@ -78,9 +78,10 @@ private:
     QPushButton *bFollow = NULL;
     QWidget *simulationBox = NULL;
     // An MSTS activity's train's information and stops, an Open Rails
-    // timetable's train's panel (task simulation 08).
+    // timetable's train's (task simulation 08).
     QWidget *mstsInfo = NULL;
     QWidget *mstsStops = NULL;
+    QWidget *orInfo = NULL;
     QWidget *orBox = NULL;
     OrTrainProperties *orTrain = NULL;
     QListWidget events;
