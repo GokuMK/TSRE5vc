@@ -37,6 +37,7 @@
 #include <tsre/camera/CameraRot.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/EngLib.h>
+#include <tsre/trains/Eng.h>
 #include <tsre/Game.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/GeoPresetData.h>
@@ -1337,6 +1338,12 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");
             widget.showEng(path, item.file);
+            // As the Consist Editor's engine view: back by its length.
+            const int engine = Game::currentEngLib->addEng(path, item.file);
+            const float back = engine >= 0 ? -Game::currentEngLib->eng[engine]->sizez - 1.0f : -15.0f;
+            shapeCamera.setPos(std::min(back, -15.0f), 2.5f, 0.0f);
+            shapeCamera.setPlayerRot(M_PI / 2.0, 0);
+            widget.setModelRotation(float(item.yaw * M_PI / 180.0), float(item.pitch * M_PI / 180.0));
         } else if (item.type == "consist") {
             const int id = ConLib::addCon(path, item.file);
             if (id < 0) {

@@ -3,6 +3,8 @@
 #include <QApplication>
 #include <QMouseEvent>
 #include <QScopedValueRollback>
+#include <QTemporaryDir>
+#include <conEditor/ConEditorWindow.h>
 #include <shapeViewer/ShapeViewerGLWidget.h>
 #include <tsre/camera/CameraConsist.h>
 #include <tsre/ogl/OglObj.h>
@@ -135,6 +137,49 @@ int TsreTests::runConsistPreviewSuite(bool verbose) {
     shape.mesh.deleteVBO();
     widget.currentShapeLib->shape.clear();
     widget.doneCurrent();
+
+    // The Consist Editor's layout: the consist view's height follows its
+    // width, a taller window gives the lists and the unit's view the height.
+    // The editor takes over the engine and shape libraries: the preview
+    // above must not draw meanwhile.
+    widget.hide();
+    {
+        QTemporaryDir root;
+        QScopedValueRollback<QString> restoreRoot(Game::root, root.path() + "/");
+        QScopedValueRollback<EngLib*> restoreEditorEngines(Game::currentEngLib);
+        QScopedValueRollback<ShapeLib*> restoreEditorShapes(Game::currentShapeLib);
+        QScopedValueRollback<int> restoreShadows(Game::shadowsEnabled);
+        QScopedValueRollback<float> restoreFog(Game::fogDensity);
+        float sun[3];
+        std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, sun);
+        ConEditorWindow *editor = new ConEditorWindow();
+        editor->setAttribute(Qt::WA_DontShowOnScreen);
+        editor->resize(1800, 1000);
+        editor->show();
+        QApplication::processEvents();
+        ShapeViewerGLWidget *consistView = nullptr, *unitView = nullptr;
+        for (ShapeViewerGLWidget *view : editor->findChildren<ShapeViewerGLWidget *>())
+            (view->minimumHeight() == view->maximumHeight() ? consistView : unitView) = view;
+        check(consistView != nullptr && unitView != nullptr, "editor has a consist view of fixed height");
+        if (consistView != nullptr && unitView != nullptr) {
+            const int consistHeight = consistView->height(), unitHeight = unitView->height();
+            check(consistHeight == std::max(100, int(consistView->width() * 0.11f)),
+                  "consist view height follows its width");
+            editor->resize(1800, 1500);
+            QApplication::processEvents();
+            check(consistView->height() == consistHeight && unitView->height() > unitHeight + 300,
+                  "a taller window goes to the lists and the unit's view");
+            editor->resize(1300, 1500);
+            QApplication::processEvents();
+            check(consistView->height() == std::max(100, int(consistView->width() * 0.11f))
+                          && consistView->height() < consistHeight,
+                  "a narrower window lowers the consist view");
+        }
+        // Hidden, not deleted: its list widgets free the children they hold
+        // by value twice (the application never destroys the editor).
+        editor->hide();
+        std::copy(sun, sun + 3, Game::sunLightDirection);
+    }
     qInfo() << "[tests:consist-preview-gl] passed=" << passed << "failed=" << failed;
     return failed == 0 ? 0 : 1;
 }

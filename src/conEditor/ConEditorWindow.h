@@ -93,6 +93,8 @@ signals:
     
 protected:
     virtual void closeEvent ( QCloseEvent * event );
+    // Keeps the consist view's height in proportion to its width.
+    bool eventFilter(QObject *watched, QEvent *event) override;
     
 private:
     void setCurrentEng(int id, int engSetId = -1);

@@ -36,6 +36,12 @@
 #include <QVector>
 #include <tsre/units/Units.h>
 
+// The consist view's height for a width: its strip with the labels takes
+// 8% of the width, centred; the rest is margin.
+static int consistViewHeight(int width) {
+    return std::max(100, int(width * 0.11f));
+}
+
 ConEditorWindow::ConEditorWindow() : QMainWindow() {
     Game::shadowsEnabled = 0;
     Game::fogDensity = 0;
@@ -113,7 +119,9 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     vbox->addWidget(eng2,0,3);
     engInfo = new QWidget(this);
     QVBoxLayout *engInfoLayout = new QVBoxLayout;
-    engInfoLayout->addWidget(glShapeWidget);
+    // The unit's view takes the column's height (the form and the sets
+    // below keep theirs).
+    engInfoLayout->addWidget(glShapeWidget, 1);
     glShapeWidget->setMinimumSize(100, 100);
     QGridLayout *engInfoForm = new QGridLayout;
     engInfoForm->setSpacing(2);
@@ -211,6 +219,7 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     vbox->addWidget(engInfo,0,4);
     //vbox->addStretch(1);
     mbox->addItem(vbox);
+    mbox->setStretchFactor(vbox, 1);
     conInfo = new QWidget(this);
     QGridLayout *conInfoForm = new QGridLayout;
     conInfoForm->setSpacing(2);
@@ -257,11 +266,13 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     mbox->addWidget(conInfo);
     mbox->addWidget(glConWidget);
     mbox->addWidget(conSlider);
-    //glConWidget->setFixedHeight(150);
-    glConWidget->setMinimumSize(1000, 100);
-    QSizePolicy policy(glConWidget->sizePolicy());
-    policy.setHeightForWidth(true);
-    glConWidget->setSizePolicy(policy);
+    // The consist's strip scales with the view's width (its camera keeps the
+    // horizontal field of view), so more height would only add empty space:
+    // the height follows the width (eventFilter), the lists and the unit's
+    // view above take the rest.
+    glConWidget->setMinimumWidth(1000);
+    glConWidget->setFixedHeight(consistViewHeight(1000));
+    glConWidget->installEventFilter(this);
     
     main->setLayout(mbox);
     this->setCentralWidget(main);
@@ -1073,6 +1084,15 @@ void ConEditorWindow::replaceAllAllEnabled(){
     }
 }
     
+bool ConEditorWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == glConWidget && event->type() == QEvent::Resize) {
+        const int height = consistViewHeight(glConWidget->width());
+        if (glConWidget->height() != height)
+            glConWidget->setFixedHeight(height);
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
 void ConEditorWindow::closeEvent( QCloseEvent *event )
 {
     QVector<int> unsavedConIds;
