@@ -38,6 +38,7 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/ogl/GLUU.h>
 #include <tsre/Game.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/GeoPresetData.h>
@@ -1204,6 +1205,13 @@ struct ViewerItem {
     // keeps the fit) and degrees the camera looks up.
     double fov = 0.0;
     double look = 0.0;
+    // The view's light, as the Consist Editor sets the sun ("light": {"sun":
+    // [x, y, z] towards it, "sunColor": grey, "ambient": grey}); otherwise as
+    // it is.
+    bool hasLight = false;
+    float sun[3] = {-1.0f, 0.0f, 0.0f};
+    float sunColor = 0.7f;
+    float ambient = 0.3f;
 };
 
 struct ViewerOptions {
@@ -1258,6 +1266,11 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.pitch = object.value("pitch").toDouble(0.0);
         item.fov = object.value("fov").toDouble(0.0);
         item.look = object.value("look").toDouble(0.0);
+        const QJsonObject light = object.value("light").toObject();
+        item.hasLight = !light.isEmpty();
+        readFloatArray(light.value("sun"), item.sun, 3);
+        item.sunColor = float(light.value("sunColor").toDouble(item.sunColor));
+        item.ambient = float(light.value("ambient").toDouble(item.ambient));
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";
             return false;
@@ -1360,6 +1373,16 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             qWarning() << ViewerCaptureLog << item.name << "could not be shown";
             continue;
         }
+        GLUU *gluu = GLUU::get();
+        float sun[3], sunColor[4], ambient[4];
+        std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, sun);
+        std::copy(gluu->diffuseColor, gluu->diffuseColor + 4, sunColor);
+        std::copy(gluu->ambientColor, gluu->ambientColor + 4, ambient);
+        if (item.hasLight) {
+            std::copy(item.sun, item.sun + 3, Game::sunLightDirection);
+            std::fill(gluu->diffuseColor, gluu->diffuseColor + 3, item.sunColor);
+            std::fill(gluu->ambientColor, gluu->ambientColor + 3, item.ambient);
+        }
 
         QElapsedTimer settleTimer;
         settleTimer.start();
@@ -1401,6 +1424,9 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         }
         shapeCamera.fov = fittedFov;
         shapeCamera.setPlayerRot(M_PI / 2.0, 0);
+        std::copy(sun, sun + 3, Game::sunLightDirection);
+        std::copy(sunColor, sunColor + 4, gluu->diffuseColor);
+        std::copy(ambient, ambient + 4, gluu->ambientColor);
         image.save(QDir(outputDir).filePath(item.name + ".png"));
         items.append(QJsonObject{{"name", item.name}, {"settled", settled}, {"frames", frames}});
         qInfo().noquote() << ViewerCaptureLog << item.name

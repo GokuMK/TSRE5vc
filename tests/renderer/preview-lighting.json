@@ -1,0 +1,150 @@
+{
+ "output": "build/preview-lighting",
+ "width": 1200,
+ "height": 600,
+ "diffTolerance": 16,
+ "settle": {
+  "minFrames": 10,
+  "stableFrames": 3,
+  "maxFrames": 200,
+  "maxSeconds": 120
+ },
+ "items": [
+  {
+   "name": "side-A-current",
+   "type": "eng",
+   "path": "TRAINS/TRAINSET/PKP_ST44-OR",
+   "file": "PKPC_ST44-1041.eng",
+   "yaw": 0,
+   "pitch": 0,
+   "light": {
+    "sun": [
+     -1,
+     0,
+     0
+    ],
+    "sunColor": 0.7,
+    "ambient": 0.3
+   }
+  },
+  {
+   "name": "side-B-above",
+   "type": "eng",
+   "path": "TRAINS/TRAINSET/PKP_ST44-OR",
+   "file": "PKPC_ST44-1041.eng",
+   "yaw": 0,
+   "pitch": 0,
+   "light": {
+    "sun": [
+     -0.597,
+     0.6965,
+     0.398
+    ],
+    "sunColor": 0.7,
+    "ambient": 0.3
+   }
+  },
+  {
+   "name": "side-C-studio",
+   "type": "eng",
+   "path": "TRAINS/TRAINSET/PKP_ST44-OR",
+   "file": "PKPC_ST44-1041.eng",
+   "yaw": 0,
+   "pitch": 0,
+   "light": {
+    "sun": [
+     -0.597,
+     0.6965,
+     0.398
+    ],
+    "sunColor": 0.6,
+    "ambient": 0.5
+   }
+  },
+  {
+   "name": "side-D-soft",
+   "type": "eng",
+   "path": "TRAINS/TRAINSET/PKP_ST44-OR",
+   "file": "PKPC_ST44-1041.eng",
+   "yaw": 0,
+   "pitch": 0,
+   "light": {
+    "sun": [
+     -0.597,
+     0.6965,
+     0.398
+    ],
+    "sunColor": 0.45,
+    "ambient": 0.6
+   }
+  },
+  {
+   "name": "quarter-A-current",
+   "type": "eng",
+   "path": "TRAINS/TRAINSET/PKP_ST44-OR",
+   "file": "PKPC_ST44-1041.eng",
+   "yaw": 35,
+   "pitch": -10,
+   "light": {
+    "sun": [
+     -1,
+     0,
+     0
+    ],
+    "sunColor": 0.7,
+    "ambient": 0.3
+   }
+  },
+  {
+   "name": "quarter-B-above",
+   "type": "eng",
+   "path": "TRAINS/TRAINSET/PKP_ST44-OR",
+   "file": "PKPC_ST44-1041.eng",
+   "yaw": 35,
+   "pitch": -10,
+   "light": {
+    "sun": [
+     -0.597,
+     0.6965,
+     0.398
+    ],
+    "sunColor": 0.7,
+    "ambient": 0.3
+   }
+  },
+  {
+   "name": "quarter-C-studio",
+   "type": "eng",
+   "path": "TRAINS/TRAINSET/PKP_ST44-OR",
+   "file": "PKPC_ST44-1041.eng",
+   "yaw": 35,
+   "pitch": -10,
+   "light": {
+    "sun": [
+     -0.597,
+     0.6965,
+     0.398
+    ],
+    "sunColor": 0.6,
+    "ambient": 0.5
+   }
+  },
+  {
+   "name": "quarter-D-soft",
+   "type": "eng",
+   "path": "TRAINS/TRAINSET/PKP_ST44-OR",
+   "file": "PKPC_ST44-1041.eng",
+   "yaw": 35,
+   "pitch": -10,
+   "light": {
+    "sun": [
+     -0.597,
+     0.6965,
+     0.398
+    ],
+    "sunColor": 0.45,
+    "ambient": 0.6
+   }
+  }
+ ]
+}
