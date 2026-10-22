@@ -193,16 +193,28 @@ QString OrCommandPicker::text() const {
 
 QIcon OrCommandPicker::Icon(const QWidget *widget) {
     const qreal ratio = widget != nullptr ? widget->devicePixelRatioF() : 1.0;
+    const QColor colour = widget != nullptr ? widget->palette().color(QPalette::Text) : QColor(Qt::black);
+    // Made once for a colour and scale: the stops' command cells ask for it
+    // at every paint (icons are slow to make on Windows).
+    static QIcon made;
+    static QRgb madeColour = 0;
+    static qreal madeRatio = 0.0;
+    if (!made.isNull() && madeColour == colour.rgba() && madeRatio == ratio)
+        return made;
     QPixmap pixmap(QSize(16, 16) * ratio);
     pixmap.setDevicePixelRatio(ratio);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(widget != nullptr ? widget->palette().color(QPalette::Text) : QColor(Qt::black));
+    painter.setBrush(colour);
     for (int i = 0; i < 3; ++i)
         painter.drawEllipse(QPointF(3.5 + i * 4.5, 8.5), 1.25, 1.25);
-    return QIcon(pixmap);
+    painter.end();
+    made = QIcon(pixmap);
+    madeColour = colour.rgba();
+    madeRatio = ratio;
+    return made;
 }
 
 QTreeWidgetItem *OrCommandPicker::itemOf(int choice) {
