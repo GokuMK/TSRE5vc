@@ -571,6 +571,95 @@ void OrTimetable::setStopTimes(int train, int stop, int arrival, int departure) 
     modified = true;
 }
 
+QString OrTimetable::CommandsText(const QVector<Command> &commands) {
+    return commandsText(commands);
+}
+
+const QVector<OrTimetable::Command> &OrTimetable::TrainCommandsOf(const Train &train, TrainCommands which) {
+    switch (which) {
+    case TrainCommands::Start:
+        return train.startCommands;
+    case TrainCommands::Note:
+        return train.notes;
+    case TrainCommands::Dispose:
+        return train.dispose;
+    case TrainCommands::Speed:
+        break;
+    }
+    return train.speedCommands;
+}
+
+// Commands as typed, made a cell's text: one line, no separator, a '$'
+// before the first.
+QString OrTimetable::TypedCommands(const QString &typed) {
+    QString text = typed;
+    for (QChar &c : text)
+        if (c == ';' || c == '\t' || c == '\n' || c == '\r')
+            c = ' ';
+    text = text.simplified();
+    if (!text.isEmpty() && !text.startsWith('$'))
+        text.prepend('$');
+    return text;
+}
+
+void OrTimetable::setTrainCommands(int train, TrainCommands which, const QString &typed) {
+    if (train < 0 || train >= trains.size())
+        return;
+    Train &t = trains[train];
+    const QString text = TypedCommands(typed);
+    switch (which) {
+    case TrainCommands::Start: {
+        // A train static by its column's head has no start cell of its own.
+        if (t.header.startsWith('$'))
+            return;
+        t.startCommands = Commands(text);
+        t.start = joined(beforeCommands(t.start), commandsText(t.startCommands));
+        t.isStatic = t.header.toLower().contains("$static");
+        for (const Command &command : t.startCommands)
+            t.isStatic = t.isStatic || command.name == "static";
+        break;
+    }
+    case TrainCommands::Note:
+        t.notes = Commands(text);
+        break;
+    case TrainCommands::Dispose:
+        t.dispose = Commands(text);
+        break;
+    case TrainCommands::Speed: {
+        if (speedRow.isEmpty() && !text.isEmpty())
+            speedRow = "#speedkph";
+        t.speedText = text;
+        t.speedCommands = Commands(text);
+        const float factor = speedRow == "#speedmph" ? 0.44704f : speedRow == "#speedkph" ? 1.0f / 3.6f : 1.0f;
+        t.speed = -1.0f;
+        for (const Command &command : t.speedCommands) {
+            bool ok = false;
+            const float value = command.values.isEmpty() ? 0.0f : command.values.first().toFloat(&ok);
+            if (command.name == "max" && ok)
+                t.speed = value * factor;
+        }
+        break;
+    }
+    }
+    modified = true;
+}
+
+void OrTimetable::setStopCommands(int train, int stop, const QString &typed) {
+    if (train < 0 || train >= trains.size() || stop < 0 || stop >= trains[train].stops.size())
+        return;
+    Stop &s = trains[train].stops[stop];
+    s.commands = Commands(TypedCommands(typed));
+    s.text = joined(s.timing.text, commandsText(s.commands));
+    modified = true;
+}
+
+void OrTimetable::setStationCommands(int station, const QString &typed) {
+    if (station < 0 || station >= stations.size())
+        return;
+    stations[station].commands = Commands(TypedCommands(typed));
+    modified = true;
+}
+
 QString OrTimetable::toText() const {
     QVector<QStringList> rows;
     // The stations' commands in a station continuation column after their

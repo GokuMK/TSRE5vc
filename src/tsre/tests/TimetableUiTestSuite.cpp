@@ -71,9 +71,10 @@ QStringList unsavedItems() {
 namespace TsreTests {
 
 // The activity windows with an Open Rails timetable (task simulation 08,
-// phases 5 and 6): the kind chosen first, the set listed, its player's
+// phases 5, 6 and 8): the kind chosen first, the set listed, its player's
 // train, the Traffic window's timetables, the Timetable window's train and
-// its times edited, undone and saved (the original kept), its check.
+// its times and commands edited, undone and saved (the original kept), its
+// check.
 int runTimetableUiSuite(bool verbose) {
     int passed = 0, failed = 0;
     const auto check = [&](bool value, const QString &name) {
@@ -192,8 +193,9 @@ int runTimetableUiSuite(bool verbose) {
     check(trains != nullptr && trains->topLevelItemCount() == 3 && panel != nullptr && panel->isVisible()
               && !timetable.timetableProperties->isVisible() && stops != nullptr && stops->topLevelItemCount() == 2
               && stops->topLevelItem(0)->text(1) == "08:05" && stops->topLevelItem(0)->text(2) == "08:07"
-              && stops->topLevelItem(0)->text(3).contains("$hold"),
-          "the Timetable window: the set's trains; T1's stops at Alpha 08:05-08:07 ($hold) and Beta in its panel");
+              && stops->topLevelItem(0)->text(3).isEmpty() && stops->topLevelItem(0)->text(4) == "$hold",
+          "the Timetable window: the set's trains; T1's stops at Alpha 08:05-08:07 (the station's $hold) and Beta in "
+          "its panel");
 
     // T1's departure from Alpha edited: the set unsaved, one undo step.
     if (stops != nullptr && stops->topLevelItemCount() > 0)
@@ -223,6 +225,54 @@ int runTimetableUiSuite(bool verbose) {
         emit start->editingFinished();
         QApplication::processEvents();
     }
+    // Phase 8: commands edited: T1's note (with $wait, not run by TSRE:
+    // kept, shown in orange), its stop's at Beta, Beta's for every train
+    // (undone and set again).
+    QLineEdit *note = timetable.findChild<QLineEdit *>("orTrainNote");
+    if (note != nullptr) {
+        note->setText("$acc=2 $wait=T2");
+        emit note->editingFinished();
+        QApplication::processEvents();
+    }
+    const OrTimetable::Train &noted = set->timetables[0]->trains[t1];
+    note = timetable.findChild<QLineEdit *>("orTrainNote");
+    check(note != nullptr && noted.notes.size() == 2 && noted.notes[1].name == "wait" && note->text() == "$acc=2 $wait=T2"
+              && note->styleSheet().contains("color") && note->toolTip().contains("$wait") && set->isUnSaved(),
+          "T1's note edited: $wait kept, the field orange with what TSRE does not run: " + (note ? note->toolTip() : QString()));
+    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
+    if (stops != nullptr && stops->topLevelItemCount() > 1)
+        stops->topLevelItem(1)->setText(3, "forcewait");
+    QApplication::processEvents();
+    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
+    if (stops != nullptr && stops->topLevelItemCount() > 1)
+        stops->topLevelItem(1)->setText(4, "$terminal");
+    QApplication::processEvents();
+    const int beta = 1;
+    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
+    check(set->timetables[0]->trains[t1].stops[1].commands.size() == 1
+              && set->timetables[0]->trains[t1].stops[1].commands[0].name == "forcewait"
+              && set->timetables[0]->stations[beta].commands.size() == 1
+              && set->timetables[0]->stations[beta].commands[0].name == "terminal" && stops != nullptr
+              && stops->topLevelItem(1)->text(3) == "$forcewait" && stops->topLevelItem(1)->text(4) == "$terminal"
+              && stops->topLevelItem(1)->foreground(4).color() != stops->topLevelItem(1)->foreground(3).color(),
+          "a stop's commands ($forcewait) and its station's ($terminal, not run: orange) edited in the stops list");
+    Undo::UndoLast();
+    check(set->timetables[0]->stations[beta].commands.isEmpty()
+              && set->timetables[0]->trains[t1].stops[1].commands.size() == 1,
+          "undo: the station's commands as they were, the stop's kept");
+    timetable.showTimetable(set);
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        if (trains->topLevelItem(i)->text(1) == "T1") {
+            trains->setCurrentItem(trains->topLevelItem(i));
+            trains->topLevelItem(i)->setSelected(true);
+        }
+    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
+    if (stops != nullptr && stops->topLevelItemCount() > 1)
+        stops->topLevelItem(1)->setText(4, "$terminal");
+    QApplication::processEvents();
+    // TSRE_ACTIVITY_UI_SHOTS: the window as it is now, for a look.
+    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
+        timetable.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-train.png");
     ActLib::SaveAll();
     QFile kept(file + ".original");
     kept.open(QIODevice::ReadOnly);
@@ -231,9 +281,13 @@ int runTimetableUiSuite(bool verbose) {
     const int r1 = reread.trainNamed("T1");
     check(!set->isUnSaved() && kept.readAll() == originalBytes && r1 >= 0
               && reread.trains[r1].stops[0].timing.departure == 8 * 3600 + 600 && reread.trains[r1].startTime == 8 * 3600 + 120
-              && reread.trains[r1].notes.size() == 1 && reread.description == "UI timetable"
+              && reread.trains[r1].notes.size() == 2 && reread.trains[r1].notes[1].name == "wait"
+              && reread.trains[r1].stops.size() == 2 && reread.trains[r1].stops[1].commands.size() == 1
+              && reread.stations.size() == 2 && reread.stations[1].commands.size() == 1
+              && reread.stations[0].commands.size() == 1 && reread.description == "UI timetable"
               && reread.trainNamed("T2") >= 0 && reread.trains.size() == 3,
-          "saved: the timetable written with T1 from 08:02 and its departure 08:10, the original kept as .original");
+          "saved: the timetable written with T1 from 08:02, its departure 08:10 and its commands, the original kept "
+          "as .original");
 
     // Check Activity: the set's problems (its consist is not there).
     const QVector<ActivityFinding> findings = CheckActivity(set);

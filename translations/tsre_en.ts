@@ -1356,7 +1356,7 @@ Consist with this file name already exist. Overwrite?
     </message>
     <message id="route.editor.activity.tools.button.act.events.open">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="403"/>
-        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="153"/>
+        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="154"/>
         <source>Open Event Editor</source>
         <translation>Open Event Editor</translation>
     </message>
@@ -5466,8 +5466,9 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="route.editor.activity.timetable.window.saved.timetable">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="513"/>
-        <source>The times are saved in the timetable %1: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</source>
-        <translation>The times are saved in the timetable %1: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</translation>
+        <source>The times and commands are saved in the timetable %1: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</source>
+        <oldsource>The times are saved in the timetable %1: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</oldsource>
+        <translation>The times and commands are saved in the timetable %1: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.player">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="529"/>
@@ -14977,198 +14978,209 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>train %1 at %2: %3 is not a timing</translation>
     </message>
     <message id="timetable.save.original">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="631"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="720"/>
         <source>The original %1 could not be kept as %2.</source>
         <translation>The original %1 could not be kept as %2.</translation>
     </message>
     <message id="timetable.save.unwritable">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="638"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="727"/>
         <source>%1 could not be written.</source>
         <translation>%1 could not be written.</translation>
     </message>
     <message id="timetable.check.station">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="699"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="788"/>
         <source>station %1: no platform of the route has it</source>
         <translation>station %1: no platform of the route has it</translation>
     </message>
     <message id="timetable.check.command.text">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="711"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="800"/>
         <source>%1: &apos;$%2&apos; is no command; a timing must come before the commands</source>
         <translation>%1: &apos;$%2&apos; is no command; a timing must come before the commands</translation>
     </message>
     <message id="timetable.check.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="715"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="804"/>
         <source>%1: $%2 is not run by TSRE yet</source>
         <translation>%1: $%2 is not run by TSRE yet</translation>
     </message>
     <message id="timetable.check.qualifier">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="722"/>
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="812"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="811"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="901"/>
         <source>%1: $%2 runs, its /%3 is not run by TSRE yet</source>
         <translation>%1: $%2 runs, its /%3 is not run by TSRE yet</translation>
     </message>
     <message id="timetable.check.reference">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="730"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="819"/>
         <source>%1: $%2 names %3, not a train of the timetable</source>
         <translation>%1: $%2 names %3, not a train of the timetable</translation>
     </message>
     <message id="timetable.check.ahead">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="736"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="825"/>
         <source>%1: /ahead=%2 is not a train of the timetable</source>
         <translation>%1: /ahead=%2 is not a train of the timetable</translation>
     </message>
     <message id="timetable.check.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="742"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="831"/>
         <source>no path</source>
         <translation>no path</translation>
     </message>
     <message id="timetable.check.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="745"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="834"/>
         <source>path %1 is not in the route&apos;s PATHS</source>
         <translation>path %1 is not in the route&apos;s PATHS</translation>
     </message>
     <message id="timetable.check.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="749"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="838"/>
         <source>no consist</source>
         <translation>no consist</translation>
     </message>
     <message id="timetable.check.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="753"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="842"/>
         <source>consist %1 is not there</source>
         <translation>consist %1 is not there</translation>
     </message>
     <message id="timetable.check.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="756"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="845"/>
         <source>no start time</source>
         <translation>no start time</translation>
     </message>
     <message id="timetable.check.where.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="758"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="847"/>
         <source>path</source>
         <translation>path</translation>
     </message>
     <message id="timetable.check.where.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="760"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="849"/>
         <source>start</source>
         <translation>start</translation>
     </message>
     <message id="timetable.check.where.note">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="762"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="851"/>
         <source>note</source>
         <translation>note</translation>
     </message>
     <message id="timetable.check.where.dispose">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="764"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="853"/>
         <source>dispose</source>
         <translation>dispose</translation>
     </message>
     <message id="timetable.check.where.speed">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="766"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="855"/>
         <source>speed</source>
         <translation>speed</translation>
     </message>
     <message id="timetable.check.request">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="784"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="873"/>
         <source>request stops (x) at %1 are not run by TSRE yet: it stops there always</source>
         <translation>request stops (x) at %1 are not run by TSRE yet: it stops there always</translation>
     </message>
     <message id="timetable.check.early">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="789"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="878"/>
         <source>leaving early (*) at %1 is not run by TSRE yet: it leaves at its time</source>
         <translation>leaving early (*) at %1 is not run by TSRE yet: it leaves at its time</translation>
     </message>
     <message id="timetable.check.passing">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="794"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="883"/>
         <source>passing times (P) at %1: no stops, as in Open Rails; TSRE does not use the times yet</source>
         <translation>passing times (P) at %1: no stops, as in Open Rails; TSRE does not use the times yet</translation>
     </message>
     <message id="timetable.check.restartdelay">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="799"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="888"/>
         <source>#restartdelay is not run by TSRE yet: no random restart delays</source>
         <translation>#restartdelay is not run by TSRE yet: no random restart delays</translation>
     </message>
     <message id="timetable.check.station.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="806"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="895"/>
         <source>station %1: $%2 is not run by TSRE yet</source>
         <translation>station %1: $%2 is not run by TSRE yet</translation>
     </message>
+    <message id="route.editor.activity.or.train.not.run">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="34"/>
+        <source>Not run by TSRE yet (kept in the timetable): %1</source>
+        <translation>Not run by TSRE yet (kept in the timetable): %1</translation>
+    </message>
     <message id="route.editor.activity.or.train.column.station">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="31"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="61"/>
         <source>Station</source>
         <translation>Station</translation>
     </message>
     <message id="route.editor.activity.or.train.column.arrival">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="33"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="63"/>
         <source>Arrival</source>
         <translation>Arrival</translation>
     </message>
     <message id="route.editor.activity.or.train.column.departure">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="35"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="65"/>
         <source>Departure</source>
         <translation>Departure</translation>
     </message>
     <message id="route.editor.activity.or.train.column.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="37"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="67"/>
         <source>Commands</source>
         <translation>Commands</translation>
     </message>
+    <message id="route.editor.activity.or.train.column.station.commands">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="69"/>
+        <source>Station&apos;s commands</source>
+        <translation>Station&apos;s commands</translation>
+    </message>
     <message id="route.editor.activity.or.train.stops.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="47"/>
-        <source>Arrival and departure as HH:mm or HH:mm:ss (double-click to change); one time empty: both the same.</source>
-        <translation>Arrival and departure as HH:mm or HH:mm:ss (double-click to change); one time empty: both the same.</translation>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="80"/>
+        <source>Arrival and departure as HH:mm or HH:mm:ss; Commands this train&apos;s at the station, Station&apos;s commands every train&apos;s there (double-click to change).</source>
+        <oldsource>Arrival and departure as HH:mm or HH:mm:ss (double-click to change); one time empty: both the same.</oldsource>
+        <translation>Arrival and departure as HH:mm or HH:mm:ss; Commands this train&apos;s at the station, Station&apos;s commands every train&apos;s there (double-click to change).</translation>
     </message>
     <message id="route.editor.activity.or.train.start">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="56"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="89"/>
         <source>Start:</source>
         <translation>Start:</translation>
     </message>
+    <message id="route.editor.activity.or.train.field.start">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="95"/>
+        <source>Start commands:</source>
+        <translation>Start commands:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.note">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="97"/>
+        <source>Note:</source>
+        <translation>Note:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.dispose">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="99"/>
+        <source>Dispose:</source>
+        <translation>Dispose:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.speed">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="101"/>
+        <source>Speed row:</source>
+        <translation>Speed row:</translation>
+    </message>
     <message id="route.editor.activity.or.train.path">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="98"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="158"/>
         <source>Path: %1</source>
         <translation>Path: %1</translation>
     </message>
     <message id="route.editor.activity.or.train.consist">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="100"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="160"/>
         <source>Consist: %1</source>
         <translation>Consist: %1</translation>
     </message>
-    <message id="route.editor.activity.or.train.start.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="103"/>
-        <source>Start: %1</source>
-        <translation>Start: %1</translation>
-    </message>
-    <message id="route.editor.activity.or.train.note">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="106"/>
-        <source>Note: %1</source>
-        <translation>Note: %1</translation>
-    </message>
-    <message id="route.editor.activity.or.train.dispose">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="109"/>
-        <source>Dispose: %1</source>
-        <translation>Dispose: %1</translation>
-    </message>
-    <message id="route.editor.activity.or.train.speed">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="112"/>
-        <source>Speed: %1</source>
-        <translation>Speed: %1</translation>
-    </message>
     <message id="route.editor.activity.or.train.comment">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="115"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="163"/>
         <source>Comment: %1</source>
         <translation>Comment: %1</translation>
     </message>
     <message id="route.editor.activity.or.train.file">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="117"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="165"/>
         <source>In %1.</source>
         <translation>In %1.</translation>
     </message>
     <message id="route.editor.activity.or.train.request">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="139"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="181"/>
         <source>%1 (request stop)</source>
         <translation>%1 (request stop)</translation>
     </message>
     <message id="route.editor.activity.or.train.early">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="142"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="184"/>
         <source>%1 (may leave early)</source>
         <translation>%1 (may leave early)</translation>
     </message>

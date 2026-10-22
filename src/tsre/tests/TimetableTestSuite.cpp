@@ -295,6 +295,37 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
               QString("a station's qualified command written in its column and read back (%1); request and early stops "
                       "edited keep their marks: %2, %3")
                   .arg(qualifierKept).arg(marks.trains[0].stops[1].text, marks.trains[0].stops[2].text));
+        // Phase 8: commands edited, as typed (a first one without its '$';
+        // a separator made a space), whether TSRE runs them or not: a
+        // train's #start (its time kept), #note, #dispose (emptied), speed
+        // row, a stop's, a station's; written and read back the same. A
+        // train static by its column's head has no start cell to edit.
+        OrTimetable typed = t;
+        const int c1 = typed.trainNamed("T1");
+        typed.setTrainCommands(c1, OrTimetable::TrainCommands::Start, "create=04:40 /ahead=T2");
+        typed.setTrainCommands(c1, OrTimetable::TrainCommands::Note, "$acc=3;$wait=T2 /maxdelay=4");
+        typed.setTrainCommands(c1, OrTimetable::TrainCommands::Dispose, "  ");
+        typed.setTrainCommands(c1, OrTimetable::TrainCommands::Speed, "$max=72 $creep=5");
+        typed.setStopCommands(c1, 0, "$hold $keepclear /rear=30");
+        typed.setStationCommands(1, "$terminal");
+        typed.setTrainCommands(1, OrTimetable::TrainCommands::Start, "$create");
+        OrTimetable typedBack;
+        typedBack.loadText(typed.toText());
+        const int typedT1 = typedBack.trainNamed("T1");
+        const OrTimetable::Train *typedTrain = typedT1 >= 0 ? &typedBack.trains[typedT1] : nullptr;
+        check(typedTrain != nullptr && typedTrain->start == "05:00 $create=04:40 /ahead=T2" && typedTrain->startTime == 5 * 3600
+                  && typedTrain->startCommands.value(0).qualifier("ahead") == QStringList({"t2"}) && typedTrain->notes.size() == 2
+                  && typedTrain->notes[0].values == QStringList({"3"}) && typedTrain->notes[1].name == "wait"
+                  && typedTrain->notes[1].qualifier("maxdelay") == QStringList({"4"}) && typedTrain->dispose.isEmpty()
+                  && std::fabs(typedTrain->speed - 20.0f) < 1e-3f && typedTrain->speedCommands.size() == 2
+                  && typedTrain->stops.value(0).commands.size() == 2 && typedTrain->stops[0].commands[1].qualifier("rear") == QStringList({"30"})
+                  && typedTrain->stops[0].timing.arrival == 5 * 3600 + 600 && typedBack.stations.value(1).commands.size() == 1
+                  && typedBack.stations[1].commands[0].name == "terminal" && typedBack.trains[1].start == "$static"
+                  && typed.modified && fingerprint(typedBack) == fingerprint(typed),
+              "commands edited (start, note, dispose, speed row, a stop's, a station's) written and read back the same: "
+                  + (typedTrain != nullptr ? typedTrain->start + " | " + OrTimetable::CommandsText(typedTrain->notes) + " | "
+                                             + typedTrain->speedText + " | " + typedTrain->stops.value(0).text
+                                       : QString()));
     }
 
     // A timetable group: its name and timetables.

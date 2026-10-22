@@ -509,7 +509,7 @@ void ActivityTimetableWindow::showChosen(){
             return;
         }
         savedIn.setText(
-            //% "The times are saved in the timetable %1: Save Activities writes it in TSRE's layout, the original kept beside it the first time."
+            //% "The times and commands are saved in the timetable %1: Save Activities writes it in TSRE's layout, the original kept beside it the first time."
             qtTrId("route.editor.activity.timetable.window.saved.timetable")
                 .arg(QFileInfo(activity->timetables[size_t(train->orTimetable)]->file).fileName()));
         orTrain->showTrain(activity, train->orTimetable, train->orTrain, train->problems);

@@ -122,6 +122,23 @@ public:
     // made again.
     void setStartTime(int train, int time);
     void setStopTimes(int train, int stop, int arrival, int departure);
+    // Phase 8: commands as typed ("$hold $follow=T2 /maxdelay=5"; a first
+    // one without its '$' takes one; the separator, tabs and line breaks
+    // made spaces), read as Open Rails reads them and kept whether TSRE
+    // runs them or not: a train's (#start's after its time, not for a train
+    // static by its column's head; #note; #dispose; the speed row, #speedkph
+    // where the timetable has none), a stop's, a station's (every train's
+    // stop there).
+    enum class TrainCommands { Start, Note, Dispose, Speed };
+    void setTrainCommands(int train, TrainCommands which, const QString &text);
+    void setStopCommands(int train, int stop, const QString &text);
+    void setStationCommands(int station, const QString &text);
+    // Commands as one text, each with its '$' ("$hold $forcewait"); as
+    // typed, made a cell's (as the setters take it).
+    static QString CommandsText(const QVector<Command> &commands);
+    static QString TypedCommands(const QString &typed);
+    // A train's commands of that kind.
+    static const QVector<Command> &TrainCommandsOf(const Train &train, TrainCommands which);
     // "HH:mm", or "HH:mm:ss" with seconds.
     static QString TimeText(int seconds);
     // Changed since read or saved.

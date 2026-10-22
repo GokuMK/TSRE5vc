@@ -379,10 +379,27 @@ reported, editing commands).
   names (a blank head), which Open Rails reads whole. PRUDNIK's copy has
   it (its stations' `$hold`) and loads in Open Rails with the original's
   messages.
-- **Fixtures:** `timetable-read` (29): a timetable using each of those
+- Commands edited (item 4 of the user's list): the Timetable window's
+  train panel has fields for the train's start commands (after its time;
+  none for a train static by its column's head), note, dispose and speed
+  row, and its stops list columns for the stop's own commands and its
+  station's (every train's there). As typed: a first command without its
+  '$' takes one, the separator, tabs and line breaks become spaces; read
+  as Open Rails reads them (`OrTimetable::setTrainCommands`,
+  `setStopCommands`, `setStationCommands`) and kept whether TSRE runs
+  them or not; what TSRE does not run (commands, qualifiers) shown in
+  orange with a tooltip naming it, and in the train's problems below.
+  Each edit an undo step; the set then unsaved, Save Activities writes
+  it. The read-only "Start:", "Note:", "Dispose:", "Speed:" lines are
+  gone (the fields hold them).
+- **Fixtures:** `timetable-read` (30): a timetable using each of those
   reported (ten reports); a station's qualified command written in its
   column and read back; request and early stops edited keeping their
-  marks.
+  marks; commands edited (start, note, dispose emptied, speed row, a
+  stop's, a station's) written and read back the same. `timetable-ui`
+  (16): T1's note edited with `$wait` (kept, orange, named in the
+  tooltip), a stop's and its station's commands in the stops list, the
+  station's undone and set again, all saved and read back.
 
 ## Why
 
@@ -482,8 +499,9 @@ Every row, cell notation, command and qualifier of Open Rails' timetable
 chapter (the manual, `unstable`, 2026-10-22, and the code where it has
 more), and what TSRE does with it. **Runs**: the simulation does what Open
 Rails does. **Partly**: runs, the qualifiers named not (reported).
-**Reported**: read, kept when saved, Check Activity warns that TSRE does not
-run it yet; the simulation goes on without it. **As Open Rails**: nothing to
+**Reported**: read, kept when saved, editable in the Timetable window
+(shown in orange), Check Activity warns that TSRE does not run it yet; the
+simulation goes on without it. **As Open Rails**: nothing to
 run (Open Rails ignores it too, or it is Open Rails' own cache).
 
 **Rows, columns, cells**
