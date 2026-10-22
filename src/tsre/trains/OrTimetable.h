@@ -62,11 +62,18 @@ public:
     };
     struct Train {
         QString name;
+        // Its column's head as written ("$static" for a static train named
+        // after its column).
+        QString header;
         int column = -1;
+        // Its cell in the first #comment row.
+        QString comment;
         // Static: named `$static` (no name of its own), or `$static` at its
         // start.
         bool isStatic = false;
+        // Its path's name, and the path cell as written (with commands).
         QString path;
+        QString pathText;
         QString consist;
         QVector<ConsistPart> consists;
         // #start: the time (seconds after midnight, -1 none) and the
@@ -80,6 +87,7 @@ public:
         // there.
         float speed = -1.0f;
         QVector<Command> speedCommands;
+        QString speedText;
         QString restartDelay;
         QString briefing;
         QVector<Stop> stops;
@@ -92,8 +100,30 @@ public:
     };
 
     // Reads the file; false when it cannot be read as a timetable (the
-    // problems say why).
+    // problems say why). From a file's text, its `file` left.
     bool load(const QString &file);
+    bool loadText(const QString &text);
+
+    // Task 08, phase 6: the timetable written from the model in TSRE's own
+    // layout (the user: not the read file's cells kept), as Open Rails
+    // reads it: ';' between cells; the trains' columns after a #comment
+    // column holding the description; #comment, #path, #consist, #start,
+    // then #note, #dispose, the speed row, #restartdelay, #briefing where a
+    // train has them; the stations in their order. Saved as UTF-8 with a
+    // byte order mark; the first time it overwrites a file TSRE did not
+    // write, the original is kept beside it as <file>.original.
+    QString toText() const;
+    bool save(QString *error = nullptr);
+    // Edits (the Timetable window): a train's start time, a stop's times
+    // (arrival and departure, -1 none); its cell's text made again.
+    void setStartTime(int train, int time);
+    void setStopTimes(int train, int stop, int arrival, int departure);
+    // "HH:mm", or "HH:mm:ss" with seconds.
+    static QString TimeText(int seconds);
+    // Changed since read or saved.
+    bool modified = false;
+    // The speed row's word as read (#speed, #speedkph, #speedmph).
+    QString speedRow;
 
     QString file;
     // The cell where the first #comment row and column meet: the
@@ -145,6 +175,10 @@ struct OrTimetableGroup {
 struct OrTimetableProblem {
     QString train;
     QString text;
+    // A command TSRE does not run (a warning), a path not there, else a
+    // problem.
+    enum Kind { Problem, Unsupported, Path };
+    Kind kind = Problem;
 };
 QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const QString &routeDirectory,
                                            const QString &consistDirectory, TDB *tdb);

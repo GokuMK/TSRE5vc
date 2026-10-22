@@ -4164,6 +4164,7 @@ QStringList TsreTests::listSuites() {
         "osm-data",
         "elevation-ui",
         "activity-ui",
+        "timetable-ui",
         "activity-roundtrip",
         "activity-edit",
         "activity-check",
@@ -4353,6 +4354,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "activity-ui")
         return runActivityUiSuite(opts.verbose);
+    if (suite == "timetable-ui")
+        return runTimetableUiSuite(opts.verbose);
 
     if (suite == "activity-roundtrip")
         return runActivityRoundTripSuite(opts.casesFile, opts.verbose);

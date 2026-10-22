@@ -388,9 +388,16 @@ void Activity::parse(FileBuffer *data) {
 }
 
 void Activity::save() {
-    // A timetable set: not saved yet (task 08, phase 6).
-    if (isTimetables())
+    // A timetable set (task 08, phase 6): each changed timetable written in
+    // TSRE's layout (the original kept beside it the first time).
+    if (isTimetables()) {
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables) {
+            QString error;
+            if (timetable->modified && !timetable->save(&error))
+                qWarning() << error;
+        }
         return;
+    }
     QString tpath;
     
     QDir dir(path);
@@ -461,6 +468,14 @@ std::shared_ptr<TextSnapshot> Activity::snapshot() {
 }
 
 void Activity::restore(const TextSnapshot &snapshot) {
+    if (isTimetables()) {
+        const QStringList parts = snapshot.text.split(QChar(0x1e));
+        for (int i = 0; i < parts.size() && i < int(timetables.size()); ++i) {
+            timetables[size_t(i)]->loadText(parts[i].mid(1));
+            timetables[size_t(i)]->modified = parts[i].startsWith('1');
+        }
+        return;
+    }
     mergedOverlay = snapshot.pending;
     clearContent();
     FileBuffer *data = FileBuffer::fromText(snapshot.text);
@@ -501,6 +516,14 @@ void Activity::clearContent() {
 }
 
 QString Activity::toText() {
+    // A timetable set: its timetables' texts, each after whether it was
+    // changed (for undo, task 08).
+    if (isTimetables()) {
+        QStringList parts;
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+            parts << QString(timetable->modified ? "1" : "0") + timetable->toText();
+        return parts.join(QChar(0x1e));
+    }
     QString text;
     QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0a0t______\n";
@@ -938,8 +961,12 @@ void Activity::initToPlay(){
 }
 
 bool Activity::isUnSaved(){
-    if (isTimetables())
+    if (isTimetables()) {
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+            if (timetable->modified)
+                return true;
         return false;
+    }
     for(int i = 0; i < activityObjects.size(); i++){
         if(activityObjects[i]->isUnSaved())
             return true;

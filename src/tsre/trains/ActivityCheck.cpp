@@ -13,6 +13,8 @@
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityTimetable.h>
 #include <tsre/trains/ActivityOverlay.h>
+#include <tsre/trains/ActivityTrains.h>
+#include <tsre/trains/OrTimetable.h>
 #include <QFileInfo>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
@@ -539,5 +541,28 @@ bool LooseConsistPlace(const float *tile, int direction, float length, float *di
 QVector<ActivityFinding> CheckActivity(Activity *activity) {
     if (activity == NULL || activity->loaded != 1)
         return {};
+    // An Open Rails timetable set (task 08): its timetables' check; a
+    // command TSRE does not run a warning, a path not there jumps to it.
+    if (activity->isTimetables()) {
+        QVector<ActivityFinding> findings;
+        const QString routeDirectory = ActivityTrains::RouteDirectory(activity);
+        for (const std::shared_ptr<OrTimetable> &timetable : activity->timetables)
+            for (const OrTimetableProblem &problem : CheckTimetable(*timetable, routeDirectory,
+                                                                    Game::root + "/TRAINS/CONSISTS", Game::trackDB)) {
+                ActivityFinding finding;
+                finding.severity = problem.kind == OrTimetableProblem::Unsupported ? ActivityFinding::Warning
+                                                                                    : ActivityFinding::Error;
+                finding.code = problem.kind == OrTimetableProblem::Unsupported ? "timetable.unsupported"
+                             : problem.kind == OrTimetableProblem::Path ? "timetable.path" : "timetable.problem";
+                finding.text = problem.train.isEmpty() ? problem.text : problem.train + ": " + problem.text;
+                const int train = timetable->trainNamed(problem.train);
+                if (problem.kind == OrTimetableProblem::Path && train >= 0) {
+                    finding.target = ActivityFinding::Path;
+                    finding.name = timetable->trains[train].pathName();
+                }
+                findings.push_back(finding);
+            }
+        return findings;
+    }
     return Checker(activity).run();
 }

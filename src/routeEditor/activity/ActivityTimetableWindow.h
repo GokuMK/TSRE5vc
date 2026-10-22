@@ -17,6 +17,7 @@
 
 class Activity;
 class ActivityTimetableProperties;
+class OrTrainProperties;
 class PreciseTileCoordinate;
 
 // The activity's trains (task editor 07, phase 7): the player's, its AI
@@ -66,6 +67,7 @@ private slots:
     void showEvents(int first);
     // Simulate: the run, the times written (one undo step).
     void simulateTimetables();
+    void orTrainEdited();
     
 private:
     QTreeWidget trains;
@@ -75,6 +77,12 @@ private:
     QPushButton *bJump = NULL;
     QPushButton *bFollow = NULL;
     QWidget *simulationBox = NULL;
+    // An MSTS activity's train's information and stops, an Open Rails
+    // timetable's train's panel (task simulation 08).
+    QWidget *mstsInfo = NULL;
+    QWidget *mstsStops = NULL;
+    QWidget *orBox = NULL;
+    OrTrainProperties *orTrain = NULL;
     QListWidget events;
     QLabel savedIn;
     QPushButton *bCopy = NULL;

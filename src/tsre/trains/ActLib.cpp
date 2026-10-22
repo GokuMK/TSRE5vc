@@ -445,6 +445,10 @@ int ActLib::LoadAllAct(QString gameRoot, bool gui){
 }
 
 void ActLib::GetUnsavedInfo(QVector<QString>& items){
+    // Open Rails timetable sets (task 08).
+    for (Activity *set : TimetableSets)
+        if (set != NULL && set->loaded == 1 && set->isUnSaved())
+            items.push_back("[T] " + set->name);
     Activity * e;
     for (int i = 0; i < ActLib::jestact; i++){
         e = ActLib::Act[i];
@@ -484,6 +488,9 @@ void ActLib::GetUnsavedInfo(QVector<QString>& items){
 }
 
 void ActLib::SaveAll(){
+    for (Activity *set : TimetableSets)
+        if (set != NULL && set->loaded == 1 && set->isUnSaved())
+            set->save();
     Activity * e;
     for (int i = 0; i < ActLib::jestact; i++){
         e = ActLib::Act[i];

@@ -1,6 +1,8 @@
 #include <tsre/trains/OrTimetable.h>
 
 #include <QCoreApplication>
+#include <algorithm>
+#include <functional>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -229,17 +231,27 @@ QVector<OrTimetable::ConsistPart> OrTimetable::ParseConsist(const QString &text)
 
 bool OrTimetable::load(const QString &path) {
     file = path;
-    description.clear();
-    stations.clear();
-    trains.clear();
-    problems.clear();
     QFile in(path);
     if (!in.open(QIODevice::ReadOnly)) {
+        description.clear();
+        stations.clear();
+        trains.clear();
+        problems.clear();
         //% "cannot read %1"
         problems << qtTrId("timetable.read.unreadable").arg(path);
         return false;
     }
-    QString text = Decode(in.readAll());
+    return loadText(Decode(in.readAll()));
+}
+
+bool OrTimetable::loadText(const QString &source) {
+    description.clear();
+    stations.clear();
+    trains.clear();
+    problems.clear();
+    speedRow.clear();
+    modified = false;
+    QString text = source;
     text.replace("\r\n", "\n").replace('\r', '\n');
     QStringList lines = text.split('\n');
     if (!lines.isEmpty() && lines.last().isEmpty())
@@ -350,6 +362,7 @@ bool OrTimetable::load(const QString &path) {
             } else {
                 rowKind[r] = Row::Speed;
                 speedRow = r;
+                this->speedRow = word;
                 speedFactor = word == "#speedmph" ? 0.44704f : word == "#speedkph" ? 1.0f / 3.6f : 1.0f;
             }
         } else if (word == "#comment") {
@@ -413,6 +426,9 @@ bool OrTimetable::load(const QString &path) {
         Train train;
         train.column = c;
         const QString head = cells[0][c];
+        train.header = head;
+        if (firstCommentRow >= 0)
+            train.comment = trainCell(firstCommentRow, c);
         if (head.toLower().contains("$static")) {
             train.isStatic = true;
             train.name = head.startsWith('$') ? QString("S%1").arg(c) : beforeCommands(head);
@@ -423,8 +439,10 @@ bool OrTimetable::load(const QString &path) {
             //% "column %1: train %2 again (names must be unique)"
             problems << qtTrId("timetable.read.train.again").arg(c + 1).arg(train.name);
         names.insert(train.name.toLower());
-        if (pathRow >= 0)
-            train.path = beforeCommands(trainCell(pathRow, c));
+        if (pathRow >= 0) {
+            train.pathText = trainCell(pathRow, c);
+            train.path = beforeCommands(train.pathText);
+        }
         if (consistRow >= 0) {
             train.consist = trainCell(consistRow, c);
             train.consists = ParseConsist(train.consist);
@@ -445,7 +463,8 @@ bool OrTimetable::load(const QString &path) {
         if (disposeRow >= 0)
             train.dispose = Commands(trainCell(disposeRow, c));
         if (speedRow >= 0) {
-            train.speedCommands = Commands(trainCell(speedRow, c));
+            train.speedText = trainCell(speedRow, c);
+            train.speedCommands = Commands(train.speedText);
             for (const Command &command : train.speedCommands) {
                 bool ok = false;
                 const float value = command.values.isEmpty() ? 0.0f : command.values.first().toFloat(&ok);
@@ -485,6 +504,121 @@ bool OrTimetable::load(const QString &path) {
         }
         trains.push_back(train);
     }
+    return true;
+}
+
+namespace {
+
+QString commandsText(const QVector<OrTimetable::Command> &commands) {
+    QStringList out;
+    for (const OrTimetable::Command &command : commands)
+        out << "$" + command.text;
+    return out.join(' ');
+}
+
+// A cell's text and its commands' after it.
+QString joined(const QString &text, const QString &commands) {
+    return text.isEmpty() ? commands : commands.isEmpty() ? text : text + " " + commands;
+}
+
+}
+
+QString OrTimetable::TimeText(int seconds) {
+    if (seconds < 0)
+        return QString();
+    const int s = seconds % 86400;
+    return s % 60 != 0 ? QString("%1:%2:%3").arg(s / 3600, 2, 10, QChar('0')).arg(s / 60 % 60, 2, 10, QChar('0'))
+                             .arg(s % 60, 2, 10, QChar('0'))
+                       : QString("%1:%2").arg(s / 3600, 2, 10, QChar('0')).arg(s / 60 % 60, 2, 10, QChar('0'));
+}
+
+void OrTimetable::setStartTime(int train, int time) {
+    if (train < 0 || train >= trains.size() || trains[train].isStatic)
+        return;
+    Train &t = trains[train];
+    t.startTime = time;
+    t.start = joined(TimeText(time), commandsText(t.startCommands));
+    modified = true;
+}
+
+void OrTimetable::setStopTimes(int train, int stop, int arrival, int departure) {
+    if (train < 0 || train >= trains.size() || stop < 0 || stop >= trains[train].stops.size())
+        return;
+    Stop &s = trains[train].stops[stop];
+    if (arrival < 0)
+        arrival = departure;
+    if (departure < 0)
+        departure = arrival;
+    s.timing = Timing();
+    s.timing.arrival = arrival;
+    s.timing.departure = departure;
+    s.timing.text = arrival < 0 ? QString() : arrival == departure ? TimeText(arrival)
+                                                                   : TimeText(arrival) + "-" + TimeText(departure);
+    s.text = joined(s.timing.text, commandsText(s.commands));
+    modified = true;
+}
+
+QString OrTimetable::toText() const {
+    QVector<QStringList> rows;
+    const auto row = [&](const QString &head, const QString &second, const std::function<QString(const Train &)> &cell) {
+        QStringList r{head, second};
+        for (const Train &train : trains)
+            r << cell(train);
+        rows.push_back(r);
+    };
+    const auto any = [&](const std::function<bool(const Train &)> &has) {
+        return std::any_of(trains.begin(), trains.end(), has);
+    };
+    row(QString(), "#comment", [](const Train &t) {
+        return t.header.isEmpty() ? (t.isStatic ? QString("$static") : t.name) : t.header;
+    });
+    row("#comment", description, [](const Train &t) { return t.comment; });
+    row("#path", QString(), [](const Train &t) { return t.pathText.isEmpty() ? t.path : t.pathText; });
+    row("#consist", QString(), [](const Train &t) { return t.consist; });
+    // (A train static by its column's head has "$static" as its start.)
+    row("#start", QString(), [](const Train &t) {
+        return t.header.startsWith('$') && t.start == "$static" ? QString() : t.start;
+    });
+    if (any([](const Train &t) { return !t.notes.isEmpty(); }))
+        row("#note", QString(), [](const Train &t) { return commandsText(t.notes); });
+    if (any([](const Train &t) { return !t.dispose.isEmpty(); }))
+        row("#dispose", QString(), [](const Train &t) { return commandsText(t.dispose); });
+    if (!speedRow.isEmpty() && any([](const Train &t) { return !t.speedText.isEmpty(); }))
+        row(speedRow, QString(), [](const Train &t) { return t.speedText; });
+    if (any([](const Train &t) { return !t.restartDelay.isEmpty(); }))
+        row("#restartdelay", QString(), [](const Train &t) { return t.restartDelay; });
+    if (any([](const Train &t) { return !t.briefing.isEmpty(); }))
+        row("#briefing", QString(), [](const Train &t) { return QString(t.briefing).replace("\n", "<br>"); });
+    for (int s = 0; s < stations.size(); ++s)
+        row(joined(stations[s].name, commandsText(stations[s].commands)), QString(), [s](const Train &t) {
+            const Stop *stop = t.stopAt(s);
+            return stop != nullptr ? stop->text : QString();
+        });
+    QStringList lines;
+    for (const QStringList &r : rows)
+        lines << r.join(';');
+    return lines.join("\r\n") + "\r\n";
+}
+
+bool OrTimetable::save(QString *error) {
+    // The first time over a file TSRE did not write: the original kept.
+    const QString original = file + ".original";
+    if (QFileInfo::exists(file) && !QFileInfo::exists(original) && !QFile::copy(file, original)) {
+        if (error != nullptr)
+            //% "The original %1 could not be kept as %2."
+            *error = qtTrId("timetable.save.original").arg(file, original);
+        return false;
+    }
+    QFile out(file);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        if (error != nullptr)
+            //% "%1 could not be written."
+            *error = qtTrId("timetable.save.unwritable").arg(file);
+        return false;
+    }
+    out.write("\xEF\xBB\xBF");
+    out.write(toText().toUtf8());
+    modified = false;
     return true;
 }
 
@@ -548,7 +682,8 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
             else if (!OrTimetableCommandRun(command.name))
                 out.push_back(OrTimetableProblem{train.name,
                                                  //% "%1: $%2 is not run by TSRE yet"
-                                                 qtTrId("timetable.check.command").arg(where, command.name)});
+                                                 qtTrId("timetable.check.command").arg(where, command.name),
+                                                 OrTimetableProblem::Unsupported});
             // (A name with ':' is another timetable's train.)
             if (referring.contains(command.name) && !command.values.isEmpty() && !command.values.first().contains(':')
                     && timetable.trainNamed(command.values.first()) < 0)
@@ -569,7 +704,8 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
             out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.no.path")});
         else if (ActLib::GetPathByName(train.pathName(), routeDirectory) == nullptr)
             //% "path %1 is not in the route's PATHS"
-            out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.path").arg(train.path)});
+            out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.path").arg(train.path),
+                                             OrTimetableProblem::Path});
         if (train.consists.isEmpty())
             //% "no consist"
             out.push_back(OrTimetableProblem{train.name, qtTrId("timetable.check.no.consist")});
@@ -596,6 +732,7 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
             if (!OrTimetableCommandRun(command.name))
                 out.push_back(OrTimetableProblem{QString(),
                                                  //% "station %1: $%2 is not run by TSRE yet"
-                                                 qtTrId("timetable.check.station.command").arg(station.name, command.name)});
+                                                 qtTrId("timetable.check.station.command").arg(station.name, command.name),
+                                                 OrTimetableProblem::Unsupported});
     return out;
 }

@@ -18,6 +18,10 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/Game.h>
 #include <routeEditor/properties/EditFileNameDialog.h>
+#include <tsre/trains/ActivityTrains.h>
+#include <tsre/trains/OrTimetable.h>
+#include <QSet>
+#include <QTextBrowser>
 
 ActivityTrafficWindow::ActivityTrafficWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);
@@ -52,6 +56,7 @@ ActivityTrafficWindow::ActivityTrafficWindow(QWidget* parent) : QWidget(parent) 
     list.append(qtTrId("activity.traffic.list.header.this"));
     //% "Any:"
     list.append(qtTrId("activity.traffic.list.header.any"));
+    lTraffic.setObjectName("trafficList");
     lTraffic.setFixedWidth(250);
     lTraffic.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     lTraffic.setColumnCount(3);
@@ -69,8 +74,21 @@ ActivityTrafficWindow::ActivityTrafficWindow(QWidget* parent) : QWidget(parent) 
     v->addItem(actionListLayout);
     QWidget *editor = ActivityEditLock::Box(trafficProperties);
     v->addWidget(editor);
+    // Open Rails timetables (task simulation 08): what the chosen one holds
+    // and its problems, in place of the traffic pattern's editor.
+    timetableInfo = new QTextBrowser;
+    timetableInfo->setObjectName("trafficTimetableInfo");
+    timetableInfo->setMinimumWidth(380);
+    timetableInfo->hide();
+    v->addWidget(timetableInfo, 1);
     this->setLayout(v);
     ActivityEditLock::Follow(this, {editor, bNew, bDelete});
+    trafficEditor = editor;
+    newButton = bNew;
+    deleteButton = bDelete;
+    QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::kindChanged, this, [this] {
+        showTraffic(route);
+    });
     
     QObject::connect(&lTraffic, SIGNAL(itemClicked(QTreeWidgetItem*, int)),
                       this, SLOT(lTrafficSelected(QTreeWidgetItem*, int)));
@@ -86,6 +104,24 @@ void ActivityTrafficWindow::showTraffic(Route* r){
     lTraffic.clear();
     if(route == NULL){
         trafficProperties->showTraffic(NULL);
+        return;
+    }
+    const bool timetables = ActivityNotifier::timetables();
+    trafficEditor->setVisible(!timetables);
+    newButton->setVisible(!timetables);
+    deleteButton->setVisible(!timetables);
+    timetableInfo->setVisible(timetables);
+    lTraffic.setHeaderLabels(timetables ? QStringList{
+        //% "Timetable:"
+        qtTrId("activity.traffic.list.header.timetable"),
+        //% "Trains:"
+        qtTrId("activity.traffic.list.header.trains"),
+        //% "Problems:"
+        qtTrId("activity.traffic.list.header.problems")} : QStringList{
+        qtTrId("activity.traffic.list.header.name"), qtTrId("activity.traffic.list.header.this"),
+        qtTrId("activity.traffic.list.header.any")});
+    if(timetables){
+        showTimetables();
         return;
     }
     Activity *activity = route->getCurrentActivity();
@@ -124,9 +160,70 @@ void ActivityTrafficWindow::showTraffic(Route* r){
     lTraffic.insertTopLevelItems(0, items);
 }
 
+// The route's Open Rails timetables (each file once: groups share them),
+// with their trains and problems.
+void ActivityTrafficWindow::showTimetables(){
+    shownTimetables.clear();
+    timetableInfo->clear();
+    QSet<QString> listed;
+    for(int id : route->timetableSetId){
+        Activity *set = ActLib::TimetableSets.value(id);
+        if(set == NULL)
+            continue;
+        for(const std::shared_ptr<OrTimetable> &timetable : set->timetables){
+            if(listed.contains(timetable->file))
+                continue;
+            listed.insert(timetable->file);
+            const QVector<OrTimetableProblem> problems = CheckTimetable(*timetable, ActivityTrains::RouteDirectory(set),
+                                                                        Game::root + "/TRAINS/CONSISTS", Game::trackDB);
+            QTreeWidgetItem *item = new QTreeWidgetItem((QTreeWidget*)0, {
+                timetable->description.isEmpty() ? QFileInfo(timetable->file).fileName() : timetable->description,
+                QString::number(timetable->trains.size()), QString::number(problems.size())}, int(shownTimetables.size()));
+            item->setToolTip(0, timetable->file);
+            item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+            lTraffic.addTopLevelItem(item);
+            shownTimetables.push_back({timetable, set});
+        }
+    }
+}
+
+void ActivityTrafficWindow::showTimetableInfo(int index){
+    if(index < 0 || index >= int(shownTimetables.size()))
+        return;
+    const std::shared_ptr<OrTimetable> &timetable = shownTimetables[size_t(index)].first;
+    int statics = 0, stops = 0;
+    for(const OrTimetable::Train &train : timetable->trains){
+        statics += train.isStatic ? 1 : 0;
+        stops += train.stops.size();
+    }
+    QString html = QString("<b>%1</b><br>%2<br><br>").arg(timetable->description.toHtmlEscaped(),
+                                                           timetable->file.toHtmlEscaped());
+    //% "%1 trains (%2 static), %3 stations, %4 stops."
+    html += qtTrId("route.editor.activity.traffic.window.timetable.summary").arg(timetable->trains.size())
+            .arg(statics).arg(timetable->stations.size()).arg(stops);
+    if(timetable->modified)
+        //% "Changed, not saved."
+        html += "<br>" + qtTrId("route.editor.activity.traffic.window.timetable.changed");
+    const QVector<OrTimetableProblem> problems = CheckTimetable(*timetable, ActivityTrains::RouteDirectory(
+        shownTimetables[size_t(index)].second), Game::root + "/TRAINS/CONSISTS", Game::trackDB);
+    if(!problems.isEmpty()){
+        //% "Problems (Check Activity lists them too):"
+        html += "<br><br><b>" + qtTrId("route.editor.activity.traffic.window.timetable.problems") + "</b><ul>";
+        for(const OrTimetableProblem &problem : problems)
+            html += "<li>" + (problem.train.isEmpty() ? problem.text : problem.train + ": " + problem.text).toHtmlEscaped()
+                    + "</li>";
+        html += "</ul>";
+    }
+    timetableInfo->setHtml(html);
+}
+
 void ActivityTrafficWindow::lTrafficSelected(QTreeWidgetItem *item, int column){
     if(route == NULL || item == NULL)
         return;
+    if(ActivityNotifier::timetables()){
+        showTimetableInfo(item->type());
+        return;
+    }
     if(item->type() < 0 || item->type() >= ActLib::jesttraffic)
         return;
     trafficProperties->showTraffic(ActLib::Traffics[item->type()]);

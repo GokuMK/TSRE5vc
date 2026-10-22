@@ -1,7 +1,7 @@
 # Task simulation 08: Open Rails timetables
 
 Status: designed 2026-10-21 with the user's ideas (part C), the
-decisions at the end of this document; phases 1 to 4 done.
+decisions at the end of this document; phases 1 to 6 done.
 
 ## Progress
 
@@ -218,6 +218,74 @@ decisions at the end of this document; phases 1 to 4 done.
   signal wait and `$nowaitsignal`, `$create`, `#dispose $static`,
   `$triggers`, `$follow` on a passing loop, `$acc`/`$dec`, midnight and
   `$next`. Every MSTS route's results and events unchanged.
+
+**Phase 5, the editor (done 2026-10-22).**
+- The activity panel (F4) asks for the kind first (Kind: MSTS activities
+  or Open Rails timetables, `ActivityNotifier::timetables()`); the list,
+  the panel and the windows follow it. For a timetable set the MSTS
+  activity's parts are hidden (new activity, player service, traffic
+  pattern, loose consists, speed zones, failed signals, events, settings,
+  the overlay); shown: the player's train (None, every train AI, as Open
+  Rails can start; or any running train: a choice for the run, not saved)
+  and what the set holds (timetables, trains, problems).
+- Traffic window: the route's timetables (each file once), their trains
+  and problems; the chosen one's summary and problems in place of the
+  traffic editor (New and Delete hidden).
+- Timetable window: a set's trains as an activity's; for the chosen one an
+  Open Rails train's panel (`OrTrainProperties`) in place of the service
+  timetable: its start time, path, consist, commands, comment, its stops
+  with their times and commands (the station's and its own), its
+  problems; MSTS-only parts hidden (Info, Simulate, Add/Remove, Make Own
+  Copy, Show All Trains).
+- Check Activity: a set's timetables' check (a command TSRE does not run
+  a warning; a path not there jumps to the path list).
+- The simulation draws a timetable's train of several consists, or turned,
+  from its vehicles (no single consist file).
+- Map and 3D: a set has no objects of its own; its trains are drawn from
+  the simulation's frames (2D map checked on PRUDNIK by the user's choice
+  of a 2D test: the 3D view is too slow on this machine).
+
+**Phase 6, saving (done 2026-10-22).**
+- `OrTimetable::toText` writes the model in TSRE's own layout (the user:
+  not the read file's cells kept): ';' between cells, UTF-8 with a byte
+  order mark; a #comment column after the stations' with the description
+  where it meets the #comment row; #comment, #path, #consist, #start, and
+  #note, #dispose, the speed row (its unit as read), #restartdelay,
+  #briefing where a train has them; the stations in their order, their
+  commands after their names; each train's cells as read (or made again
+  where edited). Kept for that: each train's #comment cell, its path cell
+  with its commands, its speed cell. Not kept: a `#direction` row (Open
+  Rails reads it; PRUDNIK has none) and continuation columns and rows
+  (merged into their cells, as read).
+- Edits: a train's start time and its stops' times in the Timetable
+  window, each an undo step (a set's snapshot is its timetables' texts);
+  the set then unsaved ("[T]" in Save Activities). Saving writes the
+  changed timetables; the first time over a file TSRE did not write, the
+  original is kept beside it as `<file>.original` (the user: originals
+  preserved).
+- **Fixtures:** `timetable-read` (27): the fixture written and read again
+  the same, edits written, saving keeping the original once;
+  `timetable-route` (PRUDNIK: written in TSRE's layout, 97 KiB, read again
+  the same; `TSRE_TIMETABLE_WRITE=<folder>` writes it there for Open
+  Rails); `timetable-ui` (13): the kind chosen, the set, the player's
+  train, the Traffic window's timetables, the Timetable window's train
+  panel, a stop's time edited, undone, edited again with the start time,
+  saved (the original kept) and read back, the check.
+- **Open Rails reads TSRE's file** (`scripts/orts-timetable-run.sh`, the
+  copy beside the route's, not in it): PRUDNIK's timetable as TSRE writes
+  it loads in Open Rails as the original does (71 s each), with the same
+  messages (the two `$extendplatformtosignal` cells TSRE's check finds
+  too); run from the player's train's start (04:47) to 05:30, the same 77
+  trains run, their 59 stops within a sample of the original's (median
+  +4 s; a sample is 17 game seconds). One difference: Open Rails names a
+  `$static` train with no name after its column (`S273`), and TSRE's
+  layout has fewer columns (continuation columns merged), so those names
+  change (`S265`): a command naming one would need its new name
+  (PRUDNIK names none).
+- Open Rails' Linux build lower-cases a timetable's path names before it
+  opens them (`ExtractPathString`), so on a case-sensitive disk it finds
+  no path with capitals: the script's view of the route has each path
+  also under its lower-case name (the content left as it is).
 
 ## Why
 

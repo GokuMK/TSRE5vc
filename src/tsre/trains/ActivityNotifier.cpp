@@ -11,3 +11,10 @@ void ActivityNotifier::setEditingLocked(bool on) {
     locked = on;
     emit editingLockChanged(on);
 }
+
+void ActivityNotifier::setTimetables(bool on) {
+    if (timetableKind == on)
+        return;
+    timetableKind = on;
+    emit kindChanged(on);
+}

@@ -33,6 +33,7 @@
 #include <tsre/trains/ActivityCheck.h>
 #include <tsre/trains/ActivityOverlay.h>
 #include <tsre/trains/ActivityNotifier.h>
+#include <tsre/trains/ActivityTrains.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/environment/WorldClock.h>
 #include <QDialog>
@@ -123,6 +124,25 @@ ActivityTools::ActivityTools(QString name)
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
+    // The kind of activity first (task simulation 08): MSTS activities or
+    // Open Rails timetables; the list, the panel and the activity windows
+    // follow it.
+    QLabel *kindLabel = new QLabel(
+        //% "Kind:"
+        qtTrId("route.editor.activity.tools.label.kind"));
+    kindLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    kindLabel->setContentsMargins(3,0,0,0);
+    vbox->addWidget(kindLabel);
+    cKind.setObjectName("activityKind");
+    cKind.addItem(
+        //% "MSTS activities"
+        qtTrId("route.editor.activity.tools.kind.msts"), 0);
+    cKind.addItem(
+        //% "Open Rails timetables"
+        qtTrId("route.editor.activity.tools.kind.timetables"), 1);
+    cKind.setStyleSheet("combobox-popup: 0;");
+    vbox->addWidget(&cKind);
+    editing << &cKind;
     QLabel *label = new QLabel(
         //% "Activity List:"
         qtTrId("route.editor.activity.tools.label.label"));
@@ -134,6 +154,27 @@ ActivityTools::ActivityTools(QString name)
     actShow.setMaxVisibleItems(35);
     actShow.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     vbox->addWidget(newActButton);
+    // A timetable set (task simulation 08): the train the player drives, or
+    // none (every train AI, as Open Rails starts); what it holds.
+    {
+        QLabel *playerLabel = new QLabel(
+            //% "Player's train:"
+            qtTrId("route.editor.activity.tools.label.player.train"));
+        playerLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+        playerLabel->setContentsMargins(3,0,0,0);
+        vbox->addWidget(playerLabel);
+        cPlayerTrain.setObjectName("activityPlayerTrain");
+        cPlayerTrain.setStyleSheet("combobox-popup: 0;");
+        cPlayerTrain.setMaxVisibleItems(35);
+        cPlayerTrain.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        vbox->addWidget(&cPlayerTrain);
+        timetableSummary.setObjectName("activityTimetableSummary");
+        timetableSummary.setWordWrap(true);
+        timetableSummary.setContentsMargins(3,0,0,0);
+        vbox->addWidget(&timetableSummary);
+        timetablesOnly << playerLabel << &cPlayerTrain << &timetableSummary;
+        editing << &cPlayerTrain;
+    }
     
     label = new QLabel(
         //% "Player:"
@@ -141,6 +182,7 @@ ActivityTools::ActivityTools(QString name)
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
+    mstsOnly << label;
     vbox->addWidget(&cService);
     editing << &cService;
     cService.setStyleSheet("combobox-popup: 0;");
@@ -240,6 +282,7 @@ ActivityTools::ActivityTools(QString name)
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
+    mstsOnly << label;
     vbox->addWidget(&consists);
     consists.setStyleSheet("combobox-popup: 0;");
     consists.setMaxVisibleItems(35);
@@ -265,6 +308,7 @@ ActivityTools::ActivityTools(QString name)
     //label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist1->addWidget(label,1,0);
+    mstsOnly << label;
     vlist1->addWidget(&conFilesShow,1,1,1,3);
     conFilesShow.setStyleSheet("combobox-popup: 0;");
     conFilesShow.setMaxVisibleItems(35);
@@ -282,6 +326,7 @@ ActivityTools::ActivityTools(QString name)
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
+    mstsOnly << label;
     vbox->addWidget(&speedZones);
     speedZones.setStyleSheet("combobox-popup: 0;");
     speedZones.setMaxVisibleItems(35);
@@ -315,6 +360,7 @@ ActivityTools::ActivityTools(QString name)
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
+    mstsOnly << label;
     vbox->addWidget(&failedSignals);
     failedSignals.setStyleSheet("combobox-popup: 0;");
     failedSignals.setMaxVisibleItems(35);
@@ -351,6 +397,7 @@ ActivityTools::ActivityTools(QString name)
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
+    mstsOnly << label;
     QPushButton *actEventsOpen = new QPushButton(
         //% "Open Event Editor"
         qtTrId("route.editor.activity.tools.button.act.events.open"));
@@ -363,6 +410,7 @@ ActivityTools::ActivityTools(QString name)
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
+    mstsOnly << label;
     QPushButton *actSettingsOpen = new QPushButton(
         //% "Open Settings ..."
         qtTrId("route.editor.activity.tools.button.act.settings.open"));
@@ -660,6 +708,14 @@ ActivityTools::ActivityTools(QString name)
         qtTrId("route.editor.activity.tools.title.activity.settings"));
     settingsWidget.setMinimumWidth(650);
     
+    mstsOnly << newActButton << &cService << actServiceOpen << &cTraffic << &consists << actConsistJump
+             << actConsistDelete << buttonTools["actNewLooseConsistTool"] << &conFilesShow << conFilesRefresh
+             << &speedZones << actZoneJump << buttonTools["actNewSpeedZoneTool"] << actZoneDelete << actZoneDeleteAll
+             << &failedSignals << actFailedSignalJump << actFailedSignalTool << actFailedSignalDelete
+             << actFailedSignalDeleteAll << actEventsOpen << actSettingsOpen;
+    QObject::connect(&cKind, SIGNAL(activated(int)), this, SLOT(kindChosen(int)));
+    QObject::connect(&cPlayerTrain, SIGNAL(activated(int)), this, SLOT(cPlayerTrainEnabled(int)));
+    showKind();
     vbox->addStretch(1);
     this->setLayout(vbox);    
     
@@ -747,8 +803,9 @@ void ActivityTools::reloadActivityList(){
     settingsWidget.setEnabled(false);
     if(route == NULL)
         return;
-    foreach(int id, route->activityId){
-        const Activity *a = ActLib::Act.value(id);
+    const bool timetables = ActivityNotifier::timetables();
+    foreach(int id, timetables ? route->timetableSetId : route->activityId){
+        const Activity *a = timetables ? ActLib::TimetableSets.value(id) : ActLib::Act.value(id);
         if(a == NULL || a->header == NULL)
             continue;
         actShow.addItem(a->header->name, QVariant(id));
@@ -763,10 +820,63 @@ Activity *ActivityTools::currentActivity(){
     const int id = actShow.currentData().toInt(&ok);
     if(!ok)
         return NULL;
-    Activity *a = ActLib::Act.value(id);
+    Activity *a = ActivityNotifier::timetables() ? ActLib::TimetableSets.value(id) : ActLib::Act.value(id);
     if(a == NULL || a->loaded != 1 || a->header == NULL)
         return NULL;
     return a;
+}
+
+void ActivityTools::kindChosen(int index){
+    ActivityNotifier::instance()->setTimetables(cKind.itemData(index).toInt() == 1);
+    showKind();
+    reloadActivityList();
+    activitySelected(QString());
+}
+
+// The panel as the kind is: the parts of an MSTS activity, or a timetable
+// set's.
+void ActivityTools::showKind(){
+    const bool timetables = ActivityNotifier::timetables();
+    for(QWidget *widget : mstsOnly)
+        widget->setVisible(!timetables);
+    for(QWidget *widget : timetablesOnly)
+        widget->setVisible(timetables);
+}
+
+// A timetable set's trains to drive (none, or a running one) and what it
+// holds; empty for an MSTS activity.
+void ActivityTools::showTimetableSet(Activity *a){
+    QSignalBlocker blocker(cPlayerTrain);
+    cPlayerTrain.clear();
+    timetableSummary.clear();
+    if(a == NULL || !a->isTimetables())
+        return;
+    cPlayerTrain.addItem(
+        //% "None (every train AI)"
+        qtTrId("route.editor.activity.tools.player.none"), QString());
+    int trains = 0, statics = 0, problems = 0;
+    for(const ActivityTrains::Train &train : ActivityTrains::List(a)){
+        ++(train.staticTrain ? statics : trains);
+        problems += train.problems.size();
+        if(!train.staticTrain)
+            cPlayerTrain.addItem(QString("%1  %2").arg(QTime::fromMSecsSinceStartOfDay(train.time % 86400 * 1000)
+                                                           .toString("HH:mm"), train.service), train.service);
+    }
+    const int chosen = cPlayerTrain.findData(a->playerTrain, Qt::UserRole, Qt::MatchFixedString);
+    cPlayerTrain.setCurrentIndex(chosen >= 0 ? chosen : 0);
+    //% "%1 timetables: %2 trains and %3 static; %4 problems (Check Activity lists them)."
+    timetableSummary.setText(qtTrId("route.editor.activity.tools.timetable.summary").arg(a->timetables.size())
+                             .arg(trains).arg(statics).arg(problems));
+}
+
+// The train the player drives in the set's run (not saved: chosen when
+// played, as in Open Rails).
+void ActivityTools::cPlayerTrainEnabled(int index){
+    Activity *a = currentActivity();
+    if(a == NULL || !a->isTimetables())
+        return;
+    a->playerTrain = cPlayerTrain.itemData(index).toString();
+    emit showTimetable(a);
 }
 
 void ActivityTools::reloadServicesList(){
@@ -1119,10 +1229,14 @@ void ActivityTools::activitySelected(QString n){
     emit showTraffic(route);
     // The settings edit the activity chosen: nothing without one (nor
     // while a simulation runs it).
-    settingsWidget.setEnabled(a != NULL && !ActivityNotifier::editingLocked());
+    settingsWidget.setEnabled(a != NULL && !a->isTimetables() && !ActivityNotifier::editingLocked());
     showSimulation();
-    if(a == NULL)
+    showTimetableSet(a);
+    if(a == NULL || a->isTimetables()){
+        reloadActivityObjectLists();
+        showOverlay();
         return;
+    }
 
     eFileName.setText(a->nameid);
     if(a->isNew())

@@ -39,15 +39,27 @@ QString clock(double seconds) {
     return QTime::fromMSecsSinceStartOfDay(s * 1000).toString("HH:mm:ss");
 }
 
+void refit(Consist &consist, const std::vector<Vehicle> &vehicles);
+
 // A copy of a train's consist for the editor (SimulationController::
 // consistOf), each vehicle its own Eng as a consist placed on the track has.
+// Where the name is no consist file (an Open Rails timetable's consist of
+// several parts or turned, task 08): made from the train's vehicles.
 std::unique_ptr<Consist> copyConsist(const TrainPlan &plan) {
     if (Game::currentEngLib == nullptr || plan.consist.isEmpty())
         return nullptr;
     const int id = ConLib::addCon(Game::root + "/TRAINS/CONSISTS/", plan.consist + ".con");
     auto found = ConLib::con.find(id);
-    if (found == ConLib::con.end() || found->second == nullptr || found->second->loaded != 1)
-        return nullptr;
+    if (found == ConLib::con.end() || found->second == nullptr || found->second->loaded != 1) {
+        if (plan.vehicles.empty())
+            return nullptr;
+        std::unique_ptr<Consist> made = std::make_unique<Consist>();
+        made->displayName = plan.consist;
+        made->showName = plan.consist;
+        made->isOnTrack = false;
+        refit(*made, plan.vehicles);
+        return made;
+    }
     std::unique_ptr<Consist> copy = std::make_unique<Consist>(found->second, true);
     for (Consist::EngItem &item : copy->engItems) {
         auto eng = Game::currentEngLib->eng.find(item.eng);

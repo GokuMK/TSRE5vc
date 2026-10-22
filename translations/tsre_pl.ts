@@ -1127,590 +1127,621 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Zamknij</translation>
     </message>
     <message id="route.editor.activity.tools.item.spring">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="63"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="64"/>
         <source>Spring</source>
         <translation>Wiosna</translation>
     </message>
     <message id="route.editor.activity.tools.item.summer">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="66"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="67"/>
         <source>Summer</source>
         <translation>Lato</translation>
     </message>
     <message id="route.editor.activity.tools.item.autumn">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="69"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="70"/>
         <source>Autumn</source>
         <translation>Jesień</translation>
     </message>
     <message id="route.editor.activity.tools.item.winter">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="72"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="73"/>
         <source>Winter</source>
         <translation>Zima</translation>
     </message>
     <message id="route.editor.activity.tools.item.clear">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="76"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="77"/>
         <source>Clear</source>
         <translation>Bezchmurnie</translation>
     </message>
     <message id="route.editor.activity.tools.item.rain">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="79"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="80"/>
         <source>Rain</source>
         <translation>Deszcz</translation>
     </message>
     <message id="route.editor.activity.tools.item.snow">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="82"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="83"/>
         <source>Snow</source>
         <translation>Śnieg</translation>
     </message>
     <message id="route.editor.activity.tools.item.easy">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="86"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="87"/>
         <source>Easy</source>
         <translation>Łatwy</translation>
     </message>
     <message id="route.editor.activity.tools.item.medium">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="89"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="90"/>
         <source>Medium</source>
         <translation>Średni</translation>
     </message>
     <message id="route.editor.activity.tools.item.hard">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="92"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="93"/>
         <source>Hard</source>
         <translation>Trudny</translation>
     </message>
     <message id="route.editor.activity.tools.button.place.consist">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="96"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="97"/>
         <source>Place Consist</source>
         <translation>Umieść skład</translation>
     </message>
     <message id="route.editor.activity.tools.button.new">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="99"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="100"/>
         <source>New</source>
         <translation>Nowy</translation>
     </message>
     <message id="route.editor.activity.tools.button.new.act.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="115"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="116"/>
         <source>New Activity</source>
         <translation>Nowy scenariusz</translation>
     </message>
     <message id="route.editor.activity.tools.label.label">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="128"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="148"/>
         <source>Activity List:</source>
         <translation>Lista scenariuszy:</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="140"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="181"/>
         <source>Player:</source>
         <translation>Gracz:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.service.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="151"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="193"/>
         <source>Open Service Editor</source>
         <translation>Otwórz edytor kursów</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.3">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="157"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="199"/>
         <source>Traffic:</source>
         <translation>Ruch pociągów:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.traffic.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="168"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="210"/>
         <source>Open Traffic Editor</source>
         <translation>Otwórz edytor ruchu pociągów</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.4">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="174"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="216"/>
         <source>Timetable:</source>
         <translation>Rozkład jazdy:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.timetable.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="180"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="222"/>
         <source>Open Timetable Editor</source>
         <translation>Otwórz edytor rozkładu jazdy</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.5">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="186"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="228"/>
         <source>Paths:</source>
         <translation>Drogi przejazdu:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.new">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="200"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="242"/>
         <source>New</source>
         <translation>Nowy</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.edit">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="103"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="104"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
+    <message id="route.editor.activity.tools.label.kind">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="132"/>
+        <source>Kind:</source>
+        <translation>Rodzaj:</translation>
+    </message>
+    <message id="route.editor.activity.tools.kind.msts">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="139"/>
+        <source>MSTS activities</source>
+        <translation>Aktywności MSTS</translation>
+    </message>
+    <message id="route.editor.activity.tools.kind.timetables">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="142"/>
+        <source>Open Rails timetables</source>
+        <translation>Rozkłady Open Rails</translation>
+    </message>
+    <message id="route.editor.activity.tools.label.player.train">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="162"/>
+        <source>Player&apos;s train:</source>
+        <translation>Pociąg gracza:</translation>
+    </message>
     <message id="route.editor.activity.tools.button.act.paths.clone">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="206"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="248"/>
         <source>Clone</source>
         <translation>Klonuj</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="209"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="251"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.refresh.list">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="220"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="262"/>
         <source>Refresh List</source>
         <translation>Odśwież listę</translation>
     </message>
     <message id="route.editor.activity.tools.path.followed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="233"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="275"/>
         <source>Path %1 edited:</source>
         <translation>Edycja drogi przejazdu %1:</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.6">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="239"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="281"/>
         <source>Activity Objects List:</source>
         <translation>Lista obiektów scenariusza:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.consist.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="252"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="295"/>
         <source>Jump To</source>
         <translation>Przejdź do</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.consist.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="256"/>
-        <source>Delete</source>
-        <translation>Usuń</translation>
-    </message>
-    <message id="route.editor.activity.tools.label.label.7">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="264"/>
-        <source>Consist:</source>
-        <translation>Skład:</translation>
-    </message>
-    <message id="route.editor.activity.tools.button.con.files.refresh">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="274"/>
-        <source>Refresh List</source>
-        <translation>Odśwież listę</translation>
-    </message>
-    <message id="route.editor.activity.tools.label.label.8">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="281"/>
-        <source>Restricted Speed Zones List:</source>
-        <translation>Lista stref ograniczonej prędkości:</translation>
-    </message>
-    <message id="route.editor.activity.tools.button.act.zone.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="294"/>
-        <source>Jump To</source>
-        <translation>Przejdź do</translation>
-    </message>
-    <message id="route.editor.activity.tools.button.act.zone.delete">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="299"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
+    <message id="route.editor.activity.tools.label.label.7">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="307"/>
+        <source>Consist:</source>
+        <translation>Skład:</translation>
+    </message>
+    <message id="route.editor.activity.tools.button.con.files.refresh">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="318"/>
+        <source>Refresh List</source>
+        <translation>Odśwież listę</translation>
+    </message>
+    <message id="route.editor.activity.tools.label.label.8">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="325"/>
+        <source>Restricted Speed Zones List:</source>
+        <translation>Lista stref ograniczonej prędkości:</translation>
+    </message>
+    <message id="route.editor.activity.tools.button.act.zone.jump">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="339"/>
+        <source>Jump To</source>
+        <translation>Przejdź do</translation>
+    </message>
+    <message id="route.editor.activity.tools.button.act.zone.delete">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="344"/>
+        <source>Delete</source>
+        <translation>Usuń</translation>
+    </message>
     <message id="route.editor.activity.tools.button.act.zone.delete.all">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="303"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="348"/>
         <source>Delete All</source>
         <translation>Usuń wszystkie</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.9">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="314"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="359"/>
         <source>Failed Signals List:</source>
         <translation>Lista uszkodzonych sygnalizatorów:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="327"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="373"/>
         <source>Jump To</source>
         <translation>Przejdź do</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.tool">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="331"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="377"/>
         <source>Disable</source>
         <translation>Wyłącz</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="335"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="381"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.delete.all">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="339"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="385"/>
         <source>Delete All</source>
         <translation>Usuń wszystkie</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.10">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="350"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="396"/>
         <source>Events:</source>
         <translation>Zdarzenia:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.events.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="356"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="403"/>
+        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="153"/>
         <source>Open Event Editor</source>
         <translation>Otwórz edytor zdarzeń</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.11">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="362"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="409"/>
         <source>Activity Info:</source>
         <translation>Informacje o scenariuszu:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.settings.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="368"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="416"/>
         <source>Open Settings ...</source>
         <translation>Otwórz ustawienia…</translation>
     </message>
     <message id="route.editor.activity.tools.button.overlay.merge">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="375"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="423"/>
         <source>Merge...</source>
         <translation>Scal...</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.13">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="389"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="437"/>
         <source>General:</source>
         <translation>Ogólne:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.check.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="395"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="443"/>
         <source>Check Activity</source>
         <translation>Sprawdź scenariusz</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.save.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="400"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="448"/>
         <source>Save Activities</source>
         <translation>Zapisz scenariusze</translation>
     </message>
     <message id="route.editor.activity.tools.label.simulation">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="408"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="456"/>
         <source>Simulation:</source>
         <translation>Symulacja:</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.play">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="415"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="463"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="452"/>
         <source>Play</source>
         <translation>Graj</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.play.tooltip">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="418"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="466"/>
         <source>Runs the activity&apos;s trains at the speed chosen (real time at 1×); the activity is not edited until Stop.</source>
         <translation>Uruchamia pociągi scenariusza z wybraną prędkością (czas rzeczywisty przy 1×); scenariusza nie można edytować aż do Stop.</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.pause">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="421"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="469"/>
         <source>Pause</source>
         <translation>Pauza</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.stop">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="424"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="472"/>
         <source>Stop</source>
         <translation>Stop</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.reset">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="427"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="475"/>
         <source>Reset</source>
         <translation>Od początku</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.reset.tooltip">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="430"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="478"/>
         <source>Back to the activity&apos;s start time.</source>
         <translation>Powrót do czasu startu scenariusza.</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.run.to">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="433"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="481"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="453"/>
         <source>Run</source>
         <translation>Przewiń</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.run.to.tooltip">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="436"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="484"/>
         <source>As fast as possible to the time, then paused; an earlier time is reached again from the start.</source>
         <translation>Najszybciej jak się da do podanego czasu, potem pauza; wcześniejszy czas jest osiągany ponownie od startu.</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.speed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="449"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="880"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="497"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="990"/>
         <source>%1×</source>
         <translation>%1×</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.speed.fastest">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="451"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="881"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="499"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="991"/>
         <source>As fast as possible</source>
         <translation>Najszybciej jak się da</translation>
     </message>
     <message id="route.editor.activity.tools.label.simulation.speed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="465"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="513"/>
         <source>Speed:</source>
         <translation>Prędkość:</translation>
     </message>
     <message id="route.editor.activity.tools.label.simulation.time">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="469"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="517"/>
         <source>Time:</source>
         <translation>Czas:</translation>
     </message>
     <message id="route.editor.activity.tools.label.simulation.run.to">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="473"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="521"/>
         <source>Run to:</source>
         <translation>Przewiń do:</translation>
     </message>
     <message id="route.editor.activity.tools.label.file.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="502"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="550"/>
         <source>File Name:</source>
         <translation>Nazwa pliku:</translation>
     </message>
     <message id="route.editor.activity.tools.label.display.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="507"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="555"/>
         <source>Display Name:</source>
         <translation>Nazwa wyświetlana:</translation>
     </message>
     <message id="route.editor.activity.tools.label.difficulty">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="512"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="560"/>
         <source>Difficulty:</source>
         <translation>Poziom trudności:</translation>
     </message>
     <message id="route.editor.activity.tools.label.duration">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="517"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="565"/>
         <source>Duration:</source>
         <translation>Czas trwania:</translation>
     </message>
     <message id="route.editor.activity.tools.label.start.time">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="523"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="571"/>
         <source>Start Time:</source>
         <translation>Czas rozpoczęcia:</translation>
     </message>
     <message id="route.editor.activity.tools.label.season">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="529"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="577"/>
         <source>Season:</source>
         <translation>Pora roku:</translation>
     </message>
     <message id="route.editor.activity.tools.label.weather">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="534"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="582"/>
         <source>Weather:</source>
         <translation>Pogoda:</translation>
     </message>
     <message id="route.editor.activity.tools.label.horn.at.crossings">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="539"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="587"/>
         <source>Horn At Crossings: </source>
         <translation>Sygnał dźwiękowy na przejazdach: </translation>
     </message>
     <message id="route.editor.activity.tools.label.horn.pattern">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="547"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="595"/>
         <source>Horn Pattern:</source>
         <translation>Wzór sygnału:</translation>
     </message>
     <message id="route.editor.activity.tools.item.not.set">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="550"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="562"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="598"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="610"/>
         <source>Not set</source>
         <translation>Nie ustawiono</translation>
     </message>
     <message id="route.editor.activity.tools.item.horn.us">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="553"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="601"/>
         <source>US (long, long, short, long)</source>
         <translation>US (długi, długi, krótki, długi)</translation>
     </message>
     <message id="route.editor.activity.tools.item.horn.single">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="556"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="604"/>
         <source>Single blast</source>
         <translation>Pojedynczy sygnał</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.wood">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="566"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="614"/>
         <source>Fuel Wood:</source>
         <translation>Drewno:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.sand">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="571"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="619"/>
         <source>Fuel Sand:</source>
         <translation>Piasek:</translation>
     </message>
     <message id="route.editor.activity.tools.label.load.stations">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="576"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="624"/>
         <source>Station Loads:</source>
         <translation>Ładunki stacji:</translation>
     </message>
     <message id="route.editor.activity.tools.tooltip.load.stations">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="579"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="627"/>
         <source>Open Rails: ACTIVITIES/OPENRAILS/&lt;name&gt;.load-stations-loads-or</source>
         <translation>Open Rails: ACTIVITIES/OPENRAILS/&lt;nazwa&gt;.load-stations-loads-or</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.coal">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="591"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="639"/>
         <source>Fuel Coal:</source>
         <translation>Węgiel:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.diesel">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="600"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="648"/>
         <source>Fuel Diesel:</source>
         <translation>Olej napędowy:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.water">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="609"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="657"/>
         <source>Fuel Water:</source>
         <translation>Woda:</translation>
     </message>
     <message id="route.editor.activity.tools.label.hazard.animal">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="618"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="666"/>
         <source>Hazard Animal:</source>
         <translation>Zagrożenie — zwierzęta:</translation>
     </message>
     <message id="route.editor.activity.tools.label.hazard.people">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="627"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="675"/>
         <source>Hazard People:</source>
         <translation>Zagrożenie — ludzie:</translation>
     </message>
     <message id="route.editor.activity.tools.label.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="644"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="692"/>
         <source>Description:</source>
         <translation>Opis:</translation>
     </message>
     <message id="route.editor.activity.tools.label.briefing">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="650"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="698"/>
         <source>Briefing:</source>
         <translation>Instrukcje:</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.settings">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="660"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="708"/>
         <source>Activity Settings.</source>
         <translation>Ustawienia scenariusza.</translation>
     </message>
+    <message id="route.editor.activity.tools.player.none">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="856"/>
+        <source>None (every train AI)</source>
+        <translation>Brak (wszystkie pociągi AI)</translation>
+    </message>
+    <message id="route.editor.activity.tools.timetable.summary">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="868"/>
+        <source>%1 timetables: %2 trains and %3 static; %4 problems (Check Activity lists them).</source>
+        <translation>Rozkłady: %1; pociągi: %2 i %3 statycznych; problemy: %4 (wymienia je Sprawdź aktywność).</translation>
+    </message>
     <message id="route.editor.activity.tools.item.undefined">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="777"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="887"/>
         <source>UNDEFINED</source>
         <translation>NIEZDEFINIOWANE</translation>
     </message>
     <message id="route.editor.activity.tools.item.undefined.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="793"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="903"/>
         <source>UNDEFINED</source>
         <translation>NIEZDEFINIOWANE</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="831"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="850"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="927"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="941"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="960"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1037"/>
         <source>Simulation</source>
         <translation>Symulacja</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.time.rate">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="898"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1008"/>
         <source>%1 (%2×)</source>
         <translation>%1 (%2×)</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.deadlock">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="933"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1043"/>
         <source>These trains wait for each other and will not move again (a deadlock): %1. The simulation goes on. Change their times or paths so they meet where one can pass the other, then reset the simulation.</source>
         <translation>Te pociągi czekają na siebie nawzajem i już nie ruszą (zakleszczenie): %1. Symulacja trwa dalej. Zmień ich czasy lub ścieżki tak, by spotkały się tam, gdzie jeden może minąć drugi, a potem zresetuj symulację.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.merged">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="965"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1075"/>
         <source>The overlay %1 is merged; it is renamed when the activity is saved.</source>
         <translation>Nakładka %1 jest scalona; zostanie przemianowana przy zapisie scenariusza.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.present">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="967"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1077"/>
         <source>Open Rails adds the overlay %1 to this activity.</source>
         <translation>Open Rails dodaje do tego scenariusza nakładkę %1.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="979"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1089"/>
         <source>Merge the Overlay</source>
         <translation>Scal nakładkę</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.intro">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="983"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1093"/>
         <source>These additions go into the activity as edits (one undo step). Saving the activity renames %1 to %2.</source>
         <translation>Te dodatki trafią do scenariusza jako edycja (jeden krok cofania). Zapis scenariusza zmieni nazwę %1 na %2.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.unreadable">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="985"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1095"/>
         <source>The overlay %1 cannot be read.</source>
         <translation>Nie można odczytać nakładki %1.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.left.out">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="994"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1104"/>
         <source>Left out: %1</source>
         <translation>Pominięte: %1</translation>
     </message>
     <message id="route.editor.activity.tools.title.save.changes">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1084"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1194"/>
         <source>Save changes?</source>
         <translation>Zapisać zmiany?</translation>
     </message>
     <message id="route.editor.activity.tools.message.save.changes.in.activities">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1087"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1197"/>
         <source>Save changes in activities?</source>
         <translation>Zapisać zmiany w scenariuszach?</translation>
     </message>
     <message id="route.editor.activity.tools.save.check.errors">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1101"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1211"/>
         <source>%1: %2 errors (Check Activity lists them)</source>
         <translation>%1: błędy: %2 (lista w oknie Sprawdź scenariusz)</translation>
     </message>
     <message id="activity.failed.signal.id">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1253"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1367"/>
         <source>Signal ID: %1</source>
         <translation>ID sygnalizatora: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1295"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1324"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1409"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1438"/>
         <source>Path</source>
         <translation>Droga przejazdu</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.file">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1301"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1415"/>
         <source>File name</source>
         <translation>Nazwa pliku</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1304"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1418"/>
         <source>Display name</source>
         <translation>Nazwa wyświetlana</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.taken">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1327"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1441"/>
         <source>A path named %1 exists already.</source>
         <translation>Droga przejazdu o nazwie %1 już istnieje.</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.invalid">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1329"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1443"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>Nazwa pliku nie może być pusta ani zawierać \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1383"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1497"/>
         <source>Delete Path</source>
         <translation>Usuń drogę przejazdu</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.read.only">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1387"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1501"/>
         <source>The route is read-only.</source>
         <translation>Trasa jest tylko do odczytu.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.question">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1392"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1506"/>
         <source>Delete the path %1 and its file? This cannot be undone.</source>
         <translation>Usunąć drogę przejazdu %1 i jej plik? Tej operacji nie można cofnąć.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.users">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1397"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1511"/>
         <source>These services and activities name it: %1</source>
         <translation>Używają jej te kursy i scenariusze: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.failed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1403"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1517"/>
         <source>The file %1 could not be deleted.</source>
         <translation>Nie udało się usunąć pliku %1.</translation>
     </message>
     <message id="route.editor.activity.tools.title.signal.not.disabled">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1615"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1729"/>
         <source>Signal not disabled!</source>
         <translation>Sygnalizator nie został wyłączony!</translation>
     </message>
     <message id="route.editor.activity.tools.text.select.signal.before.using.this.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1618"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1732"/>
         <source>Select signal before using this button.</source>
         <translation>Przed użyciem tego przycisku wybierz sygnalizator.</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1978"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="2092"/>
         <source>Activity Description</source>
         <translation>Opis scenariusza</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1998"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="2112"/>
         <source>Activity Description</source>
         <translation>Opis scenariusza</translation>
     </message>
@@ -5207,299 +5238,304 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>BRAK</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="47"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="49"/>
         <source>none</source>
         <translation>brak</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.minutes">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="50"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="52"/>
         <source>%1 min</source>
         <translation>%1 min</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.seconds">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="52"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="54"/>
         <source>%1 s</source>
         <translation>%1 s</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.step">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="61"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="63"/>
         <source>departures rounded up to %1</source>
         <translation>odjazdy zaokrąglone w górę do %1</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.no.step">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="63"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="65"/>
         <source>departures not rounded</source>
         <translation>odjazdy bez zaokrąglania</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.run">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="65"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="67"/>
         <source>Simulated from %1 to %2 in %3 s, %4.</source>
         <translation>Zasymulowano od %1 do %2 w %3 s, %4.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="82"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="84"/>
         <source>No times written.</source>
         <translation>Nie zapisano żadnych czasów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.player.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="85"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="87"/>
         <source>The player&apos;s times written (the traffic pattern is shared with %1).</source>
         <translation>Zapisano czasy gracza (ruch pociągów jest wspólny z: %1).</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="88"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="90"/>
         <source>The player&apos;s times written.</source>
         <translation>Zapisano czasy gracza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="91"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="93"/>
         <source>Times written for %1 trains.</source>
         <translation>Zapisano czasy pociągów: %1.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.unchanged">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="96"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="98"/>
         <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="816"/>
         <source>Nothing changed.</source>
         <translation>Nic się nie zmieniło.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.changed">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="99"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="101"/>
         <source>%1 changed, the largest change %2.</source>
         <translation>Zmienione: %1, największa zmiana %2.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.new">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="102"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="104"/>
         <source>%1 with new times.</source>
         <translation>Z nowymi czasami: %1.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.stuck">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="107"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="109"/>
         <source>%1 did not finish: %2.</source>
         <translation>%1 nie skończył trasy: %2.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.title.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="117"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="119"/>
         <source>Timetable</source>
         <translation>Rozkład jazdy</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.start">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="124"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="126"/>
         <source>Start</source>
         <translation>Start</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="126"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="128"/>
         <source>Train</source>
         <translation>Pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.state">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="128"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="130"/>
         <source>State</source>
         <translation>Stan</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.path">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="130"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="132"/>
         <source>Path</source>
         <translation>Droga przejazdu</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.consist">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="132"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="134"/>
         <source>Consist</source>
         <translation>Skład</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.first">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="134"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="136"/>
         <source>First Stop</source>
         <translation>Pierwszy postój</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.last">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="136"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="138"/>
         <source>Last Stop</source>
         <translation>Ostatni postój</translation>
     </message>
     <message id="route.editor.activity.timetable.window.show.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="150"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="152"/>
         <source>Show All Trains</source>
         <translation>Pokaż wszystkie pociągi</translation>
     </message>
     <message id="route.editor.activity.timetable.window.show.all.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="153"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="155"/>
         <source>The activity&apos;s AI trains on the map and in 3D: their paths and their consists at their starts.</source>
         <translation>Pociągi AI scenariusza na mapie i w 3D: ich drogi przejazdu i składy w miejscach startu.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.add">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="156"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="158"/>
         <source>Add to Activity</source>
         <translation>Dodaj do scenariusza</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.remove">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="159"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="161"/>
         <source>Remove from Activity</source>
         <translation>Usuń ze scenariusza</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.jump">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="162"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="164"/>
         <source>Jump To</source>
         <translation>Przejdź do</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.follow">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="165"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="167"/>
         <source>Follow</source>
         <translation>Śledź</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.follow.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="168"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="170"/>
         <source>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</source>
         <translation>Kamera podąża za wybranym pociągiem, gdy symulacja trwa, przy oknie jego kabiny. W 3D klawisz 1 pokazuje widok z kabiny, klawisz 2 jego czoło, a klawisz 3 jego koniec.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.copy">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="174"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="176"/>
         <source>Make Own Copy...</source>
         <translation>Utwórz własną kopię...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.copy.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="177"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="179"/>
         <source>A new traffic pattern with the same runs, for this activity alone.</source>
         <translation>Nowy ruch pociągów z tymi samymi kursami, tylko dla tego scenariusza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.simulate">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="207"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="209"/>
         <source>Simulate</source>
         <translation>Symuluj</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.simulate.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="210"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="212"/>
         <source>Runs the activity as fast as possible and writes the times it gives into the timetables. Departures you set since the last Simulate are kept: the train leaves no earlier.</source>
         <translation>Uruchamia scenariusz najszybciej jak się da i zapisuje uzyskane czasy w rozkładach jazdy. Odjazdy ustawione przez ciebie od ostatniego Symuluj są zachowane: pociąg nie odjedzie wcześniej.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="218"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="220"/>
         <source>Departures rounded up to it, the train waiting for them; arrivals rounded down.</source>
         <translation>Odjazdy zaokrąglone w górę do tej wartości, pociąg na nie czeka; przyjazdy zaokrąglone w dół.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="221"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="223"/>
         <source>All trains</source>
         <translation>Wszystkie pociągi</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="224"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="226"/>
         <source>The player&apos;s train</source>
         <translation>Pociąg gracza</translation>
     </message>
     <message id="route.editor.activity.timetable.window.from.scratch">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="227"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="229"/>
         <source>From scratch</source>
         <translation>Od nowa</translation>
     </message>
     <message id="route.editor.activity.timetable.window.from.scratch.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="230"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="232"/>
         <source>Every departure calculated again: the ones you set are not kept.</source>
         <translation>Wszystkie odjazdy obliczone ponownie: ustawione przez ciebie nie są zachowane.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="245"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="247"/>
         <source>Round to:</source>
         <translation>Zaokrąglaj do:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="249"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="251"/>
         <source>Times for:</source>
         <translation>Czasy dla:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.section.info">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="268"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="276"/>
         <source>Info:</source>
         <translation>Informacje:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.section.simulation">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="274"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="282"/>
         <source>Simulation:</source>
         <translation>Symulacja:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.events">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="286"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="295"/>
         <source>Events in the simulation:</source>
         <translation>Zdarzenia w symulacji:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="399"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="420"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="862"/>
         <source>%1 (player)</source>
         <translation>%1 (gracz)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.not.in.activity">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="402"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="423"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="863"/>
         <source>%1 (not in the activity)</source>
         <translation>%1 (poza scenariuszem)</translation>
     </message>
+    <message id="route.editor.activity.timetable.window.saved.timetable">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="513"/>
+        <source>The times are saved in the timetable %1: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</source>
+        <translation>Czasy są zapisywane w rozkładzie %1: Zapisz aktywności zapisuje go w układzie TSRE, za pierwszym razem zachowując obok oryginał.</translation>
+    </message>
     <message id="route.editor.activity.timetable.window.saved.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="485"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="529"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="889"/>
         <source>The player&apos;s times are saved in the activity.</source>
         <translation>Czasy pociągu gracza są zapisane w scenariuszu.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.pattern.only">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="489"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="533"/>
         <source>A run of the traffic pattern %1 that the activity does not have: Add to Activity puts it in.</source>
         <translation>Kurs z ruchu pociągów %1, którego scenariusz nie ma: Dodaj do scenariusza go wstawia.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="493"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="537"/>
         <source>Not in the traffic pattern %1: this train has no times.</source>
         <translation>Brak w ruchu pociągów %1: ten pociąg nie ma czasów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.own">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="499"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="543"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="885"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="915"/>
         <source>The times are saved in the traffic pattern %1, used by this activity only.</source>
         <translation>Czasy są zapisane w ruchu pociągów %1, używanym tylko przez ten scenariusz.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="503"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="547"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="905"/>
         <source>The times are saved in the traffic pattern %1, shared with: %2. Changing them changes those activities too.</source>
         <translation>Czasy są zapisane w ruchu pociągów %1, wspólnym z: %2. Ich zmiana zmienia też te scenariusze.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.copy.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="572"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="631"/>
         <source>Own Copy of the Traffic Pattern</source>
         <translation>Własna kopia ruchu pociągów</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="581"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="640"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>Nazwa pliku nie może być pusta ani zawierać \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="587"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="646"/>
         <source>A traffic pattern named %1 exists already.</source>
         <translation>Ruch pociągów o nazwie %1 już istnieje.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="703"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="762"/>
         <source>The traffic pattern %1 is shared with: %2. Only the player&apos;s times are written; Make Own Copy... to write the AI trains&apos; too.</source>
         <translation>Ruch pociągów %1 jest wspólny z: %2. Zapisywane są tylko czasy gracza; Utwórz własną kopię..., by zapisać też czasy pociągów AI.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.no.pattern">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="707"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="766"/>
         <source>The activity has no traffic pattern: the player&apos;s times alone.</source>
         <translation>Scenariusz nie ma ruchu pociągów: tylko czasy gracza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="711"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="770"/>
         <source>Whose times Simulate writes: the player&apos;s in the activity, the AI trains&apos; in the traffic pattern.</source>
         <translation>Czyje czasy zapisuje Symuluj: gracza w scenariuszu, pociągów AI w ruchu pociągów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="735"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="794"/>
         <source>Simulating the activity...</source>
         <translation>Symulowanie scenariusza...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating.cancel">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="737"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="796"/>
         <source>Cancel</source>
         <translation>Anuluj</translation>
     </message>
@@ -5574,67 +5610,100 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>Czas trwania:</translation>
     </message>
     <message id="route.editor.activity.traffic.window.title.traffic">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="26"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="30"/>
         <source>Traffic</source>
         <translation>Ruch pociągów</translation>
     </message>
     <message id="route.editor.activity.traffic.window.button.b.new">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="35"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="39"/>
         <source>New Traffic</source>
         <translation>Nowy ruch pociągów</translation>
     </message>
     <message id="route.editor.activity.traffic.window.button.b.delete">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="45"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="49"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message id="activity.traffic.list.header.name">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="50"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="54"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="121"/>
         <source>Name:</source>
         <translation>Nazwa:</translation>
     </message>
     <message id="activity.traffic.list.header.this">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="52"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="56"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="121"/>
         <source>This:</source>
         <translation>Ten:</translation>
     </message>
     <message id="activity.traffic.list.header.any">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="54"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="58"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="122"/>
         <source>Any:</source>
         <translation>Dowolny:</translation>
     </message>
+    <message id="activity.traffic.list.header.timetable">
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="116"/>
+        <source>Timetable:</source>
+        <translation>Rozkład:</translation>
+    </message>
+    <message id="activity.traffic.list.header.trains">
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="118"/>
+        <source>Trains:</source>
+        <translation>Pociągi:</translation>
+    </message>
+    <message id="activity.traffic.list.header.problems">
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="120"/>
+        <source>Problems:</source>
+        <translation>Problemy:</translation>
+    </message>
+    <message id="route.editor.activity.traffic.window.timetable.summary">
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="202"/>
+        <source>%1 trains (%2 static), %3 stations, %4 stops.</source>
+        <translation>Pociągi: %1 (statyczne: %2), stacje: %3, postoje: %4.</translation>
+    </message>
+    <message id="route.editor.activity.traffic.window.timetable.changed">
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="206"/>
+        <source>Changed, not saved.</source>
+        <translation>Zmieniony, niezapisany.</translation>
+    </message>
+    <message id="route.editor.activity.traffic.window.timetable.problems">
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="211"/>
+        <source>Problems (Check Activity lists them too):</source>
+        <translation>Problemy (wymienia je też Sprawdź aktywność):</translation>
+    </message>
     <message id="route.editor.activity.traffic.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="146"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="243"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>Nazwa pliku nie może być pusta ani zawierać \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.traffic.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="152"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="249"/>
         <source>A traffic pattern named %1 exists already.</source>
         <translation>Ruch pociągów o nazwie %1 już istnieje.</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.title">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="182"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="279"/>
         <source>Delete Traffic</source>
         <translation>Usuń ruch pociągów</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.read.only">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="186"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="283"/>
         <source>The route is read-only.</source>
         <translation>Trasa jest tylko do odczytu.</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.question">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="191"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="288"/>
         <source>Delete the traffic pattern %1 and its file? This cannot be undone.</source>
         <translation>Usunąć ruch pociągów %1 i jego plik? Tej operacji nie można cofnąć.</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.users">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="196"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="293"/>
         <source>These activities name it: %1</source>
         <translation>Używają go te scenariusze: %1</translation>
     </message>
     <message id="route.editor.activity.traffic.window.delete.failed">
-        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="202"/>
+        <location filename="../src/routeEditor/activity/ActivityTrafficWindow.cpp" line="299"/>
         <source>The file %1 could not be deleted.</source>
         <translation>Nie udało się usunąć pliku %1.</translation>
     </message>
@@ -13985,175 +14054,175 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>%1: usunięto drogi mijania, przez które przeszła edycja: %2.</translation>
     </message>
     <message id="activity.check.player.service.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="103"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="105"/>
         <source>The player service %1 does not exist.</source>
         <translation>Kurs gracza %1 nie istnieje.</translation>
     </message>
     <message id="activity.check.instance.service.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="106"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="108"/>
         <source>The service %1 of an AI train does not exist.</source>
         <translation>Kurs %1 pociągu AI nie istnieje.</translation>
     </message>
     <message id="activity.check.service.no.consist">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="113"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="115"/>
         <source>The service %1 has no consist.</source>
         <translation>Kurs %1 nie ma składu.</translation>
     </message>
     <message id="activity.check.service.consist.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="118"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="120"/>
         <source>The service %1 names the consist %2, which does not exist.</source>
         <translation>Kurs %1 używa składu %2, który nie istnieje.</translation>
     </message>
     <message id="activity.check.skipcount.narrow">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="125"/>
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="295"/>
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="323"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="127"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="297"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="325"/>
         <source>%1: a skip count above 65535, more than MSTS keeps.</source>
         <translation>%1: SkipCount powyżej 65535, więcej niż zapisuje MSTS.</translation>
     </message>
     <message id="activity.check.service.no.path">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="130"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="132"/>
         <source>The service %1 has no path.</source>
         <translation>Kurs %1 nie ma drogi przejazdu.</translation>
     </message>
     <message id="activity.check.service.path.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="138"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="140"/>
         <source>The service %1 names the path %2, which does not exist.</source>
         <translation>Kurs %1 używa drogi przejazdu %2, która nie istnieje.</translation>
     </message>
     <message id="activity.check.path.passing.unjoined">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="154"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="156"/>
         <source>The path %1 has a passing path that does not come back to it; TSRE does not keep it.</source>
         <translation>Droga przejazdu %1 ma drogę mijania, która do niej nie wraca; TSRE jej nie zachowuje.</translation>
     </message>
     <message id="activity.check.path.broken">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="159"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="161"/>
         <source>The path %1 is broken: a node or the track between nodes is not on the track.</source>
         <translation>Droga przejazdu %1 jest uszkodzona: węzeł lub tor między węzłami nie leży na torze.</translation>
     </message>
     <message id="activity.check.stop.not.on.path">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="185"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="187"/>
         <source>%1: the stop at %2 is not on the path %3.</source>
         <translation>%1: postój przy %2 nie leży na drodze przejazdu %3.</translation>
     </message>
     <message id="activity.check.stop.distance">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="197"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="199"/>
         <source>%1: the stop at %2 is %3 m from where the path passes it.</source>
         <translation>%1: postój przy %2 jest %3 m od miejsca, w którym przechodzi droga przejazdu.</translation>
     </message>
     <message id="activity.check.stops.order">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="206"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="208"/>
         <source>%1: the stops are not in the order the path passes them.</source>
         <translation>%1: postoje nie są w kolejności drogi przejazdu.</translation>
     </message>
     <message id="activity.check.traffic.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="219"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="221"/>
         <source>The traffic pattern %1 does not exist.</source>
         <translation>Ruch pociągów %1 nie istnieje.</translation>
     </message>
     <message id="activity.check.instance.not.in.traffic">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="229"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="231"/>
         <source>The AI train %1 at %2 is not in the traffic pattern %3: it runs without its timetable.</source>
         <translation>Pociągu AI %1 o %2 nie ma w ruchu pociągów %3: jedzie bez swojego rozkładu jazdy.</translation>
     </message>
     <message id="activity.check.instance.name.case">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="236"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="238"/>
         <source>The AI train %1 at %2 is named %3 in the traffic pattern %4: Open Rails matches names exactly, so it runs without its timetable.</source>
         <translation>Pociąg AI %1 o %2 ma w ruchu pociągów %4 nazwę %3: Open Rails porównuje nazwy dokładnie, więc jedzie bez swojego rozkładu.</translation>
     </message>
     <message id="activity.check.instance.not.in.activity">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="250"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="252"/>
         <source>The traffic pattern&apos;s train %1 at %2 is not in the activity.</source>
         <translation>Pociągu %1 o %2 z ruchu pociągów nie ma w scenariuszu.</translation>
     </message>
     <message id="activity.check.player.start">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="267"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="269"/>
         <source>The player&apos;s timetable starts at %1, the activity at %2.</source>
         <translation>Rozkład jazdy gracza zaczyna się o %1, scenariusz o %2.</translation>
     </message>
     <message id="activity.check.stops.incomplete">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="291"/>
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="319"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="293"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="321"/>
         <source>%1: a stop lacks some of its fields.</source>
         <translation>%1: postojowi brakuje części pól.</translation>
     </message>
     <message id="activity.check.timetable.stops.differ">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="306"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="308"/>
         <source>%1: the activity&apos;s stops differ from the service&apos;s; its timetable needs computing again.</source>
         <translation>%1: postoje w scenariuszu różnią się od postojów kursu; rozkład jazdy trzeba obliczyć ponownie.</translation>
     </message>
     <message id="activity.check.time.depart.before.arrival">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="333"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="335"/>
         <source>%1: at stop %2 it leaves before it arrives.</source>
         <translation>%1: na postoju %2 odjeżdża przed przyjazdem.</translation>
     </message>
     <message id="activity.check.time.order">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="338"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="340"/>
         <source>%1: it reaches stop %2 before it leaves the stop before.</source>
         <translation>%1: dojeżdża do postoju %2, zanim odjedzie z poprzedniego.</translation>
     </message>
     <message id="activity.check.event.station.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="360"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="362"/>
         <source>Event %1: the station stop it names is not one of the player&apos;s stops.</source>
         <translation>Zdarzenie %1: wskazany postój nie jest postojem gracza.</translation>
     </message>
     <message id="activity.check.event.siding.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="368"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="370"/>
         <source>Event %1: the siding it names does not exist.</source>
         <translation>Zdarzenie %1: wskazany tor boczny nie istnieje.</translation>
     </message>
     <message id="activity.check.event.wagon.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="374"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="376"/>
         <source>Event %1: the car %2 is in no train of the activity.</source>
         <translation>Zdarzenie %1: wagonu %2 nie ma w żadnym pociągu scenariusza.</translation>
     </message>
     <message id="activity.check.event.link.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="381"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="383"/>
         <source>Event %1: an outcome names event %2, which does not exist.</source>
         <translation>Zdarzenie %1: skutek wskazuje zdarzenie %2, które nie istnieje.</translation>
     </message>
     <message id="activity.check.event.triggering.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="388"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="390"/>
         <source>Event %1: the AI train %2 that triggers it is not in the activity.</source>
         <translation>Zdarzenie %1: pociąg AI %2, który je wyzwala, nie występuje w scenariuszu.</translation>
     </message>
     <message id="activity.check.event.restart.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="397"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="399"/>
         <source>Event %1: the AI train %2 it restarts is not in the activity.</source>
         <translation>Zdarzenie %1: pociąg AI %2, który wznawia, nie występuje w scenariuszu.</translation>
     </message>
     <message id="activity.check.event.restart.waiting.point">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="402"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="404"/>
         <source>Event %1: the path of the AI train %2 has no waiting point of value %3; Open Rails restarts nothing.</source>
         <translation>Zdarzenie %1: droga przejazdu pociągu AI %2 nie ma punktu postoju o wartości %3; Open Rails niczego nie wznowi.</translation>
     </message>
     <message id="activity.check.overlay.present">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="475"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="477"/>
         <source>Open Rails adds the overlay %1 to this activity (Merge... in the activity panel puts it in).</source>
         <translation>Open Rails dodaje do tego scenariusza nakładkę %1 (Scal... w panelu scenariusza ją wstawia).</translation>
     </message>
     <message id="activity.check.overlay.unreadable">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="480"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="482"/>
         <source>The overlay %1 cannot be read.</source>
         <translation>Nie można odczytać nakładki %1.</translation>
     </message>
     <message id="activity.check.overlay.skipped">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="484"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="486"/>
         <source>Overlay: %1</source>
         <translation>Nakładka: %1</translation>
     </message>
     <message id="activity.check.consist.off.track">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="502"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="504"/>
         <source>The loose consist %1 is not on the track: the nearest track is %2 m away.</source>
         <translation>Luźny skład %1 nie stoi na torze: najbliższy tor jest %2 m dalej.</translation>
     </message>
     <message id="activity.check.consist.past.end">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="507"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="509"/>
         <source>The loose consist %1 runs past the end of the track: %2 m of track for %3 m of cars.</source>
         <translation>Luźny skład %1 wystaje poza koniec toru: %2 m toru na %3 m pojazdów.</translation>
     </message>
     <message id="activity.check.consist.cars.missing">
-        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="518"/>
+        <location filename="../src/tsre/trains/ActivityCheck.cpp" line="520"/>
         <source>The loose consist %1: some of its cars&apos; files are missing.</source>
         <translation>Luźny skład %1: brakuje plików niektórych pojazdów.</translation>
     </message>
@@ -14283,12 +14352,12 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>%1 s</translation>
     </message>
     <message id="simulation.error.no.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="132"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="144"/>
         <source>Choose an activity first.</source>
         <translation>Najpierw wybierz scenariusz.</translation>
     </message>
     <message id="simulation.error.no.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="145"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="157"/>
         <source>The activity has no train the simulation can run.</source>
         <translation>Scenariusz nie ma pociągu, który symulacja może uruchomić.</translation>
     </message>
@@ -14566,137 +14635,137 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stojący skład</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="611"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="623"/>
         <source>started</source>
         <translation>ruszył</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="615"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="627"/>
         <source>arrived at %1, booked %2</source>
         <translation>przyjechał na %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="617"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="629"/>
         <source>arrived at %1</source>
         <translation>przyjechał na %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="621"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="633"/>
         <source>departed from %1, booked %2</source>
         <translation>odjechał z %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="623"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="635"/>
         <source>departed from %1</source>
         <translation>odjechał z %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="628"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="640"/>
         <source>at a waiting point: %1</source>
         <translation>w punkcie oczekiwania: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="632"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="644"/>
         <source>reversed</source>
         <translation>zmienił kierunek</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="635"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="647"/>
         <source>sounded the horn</source>
         <translation>dał sygnał</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="638"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="650"/>
         <source>reached its path&apos;s end</source>
         <translation>dojechał do końca drogi przejazdu</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="643"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="655"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>zakleszczony: czeka na %1, który czeka na niego</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="650"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="662"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>zdarzenie %1 (przez pociąg gracza: jego pociąg wyzwalający jeszcze nie ruszył)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="652"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="664"/>
         <source>event %1</source>
         <translation>zdarzenie %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="661"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="673"/>
         <source>the activity ends: success</source>
         <translation>scenariusz kończy się sukcesem</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="663"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="675"/>
         <source>the activity ends without success</source>
         <translation>scenariusz kończy się porażką</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="666"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="678"/>
         <source>coupled to %1 cars</source>
         <translation>sprzęgnięty z wagonami (%1)</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="669"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="681"/>
         <source>joined the cars standing ahead</source>
         <translation>dołączył do wagonów stojących przed nim</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="672"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="684"/>
         <source>cut off %1 cars</source>
         <translation>odczepił wagony (%1)</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="675"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="687"/>
         <source>took %1 cars from %2</source>
         <translation>zabrał wagony (%1) z pociągu %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="678"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="690"/>
         <source>left %1 cars to %2</source>
         <translation>zostawił wagony (%1) pociągowi %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="681"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="693"/>
         <source>joined %1</source>
         <translation>dołączył do pociągu %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="684"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="696"/>
         <source>runs on its own again, parted from %1</source>
         <translation>jedzie znów sam, odłączony od pociągu %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="687"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="699"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>usunięty: zabrane wagony stoją poza jego drogą (jak w Open Rails)</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="697"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="709"/>
         <source>restarted by event %1</source>
         <translation>wznowiony przez zdarzenie %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="789"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="801"/>
         <source>Every train has finished its path.</source>
         <translation>Wszystkie pociągi przejechały swoje drogi.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="791"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="803"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Pociągi: %1 czeka, %2 jedzie, %3 stoi, %4 zakończyło.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="800"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="812"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Zakleszczenie: %1 czekają na siebie nawzajem.</translation>
     </message>
     <message id="simulation.status.warnings">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="803"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="815"/>
         <source>Not simulated: %1.</source>
         <translation>Bez symulacji: %1.</translation>
     </message>
@@ -14841,144 +14910,224 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Planowanie zadań manewrowych gracza zostało przerwane.</translation>
     </message>
     <message id="timetable.read.unreadable">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="239"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="241"/>
         <source>cannot read %1</source>
         <translation>nie można odczytać %1</translation>
     </message>
     <message id="timetable.read.empty">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="249"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="261"/>
         <source>the file is empty</source>
         <translation>plik jest pusty</translation>
     </message>
     <message id="timetable.read.separator">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="255"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="267"/>
         <source>the first character is &apos;%1&apos;, not a separator (&apos;;&apos;, &apos;,&apos; or a tab)</source>
         <translation>pierwszy znak to &apos;%1&apos;, nie separator (&apos;;&apos;, &apos;,&apos; lub tabulator)</translation>
     </message>
     <message id="timetable.read.column">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="303"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="315"/>
         <source>column %1: %2 is not a column Open Rails knows (skipped)</source>
         <translation>kolumna %1: %2 nie jest kolumną znaną Open Rails (pominięta)</translation>
     </message>
     <message id="timetable.read.speed.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="348"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="360"/>
         <source>row %1: a second speed row (skipped)</source>
         <translation>wiersz %1: drugi wiersz prędkości (pominięty)</translation>
     </message>
     <message id="timetable.read.row">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="364"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="377"/>
         <source>row %1: %2 is not a row Open Rails knows (skipped)</source>
         <translation>wiersz %1: %2 nie jest wierszem znanym Open Rails (pominięty)</translation>
     </message>
     <message id="timetable.read.station.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="384"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="397"/>
         <source>row %1: station %2 again (Open Rails matches stations by name)</source>
         <translation>wiersz %1: stacja %2 ponownie (Open Rails dopasowuje stacje po nazwie)</translation>
     </message>
     <message id="timetable.read.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="393"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="406"/>
         <source>no #path row</source>
         <translation>brak wiersza #path</translation>
     </message>
     <message id="timetable.read.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="396"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="409"/>
         <source>no #consist row</source>
         <translation>brak wiersza #consist</translation>
     </message>
     <message id="timetable.read.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="399"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="412"/>
         <source>no #start row</source>
         <translation>brak wiersza #start</translation>
     </message>
     <message id="timetable.read.train.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="424"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="440"/>
         <source>column %1: train %2 again (names must be unique)</source>
         <translation>kolumna %1: pociąg %2 ponownie (nazwy muszą być unikalne)</translation>
     </message>
     <message id="timetable.read.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="438"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="456"/>
         <source>train %1: start %2 is not a time</source>
         <translation>pociąg %1: start %2 nie jest godziną</translation>
     </message>
     <message id="timetable.read.timing">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="483"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="502"/>
         <source>train %1 at %2: %3 is not a timing</source>
         <translation>pociąg %1 na %2: %3 nie jest czasem</translation>
     </message>
+    <message id="timetable.save.original">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="609"/>
+        <source>The original %1 could not be kept as %2.</source>
+        <translation>Nie udało się zachować oryginału %1 jako %2.</translation>
+    </message>
+    <message id="timetable.save.unwritable">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="616"/>
+        <source>%1 could not be written.</source>
+        <translation>Nie udało się zapisać %1.</translation>
+    </message>
     <message id="timetable.check.station">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="535"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="669"/>
         <source>station %1: no platform of the route has it</source>
         <translation>stacja %1: żaden peron trasy jej nie ma</translation>
     </message>
     <message id="timetable.check.command.text">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="547"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="681"/>
         <source>%1: &apos;$%2&apos; is no command; a timing must come before the commands</source>
         <translation>%1: &apos;$%2&apos; nie jest poleceniem; czas musi być przed poleceniami</translation>
     </message>
     <message id="timetable.check.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="551"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="685"/>
         <source>%1: $%2 is not run by TSRE yet</source>
         <translation>%1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
     <message id="timetable.check.reference">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="557"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="692"/>
         <source>%1: $%2 names %3, not a train of the timetable</source>
         <translation>%1: $%2 wskazuje %3, nie pociąg tego rozkładu</translation>
     </message>
     <message id="timetable.check.ahead">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="563"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="698"/>
         <source>%1: /ahead=%2 is not a train of the timetable</source>
         <translation>%1: /ahead=%2 nie jest pociągiem tego rozkładu</translation>
     </message>
     <message id="timetable.check.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="569"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="704"/>
         <source>no path</source>
         <translation>brak ścieżki</translation>
     </message>
     <message id="timetable.check.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="572"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="707"/>
         <source>path %1 is not in the route&apos;s PATHS</source>
         <translation>ścieżki %1 nie ma w PATHS trasy</translation>
     </message>
     <message id="timetable.check.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="575"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="711"/>
         <source>no consist</source>
         <translation>brak składu</translation>
     </message>
     <message id="timetable.check.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="579"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="715"/>
         <source>consist %1 is not there</source>
         <translation>składu %1 nie ma</translation>
     </message>
     <message id="timetable.check.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="582"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="718"/>
         <source>no start time</source>
         <translation>brak godziny startu</translation>
     </message>
     <message id="timetable.check.where.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="584"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="720"/>
         <source>start</source>
         <translation>start</translation>
     </message>
     <message id="timetable.check.where.note">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="586"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="722"/>
         <source>note</source>
         <translation>uwagi</translation>
     </message>
     <message id="timetable.check.where.dispose">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="588"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="724"/>
         <source>dispose</source>
         <translation>koniec biegu</translation>
     </message>
     <message id="timetable.check.where.speed">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="590"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="726"/>
         <source>speed</source>
         <translation>prędkość</translation>
     </message>
     <message id="timetable.check.station.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="599"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="735"/>
         <source>station %1: $%2 is not run by TSRE yet</source>
         <translation>stacja %1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.station">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="31"/>
+        <source>Station</source>
+        <translation>Stacja</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.arrival">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="33"/>
+        <source>Arrival</source>
+        <translation>Przyjazd</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.departure">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="35"/>
+        <source>Departure</source>
+        <translation>Odjazd</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.commands">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="37"/>
+        <source>Commands</source>
+        <translation>Polecenia</translation>
+    </message>
+    <message id="route.editor.activity.or.train.stops.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="47"/>
+        <source>Arrival and departure as HH:mm or HH:mm:ss (double-click to change); one time empty: both the same.</source>
+        <translation>Przyjazd i odjazd jako GG:mm lub GG:mm:ss (dwuklik, by zmienić); jeden czas pusty: oba takie same.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.start">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="56"/>
+        <source>Start:</source>
+        <translation>Start:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.path">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="98"/>
+        <source>Path: %1</source>
+        <translation>Ścieżka: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.train.consist">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="100"/>
+        <source>Consist: %1</source>
+        <translation>Skład: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.train.start.commands">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="103"/>
+        <source>Start: %1</source>
+        <translation>Start: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.train.note">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="106"/>
+        <source>Note: %1</source>
+        <translation>Uwagi: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.train.dispose">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="109"/>
+        <source>Dispose: %1</source>
+        <translation>Na końcu: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.train.speed">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="112"/>
+        <source>Speed: %1</source>
+        <translation>Prędkość: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.train.comment">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="115"/>
+        <source>Comment: %1</source>
+        <translation>Komentarz: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.train.file">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="117"/>
+        <source>In %1.</source>
+        <translation>W %1.</translation>
     </message>
 </context>
 </TS>

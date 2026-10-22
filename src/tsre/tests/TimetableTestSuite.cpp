@@ -93,6 +93,36 @@ Train (
 )
 )";
 
+// What a timetable says, as one text: its description, stations and
+// their commands, every train's cells as read and what they say (a train
+// static by its column's head named after its column, which moves: not its
+// name).
+QString fingerprint(const OrTimetable &t) {
+    QStringList out{t.description};
+    const auto commands = [](const QVector<OrTimetable::Command> &list) {
+        QStringList texts;
+        for (const OrTimetable::Command &c : list)
+            texts << c.text;
+        return texts.join(" | ");
+    };
+    for (const OrTimetable::Station &station : t.stations)
+        out << "station " + station.name + " [" + commands(station.commands) + "]";
+    for (const OrTimetable::Train &train : t.trains) {
+        out << QString("train %1 static %2 comment %3 path %4 (%5) consist %6 start %7 (%8) [%9] notes [%10] "
+                       "dispose [%11] speed %12 (%13) delay %14 briefing %15")
+                   .arg(train.header.startsWith('$') ? QString("(static)") : train.name).arg(train.isStatic).arg(train.comment, train.path, train.pathText, train.consist,
+                                                             train.start).arg(train.startTime)
+                   .arg(commands(train.startCommands), commands(train.notes), commands(train.dispose))
+                   .arg(train.speed).arg(train.speedText, train.restartDelay, train.briefing);
+        for (const OrTimetable::Stop &stop : train.stops)
+            out << QString("  stop %1 %2-%3 P%4 %5%6 [%7] %8")
+                       .arg(t.stations[stop.station].name).arg(stop.timing.arrival).arg(stop.timing.departure)
+                       .arg(stop.timing.passing).arg(stop.timing.early).arg(stop.timing.request)
+                       .arg(commands(stop.commands), stop.text);
+    }
+    return out.join("\n");
+}
+
 const char *vehicleText = R"(SIMISA@@@@@@@@@@JINX0D0t______
 
 Wagon ( %1
@@ -203,6 +233,44 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         OrTimetable w;
         const bool read = w.load(wrong);
         check(!read && !w.problems.isEmpty(), "a first cell not empty: not a timetable (" + w.problems.join("; ") + ")");
+    }
+
+    // The writer (phase 6): written in TSRE's layout and read again, the
+    // same timetable; edits written; saving keeps the original once.
+    {
+        OrTimetable again;
+        const QString written = t.toText();
+        check(again.loadText(written) && fingerprint(again) == fingerprint(t) && t.trains.size() == 4,
+              "written in TSRE's layout and read again: the same timetable");
+        OrTimetable edited = t;
+        const int t1 = edited.trainNamed("T1");
+        edited.setStartTime(t1, 5 * 3600 + 300);
+        edited.setStopTimes(t1, 0, 5 * 3600 + 660, 5 * 3600 + 900);
+        OrTimetable back;
+        back.loadText(edited.toText());
+        const int b1 = back.trainNamed("T1");
+        check(edited.modified && b1 >= 0 && back.trains[b1].startTime == 5 * 3600 + 300
+                  && back.trains[b1].startCommands.size() == 1 && back.trains[b1].stops[0].timing.arrival == 5 * 3600 + 660
+                  && back.trains[b1].stops[0].timing.departure == 5 * 3600 + 900 && back.trains[b1].stops[0].commands.size() == 1
+                  && back.trains[b1].stops[0].text == "05:11-05:15 $closeupsignal",
+              "edits written: T1's start 05:05 ($create kept), its stop at A 05:11-05:15: " + edited.trains[t1].start);
+        const QString copy = dir.filePath("copy.timetable-or");
+        QFile::copy(utf16, copy);
+        QFile original(utf16);
+        original.open(QIODevice::ReadOnly);
+        const QByteArray bytes = original.readAll();
+        OrTimetable saved;
+        saved.load(copy);
+        saved.setStopTimes(saved.trainNamed("T2"), 0, 5 * 3600 + 1260, 5 * 3600 + 1260);
+        QString error;
+        const bool first = saved.save(&error);
+        saved.save(&error);
+        QFile kept(copy + ".original");
+        kept.open(QIODevice::ReadOnly);
+        OrTimetable reread;
+        reread.load(copy);
+        check(first && !saved.modified && kept.readAll() == bytes && fingerprint(reread) == fingerprint(saved),
+              "saved: the original kept once as .original, the file read again the same " + error);
     }
 
     // A timetable group: its name and timetables.
@@ -352,6 +420,23 @@ int TsreTests::runTimetableRouteSuite(bool verbose) {
                       "%9 problems reading it")
                   .arg(name, timetable.description).arg(ms).arg(timetable.trains.size()).arg(statics).arg(speeds)
                   .arg(timetable.stations.size()).arg(stops).arg(timetable.problems.size()));
+        // Written in TSRE's layout (phase 6) and read again: the same
+        // timetable. TSRE_TIMETABLE_WRITE=<folder>: also written there (for
+        // Open Rails; never into the route).
+        {
+            OrTimetable again;
+            const QString written = timetable.toText();
+            check(again.loadText(written) && fingerprint(again) == fingerprint(timetable),
+                  QString("%1 written in TSRE's layout and read again: the same timetable (%2 KiB)")
+                      .arg(name).arg(written.toUtf8().size() / 1024));
+            const QString out = qEnvironmentVariable("TSRE_TIMETABLE_WRITE");
+            if (!out.isEmpty() && !QFileInfo(out).absoluteFilePath().startsWith(QFileInfo(routeDirectory).absoluteFilePath())) {
+                OrTimetable copy = timetable;
+                copy.file = out + "/" + name;
+                QString error;
+                check(copy.save(&error), "written to " + copy.file + " " + error);
+            }
+        }
         const QVector<OrTimetableProblem> problems = CheckTimetable(timetable, routeDirectory, consists, &database);
         // What the check found, by kind (the text up to its first name).
         QMap<QString, int> kinds;
