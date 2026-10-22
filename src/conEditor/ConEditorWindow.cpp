@@ -1085,10 +1085,14 @@ void ConEditorWindow::replaceAllAllEnabled(){
 }
     
 bool ConEditorWindow::eventFilter(QObject *watched, QEvent *event) {
+    // Set once the resize is through: changed inside it, the view's own
+    // layout kept its surface at the old height (at start-up).
     if (watched == glConWidget && event->type() == QEvent::Resize) {
-        const int height = consistViewHeight(glConWidget->width());
-        if (glConWidget->height() != height)
-            glConWidget->setFixedHeight(height);
+        QMetaObject::invokeMethod(this, [this] {
+            const int height = consistViewHeight(glConWidget->width());
+            if (glConWidget->height() != height)
+                glConWidget->setFixedHeight(height);
+        }, Qt::QueuedConnection);
     }
     return QMainWindow::eventFilter(watched, event);
 }

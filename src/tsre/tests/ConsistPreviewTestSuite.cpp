@@ -157,23 +157,33 @@ int TsreTests::runConsistPreviewSuite(bool verbose) {
         editor->resize(1800, 1000);
         editor->show();
         QApplication::processEvents();
+        QApplication::processEvents();
         ShapeViewerGLWidget *consistView = nullptr, *unitView = nullptr;
         for (ShapeViewerGLWidget *view : editor->findChildren<ShapeViewerGLWidget *>())
             (view->minimumHeight() == view->maximumHeight() ? consistView : unitView) = view;
         check(consistView != nullptr && unitView != nullptr, "editor has a consist view of fixed height");
+        // The surface the view draws on fills it (its own layout).
+        const auto surfaceFills = [](QWidget *view) {
+            const QList<QWidget *> children = view->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
+            return !children.isEmpty() && children.first()->size() == view->size();
+        };
         if (consistView != nullptr && unitView != nullptr) {
             const int consistHeight = consistView->height(), unitHeight = unitView->height();
             check(consistHeight == std::max(100, int(consistView->width() * 0.11f)),
                   "consist view height follows its width");
+            check(surfaceFills(consistView), "consist view's surface fills it at start");
             editor->resize(1800, 1500);
+            QApplication::processEvents();
             QApplication::processEvents();
             check(consistView->height() == consistHeight && unitView->height() > unitHeight + 300,
                   "a taller window goes to the lists and the unit's view");
             editor->resize(1300, 1500);
             QApplication::processEvents();
+            QApplication::processEvents();
             check(consistView->height() == std::max(100, int(consistView->width() * 0.11f))
                           && consistView->height() < consistHeight,
                   "a narrower window lowers the consist view");
+            check(surfaceFills(consistView), "consist view's surface fills it after resizes");
         }
         // Hidden, not deleted: its list widgets free the children they hold
         // by value twice (the application never destroys the editor).
