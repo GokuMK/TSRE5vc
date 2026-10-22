@@ -504,6 +504,13 @@ reported, editing commands).
   `addStation`). Without the route's track or the path: its stops in the
   timetable's order. (A first try listed every station of the timetable,
   "All stations": dropped.)
+- Follow before the train starts (the user: following a train that
+  starts at 15:00 took many clicks, easy to get wrong): Follow on a train
+  that has not started runs the simulation as fast as possible to 30 s
+  before its start time (starting one where there is none), then on at
+  the chosen speed, the camera on the train once it is on the track
+  (`SimulationController::followFromStart`); choosing another train while
+  following does the same for it. MSTS activities too.
 - **Fixtures:** `timetable-ui` (33): the grid; the note's picker (its
   commands ticked, a qualifier changed, a command ticked, OK, undo), a
   stop's "…" (`$keepclear /rear=50`), the station's picker without

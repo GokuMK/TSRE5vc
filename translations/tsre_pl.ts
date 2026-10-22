@@ -5299,7 +5299,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="route.editor.activity.timetable.window.summary.unchanged">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="98"/>
-        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="832"/>
+        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="865"/>
         <source>Nothing changed.</source>
         <translation>Nic się nie zmieniło.</translation>
     </message>
@@ -5390,8 +5390,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="route.editor.activity.timetable.window.button.follow.tooltip">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="170"/>
-        <source>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</source>
-        <translation>Kamera podąża za wybranym pociągiem, gdy symulacja trwa, przy oknie jego kabiny. W 3D klawisz 1 pokazuje widok z kabiny, klawisz 2 jego czoło, a klawisz 3 jego koniec.</translation>
+        <source>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. A train that has not started yet: the simulation runs as fast as possible to just before its start (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</source>
+        <translation>Kamera podąża za wybranym pociągiem podczas symulacji, przy oknie jego kabiny. Pociąg, który jeszcze nie wyruszył: symulacja biegnie jak najszybciej do chwili tuż przed jego startem (najpierw uruchomiona, gdy jej nie ma), potem dalej z wybraną prędkością. W 3D klawisz 1 to widok z kabiny, 2 z przodu, 3 z tyłu.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.new.train">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="175"/>
@@ -5501,121 +5501,121 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>%1 (poza scenariuszem)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="560"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="566"/>
         <source>The times and commands are saved in the timetable: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</source>
         <translation>Czasy i polecenia są zapisywane w rozkładzie: Zapisz aktywności zapisuje go w układzie TSRE, za pierwszym razem zachowując obok oryginał.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="575"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="581"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="889"/>
         <source>The player&apos;s times are saved in the activity.</source>
         <translation>Czasy pociągu gracza są zapisane w scenariuszu.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.pattern.only">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="579"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="585"/>
         <source>A run of the traffic pattern %1 that the activity does not have: Add to Activity puts it in.</source>
         <translation>Kurs z ruchu pociągów %1, którego scenariusz nie ma: Dodaj do scenariusza go wstawia.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="583"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="589"/>
         <source>Not in the traffic pattern %1: this train has no times.</source>
         <translation>Brak w ruchu pociągów %1: ten pociąg nie ma czasów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.own">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="589"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="595"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="885"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="915"/>
         <source>The times are saved in the traffic pattern %1, used by this activity only.</source>
         <translation>Czasy są zapisane w ruchu pociągów %1, używanym tylko przez ten scenariusz.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="593"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="599"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="905"/>
         <source>The times are saved in the traffic pattern %1, shared with: %2. Changing them changes those activities too.</source>
         <translation>Czasy są zapisane w ruchu pociągów %1, wspólnym z: %2. Ich zmiana zmienia też te scenariusze.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="628"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="634"/>
         <source>A train&apos;s name cannot be empty, start with # or hold $ ; , or a tab.</source>
         <translation>Nazwa pociągu nie może być pusta, zaczynać się od # ani zawierać $ ; , lub tabulatora.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="632"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="638"/>
         <source>A train named %1 is in the timetables already.</source>
         <translation>Pociąg o nazwie %1 jest już w rozkładach.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.new.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="663"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="669"/>
         <source>New Train</source>
         <translation>Nowy pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="665"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="671"/>
         <source>The new train&apos;s name:</source>
         <translation>Nazwa nowego pociągu:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.clone.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="680"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="686"/>
         <source>Clone Train</source>
         <translation>Klonuj pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.clone.name">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="682"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="688"/>
         <source>The copy&apos;s name:</source>
         <translation>Nazwa kopii:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.question">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="696"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="702"/>
         <source>Remove the train %1 from the timetable?</source>
         <translation>Usunąć pociąg %1 z rozkładu?</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.naming">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="701"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="707"/>
         <source>These trains&apos; commands name it and are kept: %1</source>
         <translation>Polecenia tych pociągów go wymieniają i zostają: %1</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="704"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="710"/>
         <source>Remove Train</source>
         <translation>Usuń pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.copy.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="770"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="776"/>
         <source>Own Copy of the Traffic Pattern</source>
         <translation>Własna kopia ruchu pociągów</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="779"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="785"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>Nazwa pliku nie może być pusta ani zawierać \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="785"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="791"/>
         <source>A traffic pattern named %1 exists already.</source>
         <translation>Ruch pociągów o nazwie %1 już istnieje.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="920"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="950"/>
         <source>The traffic pattern %1 is shared with: %2. Only the player&apos;s times are written; Make Own Copy... to write the AI trains&apos; too.</source>
         <translation>Ruch pociągów %1 jest wspólny z: %2. Zapisywane są tylko czasy gracza; Utwórz własną kopię..., by zapisać też czasy pociągów AI.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.no.pattern">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="924"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="954"/>
         <source>The activity has no traffic pattern: the player&apos;s times alone.</source>
         <translation>Scenariusz nie ma ruchu pociągów: tylko czasy gracza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="928"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="958"/>
         <source>Whose times Simulate writes: the player&apos;s in the activity, the AI trains&apos; in the traffic pattern.</source>
         <translation>Czyje czasy zapisuje Symuluj: gracza w scenariuszu, pociągów AI w ruchu pociągów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="952"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="982"/>
         <source>Simulating the activity...</source>
         <translation>Symulowanie scenariusza...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating.cancel">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="954"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="984"/>
         <source>Cancel</source>
         <translation>Anuluj</translation>
     </message>
@@ -14715,132 +14715,132 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stojący skład</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="626"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="636"/>
         <source>started</source>
         <translation>ruszył</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="630"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="640"/>
         <source>arrived at %1, booked %2</source>
         <translation>przyjechał na %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="632"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="642"/>
         <source>arrived at %1</source>
         <translation>przyjechał na %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="636"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="646"/>
         <source>departed from %1, booked %2</source>
         <translation>odjechał z %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="638"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="648"/>
         <source>departed from %1</source>
         <translation>odjechał z %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="643"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="653"/>
         <source>at a waiting point: %1</source>
         <translation>w punkcie oczekiwania: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="647"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="657"/>
         <source>reversed</source>
         <translation>zmienił kierunek</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="650"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="660"/>
         <source>sounded the horn</source>
         <translation>dał sygnał</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="653"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="663"/>
         <source>reached its path&apos;s end</source>
         <translation>dojechał do końca drogi przejazdu</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="658"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="668"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>zakleszczony: czeka na %1, który czeka na niego</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="665"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="675"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>zdarzenie %1 (przez pociąg gracza: jego pociąg wyzwalający jeszcze nie ruszył)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="667"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="677"/>
         <source>event %1</source>
         <translation>zdarzenie %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="676"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="686"/>
         <source>the activity ends: success</source>
         <translation>scenariusz kończy się sukcesem</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="678"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="688"/>
         <source>the activity ends without success</source>
         <translation>scenariusz kończy się porażką</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="681"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="691"/>
         <source>coupled to %1 cars</source>
         <translation>sprzęgnięty z wagonami (%1)</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="684"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="694"/>
         <source>joined the cars standing ahead</source>
         <translation>dołączył do wagonów stojących przed nim</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="687"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="697"/>
         <source>cut off %1 cars</source>
         <translation>odczepił wagony (%1)</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="690"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="700"/>
         <source>took %1 cars from %2</source>
         <translation>zabrał wagony (%1) z pociągu %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="693"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="703"/>
         <source>left %1 cars to %2</source>
         <translation>zostawił wagony (%1) pociągowi %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="696"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="706"/>
         <source>joined %1</source>
         <translation>dołączył do pociągu %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="699"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="709"/>
         <source>runs on its own again, parted from %1</source>
         <translation>jedzie znów sam, odłączony od pociągu %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="702"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="712"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>usunięty: zabrane wagony stoją poza jego drogą (jak w Open Rails)</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="712"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="722"/>
         <source>restarted by event %1</source>
         <translation>wznowiony przez zdarzenie %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="804"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="814"/>
         <source>Every train has finished its path.</source>
         <translation>Wszystkie pociągi przejechały swoje drogi.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="806"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="816"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Pociągi: %1 czeka, %2 jedzie, %3 stoi, %4 zakończyło.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="815"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="825"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Zakleszczenie: %1 czekają na siebie nawzajem.</translation>
     </message>

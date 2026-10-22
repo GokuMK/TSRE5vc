@@ -166,7 +166,7 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         //% "Follow"
         qtTrId("route.editor.activity.timetable.window.button.follow"));
     bFollow->setToolTip(
-        //% "The camera follows the chosen train while the simulation runs, at its cab's window. In 3D, key 1 views from its cab, key 2 its front and key 3 its back."
+        //% "The camera follows the chosen train while the simulation runs, at its cab's window. A train that has not started yet: the simulation runs as fast as possible to just before its start (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back."
         qtTrId("route.editor.activity.timetable.window.button.follow.tooltip"));
     bFollow->setCheckable(true);
     bFollow->setObjectName("timetableFollow");
@@ -524,9 +524,15 @@ void ActivityTimetableWindow::showChosen(){
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const int simulatedTrain = train != NULL && simulation->shows(activity) ? simulated(*train) : -1;
     simulation->choose(simulatedTrain);
-    bFollow->setEnabled(simulatedTrain >= 0);
-    if(simulation->followed() >= 0)
-        simulation->follow(simulatedTrain);
+    // Follow before a simulation too: it starts one (followToggled).
+    const bool followable = train != NULL && activity != NULL && !train->staticTrain
+            && (train->kind == ActivityTrains::Player || train->kind == ActivityTrains::AI);
+    bFollow->setEnabled(simulatedTrain >= 0 || (!simulation->exists() && followable));
+    // Another train chosen while following: followed instead, from just
+    // before its start when it has not started.
+    if(simulation->followed() >= 0 && simulation->followed() != simulatedTrain
+            && (simulatedTrain < 0 || !simulation->followFromStart(simulatedTrain)))
+        simulation->follow(-1);
     showEvents(0);
     bCopy->setVisible(false);
     savedIn.setStyleSheet(QString());
@@ -832,9 +838,33 @@ int ActivityTimetableWindow::simulated(const ActivityTrains::Train &train) const
     return -1;
 }
 
+// Follow: the chosen train from just before its start (the user,
+// 2026-10-22), a simulation started where there is none.
 void ActivityTimetableWindow::followToggled(bool on){
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
-    simulation->follow(on ? simulation->chosen() : -1);
+    if(!on){
+        simulation->follow(-1);
+        return;
+    }
+    const ActivityTrains::Train *train = chosen();
+    QString error;
+    bool following = false;
+    if(train != NULL){
+        const ActivityTrains::Train picked = *train;
+        if(simulation->exists() || simulation->start(activity, &error)){
+            const int id = simulation->shows(activity) ? simulated(picked) : -1;
+            if(id >= 0 && simulation->followFromStart(id, &error)){
+                simulation->choose(id);
+                following = true;
+            }
+        }
+    }
+    if(!following){
+        QSignalBlocker blocker(bFollow);
+        bFollow->setChecked(false);
+        if(!error.isEmpty())
+            QMessageBox::warning(this, windowTitle(), error);
+    }
 }
 
 void ActivityTimetableWindow::simulationChanged(){

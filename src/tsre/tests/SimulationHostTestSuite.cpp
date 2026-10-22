@@ -780,6 +780,39 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(Undo::UndoLast() && activity->header->name == "Simulated", "after Stop the activity's step undoes");
     Undo::Clear();
 
+    // Follow before the train starts (the user, 2026-10-22): no
+    // simulation; the AI's S2 (08:01) chosen, Follow starts one, runs as
+    // fast as possible to 30 s before its start, then on at the speed,
+    // following it.
+    {
+        int s2Row = -1;
+        for (int i = 0; i < rows->topLevelItemCount(); ++i)
+            if (rows->topLevelItem(i)->text(1).startsWith("S2"))
+                s2Row = i;
+        if (s2Row >= 0) {
+            rows->setCurrentItem(rows->topLevelItem(s2Row));
+            rows->topLevelItem(s2Row)->setSelected(true);
+        }
+        pump();
+        speed->setCurrentIndex(speed->findData(1.0));
+        emit speed->activated(speed->currentIndex());
+        const bool offered = follow->isEnabled() && !simulation->exists();
+        follow->click();
+        pump();
+        const int s2 = simulation->exists() ? simulation->trainOf(false, 0) : -1;
+        FramePointer f2 = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.time >= 8 * 3600 + 30 - 0.5 && x.mode == Sim::RunMode::Running; }, 10000, pump);
+        pump();
+        check(offered && f2 && s2 >= 0 && simulation->followed() == s2 && follow->isChecked() && simulation->runs()
+                  && f2->time < 8 * 3600 + 60,
+              QString("Follow before S2 starts: a simulation run to %1 (30 s before 08:01), on at the speed, S2 followed")
+                  .arg(f2 ? f2->time : -1.0));
+        stop->click();
+        pump();
+        check(!simulation->exists() && !follow->isChecked(), "Stop: Follow off");
+        Undo::Clear();
+    }
+
     // Simulate (task 04): the activity run as fast as possible, its times
     // written. The file books the player's S to leave Middle at 08:02:40, the
     // AI's S2 Middle 2 at 08:04:20: departures that hold them, rounded up

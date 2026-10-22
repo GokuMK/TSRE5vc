@@ -98,6 +98,13 @@ public:
     void choose(int train);
     int followed() const { return followedTrain; }
     void follow(int train);
+    // Follows a train from just before its start (the user, 2026-10-22):
+    // where the simulation is earlier than FollowLead before the train's
+    // start time, as fast as possible to it, then on at the speed; the
+    // camera follows it once it is on the track. False when there is no
+    // such train or the run cannot be asked.
+    bool followFromStart(int train, QString *error = nullptr);
+    static constexpr double FollowLead = 30.0;
     // A train's centre and the way it heads (unit, in the camera's space):
     // tile x, tile z (the camera's), x, y, z; its length; false when not on
     // the track.

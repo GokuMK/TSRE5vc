@@ -5297,7 +5297,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="route.editor.activity.timetable.window.summary.unchanged">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="98"/>
-        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="832"/>
+        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="865"/>
         <source>Nothing changed.</source>
         <translation>Nothing changed.</translation>
     </message>
@@ -5388,9 +5388,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="route.editor.activity.timetable.window.button.follow.tooltip">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="170"/>
-        <source>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</source>
-        <oldsource>The camera follows the chosen train while the simulation runs. In 3D, key 1 views its front and key 2 its back.</oldsource>
-        <translation>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</translation>
+        <source>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. A train that has not started yet: the simulation runs as fast as possible to just before its start (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</source>
+        <translation>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. A train that has not started yet: the simulation runs as fast as possible to just before its start (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.new.train">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="175"/>
@@ -5500,121 +5499,121 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>%1 (not in the activity)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="560"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="566"/>
         <source>The times and commands are saved in the timetable: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</source>
         <translation>The times and commands are saved in the timetable: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="575"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="581"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="889"/>
         <source>The player&apos;s times are saved in the activity.</source>
         <translation>The player&apos;s times are saved in the activity.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.pattern.only">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="579"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="585"/>
         <source>A run of the traffic pattern %1 that the activity does not have: Add to Activity puts it in.</source>
         <translation>A run of the traffic pattern %1 that the activity does not have: Add to Activity puts it in.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="583"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="589"/>
         <source>Not in the traffic pattern %1: this train has no times.</source>
         <translation>Not in the traffic pattern %1: this train has no times.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.own">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="589"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="595"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="885"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="915"/>
         <source>The times are saved in the traffic pattern %1, used by this activity only.</source>
         <translation>The times are saved in the traffic pattern %1, used by this activity only.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="593"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="599"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="905"/>
         <source>The times are saved in the traffic pattern %1, shared with: %2. Changing them changes those activities too.</source>
         <translation>The times are saved in the traffic pattern %1, shared with: %2. Changing them changes those activities too.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="628"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="634"/>
         <source>A train&apos;s name cannot be empty, start with # or hold $ ; , or a tab.</source>
         <translation>A train&apos;s name cannot be empty, start with # or hold $ ; , or a tab.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="632"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="638"/>
         <source>A train named %1 is in the timetables already.</source>
         <translation>A train named %1 is in the timetables already.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.new.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="663"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="669"/>
         <source>New Train</source>
         <translation>New Train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="665"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="671"/>
         <source>The new train&apos;s name:</source>
         <translation>The new train&apos;s name:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.clone.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="680"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="686"/>
         <source>Clone Train</source>
         <translation>Clone Train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.clone.name">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="682"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="688"/>
         <source>The copy&apos;s name:</source>
         <translation>The copy&apos;s name:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.question">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="696"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="702"/>
         <source>Remove the train %1 from the timetable?</source>
         <translation>Remove the train %1 from the timetable?</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.naming">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="701"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="707"/>
         <source>These trains&apos; commands name it and are kept: %1</source>
         <translation>These trains&apos; commands name it and are kept: %1</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="704"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="710"/>
         <source>Remove Train</source>
         <translation>Remove Train</translation>
     </message>
     <message id="route.editor.activity.timetable.window.copy.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="770"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="776"/>
         <source>Own Copy of the Traffic Pattern</source>
         <translation>Own Copy of the Traffic Pattern</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="779"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="785"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="785"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="791"/>
         <source>A traffic pattern named %1 exists already.</source>
         <translation>A traffic pattern named %1 exists already.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="920"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="950"/>
         <source>The traffic pattern %1 is shared with: %2. Only the player&apos;s times are written; Make Own Copy... to write the AI trains&apos; too.</source>
         <translation>The traffic pattern %1 is shared with: %2. Only the player&apos;s times are written; Make Own Copy... to write the AI trains&apos; too.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.no.pattern">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="924"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="954"/>
         <source>The activity has no traffic pattern: the player&apos;s times alone.</source>
         <translation>The activity has no traffic pattern: the player&apos;s times alone.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="928"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="958"/>
         <source>Whose times Simulate writes: the player&apos;s in the activity, the AI trains&apos; in the traffic pattern.</source>
         <translation>Whose times Simulate writes: the player&apos;s in the activity, the AI trains&apos; in the traffic pattern.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="952"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="982"/>
         <source>Simulating the activity...</source>
         <translation>Simulating the activity...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating.cancel">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="954"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="984"/>
         <source>Cancel</source>
         <translation>Cancel</translation>
     </message>
@@ -14712,132 +14711,132 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>a standing consist</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="626"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="636"/>
         <source>started</source>
         <translation>started</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="630"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="640"/>
         <source>arrived at %1, booked %2</source>
         <translation>arrived at %1, booked %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="632"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="642"/>
         <source>arrived at %1</source>
         <translation>arrived at %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="636"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="646"/>
         <source>departed from %1, booked %2</source>
         <translation>departed from %1, booked %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="638"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="648"/>
         <source>departed from %1</source>
         <translation>departed from %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="643"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="653"/>
         <source>at a waiting point: %1</source>
         <translation>at a waiting point: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="647"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="657"/>
         <source>reversed</source>
         <translation>reversed</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="650"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="660"/>
         <source>sounded the horn</source>
         <translation>sounded the horn</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="653"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="663"/>
         <source>reached its path&apos;s end</source>
         <translation>reached its path&apos;s end</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="658"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="668"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>deadlocked: waits for %1, which waits for it in turn</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="665"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="675"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>event %1 (by the player&apos;s train: its triggering train had not started)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="667"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="677"/>
         <source>event %1</source>
         <translation>event %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="676"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="686"/>
         <source>the activity ends: success</source>
         <translation>the activity ends: success</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="678"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="688"/>
         <source>the activity ends without success</source>
         <translation>the activity ends without success</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="681"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="691"/>
         <source>coupled to %1 cars</source>
         <translation>coupled to %1 cars</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="684"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="694"/>
         <source>joined the cars standing ahead</source>
         <translation>joined the cars standing ahead</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="687"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="697"/>
         <source>cut off %1 cars</source>
         <translation>cut off %1 cars</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="690"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="700"/>
         <source>took %1 cars from %2</source>
         <translation>took %1 cars from %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="693"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="703"/>
         <source>left %1 cars to %2</source>
         <translation>left %1 cars to %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="696"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="706"/>
         <source>joined %1</source>
         <translation>joined %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="699"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="709"/>
         <source>runs on its own again, parted from %1</source>
         <translation>runs on its own again, parted from %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="702"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="712"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>removed: the cars it took stand off its path (as Open Rails does)</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="712"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="722"/>
         <source>restarted by event %1</source>
         <translation>restarted by event %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="804"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="814"/>
         <source>Every train has finished its path.</source>
         <translation>Every train has finished its path.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="806"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="816"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="815"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="825"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Deadlock: %1 wait for each other.</translation>
     </message>

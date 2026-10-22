@@ -552,6 +552,16 @@ void SimulationController::follow(int train) {
     emit followChanged(train);
 }
 
+bool SimulationController::followFromStart(int train, QString *error) {
+    if (!exists() || in == nullptr || train < 0 || size_t(train) >= in->trains.size())
+        return false;
+    follow(train);
+    const double target = in->trains[size_t(train)].startTime - FollowLead;
+    if (frame()->time >= target)
+        return true;
+    return runToTime(target, true, error);
+}
+
 bool SimulationController::trainPlace(int train, int *tile, float *position, float *heading, float *length) const {
     const std::shared_ptr<const SimulationFrame> now = viewFrame();
     if (train < 0 || size_t(train) >= now->trains.size())
