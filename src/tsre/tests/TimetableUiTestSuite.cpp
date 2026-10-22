@@ -17,6 +17,7 @@
 #include <routeEditor/activity/ActivityTimetableWindow.h>
 #include <routeEditor/activity/ActivityTrafficProperties.h>
 #include <routeEditor/activity/ActivityTrafficWindow.h>
+#include <routeEditor/activity/OrCommandPicker.h>
 #include <routeEditor/activity/OrTrainProperties.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
@@ -280,6 +281,140 @@ int runTimetableUiSuite(bool verbose) {
     if (stops != nullptr && stops->topLevelItemCount() > 1)
         stops->topLevelItem(1)->setText(4, "$closeup");
     QApplication::processEvents();
+    // The command picker: T1's note's "…" lists the note's commands, those
+    // written ticked and filled; $doo ticked and $connect's /hold changed
+    // there, OK sets the note (an undo step, undone).
+    auto commandItem = [](QTreeWidget *list, const QString &text) -> QTreeWidgetItem * {
+        for (int h = 0; list != nullptr && h < list->topLevelItemCount(); ++h)
+            for (int i = 0; i < list->topLevelItem(h)->childCount(); ++i)
+                if (list->topLevelItem(h)->child(i)->text(0) == text)
+                    return list->topLevelItem(h)->child(i);
+        return nullptr;
+    };
+    auto openPicker = []() -> OrCommandPicker * {
+        QApplication::processEvents();
+        for (QWidget *widget : QApplication::topLevelWidgets())
+            if (OrCommandPicker *picker = qobject_cast<OrCommandPicker *>(widget); picker != nullptr && picker->isVisible())
+                return picker;
+        return nullptr;
+    };
+    auto closePicker = [](OrCommandPicker *picker, bool ok) {
+        if (picker == nullptr)
+            return;
+        ok ? picker->accept() : picker->reject();
+        QApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    };
+    if (QAction *pick = timetable.findChild<QAction *>("orTrainNotePick"))
+        pick->trigger();
+    OrCommandPicker *picker = openPicker();
+    QTreeWidget *commandList = picker != nullptr ? picker->findChild<QTreeWidget *>("orCommandList") : nullptr;
+    QTreeWidgetItem *acc = commandItem(commandList, "$acc");
+    QTreeWidgetItem *connect = commandItem(commandList, "$connect");
+    QTreeWidgetItem *doo = commandItem(commandList, "$doo");
+    check(picker != nullptr && acc != nullptr && acc->checkState(0) == Qt::Checked && connect != nullptr
+              && connect->checkState(0) == Qt::Checked && connect->foreground(0) != acc->foreground(0) && doo != nullptr
+              && doo->checkState(0) == Qt::Unchecked && commandItem(commandList, "$hold") == nullptr
+              && commandItem(commandList, "$follow") != nullptr,
+          "the note's picker: its commands, $acc and $connect (not run: orange) ticked, no station commands");
+    if (doo != nullptr)
+        doo->setCheckState(0, Qt::Checked);
+    if (connect != nullptr)
+        commandList->setCurrentItem(connect);
+    QCheckBox *holdBox = picker != nullptr ? picker->findChild<QCheckBox *>("orCommandQualifier.hold") : nullptr;
+    QLineEdit *holdValue = picker != nullptr ? picker->findChild<QLineEdit *>("orCommandQualifierValue.hold") : nullptr;
+    QComboBox *connectValue = picker != nullptr ? picker->findChild<QComboBox *>("orCommandValue") : nullptr;
+    const bool filled = holdBox != nullptr && holdBox->isChecked() && holdValue != nullptr && holdValue->text() == "2"
+            && connectValue != nullptr && connectValue->currentText() == "T2" && connectValue->findText("T2") >= 0
+            && connectValue->findText("T1") < 0;
+    if (holdValue != nullptr) {
+        holdValue->setText("3");
+        emit holdValue->textEdited("3");
+    }
+    QLineEdit *commandText = picker != nullptr ? picker->findChild<QLineEdit *>("orCommandText") : nullptr;
+    check(filled && commandText != nullptr && commandText->text() == "$acc=2 $connect=T2 /maxdelay=5 /hold=3 $doo",
+          "$connect's value and /hold filled (the other trains offered), $doo ticked, /hold 3: "
+              + (commandText ? commandText->text() : QString()));
+    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS") && picker != nullptr)
+        picker->grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-commands.png");
+    closePicker(picker, true);
+    const OrTimetable::Train &picked = set->timetables[0]->trains[t1];
+    note = timetable.findChild<QLineEdit *>("orTrainNote");
+    check(picked.notes.size() == 3 && picked.notes[2].name == "doo" && picked.notes[1].qualifier("hold") == QStringList{"3"}
+              && note != nullptr && note->text() == "$acc=2 $connect=T2 /maxdelay=5 /hold=3 $doo",
+          "OK: the note set as chosen");
+    Undo::UndoLast();
+    check(set->timetables[0]->trains[t1].notes.size() == 2, "undo: the note as it was");
+
+    // A stop's cell: the "…" at its right end opens the stop's picker
+    // (station commands, $keepclear only for a train's stop); $keepclear
+    // /rear=50 ticked; the station's picker has no $keepclear.
+    timetable.showTimetable(set);
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        if (trains->topLevelItem(i)->text(1) == "T1") {
+            trains->setCurrentItem(trains->topLevelItem(i));
+            trains->topLevelItem(i)->setSelected(true);
+        }
+    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
+    auto clickPick = [&stops](int row, int column) {
+        if (stops == nullptr || stops->topLevelItemCount() <= row)
+            return;
+        const QRect rowRect = stops->visualItemRect(stops->topLevelItem(row));
+        const QPointF at(stops->header()->sectionViewportPosition(column) + stops->header()->sectionSize(column) - 8,
+                         rowRect.center().y());
+        for (QEvent::Type type : {QEvent::MouseButtonPress, QEvent::MouseButtonRelease}) {
+            QMouseEvent event(type, at, stops->viewport()->mapToGlobal(at), Qt::LeftButton,
+                              type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(stops->viewport(), &event);
+        }
+    };
+    clickPick(1, 3);
+    picker = openPicker();
+    commandList = picker != nullptr ? picker->findChild<QTreeWidget *>("orCommandList") : nullptr;
+    QTreeWidgetItem *forcewait = commandItem(commandList, "$forcewait");
+    QTreeWidgetItem *keepclear = commandItem(commandList, "$keepclear");
+    check(picker != nullptr && forcewait != nullptr && forcewait->checkState(0) == Qt::Checked && keepclear != nullptr
+              && commandItem(commandList, "$acc") == nullptr && commandItem(commandList, "$follow") != nullptr,
+          "the stop's \"…\" opens its picker: $forcewait ticked, station and timing commands");
+    if (keepclear != nullptr)
+        commandList->setCurrentItem(keepclear);
+    if (QLineEdit *rear = picker != nullptr ? picker->findChild<QLineEdit *>("orCommandQualifierValue.rear") : nullptr) {
+        rear->setText("50");
+        emit rear->textEdited("50");
+    }
+    commandText = picker != nullptr ? picker->findChild<QLineEdit *>("orCommandText") : nullptr;
+    check(commandText != nullptr && commandText->text() == "$forcewait $keepclear /rear=50" && keepclear != nullptr
+              && keepclear->checkState(0) == Qt::Checked,
+          "/rear 50 typed: $keepclear ticked with it");
+    closePicker(picker, true);
+    check(set->timetables[0]->trains[t1].stops[1].commands.size() == 2
+              && set->timetables[0]->trains[t1].stops[1].commands[1].qualifier("rear") == QStringList{"50"},
+          "OK: the stop's commands set");
+    Undo::UndoLast();
+    timetable.showTimetable(set);
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        if (trains->topLevelItem(i)->text(1) == "T1") {
+            trains->setCurrentItem(trains->topLevelItem(i));
+            trains->topLevelItem(i)->setSelected(true);
+        }
+    stops = timetable.findChild<QTreeWidget *>("orTrainStops");
+    clickPick(1, 4);
+    picker = openPicker();
+    commandList = picker != nullptr ? picker->findChild<QTreeWidget *>("orCommandList") : nullptr;
+    QTreeWidgetItem *closeup = commandItem(commandList, "$closeup");
+    check(set->timetables[0]->trains[t1].stops[1].commands.size() == 1 && picker != nullptr
+              && commandItem(commandList, "$keepclear") == nullptr && commandItem(commandList, "$hold") != nullptr
+              && closeup != nullptr && closeup->checkState(0) == Qt::Checked && closeup->parent() != nullptr
+              && closeup->parent() == commandList->topLevelItem(commandList->topLevelItemCount() - 1),
+          "undo: the stop's commands as they were; the station's picker: no $keepclear, its $closeup (not taken in a "
+          "station's row) kept as typed");
+    closePicker(picker, false);
+    timetable.showTimetable(set);
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        if (trains->topLevelItem(i)->text(1) == "T1") {
+            trains->setCurrentItem(trains->topLevelItem(i));
+            trains->topLevelItem(i)->setSelected(true);
+        }
     // TSRE_ACTIVITY_UI_SHOTS: the window as it is now, for a look.
     if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
         timetable.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-train.png");

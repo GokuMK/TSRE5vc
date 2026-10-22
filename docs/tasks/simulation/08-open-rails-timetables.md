@@ -456,6 +456,33 @@ reported, editing commands).
   line of its own, the plans and a run; every MSTS route's results and
   events unchanged, PRUDNIK's original timetable runs as before.
 
+**The Timetable window, the user's review (2026-10-22).**
+
+- Layout (876dbfe): the train's information on the left, one grid of a
+  label and a box a row (name, path, consist, comment, timetable file
+  shown only; start time; the start, note, dispose and speed row
+  commands), its problems and where it is saved under it; its stops on
+  the right.
+- The command picker (`OrCommandPicker`): a "…" at the end of each
+  command field and of each stop's command cells (double-click still
+  types) opens a window listing the commands Open Rails takes there, by
+  kind, each with what it does (the catalogue as data:
+  `OrCommandSpecs`, from the manual and the code, 48 entries: where each
+  is written, its value, its qualifiers); those written start ticked and
+  filled, the chosen one's value (other trains and the route's paths
+  offered) and qualifiers set beside the list, the resulting text below;
+  what TSRE does not run in orange; a command not taken there, or a
+  second of a kind, kept as typed. OK sets the field or cell as typing
+  does (an undo step). Open Rails' rows as its code reads them: the
+  `#note` row takes `$acc`, `$dec`, `$doo`, `$forcereversal` and the
+  timing commands; a station's row only the commands its `StationInfo`
+  reads (no `$keepclear`, `$endstop`, `$closeup`, `$waitsignal`).
+- **Fixtures:** `timetable-ui` (25): the grid; the note's picker (its
+  commands ticked, a qualifier changed, a command ticked, OK, undo), a
+  stop's "…" (`$keepclear /rear=50`), the station's picker without
+  `$keepclear`, its `$closeup` kept as typed. `timetable-read` (31): the
+  catalogue holds every command TSRE runs, each described.
+
 ## Why
 
 Open Rails' timetable mode is the other way, beside activities, to define

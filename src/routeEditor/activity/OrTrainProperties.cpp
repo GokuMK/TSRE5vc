@@ -1,7 +1,11 @@
 #include <routeEditor/activity/OrTrainProperties.h>
 #include <routeEditor/activity/ActivityEdit.h>
+#include <routeEditor/activity/OrCommandPicker.h>
 #include <tsre/gui/GuiFunct.h>
+#include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityTrains.h>
+#include <tsre/trains/Path.h>
 
 namespace {
 
@@ -37,6 +41,58 @@ QString notRunText(const QStringList &items) {
 
 const QColor NotRunColour(200, 120, 0);
 
+constexpr int FieldPlaces[4] = {OrCommandSpec::Start, OrCommandSpec::Note, OrCommandSpec::Dispose,
+                                OrCommandSpec::SpeedRow};
+
+// The stops' command cells: a "…" at their right end opens the picker
+// (double-click still edits the text).
+class CommandCells : public QStyledItemDelegate {
+public:
+    CommandCells(QObject *parent, std::function<void(const QModelIndex &)> pick)
+        : QStyledItemDelegate(parent), pick(std::move(pick)) {
+    }
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        if (!commands(index)) {
+            QStyledItemDelegate::paint(painter, option, index);
+            return;
+        }
+        QStyleOptionViewItem whole(option);
+        initStyleOption(&whole, index);
+        const QWidget *view = option.widget;
+        QStyle *style = view != nullptr ? view->style() : QApplication::style();
+        style->drawPrimitive(QStyle::PE_PanelItemViewItem, &whole, painter, view);
+        QStyleOptionViewItem text(option);
+        text.rect.setRight(button(option.rect).left() - 1);
+        QStyledItemDelegate::paint(painter, text, index);
+        const QRect at = button(option.rect);
+        OrCommandPicker::Icon(view).paint(painter, at.adjusted(1, 0, -1, 0), Qt::AlignCenter,
+                                          (option.state & QStyle::State_Enabled) ? QIcon::Normal : QIcon::Disabled);
+    }
+    bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option,
+                     const QModelIndex &index) override {
+        const QEvent::Type type = event->type();
+        if (commands(index) && (type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick
+                                || type == QEvent::MouseButtonPress)) {
+            const QMouseEvent *mouse = static_cast<QMouseEvent *>(event);
+            if (button(option.rect).contains(mouse->pos())) {
+                if (type == QEvent::MouseButtonRelease && mouse->button() == Qt::LeftButton)
+                    pick(index);
+                return true;
+            }
+        }
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    }
+
+private:
+    std::function<void(const QModelIndex &)> pick;
+    static bool commands(const QModelIndex &index) {
+        return index.column() == CommandsColumn || index.column() == StationCommandsColumn;
+    }
+    static QRect button(const QRect &cell) {
+        return QRect(cell.right() - 19, cell.top(), 20, cell.height());
+    }
+};
+
 }
 
 OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
@@ -56,6 +112,11 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
         commandFields[k].setPlaceholderText(placeholders[k]);
         QObject::connect(&commandFields[k], &QLineEdit::editingFinished, this,
                          [this, k] { commandsEdited(TrainCommandKinds[k]); });
+        QAction *pick = commandFields[k].addAction(OrCommandPicker::Icon(this), QLineEdit::TrailingPosition);
+        pick->setObjectName(QString(names[k]) + "Pick");
+        //% "Choose the commands from a list..."
+        pick->setToolTip(qtTrId("route.editor.activity.or.train.pick"));
+        QObject::connect(pick, &QAction::triggered, this, [this, k] { pickTrainCommands(k); });
     }
     stops.setObjectName("orTrainStops");
     stops.setColumnCount(Columns);
@@ -78,8 +139,15 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     stops.header()->resizeSection(ArrivalColumn, 70);
     stops.header()->resizeSection(DepartureColumn, 70);
     stops.header()->resizeSection(CommandsColumn, 150);
+    stops.setItemDelegate(new CommandCells(this, [this](const QModelIndex &index) {
+        const int stop = index.sibling(index.row(), StationColumn).data(StopRole).toInt();
+        const int column = index.column();
+        // After the view's mouse event.
+        QMetaObject::invokeMethod(this, [this, stop, column] { pickStopCommands(stop, column); },
+                                  Qt::QueuedConnection);
+    }));
     stops.setToolTip(
-        //% "Arrival and departure as HH:mm or HH:mm:ss; Commands this train's at the station, Station's commands every train's there (double-click to change)."
+        //% "Arrival and departure as HH:mm or HH:mm:ss; Commands this train's at the station, Station's commands every train's there (double-click to change, … to choose them from a list)."
         qtTrId("route.editor.activity.or.train.stops.tooltip"));
     problems.setWordWrap(true);
     problems.setStyleSheet("QLabel { color : rgb(200, 120, 0); }");
@@ -323,4 +391,85 @@ void OrTrainProperties::stopEdited(QTreeWidgetItem *item, int column) {
         t.setStopTimes(train, k, arrival, departure);
     }
     editedLater();
+}
+
+void OrTrainProperties::openPicker(int place, const QString &title, const QString &text,
+                                   const std::function<void(const QString &)> &apply) {
+    if (set == nullptr || timetable < 0 || timetable >= int(set->timetables.size()))
+        return;
+    const OrTimetable &t = *set->timetables[size_t(timetable)];
+    // The other trains by name; a group's other timetables' as
+    // "name:description", as Open Rails refers to them.
+    QStringList trains;
+    for (int k = 0; k < t.trains.size(); ++k)
+        if (k != train && !t.trains[k].name.isEmpty())
+            trains << t.trains[k].name;
+    for (size_t o = 0; o < set->timetables.size(); ++o)
+        if (int(o) != timetable && !set->timetables[o]->description.isEmpty())
+            for (const OrTimetable::Train &other : set->timetables[o]->trains)
+                trains << other.name + ":" + set->timetables[o]->description;
+    QStringList paths;
+    for (Path *path : ActLib::RoutePaths(ActivityTrains::RouteDirectory(set)))
+        paths << path->nameId;
+    const QString row = t.speedRow.toLower();
+    const QString unit = row == "#speedmph" ? QStringLiteral("mph") : row == "#speed" ? QStringLiteral("m/s")
+                                                                                       : QStringLiteral("km/h");
+    OrCommandPicker *picker = new OrCommandPicker(place, title, text, trains, paths, unit, this);
+    picker->setAttribute(Qt::WA_DeleteOnClose);
+    // Applied to the train it was opened for, if still shown.
+    const Activity *forSet = set;
+    const int forTimetable = timetable;
+    const int forTrain = train;
+    QObject::connect(picker, &QDialog::accepted, this, [this, picker, apply, forSet, forTimetable, forTrain] {
+        if (set == forSet && timetable == forTimetable && train == forTrain)
+            apply(picker->text());
+    });
+    picker->open();
+}
+
+void OrTrainProperties::pickTrainCommands(int field) {
+    if (field < 0 || field >= 4 || !commandFields[field].isEnabled() || set == nullptr || timetable < 0
+            || train < 0 || train >= set->timetables[size_t(timetable)]->trains.size())
+        return;
+    const QString name = set->timetables[size_t(timetable)]->trains[train].name;
+    const QString fields[4] = {
+        //% "%1, start"
+        qtTrId("route.editor.activity.or.train.pick.start").arg(name),
+        //% "%1, note"
+        qtTrId("route.editor.activity.or.train.pick.note").arg(name),
+        //% "%1, dispose"
+        qtTrId("route.editor.activity.or.train.pick.dispose").arg(name),
+        //% "%1, speed row"
+        qtTrId("route.editor.activity.or.train.pick.speed").arg(name)};
+    openPicker(FieldPlaces[field], fields[field], commandFields[field].text(), [this, field](const QString &text) {
+        commandFields[field].setText(text);
+        commandsEdited(TrainCommandKinds[field]);
+    });
+}
+
+void OrTrainProperties::pickStopCommands(int stop, int column) {
+    if (set == nullptr || timetable < 0 || train < 0 || !stops.isEnabled())
+        return;
+    const OrTimetable &t = *set->timetables[size_t(timetable)];
+    if (train >= t.trains.size() || stop < 0 || stop >= t.trains[train].stops.size())
+        return;
+    const OrTimetable::Stop &at = t.trains[train].stops[stop];
+    const QString station = at.station >= 0 && at.station < t.stations.size() ? t.stations[at.station].name : QString();
+    const bool own = column == CommandsColumn;
+    const QString title = own ?
+        //% "%1 at %2"
+        qtTrId("route.editor.activity.or.train.pick.stop").arg(t.trains[train].name, station) :
+        //% "%1, every train"
+        qtTrId("route.editor.activity.or.train.pick.station").arg(station);
+    const QString text = OrTimetable::CommandsText(own ? at.commands : t.stations[at.station].commands);
+    openPicker(own ? OrCommandSpec::Stop : OrCommandSpec::Station, title, text, [this, stop, column](const QString &chosen) {
+        for (int i = 0; i < stops.topLevelItemCount(); ++i) {
+            QTreeWidgetItem *item = stops.topLevelItem(i);
+            if (item->data(StationColumn, StopRole).toInt() == stop) {
+                // As typed: stopEdited takes it.
+                item->setText(column, chosen);
+                return;
+            }
+        }
+    });
 }

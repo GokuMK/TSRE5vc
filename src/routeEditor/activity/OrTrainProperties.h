@@ -12,7 +12,8 @@ class Activity;
 // ones kept and shown in orange), each an undo step; the timetable is then
 // unsaved (Save Activities writes it in TSRE's layout). The train's
 // information, commands and problems are in info, which the window puts
-// beside the stops.
+// beside the stops. The "…" of a command field or cell opens the command
+// picker (OrCommandPicker).
 class OrTrainProperties : public QWidget {
     Q_OBJECT
 public:
@@ -41,6 +42,13 @@ private:
     void startEdited();
     void commandsEdited(OrTimetable::TrainCommands which);
     void stopEdited(QTreeWidgetItem *item, int column);
+    // The picker for a command field (its index) or a stop's command cell
+    // (the stop's place in the train, its column); OK sets the field or
+    // cell as typing does.
+    void pickTrainCommands(int field);
+    void pickStopCommands(int stop, int column);
+    void openPicker(int place, const QString &title, const QString &text,
+                    const std::function<void(const QString &)> &apply);
     // After the field's or item's own signal: the window fills the panel
     // again.
     void editedLater();

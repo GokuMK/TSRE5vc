@@ -44,6 +44,9 @@ public:
     static Service* GetServiceByName(QString name, QString routePath = {});
     static Traffic* GetTrafficByName(QString name, QString routePath = {});
     static Path* GetPathByName(QString name, QString routePath = {});
+    // The route's paths read, by name (an Open Rails timetable's #path
+    // cells name them).
+    static QVector<Path*> RoutePaths(QString routePath = {});
     static bool IsServiceInUse(QString n, QString routePath = {});
     static bool IsTrafficInUse(QString n, QString routePath = {});
     static QVector<QString> GetServiceInUseList(QString n, QString routePath = {});

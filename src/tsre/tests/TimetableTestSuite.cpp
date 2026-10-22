@@ -25,6 +25,7 @@
 #include <tsre/trains/ActivityTrains.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/OrTimetable.h>
+#include <tsre/trains/OrTimetableCommands.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/PathTrack.h>
 
@@ -436,6 +437,53 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
               "a group as an activity: the trains of its two timetables, the first start 04:10");
         delete both;
         ActLib::TimetableSets.remove(group);
+    }
+
+    // The command picker's catalogue: the manual's 48 (44 names: the speed
+    // row's $attach and $detach, #dispose's $static and $pool apart), every
+    // command TSRE runs there, each described; no name twice at one place;
+    // every place has some.
+    {
+        const QStringList run = {"acc", "dec", "follow", "nowaitsignal", "create", "hold", "nohold", "forcehold",
+                                 "static", "triggers", "closeupsignal", "extendplatformtosignal", "forcewait", "max",
+                                 "waitsignal", "next", "terminal", "stoptime", "endstop", "restrictplatformtosignal",
+                                 "keepclear", "req", "wait", "cruise", "maxdelay", "activate", "activated", "forms",
+                                 "creep", "doo"};
+        QStringList missing;
+        for (const QString &name : run)
+            if (!OrTimetableCommandRun(name))
+                missing << name + " (not run)";
+        QSet<QString> names;
+        bool described = true;
+        bool once = true;
+        for (const OrCommandSpec &spec : OrCommandSpecs()) {
+            names.insert(spec.name);
+            described = described && !spec.description.isEmpty() && spec.places != 0;
+            for (const OrCommandSpec::QualifierSpec &qualifier : spec.qualifiers)
+                described = described && !qualifier.description.isEmpty();
+            for (const OrCommandSpec &other : OrCommandSpecs())
+                once = once && (&other == &spec || other.name != spec.name || (other.places & spec.places) == 0);
+        }
+        for (const QString &name : run)
+            if (!names.contains(name))
+                missing << name;
+        bool places = true;
+        for (int place : {OrCommandSpec::Start, OrCommandSpec::Note, OrCommandSpec::Dispose, OrCommandSpec::SpeedRow,
+                          OrCommandSpec::Stop, OrCommandSpec::Station}) {
+            int count = 0;
+            for (const OrCommandSpec &spec : OrCommandSpecs())
+                count += (spec.places & place) != 0;
+            places = places && count > 0;
+        }
+        const OrCommandSpec *speedAttach = OrCommandSpecAt("attach", OrCommandSpec::SpeedRow);
+        const OrCommandSpec *stopAttach = OrCommandSpecAt("attach", OrCommandSpec::Stop);
+        check(missing.isEmpty() && described && once && places && names.size() == 44 && OrCommandSpecs().size() == 48
+                  && speedAttach != nullptr
+                  && stopAttach != nullptr && speedAttach->value == OrCommandSpec::Speed
+                  && stopAttach->value == OrCommandSpec::Train
+                  && OrCommandSpecAt("keepclear", OrCommandSpec::Station) == nullptr,
+              QString("the command catalogue: %1 commands (%2 entries), every one TSRE runs, described; missing: %3")
+                  .arg(names.size()).arg(OrCommandSpecs().size()).arg(missing.join(", ")));
     }
 
     qInfo().noquote() << QString("timetable-read: %1 passed, %2 failed").arg(passed).arg(failed);

@@ -1358,7 +1358,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
     </message>
     <message id="route.editor.activity.tools.button.act.events.open">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="403"/>
-        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="154"/>
+        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="155"/>
         <source>Open Event Editor</source>
         <translation>Otwórz edytor zdarzeń</translation>
     </message>
@@ -14049,7 +14049,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Ruch pociągów nazywa go %1: Open Rails porównuje nazwy dokładnie i nie znajduje czasów.</translation>
     </message>
     <message id="activity.follow.passing.dropped">
-        <location filename="../src/tsre/trains/ActLib.cpp" line="257"/>
+        <location filename="../src/tsre/trains/ActLib.cpp" line="269"/>
         <source>%1: %2 passing paths the edit went through are dropped.</source>
         <translation>%1: usunięto drogi mijania, przez które przeszła edycja: %2.</translation>
     </message>
@@ -15086,110 +15086,899 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stacja %1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
     <message id="route.editor.activity.or.train.not.run">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="35"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="39"/>
         <source>Not run by TSRE yet (kept in the timetable): %1</source>
         <translation>Jeszcze niewykonywane przez TSRE (zachowane w rozkładzie): %1</translation>
     </message>
+    <message id="route.editor.activity.or.train.pick">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="118"/>
+        <source>Choose the commands from a list...</source>
+        <translation>Wybierz polecenia z listy...</translation>
+    </message>
     <message id="route.editor.activity.or.train.column.station">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="64"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="125"/>
         <source>Station</source>
         <translation>Stacja</translation>
     </message>
     <message id="route.editor.activity.or.train.column.arrival">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="66"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="127"/>
         <source>Arrival</source>
         <translation>Przyjazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.departure">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="68"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="129"/>
         <source>Departure</source>
         <translation>Odjazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="70"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="131"/>
         <source>Commands</source>
         <translation>Polecenia</translation>
     </message>
     <message id="route.editor.activity.or.train.column.station.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="72"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="133"/>
         <source>Station&apos;s commands</source>
         <translation>Polecenia stacji</translation>
     </message>
     <message id="route.editor.activity.or.train.stops.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="83"/>
-        <source>Arrival and departure as HH:mm or HH:mm:ss; Commands this train&apos;s at the station, Station&apos;s commands every train&apos;s there (double-click to change).</source>
-        <oldsource>Arrival and departure as HH:mm or HH:mm:ss (double-click to change); one time empty: both the same.</oldsource>
-        <translation>Przyjazd i odjazd jako HH:mm lub HH:mm:ss; Polecenia tego pociągu na stacji, Polecenia stacji każdego pociągu tam (dwuklik, by zmienić).</translation>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="151"/>
+        <source>Arrival and departure as HH:mm or HH:mm:ss; Commands this train&apos;s at the station, Station&apos;s commands every train&apos;s there (double-click to change, … to choose them from a list).</source>
+        <translation>Przyjazd i odjazd jako GG:mm lub GG:mm:ss; Polecenia tego pociągu na stacji, Polecenia stacji dla każdego pociągu na niej (dwuklik, by zmienić, … by wybrać je z listy).</translation>
     </message>
     <message id="route.editor.activity.or.train.section.info">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="105"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="176"/>
         <source>Info:</source>
         <translation>Informacje:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.name">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="107"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="178"/>
         <source>Train:</source>
         <translation>Pociąg:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.path">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="109"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="180"/>
         <source>Path:</source>
         <translation>Droga przejazdu:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.consist">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="111"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="182"/>
         <source>Consist:</source>
         <translation>Skład:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.comment">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="113"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="184"/>
         <source>Comment:</source>
         <translation>Komentarz:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.file">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="115"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="186"/>
         <source>Timetable:</source>
         <translation>Rozkład:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.start.time">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="117"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="188"/>
         <source>Start Time:</source>
         <translation>Czas rozpoczęcia:</translation>
     </message>
     <message id="route.editor.activity.or.train.section.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="119"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="190"/>
         <source>Commands:</source>
         <translation>Polecenia:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.start">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="121"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="192"/>
         <source>Start:</source>
         <translation>Start:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.note">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="123"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="194"/>
         <source>Note:</source>
         <translation>Uwagi (#note):</translation>
     </message>
     <message id="route.editor.activity.or.train.field.dispose">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="125"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="196"/>
         <source>Dispose:</source>
         <translation>Zakończenie (#dispose):</translation>
     </message>
     <message id="route.editor.activity.or.train.field.speed">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="127"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="198"/>
         <source>Speed row:</source>
         <translation>Wiersz prędkości:</translation>
     </message>
     <message id="route.editor.activity.or.train.request">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="207"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="278"/>
         <source>%1 (request stop)</source>
         <translation>%1 (postój na żądanie)</translation>
     </message>
     <message id="route.editor.activity.or.train.early">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="210"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="281"/>
         <source>%1 (may leave early)</source>
         <translation>%1 (może odjechać wcześniej)</translation>
+    </message>
+    <message id="route.editor.activity.or.train.pick.start">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="437"/>
+        <source>%1, start</source>
+        <translation>%1, start</translation>
+    </message>
+    <message id="route.editor.activity.or.train.pick.note">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="439"/>
+        <source>%1, note</source>
+        <translation>%1, uwagi</translation>
+    </message>
+    <message id="route.editor.activity.or.train.pick.dispose">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="441"/>
+        <source>%1, dispose</source>
+        <translation>%1, koniec</translation>
+    </message>
+    <message id="route.editor.activity.or.train.pick.speed">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="443"/>
+        <source>%1, speed row</source>
+        <translation>%1, wiersz prędkości</translation>
+    </message>
+    <message id="route.editor.activity.or.train.pick.stop">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="461"/>
+        <source>%1 at %2</source>
+        <translation>%1 w %2</translation>
+    </message>
+    <message id="route.editor.activity.or.train.pick.station">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="463"/>
+        <source>%1, every train</source>
+        <translation>%1, każdy pociąg</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.not.run">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="13"/>
+        <source>Not run by TSRE yet: kept in the timetable for Open Rails.</source>
+        <translation>Jeszcze niewykonywane przez TSRE: zachowane w rozkładzie dla Open Rails.</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.title">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="35"/>
+        <source>Commands: %1</source>
+        <translation>Polecenia: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.column.command">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="73"/>
+        <source>Command</source>
+        <translation>Polecenie</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.column.description">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="75"/>
+        <source>What it does</source>
+        <translation>Co robi</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.typed">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="107"/>
+        <source>Not taken here by Open Rails, or a second one: kept as typed.</source>
+        <translation>Open Rails nie przyjmuje go tutaj albo jest drugie: zachowane jak wpisano.</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.group.typed">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="124"/>
+        <source>Kept as typed</source>
+        <translation>Zachowane jak wpisano</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.result">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="146"/>
+        <source>Commands:</source>
+        <translation>Polecenia:</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.typed.about">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="278"/>
+        <source>Open Rails does not take this command here, or it is written a second time: it is kept as typed. Change it here, or untick it to leave it out.</source>
+        <translation>Open Rails nie przyjmuje tutaj tego polecenia albo jest wpisane drugi raz: zostaje zachowane jak wpisano. Zmień je tutaj albo odznacz, by je pominąć.</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.value.optional">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="311"/>
+        <source>Value (may be left out):</source>
+        <translation>Wartość (można pominąć):</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.value">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="313"/>
+        <source>Value:</source>
+        <translation>Wartość:</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.qualifiers">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="324"/>
+        <source>Qualifiers:</source>
+        <translation>Kwalifikatory:</translation>
+    </message>
+    <message id="route.editor.activity.or.commands.qualifiers.typed">
+        <location filename="../src/routeEditor/activity/OrCommandPicker.cpp" line="392"/>
+        <source>Kept as typed: %1</source>
+        <translation>Zachowane jak wpisano: %1</translation>
+    </message>
+    <message id="timetable.command.hint.time">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="24"/>
+        <source>HH:mm</source>
+        <translation>GG:mm</translation>
+    </message>
+    <message id="timetable.command.hint.train">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="26"/>
+        <source>train</source>
+        <translation>pociąg</translation>
+    </message>
+    <message id="timetable.command.hint.minutes">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="28"/>
+        <source>minutes</source>
+        <translation>minuty</translation>
+    </message>
+    <message id="timetable.command.hint.seconds">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="30"/>
+        <source>seconds</source>
+        <translation>sekundy</translation>
+    </message>
+    <message id="timetable.command.hint.metres">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="32"/>
+        <source>metres</source>
+        <translation>metry</translation>
+    </message>
+    <message id="timetable.command.hint.factor">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="34"/>
+        <source>factor</source>
+        <translation>mnożnik</translation>
+    </message>
+    <message id="timetable.command.hint.percent">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="36"/>
+        <source>percent</source>
+        <translation>procent</translation>
+    </message>
+    <message id="timetable.command.hint.path">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="38"/>
+        <source>path</source>
+        <translation>droga przejazdu</translation>
+    </message>
+    <message id="timetable.command.hint.pool">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="40"/>
+        <source>pool</source>
+        <translation>pula</translation>
+    </message>
+    <message id="timetable.command.hint.units">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="42"/>
+        <source>units (negative: from the rear)</source>
+        <translation>jednostki (ujemne: od końca)</translation>
+    </message>
+    <message id="timetable.command.hint.consists">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="44"/>
+        <source>consist+consist</source>
+        <translation>skład+skład</translation>
+    </message>
+    <message id="timetable.command.hint.direction">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="46"/>
+        <source>forward or backward</source>
+        <translation>forward lub backward</translation>
+    </message>
+    <message id="timetable.command.wait.maxdelay">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="55"/>
+        <source>Not when the other train is later than this, less this train&apos;s own delay.</source>
+        <translation>Nie, gdy drugi pociąg jest spóźniony bardziej niż o tyle, pomniejszone o własne opóźnienie tego pociągu.</translation>
+    </message>
+    <message id="timetable.command.wait.notstarted">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="58"/>
+        <source>Also when the other train has not started yet.</source>
+        <translation>Także gdy drugi pociąg jeszcze nie wyruszył.</translation>
+    </message>
+    <message id="timetable.command.wait.owndelay">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="61"/>
+        <source>Only when this train is at least this late.</source>
+        <translation>Tylko gdy ten pociąg jest spóźniony co najmniej o tyle.</translation>
+    </message>
+    <message id="timetable.command.wait.trigger">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="64"/>
+        <source>Only after this time (experimental in Open Rails).</source>
+        <translation>Tylko po tej godzinie (eksperymentalne w Open Rails).</translation>
+    </message>
+    <message id="timetable.command.wait.endtrigger">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="67"/>
+        <source>Only before this time (experimental in Open Rails).</source>
+        <translation>Tylko przed tą godziną (eksperymentalne w Open Rails).</translation>
+    </message>
+    <message id="timetable.command.wait.atstart">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="71"/>
+        <source>Waits where it is, not where the routes join.</source>
+        <translation>Czeka tam, gdzie stoi, a nie tam, gdzie drogi się łączą.</translation>
+    </message>
+    <message id="timetable.command.forms.runround">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="76"/>
+        <source>Its engine runs round the train by this path.</source>
+        <translation>Lokomotywa objeżdża skład tą drogą przejazdu.</translation>
+    </message>
+    <message id="timetable.command.forms.rrtime">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="79"/>
+        <source>When the run-round takes place (with /runround).</source>
+        <translation>Kiedy następuje objazd (z /runround).</translation>
+    </message>
+    <message id="timetable.command.forms.setstop">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="82"/>
+        <source>Without stops of its own: the new train&apos;s first stop taken as its end.</source>
+        <translation>Bez własnych postojów: pierwszy postój nowego pociągu przyjęty za jego koniec.</translation>
+    </message>
+    <message id="timetable.command.forms.atstation">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="85"/>
+        <source>Ends where it would stop at the station.</source>
+        <translation>Kończy tam, gdzie stanąłby na stacji.</translation>
+    </message>
+    <message id="timetable.command.forms.closeup">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="88"/>
+        <source>Ends close up to the end of the track.</source>
+        <translation>Kończy tuż przy końcu toru.</translation>
+    </message>
+    <message id="timetable.command.forms.speed">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="91"/>
+        <source>The speed of the run-round (with /runround).</source>
+        <translation>Prędkość objazdu (z /runround).</translation>
+    </message>
+    <message id="timetable.command.create">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="97"/>
+        <source>Puts the train on its path at this time (none: before the first train starts); it stands there until its start time.</source>
+        <translation>Stawia pociąg na jego drodze przejazdu o tej godzinie (bez godziny: zanim ruszy pierwszy pociąg); stoi tam do swojego startu.</translation>
+    </message>
+    <message id="timetable.command.create.ahead">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="100"/>
+        <source>Placed ahead of that train&apos;s front, in the direction of its path (trains stored on one siding).</source>
+        <translation>Postawiony przed czołem tamtego pociągu, w kierunku swojej drogi przejazdu (pociągi odstawione na jednym torze).</translation>
+    </message>
+    <message id="timetable.command.next">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="104"/>
+        <source>Its start time is after midnight, at the end of the timetable&apos;s day.</source>
+        <translation>Jego godzina startu jest po północy, na końcu doby rozkładu.</translation>
+    </message>
+    <message id="timetable.command.static">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="107"/>
+        <source>A static train: it stands at its path&apos;s start and never moves.</source>
+        <translation>Pociąg statyczny: stoi na początku swojej drogi przejazdu i nigdy nie rusza.</translation>
+    </message>
+    <message id="timetable.command.static.ahead">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="110"/>
+        <source>Placed ahead of that train&apos;s front.</source>
+        <translation>Postawiony przed czołem tamtego pociągu.</translation>
+    </message>
+    <message id="timetable.command.static.pool">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="113"/>
+        <source>Created in that pool.</source>
+        <translation>Utworzony w tej puli.</translation>
+    </message>
+    <message id="timetable.command.pool">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="116"/>
+        <source>Starts out of that pool of stored trains.</source>
+        <translation>Wyrusza z tej puli odstawionych pociągów.</translation>
+    </message>
+    <message id="timetable.command.pool.direction">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="119"/>
+        <source>The way it leaves a turntable pool (none: it reverses).</source>
+        <translation>Kierunek, w którym opuszcza pulę z obrotnicą (bez niego: zmienia kierunek).</translation>
+    </message>
+    <message id="timetable.command.pool.set.consist.name">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="122"/>
+        <source>The vehicles taken out of the pool get this train&apos;s consist name.</source>
+        <translation>Pojazdy wzięte z puli dostają nazwę składu tego pociągu.</translation>
+    </message>
+    <message id="timetable.command.activated">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="125"/>
+        <source>Starts only once another train activates it ($activate), at its start time or later.</source>
+        <translation>Wyrusza dopiero, gdy uruchomi go inny pociąg ($activate), o swojej godzinie startu lub później.</translation>
+    </message>
+    <message id="timetable.command.acc">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="129"/>
+        <source>Its acceleration: the default multiplied by this factor.</source>
+        <translation>Jego przyspieszenie: domyślne pomnożone przez ten mnożnik.</translation>
+    </message>
+    <message id="timetable.command.dec">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="132"/>
+        <source>Its deceleration and braking distances: the default multiplied by this factor (2 or 3 for modern stock).</source>
+        <translation>Jego opóźnienie hamowania i drogi hamowania: domyślne pomnożone przez ten mnożnik (2 lub 3 dla nowoczesnego taboru).</translation>
+    </message>
+    <message id="timetable.command.doo">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="135"/>
+        <source>Driver only operation: no departure sound at stations (the player&apos;s train).</source>
+        <translation>Obsługa jednoosobowa: bez sygnału odjazdu na stacjach (pociąg gracza).</translation>
+    </message>
+    <message id="timetable.command.forcereversal">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="138"/>
+        <source>Reverses as soon as it is clear of the reversal point, not beyond the signal there (shunting in yards).</source>
+        <translation>Zmienia kierunek, gdy tylko minie punkt zmiany kierunku, a nie za semaforem tam (manewry na stacjach rozrządowych).</translation>
+    </message>
+    <message id="timetable.command.max">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="142"/>
+        <source>Its top speed.</source>
+        <translation>Jego prędkość maksymalna.</translation>
+    </message>
+    <message id="timetable.command.cruise">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="145"/>
+        <source>The speed it runs at while on time; later than $maxdelay it runs at its top speed.</source>
+        <translation>Prędkość, z jaką jedzie, gdy jest o czasie; spóźniony bardziej niż $maxdelay jedzie z prędkością maksymalną.</translation>
+    </message>
+    <message id="timetable.command.maxdelay">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="148"/>
+        <source>How late it may be before it leaves its cruise speed.</source>
+        <translation>Jak bardzo może się spóźnić, zanim porzuci prędkość $cruise.</translation>
+    </message>
+    <message id="timetable.command.creep">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="151"/>
+        <source>Its least speed on the last approach to a red signal or a stop.</source>
+        <translation>Jego najmniejsza prędkość przy ostatnim dojeździe do czerwonego semafora lub postoju.</translation>
+    </message>
+    <message id="timetable.command.speed.attach">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="154"/>
+        <source>Its speed when it attaches to another train.</source>
+        <translation>Jego prędkość przy łączeniu z innym pociągiem.</translation>
+    </message>
+    <message id="timetable.command.speed.detach">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="157"/>
+        <source>Its speed when it detaches from another train.</source>
+        <translation>Jego prędkość przy odłączaniu od innego pociągu.</translation>
+    </message>
+    <message id="timetable.command.movingtable">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="160"/>
+        <source>Its speed on turntables.</source>
+        <translation>Jego prędkość na obrotnicach.</translation>
+    </message>
+    <message id="timetable.command.gradient">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="163"/>
+        <source>Forced acceleration off on rising gradients steeper than /perc, on again below /speed so it does not stall.</source>
+        <translation>Wymuszone przyspieszanie wyłączone na wzniesieniach bardziej stromych niż /perc, włączone znów poniżej /speed, by pociąg nie stanął.</translation>
+    </message>
+    <message id="timetable.command.gradient.perc">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="166"/>
+        <source>The gradient.</source>
+        <translation>Pochylenie.</translation>
+    </message>
+    <message id="timetable.command.gradient.speed">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="169"/>
+        <source>The speed below which it is forced on again.</source>
+        <translation>Prędkość, poniżej której przyspieszanie jest znów wymuszone.</translation>
+    </message>
+    <message id="timetable.command.hold">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="173"/>
+        <source>The exit signal held at danger until 2 minutes before the departure.</source>
+        <translation>Semafor wyjazdowy trzymany na stój do 2 minut przed odjazdem.</translation>
+    </message>
+    <message id="timetable.command.nohold">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="176"/>
+        <source>The exit signal not held.</source>
+        <translation>Semafor wyjazdowy nie jest trzymany.</translation>
+    </message>
+    <message id="timetable.command.forcehold">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="179"/>
+        <source>The first signal beyond the platform held as the exit signal, even where it is not the platform&apos;s.</source>
+        <translation>Pierwszy semafor za peronem trzymany jako wyjazdowy, nawet gdy nie należy do peronu.</translation>
+    </message>
+    <message id="timetable.command.forcewait">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="182"/>
+        <source>Waits at a red next signal even where it is not the platform&apos;s exit signal.</source>
+        <translation>Czeka przy czerwonym następnym semaforze, nawet gdy nie jest to semafor wyjazdowy peronu.</translation>
+    </message>
+    <message id="timetable.command.nowaitsignal">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="185"/>
+        <source>Leaves without waiting for the next signal to clear (halts without signals, freight trains).</source>
+        <translation>Odjeżdża bez czekania, aż następny semafor się otworzy (przystanki bez semaforów, pociągi towarowe).</translation>
+    </message>
+    <message id="timetable.command.waitsignal">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="188"/>
+        <source>Waits for the next signal to clear, against the station&apos;s $nowaitsignal.</source>
+        <translation>Czeka, aż następny semafor się otworzy, wbrew $nowaitsignal stacji.</translation>
+    </message>
+    <message id="timetable.command.terminal">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="191"/>
+        <source>Stops at the platform&apos;s terminating end where its path starts or ends there.</source>
+        <translation>Staje na końcowym krańcu peronu, gdy jego droga przejazdu tam się zaczyna lub kończy.</translation>
+    </message>
+    <message id="timetable.command.closeupsignal">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="194"/>
+        <source>Stops closer to the signal ahead, using more of the platform.</source>
+        <translation>Staje bliżej semafora przed sobą, wykorzystując więcej peronu.</translation>
+    </message>
+    <message id="timetable.command.extendplatformtosignal">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="197"/>
+        <source>The platform&apos;s end taken just short of the signal beyond its marker.</source>
+        <translation>Koniec peronu przyjęty tuż przed semaforem za jego wskaźnikiem.</translation>
+    </message>
+    <message id="timetable.command.restrictplatformtosignal">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="200"/>
+        <source>The platform&apos;s end taken just short of its exit signal where the marker is beyond it.</source>
+        <translation>Koniec peronu przyjęty tuż przed jego semaforem wyjazdowym, gdy wskaźnik jest za nim.</translation>
+    </message>
+    <message id="timetable.command.stoptime">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="203"/>
+        <source>The least time standing there, in place of the route&apos;s.</source>
+        <translation>Najkrótszy czas postoju tam, zamiast czasu z trasy.</translation>
+    </message>
+    <message id="timetable.command.keepclear">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="206"/>
+        <source>Stops so that part of the platform stays clear ahead of or behind the train (for a train to attach or to come in).</source>
+        <translation>Staje tak, by część peronu została wolna przed pociągiem lub za nim (by inny pociąg mógł się dołączyć lub wjechać).</translation>
+    </message>
+    <message id="timetable.command.keepclear.front">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="209"/>
+        <source>Clear ahead of the train.</source>
+        <translation>Wolne przed pociągiem.</translation>
+    </message>
+    <message id="timetable.command.keepclear.rear">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="212"/>
+        <source>Clear behind the train.</source>
+        <translation>Wolne za pociągiem.</translation>
+    </message>
+    <message id="timetable.command.keepclear.force">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="215"/>
+        <source>Kept clear even past the exit signal or with the rear outside the platform.</source>
+        <translation>Wolne nawet za semaforem wyjazdowym lub z końcem pociągu poza peronem.</translation>
+    </message>
+    <message id="timetable.command.endstop">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="218"/>
+        <source>Its path ends at this stop even where it goes on.</source>
+        <translation>Jego droga przejazdu kończy się na tym postoju, nawet gdy biegnie dalej.</translation>
+    </message>
+    <message id="timetable.command.closeup">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="221"/>
+        <source>Stops close to a train already in the platform (with $callon).</source>
+        <translation>Staje tuż za pociągiem stojącym już przy peronie (z $callon).</translation>
+    </message>
+    <message id="timetable.command.req">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="224"/>
+        <source>A request stop&apos;s details (an x in its time): how likely someone gets on or off.</source>
+        <translation>Szczegóły postoju na żądanie (x w godzinie): jak prawdopodobne jest, że ktoś wsiądzie lub wysiądzie.</translation>
+    </message>
+    <message id="timetable.command.req.pu">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="227"/>
+        <source>The chance someone gets on (0 to 99, 25 by default).</source>
+        <translation>Szansa, że ktoś wsiądzie (0 do 99, domyślnie 25).</translation>
+    </message>
+    <message id="timetable.command.req.pd">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="230"/>
+        <source>The chance someone gets off (0 to 99, 25 by default).</source>
+        <translation>Szansa, że ktoś wysiądzie (0 do 99, domyślnie 25).</translation>
+    </message>
+    <message id="timetable.command.req.laststop">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="233"/>
+        <source>The player told at the last stop before whether it stops.</source>
+        <translation>Gracz dowiaduje się na poprzednim postoju, czy pociąg staje.</translation>
+    </message>
+    <message id="timetable.command.req.approach">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="236"/>
+        <source>The player told on the approach when it stops.</source>
+        <translation>Gracz dowiaduje się przy dojeździe, gdy pociąg staje.</translation>
+    </message>
+    <message id="timetable.command.req.message">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="239"/>
+        <source>Told by a message (with /approach).</source>
+        <translation>Przez komunikat (z /approach).</translation>
+    </message>
+    <message id="timetable.command.req.sound">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="242"/>
+        <source>Told by a sound (with /approach).</source>
+        <translation>Przez dźwięk (z /approach).</translation>
+    </message>
+    <message id="timetable.command.wait">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="246"/>
+        <source>Waits for that train to pass first where their routes join, either way.</source>
+        <translation>Czeka, aż tamten pociąg przejedzie pierwszy tam, gdzie ich drogi się łączą, w dowolnym kierunku.</translation>
+    </message>
+    <message id="timetable.command.follow">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="249"/>
+        <source>Follows that train: wherever their routes join again it waits until the other has passed.</source>
+        <translation>Jedzie za tamtym pociągiem: wszędzie, gdzie ich drogi łączą się znowu, czeka, aż tamten przejedzie.</translation>
+    </message>
+    <message id="timetable.command.connect">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="252"/>
+        <source>Waits at the station for that train to arrive (passengers changing).</source>
+        <translation>Czeka na stacji na przyjazd tamtego pociągu (przesiadka pasażerów).</translation>
+    </message>
+    <message id="timetable.command.connect.maxdelay">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="255"/>
+        <source>Not when the other train is later than this.</source>
+        <translation>Nie, gdy tamten pociąg jest spóźniony bardziej niż o tyle.</translation>
+    </message>
+    <message id="timetable.command.connect.hold">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="258"/>
+        <source>How long it stands after the other train arrives.</source>
+        <translation>Jak długo stoi po przyjeździe tamtego pociągu.</translation>
+    </message>
+    <message id="timetable.command.waitany">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="261"/>
+        <source>Waits for any train on that path, running its way.</source>
+        <translation>Czeka na każdy pociąg na tej drodze przejazdu, jadący w jej kierunku.</translation>
+    </message>
+    <message id="timetable.command.waitany.both">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="264"/>
+        <source>Trains running either way.</source>
+        <translation>Pociągi jadące w obu kierunkach.</translation>
+    </message>
+    <message id="timetable.command.waitany.opposite">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="267"/>
+        <source>Trains running the other way only.</source>
+        <translation>Tylko pociągi jadące w przeciwnym kierunku.</translation>
+    </message>
+    <message id="timetable.command.callon">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="270"/>
+        <source>May run into a platform another train stands in.</source>
+        <translation>Może wjechać na peron, przy którym stoi inny pociąg.</translation>
+    </message>
+    <message id="timetable.command.noclaim">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="273"/>
+        <source>Claims no track while it waits at a signal: last at busy junctions (experimental in Open Rails).</source>
+        <translation>Nie zajmuje toru, gdy czeka przy semaforze: ostatni na zatłoczonych rozjazdach (eksperymentalne w Open Rails).</translation>
+    </message>
+    <message id="timetable.command.activate">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="276"/>
+        <source>Starts that train ($activated): arriving at the stop, at its own start (#note) or at its end (#dispose).</source>
+        <translation>Uruchamia tamten pociąg ($activated): przy przyjeździe na postój, przy własnym starcie (#note) lub na końcu (#dispose).</translation>
+    </message>
+    <message id="timetable.command.activate.depart">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="279"/>
+        <source>Leaving the stop, not arriving.</source>
+        <translation>Przy odjeździe z postoju, nie przy przyjeździe.</translation>
+    </message>
+    <message id="timetable.command.attach">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="283"/>
+        <source>Attaches to that train and ends.</source>
+        <translation>Dołącza się do tamtego pociągu i kończy bieg.</translation>
+    </message>
+    <message id="timetable.command.attach.firstin">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="286"/>
+        <source>In first: waits for the other train to come in.</source>
+        <translation>Pierwszy na miejscu: czeka na przyjazd tamtego pociągu.</translation>
+    </message>
+    <message id="timetable.command.attach.setback">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="289"/>
+        <source>In first: waits for the other train to come in behind, then sets back onto it.</source>
+        <translation>Pierwszy na miejscu: czeka, aż tamten pociąg wjedzie za nim, potem cofa się do niego.</translation>
+    </message>
+    <message id="timetable.command.detach">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="292"/>
+        <source>Detaches a part of the train.</source>
+        <translation>Odłącza część pociągu.</translation>
+    </message>
+    <message id="timetable.command.detach.power">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="295"/>
+        <source>The power unit (the front one first).</source>
+        <translation>Pojazd trakcyjny (najpierw z przodu).</translation>
+    </message>
+    <message id="timetable.command.detach.leadingpower">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="298"/>
+        <source>The front power unit.</source>
+        <translation>Pojazd trakcyjny z przodu.</translation>
+    </message>
+    <message id="timetable.command.detach.allleadingpower">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="301"/>
+        <source>All power units at the front.</source>
+        <translation>Wszystkie pojazdy trakcyjne z przodu.</translation>
+    </message>
+    <message id="timetable.command.detach.trailingpower">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="304"/>
+        <source>The rear power unit.</source>
+        <translation>Pojazd trakcyjny z tyłu.</translation>
+    </message>
+    <message id="timetable.command.detach.alltrailingpower">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="307"/>
+        <source>All power units at the rear.</source>
+        <translation>Wszystkie pojazdy trakcyjne z tyłu.</translation>
+    </message>
+    <message id="timetable.command.detach.nonpower">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="310"/>
+        <source>All units that are not power units.</source>
+        <translation>Wszystkie pojazdy, które nie są trakcyjne.</translation>
+    </message>
+    <message id="timetable.command.detach.units">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="313"/>
+        <source>This many units from the front.</source>
+        <translation>Tyle pojazdów od przodu.</translation>
+    </message>
+    <message id="timetable.command.detach.consist">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="316"/>
+        <source>Those consists, at either end.</source>
+        <translation>Te składy, z któregokolwiek końca.</translation>
+    </message>
+    <message id="timetable.command.detach.forms">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="319"/>
+        <source>The part detached forms that train.</source>
+        <translation>Odłączona część tworzy tamten pociąg.</translation>
+    </message>
+    <message id="timetable.command.detach.static">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="322"/>
+        <source>The part detached stands as a static consist.</source>
+        <translation>Odłączona część zostaje jako skład statyczny.</translation>
+    </message>
+    <message id="timetable.command.pickup">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="325"/>
+        <source>Picks up that train, which ends.</source>
+        <translation>Zabiera tamten pociąg, który kończy bieg.</translation>
+    </message>
+    <message id="timetable.command.pickup.static">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="328"/>
+        <source>The static consist standing there instead.</source>
+        <translation>Zamiast tego skład statyczny stojący tam.</translation>
+    </message>
+    <message id="timetable.command.transfer">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="331"/>
+        <source>Moves units between this train and that one; both go on.</source>
+        <translation>Przenosi pojazdy między tym pociągiem a tamtym; oba jadą dalej.</translation>
+    </message>
+    <message id="timetable.command.transfer.static">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="334"/>
+        <source>With the static consist standing there instead.</source>
+        <translation>Ze składem statycznym stojącym tam zamiast pociągu.</translation>
+    </message>
+    <message id="timetable.command.transfer.give">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="337"/>
+        <source>Gives the units named to the other train.</source>
+        <translation>Oddaje wymienione pojazdy tamtemu pociągowi.</translation>
+    </message>
+    <message id="timetable.command.transfer.take">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="340"/>
+        <source>Takes the units named from the other train.</source>
+        <translation>Bierze wymienione pojazdy od tamtego pociągu.</translation>
+    </message>
+    <message id="timetable.command.transfer.keep">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="343"/>
+        <source>Gives all but the units named.</source>
+        <translation>Oddaje wszystkie poza wymienionymi.</translation>
+    </message>
+    <message id="timetable.command.transfer.leave">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="346"/>
+        <source>Takes all but the units named.</source>
+        <translation>Bierze wszystkie poza wymienionymi.</translation>
+    </message>
+    <message id="timetable.command.transfer.onepower">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="349"/>
+        <source>One power unit.</source>
+        <translation>Jeden pojazd trakcyjny.</translation>
+    </message>
+    <message id="timetable.command.transfer.allpower">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="352"/>
+        <source>All power units.</source>
+        <translation>Wszystkie pojazdy trakcyjne.</translation>
+    </message>
+    <message id="timetable.command.transfer.nonpower">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="355"/>
+        <source>All units that are not power units.</source>
+        <translation>Wszystkie pojazdy, które nie są trakcyjne.</translation>
+    </message>
+    <message id="timetable.command.transfer.units">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="358"/>
+        <source>This many units.</source>
+        <translation>Tyle pojazdów.</translation>
+    </message>
+    <message id="timetable.command.transfer.consist">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="361"/>
+        <source>Those consists.</source>
+        <translation>Te składy.</translation>
+    </message>
+    <message id="timetable.command.forms">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="365"/>
+        <source>Forms that train of its vehicles where it ends; the new train starts at its own start time.</source>
+        <translation>Tworzy ze swoich pojazdów tamten pociąg tam, gdzie kończy bieg; nowy pociąg wyrusza o swojej godzinie.</translation>
+    </message>
+    <message id="timetable.command.triggers">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="368"/>
+        <source>Starts that train where it ends, with the new train&apos;s own consist.</source>
+        <translation>Uruchamia tamten pociąg tam, gdzie kończy bieg, z własnym składem nowego pociągu.</translation>
+    </message>
+    <message id="timetable.command.dispose.static">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="371"/>
+        <source>Stands as a static train where it ends.</source>
+        <translation>Zostaje jako pociąg statyczny tam, gdzie kończy bieg.</translation>
+    </message>
+    <message id="timetable.command.dispose.static.closeup">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="374"/>
+        <source>Ends close up to the end of the track.</source>
+        <translation>Kończy tuż przy końcu toru.</translation>
+    </message>
+    <message id="timetable.command.stable">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="377"/>
+        <source>Moves out to a stabling place, then stands there as a static train, or comes back to form or start a train.</source>
+        <translation>Odjeżdża na miejsce odstawienia i tam zostaje jako pociąg statyczny albo wraca, by utworzyć lub uruchomić pociąg.</translation>
+    </message>
+    <message id="timetable.command.stable.out.path">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="380"/>
+        <source>The path out to the stabling place.</source>
+        <translation>Droga przejazdu na miejsce odstawienia.</translation>
+    </message>
+    <message id="timetable.command.stable.out.time">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="383"/>
+        <source>When it moves out (none: at once).</source>
+        <translation>Kiedy odjeżdża (bez godziny: od razu).</translation>
+    </message>
+    <message id="timetable.command.stable.in.path">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="386"/>
+        <source>The path back to where the new train starts.</source>
+        <translation>Droga przejazdu z powrotem tam, gdzie wyrusza nowy pociąg.</translation>
+    </message>
+    <message id="timetable.command.stable.in.time">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="389"/>
+        <source>When it comes back (none: at once).</source>
+        <translation>Kiedy wraca (bez godziny: od razu).</translation>
+    </message>
+    <message id="timetable.command.stable.static">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="392"/>
+        <source>Stands as a static train once out.</source>
+        <translation>Po odjeździe zostaje jako pociąg statyczny.</translation>
+    </message>
+    <message id="timetable.command.stable.forms">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="395"/>
+        <source>Forms that train once back.</source>
+        <translation>Po powrocie tworzy tamten pociąg.</translation>
+    </message>
+    <message id="timetable.command.stable.triggers">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="398"/>
+        <source>Starts that train once back, with its consist.</source>
+        <translation>Po powrocie uruchamia tamten pociąg z jego składem.</translation>
+    </message>
+    <message id="timetable.command.stable.runround">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="401"/>
+        <source>Its engine runs round the train by this path.</source>
+        <translation>Lokomotywa objeżdża skład tą drogą przejazdu.</translation>
+    </message>
+    <message id="timetable.command.stable.rrtime">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="404"/>
+        <source>When the run-round takes place.</source>
+        <translation>Kiedy następuje objazd.</translation>
+    </message>
+    <message id="timetable.command.stable.rrpos">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="407"/>
+        <source>Where the run-round takes place: before moving out, at the stabling place or once back.</source>
+        <translation>Gdzie następuje objazd: przed odjazdem, na miejscu odstawienia lub po powrocie.</translation>
+    </message>
+    <message id="timetable.command.stable.closeup">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="410"/>
+        <source>Ends close up to the end of the track.</source>
+        <translation>Kończy tuż przy końcu toru.</translation>
+    </message>
+    <message id="timetable.command.stable.callon">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="413"/>
+        <source>May come back into a platform another train stands in.</source>
+        <translation>Może wrócić na peron, przy którym stoi inny pociąg.</translation>
+    </message>
+    <message id="timetable.command.stable.speed">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="416"/>
+        <source>The speed of the run-round.</source>
+        <translation>Prędkość objazdu.</translation>
+    </message>
+    <message id="timetable.command.stable.name">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="419"/>
+        <source>The name of the train while it runs round.</source>
+        <translation>Nazwa pociągu podczas objazdu.</translation>
+    </message>
+    <message id="timetable.command.dispose.pool">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="422"/>
+        <source>Goes into that pool of stored trains where it ends.</source>
+        <translation>Wjeżdża do tej puli odstawionych pociągów tam, gdzie kończy bieg.</translation>
+    </message>
+    <message id="timetable.command.dispose.pool.direction">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="425"/>
+        <source>The way it goes onto a turntable pool (none: it reverses).</source>
+        <translation>Kierunek, w którym wjeżdża na pulę z obrotnicą (bez niego: zmienia kierunek).</translation>
+    </message>
+    <message id="timetable.command.group.start">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="442"/>
+        <source>Start</source>
+        <translation>Start</translation>
+    </message>
+    <message id="timetable.command.group.note">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="445"/>
+        <source>Train</source>
+        <translation>Pociąg</translation>
+    </message>
+    <message id="timetable.command.group.speed">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="448"/>
+        <source>Speeds</source>
+        <translation>Prędkości</translation>
+    </message>
+    <message id="timetable.command.group.station">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="451"/>
+        <source>Station stop</source>
+        <translation>Postój na stacji</translation>
+    </message>
+    <message id="timetable.command.group.timing">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="454"/>
+        <source>Waits and other trains</source>
+        <translation>Oczekiwanie i inne pociągi</translation>
+    </message>
+    <message id="timetable.command.group.shunting">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="457"/>
+        <source>Attaching and detaching</source>
+        <translation>Łączenie i odłączanie</translation>
+    </message>
+    <message id="timetable.command.group.dispose">
+        <location filename="../src/tsre/trains/OrTimetableCommands.cpp" line="460"/>
+        <source>At its end</source>
+        <translation>Na końcu biegu</translation>
     </message>
 </context>
 </TS>

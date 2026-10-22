@@ -238,6 +238,18 @@ Path* ActLib::GetPathByName(QString name, QString routePath){
     return byTrPathName;
 }
 
+QVector<Path*> ActLib::RoutePaths(QString routePath){
+    const QString ownerKey = routeKey(routePath);
+    QVector<Path*> out;
+    for (Path *path : Paths)
+        if(path != NULL && path->loaded == 1 && path->routeHashid == ownerKey)
+            out.push_back(path);
+    std::sort(out.begin(), out.end(), [](Path *a, Path *b) {
+        return a->nameId.compare(b->nameId, Qt::CaseInsensitive) < 0;
+    });
+    return out;
+}
+
 // The services on the path follow it (task editor 07, phase 5), kept for
 // undo first; what changed goes to the activity windows.
 void ActLib::PathChanged(Path *path, bool report) {
