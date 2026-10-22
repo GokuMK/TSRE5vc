@@ -21,6 +21,7 @@
 #include <tsre/renderer/SelectionId.h>
 #include <QDebug>
 #include <QFile>
+#include <QFileInfo>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Traffic.h>
@@ -28,10 +29,51 @@
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/OrTimetable.h>
 #include <tsre/sim/SimulationController.h>
 #include <algorithm>
 
 Activity::Activity() {
+}
+
+void Activity::loadTimetableSet(const QString &directory, const QString &file) {
+    kind = Kind::OrTimetables;
+    path = directory;
+    name = file;
+    nameid = QFileInfo(file).completeBaseName();
+    pathid = ContentPath::normalize(directory + "/" + file);
+    hashid = ContentPath::key(pathid);
+    timetables.clear();
+    QString display;
+    QStringList files;
+    if (file.contains(".timetablelist", Qt::CaseInsensitive)) {
+        OrTimetableGroup group;
+        if (group.load(pathid)) {
+            display = group.name;
+            files = group.timetables;
+        }
+    } else {
+        files << file;
+    }
+    int start = -1;
+    for (const QString &one : files) {
+        auto timetable = std::make_shared<OrTimetable>();
+        timetable->load(directory + "/" + one);
+        if (display.isEmpty())
+            display = timetable->description;
+        for (const OrTimetable::Train &train : timetable->trains)
+            if (!train.isStatic && train.startTime >= 0 && (start < 0 || train.startTime < start))
+                start = train.startTime;
+        timetables.push_back(timetable);
+    }
+    delete header;
+    header = new ActivityHeader(Game::route, display.isEmpty() ? nameid : display);
+    if (start >= 0) {
+        header->startTime[0] = start / 3600;
+        header->startTime[1] = start / 60 % 60;
+        header->startTime[2] = start % 60;
+    }
+    loaded = 1;
 }
 
 void Activity::init(QString route, QString name) {
@@ -346,6 +388,16 @@ void Activity::parse(FileBuffer *data) {
 }
 
 void Activity::save() {
+    // A timetable set (task 08, phase 6): each changed timetable written in
+    // TSRE's layout (the original kept beside it the first time).
+    if (isTimetables()) {
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables) {
+            QString error;
+            if (timetable->modified && !timetable->save(&error))
+                qWarning() << error;
+        }
+        return;
+    }
     QString tpath;
     
     QDir dir(path);
@@ -416,6 +468,14 @@ std::shared_ptr<TextSnapshot> Activity::snapshot() {
 }
 
 void Activity::restore(const TextSnapshot &snapshot) {
+    if (isTimetables()) {
+        const QStringList parts = snapshot.text.split(QChar(0x1e));
+        for (int i = 0; i < parts.size() && i < int(timetables.size()); ++i) {
+            timetables[size_t(i)]->loadText(parts[i].mid(1));
+            timetables[size_t(i)]->modified = parts[i].startsWith('1');
+        }
+        return;
+    }
     mergedOverlay = snapshot.pending;
     clearContent();
     FileBuffer *data = FileBuffer::fromText(snapshot.text);
@@ -456,6 +516,14 @@ void Activity::clearContent() {
 }
 
 QString Activity::toText() {
+    // A timetable set: its timetables' texts, each after whether it was
+    // changed (for undo, task 08).
+    if (isTimetables()) {
+        QStringList parts;
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+            parts << QString(timetable->modified ? "1" : "0") + timetable->toText();
+        return parts.join(QChar(0x1e));
+    }
     QString text;
     QTextStream out(&text);
     out << "SIMISA@@@@@@@@@@JINX0a0t______\n";
@@ -893,6 +961,12 @@ void Activity::initToPlay(){
 }
 
 bool Activity::isUnSaved(){
+    if (isTimetables()) {
+        for (const std::shared_ptr<OrTimetable> &timetable : timetables)
+            if (timetable->modified)
+                return true;
+        return false;
+    }
     for(int i = 0; i < activityObjects.size(); i++){
         if(activityObjects[i]->isUnSaved())
             return true;

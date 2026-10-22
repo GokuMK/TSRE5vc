@@ -43,6 +43,9 @@ class Route : public QObject {
 public:
     QHash<int, Tile*> tile;
     QVector<int> activityId;
+    // The route's Open Rails timetable sets (task simulation 08), by their
+    // id in ActLib::TimetableSets.
+    QVector<int> timetableSetId;
     //QVector<Service*> service;
     //QVector<Traffic*> traffic;
     QVector<Path*> path;
@@ -89,6 +92,7 @@ public:
                              QString *error = nullptr);
     void createMkrPlaces();
     void loadActivities();
+    void loadTimetableSets();
     void loadServices();
     void loadTraffic();
     void loadPaths();

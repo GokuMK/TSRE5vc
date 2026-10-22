@@ -27,6 +27,7 @@ class Consist;
 class Path;
 class Service;
 class Traffic;
+class OrTimetable;
 class QTextStream;
 class GLUU;
 
@@ -118,6 +119,22 @@ public:
     QString routeHashid;
     int loaded = -1;
     int ref = 0;
+
+    // What the activity is (task simulation 08): an MSTS activity (its .act
+    // file), or an Open Rails timetable set (a timetable or a group of
+    // them, in the route's ACTIVITIES/OpenRails): no activity file, its
+    // trains in the timetables, the player's train chosen for a run (none:
+    // every train AI). Kept apart (ActLib::TimetableSets); its events and
+    // objects for later (the user, 2026-10-21).
+    enum class Kind { Msts, OrTimetables };
+    Kind kind = Kind::Msts;
+    std::vector<std::shared_ptr<OrTimetable>> timetables;
+    QString playerTrain;
+    bool isTimetables() const { return kind == Kind::OrTimetables; }
+    // Reads a timetable set from its file (a timetable, or a group naming
+    // timetables beside it): its name the group's or the timetable's
+    // description, its start the first train's.
+    void loadTimetableSet(const QString &directory, const QString &file);
 
     ActivityServiceDefinition *playerServiceDefinition = NULL;
     ActivityHeader *header = NULL;

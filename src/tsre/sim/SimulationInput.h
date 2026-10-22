@@ -81,6 +81,38 @@ struct StopPlan {
     QString platform;
     // Its row in the train's timetable.
     int entry = -1;
+    // The platform's exit signal held until shortly before it departs, as
+    // Open Rails' activities hold it; an Open Rails timetable's stop only
+    // with `$hold` (task 08).
+    bool holdsExit = true;
+    // Its exit signal (task 08): the first stop signal beyond the platform
+    // on the platform's track node, within ExitSignalReach or with a
+    // junction in its block (Open Rails' activities); at any distance (its
+    // timetable mode); or wherever it is (`$forcehold`, `$forcewait`).
+    enum class Exit : unsigned char { Activity, Timetable, First };
+    Exit exit = Exit::Activity;
+    // It leaves only once its exit signal, the next ahead, shows more than
+    // STOP (Open Rails' timetable trains; not with `$nowaitsignal`).
+    bool waitsForSignal = false;
+    // How far short of its exit signal its front stops, m (`$closeupsignal`:
+    // Open Rails' 7 m); negative: the station clearing.
+    double signalClearing = -1.0;
+    // The platform's end just short of its exit signal
+    // (`$extendplatformtosignal`): the stop centred on that.
+    bool extendToSignal = false;
+};
+
+// Where a train's route joins another's again after running apart (task
+// 08, `$follow`): the track section (of the network) entered at route
+// distance `at` on its route part `part`, and where the other train leaves
+// it, on that train's part `otherPart`.
+struct FollowPlan {
+    int train = -1;
+    int section = -1;
+    int part = 0;
+    double at = 0.0;
+    int otherPart = 0;
+    double otherLeave = 0.0;
 };
 
 // A speed limit along a route part (route distances), m/s.
@@ -135,6 +167,9 @@ struct TrainPlan {
     // 0.5 both ways.
     float acceleration = 1.0f;
     float deceleration = 1.0f;
+    // Factors on those (an Open Rails timetable's `$acc`, `$dec`).
+    float accelerationFactor = 1.0f;
+    float decelerationFactor = 1.0f;
     // Open Rails' AI efficiency in driving (Physics): the service's, the
     // player's train 0.9.
     float drivingEfficiency = 1.0f;
@@ -143,8 +178,19 @@ struct TrainPlan {
     bool passenger = false;
     Driving driving = Driving::Simple;
     Performance performance;
-    // Seconds after midnight.
+    // Seconds after midnight (more for the next day).
     int startTime = 0;
+    // Open Rails timetables (task 08): put on its track at this time,
+    // standing until its start holding only the track it stands on
+    // (`$create`), -1 at its start; or when the run of the train it is
+    // formed of ends (`$triggers`), -1 none. It stays standing at its
+    // path's end (`#dispose $static`).
+    int createTime = -1;
+    int formedBy = -1;
+    bool staysAtEnd = false;
+    // Where it waits for other trains to pass (`$follow`), in its route's
+    // order.
+    std::vector<FollowPlan> follows;
     TrainRoute route;
     // Route distance of the front at the start, on the first part.
     double startFront = 0.0;
@@ -331,6 +377,14 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
                                                  std::shared_ptr<const TrackGeometry> geometry = nullptr,
                                                  std::shared_ptr<const TrackNetwork> network = nullptr,
                                                  float restrictedSpeed = -1.0f, bool work = true);
+
+// An Open Rails timetable set's trains into the input (task simulation 08):
+// each running train with its consist (the parts, turned ones turned), its
+// path (the rear at its start), its top speed (the #speed row's lower one),
+// its start time, its stops at its stations' platforms with their booked
+// times; static trains standing trains; the set's chosen train the
+// player's. MakeInput uses it for a set.
+void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb);
 
 // A route part's way and speed limits (the zones it passes at the input's
 // restricted speed), as MakeInput makes them.

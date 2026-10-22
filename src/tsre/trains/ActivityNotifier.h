@@ -13,6 +13,11 @@ public:
     // and undo leaves activity steps alone.
     static bool editingLocked() { return instance()->locked; }
     void setEditingLocked(bool on);
+    // The kind of activity the activity panel shows (task simulation 08):
+    // MSTS activities or Open Rails timetables; the activity windows follow
+    // it.
+    static bool timetables() { return instance()->timetableKind; }
+    void setTimetables(bool on);
 signals:
     void restoring();
     void restored();
@@ -21,6 +26,8 @@ signals:
     // Saving an activity renamed the overlay merged into it.
     void overlayRenamed(const QString &path);
     void editingLockChanged(bool locked);
+    void kindChanged(bool timetables);
 private:
     bool locked = false;
+    bool timetableKind = false;
 };

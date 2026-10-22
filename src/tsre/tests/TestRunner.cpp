@@ -4164,6 +4164,7 @@ QStringList TsreTests::listSuites() {
         "osm-data",
         "elevation-ui",
         "activity-ui",
+        "timetable-ui",
         "activity-roundtrip",
         "activity-edit",
         "activity-check",
@@ -4177,6 +4178,10 @@ QStringList TsreTests::listSuites() {
         "simulation-events",
         "simulation-coupling",
         "simulation-work",
+        "timetable-read",
+        "timetable-route",
+        "timetable-trains",
+        "timetable-commands",
         "new-route",
         "tdb-load",
         "tdb-roundtrip",
@@ -4349,6 +4354,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "activity-ui")
         return runActivityUiSuite(opts.verbose);
+    if (suite == "timetable-ui")
+        return runTimetableUiSuite(opts.verbose);
 
     if (suite == "activity-roundtrip")
         return runActivityRoundTripSuite(opts.casesFile, opts.verbose);
@@ -4373,6 +4380,14 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSimulationCouplingSuite(opts.verbose);
     if (suite == "simulation-work")
         return runSimulationWorkSuite(opts.verbose);
+    if (suite == "timetable-read")
+        return runTimetableReadSuite(opts.verbose);
+    if (suite == "timetable-route")
+        return runTimetableRouteSuite(opts.verbose);
+    if (suite == "timetable-trains")
+        return runTimetableTrainsSuite(opts.verbose);
+    if (suite == "timetable-commands")
+        return runTimetableCommandsSuite(opts.verbose);
 
     if (suite == "simulation-route")
         return runSimulationRouteSuite(opts.verbose);

@@ -9,7 +9,13 @@ Open Rails train's stops and stands are paired with the same train's in
 TSRE by the distance it had travelled there; the times are compared
 (TSRE minus Open Rails).
 
-Usage: scripts/orts-compare-stops.py <tsre events.jsonl> <open rails samples.jsonl>
+An Open Rails timetable (task simulation 08): Open Rails numbers its trains
+in the timetable's column order from 1, as TSRE's traffic order; the
+player's train 0. With TSRE's trains all AI, the third argument names the
+train Open Rails ran as the player's. The dispatcher page shows a
+timetable train's name cut to 6 characters: checked against TSRE's.
+
+Usage: scripts/orts-compare-stops.py <tsre events.jsonl> <open rails samples.jsonl> [open rails player train]
 """
 import json
 import os
@@ -79,13 +85,13 @@ def pair(theirs, mine, at, metres=NEAR_METRES):
     return pairs, [m for k, m in enumerate(mine) if k not in used]
 
 
-def main(events_path, samples_path):
+def main(events_path, samples_path, player=None):
     activity, mine = ours(events_path)
     theirs = dispatcher.read(samples_path)
     loose = activity["loose"] if activity else 0
     by_number = {}
     for train in mine.values():
-        number = 0 if train["player"] else loose + 1 + train["traffic"]
+        number = 0 if train["player"] or train["service"] == player else loose + 1 + train["traffic"]
         by_number[str(number)] = train
     stop_differences, wait_differences = [], []
     print("%s: Open Rails sampled %s to %s" % (activity["name"] if activity else events_path,
@@ -98,6 +104,8 @@ def main(events_path, samples_path):
             print("train %s (%s): no TSRE train" % (number, other["name"]))
             continue
         print("train %s = %s %s" % (number, train["service"], "(player)" if train["player"] else clock(train["time"])))
+        if player is not None and other["name"] and not train["service"].startswith(other["name"]):
+            print("  Open Rails shows %s: not this train" % other["name"])
         seen_from, seen_to = other["first"], other["last"]
         # Paired by distance with any of TSRE's (its trains may be far
         # ahead or behind); those left over listed when in the time Open
@@ -141,7 +149,7 @@ def main(events_path, samples_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         print(__doc__, file=sys.stderr)
         sys.exit(2)
-    main(sys.argv[1], sys.argv[2])
+    main(*sys.argv[1:])

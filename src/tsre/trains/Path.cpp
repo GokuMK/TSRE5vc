@@ -42,8 +42,10 @@ namespace {
 constexpr unsigned int NoNext = 4294967295u;
 // A file node within this distance of a junction (metres, across the
 // ground) is that junction; a point within this distance of a track is on
-// it.
-constexpr float JunctionSnap = 1.0f;
+// it. Open Rails' TrackViewer calls a junction node broken beyond 2.5 m
+// (its AI paths take the tile's nearest junction at any distance); PRUDNIK
+// has paths 1.5 m off.
+constexpr float JunctionSnap = 2.5f;
 constexpr float PointSnap = 2.0f;
 
 qint64 tileKey(int x, int z) {

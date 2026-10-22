@@ -22,6 +22,7 @@
 #include <tsre/Game.h>
 #include <QProgressDialog>
 #include <QCoreApplication>
+#include <algorithm>
 
 namespace {
 QString routeKey(QString routePath) {
@@ -35,6 +36,7 @@ int ActLib::jestservice = 0;
 int ActLib::jesttraffic = 0;
 int ActLib::jestpath = 0;
 QHash<int, Activity*> ActLib::Act;
+QHash<int, Activity*> ActLib::TimetableSets;
 QHash<int, Service*> ActLib::Services;
 QHash<int, Traffic*> ActLib::Traffics;
 QHash<int, Path*> ActLib::Paths;
@@ -88,6 +90,20 @@ int ActLib::AddAct(QString path, QString name, bool nowe) {
     if(!nowe && Act[jestact]->loaded == 1 && Act[jestact]->header)
         route[Act[jestact]->header->routeid].push_back(jestact);
     return jestact++;
+}
+
+int ActLib::AddTimetableSet(QString path, QString name) {
+    const QString key = ContentPath::key(ContentPath::normalize(path + "/" + name));
+    for (auto it = TimetableSets.begin(); it != TimetableSets.end(); ++it)
+        if (it.value() != nullptr && it.value()->hashid == key) {
+            it.value()->ref++;
+            return it.key();
+        }
+    const int id = TimetableSets.isEmpty() ? 0 : *std::max_element(TimetableSets.keyBegin(), TimetableSets.keyEnd()) + 1;
+    Activity *set = new Activity();
+    set->loadTimetableSet(path, name);
+    TimetableSets[id] = set;
+    return id;
 }
 
 int ActLib::AddService(QString path, QString name, bool nowe) {
@@ -429,6 +445,10 @@ int ActLib::LoadAllAct(QString gameRoot, bool gui){
 }
 
 void ActLib::GetUnsavedInfo(QVector<QString>& items){
+    // Open Rails timetable sets (task 08).
+    for (Activity *set : TimetableSets)
+        if (set != NULL && set->loaded == 1 && set->isUnSaved())
+            items.push_back("[T] " + set->name);
     Activity * e;
     for (int i = 0; i < ActLib::jestact; i++){
         e = ActLib::Act[i];
@@ -468,6 +488,9 @@ void ActLib::GetUnsavedInfo(QVector<QString>& items){
 }
 
 void ActLib::SaveAll(){
+    for (Activity *set : TimetableSets)
+        if (set != NULL && set->loaded == 1 && set->isUnSaved())
+            set->save();
     Activity * e;
     for (int i = 0; i < ActLib::jestact; i++){
         e = ActLib::Act[i];

@@ -164,6 +164,21 @@ model as the first operating policy, and threading.
     append, delete, reverse, move, flip); the simulation does not need
     them (its copies are made from frames). The player's driving with
     real consists will.
+- [x] `08-open-rails-timetables.md` (designed 2026-10-21 with the user's
+  ideas, done 2026-10-22; open items in the task): Open Rails' timetable
+  mode read, simulated, shown and saved (the user, 2026-10-21: before the
+  player's driving); an Open Rails timetable set is an activity in code.
+  PRUDNIK's timetable, 308 trains and no activity, is the local content:
+  on OR_PSK converted with `--contentcase` its trains run with the
+  commands it uses (all 266 finish, a median of 50 s ahead of the
+  timetable). The activity panel shows a set's timetables, trains and
+  problems; a train's start and stop times are edited and saved in
+  TSRE's layout (the original kept as `.original`), which Open Rails
+  reads and runs as the original. Against Open Rails (three windows of
+  the day; its Linux build fails or hangs in longer runs): 589 stops of
+  116 AI trains, a median of 22 s earlier in TSRE, 81 % within a minute;
+  open: PRUDNIK's block signals Open Rails passes unenabled at 25 km/h,
+  and which train takes a junction first at times.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a
@@ -198,9 +213,8 @@ model as the first operating policy, and threading.
     waiting point "until 08:30" on EUROPE1 lclsrvce (2026-10-14), and
     JAPAN1 itr from 12:00 at about 12:23 ("Collection was modified" in
     `TrackCircuitSection.TestTrainAhead`).
-- Separate tasks: Open Rails' timetable mode (PRUDNIK has only an Open
-  Rails timetable, so its trains cannot run in TSRE's simulation yet); the
-  flagged refactors below.
+- Separate tasks: Open Rails' timetable mode (task 08); the flagged
+  refactors below.
 
 ## Flagged refactors (user, 2026-10-17)
 - `Sim::TrackGeometry` repeats `TDB::getDrawPositionOnTrNode`'s section

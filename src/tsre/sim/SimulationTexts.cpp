@@ -83,6 +83,9 @@ QString StateText(const SimulationInput &in, const TrainState &s, double time, i
     case StopKind::Couple:
         //% "coupling"
         return qtTrId("simulation.state.couple");
+    case StopKind::Created:
+        //% "standing, starts at %1"
+        return qtTrId("simulation.state.created").arg(clock(s.until));
     case StopKind::None:
         break;
     }
@@ -137,6 +140,12 @@ QString WaitText(const SimulationInput &in, WaitFor waitFor, int signal, int hol
             qtTrId("simulation.wait.passing").arg(who) :
             //% "at signal %1: the passing track is held by %2"
             qtTrId("simulation.wait.passing.signal").arg(at, who);
+    case WaitFor::Follow:
+        return at.isEmpty() ?
+            //% "following %1, waiting for it to pass"
+            qtTrId("simulation.wait.follow").arg(who) :
+            //% "at signal %1: following %2, waiting for it to pass"
+            qtTrId("simulation.wait.follow.signal").arg(at, who);
     case WaitFor::Track:
         break;
     }

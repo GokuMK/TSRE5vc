@@ -460,6 +460,21 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
               "a train taking cars that stand off its path is removed (Open Rails' OUT_OF_PATH)");
     }
 
+    // A run with no player's train (task 08: a timetable set, or an
+    // activity without a player service, runs every train as AI): it runs
+    // to its end; an event looking at the player's train never fires.
+    {
+        Sim::EventPlan place;
+        place.kind = Sim::EventPlan::Location;
+        place.places = {Sim::TrackPlace{13, 50.0f}};
+        place.radius = 10.0f;
+        place.activation = 1;
+        Sim::SimulationCore core(inputOf({trainOn(east, {vehicle(20.0f, true, 7)}, false)}, {}, {place}));
+        runFor(core, 300.0);
+        check(core.trains()[0].status == Sim::TrainStatus::Finished && core.eventStates()[0].fired == 0,
+              "a run with no player's train: to its end, the player's event not fired");
+    }
+
     qInfo().noquote() << QString("simulation-coupling: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }

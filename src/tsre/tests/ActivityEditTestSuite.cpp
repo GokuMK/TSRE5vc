@@ -362,8 +362,9 @@ int TsreTests::runActivityEditSuite(bool verbose) {
           && writeSimis(route + "/ACTIVITIES/Undo.act", activityText)
           && writeSimis(route + "/ACTIVITIES/Legacy.act", legacyActivity)
           && writeSimis(route + "/ACTIVITIES/Overlaid.act", overlaidActivity)
-          && QDir().mkpath(route + "/ACTIVITIES/OpenRails")
-          && writeSimis(route + "/ACTIVITIES/OpenRails/overlaid.ACT", overlayText)
+          && QDir().mkpath(route + "/ACTIVITIES/OPENRAILS")
+          && writeSimis(route + "/ACTIVITIES/OPENRAILS/Overlaid.act", overlayText)
+          && writeSimis(route + "/ACTIVITIES/OPENRAILS/legacy.ACT", overlayText)
           && writeSimis(route + "/TRAFFIC/Shared.trf", sharedTraffic)
           && writeSimis(route + "/ACTIVITIES/TrainsA.act", trainsActivity("Trains A",
                  "\t\t\tService_Definition ( Stops 36000\n\t\t\t\tUiD ( 1 )\n\t\t\t)\n"
@@ -546,13 +547,17 @@ int TsreTests::runActivityEditSuite(bool verbose) {
               "set, they are written; the horn pattern after NextActivityObjectUID");
     }
 
-    // An Open Rails overlay: found in any case, shown before it is merged,
-    // merged as one undo step, renamed when the activity is saved.
+    // An Open Rails overlay: found by the activity's file name in
+    // OPENRAILS, not in another letter case (that is for the content-case
+    // converter), shown before it is merged, merged as one undo step,
+    // renamed when the activity is saved.
     {
         Activity *overlaid = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "Overlaid.act"));
-        const QString overlay = route + "/ACTIVITIES/OpenRails/overlaid.ACT";
-        check(overlaid && overlaid->loaded == 1 && ActivityOverlay::PathOf(overlaid) == overlay,
-              "the overlay is found in any case");
+        const QString overlay = route + "/ACTIVITIES/OPENRAILS/Overlaid.act";
+        Activity *legacy = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "Legacy.act"));
+        check(overlaid && overlaid->loaded == 1 && ActivityOverlay::PathOf(overlaid) == overlay && legacy != nullptr
+                  && ActivityOverlay::PathOf(legacy).isEmpty(),
+              "the overlay is found by the activity's file name, legacy.ACT for Legacy.act not");
         const auto codes = [](Activity *checked) {
             QStringList found;
             for (const ActivityFinding &finding : CheckActivity(checked))
