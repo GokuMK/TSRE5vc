@@ -548,6 +548,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     };
     speed->setCurrentIndex(speed->findData(0.0));
     emit speed->activated(speed->currentIndex());
+    // Played with the Timetable window closed: opened later, it shows the
+    // simulation's states.
+    timetable.hide();
     play->click();
     check(simulation->exists() && simulation->shows(activity) && simulation->input()->trains.size() == 2,
           "Play: a simulation of the activity, the player's train and the AI train");
@@ -569,9 +572,13 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     pump();
     check(f && !simulation->runs() && play->isEnabled() && f->mode == Sim::RunMode::Paused, "paused");
 
-    // The Timetable window: states, the chosen train's events, Follow.
+    // The Timetable window, opened now: states, the chosen train's events,
+    // Follow.
+    timetable.show();
+    timetable.showTimetable(activity);
+    pump();
     check(!rows->isColumnHidden(2) && rows->topLevelItemCount() == 2 && !rows->topLevelItem(0)->text(2).isEmpty(),
-          "each train's state: " + (rows->topLevelItemCount() ? rows->topLevelItem(0)->text(2) : QString()));
+          "opened while it runs: each train's state: " + (rows->topLevelItemCount() ? rows->topLevelItem(0)->text(2) : QString()));
     rows->setCurrentItem(rows->topLevelItem(0));
     rows->topLevelItem(0)->setSelected(true);
     pump();

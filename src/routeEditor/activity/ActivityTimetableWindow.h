@@ -99,6 +99,10 @@ private:
     QPushButton *bRemoveTrain = NULL;
     // The train to choose after the list is filled again.
     void chooseTrainNamed(const QString &name);
+    // The State column and the chosen train's events while a simulation
+    // shows the activity: when it starts or stops, and when the window
+    // opens (it may have started while the window was closed).
+    void showSimulating();
     OrTrainProperties *orTrain = NULL;
     QListWidget events;
     QLabel savedIn;

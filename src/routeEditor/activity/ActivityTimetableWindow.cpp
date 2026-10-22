@@ -425,6 +425,7 @@ void ActivityTimetableWindow::showTimetable(Activity *a){
         QSignalBlocker blocker(showAll);
         showAll.setChecked(a != NULL && a->showAllAITrains);
     }
+    showSimulating();
     fillTrains();
     showChosen();
 }
@@ -839,11 +840,15 @@ void ActivityTimetableWindow::followToggled(bool on){
 void ActivityTimetableWindow::simulationChanged(){
     if(isHidden())
         return;
+    showSimulating();
+    showChosen();
+    showStates();
+}
+
+void ActivityTimetableWindow::showSimulating(){
     const bool simulating = Sim::SimulationController::instance()->shows(activity);
     trains.setColumnHidden(StateColumn, !simulating);
     simulationBox->setVisible(simulating);
-    showChosen();
-    showStates();
 }
 
 // Each train's state in the simulation.
