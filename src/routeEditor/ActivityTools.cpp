@@ -501,6 +501,12 @@ ActivityTools::ActivityTools(QString name)
         simRunToTime.setDisplayFormat("HH:mm:ss");
         simStatus.setWordWrap(true);
         simStatus.setContentsMargins(3,0,0,0);
+        simWarnings.setObjectName("simulationWarnings");
+        simWarnings.setTextFormat(Qt::RichText);
+        simWarnings.setWordWrap(true);
+        simWarnings.setContentsMargins(3,0,0,0);
+        simWarnings.hide();
+        QObject::connect(&simWarnings, &QLabel::linkActivated, this, [this] { actCheckEnabled(); });
         QGridLayout *grid = new QGridLayout;
         grid->setSpacing(2);
         grid->setContentsMargins(0,0,1,0);
@@ -523,6 +529,7 @@ ActivityTools::ActivityTools(QString name)
         grid->addWidget(simRunTo, 3, 3);
         vbox->addItem(grid);
         vbox->addWidget(&simStatus);
+        vbox->addWidget(&simWarnings);
         QObject::connect(simPlay, SIGNAL(released()), this, SLOT(actPlayEnabled()));
         QObject::connect(simPause, SIGNAL(released()), this, SLOT(simPauseEnabled()));
         QObject::connect(simStop, SIGNAL(released()), this, SLOT(simStopEnabled()));
@@ -997,6 +1004,8 @@ void ActivityTools::showSimulation(){
         simStatus.clear();
         simStatus.setToolTip(QString());
         simStatus.hide();
+        simWarnings.clear();
+        simWarnings.hide();
         return;
     }
     const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
@@ -1009,6 +1018,15 @@ void ActivityTools::showSimulation(){
     simTime.setText(time);
     simStatus.setText(simulation->statusText());
     simStatus.show();
+    const int notMade = simulation->input() != nullptr ? int(simulation->input()->warnings.size()) : 0;
+    const QString warned = notMade == 0 ? QString() :
+        //% "%1 notes on the run's trains:"
+        qtTrId("route.editor.activity.tools.simulation.not.simulated").arg(notMade) + " <a href=\"check\">" +
+        //% "Check Activity lists them"
+        qtTrId("route.editor.activity.tools.simulation.not.simulated.link") + "</a>";
+    if(simWarnings.text() != warned)
+        simWarnings.setText(warned);
+    simWarnings.setVisible(notMade > 0);
 }
 
 // Trains in a deadlock wait for good: the user is told which (once a ring),

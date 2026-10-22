@@ -20,7 +20,9 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/TrackLayoutSupport.h>
+#include <routeEditor/activity/ActivityCheckWindow.h>
 #include <routeEditor/activity/OrTrainProperties.h>
+#include <tsre/sim/EventResults.h>
 #include <tsre/Undo.h>
 #include <QApplication>
 #include <QTreeWidget>
@@ -886,6 +888,23 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
         check(wrong.isEmpty() && statics.size() == 1 && statics[0]->engItems.size() == 2
                   && statics[0]->displayName == "S4",
               "the listed trains numbered as simulated (" + wrong.join(", ") + "); the static S4's consist made");
+    }
+
+    // The user's review: what the run could not make is listed by Check
+    // Activity as the last run's (the panel only counts it), a timetable
+    // set's too.
+    {
+        Sim::EventResultStore::instance()->recordInput(set, input->warnings);
+        ActivityCheckWindow window(nullptr);
+        window.check(set);
+        QTreeWidget *rows = window.findChild<QTreeWidget *>();
+        QStringList listed;
+        for (int i = 0; rows != nullptr && i < rows->topLevelItemCount(); ++i)
+            if (rows->topLevelItem(i)->text(0) == "Last run"
+                    && (rows->topLevelItem(i)->text(1).contains("Epsilon") || rows->topLevelItem(i)->text(1).contains("Nowhere")))
+                listed << rows->topLevelItem(i)->text(1);
+        check(listed.size() == 2, "Check Activity lists what the run could not make: " + listed.join("; "));
+        Sim::EventResultStore::instance()->forgetAll();
     }
 
     // The user's review: a train's stations along its path, as its stops

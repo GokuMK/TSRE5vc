@@ -1,5 +1,6 @@
 #pragma once
 #include <QObject>
+#include <QStringList>
 #include <QString>
 #include <unordered_map>
 #include <vector>
@@ -36,6 +37,10 @@ struct EventResults {
     bool complete = false;
     ActivityEnd end = ActivityEnd::None;
     double endedAt = -1.0;
+    // What the run's input noted on the trains it made
+    // (SimulationInput::warnings): trains not simulated, stops not found,
+    // trains driven simply (Check Activity lists them).
+    QStringList warnings;
 };
 
 // The last run's results of each activity, kept for the session (main
@@ -48,6 +53,9 @@ public:
     // The cars where the run left them (task 07), else as the input has them.
     void record(Activity *activity, const SimulationInput &input, const std::vector<EventState> &states,
                 ActivityEnd end, double endedAt, double time, bool complete, const CarsNow *cars = nullptr);
+    // A run's input made (its start, again from the start): what it could
+    // not make, for any activity (a timetable set has no events).
+    void recordInput(Activity *activity, const QStringList &warnings);
     // The run went on to `time` (nothing else changed): no signal.
     void advance(const Activity *activity, double time, bool complete);
     // The activity was edited: its results are from before.

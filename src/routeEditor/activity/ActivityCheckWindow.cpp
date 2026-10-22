@@ -110,11 +110,18 @@ void ActivityCheckWindow::appendLastRun() {
     bool any = false;
     for (const Sim::EventResult &result : results->events)
         any = any || result.inRun;
-    if (!any)
+    if (!any && results->warnings.isEmpty())
         return;
     if (!current)
         //% "The last run is from before the activity was edited: simulate it again."
         add(qtTrId("route.editor.activity.check.run.outdated"), -1);
+    // What the run's input noted on the trains it made (not simulated,
+    // stops not found, driven simply), an Open Rails timetable set's too
+    // (it has no events).
+    for (const QString &warning : results->warnings)
+        add(warning, -1);
+    if (!any)
+        return;
     if (results->end == Sim::ActivityEnd::Success)
         //% "The activity ends successfully at %1."
         add(qtTrId("route.editor.activity.check.run.success").arg(timeOfDay(results->endedAt)), -1);

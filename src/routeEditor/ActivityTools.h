@@ -212,6 +212,9 @@ private:
     QTimeEdit simRunToTime;
     QLabel simTime;
     QLabel simStatus;
+    // The run's notes on the trains it made, counted, linked to Check
+    // Activity (which lists them).
+    QLabel simWarnings;
     // Tells of deadlocks as they happen; the run goes on.
     QPointer<QMessageBox> deadlockBox;
     QStringList deadlocked;

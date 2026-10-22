@@ -571,6 +571,15 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
             return x.acknowledged >= simulation->lastCommand(); }, 5000, pump);
     pump();
     check(f && !simulation->runs() && play->isEnabled() && f->mode == Sim::RunMode::Paused, "paused");
+    // The panel: the trains' states, and the run's notes on its trains only
+    // counted, linked to Check Activity (which lists them).
+    QLabel *panelStatus = tools.findChild<QLabel *>("simulationStatus");
+    QLabel *notes = tools.findChild<QLabel *>("simulationWarnings");
+    check(panelStatus != nullptr && notes != nullptr && !panelStatus->text().contains("driven simply") && notes->isVisible()
+              && notes->text().startsWith("2 ") && notes->text().contains("<a href"),
+          "the panel counts the run's notes, linked: " + (notes ? notes->text() : QString()));
+    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
+        tools.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/simulation-panel.png");
 
     // The Timetable window, opened now: states, the chosen train's events,
     // Follow.
@@ -1019,8 +1028,11 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
             for (int i = 0; found != nullptr && i < found->topLevelItemCount(); ++i)
                 if (found->topLevelItem(i)->text(0) == "Last run")
                     run << found->topLevelItem(i)->text(1);
-            check(run.size() == 3 && run.filter("did not fire").size() == 2 && run.filter("up to 08:03:00").size() == 1,
-                  "Check Activity's last run: the run up to 08:03, the two events not fired: " + run.join(" | "));
+            // (And the notes on the trains made: driven simply, no mass.)
+            check(run.size() == 5 && run.filter("did not fire").size() == 2 && run.filter("up to 08:03:00").size() == 1
+                      && run.filter("driven simply").size() == 2,
+                  "Check Activity's last run: the trains' notes, the run up to 08:03, the two events not fired: "
+                      + run.join(" | "));
         }
         std::vector<MapLabel> labels;
         simulation->messageLabels(labels);

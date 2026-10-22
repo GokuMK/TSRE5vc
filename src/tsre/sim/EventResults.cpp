@@ -55,6 +55,16 @@ void EventResultStore::record(Activity *activity, const SimulationInput &input, 
     emit changed(activity);
 }
 
+void EventResultStore::recordInput(Activity *activity, const QStringList &warnings) {
+    if (activity == nullptr)
+        return;
+    Entry &entry = entries[activity];
+    entry.results.warnings = warnings;
+    entry.current = true;
+    ++changes;
+    emit changed(activity);
+}
+
 void EventResultStore::advance(const Activity *activity, double time, bool complete) {
     auto found = entries.find(activity);
     if (found == entries.end())

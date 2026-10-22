@@ -187,6 +187,7 @@ bool SimulationController::start(Activity *activity, QString *error) {
     current = activity;
     dropTrains();
     in = input;
+    EventResultStore::instance()->recordInput(current, input->warnings);
     latest.reset();
     history.clear();
     messages.clear();
@@ -265,6 +266,7 @@ bool SimulationController::runToTime(double target, bool thenRun, QString *error
             return false;
         dropTrains();
         in = input;
+        EventResultStore::instance()->recordInput(current, input->warnings);
         latest.reset();
         history.clear();
         messages.clear();
@@ -294,6 +296,7 @@ void SimulationController::reset() {
     }
     dropTrains();
     in = input;
+    EventResultStore::instance()->recordInput(current, input->warnings);
     latest.reset();
     history.clear();
     messages.clear();
@@ -810,9 +813,6 @@ QString SimulationController::statusText() const {
     if (!deadlocked.isEmpty())
         //% "Deadlock: %1 wait for each other."
         text += " " + qtTrId("simulation.status.deadlock").arg(deadlocked.join(", "));
-    if (in != nullptr && !in->warnings.isEmpty())
-        //% "Not simulated: %1."
-        text += " " + qtTrId("simulation.status.warnings").arg(in->warnings.join("; "));
     return text;
 }
 
