@@ -6,8 +6,10 @@
 #include <QDir>
 #include <QFile>
 #include <QPushButton>
+#include <QProxyStyle>
 #include <QScrollArea>
 #include <QScopedValueRollback>
+#include <QStyleFactory>
 #include <QStringEncoder>
 #include <QTemporaryDir>
 #include <QTextBrowser>
@@ -32,6 +34,20 @@
 #include <tsre/world/Route.h>
 
 namespace {
+
+// Count native-icon requests without relying on a machine's timing: on
+// Windows looking up the same warning for every train can block the UI.
+class TimetableWarningStyle : public QProxyStyle {
+public:
+    TimetableWarningStyle() : QProxyStyle(QStyleFactory::create("Fusion")) {}
+    mutable int warningRequests = 0;
+    QIcon standardIcon(StandardPixmap icon, const QStyleOption *option = nullptr,
+                       const QWidget *widget = nullptr) const override {
+        if (icon == SP_MessageBoxWarning)
+            ++warningRequests;
+        return QProxyStyle::standardIcon(icon, option, widget);
+    }
+};
 
 bool writeUtf16(const QString &path, const QString &text) {
     QDir().mkpath(QFileInfo(path).path());
@@ -127,7 +143,9 @@ int runTimetableUiSuite(bool verbose) {
     ActivityTools tools("ActivityTools");
     ActivityEventWindow events(nullptr);
     ActivityTrafficWindow traffic(nullptr);
+    TimetableWarningStyle warningStyle;
     ActivityTimetableWindow timetable(nullptr);
+    timetable.setStyle(&warningStyle);
     QObject::connect(&tools, &ActivityTools::showEvents, &events, &ActivityEventWindow::showEvents);
     QObject::connect(&tools, &ActivityTools::showTraffic, &traffic, &ActivityTrafficWindow::showTraffic);
     QObject::connect(&tools, &ActivityTools::showTimetable, &timetable, &ActivityTimetableWindow::showTimetable);
@@ -182,8 +200,16 @@ int runTimetableUiSuite(bool verbose) {
           "the Traffic window lists the timetable: 3 trains, its summary and problems in place of the editor");
 
     // The Timetable window: the set's trains; T1's start and stops.
+    warningStyle.warningRequests = 0;
     tools.actTimetableOpenEnabled();
     QTreeWidget *trains = timetable.findChild<QTreeWidget *>("timetableTrains");
+    // (Its two running trains: the static S5 is not listed by default.)
+    bool allWarnings = trains != nullptr && trains->topLevelItemCount() == 2;
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        allWarnings = allWarnings && !trains->topLevelItem(i)->icon(1).isNull()
+                && trains->topLevelItem(i)->toolTip(1).contains("C1");
+    check(warningStyle.warningRequests == 1 && allWarnings,
+          "all trains retain their warnings with one standard-icon request per refresh");
     OrTrainProperties *panel = timetable.findChild<OrTrainProperties *>("orTrainProperties");
     QTreeWidget *stops = timetable.findChild<QTreeWidget *>("orTrainStops");
     int row = -1;
@@ -231,6 +257,13 @@ int runTimetableUiSuite(bool verbose) {
               && stops != nullptr && name->mapTo(&timetable, QPoint()).x() < stops->mapTo(&timetable, QPoint()).x()
               && savedIn != nullptr && savedIn->mapTo(&timetable, QPoint()).y() > name->mapTo(&timetable, QPoint()).y(),
           "T1's name in a box not edited, its path chosen, left of its stops, where it is saved under them");
+
+    warningStyle.warningRequests = 0;
+    QEvent activated(QEvent::WindowActivate);
+    QApplication::sendEvent(&timetable, &activated);
+    check(warningStyle.warningRequests == 1 && trains != nullptr && trains->currentItem() != nullptr
+              && trains->currentItem()->text(1) == "T1" && trains->currentItem()->isSelected(),
+          "reactivating the window refreshes warnings once and preserves the selected train");
 
     // T1's departure from Alpha edited: the set unsaved, one undo step.
     if (stops != nullptr && stops->topLevelItemCount() > 0)
