@@ -45,7 +45,7 @@ geometry pass.
 |---|---|---|---|
 | Low | quarter | 2 x 4 | yes |
 | Medium | half | 3 x 6 | yes |
-| High | full | 4 x 8 | yes |
+| High | full | 3 x 6 (4 x 8 until 2026-10-22) | yes |
 
 Cost on llvmpipe (EUROPE1, 960 x 540, frame time with shadows, which the
 geometry dominates there): Low +4 %, Medium +7 %, High +9 %.
@@ -58,12 +58,47 @@ the same at every level):
 |---|---|---|
 | Low | +0.6 ms | +1 ms |
 | Medium | +1.6 ms | +7.6 ms |
-| High | +9.8 ms | +39 ms |
+| High (4 x 8) | +9.8 ms | +39 ms |
+| High (3 x 6, optimised loop) | +6.9 ms | +22-25 ms |
 
-The taps per view pixel (pixels share x slices x steps x 2) are 1, 9 and
-64 times Low's. Since 2026-10-22 blended MSTS parts are in the depth the
-occlusion reads ([shapes task 07](../shapes/07-blended-msts-parts.md)); the
-pass costs the same.
+(Off itself varies by about 2.5 ms between runs at the larger size.) Since
+2026-10-22 blended MSTS parts are in the depth the occlusion reads ([shapes
+task 07](../shapes/07-blended-msts-parts.md)); the pass costs the same.
+
+### Optimising High (2026-10-22)
+
+Where High's 4 x 8 went at 2123 x 1948 (by switching parts off): the depth
+reads for the position and normal and the composite about 8 ms, the 5 x 5
+blur about 6 ms, the taps about 30 ms.
+
+- Shrinking the largest screen radius from 0.15 to 0.02 of the view's
+  height changed nothing: the taps are not limited by the texture cache, so
+  a depth mip chain (XeGTAO) would not help.
+- The occlusion pass now reads view texels by integer pixel and takes the
+  depth-to-distance and unprojection terms as constants (no divisions per
+  tap), and the slices and steps are compiled into the shader per preset, so
+  the loops unroll (a tap outside the view is masked, not a break). The
+  occlusion is unchanged (0.1 % of pixels by rounding); High 4 x 8 went from
+  +43.5 to +37 ms.
+- Fewer taps, compared on the visibility term (`TSRE_AO_DEBUG=1`) with
+  full-resolution 4 x 8 (mean difference in 0-255 levels, EUROPE1 three
+  views / Prudnik's station):
+
+  | Variant | Difference | Frame over Off |
+  |---|---|---|
+  | full, 4 x 6 | 0.3-0.6 / 0.8 | +31.5 ms |
+  | full, 3 x 6 | 0.4-0.7 / 1.0 | +24.4 ms |
+  | full, 3 x 4 | 0.7-1.3 / 1.9 | +22.7 ms |
+  | half, 4 x 8 | 0.6-1.4 / 2.2 | +15 ms |
+  | Medium (half, 3 x 6) | 0.7-1.5 / 2.4 | +7.6 ms |
+
+  Half resolution loses what High is for: the thin lines of occlusion along
+  rails and the detail in grass and foliage; 3 x 6 at full resolution keeps
+  them, its difference a fine grain the blur evens out. High is now that.
+
+Later: a depth-aware upsample in the composite for Low and Medium (tried: it
+keeps their occlusion from bleeding across silhouettes, cost not measured);
+a separable blur (the 5 x 5 one costs about 6 ms at full resolution).
 
 ## Debugging
 
