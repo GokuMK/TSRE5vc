@@ -335,8 +335,15 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     rightLayout->addWidget(orStops);
     mstsStops = stops;
     orBox = orStops;
+    // The left column scrolls: the trains above may take the height.
+    QScrollArea *savedScroll = new QScrollArea;
+    savedScroll->setObjectName("timetableInfoScroll");
+    savedScroll->setWidget(saved);
+    savedScroll->setWidgetResizable(true);
+    savedScroll->setFrameShape(QFrame::NoFrame);
+    savedScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     QSplitter *bottom = new QSplitter(Qt::Horizontal);
-    bottom->addWidget(saved);
+    bottom->addWidget(savedScroll);
     bottom->addWidget(right);
     bottom->setChildrenCollapsible(false);
     // The information about 40% of the width, the times the rest.

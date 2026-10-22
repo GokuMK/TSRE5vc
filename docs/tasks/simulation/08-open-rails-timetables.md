@@ -461,9 +461,11 @@ reported, editing commands).
 - Layout (876dbfe): the train's information on the left, one grid of a
   label and a box a row (name, path, consist, comment, timetable file
   shown only; start time; the start, note, dispose and speed row
-  commands), its problems and where it is saved under it; its stops on
+  commands), its problems and where it is saved under it, scrolling (the
+  trains above may take the height); its stops on
   the right.
-- The command picker (`OrCommandPicker`): a "…" at the end of each
+- The command picker (`OrCommandPicker`, top down: the commands, the
+  chosen one's details scrolling, the text): a "…" at the end of each
   command field and of each stop's command cells (double-click still
   types) opens a window listing the commands Open Rails takes there, by
   kind, each with what it does (the catalogue as data:

@@ -128,13 +128,14 @@ OrCommandPicker::OrCommandPicker(int place, const QString &title, const QString 
 
     detailsArea.setObjectName("orCommandDetails");
     detailsArea.setWidgetResizable(true);
-    detailsArea.setFrameShape(QFrame::NoFrame);
-    detailsArea.setMinimumWidth(280);
+    detailsArea.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    detailsArea.setMinimumHeight(80);
     result.setObjectName("orCommandText");
     result.setReadOnly(true);
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
-    QSplitter *split = new QSplitter(Qt::Horizontal);
+    // Top down: the commands, the chosen one's details, the text they make.
+    QSplitter *split = new QSplitter(Qt::Vertical);
     split->addWidget(&list);
     split->addWidget(&detailsArea);
     split->setChildrenCollapsible(false);
@@ -150,8 +151,8 @@ OrCommandPicker::OrCommandPicker(int place, const QString &title, const QString 
     layout->addWidget(split, 1);
     layout->addLayout(resultLine);
     layout->addWidget(buttons);
-    resize(820, 480);
-    split->setSizes({490, 330});
+    resize(860, 640);
+    split->setSizes({330, 230});
 
     QObject::connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -300,10 +301,13 @@ void OrCommandPicker::showDetails(int k) {
         layout->addWidget(notRun);
     }
     QGridLayout *grid = new QGridLayout;
+    // A row each: the box, its value, what it does.
     grid->setContentsMargins(0, 6, 0, 0);
-    grid->setHorizontalSpacing(6);
-    grid->setVerticalSpacing(2);
-    grid->setColumnStretch(1, 1);
+    grid->setHorizontalSpacing(8);
+    grid->setVerticalSpacing(3);
+    grid->setColumnMinimumWidth(1, 220);
+    grid->setColumnStretch(1, 2);
+    grid->setColumnStretch(2, 3);
     int row = 0;
     if (spec.value != OrCommandSpec::None) {
         grid->addWidget(new QLabel(spec.valueOptional ?
@@ -321,7 +325,7 @@ void OrCommandPicker::showDetails(int k) {
     if (!spec.qualifiers.isEmpty()) {
         grid->addItem(new QSpacerItem(0, 6), row++, 0);
         //% "Qualifiers:"
-        grid->addWidget(GuiFunct::newTQLabel(qtTrId("route.editor.activity.or.commands.qualifiers")), row++, 0, 1, 2);
+        grid->addWidget(GuiFunct::newTQLabel(qtTrId("route.editor.activity.or.commands.qualifiers")), row++, 0, 1, 3);
     }
     for (const OrCommandSpec::QualifierSpec &qualifierSpec : spec.qualifiers) {
         const QString qualifier = qualifierSpec.name;
@@ -357,12 +361,10 @@ void OrCommandPicker::showDetails(int k) {
             field->setObjectName("orCommandQualifierValue." + qualifier);
             grid->addWidget(field, row, 1);
         }
-        ++row;
         QLabel *what = new QLabel(qualifierSpec.description);
         what->setWordWrap(true);
-        what->setContentsMargins(22, 0, 0, 4);
         what->setForegroundRole(QPalette::PlaceholderText);
-        grid->addWidget(what, row++, 0, 1, 2);
+        grid->addWidget(what, row++, 2);
         QObject::connect(box, &QCheckBox::toggled, this, [this, k, qualifier, field](bool checked) {
             Choice &chosen = choices[k];
             for (int i = chosen.qualifiers.size() - 1; i >= 0; --i)
@@ -391,7 +393,7 @@ void OrCommandPicker::showDetails(int k) {
             //% "Kept as typed: %1"
             qtTrId("route.editor.activity.or.commands.qualifiers.typed").arg(unknown.join(' ')));
         kept->setWordWrap(true);
-        grid->addWidget(kept, row++, 0, 1, 2);
+        grid->addWidget(kept, row++, 0, 1, 3);
     }
     layout->addLayout(grid);
     layout->addStretch(1);

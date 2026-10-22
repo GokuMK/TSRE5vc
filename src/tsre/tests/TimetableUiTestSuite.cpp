@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QScopedValueRollback>
 #include <QStringEncoder>
 #include <QTemporaryDir>
@@ -203,6 +204,11 @@ int runTimetableUiSuite(bool verbose) {
     QLineEdit *name = timetable.findChild<QLineEdit *>("orTrainName");
     QComboBox *path = timetable.findChild<QComboBox *>("orTrainPath");
     QLabel *savedIn = timetable.findChild<QLabel *>("timetableSavedIn");
+    // The left column scrolls: its height is not the window's least.
+    QScrollArea *infoScroll = timetable.findChild<QScrollArea *>("timetableInfoScroll");
+    check(infoScroll != nullptr && infoScroll->widget() != nullptr && infoScroll->isAncestorOf(name)
+              && infoScroll->minimumSizeHint().height() < infoScroll->widget()->minimumSizeHint().height(),
+          "the train's information scrolls");
     check(name != nullptr && name->text() == "T1" && !name->isEnabled() && path != nullptr && path->currentText() == "P1"
               && path->isEnabled()
               && stops != nullptr && name->mapTo(&timetable, QPoint()).x() < stops->mapTo(&timetable, QPoint()).x()
