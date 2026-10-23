@@ -263,6 +263,29 @@ private:
     // copies, made again whenever the standing trains change.
     mutable std::vector<unsigned int> consistVersions;
     mutable std::vector<std::unique_ptr<Consist>> standingCopies;
+    // Doors at station stops (task shapes 12): the stop each train last
+    // stood at and when it got there; the sides of the platforms found in
+    // the world (by track item: 1 left, 2 right, as the world file's
+    // PlatformData has them) and when one was last looked for in vain (ms
+    // of a wall clock).
+    struct DoorStop {
+        int stop = -1;
+        double arrived = 0.0;
+        // Due, its platform's tile not loaded yet.
+        bool pending = false;
+    };
+    mutable std::vector<DoorStop> doorStops;
+    mutable QHash<int, int> platformSides;
+    mutable QHash<int, qint64> platformMisses;
+    // The train's doors open on its left and right (the way it runs) at
+    // this moment of its station stop, as Open Rails opens an AI train's.
+    void stationDoors(size_t train, const TrainFrame &frame, double now, bool &left, bool &right) const;
+    // Those sides on the train's cars (CarAnimation's doors).
+    void applyDoors(size_t train, const TrainFrame &frame, double now) const;
+    // The side bits of the platform with this track item, looked for in the
+    // loaded tiles when the doors are due (task shapes 12); -1 while its
+    // tile is not loaded.
+    int platformSide(int item) const;
     mutable unsigned long long standingPlaced = ~0ull;
     mutable std::shared_ptr<const SimulationFrame> placedFrame;
     std::shared_ptr<const SimulationFrame> pinnedFrame;

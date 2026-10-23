@@ -12,9 +12,10 @@ Two kinds of animation:
    running gear. TSRE's keyframe posing is limited and broken, and differs
    from Open Rails' runtime approach; choose a future-proof solution.
 
-Plus: Shape Viewer controls (play, begin/end, doors open/closed).
-Next task, not this one: doors opening at the correct platform side (the
-side from the world file's platform object, as Open Rails takes it).
+Plus: Shape Viewer controls (play, begin/end, doors open/closed), and
+(2026-10-24) doors opening at the platform side, the side asked of the
+world file's platform object when they open, nothing when its tile is not
+loaded.
 
 ## Before
 
@@ -112,6 +113,19 @@ references the `ffff0000` end); AI trains open 4 s after arriving and close
   of the track across junctions (a placed traveller does not know which way
   its train came).
 
+### Later: placement from the simulation
+
+The user's choice (2026-10-24): keep the cubic for now; move later, when the
+physics needs the vehicles' pivots anyway. The simulation core knows each
+train's way through every switch, so it can place each vehicle's two
+travellers on its bogie pivots (as Open Rails samples the track under each
+axle with its train's traveller) given each vehicle's pivot distances (from
+its shape, once loaded). The body is then the chord between them, as the
+drawing already takes its two places, and each bogie turns as the track
+position on the TDB node says (its angle and slope): no cubic, no fit.
+Editor consists walk to their pivots with the activity's junction map, as
+they already do to their rear end.
+
 ## Steps
 
 - [x] `ShapeAnimation` evaluator; both backends on it; quaternion convention.
@@ -145,4 +159,15 @@ references the `ffff0000` end); AI trains open 4 s after arriving and close
 - [x] Captures: the 183 (pantograph 2 up in a simulated train; both up in
       the viewer), the PSK EN76 (plug doors open), the Scotsman's rods a
       quarter turn on; the simulation-trains capture's CPU 4.5 -> 4.8 ms.
-- [ ] The user's review on hardware; doors at the platform side (next task).
+- [x] Doors at station stops (activity trains; Open Rails' timetable trains
+      open none): a stop keeps its platform's track item (PlatformStartID);
+      when the doors are due (4 s after arriving until 10 s before leaving,
+      as Open Rails' AI trains) the platform's world object is looked for in
+      the loaded tiles (its PlatformData: 0x2 left, 0x4 right, from the item
+      marked ffff0000 the other way round), found sides kept by track item;
+      its tile not loaded: no doors, looked for again each second (on every
+      draw, the simulation paused or not) until no longer due. A car's sides
+      swapped where it faces against the way the train runs. Checked: the
+      PSK EN76 at Scotby (EUROPE1 lclsrvce, 09:08) opens its left doors to
+      the platform.
+- [ ] The user's review on hardware.

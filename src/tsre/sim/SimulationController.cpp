@@ -28,7 +28,10 @@
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/WaitingPoint.h>
 #include <tsre/world/Route.h>
+#include <tsre/world/Tile.h>
 #include <tsre/world/Trk.h>
+#include <tsre/world/objects/PlatformObj.h>
+#include <tsre/tdb/TRitem.h>
 
 namespace Sim {
 
@@ -838,6 +841,11 @@ void SimulationController::pushRenderItems(RenderQueue &queue, float *playerT, i
     if (!exists() || in == nullptr)
         return;
     placeTrains();
+    // Doors due at a platform whose tile was not loaded: again, frame or no
+    // new frame (a paused simulation sends none).
+    for (size_t t = 0; t < doorStops.size() && t < placedFrame->trains.size(); ++t)
+        if (doorStops[t].pending)
+            applyDoors(t, placedFrame->trains[t], placedFrame->time);
     // Beyond the objects' distance, not drawn (tiles, with one to spare).
     const float reach = Game::objectLod / 2048.0f + 1.0f;
     for (size_t t = 0; t < consists.size() && t < placedFrame->trains.size(); ++t) {
@@ -953,6 +961,7 @@ void SimulationController::placeTrains() const {
             if (eng->wagonTypeId == 4)
                 eng->setPantograph(1, true);
         }
+        applyDoors(t, *train, now->time);
         float throttle = 0.0f, brake = 1.0f;
         SoundControls(train->state.speed, train->state.acceleration, plan.acceleration, plan.deceleration,
                       throttle, brake);
@@ -988,6 +997,113 @@ void SimulationController::placeTrains() const {
             standingCopies[k] = std::move(copy);
         }
     }
+}
+
+// Its doors at a station stop, on the platform's side (task shapes 12): a
+// car's own left and right, swapped where it faces the other way from the
+// way the train runs.
+void SimulationController::applyDoors(size_t train, const TrainFrame &frame, double now) const {
+    Consist *consist = train < consists.size() ? consists[train].get() : nullptr;
+    if (consist == nullptr)
+        return;
+    bool left = false, right = false;
+    stationDoors(train, frame, now, left, right);
+    const bool reversed = frame.state.reversed;
+    for (int v = 0; v < consist->engItems.size(); ++v) {
+        Eng *eng = consist->engItems[v].engPointer;
+        if (eng == nullptr)
+            continue;
+        const bool turned = (consist->engItems[v].flip != 0) != reversed;
+        eng->setAnimated(CarAnimation::DoorLeft, turned ? right : left);
+        eng->setAnimated(CarAnimation::DoorRight, turned ? left : right);
+    }
+}
+
+void SimulationController::stationDoors(size_t train, const TrainFrame &frame, double now, bool &left,
+                                        bool &right) const {
+    left = right = false;
+    if (doorStops.size() != in->trains.size())
+        doorStops.assign(in->trains.size(), DoorStop());
+    DoorStop &door = doorStops[train];
+    door.pending = false;
+    const TrainState &state = frame.state;
+    const TrainPlan &plan = in->trains[train];
+    // At a station stop, it stands at the stop before its next.
+    const int stop = state.stoppedAt == StopKind::Station ? state.nextStop - 1 : -1;
+    if (stop < 0 || size_t(stop) >= plan.stops.size() || plan.stops[size_t(stop)].platformItem < 0) {
+        door.stop = -1;
+        return;
+    }
+    if (door.stop != stop) {
+        door.stop = stop;
+        door.arrived = now;
+    }
+    // Open Rails' AI trains: open 4 s after arriving, closed 10 s before
+    // leaving; when that leaves under 6 s open, at once and until 3 s
+    // before leaving.
+    double open = door.arrived + 4.0, close = state.until - 10.0;
+    if (close - 6.0 < open) {
+        open = door.arrived;
+        close = std::max(state.until - 3.0, door.arrived);
+    }
+    if (now < open || now >= close)
+        return;
+    const int item = plan.stops[size_t(stop)].platformItem;
+    const int side = platformSide(item);
+    // Its tile not loaded: looked for again on the next draws while due.
+    door.pending = side < 0;
+    if (side <= 0)
+        return;
+    // The platform's sides as seen from its track item marked as its front
+    // (ffff0000) the other way round (Open Rails' AITrain).
+    bool frontIsFront = false;
+    if (Game::trackDB != nullptr) {
+        const auto found = Game::trackDB->trackItems.find(item);
+        frontIsFront = found != Game::trackDB->trackItems.end() && found->second != nullptr
+                && found->second->platformTrItemData != nullptr && found->second->platformTrItemData[0] == 0xFFFF0000u;
+    }
+    if (side & 1)
+        (frontIsFront ? right : left) = true;
+    if (side & 2)
+        (frontIsFront ? left : right) = true;
+}
+
+int SimulationController::platformSide(int item) const {
+    const auto known = platformSides.constFind(item);
+    if (known != platformSides.constEnd())
+        return known.value();
+    // Looked for in vain lately: not again within a second (its tile may
+    // load meanwhile, the simulation running or not).
+    static QElapsedTimer clock;
+    if (!clock.isValid())
+        clock.start();
+    const qint64 wall = clock.elapsed();
+    const auto missed = platformMisses.constFind(item);
+    if (missed != platformMisses.constEnd() && wall - missed.value() < 1000)
+        return -1;
+    // Its world object, in a loaded tile only.
+    if (Game::currentRoute != nullptr)
+        for (Tile *tile : Game::currentRoute->tile) {
+            if (tile == nullptr || tile->loaded != 1)
+                continue;
+            for (const auto &entry : tile->obiekty) {
+                WorldObj *object = entry.second;
+                if (object == nullptr || object->typeID != WorldObj::platform)
+                    continue;
+                PlatformObj *platform = static_cast<PlatformObj *>(object);
+                const int begin = platform->getTrackBegItemId(), end = platform->getTrackEndItemId();
+                if (begin != item && end != item)
+                    continue;
+                const int side = (platform->getSideLeft() ? 1 : 0) | (platform->getSideRight() ? 2 : 0);
+                if (begin >= 0)
+                    platformSides.insert(begin, side);
+                if (end >= 0)
+                    platformSides.insert(end, side);
+                return side;
+            }
+        }
+    platformMisses.insert(item, wall);
+    return -1;
 }
 
 Consist *SimulationController::standingConsist(int standingTrain) const {

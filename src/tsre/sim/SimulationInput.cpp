@@ -1650,6 +1650,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
                 stop.efficiency = definition != nullptr && i < definition->efficiency.size()
                         && definition->efficiency[i] > 0.0f ? definition->efficiency[i] : plan.efficiency;
                 stop.platform = platform;
+                stop.platformItem = stops[i].platformStartID;
                 stop.entry = i;
                 plan.stops.push_back(stop);
             }
