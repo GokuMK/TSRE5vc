@@ -112,6 +112,11 @@ of day on (user's decision, 2026-10-08).
 
 ## Later
 
+- Shorter lamp lists per cell, to test (bbb's lamps at the editor's 2123 x
+  1948: 17.8 of 77 ms, task 25): every pixel walks its cell's lamps, up to
+  64, each listed by its range sphere alone. Spot cones tested against the
+  cell, and ranges cut to where a lamp's light falls below what shows,
+  would drop lamps that cannot light it.
 - Shadows from local lights.
 - Directional punctual lights as extra suns.
 - MSTS light sources (wagon lights, route lights) as emitters.

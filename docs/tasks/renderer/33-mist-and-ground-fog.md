@@ -689,7 +689,9 @@ the terrain cannot explain.
   cell's middle plus a quarter of the cell's size squared
   (`LightGrid::build`; the lit shaders take 64 a cell and keep theirs
   unless a cell holds more). With the dots' beams still there (medians,
-  Steam Deck, 1280 x 800, frozen clock): 16 lights as ranked before 47.9
+  Steam Deck, 1280 x 800, frozen clock; with `TSRE_CLOUDS_STILL`, which
+  marches all 16 cloud passes a frame, so the totals are high by the
+  clouds' extra cost and only the differences count): 16 lights as ranked before 47.9
   ms, the patch; ranked anew 47.6, the patch gone but for a faint edge at
   one cell boundary; reading 32 or 64 a cell about 50, none. bbb's 924
   lamps in valley fog: 16 lights 54.3, ranked anew 54.1, 32 57.9, 64 58.8
