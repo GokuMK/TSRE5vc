@@ -700,6 +700,16 @@ float SFileComplex::partLastFrame(int part) const {
         return -1.0f;
     return d->animations[0].channels[part].lastFrame();
 }
+bool SFileComplex::partAtFrame(int part, float frame, float *out) const {
+    if (part < 0 || part >= partCount())
+        return false;
+    const float *rest = d->matrices[part].transform.constData();
+    if (d->animations.empty() || part >= int(d->animations[0].channels.size()))
+        std::copy(rest, rest + 16, out);
+    else
+        ShapeAnimation::pose(d->animations[0].channels[part], frame, rest, out);
+    return true;
+}
 float SFileComplex::animationFrames() const {
     return d->loaded && !d->animations.empty() ? d->animations[0].frames : 0.0f;
 }

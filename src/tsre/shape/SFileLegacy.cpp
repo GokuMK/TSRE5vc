@@ -1485,6 +1485,16 @@ float SFileLegacy::partLastFrame(int part) const {
     return animations[0].node[part].lastFrame();
 }
 
+bool SFileLegacy::partAtFrame(int part, float frame, float *out) const {
+    if (part < 0 || part >= partCount())
+        return false;
+    if (animations.empty() || part >= animations[0].node.size())
+        std::copy(macierz[part].param, macierz[part].param + 16, out);
+    else
+        ShapeAnimation::pose(animations[0].node[part], frame, macierz[part].param, out);
+    return true;
+}
+
 float SFileLegacy::animationFrames() const {
     return loaded == 1 && !animations.empty() ? float(animations[0].frames) : 0.0f;
 }

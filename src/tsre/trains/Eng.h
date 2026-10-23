@@ -15,6 +15,8 @@
 #include <QHash>
 #include <memory>
 #include <tsre/trains/EngLights.h>
+#include <tsre/trains/CarAnimation.h>
+#include <vector>
 
 class RenderQueue;
 
@@ -28,6 +30,7 @@ struct SoundValues;
 class TrainNetworkEng;
 class ContentHierarchyInfo;
 class CarLights;
+class ComplexShape;
 
 struct MapFeatures;
 
@@ -146,6 +149,19 @@ public:
     // renderer 37), its place in their sums. Trains are animated, standing
     // or not (doors, pantographs).
     bool staticOnTrack = false;
+    // Its moving parts (task shapes 12): what they show (CarAnimation's
+    // groups: doors, pantographs...), set by its consist or a viewer; and
+    // how far its train has gone (metres, the simulation's distance
+    // travelled; reversed: the train runs with the consist's rear ahead),
+    // which turns its wheels and running gear.
+    void setAnimated(CarAnimation::Group group, bool on, bool now = false);
+    bool isAnimated(CarAnimation::Group group) const;
+    void setTravelled(double metres, bool reversed);
+    // The simulator's pantograph n (1 or 2) up (CarAnimation::setPantograph).
+    void setPantograph(int n, bool up);
+    // Its animation, once its shape has loaded and it has been drawn (null
+    // before).
+    const CarAnimation *animation() const { return carAnimation; }
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
     // The nearest sound region item ahead of (or behind) the car on its
@@ -166,13 +182,37 @@ public:
 private:
     std::shared_ptr<EngLightsBlock> lightsBlock;
     CarLights *carLights = NULL;
+    // Its moving parts posed in a state of its own of the shape drawn
+    // (poseShape), made when that shape is first drawn loaded.
+    CarAnimation *carAnimation = nullptr;
+    ComplexShape *posedShape = nullptr;
+    unsigned int posedState = 0;
+    bool animationWanted[CarAnimation::GroupCount] = {};
+    // The simulator's pantographs up (setPantograph), -1 not set.
+    signed char pantographs[2] = {-1, -1};
+    // Metres in its own frame (+ toward its shape's front): gone, and taken
+    // by the animation; the train's distance last told.
+    double carTravelled = 0.0, carTravelledSeen = 0.0;
+    double trainTravelled = 0.0;
+    bool trainTravelledKnown = false;
+    qint64 animationClock = -1;
+    // The shape's state to draw it with, its parts posed; bogieTurns as
+    // CarAnimation::pose takes them.
+    unsigned int poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns);
+    // On its bogie pivots and axles (CarAnimation::carriers) rather than its
+    // ends: the ends of the line the body lies on (as the drawing takes
+    // them) and each bogie's turn; false (as it was) before its animation
+    // exists or without carriers.
+    bool placeOnCarriers(const float *front, const float *rear, float roll, float *placedFront,
+                         float *placedRear, std::vector<float> &bogieTurns);
     long long int resolveShapeIds();
     // Drawn between two places on the track (as getDrawPositionOnTrNode
     // gives them: x, y, z, angle, slope, tile x, tile z), its front and rear
     // as the consist lists it, leaning by roll (superelevation), turned when
     // flipped; its footprint for the map between two such places.
     void pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
-                               const float *front, const float *rear, float roll, bool flipped);
+                               const float *front, const float *rear, float roll, bool flipped,
+                               const std::vector<float> *bogieTurns = nullptr);
     void getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
                                const float *rear) const;
     void initBorder();

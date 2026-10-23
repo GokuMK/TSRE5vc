@@ -139,6 +139,10 @@ public:
     // false when the train is not on the track.
     enum class RideView { Cab, Front, Back };
     bool rideTrain(int train, RideView view);
+    // Riding a simulated train's vehicle (as its consist lists them) from
+    // `eye` looking at `at`, both in that vehicle's frame (its front at the
+    // origin, ahead -z, x to its right); captures' close views.
+    bool rideTrainVehicle(int train, int vehicle, const float *eye, const float *at);
     // The current activity's AI trains shown: "all", an AI train's place in
     // its traffic (the one chosen), or both ("all,3").
     void setDiagnosticAITrains(const QString &trains);

@@ -120,11 +120,29 @@ references the `ffff0000` end); AI trains open 4 s after arriving and close
       shapes, 254 of 255 keyed parts at rest at frame 0, both backends posing
       all 1,020 sampled poses alike, looping states as every part at the
       same frame.
-- [ ] `CarAnimation`: part roles by name; wheels, bogies, running gear,
-      two-state parts.
-- [ ] Placement on pivots; bogies turned; wheels turned by the simulation's
-      distance; pantographs up on simulated electric locomotives.
-- [ ] Shape Viewer: Animation menu (play, start/end pose, pantographs,
-      doors, mirrors, wipers).
-- [ ] Captures: stock steam (Scotsman, Pendennis), OR_PSK electric units
-      with doors and pantographs, a train on a curve.
+- [x] `CarAnimation` (`src/tsre/trains/CarAnimation.h`): part roles by Open
+      Rails' names; wheels turned about x (top toward the shape's front going
+      forward), running gear a driving wheel revolution to its last key frame
+      (wagons: the frame rate * 8 / 30), two-state groups a key frame a second
+      (at once the first time), wipers looping; only parts away from their
+      rest pose are posed, so standing cars on straight track keep sharing
+      their packets. `TSRE_ANIMATION_LOG` prints what each car's animation
+      found.
+- [x] Placement (`src/tsre/trains/CarPlacement.h`): the track between the
+      car's ends as a cubic from their places and ways (the way from a short
+      step of the end's traveller), sampled at the bogie pivots and body
+      axles, the body fitted to them; each bogie turned to the cubic's way at
+      its pivot. On a 150 m curve: pivots within 1.2 mm of the track, bogies
+      along it (`car-animation`).
+- [x] Simulation: wheels and running gear by the distance travelled where the
+      train is drawn (`TrainFrame::drawnTravelled`); an electric locomotive's
+      pantograph 1 up as Open Rails raises an AI train's (for an unflipped
+      car with both, the shape's 2).
+- [x] Shape Viewer: Animation menu (Play at 15 km/h, a shape at its last
+      frame, pantographs 1 and 2, left and right doors, mirrors, windows,
+      wipers); captures take "animation", "animationEnd" and "travelled", and
+      renderer captures "trainVehicle", "trainEye", "trainAt" (close views).
+- [x] Captures: the 183 (pantograph 2 up in a simulated train; both up in
+      the viewer), the PSK EN76 (plug doors open), the Scotsman's rods a
+      quarter turn on; the simulation-trains capture's CPU 4.5 -> 4.8 ms.
+- [ ] The user's review on hardware; doors at the platform side (next task).

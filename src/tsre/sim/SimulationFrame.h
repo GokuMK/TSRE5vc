@@ -18,6 +18,9 @@ struct TrainFrame {
     std::vector<TrackPose> rears;
     std::shared_ptr<const std::vector<Vehicle>> vehicles;
     unsigned int carsVersion = 0;
+    // Metres travelled where its vehicles are drawn (the state's and the
+    // way on between steps): its wheels turn by it.
+    double drawnTravelled = 0.0;
 };
 
 // A standing train (task 07: the activity's loose consists, cars cut off):

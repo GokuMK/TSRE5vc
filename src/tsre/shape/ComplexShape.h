@@ -102,6 +102,9 @@ public:
     virtual int partParent(int part) const;
     virtual bool partRest(int part, float *out) const;
     virtual float partLastFrame(int part) const;
+    // The part's transform relative to its parent at a frame of its keys
+    // (its rest transform without keys).
+    virtual bool partAtFrame(int part, float frame, float *out) const;
     virtual float animationFrames() const { return 0.0f; }
     virtual float animationRate() const { return 0.0f; }
     // A state's pose (rolling stock: wheels, bogies, doors): a part at a
@@ -154,6 +157,11 @@ inline bool ComplexShape::partRest(int part, float *out) const {
     (void)part;
     (void)out;
     return false;
+}
+
+inline bool ComplexShape::partAtFrame(int part, float frame, float *out) const {
+    (void)frame;
+    return partRest(part, out);
 }
 
 inline float ComplexShape::partLastFrame(int part) const {

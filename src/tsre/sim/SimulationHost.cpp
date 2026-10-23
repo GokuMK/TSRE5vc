@@ -29,6 +29,7 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         if (a < 0.0 && v + a * unstepped < 0.0)
             ahead = v * v / (-2.0 * a);
         core.vehicleEnds(int(i), train.fronts, train.rears, std::max(ahead, 0.0));
+        train.drawnTravelled = states[i].travelled + std::max(ahead, 0.0);
         train.carsVersion = core.carsVersion(int(i));
         if (before != nullptr && i < before->trains.size() && before->trains[i].vehicles != nullptr
                 && before->trains[i].carsVersion == train.carsVersion)

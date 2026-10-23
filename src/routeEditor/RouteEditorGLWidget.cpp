@@ -3929,6 +3929,19 @@ bool RouteEditorGLWidget::viewTrain(int train) {
     return true;
 }
 
+bool RouteEditorGLWidget::rideTrainVehicle(int train, int vehicle, const float *eye, const float *at) {
+    Consist *consist = Sim::SimulationController::instance()->consistOf(train);
+    if (consist == NULL || !consist->isOnTrack || vehicle < 0 || vehicle >= consist->engItems.size())
+        return false;
+    consist->cameraVehicle = vehicle;
+    cameraFree->setCameraObject(consist);
+    const float look[3] = {at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]};
+    const float distance = std::sqrt(look[0] * look[0] + look[1] * look[1] + look[2] * look[2]);
+    cameraFree->setPos(eye[0], eye[1], eye[2]);
+    cameraFree->setPlayerRot(std::atan2(look[0], look[2]), std::asin(look[1] / std::max(distance, 0.001f)));
+    return true;
+}
+
 bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     Consist *consist = simulation->consistOf(train);

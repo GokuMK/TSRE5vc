@@ -946,6 +946,12 @@ void SimulationController::placeTrains() const {
                 continue;
             eng->placeOnTrack(front.node, front.distance, front.forward != reversed ? 0 : 1,
                               rear.node, rear.distance, rear.forward != reversed ? 0 : 1);
+            // Its wheels turned by the way gone; an electric locomotive's
+            // pantograph 1 up, as Open Rails raises an AI train's (task
+            // shapes 12).
+            eng->setTravelled(train->drawnTravelled, reversed);
+            if (eng->wagonTypeId == 4)
+                eng->setPantograph(1, true);
         }
         float throttle = 0.0f, brake = 1.0f;
         SoundControls(train->state.speed, train->state.acceleration, plan.acceleration, plan.deceleration,

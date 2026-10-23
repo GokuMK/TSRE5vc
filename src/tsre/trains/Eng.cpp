@@ -41,6 +41,43 @@
 #include <tsre/geo/GeoCoordinates.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
 #include <tsre/world/ObjectBorders.h>
+#include <QElapsedTimer>
+#include <tsre/trains/CarPlacement.h>
+#include <cmath>
+
+namespace {
+
+// The way along the track from an end of a car toward its rear (as its
+// consist lists it), relative to `at` (the end's place, getCurrentPosition)
+// in at's tile; zero where the track cannot tell.
+void towardRear(const Ruch &end, const float *at, float *out) {
+    const float step = 0.5f;
+    Ruch probe = end;
+    probe.next(-step);
+    float sign = 1.0f;
+    if (probe.endsPassed != end.endsPassed) {
+        // A track end behind it: the other way, reversed.
+        probe = end;
+        probe.next(step);
+        sign = -1.0f;
+    }
+    const float *p = probe.getCurrentPosition();
+    out[0] = sign * (p[0] + 2048 * (p[5] - at[5]) - at[0]);
+    out[1] = sign * (p[1] - at[1]);
+    out[2] = sign * (p[2] + 2048 * (p[6] - at[6]) - at[2]);
+    const float length = std::sqrt(out[0] * out[0] + out[1] * out[1] + out[2] * out[2]);
+    for (int i = 0; i < 3; ++i)
+        out[i] = length > 1e-4f ? out[i] / length : 0.0f;
+}
+
+QElapsedTimer &animationTimer() {
+    static QElapsedTimer timer;
+    if (!timer.isValid())
+        timer.start();
+    return timer;
+}
+
+}
 
 Eng::Eng() {
     
@@ -93,6 +130,9 @@ Eng::Eng(Eng *o) {
 }
 
 Eng::~Eng() {
+    if (posedShape != nullptr)
+        posedShape->releaseState(posedState);
+    delete carAnimation;
     delete carLights;
     delete ruch1;
     delete ruch2;
@@ -862,8 +902,10 @@ long long int Eng::resolveShapeIds() {
 void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
     if (loaded != 1) return;
     const long long int shapeLibId = resolveShapeIds();
-    if (shape.id[shapeLibId] >= 0)
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
+    if (shape.id[shapeLibId] >= 0) {
+        ComplexShape *carShape = Game::currentShapeLib->shape[shape.id[shapeLibId]];
+        carShape->pushRenderItem(queue, selectionId, poseShape(carShape, nullptr));
+    }
 
     float *mv = queue.transform();
     for (int i = 0; i < freightanimShape.size(); i++) {
@@ -986,41 +1028,111 @@ void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 sele
     float drawPosition1[7];
     const float *first = ruch1->getCurrentPosition(&selev1);
     std::copy(first, first + 7, drawPosition1);
-    float *drawPosition2 = ruch2->getCurrentPosition(&selev2);
-    pushRenderItemBetween(queue, playerT, selectionId, selected, drawPosition1, drawPosition2,
-                          (selev1 + selev2) / 2.0, flip);
+    float drawPosition2[7];
+    const float *second = ruch2->getCurrentPosition(&selev2);
+    std::copy(second, second + 7, drawPosition2);
+    const float roll = (selev1 + selev2) / 2.0;
+    // On its bogies (task shapes 12), once its animation knows them.
+    float placedFront[7], placedRear[7];
+    std::vector<float> bogieTurns;
+    if (placeOnCarriers(drawPosition1, drawPosition2, roll, placedFront, placedRear, bogieTurns))
+        pushRenderItemBetween(queue, playerT, selectionId, selected, placedFront, placedRear, roll, flip, &bogieTurns);
+    else
+        pushRenderItemBetween(queue, playerT, selectionId, selected, drawPosition1, drawPosition2, roll, flip);
+}
+
+void Eng::setAnimated(CarAnimation::Group group, bool on, bool now) {
+    animationWanted[group] = on;
+    if (carAnimation != nullptr)
+        carAnimation->set(group, on, now);
+}
+
+bool Eng::isAnimated(CarAnimation::Group group) const {
+    return animationWanted[group];
+}
+
+void Eng::setPantograph(int n, bool up) {
+    if (n < 1 || n > 2)
+        return;
+    pantographs[n - 1] = up ? 1 : 0;
+    if (carAnimation != nullptr)
+        carAnimation->setPantograph(n, up, flip != 0);
+}
+
+void Eng::setTravelled(double metres, bool reversed) {
+    if (trainTravelledKnown) {
+        // Along the train's way: toward this car's front (as its consist
+        // lists it) unless the train runs reversed; its shape's front the
+        // other way when flipped.
+        const double gone = (metres - trainTravelled) * (reversed ? -1.0 : 1.0) * (flip ? -1.0 : 1.0);
+        carTravelled += gone;
+    }
+    trainTravelled = metres;
+    trainTravelledKnown = true;
+}
+
+unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns) {
+    if (carShape == nullptr || !carShape->isLoaded())
+        return 0;
+    if (carAnimation == nullptr || posedShape != carShape) {
+        if (posedShape != nullptr)
+            posedShape->releaseState(posedState);
+        delete carAnimation;
+        posedShape = carShape;
+        posedState = carShape->newState();
+        carAnimation = new CarAnimation(*carShape, wagonTypeId >= 4, wagonTypeId == 6, wheelRadius, driverWheelRadius);
+        for (int g = 0; g < CarAnimation::GroupCount; ++g)
+            carAnimation->set(CarAnimation::Group(g), animationWanted[g]);
+        for (int n = 1; n <= 2; ++n)
+            if (pantographs[n - 1] >= 0)
+                carAnimation->setPantograph(n, pantographs[n - 1] > 0, flip != 0);
+        // What it found, with TSRE_ANIMATION_LOG set.
+        static const bool log = qEnvironmentVariableIsSet("TSRE_ANIMATION_LOG");
+        if (log)
+            qInfo().noquote() << "animation" << carShape->getPathId() << carAnimation->summary();
+        carTravelledSeen = carTravelled;
+        animationClock = -1;
+    }
+    const qint64 now = animationTimer().elapsed();
+    const float dt = animationClock < 0 ? 0.0f : std::clamp(float(now - animationClock) / 1000.0f, 0.0f, 0.5f);
+    animationClock = now;
+    carAnimation->update(float(carTravelled - carTravelledSeen), dt);
+    carTravelledSeen = carTravelled;
+    carAnimation->pose(*carShape, posedState, bogieTurns);
+    return posedState;
+}
+
+bool Eng::placeOnCarriers(const float *front, const float *rear, float roll, float *placedFront, float *placedRear,
+                          std::vector<float> &bogieTurns) {
+    if (carAnimation == nullptr || carAnimation->carriers().size() < 2 || ruch1 == NULL || ruch2 == NULL
+            || posedShape == nullptr)
+        return false;
+    // Both ends in the front's tile, the way toward the rear at each.
+    const float p0[3] = {front[0], front[1], front[2]};
+    const float p1[3] = {rear[0] + 2048 * (rear[5] - front[5]), rear[1], rear[2] + 2048 * (rear[6] - front[6])};
+    float t0[3], t1[3];
+    towardRear(*ruch1, front, t0);
+    towardRear(*ruch2, rear, t1);
+    std::vector<CarPlacement::Bogie> bogies;
+    for (const CarAnimation::Bogie &b : carAnimation->bogies()) {
+        bogies.emplace_back();
+        bogies.back().z = b.z;
+        if (!posedShape->partRest(b.part, bogies.back().rest))
+            return false;
+    }
+    return CarPlacement::onCarriers(front, p0, t0, p1, t1, roll, flip != 0, carAnimation->carriers(), bogies,
+                                    placedFront, placedRear, bogieTurns);
 }
 
 void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
-                                const float *front, const float *rear, float roll, bool flipped) {
+                                const float *front, const float *rear, float roll, bool flipped,
+                                const std::vector<float> *bogieTurns) {
     if (loaded != 1) return;
 
     const long long int shapeLibId = resolveShapeIds();
 
-    float drawPosition1[7], drawPosition2[7];
-    std::copy(front, front + 7, drawPosition1);
-    std::copy(rear, rear + 7, drawPosition2);
-
-    float pos[5];
-    pos[3] = drawPosition1[5];
-    pos[4] = drawPosition1[6];
-    drawPosition2[0] += 2048*(drawPosition2[5] - drawPosition1[5]);
-    drawPosition2[2] += 2048*(drawPosition2[6] - drawPosition1[6]);
-    Vec3::add(pos, drawPosition1, drawPosition2);
-    Vec3::scale(pos, pos, 0.5);
-    float dlugosc = Vec3::distance(drawPosition1, drawPosition2);
-
-    int someval = (((drawPosition1[2] - drawPosition2[2]) + 0.00001f) / fabs((drawPosition1[2] - drawPosition2[2]) + 0.00001f));
-    float rotY = ((float)someval + 1.0)*(M_PI / 2.0)+(float)(atan((drawPosition1[0] - drawPosition2[0]) / (drawPosition1[2] - drawPosition2[2])));
-    float rotX = -(float)(asin((drawPosition1[1] - drawPosition2[1]) / (dlugosc)));
-
     queue.pushTransform();
-
-    Mat4::translate(queue.transform(), queue.transform(), pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + 0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
-    Mat4::rotateY(queue.transform(), queue.transform(), -rotY);
-    Mat4::rotateX(queue.transform(), queue.transform(), rotX);
-    Mat4::rotate(queue.transform(), queue.transform(), -roll, 0, 0, 1);
-    Mat4::rotateY(queue.transform(), queue.transform(), flipped ? M_PI : 0.0);
+    CarPlacement::placeCar(queue.transform(), playerT, front, rear, roll, flipped);
 
     // Its distance level (shapes task 11) as world objects choose theirs,
     // from where its origin is from the camera; the shadow maps take the
@@ -1035,7 +1147,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     if (staticOnTrack) {
         const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
                                   rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
-                                  float(shape.id[shapeLibId]), roll, 0.0f, 0.0f, 0.0f};
+                                  float(shape.id[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f, 0.0f, 0.0f};
         const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
         queue.addShadowSignature(hash);
         queue.addSceneSignature(hash);
@@ -1052,9 +1164,11 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(!staticOnTrack);
     if (shape.id[shapeLibId] >= 0) {
+        // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shape.id[shapeLibId]];
-        if (ShapeLod::apply(*carShape, 0, place))
-            carShape->pushRenderItem(queue, selectionId, 0);
+        const unsigned int state = poseShape(carShape, bogieTurns);
+        if (ShapeLod::apply(*carShape, state, place))
+            carShape->pushRenderItem(queue, selectionId, state);
     }
 
     for (int i = 0; i < freightanimShape.size(); i++) {

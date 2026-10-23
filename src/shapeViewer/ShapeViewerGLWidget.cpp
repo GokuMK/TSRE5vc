@@ -115,9 +115,54 @@ void ShapeViewerGLWidget::timerEvent(QTimerEvent * event) {
     if (Game::objectLoadingTokens < Game::maxObjLag)
         Game::objectLoadingTokens += 2;
 
+    animate(1.0f / fps);
     camera->update(fps);
     update();
     
+}
+
+void ShapeViewerGLWidget::setAnimationPlaying(bool on) {
+    animationPlaying = on;
+}
+
+void ShapeViewerGLWidget::setAnimationEnd(bool on) {
+    animationEnd = on;
+}
+
+void ShapeViewerGLWidget::setCarAnimation(int group, bool on, bool now) {
+    if (group >= 0 && group < CarAnimation::GroupCount)
+        carGroups[group] = on;
+    carGroupsNow = now;
+}
+
+void ShapeViewerGLWidget::animateEng(Eng *shown) {
+    if (shown == NULL)
+        return;
+    shown->setTravelled(animationTravelled, false);
+    for (int g = 0; g < CarAnimation::GroupCount; ++g)
+        shown->setAnimated(CarAnimation::Group(g), carGroups[g], carGroupsNow);
+}
+
+void ShapeViewerGLWidget::animate(float seconds) {
+    if (animationPlaying)
+        animationTravelled += 15.0 / 3.6 * seconds;
+    if ((renderItem == 2 || renderItem == 3 || renderItem == 5) && Game::currentEngLib != NULL) {
+        animateEng(eng);
+        if (con != NULL)
+            for (const Consist::EngItem &item : con->engItems)
+                if (item.eng >= 0)
+                    animateEng(Game::currentEngLib->eng[item.eng]);
+    }
+    if (renderItem == 4 && complexShape != NULL && complexShape->isLoaded()) {
+        complexShape->setAnimated(0, animationPlaying);
+        if (animationPlaying)
+            complexShape->updateSim(seconds, 0);
+        complexShape->clearPose(0);
+        if (animationEnd && !animationPlaying)
+            for (int part = 0; part < complexShape->partCount(); ++part)
+                if (complexShape->partLastFrame(part) >= 0)
+                    complexShape->setPartFrame(0, part, complexShape->partLastFrame(part));
+    }
 }
 
 void ShapeViewerGLWidget::setCamera(Camera* cam){
