@@ -164,6 +164,7 @@ private:
     QAction* vViewTerrainGrid;
     QAction* vViewTerrainShape;
     QAction* vShowWorldObjPivotPoints;
+    QAction* vViewObjectBorders;
     QAction* vViewInteractives;
     QAction* vViewTrackDbLines;
     QAction* vViewTsectionLines;

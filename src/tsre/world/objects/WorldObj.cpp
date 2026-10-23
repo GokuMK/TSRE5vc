@@ -47,6 +47,7 @@ bool WorldObj::positiveQuaternionSerialization() {
 #include <tsre/world/Route.h>
 #include <tsre/world/Trk.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/world/ObjectBorders.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -833,7 +834,7 @@ bool WorldObj::ensureBox(){
 }
 
 void WorldObj::pushRenderBox(RenderQueue &queue){
-    if (ensureBox())
+    if (ObjectBorders::shown && ensureBox())
         box.pushRenderItem(queue);
 }
 

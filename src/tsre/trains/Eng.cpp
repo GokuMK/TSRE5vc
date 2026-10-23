@@ -40,6 +40,7 @@
 #include <tsre/trains/TrainNetworkEng.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
+#include <tsre/world/ObjectBorders.h>
 
 Eng::Eng() {
     
@@ -722,6 +723,8 @@ void Eng::pushDrawBorder(RenderQueue &queue){
 }
 
 void Eng::pushDrawBorder3d(RenderQueue &queue) {
+    if (!ObjectBorders::shown)
+        return;
     if (borderObj3d == NULL) {
         borderObj3d = new OglObj();
 
