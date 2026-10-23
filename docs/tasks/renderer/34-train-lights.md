@@ -289,3 +289,12 @@ Open Rails rules kept:
   Open Rails light the scene with one headlight. In fog the beam shows,
   and the simplification with it; to be changed in the data (cones from
   the lamps), not by TSRE guessing. Left for now.
+- Real beams for the fog (user, 2026-10-23): since `f80adc7` a car shines
+  only its first lit cone, Open Rails' rule, because content hides
+  unrelated cones behind it (the EP07's backward ones). That single
+  invisible cone is MSTS' and Open Rails' fake; TSRE's volumetric fog
+  shows each beam, so it needs a beam out of each real lamp, at the
+  lamp's place and aimed its way. Content does not describe that: a way
+  to get it (beams of the lit headlamp glows, a TSRE or ORTS extension of
+  the `Lights` block, or per-lamp cones in our ENGs) is to be decided
+  with the lamps' beam data; the one-cone rule goes with it.
