@@ -1197,6 +1197,9 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
 }
 
 void Eng::move(float m){
+    // Its wheels turned by it (task shapes 12): toward its front as its
+    // consist lists it, its shape's the other way when flipped.
+    carTravelled += flip ? -m : m;
     if(ruch1 != NULL)
         ruch1->next(m);
     if(ruch2 != NULL)
