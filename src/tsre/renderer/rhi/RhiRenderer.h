@@ -135,9 +135,10 @@ private:
         const RhiProgram *program = nullptr;
         QRhiBuffer *uniforms = nullptr;
         // Inline: a key is made for every draw, and heap vectors cost two
-        // allocations each (about a sixth of the frame's CPU time).
-        QVarLengthArray<QRhiTexture *, 24> textures;
-        QVarLengthArray<QRhiSampler *, 24> samplers;
+        // allocations each (about a sixth of the frame's CPU time). The lit
+        // programs have more than 24 texture slots.
+        QVarLengthArray<QRhiTexture *, 40> textures;
+        QVarLengthArray<QRhiSampler *, 40> samplers;
         bool operator==(const BindingKey &other) const;
     };
     struct BindingKeyHash { size_t operator()(const BindingKey &key) const; };
@@ -258,6 +259,30 @@ private:
     void present();
     void drawPasses(RenderPass first, RenderPass last, bool consume);
     void recordInstances(const std::vector<DrawInstance> &instances, int pass, bool grouped);
+    // The texture slots that depend only on the frame (all but the item's
+    // own, recordDraw), found for a program's first draw in a batch of draws
+    // (recordInstances, recordCasters) and taken from it for the others:
+    // nothing they depend on changes while a batch is recorded.
+    struct SlotCache {
+        const RhiProgram *program = nullptr;
+        bool filled = false;
+        QVarLengthArray<QRhiTexture *, 40> textures;
+        QVarLengthArray<QRhiSampler *, 40> samplers;
+    };
+    std::vector<SlotCache> slotCaches;
+    size_t lastSlotCache = 0;
+    bool slotBatch = false;
+    SlotCache *slotCacheFor(const RhiProgram *program);
+    struct SlotBatch {
+        RhiRenderer &renderer;
+        const bool outer;
+        explicit SlotBatch(RhiRenderer &r) : renderer(r), outer(r.slotBatch) {
+            for (SlotCache &cache : renderer.slotCaches)
+                cache.filled = false;
+            renderer.slotBatch = true;
+        }
+        ~SlotBatch() { renderer.slotBatch = outer; }
+    };
     void recordDraw(RenderItem *item, const float *const *matrices, int count,
                     quint32 selectionId, int pass, int category);
     RhiProgram *programFor(const RenderItem *item, int pass);

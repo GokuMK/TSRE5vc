@@ -18,6 +18,7 @@
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/Renderer.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <map>
 #include <tuple>
@@ -58,6 +59,18 @@ constexpr float BeamRadius = 0.1f;
 // are weaker. TSRE's own scale, not Open Rails' headlight; to be tuned by
 // eye.
 constexpr float BeamLightAtReach = 0.01f;
+// The car's head lamps, which shine its beam (CarLights::beams): lit glows
+// about white (their weakest colour channel at least this share of the
+// strongest; not red tail lamps), facing within about 45 degrees of the
+// beam, in the outer part of the car at the end it shines from (beyond
+// this share of half its length). Glows less than LampGap (metres) apart
+// are one lamp, its beam from their middle: the LED dots of one lamp (the
+// CMK Vectron's 65 lit white dots are its three lamps of 7, 7 and 51, dots
+// 5 cm apart, lamps 1 m and more), and player and AI lamps of one place.
+constexpr float LampWhite = 0.5f;
+constexpr float LampFacing = 0.7f;
+constexpr float LampEnd = 0.6f;
+constexpr float LampGap = 0.15f;
 
 float toLinear(float c) {
     return std::pow(std::clamp(c, 0.0f, 1.0f), 2.2f);
@@ -244,14 +257,23 @@ std::vector<CarLights::Lens> CarLights::lenses(const EngLights &lights, const En
 std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const EngLights::Train &train,
                                                 float halfLength) {
     std::vector<RenderItem::Light> out;
-    for (const EngLights::Light &light : lights.lights) {
-        if (light.type != EngLights::Cone || light.states.isEmpty() || !EngLights::isOn(light, train))
-            continue;
-        const EngLights::State &s = light.states[0];
+    // The car's headlight is its first lit cone, as in Open Rails
+    // (LightDrawer's active cone). Content counts on that: the EP07's
+    // Lights_303E_v2.inc adds cones at the front aimed back over the train
+    // (dim and bright, after the forward ones), which every lit cone as a
+    // beam shone onto the first coach.
+    const EngLights::Light *lit = nullptr;
+    for (const EngLights::Light &light : lights.lights)
+        if (light.type == EngLights::Cone && !light.states.isEmpty() && EngLights::isOn(light, train)) {
+            lit = &light;
+            break;
+        }
+    if (lit != nullptr) {
+        const EngLights::State &s = lit->states[0];
         const float reach = s.reach();
         const float alpha = (s.colour >> 24) / 255.0f;
         if (reach <= 0.0f || alpha <= 0.0f)
-            continue;
+            return out;
         float d[3];
         s.direction(d);
         RenderItem::Light beam;
@@ -278,7 +300,7 @@ std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const E
                               toLinear((s.colour & 255) / 255.0f)};
         const float peak = std::max({rgb[0], rgb[1], rgb[2]});
         if (peak <= 0.0f)
-            continue;
+            return out;
         for (int c = 0; c < 3; ++c)
             beam.color[c] = rgb[c] / peak;
         // I lights a surface facing it at d to I / (pi d^2) (task 21).
@@ -287,7 +309,65 @@ std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const E
         beam.radius = BeamRadius;
         beam.innerCone = BeamInner * s.halfAngle();
         beam.outerCone = std::min(BeamOuter * s.halfAngle(), float(M_PI) * 0.5f);
-        out.push_back(beam);
+        // The cone gives the beam's way, spread, reach and strength; its
+        // head lamps give where it comes from: a beam out of each, the
+        // cone's strength shared, as real lamps show in fog. Without
+        // lamps, the cone's own beam.
+        std::vector<const Lens *> lamps;
+        const std::vector<Lens> lit = lenses(lights, train);
+        for (const Lens &lens : lit) {
+            const float r = ((lens.colour >> 16) & 255) / 255.0f, g = ((lens.colour >> 8) & 255) / 255.0f,
+                        b = (lens.colour & 255) / 255.0f;
+            const float strongest = std::max({r, g, b});
+            if (strongest <= 0.0f || std::min({r, g, b}) < LampWhite * strongest)
+                continue;
+            const float facing = lens.direction[0] * beam.direction[0] + lens.direction[1] * beam.direction[1]
+                    + lens.direction[2] * beam.direction[2];
+            if (facing < LampFacing)
+                continue;
+            if (std::fabs(beam.direction[2]) > 0.5f
+                    && (lens.position[2] * beam.direction[2] <= 0.0f
+                        || (halfLength > 0.0f && std::fabs(lens.position[2]) < LampEnd * halfLength)))
+                continue;
+            lamps.push_back(&lens);
+        }
+        if (lamps.empty()) {
+            out.push_back(beam);
+            return out;
+        }
+        // Lamps: glows linked by gaps under LampGap (one beam per lamp, not
+        // per LED dot: the Vectron's dots as beams filled the light grid's
+        // cells, and the fog takes a cell's first 16).
+        std::vector<int> group(lamps.size());
+        for (size_t i = 0; i < lamps.size(); ++i)
+            group[i] = int(i);
+        const auto root = [&group](int i) {
+            while (group[size_t(i)] != i)
+                i = group[size_t(i)] = group[size_t(group[size_t(i)])];
+            return i;
+        };
+        for (size_t i = 0; i < lamps.size(); ++i)
+            for (size_t j = i + 1; j < lamps.size(); ++j) {
+                const float dx = lamps[i]->position[0] - lamps[j]->position[0];
+                const float dy = lamps[i]->position[1] - lamps[j]->position[1];
+                const float dz = lamps[i]->position[2] - lamps[j]->position[2];
+                if (dx * dx + dy * dy + dz * dz < LampGap * LampGap)
+                    group[size_t(root(int(i)))] = root(int(j));
+            }
+        std::map<int, std::pair<int, std::array<float, 3>>> middles;
+        for (size_t i = 0; i < lamps.size(); ++i) {
+            auto &middle = middles[root(int(i))];
+            ++middle.first;
+            for (int c = 0; c < 3; ++c)
+                middle.second[size_t(c)] += lamps[i]->position[c];
+        }
+        for (const auto &entry : middles) {
+            RenderItem::Light own = beam;
+            for (int c = 0; c < 3; ++c)
+                own.position[c] = entry.second.second[size_t(c)] / float(entry.second.first);
+            own.intensity = beam.intensity / float(middles.size());
+            out.push_back(own);
+        }
     }
     return out;
 }

@@ -8,6 +8,8 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <QHash>
+#include <tsre/shape/ShapeLod.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLights.h>
@@ -38,6 +40,7 @@
 #include <tsre/trains/TrainNetworkEng.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
+#include <tsre/world/ObjectBorders.h>
 
 Eng::Eng() {
     
@@ -720,6 +723,8 @@ void Eng::pushDrawBorder(RenderQueue &queue){
 }
 
 void Eng::pushDrawBorder3d(RenderQueue &queue) {
+    if (!ObjectBorders::shown)
+        return;
     if (borderObj3d == NULL) {
         borderObj3d = new OglObj();
 
@@ -1017,23 +1022,48 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     Mat4::rotate(queue.transform(), queue.transform(), -roll, 0, 0, 1);
     Mat4::rotateY(queue.transform(), queue.transform(), flipped ? M_PI : 0.0);
 
+    // Its distance level (shapes task 11) as world objects choose theirs,
+    // from where its origin is from the camera; the shadow maps take the
+    // same, so a near car shadows itself in detail.
+    const float *model = queue.transform();
+    const float *camera = GLUU::get()->cameraPosition;
+    const float dx = model[12] - camera[0], dy = model[13] - camera[1], dz = model[14] - camera[2];
+    const ShapeLod::Place place{std::sqrt(dx * dx + dz * dz), dy, {-dx, -dy, -dz}, model};
+    // A static consist's car stays in the cached shadow maps and the sky
+    // enclosure: its place goes into their sums, so they are drawn again
+    // when it is placed, moved or gone.
+    if (staticOnTrack) {
+        const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
+                                  rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
+                                  float(shape.id[shapeLibId]), roll, 0.0f, 0.0f, 0.0f};
+        const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
+        queue.addShadowSignature(hash);
+        queue.addSceneSignature(hash);
+    }
+
     // Activities submit their consists with the editor overlays; the
-    // rolling stock itself is scene geometry, lit and shadowed. It always
-    // counts as animated (it moves, its parts animate): it casts on top of
-    // the cached static shadow maps (task renderer 37) and is no roof in
-    // the cached sky enclosure maps (task renderer 27).
+    // rolling stock itself is scene geometry, lit and shadowed. Trains count
+    // as animated (they move, their parts animate): they cast on top of the
+    // cached static shadow maps (task renderer 37) and are no roofs in the
+    // cached sky enclosure maps (task renderer 27); static consists do
+    // neither.
     const RenderQueue::Layer layer = queue.layer();
     const bool animated = queue.animatedEnabled();
     queue.setLayer(RenderQueue::LAYER_SCENE);
-    queue.setAnimated(true);
-    if (shape.id[shapeLibId] >= 0)
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
+    queue.setAnimated(!staticOnTrack);
+    if (shape.id[shapeLibId] >= 0) {
+        ComplexShape *carShape = Game::currentShapeLib->shape[shape.id[shapeLibId]];
+        if (ShapeLod::apply(*carShape, 0, place))
+            carShape->pushRenderItem(queue, selectionId, 0);
+    }
 
     for (int i = 0; i < freightanimShape.size(); i++) {
         if (freightanimShape[i].id[shapeLibId] >= 0) {
             queue.pushTransform();
             Mat4::translate(queue.transform(), queue.transform(), freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
+            ComplexShape *freight = Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]];
+            if (ShapeLod::apply(*freight, 0, place))
+                freight->pushRenderItem(queue, selectionId, 0);
             queue.popTransform();
         }
     }

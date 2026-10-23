@@ -141,6 +141,11 @@ public:
     void updateSim(float deltaTime);
     float getCurrentSpeed();
     void pushRenderItems(RenderQueue &queue, quint32 selectionId = 0);
+    // Drawn on the track as part of a static consist (Consist): not animated,
+    // in the cached static shadow maps and a roof in the sky enclosure (task
+    // renderer 37), its place in their sums. Trains are animated, standing
+    // or not (doors, pantographs).
+    bool staticOnTrack = false;
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
     // The nearest sound region item ahead of (or behind) the car on its

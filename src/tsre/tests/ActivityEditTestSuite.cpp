@@ -555,9 +555,15 @@ int TsreTests::runActivityEditSuite(bool verbose) {
         Activity *overlaid = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "Overlaid.act"));
         const QString overlay = route + "/ACTIVITIES/OPENRAILS/Overlaid.act";
         Activity *legacy = ActLib::Act.value(ActLib::AddAct(route + "/ACTIVITIES", "Legacy.act"));
+        // A filesystem that ignores letter case (Windows) finds legacy.ACT
+        // for Legacy.act itself: the check holds where it does not (Linux).
+        const bool caseIgnored = QFileInfo(route + "/ACTIVITIES/OPENRAILS/LEGACY.ACT").isFile();
         check(overlaid && overlaid->loaded == 1 && ActivityOverlay::PathOf(overlaid) == overlay && legacy != nullptr
                   && ActivityOverlay::PathOf(legacy).isEmpty(),
-              "the overlay is found by the activity's file name, legacy.ACT for Legacy.act not");
+              QString("the overlay is found by the activity's file name, legacy.ACT for Legacy.act not")
+                  + (caseIgnored ? " (this filesystem ignores letter case, as Windows does: it finds legacy.ACT "
+                                   "for Legacy.act itself; the check needs a case-sensitive one, as on Linux)"
+                                 : ""));
         const auto codes = [](Activity *checked) {
             QStringList found;
             for (const ActivityFinding &finding : CheckActivity(checked))

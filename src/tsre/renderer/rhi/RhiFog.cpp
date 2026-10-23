@@ -391,8 +391,25 @@ bool coneSpan(vec3 o, vec3 d, vec3 p, vec3 a, float c, inout float t0, inout flo
     return t1 > t0;
 }
 
+// A spot's cone as a cell sees it (cellAngle the angle across a cell, at
+// the camera): its outer edge widened by the cell's half-width as seen from
+// the lamp, its light lowered as much as the cone grew. A beam narrower than
+// a cell was in or out for whole cells, stepping along the cells' edges
+// (the user, 2026-10-23: CMK, 0:00, valley fog, a locomotive's three head
+// lamp beams); now it fades across them.
+float cellCone(vec4 cone, float cellAngle, float t, float r, float cosine) {
+    float outer = acos(clamp(cone.x, -1.0, 1.0));
+    float cosInner = cone.x + 1.0 / max(cone.y, 1e-4);
+    float inner = acos(clamp(cosInner, -1.0, 1.0));
+    float widened = min(outer + atan(0.5 * cellAngle * t, max(r, 1e-3)), 1.5707963);
+    float cosOuter = cos(widened);
+    float inside = clamp((cosine - cosOuter) / max(cosInner - cosOuter, 1e-4), 0.0, 1.0);
+    float kept = (inner + outer) / max(inner + widened, 1e-4);
+    return inside * inside * kept * kept;
+}
+
 vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, vec4 layers,
-               vec3 o, vec3 d, float t0, float t1) {
+               vec3 o, vec3 d, float t0, float t1, float cellAngle) {
     if (layers.y <= 0.0)
         return vec3(0.0);
     ivec2 first = gridCell(cells, grid, layers, o + d * t0);
@@ -428,7 +445,12 @@ vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, ve
         vec4 cone = vec4(0.0);
         if (spot.w > 0.5) {
             cone = texelFetch(data, ivec2(3, light), 0);
-            if (cone.x > -1e-4 && !coneSpan(o, d, placement.xyz, spot.xyz, cone.x, s0, s1))
+            // Cut to the cone widened as the cells nearest the lamp see it
+            // (the ray's closest approach, the slice's far end).
+            float outer = acos(clamp(cone.x, -1.0, 1.0));
+            float widest = min(outer + atan(0.5 * cellAngle * t1, max(sqrt(aside), 1e-3)), 1.5707963);
+            float cut = widest < 1.5707 ? cos(widest) : 0.0;
+            if (cone.x > -1e-4 && !coneSpan(o, d, placement.xyz, spot.xyz, cut, s0, s1))
                 continue;
         }
         if (s1 <= s0)
@@ -449,10 +471,8 @@ vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, ve
             float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
             float share = window * window;
             vec3 l = toLight * inversesqrt(max(squared, 1e-8));
-            if (spot.w > 0.5) {
-                float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
-                share *= inside * inside;
-            }
+            if (spot.w > 0.5)
+                share *= cellCone(cone, cellAngle, t, sqrt(squared), dot(-l, spot.xyz));
             float phase = mix(henyeyGreenstein(dot(d, l), 0.85), 1.0 / (4.0 * 3.14159265), 0.3) * 4.0 * 3.14159265;
             shares += share * phase;
         }
@@ -474,6 +494,9 @@ void main() {
     vec2 ndc = vec2(uv.x * 2.0 - 1.0, (uv.y * 2.0 - 1.0) * camera.w);
     vec4 far = inverse * vec4(ndc, 1.0, 1.0);
     vec3 d = normalize(far.xyz / far.w);
+    // The angle across a cell, to its neighbour's middle ray.
+    vec4 next = inverse * vec4(ndc + vec2(2.0 / grid.x, 0.0), 1.0, 1.0);
+    float cellAngle = length(normalize(next.xyz / next.w) - d);
     const int Points = 4;
     float sigma = 0.0, above = 0.0, sigmaAbove = 0.0;
     // A slice above the highest fog top on the map has none (most cells
@@ -562,9 +585,10 @@ void main() {
     vec3 lamps = vec3(0.0);
     if (current.a > 0.0)
         lamps = (gridLight(localLightData, localLightCells, localLightIndices, lightGrid, lightLayers,
-                           camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0))
+                           camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0), cellAngle)
                  + gridLight(signalLightData, signalLightCells, signalLightIndices, signalGrid, signalLayers,
-                             camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0)))
+                             camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0),
+                             cellAngle))
                 * current.a;
     imageStore(lampCells, id, vec4(min(lamps * scale.x, vec3(60000.0)), 0.0));
 }

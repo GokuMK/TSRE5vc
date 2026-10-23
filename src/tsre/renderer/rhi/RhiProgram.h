@@ -62,6 +62,21 @@ struct RhiProgram {
         }
         return cached->second.offset >= 0 ? &cached->second : nullptr;
     }
+    // The members of a fixed list of names, found once (writeItemUniforms,
+    // one list per program): null for a name the program does not have.
+    std::vector<const Member *> listed;
+    const Member *const *listedMembers(const char *const *names, int count) {
+        if (int(listed.size()) != count) {
+            listed.resize(size_t(count));
+            for (int i = 0; i < count; ++i)
+                listed[size_t(i)] = member(names[i]);
+        }
+        return listed.data();
+    }
+    void setAt(const Member *found, const void *data, int bytes) {
+        if (found != nullptr)
+            std::memcpy(block.data() + found->offset, data, size_t(std::min(bytes, found->size)));
+    }
     void set(const char *name, const void *data, int bytes) {
         const Member *found = member(name);
         if (found == nullptr)

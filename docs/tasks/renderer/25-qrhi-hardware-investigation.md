@@ -363,6 +363,43 @@ after the work above and the later fixes on this branch:
   cost; `TSRE_RHI_DUMP=<directory>` writes every program's converted GLSL
   and backend source (HLSL, SPIR-V, GLSL).
 
+## Per-draw recording (2026-10-23)
+
+Two views with many draws: TRAINS activity `file0` (static consists,
+`core.startup.camera=97,-118,-0.93,28.85,64.21,-181.13,-14.94`, about
+3200 draws a frame) and the Prudnik forest view (about 5700). CPU times a
+frame in ms, the parts from a temporary per-draw profile (not committed),
+the frame CPU from `renderer-capture` without it (minimum over the timing
+frames, two runs each, base and change alternated):
+
+| | TRAINS before | after | Prudnik before | after |
+|---|---|---|---|---|
+| `recordDraw` | 5.5 | 4.9 | 9.7 | 8.3 |
+| item uniforms | 0.92 | 0.64 | 1.84 | 1.30 |
+| texture slots | 1.40 | 0.95 | 2.75 | 1.87 |
+| `flushTarget` | 4.6 | 4.25 | 7.0 | 5.0 |
+| frame CPU | 13.3-15.2 | 11.8-11.9 | 32.6-33.6 | 30.1-30.9 |
+
+- `debugCount` takes text literals and makes its string only while
+  `TSRE_RHI_TRACE` is on: `flushTarget` made three strings a draw.
+- The texture slots that depend only on the frame (shadow and vegetation
+  maps, sky enclosure, fog, cloud shadow, light grid, environment map,
+  stand-ins) are found for a program's first draw in a batch
+  (`recordInstances`, `recordCasters`) and taken from it for the others.
+  The item's own slots are found for every draw: 0, 1, 4-7, 11-17, 19,
+  21, 33 and the night texture (`itemTextureSlot`). A new slot filled
+  from the item must be added there.
+- The uniforms every draw writes are found once per program
+  (`RhiProgram::listedMembers`), not by name.
+- The lit programs have up to 33 texture slots. The resource keys held 24
+  inline, so for these programs they still went to the heap after
+  `29829bf`; they hold 40 now.
+
+Images unchanged (TRAINS largest difference 1, as between two runs of the
+base; Prudnik 0). Left: every draw copies the whole uniform block (about
+1.4 KB, 4.3 MB a frame on TRAINS); frame and item values in separate
+blocks would end that, a larger change.
+
 ## Lamp scene and Direct3D 11 (2026-10-08)
 
 bbb, `core.startup.camera=-5306,14963,-74.32,3.28,690.88,1.87,-0.93`: 924
@@ -390,7 +427,8 @@ uniform name lookups in `RhiProgram::set` about 4 %; QRhi's Vulkan
 backend about 21 % (Qt has no symbols). Next steps, not done: stop
 refreshing the environment map when camera and light are still; keep
 shadow maps whose casters and light view did not change; look the
-uniform members up by a cached index instead of their names.
+uniform members up by a cached index instead of their names (done for
+the members every draw sets, see "Per-draw recording").
 
 Direct3D 11 after its fixes: start view 42.8 frames a second against
 Vulkan's 93.2 (CPU 22.6 against 10.4 ms); see task 20 for its open

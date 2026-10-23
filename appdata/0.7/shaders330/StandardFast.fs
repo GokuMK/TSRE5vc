@@ -17,6 +17,8 @@ uniform float materialTransparency;
 // Rails' 250 of 255), 2 only the others, 0 all.
 uniform int blendedTexels;
 const float BlendedOpaqueAlpha = 250.0 / 255.0;
+// The translucent texels leave out only the nearly invisible (StandardFog).
+const float BlendedTranslucentAlpha = 4.0 / 255.0;
 uniform vec4 skyColor;
 uniform vec4 diffuseColor;
 uniform vec4 ambientColor;
@@ -61,7 +63,7 @@ void main() {
         fragColor = terrainMaterialColor();
 #endif
     fragColor.a = max(fragColor.a, vAlpha);
-    if (fragColor.a < -vAlpha)
+    if (fragColor.a < (blendedTexels == 2 ? min(-vAlpha, BlendedTranslucentAlpha) : -vAlpha))
         discard;
     if (blendedTexels == 1) {
         if (fragColor.a < BlendedOpaqueAlpha)

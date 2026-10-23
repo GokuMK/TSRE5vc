@@ -84,6 +84,7 @@
 #include <routeEditor/activity/ActivityEditLock.h>
 #include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/units/Units.h>
+#include <tsre/world/ObjectBorders.h>
 
 namespace {
 bool routeStartLatitudeLongitude(Route *route,
@@ -445,6 +446,11 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.v.show.world.obj.pivot.points"), this, false);
     viewMenu->addAction(vShowWorldObjPivotPoints);
     QObject::connect(vShowWorldObjPivotPoints, SIGNAL(triggered(bool)), this, SLOT(showWorldObjPivotPointsEnabled(bool)));
+    vViewObjectBorders = GuiFunct::newMenuCheckAction(
+        //% "&Object Borders"
+        qtTrId("route.editor.route.editor.window.action.v.view.object.borders"), this, ObjectBorders::shown);
+    viewMenu->addAction(vViewObjectBorders);
+    QObject::connect(vViewObjectBorders, &QAction::triggered, this, [](bool show) { ObjectBorders::shown = show; });
     vViewInteractives = GuiFunct::newMenuCheckAction(
         //% "&Interactives"
         qtTrId("route.editor.route.editor.window.action.v.view.interactives"), this);
@@ -1653,6 +1659,7 @@ void RouteEditorWindow::viewUnselectAll(){
     vViewTerrainGrid->setChecked(false);
     vViewTerrainShape->setChecked(false);
     vShowWorldObjPivotPoints->setChecked(false);
+    vViewObjectBorders->setChecked(false);
     vViewInteractives->setChecked(false);
     vViewTrackDbLines->setChecked(false);
     vViewTsectionLines->setChecked(false);
@@ -1666,6 +1673,7 @@ void RouteEditorWindow::viewUnselectAll(){
     vViewTerrainGrid->triggered(false);
     vViewTerrainShape->triggered(false);
     vShowWorldObjPivotPoints->triggered(false);
+    vViewObjectBorders->triggered(false);
     vViewInteractives->triggered(false);
     vViewTrackDbLines->triggered(false);
     vViewTsectionLines->triggered(false);

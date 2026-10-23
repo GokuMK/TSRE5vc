@@ -372,11 +372,17 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         QStringList texts;
         for (const OrTimetableProblem &p : found)
             texts << p.train + ": " + p.text;
+        // A filesystem that ignores letter case (Windows) finds C2.con for
+        // c2 itself: the check holds where it does not (Linux).
+        const bool caseIgnored = QFileInfo(dir.filePath("TRAINS/CONSISTS/c2.con")).isFile();
         check(found.size() == 5 && texts.join("\n").contains("path p9") && texts.join("\n").contains("consist c9")
                   && texts.join("\n").contains("T4: consist c2") && texts.join("\n").contains("$attach")
                   && texts.join("\n").contains("t7") && c.trains.size() == 4 && c.trains[2].pathName() == "P1"
                   && c.trains[3].pathName() == "p1",
-              "the check (P1.pat and p1. the path p1, consist c2 not C2.con): " + texts.join("; "));
+              "the check (P1.pat and p1. the path p1, consist c2 not C2.con): " + texts.join("; ")
+                  + (caseIgnored ? " (this filesystem ignores letter case, as Windows does: it finds C2.con for c2 "
+                                   "itself; the check needs a case-sensitive one, as on Linux)"
+                                 : ""));
         // Phase 8: what TSRE reads and does not run is reported too: a path
         // cell's command, qualifiers of commands it runs that it does not,
         // passing times, #restartdelay; a station's first cell after a '/'

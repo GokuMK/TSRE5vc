@@ -277,7 +277,7 @@ void ActivityObject::pushRenderItems(RenderQueue &queue, float* playerT, int ren
         if (con != NULL) {
             if (!con->isOnTrack)
                 con->initOnTrack(tile, direction);
-            con->pushRenderItemsOnTrack(queue, playerT, selectionId);
+            con->pushRenderItemsOnTrack(queue, playerT, selectionId, false, true);
         }
     }
 

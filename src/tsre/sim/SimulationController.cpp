@@ -691,9 +691,9 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     case TrainEvent::ActivityEnded:
         return event.index == 1
                 //% "the activity ends: success"
-                ? qtTrId("simulation.event.activity.success")
+                ? qtTrId("simulation.event.activity.success") :
                 //% "the activity ends without success"
-                : qtTrId("simulation.event.activity.failure");
+                qtTrId("simulation.event.activity.failure");
     case TrainEvent::Coupled:
         //% "coupled to %1 cars"
         return qtTrId("simulation.event.coupled").arg(event.signal);
@@ -819,9 +819,9 @@ QString SimulationController::statusText() const {
     }
     QString text = now->finished && !now->trains.empty()
             //% "Every train has finished its path."
-            ? qtTrId("simulation.status.finished")
+            ? qtTrId("simulation.status.finished") :
             //% "Trains: %1 waiting, %2 running, %3 standing, %4 finished."
-            : qtTrId("simulation.status.trains").arg(waiting).arg(moving).arg(standing).arg(finished);
+            qtTrId("simulation.status.trains").arg(waiting).arg(moving).arg(standing).arg(finished);
     // Trains waiting for each other for good: the user changes their times
     // or paths.
     QStringList deadlocked;
@@ -860,7 +860,7 @@ void SimulationController::pushRenderItems(RenderQueue &queue, float *playerT, i
         const TrackPose &a = st.fronts.front();
         if (std::fabs(a.tileX - playerT[0]) > reach || std::fabs(-a.tileZ - playerT[1]) > reach)
             continue;
-        consist->pushRenderItemsOnTrack(queue, playerT, 0, false);
+        consist->pushRenderItemsOnTrack(queue, playerT, 0, false, true);
     }
 }
 

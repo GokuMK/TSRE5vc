@@ -87,9 +87,16 @@ before.
 As the opaque texels are in the depth buffer before the ambient occlusion,
 the clouds' composite and the sky's fog (QRhi), blended parts now take and
 cast ambient occlusion: rolling stock as its `TexDiff` parts, the ground and
-track under a train, blended track shapes along their sleepers. Open Rails
-blends texels down to alpha 10 of 255; the parts keep their vertex alpha's
-threshold (`GLUU::alphaTest`, 0.3).
+track under a train, blended track shapes along their sleepers.
+
+The translucent texels are blended down to alpha 4 of 255 (Open Rails: 10).
+Before, they kept their vertex alpha's threshold (`GLUU::alphaTest`, 0.3),
+needed while blended parts wrote depth; it hid faint glass. The shaders
+take the lower of the two for `blendedTexels` 2 only; the opaque texels,
+parts drawn whole and the shadow passes keep theirs. On TRAINS' stock it
+shows the soft edges of rails and of the shadow planes painted under cars
+(the Eanos' is 82 % texels under 0.3); the coaches' windows checked were
+above 0.3 already.
 
 Results (`tests/renderer/shape-viewer-blended.json`, Shape Viewer views
 with the new `pitch`, `fov` and `look` keys):
@@ -118,6 +125,8 @@ with the new `pitch`, `fov` and `look` keys):
 
 - The per-vertex alpha mode written by `SFileLegacy` still encodes
   "blended" (alpha test at `GLUU::alphaTest`). Alpha-tested parts in mode 2
-  keep that threshold.
+  keep that threshold. It dates from drawing blending and alpha testing in
+  one pass; the material's surface class (`RenderItem::drawSurface`) and
+  `blendedTexels` now say the same per draw, so it could go.
 - Partial-alpha textures where only a few texels are partial (soft edges
   of an otherwise opaque texture) stay blended.

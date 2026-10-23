@@ -10,11 +10,11 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [x] [05-sfile-legacy-load-gl.md](05-sfile-legacy-load-gl.md) — SFileLegacy consolidates legacy parsing/rendering with separate CPU loading and GL initialization; stock regression checks and repeated SFileX/C comparisons complete.
 - [x] [06-gltf-pbr-materials.md](06-gltf-pbr-materials.md) — glTF metallic-roughness materials with image-based light from the environment map; simplifications and new-renderer requirements listed.
-- [x] [07-blended-msts-parts.md](07-blended-msts-parts.md) — MSTS blended parts with opaque textures drawn as opaque (`core.rendering.blendedParts`); blended parts drawn in two as Open Rails draws them, their opaque texels with the alpha-tested pass (a window no longer hides a cab behind it; ambient occlusion on blended parts); next: such roofs in the sky enclosure.
+- [x] [07-blended-msts-parts.md](07-blended-msts-parts.md) — MSTS blended parts with opaque textures drawn as opaque (`core.rendering.blendedParts`); blended parts drawn in two as Open Rails draws them, their opaque texels with the alpha-tested pass (a window no longer hides a cab behind it; ambient occlusion on blended parts; the translucent texels blended down to alpha 4 of 255, faint glass no longer cut at 0.3); next: such roofs in the sky enclosure.
 - [ ] [08-threaded-shape-loading.md](08-threaded-shape-loading.md) — MSTS and glTF shapes load on worker threads into detached copies the main thread adopts; the first view loads before it is shown; editor review of synchronous expectations.
 - [ ] [09-shape-seasonal-textures.md](09-shape-seasonal-textures.md) — seasonal texture directory of MSTS shapes: clear and rain seasons fixed; the rule is still to compare with Open Rails (small fixes only, no seasonal rework).
 
-- [x] [11-msts-distance-levels.md](11-msts-distance-levels.md) — MSTS distance levels chosen per object as Open Rails does (the default; `TSRE_SHAPE_LOD`); Prudnik measurements.
+- [x] [11-msts-distance-levels.md](11-msts-distance-levels.md) — MSTS distance levels chosen per object as Open Rails does (the default; `TSRE_SHAPE_LOD`); Prudnik measurements; rolling stock too (2026-10-23).
 
 - [ ] [10-gltf-native-lod.md](10-gltf-native-lod.md) — native glTF levels of detail, internal (MSFT_lod) and external (`_lod01` files), chosen by screen coverage, with tree impostors, the LOD bias and coverage-preserving mipmaps for trees; merged from `feature/gltf-lod`. Coverages proposed for tree-gen: [0.444, 0.167, 0.060]. Open: instance scale, instance profiles, mipmaps for other content. Recommended first vegetation experiment before Forest/STF impostors or terrain scattering.
 

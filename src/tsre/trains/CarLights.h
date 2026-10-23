@@ -50,9 +50,12 @@ public:
     };
     // The lenses of the lit glow lights (their first state).
     static std::vector<Lens> lenses(const EngLights &lights, const EngLights::Train &train);
-    // The beams of the lit cones (their first state), in the car shape's
-    // drawing space; a cone placed beyond the car's end (halfLength, 0 for
-    // none) shines from that end.
+    // The beams of the first lit cone (its first state), as Open Rails takes
+    // one cone a car for its headlight, in the car shape's drawing space:
+    // one out of each of the car's lit head lamps at the end it shines
+    // from, the cone's strength shared; without such lamps the cone's own,
+    // from the car's end when it is placed beyond it (halfLength, 0 for
+    // none).
     static std::vector<RenderItem::Light> beams(const EngLights &lights, const EngLights::Train &train,
                                                 float halfLength);
 

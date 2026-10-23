@@ -670,6 +670,38 @@ the terrain cannot explain.
   the runs' spread (medians within 1 ms, the same build's runs 1.5 ms
   apart).
 
+### Headlight beams: a dark patch ahead, steps by the lamps (user, 2026-10-23)
+
+- CMK, `file0.act`, 0:30, valley fog, the user's camera by a locomotive
+  with its three head lamp beams (task 34): the fog along the beams darker
+  some metres ahead of the train than further on, past a straight edge;
+  by the lamps the beams in steps along the cells' edges.
+- The patch: the injection reads a grid cell's first 16 lights, and the
+  cells by the train held more. The lone Vectron shone a beam out of most
+  of its 65 head lamp LED dots (task 34's lamp rule merged glows only
+  within 5 cm); now its dots are its three lamps, three beams. The frame
+  has 35 lights, the fog matches reading all 64 a cell (0.23 % of pixels
+  differ, no edge left), the view's median 44.5 ms.
+- Also, as a guard: the grid ranked a light in a cell by its brightness
+  over the squared distance to the cell's nearest point, so a small lamp
+  inside the 16 m cell came before a beam crossing it from 30 m off. It
+  now ranks by the light over the cell on average: the distance from the
+  cell's middle plus a quarter of the cell's size squared
+  (`LightGrid::build`; the lit shaders take 64 a cell and keep theirs
+  unless a cell holds more). With the dots' beams still there (medians,
+  Steam Deck, 1280 x 800, frozen clock): 16 lights as ranked before 47.9
+  ms, the patch; ranked anew 47.6, the patch gone but for a faint edge at
+  one cell boundary; reading 32 or 64 a cell about 50, none. bbb's 924
+  lamps in valley fog: 16 lights 54.3, ranked anew 54.1, 32 57.9, 64 58.8
+  (the image within 4 of 255 of 16's): reading more costs, so the fog
+  keeps 16.
+- The steps: a beam of a few degrees is narrower than a cell (8 x 8
+  pixels) near the lamp, so cells were in or out of it on their middle
+  ray. Each spot's cone in the fog is now widened by the cell's half-width
+  as seen from the lamp, its light lowered as the cone grew
+  (`cellCone`); the beam fades across the cells. Signals and the lamps'
+  glow emitters (cones of 90 degrees) are unchanged.
+
 ## Step 5: patches and motion (2026-10-15)
 
 - **Patches:** value noise at 600, 240 and 90 m (weights 0.55, 0.3, 0.15)
