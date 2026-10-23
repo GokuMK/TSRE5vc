@@ -74,4 +74,4 @@ try {
     throw
 }
 
-Write-Host "Pushed $tag. GitHub Actions is building and publishing the release."
+Write-Host "Pushed $tag. GitHub Actions is building a draft release. Test its ZIP and publish it when ready."

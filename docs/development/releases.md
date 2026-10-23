@@ -18,9 +18,27 @@ current base version from `VERSION`, creates an annotated tag, and pushes it to
 GitHub. The tag triggers `.github/workflows/release.yml`, which builds the
 Windows application, prepares an ignored `dist/` directory, packages the
 executable with its runtime DLLs, Qt plugins and the complete tracked
-`appdata/0.7/` directory, and publishes a GitHub prerelease. Shaders, brush images
+`appdata/0.7/` directory, and uploads the ZIP to a draft GitHub prerelease. Shaders, brush images
 and UI images therefore come from the same tagged revision as the executable;
 normal release startup does not need to download appdata.
+
+## Testing and publishing the draft
+
+The build runs while local testing continues. A successful workflow leaves the
+release unpublished, visible to repository collaborators with write access.
+The pushed tag and public Actions run remain visible.
+
+Once the build finishes:
+
+1. Open the draft under the repository's **Releases** page and download its ZIP.
+2. Extract and test that package, including its bundled runtime files.
+3. Add handwritten highlights to the release notes and review the version and assets.
+4. Click **Publish release** when it is ready. Keep **This is a pre-release**
+   selected for preview builds.
+
+Publishing makes the already tested package available; it does not rebuild it.
+If testing requires code changes, commit them and run the release script again
+to create a new build tag and draft. Do not move an existing release tag.
 
 ## Runtime resources versus local assets
 

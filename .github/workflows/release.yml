@@ -107,7 +107,7 @@ jobs:
 
           Compress-Archive -Path "$packageDir\*" -DestinationPath $archive
 
-      - name: Publish GitHub prerelease
+      - name: Create draft GitHub prerelease
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -115,6 +115,7 @@ jobs:
           $archive = Get-ChildItem "dist/*.zip" | Select-Object -First 1
           gh release create $env:GITHUB_REF_NAME $archive.FullName `
             --verify-tag `
+            --draft `
             --prerelease `
             --generate-notes `
             --title "TSRE5vc $env:GITHUB_REF_NAME"
