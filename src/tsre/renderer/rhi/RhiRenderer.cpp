@@ -41,6 +41,8 @@ static const bool traceDraws = qEnvironmentVariableIsSet("TSRE_RHI_TRACE");
 static const int WaterSceneColorUnit = 11;
 static const int WaterSceneDepthUnit = 12;
 static void debugCount(const QString &key) { if (traceDraws) debugCounts[key]++; }
+// Literals: no string made unless tracing (three a draw in flushTarget).
+static void debugCount(const char *key) { if (traceDraws) debugCounts[QString::fromLatin1(key)]++; }
 
 // The present pass's fragment shader (RhiImage.cpp).
 extern const char *RhiPresentFragment;
@@ -519,21 +521,82 @@ void RhiRenderer::setFogLod(float lod) {
             program->setFloat("lod", lod);
 }
 
+namespace {
+// The uniforms every draw sets (writeItemUniforms, recordDraw), found once
+// per program (RhiProgram::listedMembers) instead of by name for every draw.
+const char *const ItemUniformNames[] = {
+    "enableNormals", "colorBrightness", "materialTransparency", "materialVegetation", "blendedTexels",
+    "selectionId", "terrainTextureRemap", "secondTexEnabled", "uMSMatrix", "terrainPaged",
+    "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled"};
+enum ItemUniform {
+    UniformEnableNormals, UniformColorBrightness, UniformMaterialTransparency, UniformMaterialVegetation,
+    UniformBlendedTexels, UniformSelectionId, UniformTerrainTextureRemap, UniformSecondTexEnabled,
+    UniformMsMatrix, UniformTerrainPaged, UniformTextureEnabled, UniformShapeColor,
+    UniformNightTextureEnabled, UniformTerrainMaterialEnabled, ItemUniformCount};
+static_assert(sizeof(ItemUniformNames) / sizeof(ItemUniformNames[0]) == ItemUniformCount);
+
+const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
+    return program->listedMembers(ItemUniformNames, ItemUniformCount);
+}
+void setFloatAt(RhiProgram *program, ItemUniform uniform, float value) {
+    program->setAt(itemUniforms(program)[uniform], &value, 4);
+}
+void setIntAt(RhiProgram *program, ItemUniform uniform, qint32 value) {
+    program->setAt(itemUniforms(program)[uniform], &value, 4);
+}
+void setVecAt(RhiProgram *program, ItemUniform uniform, float x, float y, float z = 0.0f, float w = 0.0f) {
+    const float v[4] = {x, y, z, w};
+    program->setAt(itemUniforms(program)[uniform], v, 16);
+}
+
+// Texture slots whose texture depends on the draw's item (recordDraw): its
+// texture and its detail texture or the scene copy (0, 1), terrain
+// materials, PBR maps and water layers (4-7, 11-17, 21, 33), its night
+// texture and its terrain data. Every other slot depends on the frame only
+// and is taken from the program's first draw in a batch: a slot filled
+// from the item must be listed here.
+bool itemTextureSlot(int binding) {
+    switch (binding) {
+    case 0: case 1: case 4: case 5: case 6: case 7: case 11: case 12: case 13: case 14:
+    case 15: case 16: case 17: case 21: case 33:
+        return true;
+    default:
+        return binding == RhiShaderSource::NightTextureBinding
+                || binding == RhiShaderSource::TerrainPatchDataBinding;
+    }
+}
+}
+
+RhiRenderer::SlotCache *RhiRenderer::slotCacheFor(const RhiProgram *program) {
+    // Draws in a row mostly share their program.
+    if (lastSlotCache < slotCaches.size() && slotCaches[lastSlotCache].program == program)
+        return &slotCaches[lastSlotCache];
+    for (size_t i = 0; i < slotCaches.size(); ++i)
+        if (slotCaches[i].program == program) {
+            lastSlotCache = i;
+            return &slotCaches[i];
+        }
+    lastSlotCache = slotCaches.size();
+    slotCaches.emplace_back();
+    slotCaches.back().program = program;
+    return &slotCaches.back();
+}
+
 // The values applyItemState and its neighbours set in the OpenGL renderer.
 void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId) {
-    program->setFloat("enableNormals", item->material.lit ? 1.0f : 0.0f);
-    program->setFloat("colorBrightness", item->material.brightness);
-    program->setFloat("materialTransparency", 1.0f - item->material.opacity);
+    setFloatAt(program, UniformEnableNormals, item->material.lit ? 1.0f : 0.0f);
+    setFloatAt(program, UniformColorBrightness, item->material.brightness);
+    setFloatAt(program, UniformMaterialTransparency, 1.0f - item->material.opacity);
     // Vegetation is never under a roof: no sky enclosure lookups (task 37).
-    program->setInt("materialVegetation", item->material.vegetation ? 1 : 0);
-    program->setInt("blendedTexels", texelsOf(item));
-    program->setUint("selectionId", selectionId);
+    setIntAt(program, UniformMaterialVegetation, item->material.vegetation ? 1 : 0);
+    setIntAt(program, UniformBlendedTexels, texelsOf(item));
+    program->setAt(itemUniforms(program)[UniformSelectionId], &selectionId, 4);
     const QVector3D remap = item->terrain.textureRemap;
-    program->setVec("terrainTextureRemap", remap.x(), remap.y(), remap.z());
+    setVecAt(program, UniformTerrainTextureRemap, remap.x(), remap.y(), remap.z());
     const float detailScale = item->material.textured && !selectionId ? item->material.detailScale : 0.0f;
-    program->setFloat("secondTexEnabled", detailScale);
-    program->setMat4("uMSMatrix", item->msMatrix != nullptr ? item->msMatrix : Identity);
-    program->setInt("terrainPaged", item->terrain.paged ? 1 : 0);
+    setFloatAt(program, UniformSecondTexEnabled, detailScale);
+    program->setAt(itemUniforms(program)[UniformMsMatrix], item->msMatrix != nullptr ? item->msMatrix : Identity, 64);
+    setIntAt(program, UniformTerrainPaged, item->terrain.paged ? 1 : 0);
     if (item->terrain.paged) {
         program->setInt("terrainVerticesPerPatch", item->terrain.verticesPerPatch);
         program->setInt("terrainPatchSide", item->terrain.patchSide);
@@ -1982,18 +2045,18 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     if (item->material.textured && selectionId == 0) {
         base = packetTexture(item, mipmapped);
         if (base != nullptr) {
-            program->setFloat("textureEnabled", 1.0f);
+            setFloatAt(program, UniformTextureEnabled, 1.0f);
         } else {
-            program->setFloat("textureEnabled", 0.0f);
-            program->setVec("shapeColor", 1.0f, 0.0f, 1.0f, 1.0f);
+            setFloatAt(program, UniformTextureEnabled, 0.0f);
+            setVecAt(program, UniformShapeColor, 1.0f, 0.0f, 1.0f, 1.0f);
         }
     } else if (item->material.textured) {
-        program->setFloat("textureEnabled", 0.0f);
-        program->setVec("shapeColor", 1.0f, 0.0f, 1.0f, 1.0f);
+        setFloatAt(program, UniformTextureEnabled, 0.0f);
+        setVecAt(program, UniformShapeColor, 1.0f, 0.0f, 1.0f, 1.0f);
     } else {
-        program->setFloat("textureEnabled", 0.0f);
-        program->setVec("shapeColor", item->material.color[0], item->material.color[1],
-                        item->material.color[2], item->material.color[3]);
+        setFloatAt(program, UniformTextureEnabled, 0.0f);
+        setVecAt(program, UniformShapeColor, item->material.color[0], item->material.color[1],
+                 item->material.color[2], item->material.color[3]);
     }
     const unsigned int baseHandle = item->material.textureId < 0 ? item->material.textureObject : 0;
     // The night texture (task 35), with the day texture drawn.
@@ -2001,7 +2064,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     bool nightMipmapped = false;
     if (base != nullptr && item->material.nightTextureId >= 0 && NightTextures::frame().wanted)
         night = libraryTexture(item->material.nightTextureId, nightMipmapped);
-    program->setFloat("nightTextureEnabled", night != nullptr ? 1.0f : 0.0f);
+    setFloatAt(program, UniformNightTextureEnabled, night != nullptr ? 1.0f : 0.0f);
     QRhiTexture *detail = nullptr;
     if (item->material.textured && selectionId == 0 && item->material.detailScale != 0.0f)
         detail = RhiTextures::texture(item->material.detailTextureObject);
@@ -2012,10 +2075,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && RhiTextures::texture(terrain.materialMap) != nullptr
             && RhiTextures::texture(terrain.materialTextures) != nullptr
             && RhiTextures::texture(terrain.materialParams) != nullptr;
-    program->setInt("terrainMaterialEnabled", materials ? 1 : 0);
+    setIntAt(program, UniformTerrainMaterialEnabled, materials ? 1 : 0);
     if (materials) {
         // The base texture slot only selects the shader's textured path.
-        program->setFloat("textureEnabled", 1.0f);
+        setFloatAt(program, UniformTextureEnabled, 1.0f);
         const QVector3D mapRemap = terrain.materialMapRemap;
         program->setVec("terrainMaterialMapRemap", mapRemap.x(), mapRemap.y(), mapRemap.z());
         program->setInt("terrainMaterialMapSide", terrain.materialMapSide);
@@ -2061,7 +2124,18 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     // binds them: the packet texture on 0, the detail texture on 1, the
     // water layers on 4 and 5 and the wave map on 15.
     int waterLayers = 0;
-    for (const RhiProgram::Sampler &slot : program->samplers) {
+    // The slots that depend only on the frame are found for a program's
+    // first draw in a batch and taken from it for the others; the item's
+    // own slots are found for every draw.
+    SlotCache *slotCache = slotBatch ? slotCacheFor(program) : nullptr;
+    const bool slotsCached = slotCache != nullptr && slotCache->filled;
+    for (size_t slotIndex = 0; slotIndex < program->samplers.size(); ++slotIndex) {
+        const RhiProgram::Sampler &slot = program->samplers[slotIndex];
+        if (slotsCached && !itemTextureSlot(slot.binding)) {
+            bindingKey.textures.push_back(slotCache->textures[int(slotIndex)]);
+            bindingKey.samplers.push_back(slotCache->samplers[int(slotIndex)]);
+            continue;
+        }
         QRhiTexture *texture = nullptr;
         QRhiSampler *slotSampler = sampler(true, false);
         if (slot.binding == RhiShaderSource::TerrainPatchDataBinding) {
@@ -2240,6 +2314,11 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         bindingKey.textures.push_back(texture);
         bindingKey.samplers.push_back(slotSampler);
     }
+    if (slotCache != nullptr && !slotsCached) {
+        slotCache->textures = bindingKey.textures;
+        slotCache->samplers = bindingKey.samplers;
+        slotCache->filled = true;
+    }
     if (program->kind == RhiProgram::WATER) {
         program->setInt("waterLayers", waterLayers);
         // The bed under the water: the frame copy, its size and mipmap
@@ -2315,6 +2394,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
 
 void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, int pass,
                                   bool grouped) {
+    SlotBatch batch(*this);
     std::vector<const float *> matrices;
     if (!grouped) {
         for (const DrawInstance &instance : instances) {
@@ -2430,6 +2510,7 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
 }
 
 void RhiRenderer::recordCasters(int statsSlot) {
+    SlotBatch batch(*this);
     std::vector<const float *> matrices;
     for (const GroupPlan &plan : groupPlans) {
         RenderItem *item = shadowCasters[plan.begin]->packet;
