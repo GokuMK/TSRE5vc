@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include <QString>
+#include <QVariantMap>
 
 class ComplexShape;
 
@@ -25,6 +26,9 @@ public:
     void addRef(int texx);
     int addShape(QString path);
     int addShape(QString path, QString texPath);
+    // With load options of its own (ShapeLoadOption: a 3D cab's
+    // DoubleSided), a shape apart from the file loaded without them.
+    int addShape(QString path, QString texPath, const QVariantMap &options);
 private:
     std::unordered_map<int, QString> contexts;
     std::unordered_map<int, QString> pathKeys;

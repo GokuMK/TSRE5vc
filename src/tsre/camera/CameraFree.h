@@ -52,6 +52,9 @@ public:
     void keyDown(QKeyEvent * e);
     void keyUp(QKeyEvent * e);
     void update(float fps);
+    // Within the ridden object's place for the camera (Camera::mount).
+    void keepInMount();
+    float step(float own) const;
     PreciseTileCoordinate* getCurrentPos();
 
 private:

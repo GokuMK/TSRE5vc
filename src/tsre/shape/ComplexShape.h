@@ -27,6 +27,9 @@ using ShapeLoadOptions = QVariantMap;
 namespace ShapeLoadOption {
 inline constexpr const char FirstLodOnly[] = "firstLodOnly";
 inline constexpr const char Compact[] = "compact";
+// Every surface drawn and shadowed from both sides: a 3D cab's shell, its
+// walls and ceiling facing in, still keeps the sun out.
+inline constexpr const char DoubleSided[] = "doubleSided";
 }
 
 class ComplexShape {

@@ -14,6 +14,7 @@
 #include <QString>
 #include <QMap>
 #include <QObject>
+#include <tsre/camera/CameraMount.h>
 
 class RenderQueue;
 
@@ -54,6 +55,11 @@ public:
     virtual void setMartix();
     virtual void pushRenderHud(RenderQueue &queue);
     virtual void getCameraPosition(float* out = NULL);
+    // Where a camera riding it sits and how far it may move and turn (a 3D
+    // cab's head); false: the camera's own (riding at (0, 3, 0), free).
+    virtual bool getCameraMount(CameraMount &mount);
+    // A camera rides it from now (true), or no longer (false).
+    virtual void cameraAttached(bool attached);
     virtual void pushContextMenuActions(QMenu *menu);
     virtual QString getName();
 

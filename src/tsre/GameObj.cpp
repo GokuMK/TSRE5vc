@@ -89,6 +89,15 @@ void GameObj::getCameraPosition(float *out){
     
 }
 
+bool GameObj::getCameraMount(CameraMount &mount){
+    (void)mount;
+    return false;
+}
+
+void GameObj::cameraAttached(bool attached){
+    (void)attached;
+}
+
 void GameObj::pushContextMenuActions(QMenu *menu){
     
 }

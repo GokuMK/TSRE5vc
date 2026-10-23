@@ -134,11 +134,15 @@ public:
     // train is not on the track.
     bool viewTrain(int train);
     // The camera riding a simulated train's consist (Follow; keys 1 to 3):
-    // at its leading cab's window (the consist camera's own place), ahead
-    // of its front looking back at it, or behind its back, as it runs;
-    // false when the train is not on the track.
+    // in its leading 3D cab, where it has one, else at its leading cab's
+    // window (the consist camera's own place), ahead of its front looking
+    // back at it, or behind its back, as it runs; false when the train is
+    // not on the track.
     enum class RideView { Cab, Front, Back };
     bool rideTrain(int train, RideView view);
+    // A consist about to be ridden otherwise (its properties' camera, Play)
+    // in its first vehicle's 3D cab, where it has one.
+    void rideCab3D(GameObj *obj);
     // The current activity's AI trains shown: "all", an AI train's place in
     // its traffic (the one chosen), or both ("all,3").
     void setDiagnosticAITrains(const QString &trains);

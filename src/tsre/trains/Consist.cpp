@@ -815,8 +815,46 @@ void Consist::getCameraPosition(float *out){
         return;
     
     const int vehicle = cameraVehicle >= 0 && cameraVehicle < engItems.size() ? cameraVehicle : 0;
-    if (engItems[vehicle].engPointer != NULL)
+    if (engItems[vehicle].engPointer == NULL)
+        return;
+    if (vehicle == cab3DVehicle)
+        engItems[vehicle].engPointer->cab3DCameraPosition(cab3DViewpoint, out);
+    else
         engItems[vehicle].engPointer->getCameraPosition(out);
+}
+
+bool Consist::rideCab3D(int vehicle, bool rear) {
+    leaveCab3D();
+    if (vehicle < 0 || vehicle >= engItems.size() || engItems[vehicle].engPointer == NULL)
+        return false;
+    Eng *eng = engItems[vehicle].engPointer;
+    const int viewpoint = eng->cab3DViewpoint(rear);
+    if (viewpoint < 0 || eng->cab3DShapePath().isEmpty())
+        return false;
+    cameraVehicle = vehicle;
+    cab3DVehicle = vehicle;
+    cab3DViewpoint = viewpoint;
+    return true;
+}
+
+void Consist::leaveCab3D() {
+    cab3DVehicle = -1;
+    cab3DViewpoint = -1;
+}
+
+bool Consist::getCameraMount(CameraMount &mount) {
+    if (cab3DVehicle < 0 || cab3DVehicle != cameraVehicle || cab3DVehicle >= engItems.size()
+            || engItems[cab3DVehicle].engPointer == NULL
+            || !engItems[cab3DVehicle].engPointer->cab3DMount(cab3DViewpoint, mount))
+        return false;
+    // Another cab, of this vehicle or another, is another place.
+    mount.id += cab3DVehicle * 1024;
+    return true;
+}
+
+void Consist::cameraAttached(bool attached) {
+    if (!attached)
+        leaveCab3D();
 }
 
 void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
@@ -841,6 +879,7 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
         if (engItems[i].engPointer != NULL) {
             engItems[i].engPointer->lightsTrain = lightsTrain(i);
             engItems[i].engPointer->staticOnTrack = staticConsist;
+            engItems[i].engPointer->cabViewpoint = i == cab3DVehicle ? cab3DViewpoint : -1;
         }
         if (engItems[i].engPointer != NULL)
             engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor,

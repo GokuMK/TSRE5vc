@@ -233,6 +233,9 @@ public:
     bool hasLoadFailed() const override { return loaded == 2; }
     float getSize() const override { return size; }
     const float* getBound() const override { return bound; }
+    // ShapeLoadOption::DoubleSided (the other options are the Complex
+    // backend's).
+    bool setLoadOptions(const ShapeLoadOptions &options) override;
 
     SFileLegacy();
     SFileLegacy(QString pathid, QString name, QString texp );
@@ -272,6 +275,8 @@ public:
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent) override;
 private:
     bool glReady = false;
+    // Its surfaces drawn from both sides (ShapeLoadOption::DoubleSided).
+    bool doubleSided = false;
     // texPath before loadSd() adds the season's directory.
     QString textureRoot;
     // Retires a set of cached packets through the renderer.
