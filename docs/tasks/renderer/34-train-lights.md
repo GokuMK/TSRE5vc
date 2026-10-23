@@ -167,9 +167,14 @@ Open Rails rules kept:
   comes from, the strength shared between them. Head lamps: lit glows
   about white (weakest channel at least half the strongest: not red tail
   lamps or blue pantograph effects), facing within about 45 degrees of
-  the cone, in the outer 40 % of the car at the end it shines from;
-  lamps within 5 cm are one (the EP07 lights its player and AI lamps
-  together). A car without such lamps shines the cone's own beam. In
+  the cone, in the outer 40 % of the car at the end it shines from.
+  Glows less than 15 cm apart are one lamp, its beam from their middle:
+  the LED dots of a lamp (the CMK Vectron's 65 lit white dots, 5 cm
+  apart, are its three lamps of 7, 7 and 51), and player and AI lamps of
+  one place (the EP07 lights both). At first glows within 5 cm were
+  merged and the Vectron shone a beam out of most of its dots, which
+  filled the light grid's cells (task 33: the fog takes a cell's first
+  16). A car without such lamps shines the cone's own beam. In
   Prudnik's valley fog at 03:51 a train coming the other way shows beams
   from its lamps instead of one from below its buffers; the ballast right
   in front of it is darker, as content starts its cones low (the EP07's

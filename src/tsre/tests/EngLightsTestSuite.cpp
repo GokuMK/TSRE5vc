@@ -380,10 +380,17 @@ int TsreTests::runEngLightsSuite(bool verbose) {
                            && count(flipped, 0, EngLights::Cone, false) == 1
                            && count(flipped, 0, EngLights::Cone, true) == 0,
                        "PKOR_Vectron flipped: the same the other way round");
+            // Its 65 white dots are three lamps (7, 7 and 51 dots): a beam
+            // out of each, a third of the long cone's strength.
             const std::vector<RenderItem::Light> vectronBeams = CarLights::beams(*vectronLights, standard, loco.sizez * 0.5f);
-            test.check(vectronBeams.size() == 1 && near(vectronBeams[0].range, 135.2f, 0.1f)
-                           && near(vectronBeams[0].position[2], 9.4525f, 1e-3f),
-                       "PKOR_Vectron at Bright: the long beam (135 m) from its front end (9.45 m, the cone 11 m)");
+            int low = 0, top = 0;
+            for (const RenderItem::Light &b : vectronBeams) {
+                low += near(b.position[1], 1.88f, 0.02f) && near(std::fabs(b.position[0]), 1.15f, 0.02f);
+                top += near(b.position[1], 3.61f, 0.02f) && near(b.position[0], 0.0f, 0.02f);
+            }
+            test.check(vectronBeams.size() == 3 && low == 2 && top == 1 && near(vectronBeams[0].range, 135.2f, 0.1f)
+                           && vectronBeams[0].position[2] > 8.0f,
+                       "PKOR_Vectron at Bright: the long beam (135 m) out of its three lamps at the front (8.3 to 8.7 m), not its dots");
         }
     } else if (verbose) {
         qInfo().noquote() << "[tests:eng-lights] no PKOR_Vectron under" << Game::root;

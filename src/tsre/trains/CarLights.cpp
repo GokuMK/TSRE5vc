@@ -18,6 +18,7 @@
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/Renderer.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <map>
 #include <tuple>
@@ -62,12 +63,14 @@ constexpr float BeamLightAtReach = 0.01f;
 // about white (their weakest colour channel at least this share of the
 // strongest; not red tail lamps), facing within about 45 degrees of the
 // beam, in the outer part of the car at the end it shines from (beyond
-// this share of half its length). Lamps closer than LampMerge (metres)
-// are one: player and AI lamps of one place are lit together.
+// this share of half its length). Glows less than LampGap (metres) apart
+// are one lamp, its beam from their middle: the LED dots of one lamp (the
+// CMK Vectron's 65 lit white dots are its three lamps of 7, 7 and 51, dots
+// 5 cm apart, lamps 1 m and more), and player and AI lamps of one place.
 constexpr float LampWhite = 0.5f;
 constexpr float LampFacing = 0.7f;
 constexpr float LampEnd = 0.6f;
-constexpr float LampMerge = 0.05f;
+constexpr float LampGap = 0.15f;
 
 float toLinear(float c) {
     return std::pow(std::clamp(c, 0.0f, 1.0f), 2.2f);
@@ -326,23 +329,43 @@ std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const E
                     && (lens.position[2] * beam.direction[2] <= 0.0f
                         || (halfLength > 0.0f && std::fabs(lens.position[2]) < LampEnd * halfLength)))
                 continue;
-            const bool merged = std::any_of(lamps.begin(), lamps.end(), [&](const Lens *other) {
-                const float dx = other->position[0] - lens.position[0], dy = other->position[1] - lens.position[1],
-                            dz = other->position[2] - lens.position[2];
-                return dx * dx + dy * dy + dz * dz < LampMerge * LampMerge;
-            });
-            if (!merged)
-                lamps.push_back(&lens);
+            lamps.push_back(&lens);
         }
         if (lamps.empty()) {
             out.push_back(beam);
             return out;
         }
-        for (const Lens *lamp : lamps) {
+        // Lamps: glows linked by gaps under LampGap (one beam per lamp, not
+        // per LED dot: the Vectron's dots as beams filled the light grid's
+        // cells, and the fog takes a cell's first 16).
+        std::vector<int> group(lamps.size());
+        for (size_t i = 0; i < lamps.size(); ++i)
+            group[i] = int(i);
+        const auto root = [&group](int i) {
+            while (group[size_t(i)] != i)
+                i = group[size_t(i)] = group[size_t(group[size_t(i)])];
+            return i;
+        };
+        for (size_t i = 0; i < lamps.size(); ++i)
+            for (size_t j = i + 1; j < lamps.size(); ++j) {
+                const float dx = lamps[i]->position[0] - lamps[j]->position[0];
+                const float dy = lamps[i]->position[1] - lamps[j]->position[1];
+                const float dz = lamps[i]->position[2] - lamps[j]->position[2];
+                if (dx * dx + dy * dy + dz * dz < LampGap * LampGap)
+                    group[size_t(root(int(i)))] = root(int(j));
+            }
+        std::map<int, std::pair<int, std::array<float, 3>>> middles;
+        for (size_t i = 0; i < lamps.size(); ++i) {
+            auto &middle = middles[root(int(i))];
+            ++middle.first;
+            for (int c = 0; c < 3; ++c)
+                middle.second[size_t(c)] += lamps[i]->position[c];
+        }
+        for (const auto &entry : middles) {
             RenderItem::Light own = beam;
             for (int c = 0; c < 3; ++c)
-                own.position[c] = lamp->position[c];
-            own.intensity = beam.intensity / float(lamps.size());
+                own.position[c] = entry.second.second[size_t(c)] / float(entry.second.first);
+            own.intensity = beam.intensity / float(middles.size());
             out.push_back(own);
         }
     }

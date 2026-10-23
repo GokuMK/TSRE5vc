@@ -677,19 +677,24 @@ the terrain cannot explain.
   some metres ahead of the train than further on, past a straight edge;
   by the lamps the beams in steps along the cells' edges.
 - The patch: the injection reads a grid cell's first 16 lights, and the
-  cells by the train held more. The grid ranked a light in a cell by its
-  brightness over the squared distance to the cell's nearest point, so a
-  small lamp inside the 16 m cell came before a beam crossing it from 30 m
-  off. It now ranks by the light over the cell on average: the distance
-  from the cell's middle plus a quarter of the cell's size squared
+  cells by the train held more. The lone Vectron shone a beam out of most
+  of its 65 head lamp LED dots (task 34's lamp rule merged glows only
+  within 5 cm); now its dots are its three lamps, three beams. The frame
+  has 35 lights, the fog matches reading all 64 a cell (0.23 % of pixels
+  differ, no edge left), the view's median 44.5 ms.
+- Also, as a guard: the grid ranked a light in a cell by its brightness
+  over the squared distance to the cell's nearest point, so a small lamp
+  inside the 16 m cell came before a beam crossing it from 30 m off. It
+  now ranks by the light over the cell on average: the distance from the
+  cell's middle plus a quarter of the cell's size squared
   (`LightGrid::build`; the lit shaders take 64 a cell and keep theirs
-  unless a cell holds more). Reading all 64 in the fog cleared it as well,
-  at a cost (medians, Steam Deck, 1280 x 800, frozen clock: this view 16
-  lights 47.9 ms, 32 or 64 about 50; bbb's 924 lamps in valley fog 54.3,
-  32 57.9, 64 58.8, the image within 4 of 255 of 16's). Ranked anew with
-  16: CMK 47.6, bbb 54.1, the patch gone but for a faint edge where one
-  cell boundary meets the beam (seen at 2.5 times brightness); 32 lights
-  a cell would take that too.
+  unless a cell holds more). With the dots' beams still there (medians,
+  Steam Deck, 1280 x 800, frozen clock): 16 lights as ranked before 47.9
+  ms, the patch; ranked anew 47.6, the patch gone but for a faint edge at
+  one cell boundary; reading 32 or 64 a cell about 50, none. bbb's 924
+  lamps in valley fog: 16 lights 54.3, ranked anew 54.1, 32 57.9, 64 58.8
+  (the image within 4 of 255 of 16's): reading more costs, so the fog
+  keeps 16.
 - The steps: a beam of a few degrees is narrower than a cell (8 x 8
   pixels) near the lamp, so cells were in or out of it on their middle
   ray. Each spot's cone in the fog is now widened by the cell's half-width
