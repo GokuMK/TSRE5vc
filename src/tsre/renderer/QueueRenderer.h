@@ -62,6 +62,8 @@ public:
         bool castsShadow = false;
         // Moving: cast on top of the cached static shadow maps (task 37).
         bool dynamicShadow = false;
+        // Animated (RenderQueue::setAnimated): no roof in the sky enclosure.
+        bool animated = false;
         // Its object's light reach (m), 0 for the default.
         float lightReach = 0.0f;
     };

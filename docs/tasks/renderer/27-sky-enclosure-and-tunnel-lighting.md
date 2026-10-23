@@ -478,6 +478,14 @@ Open (for the user):
   by day (wrong, rare).
 - Working distance: done with the far map (see above).
 
+### What animates is no roof (2026-10-23)
+
+Animated objects, car spawners with their cars, level crossings, signals and
+rolling stock (`RenderQueue::setAnimated`, task 37) are left out of the
+enclosure maps: cached, a train or a car drawn into them kept its cover
+where it stood after it drove on. Objects being edited stay in, so the
+maps follow them.
+
 ### Next: thin and blended roofs (2026-10-22)
 
 The CMK hall's thin roofs (alpha-tested) still do not enclose from above.

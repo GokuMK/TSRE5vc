@@ -1018,13 +1018,14 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     Mat4::rotateY(queue.transform(), queue.transform(), flipped ? M_PI : 0.0);
 
     // Activities submit their consists with the editor overlays; the
-    // rolling stock itself is scene geometry, lit and shadowed. It moves
-    // (the simulation, the editors): it casts on top of the cached static
-    // shadow maps (task renderer 37).
+    // rolling stock itself is scene geometry, lit and shadowed. It always
+    // counts as animated (it moves, its parts animate): it casts on top of
+    // the cached static shadow maps (task renderer 37) and is no roof in
+    // the cached sky enclosure maps (task renderer 27).
     const RenderQueue::Layer layer = queue.layer();
-    const bool shadowDynamic = queue.shadowDynamicEnabled();
+    const bool animated = queue.animatedEnabled();
     queue.setLayer(RenderQueue::LAYER_SCENE);
-    queue.setShadowDynamic(true);
+    queue.setAnimated(true);
     if (shape.id[shapeLibId] >= 0)
         Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
 
@@ -1045,7 +1046,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         carLights->push(queue, *carLightsData, lightsTrain, sizez * 0.5f, selectionId);
     }
     queue.setLayer(layer);
-    queue.setShadowDynamic(shadowDynamic);
+    queue.setAnimated(animated);
     if (selected)
         pushDrawBorder3d(queue);
     queue.popTransform();

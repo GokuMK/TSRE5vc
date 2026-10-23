@@ -913,11 +913,7 @@ qint64 WorldObj::clock(){
     return started.elapsed();
 }
 
-bool WorldObj::castsMovingShadow(qint64 now){
-    // Being edited: drawn on top until it settles into the cache (two
-    // cache redraws per edit, none while it is dragged).
-    if(recentlyChanged(now))
-        return true;
+bool WorldObj::animates(){
     return isAnimated() || typeID == carspawner || typeID == levelcr || typeID == signal;
 }
 

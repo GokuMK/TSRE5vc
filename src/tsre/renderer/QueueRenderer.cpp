@@ -149,7 +149,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.order = nextOrder++;
         instance.category = RenderStats::category();
         instance.castsShadow = true;
-        instance.dynamicShadow = shadowDynamic;
+        instance.dynamicShadow = shadowDynamic || animated;
         shadowOnlyInstances.push_back(instance);
         queuedPackets++;
         if(RenderStats::inFrame())
@@ -166,7 +166,8 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.owned = owned;
     instance.castsShadow = castsShadow(packet);
     // Overlays (trains, markers) and frame items change from frame to frame.
-    instance.dynamicShadow = shadowDynamic || owned || currentLayer != LAYER_SCENE;
+    instance.dynamicShadow = shadowDynamic || animated || owned || currentLayer != LAYER_SCENE;
+    instance.animated = animated;
     instance.lightReach = currentLightReach;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
@@ -446,8 +447,8 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
         if((set == SET_MAIN && instance.packet->material.vegetation)
                 || (set == SET_VEGETATION && !instance.packet->material.vegetation))
             return;
-        // Vegetation is never a roof (task 37).
-        if(enclosure && instance.packet->material.vegetation)
+        // Vegetation is never a roof (task 37), nor is what animates.
+        if(enclosure && (instance.packet->material.vegetation || instance.animated))
             return;
         // Measure the range to the bounds, so long meshes whose origin
         // is out of range still cast near the camera.
