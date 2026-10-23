@@ -2775,7 +2775,8 @@ bool SimulationCore::standingEnds(int standingTrain, std::vector<TrackPose> &fro
     return true;
 }
 
-bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const {
+bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears,
+                                 double ahead) const {
     fronts.clear();
     rears.clear();
     if (train < 0 || size_t(train) >= states.size())
@@ -2784,12 +2785,14 @@ bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std:
     const TrainState &state = states[size_t(train)];
     if (state.status == TrainStatus::Waiting || state.status == TrainStatus::Finished)
         return false;
+    const double trainFront = ahead > 0.0 ? std::min(state.front + ahead, std::max(state.front, state.authority))
+                                          : state.front;
     double before = 0.0;
     for (const Vehicle &vehicle : runtime[size_t(train)].vehicles) {
         // Not reversed: the vehicle's front is `before` behind the train's
         // front. Reversed: the consist runs backwards, its first vehicle at
         // the train's rear.
-        const double frontAt = state.reversed ? state.front - runtime[size_t(train)].length + before : state.front - before;
+        const double frontAt = state.reversed ? trainFront - runtime[size_t(train)].length + before : trainFront - before;
         const double rearAt = state.reversed ? frontAt + vehicle.length : frontAt - vehicle.length;
         TrackPose front, rear;
         pose(train, frontAt, front);

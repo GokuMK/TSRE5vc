@@ -1013,11 +1013,16 @@ void Tile::pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, f
                                 z - static_cast<int>(playerT[1]), i);
                 }
                 queue.setShadowCasting(obj->castsShadows());
-                // Moving objects cast on top of the cached shadow maps (task 37).
-                queue.setShadowDynamic(obj->castsMovingShadow(now));
+                // Animated objects and objects being edited cast on top of
+                // the cached shadow maps (task 37); objects being edited until
+                // they settle into the cache (two cache redraws per edit, none
+                // while dragged), and they stay roofs in the sky enclosure.
+                queue.setShadowDynamic(obj->recentlyChanged(now));
+                queue.setAnimated(obj->animates());
                 obj->pushRenderItems(queue, lod, lodx, lodz, playerW, target, fov, selectionId);
                 queue.setShadowCasting(true);
                 queue.setShadowDynamic(false);
+                queue.setAnimated(false);
                 queue.popTransform();
             }
         }

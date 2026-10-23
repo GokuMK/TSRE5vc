@@ -210,6 +210,8 @@ public:
     std::shared_ptr<const SimulationInput> inputPointer() const { return in; }
     // Seconds after midnight.
     double time() const { return now; }
+    // Time asked for that is not yet a whole step (under MaxStep).
+    double pendingTime() const { return pending; }
     // Steps taken since the activity's start (the pre-run not counted).
     unsigned long long steps() const { return stepCount; }
     // Advances the simulation by `seconds`, in whole steps of MaxStep; the
@@ -277,8 +279,11 @@ public:
     // The two ends of each of a train's vehicles, in the consist's order:
     // the vehicle's front (as the consist lists it) and its rear, their
     // roll looking from the rear to the front. False for a train not on the
-    // track (not started, or an AI train gone at its path's end).
-    bool vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const;
+    // track (not started, or an AI train gone at its path's end). `ahead`
+    // moves the train on by that many metres for drawing, no further than
+    // its authority: where it is between steps (SimulationHost).
+    bool vehicleEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears,
+                     double ahead = 0.0) const;
     // The same for a standing train (task 07): its vehicles in its list's
     // order along its track, each vehicle's front (as the list has it)
     // toward the track's start. False for one gone.

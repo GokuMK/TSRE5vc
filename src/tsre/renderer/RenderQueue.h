@@ -98,12 +98,19 @@ public:
     // frame turns it off.
     void setShadowOnly(bool only);
     bool shadowOnlyEnabled() const { return shadowOnly; }
-    // Whether following submissions move (trains, animated objects, objects
-    // being edited): their shadows are drawn on top of the cached static
-    // shadow maps every frame (task renderer 37). Overlay and frame items
-    // always count as moving. A new frame turns it off.
+    // Whether following submissions are being edited: their shadows are
+    // drawn on top of the cached static shadow maps every frame (task
+    // renderer 37), and they stay roofs in the sky enclosure maps, which
+    // follow them. Overlay and frame items always count as moving. A new
+    // frame turns it off.
     void setShadowDynamic(bool dynamic);
     bool shadowDynamicEnabled() const { return shadowDynamic; }
+    // Whether following submissions animate (animated objects, car
+    // spawners, signals, level crossings, trains): drawn on top of the
+    // cached static shadow maps, and no roofs in the cached sky enclosure
+    // maps (they would leave their cover behind). A new frame turns it off.
+    void setAnimated(bool animated);
+    bool animatedEnabled() const { return animated; }
     // What the cached static shadow maps hold (task renderer 37): producers
     // add a hash of each loaded object that casts and is not being edited
     // (its identity, place and last change), in range or not, drawn or not,
@@ -132,6 +139,7 @@ protected:
     bool shadowCasting = true;
     bool shadowOnly = false;
     bool shadowDynamic = false;
+    bool animated = false;
     quint64 shadowSignatureSum = 0;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;

@@ -454,6 +454,17 @@ One kinematic driver per train, in the spirit of MSTS's:
   as fast as possible leaves the world's time until it pauses. The weather
   is a function of that time, so it follows too; nothing else is linked
   (the weather is being reworked on another branch).
+- **Drawn between steps (2026-10-23):** since the fixed 0.1 s step (task
+  06) trains moved in the views every 0.1 s, though the host publishes a
+  frame every tick (16 ms). Each frame now draws a running train moved on by
+  the time asked for that is not yet a whole step
+  (`SimulationCore::pendingTime`, under 0.1 s): its speed and acceleration
+  carried on (`v t + a t² / 2`, no further than where it would stop or
+  than its authority; `vehicleEnds`' `ahead`). Only the frame's poses
+  change; the steps, events and runs stay as they are. At the next step
+  the stepped pose replaces it (within a centimetre in `simulation-core`);
+  at 1× a running train moves in 25 of 26 frames instead of once a step
+  (`simulation-host`).
 
 ### 6. Messages
 

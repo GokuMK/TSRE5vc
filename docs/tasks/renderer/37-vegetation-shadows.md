@@ -291,11 +291,24 @@ logs these redraws too.
 
 ### What moves
 
-Drawn on top every frame (`RenderQueue::setShadowDynamic`,
-`WorldObj::castsMovingShadow`): objects with the Animate flag (MSTS and glTF
-shapes animate only with it), car spawners, level crossings, signals (arms
-in the simulation), overlay and frame items (trains, markers), and objects
-being edited.
+Drawn on top every frame:
+
+- what animates (`RenderQueue::setAnimated`, `WorldObj::animates`):
+  objects with the Animate flag (MSTS and glTF shapes animate only with it),
+  car spawners with their cars, level crossings, signals (arms in the
+  simulation), and rolling stock, which always counts as animated
+  (`Eng::pushRenderItemBetween`: its freight loads and lamps too);
+- objects being edited (`RenderQueue::setShadowDynamic`,
+  `WorldObj::recentlyChanged`);
+- overlay and frame items (markers).
+
+What animates is no roof in the sky enclosure maps either (task 27): cached
+too, they would keep its cover where it stood. Objects being edited stay
+roofs, the enclosure following them.
+
+Rolling stock (fixed 2026-10-23, the user): trains are pushed in the scene
+layer, so the overlay rule missed them and a running simulation train cast
+into the cached static maps, its shadow left behind until a redraw.
 
 Editing (the user's question, 2026-10-21): an object is dynamic while it is
 changed and for a second after its last change (`WorldObj::changedAt`,

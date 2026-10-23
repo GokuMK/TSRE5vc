@@ -64,6 +64,10 @@ void RenderQueue::setShadowDynamic(bool dynamic) {
     shadowDynamic = dynamic;
 }
 
+void RenderQueue::setAnimated(bool value) {
+    animated = value;
+}
+
 void RenderQueue::setLightReach(float metres) {
     currentLightReach = metres > 0.0f ? metres : 0.0f;
 }
@@ -73,6 +77,7 @@ void RenderQueue::resetQueueState() {
     shadowCasting = true;
     shadowOnly = false;
     shadowDynamic = false;
+    animated = false;
     shadowSignatureSum = 0;
     sceneSignatureSum = 0;
     currentLightReach = 0.0f;

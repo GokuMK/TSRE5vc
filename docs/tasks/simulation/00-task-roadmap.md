@@ -43,6 +43,10 @@ model as the first operating policy, and threading.
   one `dt`. Cost estimated from the suites' per-step measurements: in
   real time nothing (steps are already about 16 ms); runs as fast as
   possible about ten times slower at 0.01 s.
+- 2026-10-23 (the user): 0.01 s only in real time, where a train can be
+  driven; runs faster than real time (Run to, Simulate, multipliers) keep
+  0.1 s. Not done yet: until then the views draw trains between steps
+  (task 01, section 5).
 - 2026-10-17: the simulation never waits for an external app or a script
   that supplies values: it uses the last value received (an external
   train's speed, a loco's force). More in `docs/tasks/driving/`.

@@ -191,9 +191,12 @@ public:
     virtual void setModified(bool val = true);
     // Changed less than a second ago (now from clock()): being edited.
     bool recentlyChanged(qint64 now) const { return changedAt >= 0 && now - changedAt < 1000; }
+    // Animated (RenderQueue::setAnimated): the Animate flag (MSTS and glTF
+    // shapes animate only with it), car spawners, level crossings, signals.
     // Drawn into the shadow maps every frame instead of their cache (task
-    // renderer 37): animated or moving objects, and objects being edited.
-    bool castsMovingShadow(qint64 now);
+    // renderer 37) and no roofs in the sky enclosure maps; objects being
+    // edited (recentlyChanged) only the former.
+    bool animates();
     // When the object was last marked modified (clock(), -1 never).
     qint64 changedAt = -1;
     // Its hash in the cached maps' signatures (Tile) and the change it is
