@@ -156,6 +156,12 @@ Open Rails rules kept:
   light of the light grid at the cone's position and direction, outer
   half-angle `Angle` / 2, inner about 0.7 of it, reaching the cone's reach
   (the car asks for that reach with `setLightReach`, at most 250 m).
+- One beam a car, its first lit cone (the reversed copies come after the
+  ENG's own), as Open Rails picks its headlight (`LightDrawer`'s active
+  cone). Content relies on it: the EP07's `Lights_303E_v2.inc` (Prudnik's
+  TLK 48511) follows its forward dim and bright cones with cones at the
+  front aimed back over the train, which lit the first coach's end while
+  every lit cone was a beam (user, 2026-10-23).
 - Strength: TSRE's own, not Open Rails' (user, 2026-10-17: our lights are
   adjusted for our engine): at its reach a beam lights a surface facing it
   to a faint 0.01 (task 21's units, the sun's light 0.7), I = 0.01 pi D^2,

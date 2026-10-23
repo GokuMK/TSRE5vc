@@ -244,14 +244,23 @@ std::vector<CarLights::Lens> CarLights::lenses(const EngLights &lights, const En
 std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const EngLights::Train &train,
                                                 float halfLength) {
     std::vector<RenderItem::Light> out;
-    for (const EngLights::Light &light : lights.lights) {
-        if (light.type != EngLights::Cone || light.states.isEmpty() || !EngLights::isOn(light, train))
-            continue;
-        const EngLights::State &s = light.states[0];
+    // The car's headlight is its first lit cone, as in Open Rails
+    // (LightDrawer's active cone). Content counts on that: the EP07's
+    // Lights_303E_v2.inc adds cones at the front aimed back over the train
+    // (dim and bright, after the forward ones), which every lit cone as a
+    // beam shone onto the first coach.
+    const EngLights::Light *lit = nullptr;
+    for (const EngLights::Light &light : lights.lights)
+        if (light.type == EngLights::Cone && !light.states.isEmpty() && EngLights::isOn(light, train)) {
+            lit = &light;
+            break;
+        }
+    if (lit != nullptr) {
+        const EngLights::State &s = lit->states[0];
         const float reach = s.reach();
         const float alpha = (s.colour >> 24) / 255.0f;
         if (reach <= 0.0f || alpha <= 0.0f)
-            continue;
+            return out;
         float d[3];
         s.direction(d);
         RenderItem::Light beam;
@@ -278,7 +287,7 @@ std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const E
                               toLinear((s.colour & 255) / 255.0f)};
         const float peak = std::max({rgb[0], rgb[1], rgb[2]});
         if (peak <= 0.0f)
-            continue;
+            return out;
         for (int c = 0; c < 3; ++c)
             beam.color[c] = rgb[c] / peak;
         // I lights a surface facing it at d to I / (pi d^2) (task 21).
