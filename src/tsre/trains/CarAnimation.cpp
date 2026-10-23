@@ -269,12 +269,36 @@ void CarAnimation::update(float metres, float dt) {
     started = true;
 }
 
-void CarAnimation::pose(ComplexShape &shape, unsigned int state, const std::vector<float> *bogieTurns) const {
-    shape.clearPose(state);
+void CarAnimation::pose(ComplexShape &shape, unsigned int state, const std::vector<float> *bogieTurns) {
+    // What decides the pose: unchanged, the state keeps it.
+    signature.clear();
+    signature.push_back(float(std::fmod(travelled, 1000.0)));
+    signature.push_back(float(travelled / 1000.0));
+    signature.push_back(gear.frame);
+    for (const Played &g : groups)
+        signature.push_back(g.frame);
+    if (bogieTurns != nullptr)
+        signature.insert(signature.end(), bogieTurns->begin(), bogieTurns->end());
+    auto same = [](const std::vector<float> &a, const std::vector<float> &b) {
+        if (a.size() != b.size())
+            return false;
+        for (size_t i = 0; i < a.size(); ++i)
+            if (!(a[i] == b[i] || (std::isnan(a[i]) && std::isnan(b[i]))))
+                return false;
+        return true;
+    };
+    if (state == posedState && same(signature, posedSignature))
+        return;
+    posedState = state;
+    std::swap(posedSignature, signature);
+    // Every part it moves set, at rest where it rests (the shape counts a
+    // change only where one is).
     for (const Wheel &wheel : wheels) {
         const double angle = std::remainder(travelled / wheel.radius, 2.0 * M_PI);
-        if (std::fabs(angle) < 1e-6)
+        if (std::fabs(angle) < 1e-6) {
+            shape.setPartTransform(state, wheel.part, nullptr);
             continue;
+        }
         // About its own x: + rolls its top toward the shape's front.
         float local[16], turn[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
         const float c = float(std::cos(angle)), s = float(std::sin(angle));
@@ -289,17 +313,20 @@ void CarAnimation::pose(ComplexShape &shape, unsigned int state, const std::vect
         shape.setPartTransform(state, wheel.part, out);
     }
     auto play = [&](const Played &played) {
-        if (played.parts.empty() || (played.frame == 0.0f && !played.restDiffers))
-            return;
+        const bool resting = played.frame == 0.0f && !played.restDiffers;
         for (int part : played.parts)
-            shape.setPartFrame(state, part, played.frame);
+            if (resting)
+                shape.setPartTransform(state, part, nullptr);
+            else
+                shape.setPartFrame(state, part, played.frame);
     };
     play(gear);
     for (const Played &g : groups)
         play(g);
     // A turn whose last element is NaN leaves its bogie at rest.
-    if (bogieTurns != nullptr && bogieTurns->size() >= bogieParts.size() * 16)
-        for (size_t b = 0; b < bogieParts.size(); ++b)
-            if (!std::isnan((*bogieTurns)[b * 16 + 15]))
-                shape.setPartTransform(state, bogieParts[b].part, bogieTurns->data() + b * 16);
+    for (size_t b = 0; b < bogieParts.size(); ++b) {
+        const bool turned = bogieTurns != nullptr && bogieTurns->size() >= bogieParts.size() * 16
+                && !std::isnan((*bogieTurns)[b * 16 + 15]);
+        shape.setPartTransform(state, bogieParts[b].part, turned ? bogieTurns->data() + b * 16 : nullptr);
+    }
 }

@@ -66,6 +66,9 @@ struct Pose {
     };
     std::vector<Part> parts;
     bool posed = false;
+    // Changes whenever a part's pose does (shapes keep what they built for
+    // it until then).
+    unsigned int version = 0;
     void setFrame(int part, float frame);
     // Null: back to rest.
     void setTransform(int part, const float *local);

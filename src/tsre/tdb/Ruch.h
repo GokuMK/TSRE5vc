@@ -53,6 +53,12 @@ public:
                          int *itemId = NULL) const;
     // The radius of the curve under the traveller, 0 on straight track.
     float curveRadius() const;
+    // Where it is: its vector node, the distance along it and the node's
+    // length, and its way along the node (+1 the node's way, -1 the other).
+    int nodeIndex() const { return nodeIdx; }
+    float nodeDistance() const { return nodeDist; }
+    float nodeSpan() const { return nodeLength; }
+    float nodeWay() const { return direction; }
 
 private:
     void checkNode(int mSign);

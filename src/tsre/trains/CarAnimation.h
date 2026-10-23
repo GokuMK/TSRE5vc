@@ -62,7 +62,9 @@ public:
     // Its pose into the shape state: `bogieTurns` the transform of each
     // bogie relative to its parent (16 floats each, as bogies(); NaN as the
     // last leaves that bogie at rest), null to leave them all at rest.
-    void pose(ComplexShape &shape, unsigned int state, const std::vector<float> *bogieTurns) const;
+    // Nothing done while its pose is what was put there last (`state` the
+    // same).
+    void pose(ComplexShape &shape, unsigned int state, const std::vector<float> *bogieTurns);
 
     // Running gear, wheels and two-state groups found (tests, the viewer).
     int wheelCount() const { return int(wheels.size()); }
@@ -99,6 +101,9 @@ private:
     float driverRadius = 0.762f;
     // Metres gone so far (wheels' turn).
     double travelled = 0.0;
+    // What was last put into a shape state (pose), to leave it as it is.
+    std::vector<float> posedSignature, signature;
+    unsigned int posedState = ~0U;
 };
 
 #endif

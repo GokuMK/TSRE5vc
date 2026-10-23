@@ -49,25 +49,29 @@ namespace {
 
 // The way along the track from an end of a car toward its rear (as its
 // consist lists it), relative to `at` (the end's place, getCurrentPosition)
-// in at's tile; zero where the track cannot tell.
-void towardRear(const Ruch &end, const float *at, float *out) {
+// in at's tile: a place half a metre on along the end's node (the other way,
+// reversed, near the node's end); false where the node cannot tell.
+bool towardRear(const Ruch &end, const float *at, float *out) {
     const float step = 0.5f;
-    Ruch probe = end;
-    probe.next(-step);
+    float distance = end.nodeDistance() - step * end.nodeWay();
     float sign = 1.0f;
-    if (probe.endsPassed != end.endsPassed) {
-        // A track end behind it: the other way, reversed.
-        probe = end;
-        probe.next(step);
+    if (distance < 0.0f || distance > end.nodeSpan()) {
+        distance = end.nodeDistance() + step * end.nodeWay();
         sign = -1.0f;
     }
-    const float *p = probe.getCurrentPosition();
+    float p[8];
+    if (distance < 0.0f || distance > end.nodeSpan()
+            || !Game::trackDB->getDrawPositionOnTrNode(p, end.nodeIndex(), distance))
+        return false;
     out[0] = sign * (p[0] + 2048 * (p[5] - at[5]) - at[0]);
     out[1] = sign * (p[1] - at[1]);
     out[2] = sign * (p[2] + 2048 * (p[6] - at[6]) - at[2]);
     const float length = std::sqrt(out[0] * out[0] + out[1] * out[1] + out[2] * out[2]);
+    if (length < 1e-4f)
+        return false;
     for (int i = 0; i < 3; ++i)
-        out[i] = length > 1e-4f ? out[i] / length : 0.0f;
+        out[i] /= length;
+    return true;
 }
 
 QElapsedTimer &animationTimer() {
@@ -1092,6 +1096,7 @@ unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bo
             qInfo().noquote() << "animation" << carShape->getPathId() << carAnimation->summary();
         carTravelledSeen = carTravelled;
         animationClock = -1;
+        placedKnown = false;
     }
     const qint64 now = animationTimer().elapsed();
     const float dt = animationClock < 0 ? 0.0f : std::clamp(float(now - animationClock) / 1000.0f, 0.0f, 0.5f);
@@ -1110,9 +1115,28 @@ bool Eng::placeOnCarriers(const float *front, const float *rear, float roll, flo
     // Both ends in the front's tile, the way toward the rear at each.
     const float p0[3] = {front[0], front[1], front[2]};
     const float p1[3] = {rear[0] + 2048 * (rear[5] - front[5]), rear[1], rear[2] + 2048 * (rear[6] - front[6])};
+    // Placed as last time while its ends and roll are.
+    float key[16];
+    std::copy(front, front + 7, key);
+    std::copy(rear, rear + 7, key + 7);
+    key[14] = roll;
+    key[15] = flip ? 1.0f : 0.0f;
+    if (placedKnown && std::equal(key, key + 16, placedKey)) {
+        std::copy(placedEnds, placedEnds + 7, placedFront);
+        std::copy(placedEnds + 7, placedEnds + 14, placedRear);
+        bogieTurns = placedTurns;
+        return placedOk;
+    }
     float t0[3], t1[3];
-    towardRear(*ruch1, front, t0);
-    towardRear(*ruch2, rear, t1);
+    // Where the track cannot tell its way: the chord's.
+    float chord[3] = {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
+    const float chordLength = std::sqrt(chord[0] * chord[0] + chord[1] * chord[1] + chord[2] * chord[2]);
+    for (float &c : chord)
+        c = chordLength > 0.0f ? c / chordLength : 0.0f;
+    if (!towardRear(*ruch1, front, t0))
+        std::copy(chord, chord + 3, t0);
+    if (!towardRear(*ruch2, rear, t1))
+        std::copy(chord, chord + 3, t1);
     std::vector<CarPlacement::Bogie> bogies;
     for (const CarAnimation::Bogie &b : carAnimation->bogies()) {
         bogies.emplace_back();
@@ -1120,8 +1144,14 @@ bool Eng::placeOnCarriers(const float *front, const float *rear, float roll, flo
         if (!posedShape->partRest(b.part, bogies.back().rest))
             return false;
     }
-    return CarPlacement::onCarriers(front, p0, t0, p1, t1, roll, flip != 0, carAnimation->carriers(), bogies,
-                                    placedFront, placedRear, bogieTurns);
+    placedOk = CarPlacement::onCarriers(front, p0, t0, p1, t1, roll, flip != 0, carAnimation->carriers(), bogies,
+                                        placedFront, placedRear, bogieTurns);
+    std::copy(key, key + 16, placedKey);
+    std::copy(placedFront, placedFront + 7, placedEnds);
+    std::copy(placedRear, placedRear + 7, placedEnds + 7);
+    placedTurns = bogieTurns;
+    placedKnown = true;
+    return placedOk;
 }
 
 void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,

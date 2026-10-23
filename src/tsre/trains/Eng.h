@@ -196,6 +196,12 @@ private:
     double trainTravelled = 0.0;
     bool trainTravelledKnown = false;
     qint64 animationClock = -1;
+    // The last placement on its carriers (placeOnCarriers), for the ends,
+    // roll and flip it was for.
+    bool placedKnown = false, placedOk = false;
+    float placedKey[16];
+    float placedEnds[14];
+    std::vector<float> placedTurns;
     // The shape's state to draw it with, its parts posed; bogieTurns as
     // CarAnimation::pose takes them.
     unsigned int poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns);

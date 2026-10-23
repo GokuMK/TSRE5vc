@@ -55,8 +55,16 @@ public:
         return true;
     }
     float animationRate() const override { return 30.0f; }
-    void setPartFrame(unsigned int, int part, float frame) override { frames[part] = frame; }
+    void setPartFrame(unsigned int, int part, float frame) override {
+        frames[part] = frame;
+        transforms.remove(part);
+    }
     void setPartTransform(unsigned int, int part, const float *local) override {
+        frames.remove(part);
+        if (local == nullptr) {
+            transforms.remove(part);
+            return;
+        }
         std::array<float, 16> m;
         std::copy(local, local + 16, m.begin());
         transforms[part] = m;

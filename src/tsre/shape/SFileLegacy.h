@@ -273,7 +273,24 @@ private:
         std::deque<std::array<float, 16>> matrices;
         quint64 frame = 0;
         bool used = false;
+        // What its packets were built for (packetKey, selection id, the
+        // shape's invalidations) and their matrices for (the pose's
+        // version), and each packet's matrix: kept while all hold, only the
+        // matrices written again for a new pose.
+        quint64 key = ~0ULL;
+        quint32 selectionId = 0;
+        unsigned int invalidation = ~0U;
+        unsigned int version = ~0U;
+        int count = -1;
+        std::vector<int> matrixOf;
+        // The matrices that move, and the primitives drawn with the shared
+        // packets (their index in them).
+        std::vector<unsigned char> affected;
+        std::vector<int> sharedIndices;
     };
+    // Counts every time the shape's packets must be built again
+    // (requiresUpdate set).
+    unsigned int invalidations = 0;
     QHash<unsigned int, AnimatedPackets> animatedPackets;
     void clearAnimatedPackets();
     unsigned char gatherSurface(int primState) const;
@@ -324,8 +341,17 @@ private:
     void loadSd();
     float* getPmatrix(int currentDlevel, float* pmatrix, int matrix);
     // Every matrix of the level as the state poses it, with its parents,
-    // into `out` (one 4x4 per matrix).
-    void posedMatrices(unsigned int stateId, int currentDlevel, std::vector<std::array<float, 16>> &out) const;
+    // into `out` (one 4x4 per matrix); `affected` (when given): whether each
+    // moves (posed, looping, or under one that does).
+    void posedMatrices(unsigned int stateId, int currentDlevel, std::vector<std::array<float, 16>> &out,
+                       std::vector<unsigned char> *affected = nullptr) const;
+    std::vector<unsigned char> posedAffected;
+    // The shared packets of the state's level and sub-objects, built when
+    // needed.
+    QVector<RenderItem *> &staticPackets(unsigned int stateId);
+    void pushPosed(RenderQueue &queue, quint32 selectionId, unsigned int stateId, const QVector<RenderItem *> &shared);
+    mutable std::vector<unsigned char> posedDone;
+    mutable std::vector<int> posedChain;
     // Whether the state's parts move: drawn with matrices of its own.
     bool movesParts(unsigned int stateId) const;
     std::vector<std::array<float, 16>> posedScratch;

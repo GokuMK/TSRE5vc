@@ -719,14 +719,16 @@ float SFileComplex::animationRate() const {
 void SFileComplex::setPartFrame(unsigned int id, int part, float frame) {
     if (id >= d->states.size())
         return;
+    const unsigned int version = d->states[id].pose.version;
     d->states[id].pose.setFrame(part, frame);
-    d->states[id].dirty = true;
+    d->states[id].dirty |= d->states[id].pose.version != version;
 }
 void SFileComplex::setPartTransform(unsigned int id, int part, const float *local) {
     if (id >= d->states.size())
         return;
+    const unsigned int version = d->states[id].pose.version;
     d->states[id].pose.setTransform(part, local);
-    d->states[id].dirty = true;
+    d->states[id].dirty |= d->states[id].pose.version != version;
 }
 bool SFileComplex::partMatrix(unsigned int id, int part, float *out) const {
     if (id >= d->states.size() || part < 0 || part >= partCount() || d->lods.empty())
@@ -742,8 +744,9 @@ bool SFileComplex::partMatrix(unsigned int id, int part, float *out) const {
 void SFileComplex::clearPose(unsigned int id) {
     if (id >= d->states.size())
         return;
+    const unsigned int version = d->states[id].pose.version;
     d->states[id].pose.clear();
-    d->states[id].dirty = true;
+    d->states[id].dirty |= d->states[id].pose.version != version;
 }
 void SFileComplex::setAnimated(unsigned int id, bool val) {
     if (id >= d->states.size())

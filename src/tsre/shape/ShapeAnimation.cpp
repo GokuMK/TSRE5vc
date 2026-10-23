@@ -110,9 +110,13 @@ void Pose::setFrame(int part, float frame) {
         return;
     if (size_t(part) >= parts.size())
         parts.resize(size_t(part) + 1);
-    parts[size_t(part)].mode = Part::Frame;
-    parts[size_t(part)].frame = frame;
+    Part &p = parts[size_t(part)];
+    if (p.mode == Part::Frame && p.frame == frame)
+        return;
+    p.mode = Part::Frame;
+    p.frame = frame;
     posed = true;
+    ++version;
 }
 
 void Pose::setTransform(int part, const float *transform) {
@@ -120,15 +124,23 @@ void Pose::setTransform(int part, const float *transform) {
         return;
     if (size_t(part) >= parts.size())
         parts.resize(size_t(part) + 1);
-    parts[size_t(part)].mode = transform != nullptr ? Part::Transform : Part::Rest;
+    Part &p = parts[size_t(part)];
+    if (transform == nullptr ? p.mode == Part::Rest
+                             : p.mode == Part::Transform && std::equal(transform, transform + 16, p.local.begin()))
+        return;
+    p.mode = transform != nullptr ? Part::Transform : Part::Rest;
     if (transform != nullptr)
-        std::copy(transform, transform + 16, parts[size_t(part)].local.begin());
-    posed = std::any_of(parts.begin(), parts.end(), [](const Part &p) { return p.mode != Part::Rest; });
+        std::copy(transform, transform + 16, p.local.begin());
+    posed = std::any_of(parts.begin(), parts.end(), [](const Part &q) { return q.mode != Part::Rest; });
+    ++version;
 }
 
 void Pose::clear() {
+    if (parts.empty())
+        return;
     parts.clear();
     posed = false;
+    ++version;
 }
 
 void Pose::local(int part, const Channel *channel, bool looping, float loopFrame, const float rest[16],
