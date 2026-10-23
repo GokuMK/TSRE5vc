@@ -128,6 +128,11 @@ void main() {
     return;
 #endif
 
+    // Past the fade's end the result is 1: no march.
+    if (-position.z >= fade.y) {
+        result = vec4(1.0, -position.z, 0.0, 1.0);
+        return;
+    }
     float radius = settings.x;
     // The radius on screen, in view pixels.
     float radiusPixels = min(radius * projection.y * 0.5 / (-position.z * texel.y), fade.z);
@@ -135,9 +140,14 @@ void main() {
         result = vec4(1.0, -position.z, 0.0, 1.0);
         return;
     }
-    // Interleaved gradient noise turns the slices and spreads the steps;
-    // the blur averages it away.
+    // Interleaved gradient noise turns the slices, and the same noise on
+    // the transposed and shifted pixel spreads the steps; the blur averages
+    // them away. One value for both tied the steps to the slices' turn: the
+    // pixels that caught a small occluder lay on rings around it (the user,
+    // 2026-10-23: a 3D cab's wheel rim echoed several times on the desk).
     float noise = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    float stepNoise = fract(52.9829189 * fract(dot(gl_FragCoord.yx + vec2(17.0, 31.0),
+                                                   vec2(0.06711056, 0.00583715))));
     const int slices = SLICES;
     const int steps = STEPS;
     float stepScale = 1.0 / float(steps);
@@ -160,7 +170,7 @@ void main() {
             float sideSign = side == 0 ? -1.0 : 1.0;
             float highest = -1.0;
             for (int j = 0; j < steps; ++j) {
-                float t = (float(j) + fract(noise + float(j) * 0.618034)) * stepScale;
+                float t = (float(j) + fract(stepNoise + float(j) * 0.618034)) * stepScale;
                 // Denser near the pixel, at least a pixel away (in view
                 // pixels from this one's centre).
                 vec2 tap = centrePixel + sideSign * direction * (1.0 + t * t * radiusPixels);

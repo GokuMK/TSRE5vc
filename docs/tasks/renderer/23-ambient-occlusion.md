@@ -118,6 +118,30 @@ doubles the occlusion's effect (ST44, three-quarter view, High: 0.9 to 1.5
 levels on average). It stays subtle: the previews have no ground, the
 strongest occluder in a route.
 
+### Echo rings in a 3D cab (user, 2026-10-23)
+
+- In a 3D cab (feature/cab3d) small parts cast occlusion as several
+  shifted copies: the wheel's rim echoed in three or four rings on the
+  desk behind it, knobs had double halos (`TSRE_AO_DEBUG`, the cab's shape
+  placed in CMK, the camera at its head position, Medium).
+- Causes: everything in a cab is within the 2 m radius, which reaches the
+  screen limit (15 % of the view's height, about 290 pixels at 2123 x
+  1948), so the 6 steps a side lie 30 to 80 pixels apart; and one noise
+  value per pixel turned the slices and shifted the steps, so the pixels
+  whose steps caught a thin part lay on rings around it (in a 5 x 5 blur
+  window the pairs of the two filled a fifth of their combinations).
+- Now the steps take the same interleaved gradient noise on the
+  transposed, shifted pixel (uncorrelated with the slices' noise, 84 % of
+  the combinations filled): the rings are gone, a fine faint weave left
+  in the occlusion term; a hashed white noise instead gave no weave but a
+  coarser grain. Outdoors only the grain changed (TRAINS at most 9 of 255,
+  0.07 % of pixels over 2; Prudnik's station 0.56 %).
+- Pixels past the fade's end (300 m) return at once: their result was 1
+  after the full march.
+- Not done (user: try this first): a smaller radius close to the camera,
+  and the thin-occluder rule of XeGTAO (strong shadows in the cab look
+  good to the user).
+
 ## Debugging
 
 `TSRE_AO_DEBUG=1` shows the visibility term in place of the view;
