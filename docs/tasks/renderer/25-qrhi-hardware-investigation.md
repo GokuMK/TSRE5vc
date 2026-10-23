@@ -400,6 +400,39 @@ base; Prudnik 0). Left: every draw copies the whole uniform block (about
 1.4 KB, 4.3 MB a frame on TRAINS); frame and item values in separate
 blocks would end that, a larger change.
 
+## Lamp scene at the editor's size (2026-10-23)
+
+bbb, `core.startup.camera=-5306,14963,-74.32,3.28,690.88,1.87,-0.93`, 0:30,
+clear, the user's profile, the clock stopped, `renderer-capture` at the
+editor's 2123 x 1948 (its view on the 250 % screen); each part switched
+off alone, two rounds (minimum frame ms, a frame includes the harness's
+read-back):
+
+| | ms |
+|---|---|
+| All on | 77.4 |
+| Local lights off (924 lamps) | -17.8 |
+| Ambient occlusion off (Medium) | -8.8 |
+| Clouds off (High) | -5.7 |
+| Environment map off (one 256 face a frame, about 250 draws) | -5.0 (CPU -1.5) |
+| Bloom off | -4.2 |
+| Sky enclosure off | -2.6 |
+| Shadows, water reflection, light shafts, mist off | about 0 (night, no water, clear) |
+| All off | 36.7 |
+
+CPU about 9 ms: the GPU decides. At 1280 x 800 all on 35.5, all off 18.5:
+about 21 ms of the 77 do not grow with the pixels (3300 draws, the
+fixed-size passes), about 57 do (24 the scene, 33 the parts). The user
+makes the window smaller for more frames; a render scale is not wanted
+yet. Ideas to test later: tighter lamp lists (task 21) and Medium's parts
+at large views (task 23).
+
+`TSRE_CLOUDS_STILL=1` marches all 16 cloud passes every frame: with it
+clouds "cost" 56 ms here. It is for image comparisons; frame times are
+taken without it. RenderDoc's per-event GPU durations add about 0.4 ms an
+event on this AMD driver (a frame summed to 1.6 s): no use for pass
+timings here.
+
 ## Lamp scene and Direct3D 11 (2026-10-08)
 
 bbb, `core.startup.camera=-5306,14963,-74.32,3.28,690.88,1.87,-0.93`: 924

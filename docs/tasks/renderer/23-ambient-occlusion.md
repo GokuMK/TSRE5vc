@@ -136,6 +136,10 @@ rewrites the channels).
 
 ## Later
 
+- Medium at large views, to profile (bbb at 2123 x 1948: 8.8 of 77 ms,
+  task 25; it is already the half-resolution march): which of the march,
+  the blur and the full-resolution composite takes it; the separable blur
+  above may be most of the gain.
 - Depth-aware upsampling in the composite (bilinear now, slight halos at
   silhouettes at Low and Medium).
 - Occlusion in the Shape Viewer and in the water reflection.
