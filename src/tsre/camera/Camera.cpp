@@ -99,17 +99,28 @@ void Camera::pushRenderHud(RenderQueue &queue){
         cameraObject->pushRenderHud(queue);
 }
 
+// Riding the object: where it says (a 3D cab's head), else 3 m over its
+// place looking ahead.
 void Camera::setCameraObject(GameObj* o){
+    if(cameraObject != NULL && cameraObject != o)
+        cameraObject->cameraAttached(false);
     cameraObject = o;
-    playerRot[0] = M_PI;
-    playerRot[1] = 0.0;
-    playerPos[0] = 0;
-    playerPos[1] = 3;
-    playerPos[2] = 0;
+    if(o != NULL)
+        o->cameraAttached(true);
+    mount = CameraMount();
+    mounted = o != NULL && o->getCameraMount(mount);
+    playerRot[0] = mount.look[0];
+    playerRot[1] = mount.look[1];
+    playerPos[0] = mount.position[0];
+    playerPos[1] = mount.position[1];
+    playerPos[2] = mount.position[2];
 }
 
 void Camera::releaseObject(){
+    if(cameraObject != NULL)
+        cameraObject->cameraAttached(false);
     cameraObject = NULL;
+    mounted = false;
 }
 
 void Camera::moveForward(float fps) {

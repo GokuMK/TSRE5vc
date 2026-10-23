@@ -468,7 +468,7 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train, fl
 }
 
 void CarLights::push(RenderQueue &queue, const EngLights &lights, const EngLights::Train &train,
-                     float halfLength, quint32 selectionId) {
+                     float halfLength, quint32 selectionId, bool lenses) {
     const bool wantEmissive = RenderContext::rhi() && Game::localLightsEnabled;
     if (!built || builtLights != &lights || builtTrain != train || builtHalfLength != halfLength
             || wantEmissive != emissive) {
@@ -480,8 +480,9 @@ void CarLights::push(RenderQueue &queue, const EngLights &lights, const EngLight
     // Lamps cast no shadows.
     const bool casting = queue.shadowCastingEnabled();
     queue.setShadowCasting(false);
-    for (RenderItem *packet : packets)
-        queue.submit(packet, selectionId);
+    if (lenses)
+        for (RenderItem *packet : packets)
+            queue.submit(packet, selectionId);
     queue.setShadowCasting(casting);
     if (beamPacket != nullptr) {
         // As far as the cones reach (the grid's default is 30 m).

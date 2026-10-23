@@ -65,12 +65,19 @@ SFileLegacy::~SFileLegacy() {
     clearData();
 }
 
+bool SFileLegacy::setLoadOptions(const ShapeLoadOptions &options) {
+    doubleSided = options.value(QString::fromLatin1(ShapeLoadOption::DoubleSided), false).toBool();
+    return true;
+}
+
 void SFileLegacy::load() {
     if (loadData()) initGL();
 }
 
 ComplexShape *SFileLegacy::detachedCopy() const {
-    return new SFileLegacy(pathid, nazwa, textureRoot);
+    SFileLegacy *copy = new SFileLegacy(pathid, nazwa, textureRoot);
+    copy->doubleSided = doubleSided;
+    return copy;
 }
 
 void SFileLegacy::loadDetached() {
@@ -1147,6 +1154,7 @@ QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
                 r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
 
                 r->material.surface = gatherSurface(prim_state);
+                r->material.doubleSided = doubleSided;
                 setGatherTexture(r, prim_state, texEnabled);
 
                 r->mesh.handle = distancelevel[currentDlevel].subobiekty[i].mesh;
@@ -1270,6 +1278,7 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
 
             r->setSelectionId(selectionId);
             r->material.surface = gatherSurface(prim_state);
+            r->material.doubleSided = doubleSided;
             if (selectionId == 0)
                 setGatherTexture(r, prim_state, texEnabled);
 

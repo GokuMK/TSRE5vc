@@ -17,6 +17,7 @@
 #include <QMatrix4x4>
 #include <QVector3D>
 #include <QMouseEvent>
+#include <tsre/camera/CameraMount.h>
 
 class RenderQueue;
 
@@ -82,6 +83,10 @@ protected:
     bool moveF, moveR, moveB, moveL;
     PreciseTileCoordinate* currentPos = 0;
     GameObj* cameraObject = NULL;
+    // The object's place for the camera (GameObj::getCameraMount), while
+    // it gives one: the camera starts there and keeps within it.
+    bool mounted = false;
+    CameraMount mount;
 };
 
 #endif	/* CAMERA_H */

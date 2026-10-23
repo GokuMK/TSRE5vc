@@ -22,6 +22,7 @@ struct SFileComplex::Data {
     struct Options {
         bool firstLodOnly = false;
         bool compact = false;
+        bool doubleSided = false;
     };
     struct Matrix {
         QString name;

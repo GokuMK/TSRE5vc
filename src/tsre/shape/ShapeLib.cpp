@@ -68,11 +68,17 @@ int ShapeLib::addShape(QString path){
 }       
 
 int ShapeLib::addShape(QString path, QString texPath) {
+    return addShape(path, texPath, ShapeLoadOptions());
+}
+
+int ShapeLib::addShape(QString path, QString texPath, const ShapeLoadOptions &options) {
     QString pathid = path;//(path + "/" + name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
     texPath = ContentPath::normalize(texPath);
-    const QString context = ContentPath::key(texPath) + "\n" + Game::season;
+    QString context = ContentPath::key(texPath) + "\n" + Game::season;
+    for (auto it = options.begin(); it != options.end(); ++it)
+        context += "\n" + it.key() + "=" + it.value().toString();
     const QString pathKey = ContentPath::key(pathid);
     for (const auto &entry : shape) {
         if(entry.second && !entry.second->hasLoadFailed() && pathKeys[entry.first] == pathKey
@@ -94,10 +100,10 @@ int ShapeLib::addShape(QString path, QString texPath) {
         else
             asset = new SFileLegacy(pathid, path.split("/").last(), texPath);
     }
-    asset->setLoadOptions({
-        {QString::fromLatin1(ShapeLoadOption::FirstLodOnly), firstMstsLodOnly},
-        {QString::fromLatin1(ShapeLoadOption::Compact), mstsBackend == "complex-compact"}
-    });
+    ShapeLoadOptions loadOptions = options;
+    loadOptions.insert(QString::fromLatin1(ShapeLoadOption::FirstLodOnly), firstMstsLodOnly);
+    loadOptions.insert(QString::fromLatin1(ShapeLoadOption::Compact), mstsBackend == "complex-compact");
+    asset->setLoadOptions(loadOptions);
     shape[jestshape] = asset;
     contexts[jestshape] = context;
     pathKeys[jestshape] = pathKey;

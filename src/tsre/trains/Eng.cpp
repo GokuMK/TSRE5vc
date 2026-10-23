@@ -43,9 +43,35 @@
 #include <tsre/world/ObjectBorders.h>
 #include <QElapsedTimer>
 #include <tsre/trains/CarPlacement.h>
+#include <QFileInfo>
 #include <cmath>
 
 namespace {
+
+// A 3D cab's ORTS3DCab or ORTSAlternate3DCabViewPoint block: its shape
+// file and a viewpoint (as Open Rails' MSTSWagon.Parse3DCab).
+void readCab3D(FileBuffer *data, Eng::Cab3D &cab) {
+    Eng::Cab3D::Viewpoint viewpoint;
+    QString file;
+    QString sh;
+    while (!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
+        if (sh == "orts3dcabfile")
+            file = ParserX::GetStringInside(data);
+        else if (sh == "orts3dcabheadpos")
+            for (float &c : viewpoint.position)
+                c = ParserX::GetNumberInside(data, nullptr, Units::Quantity::Length);
+        else if (sh == "rotationlimit")
+            for (float &c : viewpoint.limit)
+                c = ParserX::GetNumberInside(data);
+        else if (sh == "startdirection")
+            for (float &c : viewpoint.start)
+                c = ParserX::GetNumberInside(data);
+        ParserX::SkipToken(data);
+    }
+    if (!file.trimmed().isEmpty())
+        cab.shapes << file.trimmed();
+    cab.viewpoints << viewpoint;
+}
 
 // The way along the track from an end of a car toward its rear (as its
 // consist lists it), relative to `at` (the end's place, getCurrentPosition)
@@ -94,6 +120,7 @@ Eng::Eng(Eng *o) {
     shape = o->shape;
     freightanimShape.append(o->freightanimShape);
     lightsBlock = o->lightsBlock;
+    cab3D = o->cab3D;
     
     name = o->name;
     path = o->path;
@@ -555,6 +582,25 @@ void Eng::load(){
                     ParserX::SkipToken(data);
                     continue;
                 }
+                // Open Rails' 3D cab (the user's 2026-10-23), its alternate
+                // viewpoints only after one (as Open Rails reads them).
+                if (sh == ("orts3dcab")) {
+                    if (cab3D == nullptr)
+                        cab3D = std::make_shared<Cab3D>();
+                    readCab3D(data, *cab3D);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("ortsalternate3dcabviewpoints")) {
+                    QString viewpoint;
+                    while (cab3D != nullptr && !(viewpoint = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
+                        if (viewpoint == "ortsalternate3dcabviewpoint")
+                            readCab3D(data, *cab3D);
+                        ParserX::SkipToken(data);
+                    }
+                    ParserX::SkipToken(data);
+                    continue;
+                }
                 if (sh == ("lights")) {
                     // Kept as it is, read on first use (getLights); a
                     // later block replaces an earlier one.
@@ -947,6 +993,101 @@ float *Eng::getCurrentPositionOnTrack(){
     return ruch1->getCurrentPosition();
 }
 
+QString Eng::cab3DShapePath() const {
+    if (cab3D == nullptr)
+        return QString();
+    for (int i = cab3D->shapes.size() - 1; i >= 0; --i) {
+        const QString file = path + "/CABVIEW3D/" + cab3D->shapes[i];
+        if (QFileInfo::exists(file))
+            return file;
+    }
+    return QString();
+}
+
+int Eng::cab3DViewpoint(bool rear) const {
+    if (cab3D == nullptr)
+        return -1;
+    for (int i = 0; i < cab3D->viewpoints.size(); ++i) {
+        const float yaw = std::fabs(std::remainder(cab3D->viewpoints[i].start[1], 360.0f));
+        if ((yaw > 90.0f) == rear)
+            return i;
+    }
+    return -1;
+}
+
+void Eng::cab3DCameraPosition(int viewpoint, float *out) {
+    getCameraPosition(out);
+    if (out == NULL || loaded != 1 || ruch1 == NULL || ruch2 == NULL || cab3D == nullptr
+            || viewpoint < 0 || viewpoint >= cab3D->viewpoints.size())
+        return;
+    float selev1, selev2;
+    float front[7], rear[7];
+    const float *first = ruch1->getCurrentPosition(&selev1);
+    std::copy(first, first + 7, front);
+    const float *second = ruch2->getCurrentPosition(&selev2);
+    std::copy(second, second + 7, rear);
+    const float roll = (selev1 + selev2) / 2.0;
+    // As its body is drawn: on its bogies once its animation knows them
+    // (task shapes 12), its frame turned and tilted with that body.
+    float placedFront[7], placedRear[7];
+    std::vector<float> bogieTurns;
+    if (placeOnCarriers(front, rear, roll, placedFront, placedRear, bogieTurns)) {
+        std::copy(placedFront, placedFront + 7, front);
+        std::copy(placedRear, placedRear + 7, rear);
+        const float dx = front[0] - (rear[0] + 2048 * (rear[5] - front[5]));
+        const float dy = front[1] - rear[1];
+        const float dz = front[2] - (rear[2] + 2048 * (rear[6] - front[6]));
+        const float length = std::sqrt(dx * dx + dy * dy + dz * dz);
+        // As getCameraPosition turns it.
+        const int side = int((dz + 0.00001f) / std::fabs(dz + 0.00001f));
+        const float rotY = (float(side) + 1.0f) * float(M_PI / 2.0) + std::atan(dx / dz);
+        out[5] = -rotY + float(M_PI);
+        out[6] = length > 0.0f ? std::asin(dy / length) : 0.0f;
+    }
+    // Relative to the front's tile, as getCameraPosition gives it.
+    const float tile[2] = {front[5], -front[6]};
+    float car[16];
+    Mat4::identity(car);
+    CarPlacement::placeCar(car, tile, front, rear, roll, flip);
+    // As a point of its shape, whose root mirrors x.
+    const float *head = cab3D->viewpoints[viewpoint].position;
+    float at[3] = {-head[0], head[1], head[2]};
+    Vec3::transformMat4(at, at, car);
+    std::copy(at, at + 3, out + 2);
+}
+
+// The head's start direction (Open Rails': degrees down, then round from
+// ahead towards the shape's +x) in the riding frame, which has the car's
+// shape facing ahead (-z) unless it is flipped.
+bool Eng::cab3DMount(int viewpoint, CameraMount &mount) const {
+    if (cab3D == nullptr || viewpoint < 0 || viewpoint >= cab3D->viewpoints.size())
+        return false;
+    const Cab3D::Viewpoint &v = cab3D->viewpoints[viewpoint];
+    const float degree = float(M_PI / 180.0);
+    mount = CameraMount();
+    std::fill(mount.position, mount.position + 3, 0.0f);
+    mount.look[0] = (flip ? 0.0f : float(M_PI)) - v.start[1] * degree;
+    mount.look[1] = -v.start[0] * degree;
+    std::copy(CabMove, CabMove + 3, mount.moveBox);
+    mount.moveStep = CabMoveStep;
+    mount.turnLimit[0] = v.limit[1] * degree;
+    mount.turnLimit[1] = v.limit[0] * degree;
+    mount.id = viewpoint + 1;
+    return true;
+}
+
+ComplexShape *Eng::cab3DShapeOf(long long int shapeLibId) {
+    if (!cab3DShape.id.contains(shapeLibId)) {
+        const QString file = cab3DShapePath();
+        ShapeLoadOptions options;
+        options.insert(QString::fromLatin1(ShapeLoadOption::DoubleSided), true);
+        cab3DShape.id[shapeLibId] = file.isEmpty() ? -1
+                : Game::currentShapeLib->addShape(file, QFileInfo(file).path(), options);
+    }
+    const int id = cab3DShape.id[shapeLibId];
+    return id >= 0 ? Game::currentShapeLib->shape[id] : nullptr;
+}
+
 void Eng::getCameraPosition(float* out){
     if(out == NULL)
         return;
@@ -1177,7 +1318,8 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     if (staticOnTrack) {
         const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
                                   rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
-                                  float(shape.id[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f, 0.0f, 0.0f};
+                                  float(shape.id[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
+                                  float(cabViewpoint), 0.0f};
         const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
         queue.addShadowSignature(hash);
         queue.addSceneSignature(hash);
@@ -1193,7 +1335,18 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     const bool animated = queue.animatedEnabled();
     queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(!staticOnTrack);
-    if (shape.id[shapeLibId] >= 0) {
+    // Seen from inside its 3D cab, the cab's shape in place of its body and
+    // its loads (Open Rails draws the cab alone); the body until the cab has
+    // loaded (pushed, a shape starts loading).
+    ComplexShape *cab = cabViewpoint >= 0 ? cab3DShapeOf(shapeLibId) : nullptr;
+    if (cab != nullptr && !cab->isLoaded()) {
+        cab->pushRenderItem(queue, selectionId, 0);
+        cab = nullptr;
+    }
+    if (cab != nullptr) {
+        if (ShapeLod::apply(*cab, 0, place))
+            cab->pushRenderItem(queue, selectionId, 0);
+    } else if (shape.id[shapeLibId] >= 0) {
         // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shape.id[shapeLibId]];
         const unsigned int state = poseShape(carShape, bogieTurns);
@@ -1201,7 +1354,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             carShape->pushRenderItem(queue, selectionId, state);
     }
 
-    for (int i = 0; i < freightanimShape.size(); i++) {
+    for (int i = 0; i < freightanimShape.size() && cab == nullptr; i++) {
         if (freightanimShape[i].id[shapeLibId] >= 0) {
             queue.pushTransform();
             Mat4::translate(queue.transform(), queue.transform(), freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
@@ -1211,17 +1364,18 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             queue.popTransform();
         }
     }
-    // Its lamps (task renderer 34), once its shape shows.
+    // Its lamps (task renderer 34), once its shape shows; from its cab their
+    // beams alone.
     const EngLights *carLightsData = getLights();
     if (carLightsData != nullptr && shape.id[shapeLibId] >= 0
             && Game::currentShapeLib->shape[shape.id[shapeLibId]]->isLoaded()) {
         if (carLights == nullptr)
             carLights = new CarLights();
-        carLights->push(queue, *carLightsData, lightsTrain, sizez * 0.5f, selectionId);
+        carLights->push(queue, *carLightsData, lightsTrain, sizez * 0.5f, selectionId, cab == nullptr);
     }
     queue.setLayer(layer);
     queue.setAnimated(animated);
-    if (selected)
+    if (selected && cab == nullptr)
         pushDrawBorder3d(queue);
     queue.popTransform();
 }

@@ -17,6 +17,8 @@
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/CarAnimation.h>
 #include <vector>
+#include <tsre/camera/CameraMount.h>
+#include <QStringList>
 
 class RenderQueue;
 
@@ -69,6 +71,38 @@ public:
     const EngLights *getLights();
     // The state its lights show, set by its consist.
     EngLights::Train lightsTrain;
+    // Its Open Rails 3D cab (ORTS3DCab, ORTSAlternate3DCabViewPoints in the
+    // Wagon section; the user's 2026-10-23): the shape files named, in
+    // order, and the viewpoints: the head's place in the car's shape
+    // (metres), where it looks at the start (degrees: down, round from
+    // ahead) and how far it may turn from there (degrees; 0 free). Null
+    // without one; shared by its copies.
+    struct Cab3D {
+        struct Viewpoint {
+            float position[3] = {0.0f, 0.0f, 0.0f};
+            float start[3] = {0.0f, 0.0f, 0.0f};
+            float limit[3] = {0.0f, 0.0f, 0.0f};
+        };
+        QStringList shapes;
+        QVector<Viewpoint> viewpoints;
+    };
+    std::shared_ptr<Cab3D> cab3D;
+    // The cab's shape: the last one named that is in its CABVIEW3D (Open
+    // Rails keeps one shape for its cabs), empty for none.
+    QString cab3DShapePath() const;
+    // The viewpoint in the cab at the end its shape faces (rear false) or
+    // the other: the first looking that way (a start direction beyond 90
+    // degrees either way looks back); -1 none.
+    int cab3DViewpoint(bool rear) const;
+    // A camera riding it from that viewpoint: as getCameraPosition, the
+    // origin at the head (placed as its shape is, tilted and leaning with
+    // it); its mount there, looking and moving no farther than the cab
+    // allows (false without the viewpoint).
+    void cab3DCameraPosition(int viewpoint, float *out);
+    bool cab3DMount(int viewpoint, CameraMount &mount) const;
+    // Seen from inside its 3D cab, from that viewpoint (-1 not): the cab
+    // drawn in place of its body (set by its consist).
+    int cabViewpoint = -1;
 
     QString engName;
     QString displayName;
@@ -162,6 +196,10 @@ public:
     // Its animation, once its shape has loaded and it has been drawn (null
     // before).
     const CarAnimation *animation() const { return carAnimation; }
+    // How far a camera in its 3D cab may move from the head's place
+    // (metres either way: across, up, along) and a move key's step.
+    static constexpr float CabMove[3] = {0.5f, 0.3f, 0.5f};
+    static constexpr float CabMoveStep = 0.05f;
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
     // The nearest sound region item ahead of (or behind) the car on its
@@ -181,6 +219,11 @@ public:
     void silenceSounds();
 private:
     std::shared_ptr<EngLightsBlock> lightsBlock;
+    // The 3D cab's shape (cab3DShapePath), in each shape library, double
+    // sided: added when first drawn from inside.
+    EngShape cab3DShape;
+    // The cab's shape in the current shape library, null without one.
+    ComplexShape *cab3DShapeOf(long long int shapeLibId);
     CarLights *carLights = NULL;
     // Its moving parts posed in a state of its own of the shape drawn
     // (poseShape), made when that shape is first drawn loaded.

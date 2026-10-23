@@ -37,9 +37,10 @@ public:
     // Submits the lamps in the car shape's space (the queue's transform is
     // the car's); built again when the lights, the train's state or the
     // material path change. halfLength: half the car's length (its ENG
-    // Size), where its beams start at the latest.
+    // Size), where its beams start at the latest. Without `lenses` the
+    // beams alone (seen from its 3D cab).
     void push(RenderQueue &queue, const EngLights &lights, const EngLights::Train &train, float halfLength,
-              quint32 selectionId);
+              quint32 selectionId, bool lenses = true);
 
     // A lens in the car shape's drawing space.
     struct Lens {

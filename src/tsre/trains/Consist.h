@@ -135,6 +135,14 @@ public:
     // first by default).
     void getCameraPosition(float *out);
     int cameraVehicle = 0;
+    // Riding the vehicle in its 3D cab (Eng::cab3DViewpoint) at the end its
+    // shape faces or the other (rear): the camera on that vehicle, at the
+    // head, the cab drawn in place of its body. False, and not in a cab,
+    // without one; it leaves the cab when the camera stops riding it.
+    bool rideCab3D(int vehicle, bool rear);
+    void leaveCab3D();
+    bool getCameraMount(CameraMount &mount);
+    void cameraAttached(bool attached);
     // Every vehicle outlined when `outlined` (the simulation's chosen train),
     // and the selected one; neither without showBorder (the Consist
     // properties' Show border, for every consist, not saved).
@@ -181,6 +189,8 @@ private:
     // Set by the simulation (setSimulated); the distance its sounds last
     // heard.
     bool simulated = false;
+    int cab3DVehicle = -1;
+    int cab3DViewpoint = -1;
     float simulatedThrottle = 0.0f;
     float simulatedBrake = 1.0f;
     float soundsHeardAt = -1.0f;

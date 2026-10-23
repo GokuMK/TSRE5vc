@@ -98,6 +98,8 @@ bool SFileComplex::setLoadOptions(const ShapeLoadOptions &options) {
         QString::fromLatin1(ShapeLoadOption::FirstLodOnly), false).toBool();
     d->options.compact = options.value(
         QString::fromLatin1(ShapeLoadOption::Compact), false).toBool();
+    d->options.doubleSided = options.value(
+        QString::fromLatin1(ShapeLoadOption::DoubleSided), false).toBool();
     return true;
 }
 SFileComplex::Statistics SFileComplex::statistics() const {
@@ -208,7 +210,8 @@ ComplexShape *SFileComplex::detachedCopy() const {
     auto *copy = new SFileComplex(d->path, d->name, d->textureRoot);
     copy->setLoadOptions({
         {QString::fromLatin1(ShapeLoadOption::FirstLodOnly), d->options.firstLodOnly},
-        {QString::fromLatin1(ShapeLoadOption::Compact), d->options.compact}
+        {QString::fromLatin1(ShapeLoadOption::Compact), d->options.compact},
+        {QString::fromLatin1(ShapeLoadOption::DoubleSided), d->options.doubleSided}
     });
     return copy;
 }
