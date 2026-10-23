@@ -51,7 +51,10 @@ Horizontal cells are 16 m while the lights fit 1 km and double (aligned to
 their size) for wider spreads; the 16 layers span the lights' heights.
 Every view of the frame (main view, environment faces, water reflection)
 reads the same grid. Each cell lists the lights whose range reaches it, the
-brightest first, at most 64; fragments outside the grid get no local light.
+brightest first, at most 64 (brightness over the squared distance from the
+cell's middle plus a quarter of the cell's size squared: a light's light
+over the cell on average, since 2026-10-23; task 33); fragments outside the
+grid get no local light.
 A frame whose lights match the previous one keeps its grid without
 rebinning or uploading.
 

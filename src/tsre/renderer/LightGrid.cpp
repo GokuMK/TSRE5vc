@@ -88,17 +88,26 @@ void LightGrid::build(const std::vector<Light> &lights, const float *eye) {
         for (int y = y0; y <= y1; ++y) {
             for (int z = z0; z <= z1; ++z) {
                 for (int x = x0; x <= x1; ++x) {
-                    // Distance from the light to the cell's box.
+                    // Distance from the light to the cell's box, and its
+                    // light over the cell on average: as from the cell's
+                    // middle, over a quarter of the cell's size squared.
+                    // (By the box's nearest point a small lamp inside the
+                    // cell outranked a headlight's beam across it; the fog
+                    // takes a cell's 16 first, and dropped beams in cells
+                    // by the train: the user, 2026-10-23, CMK, valley fog.)
                     const int cell[3] = {x, y, z};
-                    float distance = 0.0f;
+                    float distance = 0.0f, middle = 0.0f, spread = 0.0f;
                     for (int axis = 0; axis < 3; ++axis) {
                         const float lowCorner = origin[axis] + cell[axis] * size[axis];
                         const float nearest = std::clamp(p[axis], lowCorner, lowCorner + size[axis]);
                         distance += (p[axis] - nearest) * (p[axis] - nearest);
+                        const float centre = lowCorner + size[axis] * 0.5f;
+                        middle += (p[axis] - centre) * (p[axis] - centre);
+                        spread += size[axis] * size[axis] * 0.25f;
                     }
                     if (distance <= range * range)
                         visit(x + z * CellsX + y * CellsWidth,
-                              brightness / (distance + light.radius * light.radius + 1.0f));
+                              brightness / (middle + spread + light.radius * light.radius + 1.0f));
                 }
             }
         }

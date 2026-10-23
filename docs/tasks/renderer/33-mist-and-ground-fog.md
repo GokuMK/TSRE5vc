@@ -670,6 +670,33 @@ the terrain cannot explain.
   the runs' spread (medians within 1 ms, the same build's runs 1.5 ms
   apart).
 
+### Headlight beams: a dark patch ahead, steps by the lamps (user, 2026-10-23)
+
+- CMK, `file0.act`, 0:30, valley fog, the user's camera by a locomotive
+  with its three head lamp beams (task 34): the fog along the beams darker
+  some metres ahead of the train than further on, past a straight edge;
+  by the lamps the beams in steps along the cells' edges.
+- The patch: the injection reads a grid cell's first 16 lights, and the
+  cells by the train held more. The grid ranked a light in a cell by its
+  brightness over the squared distance to the cell's nearest point, so a
+  small lamp inside the 16 m cell came before a beam crossing it from 30 m
+  off. It now ranks by the light over the cell on average: the distance
+  from the cell's middle plus a quarter of the cell's size squared
+  (`LightGrid::build`; the lit shaders take 64 a cell and keep theirs
+  unless a cell holds more). Reading all 64 in the fog cleared it as well,
+  at a cost (medians, Steam Deck, 1280 x 800, frozen clock: this view 16
+  lights 47.9 ms, 32 or 64 about 50; bbb's 924 lamps in valley fog 54.3,
+  32 57.9, 64 58.8, the image within 4 of 255 of 16's). Ranked anew with
+  16: CMK 47.6, bbb 54.1, the patch gone but for a faint edge where one
+  cell boundary meets the beam (seen at 2.5 times brightness); 32 lights
+  a cell would take that too.
+- The steps: a beam of a few degrees is narrower than a cell (8 x 8
+  pixels) near the lamp, so cells were in or out of it on their middle
+  ray. Each spot's cone in the fog is now widened by the cell's half-width
+  as seen from the lamp, its light lowered as the cone grew
+  (`cellCone`); the beam fades across the cells. Signals and the lamps'
+  glow emitters (cones of 90 degrees) are unchanged.
+
 ## Step 5: patches and motion (2026-10-15)
 
 - **Patches:** value noise at 600, 240 and 90 m (weights 0.55, 0.3, 0.15)
