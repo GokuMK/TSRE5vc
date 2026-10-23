@@ -10,6 +10,8 @@
 
 #include "CameraFree.h"
 #include <math.h>
+#include <algorithm>
+#include <cmath>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/Game.h>
@@ -171,7 +173,9 @@ void CameraFree::releaseObject() {
     const float place[3] = {at[0], at[1], at[2]};
     playerRot[0] = getRotX();
     playerRot[1] = getRotY();
+    cameraObject->cameraAttached(false);
     cameraObject = NULL;
+    mounted = false;
     for (int i = 0; i < 3; i++) {
         relativePos[i] = 0;
         relativeRot[i] = 0;
@@ -207,6 +211,18 @@ void CameraFree::update(float fps) {
         relativeRot[0] = cpos[5];
         relativeRot[1] = cpos[6];
         relativeRot[2] = cpos[7];
+        // Its place for the camera: another one (another cab) starts the
+        // camera there.
+        CameraMount now;
+        if (!cameraObject->getCameraMount(now)) {
+            mounted = false;
+        } else if (!mounted || now.id != mount.id) {
+            mount = now;
+            mounted = true;
+            std::copy(mount.position, mount.position + 3, playerPos);
+            playerRot[0] = mount.look[0];
+            playerRot[1] = mount.look[1];
+        }
     }
     
         if(moveF){
@@ -227,6 +243,7 @@ void CameraFree::update(float fps) {
             moveRight(fps);
         if(moveL)
             moveLeft(fps);
+        keepInMount();
         
         //this.patrzX((this.moveX)/(this.sensitivity));
         //this.patrzY((this.moveY)/(this.sensitivity));
@@ -234,11 +251,33 @@ void CameraFree::update(float fps) {
         //this.moveY = 0;
     }
 
+// Riding an object with a place for the camera: within it, turning no
+// farther than it allows.
+void CameraFree::keepInMount() {
+    if (cameraObject == NULL || !mounted)
+        return;
+    for (int i = 0; i < 3; ++i)
+        playerPos[i] = std::clamp(playerPos[i], mount.position[i] - mount.moveBox[i],
+                                  mount.position[i] + mount.moveBox[i]);
+    if (mount.turnLimit[0] > 0.0f) {
+        const float off = std::remainder(playerRot[0] - mount.look[0], float(2.0 * M_PI));
+        playerRot[0] = mount.look[0] + std::clamp(off, -mount.turnLimit[0], mount.turnLimit[0]);
+    }
+    if (mount.turnLimit[1] > 0.0f)
+        playerRot[1] = std::clamp(playerRot[1], mount.look[1] - mount.turnLimit[1], mount.look[1] + mount.turnLimit[1]);
+}
+
+// A move key's step: the object's while riding one with a place for the
+// camera.
+float CameraFree::step(float own) const {
+    return cameraObject != NULL && mounted ? mount.moveStep : own;
+}
+
 void CameraFree::moveForward(float fps) {
-    playerPos[2] = playerPos[2] + (30.0 / fps) * przesz * cos(playerRot[0]) * cos(playerRot[1]);
-    playerPos[0] = playerPos[0] + (30.0 / fps) * przesz * sin(playerRot[0]) * cos(playerRot[1]);
+    playerPos[2] = playerPos[2] + (30.0 / fps) * step(przesz) * cos(playerRot[0]) * cos(playerRot[1]);
+    playerPos[0] = playerPos[0] + (30.0 / fps) * step(przesz) * sin(playerRot[0]) * cos(playerRot[1]);
     if(!lockYaxis)
-        playerPos[1] = playerPos[1] + (30.0 / fps) * przesz * sin(playerRot[1]);
+        playerPos[1] = playerPos[1] + (30.0 / fps) * step(przesz) * sin(playerRot[1]);
 
     //playerPos[2] = playerPos[2] + przesz * (float) cos(playerRot[0]);
     // playerPos[0] = playerPos[0] + przesz * (float) sin(playerRot[0]);
@@ -246,33 +285,33 @@ void CameraFree::moveForward(float fps) {
 }
 
 void CameraFree::moveBackward(float fps) {
-    playerPos[2] = playerPos[2] - (30.0 / fps) * przesz * cos(playerRot[0]) * cos(playerRot[1]);
-    playerPos[0] = playerPos[0] - (30.0 / fps) * przesz * sin(playerRot[0]) * cos(playerRot[1]);
+    playerPos[2] = playerPos[2] - (30.0 / fps) * step(przesz) * cos(playerRot[0]) * cos(playerRot[1]);
+    playerPos[0] = playerPos[0] - (30.0 / fps) * step(przesz) * sin(playerRot[0]) * cos(playerRot[1]);
     if(!lockYaxis)
-        playerPos[1] = playerPos[1] - (30.0 / fps) * przesz * sin(playerRot[1]);
+        playerPos[1] = playerPos[1] - (30.0 / fps) * step(przesz) * sin(playerRot[1]);
     //playerPos[2] = playerPos[2] - przesz * (float) cos(playerRot[0]);
     //playerPos[0] = playerPos[0] - przesz * (float) sin(playerRot[0]);
     check_coords();
 }
 
 void CameraFree::moveLeft(float fps) {
-    playerPos[0] = playerPos[0] + (30.0 / fps) * przesx * (float) cos(playerRot[0]);
-    playerPos[2] = playerPos[2] - (30.0 / fps) * przesx * (float) sin(playerRot[0]);
+    playerPos[0] = playerPos[0] + (30.0 / fps) * step(przesx) * (float) cos(playerRot[0]);
+    playerPos[2] = playerPos[2] - (30.0 / fps) * step(przesx) * (float) sin(playerRot[0]);
     check_coords();
 }
 
 void CameraFree::moveRight(float fps) {
-    playerPos[0] = playerPos[0] - (30.0 / fps) * przesx * (float) cos(playerRot[0]);
-    playerPos[2] = playerPos[2] + (30.0 / fps) * przesx * (float) sin(playerRot[0]);
+    playerPos[0] = playerPos[0] - (30.0 / fps) * step(przesx) * (float) cos(playerRot[0]);
+    playerPos[2] = playerPos[2] + (30.0 / fps) * step(przesx) * (float) sin(playerRot[0]);
     check_coords();
 }
 
 void CameraFree::moveUp() {
-    playerPos[1] += przesy;
+    playerPos[1] += step(przesy);
 }
 
 void CameraFree::moveDown() {
-    playerPos[1] -= przesy;
+    playerPos[1] -= step(przesy);
 }
 
 void CameraFree::patrzX(float f) {

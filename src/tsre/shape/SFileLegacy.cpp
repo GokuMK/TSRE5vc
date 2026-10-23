@@ -65,12 +65,19 @@ SFileLegacy::~SFileLegacy() {
     clearData();
 }
 
+bool SFileLegacy::setLoadOptions(const ShapeLoadOptions &options) {
+    doubleSided = options.value(QString::fromLatin1(ShapeLoadOption::DoubleSided), false).toBool();
+    return true;
+}
+
 void SFileLegacy::load() {
     if (loadData()) initGL();
 }
 
 ComplexShape *SFileLegacy::detachedCopy() const {
-    return new SFileLegacy(pathid, nazwa, textureRoot);
+    SFileLegacy *copy = new SFileLegacy(pathid, nazwa, textureRoot);
+    copy->doubleSided = doubleSided;
+    return copy;
 }
 
 void SFileLegacy::loadDetached() {
@@ -116,6 +123,7 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     loaded = o.loaded == 1 ? 1 : 2;
     o.loaded = 0;
     requiresUpdate = true;
+    ++invalidations;
 }
 
 bool SFileLegacy::loadData() {
@@ -369,7 +377,9 @@ bool SFileLegacy::loadData() {
     delete data;
     file->close();
     if(loaded == 1)
-        buildFrameIds();
+        for(Animation &a : animations)
+            for(ShapeAnimation::Channel &c : a.node)
+                ShapeAnimation::sortKeys(c);
     loadSd();
     //qDebug() <<this->pathid << QDateTime::currentMSecsSinceEpoch() - timeNow;
     return loaded == 1;
@@ -388,7 +398,7 @@ void SFileLegacy::Animation::loadC(FileBuffer* data, int length) {
             const int nodeCount = Simis::count(data);
             for (int i = 0; i < nodeCount; ++i) {
                 Simis::Block animNode(data, TS::anim_node);
-                node.push_back(AnimNode());
+                node.push_back(ShapeAnimation::Channel());
                 Simis::Block controllers(data, TS::controllers);
                 const int controllerCount = Simis::count(data);
                 for (int j = 0; j < controllerCount; ++j) {
@@ -401,34 +411,27 @@ void SFileLegacy::Animation::loadC(FileBuffer* data, int length) {
                             const auto key = data->readBlock();
                             FileBuffer::ScopedLimit keyScope(*data, key.end);
                             data->skipLabel();
-                            if (controller.id == TS::tcb_rot && key.id == TS::tcb_key) {
-                                node.back().tcbKey.push_back(AnimNode::TcbKey());
-                                auto& value = node.back().tcbKey.back();
+                            // TCB keys' tension, continuity and bias left
+                            // out, as Open Rails leaves them.
+                            if (controller.id == TS::tcb_rot && (key.id == TS::tcb_key || key.id == TS::slerp_rot)) {
+                                ShapeAnimation::RotationKey value;
                                 value.frame = data->getUint();
-                                value.quat[0] = -data->getFloat();
-                                value.quat[1] = data->getFloat();
-                                value.quat[2] = -data->getFloat();
-                                value.quat[3] = data->getFloat();
-                                for (int a = 0; a < 5; ++a) value.param[a] = data->getFloat();
-                            } else if (controller.id == TS::tcb_rot && key.id == TS::slerp_rot) {
-                                node.back().slerpRot.push_back(AnimNode::SlerpRot());
-                                auto& value = node.back().slerpRot.back();
-                                value.frame = data->getUint();
-                                value.quat[0] = -data->getFloat();
-                                value.quat[1] = data->getFloat();
-                                value.quat[2] = -data->getFloat();
-                                value.quat[3] = data->getFloat();
+                                float msts[4];
+                                for (float &c : msts) c = data->getFloat();
+                                ShapeAnimation::fromMsts(msts, value.rotation);
+                                node.back().rotations.push_back(value);
                             } else if (controller.id == TS::linear_pos && key.id == TS::linear_key) {
-                                node.back().linearKey.push_back(AnimNode::LinearKey());
-                                auto& value = node.back().linearKey.back();
+                                ShapeAnimation::PositionKey value;
                                 value.frame = data->getUint();
-                                for (int a = 0; a < 3; ++a) value.pos[a] = data->getFloat();
+                                for (float &c : value.position) c = data->getFloat();
+                                node.back().positions.push_back(value);
                             }
                             data->off = key.end;
                         }
                     }
                     data->off = controller.end;
                 }
+                ShapeAnimation::sortKeys(node.back());
             }
         }
         data->off = child.end;
@@ -448,7 +451,7 @@ void SFileLegacy::Animation::loadX(FileBuffer* data){
                 if(sh == "anim_node"){
                     //qDebug() <<
                     ParserX::NextTokenInside(data);
-                    node.push_back(AnimNode());
+                    node.push_back(ShapeAnimation::Channel());
                     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                         if(sh == "controllers"){
                             count = ParserX::GetNumber(data);
@@ -456,26 +459,15 @@ void SFileLegacy::Animation::loadX(FileBuffer* data){
                                 if(sh == "tcb_rot"){
                                     count =  ParserX::GetNumber(data);
                                     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                                        if(sh == "tcb_key"){
-                                            node.back().tcbKey.push_back(AnimNode::TcbKey());
-                                            node.back().tcbKey.back().frame = ParserX::GetUInt(data);
-                                            node.back().tcbKey.back().quat[0] = -ParserX::GetNumber(data);
-                                            node.back().tcbKey.back().quat[1] = ParserX::GetNumber(data);
-                                            node.back().tcbKey.back().quat[2] = -ParserX::GetNumber(data);
-                                            node.back().tcbKey.back().quat[3] = ParserX::GetNumber(data);
-                                            for(int i = 0; i < 5; i++){
-                                                node.back().tcbKey.back().param[i] = ParserX::GetNumber(data);
-                                            }
-                                            ParserX::SkipToken(data);
-                                            continue;
-                                        }
-                                        if(sh == "slerp_rot"){
-                                            node.back().slerpRot.push_back(AnimNode::SlerpRot());
-                                            node.back().slerpRot.back().frame = ParserX::GetUInt(data);
-                                            node.back().slerpRot.back().quat[0] = -ParserX::GetNumber(data);
-                                            node.back().slerpRot.back().quat[1] = ParserX::GetNumber(data);
-                                            node.back().slerpRot.back().quat[2] = -ParserX::GetNumber(data);
-                                            node.back().slerpRot.back().quat[3] = ParserX::GetNumber(data);
+                                        // TCB parameters left out (as in loadC).
+                                        if(sh == "tcb_key" || sh == "slerp_rot"){
+                                            ShapeAnimation::RotationKey value;
+                                            value.frame = ParserX::GetUInt(data);
+                                            float msts[4];
+                                            for(float &c : msts)
+                                                c = ParserX::GetNumber(data);
+                                            ShapeAnimation::fromMsts(msts, value.rotation);
+                                            node.back().rotations.push_back(value);
                                             ParserX::SkipToken(data);
                                             continue;
                                         }
@@ -488,11 +480,11 @@ void SFileLegacy::Animation::loadX(FileBuffer* data){
                                     count = ParserX::GetNumber(data);
                                     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                                         if(sh == "linear_key"){
-                                            node.back().linearKey.push_back(AnimNode::LinearKey());
-                                            node.back().linearKey.back().frame = ParserX::GetUInt(data);
-                                            for(int i = 0; i < 3; i++){
-                                                node.back().linearKey.back().pos[i] = ParserX::GetNumber(data);
-                                            }
+                                            ShapeAnimation::PositionKey value;
+                                            value.frame = ParserX::GetUInt(data);
+                                            for(float &c : value.position)
+                                                c = ParserX::GetNumber(data);
+                                            node.back().positions.push_back(value);
                                             ParserX::SkipToken(data);
                                             continue;
                                         }
@@ -888,8 +880,25 @@ void SFileLegacy::reload() {
 }
 
 unsigned int SFileLegacy::newState(){
+    for(size_t i = 1; i < state.size(); ++i)
+        if(state[i].released){
+            state[i] = State();
+            return i;
+        }
     state.push_back(State());
     return state.size() - 1;
+}
+
+void SFileLegacy::releaseState(unsigned int stateId){
+    if(stateId == 0 || stateId >= state.size())
+        return;
+    // Its packets stay in its pool (the renderer may still hold them this
+    // frame) for the state that takes its number.
+    state[stateId] = State();
+    state[stateId].released = true;
+    auto pool = animatedPackets.find(stateId);
+    if (pool != animatedPackets.end())
+        pool->count = -1;
 }
 
 void SFileLegacy::setAnimated(unsigned int stateId, bool animated){
@@ -929,6 +938,7 @@ quint64 SFileLegacy::packetKey(unsigned int stateId) const {
 
 void SFileLegacy::invalidateRenderState(bool invalidateMatrixCache){
     requiresUpdate = true;
+    ++invalidations;
     for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
         clearRenderItems(it.key());
     }
@@ -986,12 +996,9 @@ void SFileLegacy::updateSim(float deltaTime, unsigned int stateId){
     if (isinit != 1 || loaded == 2)
         return;
 
-    animated = false;
-
     if(state[stateId].animated && animations.size() > 0){
         if(animations[0].frames == 0)
             return;
-        animated = true;
         if(deltaTime <= 0){
             state[stateId].frameCount = 0;
         } else {
@@ -1083,6 +1090,7 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
         if (!nightHeld)
             releaseNightTextures();
         requiresUpdate = true;
+        ++invalidations;
     }
 
     if(state[stateId].enableSubObjQueue.size() > 0){
@@ -1092,81 +1100,16 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
         }
     }
 
-    // Animated sub-object matrices change every frame. Each state refills its
-    // own packets and matrices once per frame; a state submitted again in the
-    // same frame falls back to frame-owned items.
-    if(animated){
-        static const RenderItem blank;
-        AnimatedPackets &pool = animatedPackets[stateId];
-        const quint64 frame = Renderer::frameNumber();
-        const bool reusePool = !pool.used || pool.frame != frame;
-        pool.frame = frame;
-        pool.used = true;
-        int slot = 0;
-        RenderItem *r;
-        float m[16];
-        int currentDlevel = state[stateId].distanceLevel;
-        for (int i = 0; i < distancelevel[currentDlevel].iloscs; i++) {
-            if(((state[stateId].enabledSubObjs >> i) & 1) == 0)
-                continue;
+    // Parts at rest draw with the shared packets (instanced across objects);
+    // a posed or looping state's moving parts with packets of its own.
+    QVector<RenderItem *> &shared = staticPackets(stateId);
+    if (movesParts(stateId))
+        pushPosed(queue, selectionId, stateId, shared);
+    else if (shared.size() > 0)
+        queue.submit(shared, selectionId);
+}
 
-            for (int j = 0; j < distancelevel[currentDlevel].subobiekty[i].iloscc; j++) {
-                int prim_state = distancelevel[currentDlevel].subobiekty[i].czesci[j].prim_state_idx;
-                int vtx_state = primstate[prim_state].vtx_state;
-                int matrix = vtxstate[vtx_state].matrix;
-                bool texEnabled = distancelevel[currentDlevel].subobiekty[i].czesci[j].enabled;
-
-                Mat4::identity(m);
-                getPmatrixAnimated(currentDlevel, m, matrix, state[stateId].frameCount);
-                if(reusePool){
-                    if(slot == pool.items.size()){
-                        pool.items.push_back(new RenderItem());
-                        pool.matrices.emplace_back();
-                    }
-                    r = pool.items[slot];
-                    *r = blank;
-                    std::copy(m, m + 16, pool.matrices[slot].begin());
-                    r->msMatrix = pool.matrices[slot].data();
-                    slot++;
-                } else {
-                    r = new RenderItem();
-                    r->msMatrix = queue.frameMatrix(m);
-                }
-
-                if( vtxstate[vtx_state].arg2 < -7 )
-                    r->material.lit = 0;
-                else
-                    r->material.lit = 1;
-
-                if( vtxstate[vtx_state].arg2 == -12 )
-                    r->material.brightness = 0.5;
-                else
-                    r->material.brightness = 1.0;
-                // Cruciform light materials: trees, bushes, hedges (task renderer 37).
-                r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
-
-                r->setSelectionId(selectionId);
-                r->material.surface = gatherSurface(prim_state);
-                if (selectionId == 0)
-                    setGatherTexture(r, prim_state, texEnabled);
-
-                r->mesh.handle = distancelevel[currentDlevel].subobiekty[i].mesh;
-                r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
-                r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
-                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
-                r->mesh.layout = RenderItem::VNTA;
-                if(reusePool){
-                    r->shared = true;
-                    queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
-                } else {
-                    r->shared = false;
-                    queue.submitFrameItem(r);
-                }
-            }
-        }
-        return;
-    }
-
+QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
     const quint64 key = packetKey(stateId);
     if(renderItems[key].size() == 0 || requiresUpdate){
         // `requiresUpdate` is shape-wide (all keys).
@@ -1191,18 +1134,12 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                 int matrix = vtxstate[vtx_state].matrix;
                 bool texEnabled = distancelevel[currentDlevel].subobiekty[i].czesci[j].enabled;
 
-                if(animated){
+                if (!macierz[matrix].isFixed) {
                     Mat4::identity(m);
-                    getPmatrixAnimated(currentDlevel, m, matrix, state[stateId].frameCount);
-                    r->msMatrix = (float*)&m;
-                } else {
-                    if (!macierz[matrix].isFixed) {
-                        Mat4::identity(m);
-                        memcpy(macierz[matrix].fixed, getPmatrix(currentDlevel, m, matrix), sizeof (float) * 16);
-                        macierz[matrix].isFixed = true;
-                    }
-                    r->msMatrix = (float*)&macierz[matrix].fixed;
+                    memcpy(macierz[matrix].fixed, getPmatrix(currentDlevel, m, matrix), sizeof (float) * 16);
+                    macierz[matrix].isFixed = true;
                 }
+                r->msMatrix = (float*)&macierz[matrix].fixed;
 
                 if( vtxstate[vtx_state].arg2 < -7 )
                     r->material.lit = 0;
@@ -1217,6 +1154,7 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                 r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
 
                 r->material.surface = gatherSurface(prim_state);
+                r->material.doubleSided = doubleSided;
                 setGatherTexture(r, prim_state, texEnabled);
 
                 r->mesh.handle = distancelevel[currentDlevel].subobiekty[i].mesh;
@@ -1227,10 +1165,8 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                 r->mesh.layout = RenderItem::VNTA;
                 r->shared = true;
                 // Static packets keep their part matrix, so their bounds hold.
-                if(!animated){
-                    const auto &part = distancelevel[currentDlevel].subobiekty[i].czesci[j];
-                    r->setBounds(part.boundCenter, part.boundRadius, r->msMatrix);
-                }
+                const auto &part = distancelevel[currentDlevel].subobiekty[i].czesci[j];
+                r->setBounds(part.boundCenter, part.boundRadius, r->msMatrix);
                 renderItems[key].push_back(r);
             }
         }
@@ -1244,8 +1180,124 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
         }
     }
 
-    if(renderItems[key].size() > 0)
-        queue.submit(renderItems[key], selectionId);
+    return renderItems[key];
+}
+
+// A posed (or looping) state: its packets for the primitives whose parts
+// move (a part posed, looping, or under one), each frame's matrices written
+// into them; the shared packets for the rest. Kept while the state's packet
+// key, selection, the shape's invalidations and the parts that move are as
+// they were; only the matrices written again for a new pose. A state
+// submitted again in the same frame falls back to frame-owned items.
+void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned int stateId,
+                            const QVector<RenderItem *> &shared) {
+    static const RenderItem blank;
+    const State &st = state[stateId];
+    const int currentDlevel = st.distanceLevel;
+    const bool looping = st.animated && !animations.empty() && animations[0].frames > 0;
+    AnimatedPackets &pool = animatedPackets[stateId];
+    const quint64 frame = Renderer::frameNumber();
+    const bool reusePool = !pool.used || pool.frame != frame;
+    pool.frame = frame;
+    pool.used = true;
+    const quint64 key = packetKey(stateId);
+    const bool built = reusePool && pool.key == key && pool.selectionId == selectionId
+            && pool.invalidation == invalidations && pool.count >= 0;
+    auto submitBuilt = [&]() {
+        for (int k : pool.sharedIndices)
+            if (k < shared.size())
+                queue.submit(shared[k], selectionId);
+        for (int k = 0; k < pool.count; ++k)
+            queue.submit(pool.items[k], 0, RenderQueue::SUBMIT_ORDERED);
+    };
+    if (built && !looping && pool.version == st.pose.version) {
+        submitBuilt();
+        return;
+    }
+    posedMatrices(stateId, currentDlevel, posedScratch, &posedAffected);
+    if (built && posedAffected == pool.affected) {
+        for (int k = 0; k < pool.count; ++k)
+            pool.matrices[k] = posedScratch[pool.matrixOf[k]];
+        pool.version = st.pose.version;
+        submitBuilt();
+        return;
+    }
+    if (reusePool) {
+        pool.key = key;
+        pool.selectionId = selectionId;
+        pool.invalidation = invalidations;
+        pool.version = st.pose.version;
+        pool.affected = posedAffected;
+        pool.matrixOf.clear();
+        pool.sharedIndices.clear();
+    }
+    int slot = 0, index = 0;
+    for (int i = 0; i < distancelevel[currentDlevel].iloscs; i++) {
+        if(((st.enabledSubObjs >> i) & 1) == 0)
+            continue;
+        for (int j = 0; j < distancelevel[currentDlevel].subobiekty[i].iloscc; j++, index++) {
+            int prim_state = distancelevel[currentDlevel].subobiekty[i].czesci[j].prim_state_idx;
+            int vtx_state = primstate[prim_state].vtx_state;
+            int matrix = vtxstate[vtx_state].matrix;
+            bool texEnabled = distancelevel[currentDlevel].subobiekty[i].czesci[j].enabled;
+            if (matrix >= 0 && matrix < int(posedAffected.size()) && !posedAffected[matrix] && index < shared.size()) {
+                if (reusePool)
+                    pool.sharedIndices.push_back(index);
+                queue.submit(shared[index], selectionId);
+                continue;
+            }
+            const float *m = posedScratch[matrix].data();
+            RenderItem *r;
+            if(reusePool){
+                if(slot == pool.items.size()){
+                    pool.items.push_back(new RenderItem());
+                    pool.matrices.emplace_back();
+                }
+                r = pool.items[slot];
+                *r = blank;
+                std::copy(m, m + 16, pool.matrices[slot].begin());
+                r->msMatrix = pool.matrices[slot].data();
+                pool.matrixOf.push_back(matrix);
+                slot++;
+            } else {
+                r = new RenderItem();
+                r->msMatrix = queue.frameMatrix(m);
+            }
+
+            if( vtxstate[vtx_state].arg2 < -7 )
+                r->material.lit = 0;
+            else
+                r->material.lit = 1;
+
+            if( vtxstate[vtx_state].arg2 == -12 )
+                r->material.brightness = 0.5;
+            else
+                r->material.brightness = 1.0;
+            // Cruciform light materials: trees, bushes, hedges (task renderer 37).
+            r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
+
+            r->setSelectionId(selectionId);
+            r->material.surface = gatherSurface(prim_state);
+            r->material.doubleSided = doubleSided;
+            if (selectionId == 0)
+                setGatherTexture(r, prim_state, texEnabled);
+
+            r->mesh.handle = distancelevel[currentDlevel].subobiekty[i].mesh;
+            r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
+            r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
+            r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+            r->mesh.layout = RenderItem::VNTA;
+            if(reusePool){
+                r->shared = true;
+                queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
+            } else {
+                r->shared = false;
+                queue.submitFrameItem(r);
+            }
+        }
+    }
+    if (reusePool)
+        pool.count = slot;
 }
 
 void SFileLegacy::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent){
@@ -1420,87 +1472,136 @@ float* SFileLegacy::getPmatrix(int currentDlevel, float* pmatrix, int matrix) {
     return pmatrix;
 }
 
-float* SFileLegacy::getPmatrixAnimated(int currentDlevel, float* pmatrix, int matrix, float frame){
-    if (matrix == -1 || matrix == 0) {
-        Mat4::identity(pmatrix);
-        pmatrix[0] = -1;
-        return pmatrix;
-    } else {
-        pmatrix = getPmatrixAnimated(currentDlevel, pmatrix, distancelevel[currentDlevel].hierarchia[matrix], frame);
-    }
-    float m[16];
-    memcpy(m, macierz[matrix].param, sizeof (float) * 16);
-    if(animations[0].node.size() > matrix){
-        AnimNode *n = &animations[0].node[matrix];
-        if(frame + 1 < n->tcbId.size()){
-            float m1[16];
-            float q1[4];
-            float q2[4];
-            float q3[4];
-            Quat::slerp(q1, n->tcbKey[n->tcbId[(int)frame].id1].quat, n->tcbKey[n->tcbId[(int)frame].id2].quat, n->tcbId[(int)frame].offset);
-            Quat::slerp(q2, n->tcbKey[n->tcbId[(int)frame+1].id1].quat, n->tcbKey[n->tcbId[(int)frame+1].id2].quat, n->tcbId[(int)frame+1].offset);
-            Quat::slerp(q3, q1, q2, frame - (int)frame);
-            Mat4::fromQuat(m1, q3);
-            Mat4::multiply(m, m, m1);
-        }
-        if(frame + 1 < n->linearId.size()){
-            float v1[3], v2[3], v3[3];
-            Vec3::lerp(v1, n->linearKey[n->linearId[(int)frame].id1].pos, n->linearKey[n->linearId[(int)frame].id2].pos, n->linearId[(int)frame].offset);
-            Vec3::lerp(v2, n->linearKey[n->linearId[(int)frame+1].id1].pos, n->linearKey[n->linearId[(int)frame+1].id2].pos, n->linearId[(int)frame+1].offset);
-            Vec3::lerp(v3, v1, v2, frame - (int)frame);
-
-            m[12] = v3[0];
-            m[13] = v3[1];
-            m[14] = v3[2];
-        }
-        //slerprot
-    }
-    Mat4::multiply(pmatrix, pmatrix, m);
-    return pmatrix;
+bool SFileLegacy::movesParts(unsigned int stateId) const {
+    const State &st = state[stateId];
+    return st.pose.posed || (st.animated && !animations.empty() && animations[0].frames > 0);
 }
 
-void SFileLegacy::buildFrameIds(){
-    for(int i = 0; i < animations.size(); i++){
-        for(int j = 0; j < animations[i].node.size(); j++){
-            int frameCount = animations[i].frames;
-            AnimNode *n = &animations[i].node[j];
-
-            for(int y = 0; y < frameCount + 1; y++){
-                if(n->tcbKey.size() > 0){
-                    n->tcbId.push_back(AnimFrameId());
-                    n->tcbId.back().id1 = 0;
-                    n->tcbId.back().id2 = 0;
-                    n->tcbId.back().offset = 0;
-                    //qDebug() << "n->tcbKey.size()"<< n->tcbKey.size();
-                    for(int u = 0; u < n->tcbKey.size() - 1; u++){
-                        if(n->tcbKey[u+1].frame > y){
-                            n->tcbId.back().id1 = u;
-                            n->tcbId.back().id2 = u+1;
-                            n->tcbId.back().offset = ((float)y - (float)n->tcbKey[u].frame)/((float)n->tcbKey[u+1].frame - (float)n->tcbKey[u].frame);
-                            break;
-                        }
-                    }
-                }
-                if(n->linearKey.size() > 0){
-                    n->linearId.push_back(AnimFrameId());
-                    n->linearId.back().id1 = 0;
-                    n->linearId.back().id2 = 0;
-                    n->linearId.back().offset = 0;
-                    //qDebug() << "n->tcbKey.size()"<< n->tcbKey.size();
-                    for(int u = 0; u < n->linearKey.size() - 1; u++){
-                        if(n->linearKey[u+1].frame > y){
-                            n->linearId.back().id1 = u;
-                            n->linearId.back().id2 = u+1;
-                            n->linearId.back().offset = ((float)y - (float)n->linearKey[u].frame)/((float)n->linearKey[u+1].frame - (float)n->linearKey[u].frame);
-                            break;
-                        }
-                    }
-                }
-                //qDebug() << y << n->tcbId.back().id1 << n->tcbId.back().id2 << n->tcbId.back().offset;
-
+// As getPmatrix() for every matrix: the mirrored root, then each part as
+// posed (its own transform, its keys at its frame or the state's looping
+// one, or its rest) after its parent. A malformed hierarchy stops after
+// iloscm steps.
+void SFileLegacy::posedMatrices(unsigned int stateId, int currentDlevel,
+                                std::vector<std::array<float, 16>> &out,
+                                std::vector<unsigned char> *affected) const {
+    const State &st = state[stateId];
+    const dist &level = distancelevel[currentDlevel];
+    const ShapeAnimation::Channel *channels = animations.empty() ? nullptr : animations[0].node.data();
+    const int channelCount = animations.empty() ? 0 : animations[0].node.size();
+    out.resize(iloscm);
+    if (affected != nullptr)
+        affected->assign(iloscm, 0);
+    std::vector<unsigned char> &done = posedDone;
+    done.assign(iloscm, 0);
+    std::vector<int> &chain = posedChain;
+    for (int matrix = 0; matrix < iloscm; ++matrix) {
+        chain.clear();
+        for (int m = matrix; m > 0 && m < iloscm && !done[m] && int(chain.size()) < iloscm;
+             m = m < level.ilosch ? level.hierarchia[m] : -1)
+            chain.push_back(m);
+        // Its first posed ancestor, or the root.
+        const int top = chain.empty() ? matrix : chain.back();
+        const int above = top > 0 && top < level.ilosch ? level.hierarchia[top] : -1;
+        float base[16];
+        if (above > 0 && above < iloscm && done[above]) {
+            std::copy(out[above].begin(), out[above].end(), base);
+        } else {
+            Mat4::identity(base);
+            base[0] = -1;
+        }
+        if (matrix == 0) {
+            std::copy(base, base + 16, out[0].begin());
+            done[0] = 1;
+            continue;
+        }
+        const bool looping = st.animated && channelCount > 0 && animations[0].frames > 0;
+        bool moving = affected != nullptr && above > 0 && above < iloscm && (*affected)[above];
+        for (int i = int(chain.size()) - 1; i >= 0; --i) {
+            const int m = chain[i];
+            float local[16];
+            const ShapeAnimation::Channel *channel = m < channelCount ? &channels[m] : nullptr;
+            st.pose.local(m, channel, looping, st.frameCount, macierz[m].param, local);
+            Mat4::multiply(base, base, local);
+            std::copy(base, base + 16, out[m].begin());
+            done[m] = 1;
+            if (affected != nullptr) {
+                moving = moving || (size_t(m) < st.pose.parts.size()
+                                    && st.pose.parts[m].mode != ShapeAnimation::Pose::Part::Rest)
+                        || (looping && channel != nullptr && !channel->empty());
+                (*affected)[m] = moving ? 1 : 0;
             }
         }
     }
+}
+
+int SFileLegacy::partCount() const {
+    return loaded == 1 ? iloscm : 0;
+}
+
+QString SFileLegacy::partName(int part) const {
+    return part >= 0 && part < partCount() ? macierz[part].name : QString();
+}
+
+int SFileLegacy::partParent(int part) const {
+    if (part <= 0 || part >= partCount() || distancelevel == nullptr || part >= distancelevel[0].ilosch)
+        return -1;
+    return distancelevel[0].hierarchia[part];
+}
+
+bool SFileLegacy::partRest(int part, float *out) const {
+    if (part < 0 || part >= partCount())
+        return false;
+    std::copy(macierz[part].param, macierz[part].param + 16, out);
+    return true;
+}
+
+float SFileLegacy::partLastFrame(int part) const {
+    if (part < 0 || part >= partCount() || animations.empty() || part >= animations[0].node.size()
+            || animations[0].node[part].empty())
+        return -1.0f;
+    return animations[0].node[part].lastFrame();
+}
+
+bool SFileLegacy::partAtFrame(int part, float frame, float *out) const {
+    if (part < 0 || part >= partCount())
+        return false;
+    if (animations.empty() || part >= animations[0].node.size())
+        std::copy(macierz[part].param, macierz[part].param + 16, out);
+    else
+        ShapeAnimation::pose(animations[0].node[part], frame, macierz[part].param, out);
+    return true;
+}
+
+float SFileLegacy::animationFrames() const {
+    return loaded == 1 && !animations.empty() ? float(animations[0].frames) : 0.0f;
+}
+
+float SFileLegacy::animationRate() const {
+    return loaded == 1 && !animations.empty() ? animations[0].fps : 0.0f;
+}
+
+void SFileLegacy::setPartFrame(unsigned int stateId, int part, float frame) {
+    if (stateId < unsigned(state.size()))
+        state[stateId].pose.setFrame(part, frame);
+}
+
+void SFileLegacy::setPartTransform(unsigned int stateId, int part, const float *local) {
+    if (stateId < unsigned(state.size()))
+        state[stateId].pose.setTransform(part, local);
+}
+
+bool SFileLegacy::partMatrix(unsigned int stateId, int part, float *out) const {
+    if (stateId >= unsigned(state.size()) || part < 0 || part >= partCount() || iloscd <= 0)
+        return false;
+    std::vector<std::array<float, 16>> matrices;
+    posedMatrices(stateId, 0, matrices);
+    std::copy(matrices[part].begin(), matrices[part].end(), out);
+    return true;
+}
+
+void SFileLegacy::clearPose(unsigned int stateId) {
+    if (stateId < unsigned(state.size()))
+        state[stateId].pose.clear();
 }
 
 // Binary shape loading

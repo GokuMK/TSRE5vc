@@ -16,11 +16,13 @@
 #include <map>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/shape/ShapeAnimation.h>
 #include <vector>
 struct SFileComplex::Data {
     struct Options {
         bool firstLodOnly = false;
         bool compact = false;
+        bool doubleSided = false;
     };
     struct Matrix {
         QString name;
@@ -79,21 +81,19 @@ struct SFileComplex::Data {
         std::vector<int> matrixOrder;
         std::vector<Mesh> meshes;
     };
-    struct Key {
-        float frame = 0;
-        QVector3D position;
-        QQuaternion rotation;
-    };
-    struct Channel {
-        std::vector<Key> position, rotation;
-    };
+    // One channel per matrix (ShapeAnimation).
     struct Animation {
         float frames = 0, fps = 0;
-        std::vector<Channel> channels;
+        std::vector<ShapeAnimation::Channel> channels;
     };
     struct State {
         bool animated = false, dirty = true, namesDirty = true;
+        // Released (releaseState): newState() takes it again, its matrices
+        // and packets kept (the renderer may still hold them this frame).
+        bool released = false;
         float frame = 0;
+        // Its parts posed (setPartFrame, setPartTransform).
+        ShapeAnimation::Pose pose;
         int lod = 0;
         quint32 enabled = 0xffffffff;
         QMap<QString, bool> names;

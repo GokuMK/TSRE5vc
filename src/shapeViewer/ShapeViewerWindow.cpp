@@ -274,6 +274,49 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     view3dMenu->addAction(vSetColorShapeView);
     QObject::connect(vSetColorShapeView, SIGNAL(triggered()), this, SLOT(vSetColorShapeViewSelected()));
     
+    // Animation (task shapes 12).
+    animationMenu = menuBar()->addMenu(
+        //% "&Animation"
+        qtTrId("shape.viewer.shape.viewer.window.menu.animation"));
+    QAction *aPlay = GuiFunct::newMenuCheckAction(
+        //% "&Play"
+        qtTrId("shape.viewer.shape.viewer.window.action.animation.play"), this, false);
+    animationMenu->addAction(aPlay);
+    QObject::connect(aPlay, &QAction::triggered, glShapeWidget, &ShapeViewerGLWidget::setAnimationPlaying);
+    QAction *aEnd = GuiFunct::newMenuCheckAction(
+        //% "Shape at its &Last Frame"
+        qtTrId("shape.viewer.shape.viewer.window.action.animation.end"), this, false);
+    animationMenu->addAction(aEnd);
+    QObject::connect(aEnd, &QAction::triggered, glShapeWidget, &ShapeViewerGLWidget::setAnimationEnd);
+    animationMenu->addSeparator();
+    struct CarItem {
+        CarAnimation::Group group;
+        const char *id;
+    };
+    const CarItem carItems[] = {
+        //% "Pantograph &1 Up"
+        {CarAnimation::Pantograph1, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.pantograph1")},
+        //% "Pantograph &2 Up"
+        {CarAnimation::Pantograph2, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.pantograph2")},
+        //% "Left &Doors Open"
+        {CarAnimation::DoorLeft, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.door.left")},
+        //% "&Right Doors Open"
+        {CarAnimation::DoorRight, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.door.right")},
+        //% "&Mirrors Open"
+        {CarAnimation::Mirrors, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.mirrors")},
+        //% "&Windows Open"
+        {CarAnimation::Windows, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.windows")},
+        //% "W&ipers On"
+        {CarAnimation::Wipers, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.wipers")},
+    };
+    for (const CarItem &item : carItems) {
+        QAction *action = GuiFunct::newMenuCheckAction(qtTrId(item.id), this, false);
+        animationMenu->addAction(action);
+        const int group = item.group;
+        QObject::connect(action, &QAction::triggered, glShapeWidget,
+                         [this, group](bool on) { glShapeWidget->setCarAnimation(group, on); });
+    }
+
     helpMenu = menuBar()->addMenu(
         //% "&Help"
         qtTrId("shape.viewer.shape.viewer.window.menu.help.menu"));

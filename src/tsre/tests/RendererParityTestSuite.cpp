@@ -88,6 +88,13 @@ struct ViewSpec {
     // (rideTrain, Follow's keys 1 to 3).
     int train = -1;
     QString trainView;
+    // Riding one of its vehicles (as its consist lists them) from an eye
+    // looking at a point, both in that vehicle's frame (its front at the
+    // origin, ahead -z, x to its right, metres): "trainVehicle", "trainEye",
+    // "trainAt" (close views of its parts).
+    int trainVehicle = -1;
+    float trainEye[3] = {0, 0, 0};
+    float trainAt[3] = {0, 0, 0};
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -387,6 +394,9 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.map = object.value("mode").toString() == "map";
         view.train = object.value("train").toInt(-1);
         view.trainView = object.value("trainView").toString();
+        view.trainVehicle = object.value("trainVehicle").toInt(-1);
+        readFloatArray(object.value("trainEye"), view.trainEye, 3);
+        readFloatArray(object.value("trainAt"), view.trainAt, 3);
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
         view.bearing = float(object.value("bearing").toDouble(0.0));
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
@@ -812,7 +822,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         }
         const RouteEditorGLWidget::RideView ride = spec.trainView == "front" ? RouteEditorGLWidget::RideView::Front
                 : spec.trainView == "back" ? RouteEditorGLWidget::RideView::Back : RouteEditorGLWidget::RideView::Cab;
-        if (!spec.map && spec.train >= 0
+        if (!spec.map && spec.train >= 0 && spec.trainVehicle >= 0) {
+            if (!widget.rideTrainVehicle(spec.train, spec.trainVehicle, spec.trainEye, spec.trainAt))
+                qWarning() << CaptureLog << "train" << spec.train << "vehicle" << spec.trainVehicle << "is not on the track";
+        } else if (!spec.map && spec.train >= 0
                 && !(spec.trainView.isEmpty() ? widget.viewTrain(spec.train) : widget.rideTrain(spec.train, ride)))
             qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
         if (!spec.settings.isEmpty()) {
@@ -1204,6 +1217,13 @@ struct ViewerItem {
     // keeps the fit) and degrees the camera looks up.
     double fov = 0.0;
     double look = 0.0;
+    // Animation (task shapes 12): a car's groups shown open or up
+    // ("animation": ["pantograph1", "doorLeft", ...], CarAnimation's
+    // groups by name), a shape at its last frame ("animationEnd") and the
+    // metres a car has gone ("travelled": its wheels and running gear).
+    QStringList animation;
+    bool animationEnd = false;
+    double travelled = 0.0;
     // The view's light (ShapeViewerGLWidget::Light; "light": {"sun": [x, y,
     // z] towards it, "sunColor": grey, "ambient": grey}); otherwise the
     // view's default.
@@ -1265,6 +1285,10 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.pitch = object.value("pitch").toDouble(0.0);
         item.fov = object.value("fov").toDouble(0.0);
         item.look = object.value("look").toDouble(0.0);
+        for (const QJsonValue &group : object.value("animation").toArray())
+            item.animation << group.toString();
+        item.animationEnd = object.value("animationEnd").toBool(false);
+        item.travelled = object.value("travelled").toDouble(0.0);
         const QJsonObject light = object.value("light").toObject();
         item.hasLight = !light.isEmpty();
         readFloatArray(light.value("sun"), item.sun, 3);
@@ -1379,6 +1403,12 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             light.ambient = item.ambient;
         }
         widget.setLight(light);
+        static const QStringList groups = {"doorLeft", "doorRight", "pantograph1", "pantograph2", "pantograph3",
+                                           "pantograph4", "mirrors", "wipers", "windows"};
+        for (int g = 0; g < groups.size(); ++g)
+            widget.setCarAnimation(g, item.animation.contains(groups[g]), true);
+        widget.setAnimationEnd(item.animationEnd);
+        widget.setAnimationTravelled(item.travelled);
 
         QElapsedTimer settleTimer;
         settleTimer.start();

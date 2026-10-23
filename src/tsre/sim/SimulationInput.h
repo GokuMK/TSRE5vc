@@ -80,6 +80,10 @@ struct StopPlan {
     // The efficiency on the run to this stop.
     float efficiency = 1.0f;
     QString platform;
+    // The platform's track item the stop refers to (an activity's
+    // PlatformStartID; task shapes 12: the side its doors open on), -1 for
+    // none (Open Rails' timetable trains open none).
+    int platformItem = -1;
     // Its row in the train's timetable.
     int entry = -1;
     // The platform's exit signal held until shortly before it departs, as

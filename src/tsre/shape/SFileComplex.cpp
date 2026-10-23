@@ -98,6 +98,8 @@ bool SFileComplex::setLoadOptions(const ShapeLoadOptions &options) {
         QString::fromLatin1(ShapeLoadOption::FirstLodOnly), false).toBool();
     d->options.compact = options.value(
         QString::fromLatin1(ShapeLoadOption::Compact), false).toBool();
+    d->options.doubleSided = options.value(
+        QString::fromLatin1(ShapeLoadOption::DoubleSided), false).toBool();
     return true;
 }
 SFileComplex::Statistics SFileComplex::statistics() const {
@@ -131,9 +133,10 @@ SFileComplex::Statistics SFileComplex::statistics() const {
     for (const auto &image : d->images)
         s.runtimeBytes += image.name.size() * 2;
     for (const auto &a : d->animations) {
-        s.runtimeBytes += a.channels.capacity() * sizeof(Data::Channel);
+        s.runtimeBytes += a.channels.capacity() * sizeof(ShapeAnimation::Channel);
         for (const auto &c : a.channels)
-            s.runtimeBytes += (c.position.capacity() + c.rotation.capacity()) * sizeof(Data::Key);
+            s.runtimeBytes += c.positions.capacity() * sizeof(ShapeAnimation::PositionKey) +
+                              c.rotations.capacity() * sizeof(ShapeAnimation::RotationKey);
     }
     for (const auto &state : d->states)
         s.runtimeBytes += state.matrices.capacity() * sizeof(QMatrix4x4) +
@@ -207,7 +210,8 @@ ComplexShape *SFileComplex::detachedCopy() const {
     auto *copy = new SFileComplex(d->path, d->name, d->textureRoot);
     copy->setLoadOptions({
         {QString::fromLatin1(ShapeLoadOption::FirstLodOnly), d->options.firstLodOnly},
-        {QString::fromLatin1(ShapeLoadOption::Compact), d->options.compact}
+        {QString::fromLatin1(ShapeLoadOption::Compact), d->options.compact},
+        {QString::fromLatin1(ShapeLoadOption::DoubleSided), d->options.doubleSided}
     });
     return copy;
 }
@@ -568,34 +572,36 @@ bool SFileComplex::extract() {
             anim.frames = a->number(0);
             anim.fps = a->number(1);
             for (auto node : child(*a, "anim_nodes").children("anim_node")) {
-                Data::Channel ch;
+                ShapeAnimation::Channel ch;
+                auto rotationKey = [&](const auto &key) {
+                    ShapeAnimation::RotationKey k;
+                    k.frame = key.number(0);
+                    const float msts[4] = {float(key.number(1)), float(key.number(2)), float(key.number(3)),
+                                           float(key.number(4, 1))};
+                    ShapeAnimation::fromMsts(msts, k.rotation);
+                    ch.rotations.push_back(k);
+                };
                 for (auto ctrl : child(*node, "controllers").children()) {
                     for (auto key : ctrl->children()) {
-                        Data::Key k;
-                        k.frame = key->number(0);
                         if ((ctrl->name() == "linear_pos" && key->name() == "linear_key") ||
                             (ctrl->name() == "tcb_pos" && key->name() == "tcb_key")) {
-                            k.position = vec(*key, 1);
-                            ch.position.push_back(k);
+                            ShapeAnimation::PositionKey k;
+                            k.frame = key->number(0);
+                            const QVector3D p = vec(*key, 1);
+                            k.position[0] = p.x();
+                            k.position[1] = p.y();
+                            k.position[2] = p.z();
+                            ch.positions.push_back(k);
                         } else if ((ctrl->name() == "tcb_rot" || ctrl->name() == "slerp_rot") &&
                                    (key->name() == "tcb_key" || key->name() == "slerp_rot")) {
-                            k.rotation = QQuaternion(key->number(4, 1), -key->number(1), key->number(2),
-                                                     -key->number(3));
-                            ch.rotation.push_back(k);
+                            rotationKey(*key);
                         }
                     }
                     if (ctrl->name() == "slerp_rot" && ctrl->children().empty() &&
-                        !ctrl->scalar(4).isEmpty()) {
-                        Data::Key k;
-                        k.frame = ctrl->number(0);
-                        k.rotation = QQuaternion(ctrl->number(4, 1), -ctrl->number(1), ctrl->number(2),
-                                                 -ctrl->number(3));
-                        ch.rotation.push_back(k);
-                    }
+                        !ctrl->scalar(4).isEmpty())
+                        rotationKey(*ctrl);
                 }
-                auto less = [](auto &a, auto &b) { return a.frame < b.frame; };
-                std::stable_sort(ch.position.begin(), ch.position.end(), less);
-                std::stable_sort(ch.rotation.begin(), ch.rotation.end(), less);
+                ShapeAnimation::sortKeys(ch);
                 anim.channels.push_back(std::move(ch));
             }
             d->animations.push_back(std::move(anim));
@@ -652,8 +658,98 @@ void SFileComplex::loadMetadata(bool readFile) {
         releaseTextures();
 }
 unsigned int SFileComplex::newState() {
+    for (size_t i = 1; i < d->states.size(); ++i) {
+        auto &s = d->states[i];
+        if (!s.released)
+            continue;
+        // Its matrices and packets kept for it.
+        Data::State fresh;
+        std::swap(fresh.matrices, s.matrices);
+        std::swap(fresh.packets, s.packets);
+        s = std::move(fresh);
+        return unsigned(i);
+    }
     d->states.emplace_back();
     return d->states.size() - 1;
+}
+void SFileComplex::releaseState(unsigned int id) {
+    if (id == 0 || id >= d->states.size())
+        return;
+    auto &s = d->states[id];
+    s.released = true;
+    s.animated = false;
+    s.pose.clear();
+}
+int SFileComplex::partCount() const {
+    return d->loaded ? int(d->matrices.size()) : 0;
+}
+QString SFileComplex::partName(int part) const {
+    return part >= 0 && part < partCount() ? d->matrices[part].name : QString();
+}
+int SFileComplex::partParent(int part) const {
+    if (part <= 0 || part >= partCount() || d->lods.empty() || part >= int(d->lods[0].parents.size()))
+        return -1;
+    return d->lods[0].parents[part];
+}
+bool SFileComplex::partRest(int part, float *out) const {
+    if (part < 0 || part >= partCount())
+        return false;
+    std::copy(d->matrices[part].transform.constData(), d->matrices[part].transform.constData() + 16, out);
+    return true;
+}
+float SFileComplex::partLastFrame(int part) const {
+    if (part < 0 || part >= partCount() || d->animations.empty() ||
+        part >= int(d->animations[0].channels.size()) || d->animations[0].channels[part].empty())
+        return -1.0f;
+    return d->animations[0].channels[part].lastFrame();
+}
+bool SFileComplex::partAtFrame(int part, float frame, float *out) const {
+    if (part < 0 || part >= partCount())
+        return false;
+    const float *rest = d->matrices[part].transform.constData();
+    if (d->animations.empty() || part >= int(d->animations[0].channels.size()))
+        std::copy(rest, rest + 16, out);
+    else
+        ShapeAnimation::pose(d->animations[0].channels[part], frame, rest, out);
+    return true;
+}
+float SFileComplex::animationFrames() const {
+    return d->loaded && !d->animations.empty() ? d->animations[0].frames : 0.0f;
+}
+float SFileComplex::animationRate() const {
+    return d->loaded && !d->animations.empty() ? d->animations[0].fps : 0.0f;
+}
+void SFileComplex::setPartFrame(unsigned int id, int part, float frame) {
+    if (id >= d->states.size())
+        return;
+    const unsigned int version = d->states[id].pose.version;
+    d->states[id].pose.setFrame(part, frame);
+    d->states[id].dirty |= d->states[id].pose.version != version;
+}
+void SFileComplex::setPartTransform(unsigned int id, int part, const float *local) {
+    if (id >= d->states.size())
+        return;
+    const unsigned int version = d->states[id].pose.version;
+    d->states[id].pose.setTransform(part, local);
+    d->states[id].dirty |= d->states[id].pose.version != version;
+}
+bool SFileComplex::partMatrix(unsigned int id, int part, float *out) const {
+    if (id >= d->states.size() || part < 0 || part >= partCount() || d->lods.empty())
+        return false;
+    const auto &s = d->states[id];
+    std::vector<QMatrix4x4> matrices;
+    fillMatrices(0, &s.pose, s.animated, s.frame, matrices);
+    if (part >= int(matrices.size()))
+        return false;
+    std::copy(matrices[part].constData(), matrices[part].constData() + 16, out);
+    return true;
+}
+void SFileComplex::clearPose(unsigned int id) {
+    if (id >= d->states.size())
+        return;
+    const unsigned int version = d->states[id].pose.version;
+    d->states[id].pose.clear();
+    d->states[id].dirty |= d->states[id].pose.version != version;
 }
 void SFileComplex::setAnimated(unsigned int id, bool val) {
     if (id >= d->states.size())
@@ -733,7 +829,7 @@ const std::vector<QMatrix4x4> &SFileComplex::staticMatrices(int lod) {
         d->staticMatrices.assign(d->lods.size(), {});
     auto &matrices = d->staticMatrices[lod];
     if (matrices.empty())
-        fillMatrices(lod, false, 0.0f, matrices);
+        fillMatrices(lod, nullptr, false, 0.0f, matrices);
     return matrices;
 }
 QByteArray SFileComplex::packetKey(unsigned int id) const {
@@ -751,37 +847,25 @@ void SFileComplex::updateMatrices(unsigned int id) {
     auto &s = d->states[id];
     if (!s.dirty)
         return;
-    fillMatrices(s.lod, s.animated, s.frame, s.matrices);
+    fillMatrices(s.lod, &s.pose, s.animated, s.frame, s.matrices);
     s.dirty = false;
 }
-void SFileComplex::fillMatrices(int lodIndex, bool animated, float frame,
+void SFileComplex::fillMatrices(int lodIndex, const ShapeAnimation::Pose *pose, bool looping, float frame,
                                 std::vector<QMatrix4x4> &matrices) const {
     matrices.resize(d->matrices.size());
     const auto &lod = d->lods[lodIndex];
-    auto sample = [&](const std::vector<Data::Key> &keys) {
-        auto next = std::upper_bound(keys.begin(), keys.end(), frame,
-                                     [](float f, const Data::Key &k) { return f < k.frame; });
-        int b = next == keys.end() ? int(keys.size()) - 1 : int(next - keys.begin());
-        int a = std::max(0, b - 1);
-        float span = keys[b].frame - keys[a].frame;
-        return std::tuple<int, int, float>(
-            a, b, span > 0 ? std::clamp((frame - keys[a].frame) / span, 0.0f, 1.0f) : 0);
-    };
+    const auto *channels = d->animations.empty() ? nullptr : &d->animations[0].channels;
+    looping = looping && channels != nullptr && d->animations[0].frames > 0;
     for (int i : lod.matrixOrder) {
         QMatrix4x4 m = d->matrices[i].transform;
-        if (animated && !d->animations.empty() && i < int(d->animations[0].channels.size())) {
-            auto &c = d->animations[0].channels[i];
-            if (!c.rotation.empty()) {
-                auto [a, b, t] = sample(c.rotation);
-                m.rotate(QQuaternion::slerp(c.rotation[a].rotation, c.rotation[b].rotation, t));
-            }
-            if (!c.position.empty()) {
-                auto [a, b, t] = sample(c.position);
-                auto p = c.position[a].position * (1 - t) + c.position[b].position * t;
-                m(0, 3) = p.x();
-                m(1, 3) = p.y();
-                m(2, 3) = p.z();
-            }
+        if (pose != nullptr || looping) {
+            const ShapeAnimation::Channel *channel =
+                channels != nullptr && i < int(channels->size()) ? &(*channels)[i] : nullptr;
+            const ShapeAnimation::Pose none;
+            float local[16];
+            (pose != nullptr ? *pose : none).local(i, channel, looping, frame,
+                                                   d->matrices[i].transform.constData(), local);
+            m = QMatrix4x4(local).transposed();
         }
         // Legacy MSTS convention: matrix 0 is the mirrored asset root.
         int parent = lod.parents[i];
@@ -800,7 +884,7 @@ bool SFileComplex::matrixByName(const QString &name, float *out) const {
     for (size_t i = 0; i < d->matrices.size(); ++i)
         if (d->matrices[i].name.compare(name, Qt::CaseInsensitive) == 0) {
             std::vector<QMatrix4x4> matrices;
-            fillMatrices(0, false, 0.0f, matrices);
+            fillMatrices(0, nullptr, false, 0.0f, matrices);
             if (i >= matrices.size())
                 return false;
             std::copy(matrices[i].constData(), matrices[i].constData() + 16, out);

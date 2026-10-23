@@ -297,6 +297,12 @@ int PlatformObj::getTrackBegItemId(){
     return this->trItemId[1];
 }
 
+int PlatformObj::getTrackEndItemId(){
+    if(this->trItemIdCount < 4)
+        return -1;
+    return this->trItemId[3];
+}
+
 QString PlatformObj::getStationName(){
     TDB* tdb = Game::trackDB;
     int id = this->trItemId[1];

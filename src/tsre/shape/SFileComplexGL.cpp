@@ -36,7 +36,8 @@ bool SFileComplex::initGL() {
         SFileComplex replacement(d->path, d->name, d->textureRoot);
         replacement.setLoadOptions({
             {QString::fromLatin1(ShapeLoadOption::FirstLodOnly), d->options.firstLodOnly},
-            {QString::fromLatin1(ShapeLoadOption::Compact), d->options.compact}
+            {QString::fromLatin1(ShapeLoadOption::Compact), d->options.compact},
+            {QString::fromLatin1(ShapeLoadOption::DoubleSided), d->options.doubleSided}
         });
         if (!replacement.loadData() || replacement.health() == Health::Broken ||
             !replacement.initGL()) {
@@ -217,8 +218,9 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
         return;
     auto &s = d->states[id];
     auto &lod = d->lods[s.lod];
-    // Animated states own their packets; static ones share theirs by key.
-    const bool animated = s.animated && !d->animations.empty();
+    // Animated or posed states own their packets; static ones share theirs
+    // by key.
+    const bool animated = (s.animated && !d->animations.empty()) || s.pose.posed;
     Data::SharedPackets *shared = nullptr;
     if (!animated) {
         shared = &d->sharedPackets[packetKey(id)];
@@ -261,6 +263,7 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             item->material.surface = mat.alpha == 1 ? RenderItem::SURFACE_OPAQUE
                     : mat.alphaTest ? RenderItem::SURFACE_ALPHA_TEST
                                     : RenderItem::SURFACE_BLENDED;
+            item->material.doubleSided = d->options.doubleSided;
             int addr = mat.image >= 0 ? d->images[mat.image].address : -1;
             item->material.nightTextureId = -1;
             if (addr >= 0 && !s.disabledParts.contains(p.uid) &&

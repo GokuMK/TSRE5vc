@@ -20,6 +20,7 @@
 #include <QBasicTimer>
 #include <math.h>
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/trains/CarAnimation.h>
 
 class ComplexShape;
 class Eng;
@@ -98,6 +99,16 @@ public slots:
     void showShape(QString path, QString texPath, ComplexShape **currentShape = NULL);
     void showShape(ComplexShape *currentShape = NULL);
     void cleanup();
+    // Animation (task shapes 12): playing (a car's wheels and running gear
+    // turning as if it ran at 15 km/h, a shape's own looping animation), a
+    // shape's keyed parts at their last frame (else at rest), and a car's
+    // parts open or up (CarAnimation's groups).
+    void setAnimationPlaying(bool on);
+    void setAnimationEnd(bool on);
+    // `now`: at once (captures), else moving as Open Rails moves them.
+    void setCarAnimation(int group, bool on, bool now = false);
+    // Metres a shown car has gone (its wheels and running gear; captures).
+    void setAnimationTravelled(double metres) { animationTravelled = metres; }
     void flipConSelected();
     void leftConSelected();
     void rightConSelected();
@@ -171,6 +182,15 @@ private:
     float sceneFar = 1.0f;
     
     QMap<QString, QAction*> defaultMenuActions;
+    bool animationPlaying = false;
+    bool animationEnd = false;
+    bool carGroups[CarAnimation::GroupCount] = {};
+    bool carGroupsNow = false;
+    // Metres a shown car has gone while playing.
+    double animationTravelled = 0.0;
+    // The settings above on what is shown, `seconds` after the last time.
+    void animate(float seconds);
+    void animateEng(Eng *shown);
 };
 
 #endif	/* GLSHAPEWIDGET_H */

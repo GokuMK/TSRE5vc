@@ -139,8 +139,7 @@ QJsonObject legacyStorage(SFileLegacy &shape) {
     for (const auto &a : shape.animations) {
         quint64 bytes = vectorBytes(a.node);
         for (const auto &n : a.node)
-            bytes += vectorBytes(n.tcbKey) + vectorBytes(n.tcbId) + vectorBytes(n.slerpRot) +
-                     vectorBytes(n.slerpbId) + vectorBytes(n.linearKey) + vectorBytes(n.linearId);
+            bytes += vectorBytes(n.positions) + vectorBytes(n.rotations);
         animation += bytes;
         cpu += bytes;
     }
@@ -402,14 +401,9 @@ template<class Shape> int legacyCompatSnapshot(const QString &path) {
     for(const auto &a:shape.animations) {
         data << a.frames << a.fps << qint64(a.node.size());
         for(const auto &n:a.node) {
-            data << qint64(n.tcbKey.size()) << qint64(n.slerpRot.size()) << qint64(n.linearKey.size());
-            for(const auto &k:n.tcbKey) { data<<k.frame; for(float v:k.quat)data<<v; for(float v:k.param)data<<v; }
-            for(const auto &k:n.slerpRot) { data<<k.frame; for(float v:k.quat)data<<v; }
-            for(const auto &k:n.linearKey) { data<<k.frame; for(float v:k.pos)data<<v; }
-            for(const auto *ids:{&n.tcbId,&n.slerpbId,&n.linearId}) {
-                data<<qint64(ids->size());
-                for(const auto &id:*ids) data<<id.id1<<id.id2<<id.offset;
-            }
+            data << qint64(n.rotations.size()) << qint64(n.positions.size());
+            for(const auto &k:n.rotations) { data<<k.frame; for(float v:k.rotation)data<<v; }
+            for(const auto &k:n.positions) { data<<k.frame; for(float v:k.position)data<<v; }
         }
     }
     result["metadata_hash"] = compatHash(metadata);
@@ -1295,7 +1289,6 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                     joinedEqual &= animationPixels == 0;
                     old.setAnimated(a, false);
                     joined.setAnimated(b, false);
-                    old.animated = joined.animated = false;
                 }
 
             }
@@ -1471,22 +1464,6 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                 }
                 result["animated_different_pixels"] =
                     difference(render->image(old, false), render->image(shape, false));
-                if (!old.animations.empty()) {
-                    for (auto &node : old.animations[0].node) {
-                        auto endpoints = [](auto &keys, auto &frames) {
-                            if (keys.empty())
-                                return;
-                            for (int frame = keys.back().frame; frame < frames.size(); ++frame) {
-                                frames[frame].id1 = frames[frame].id2 = keys.size() - 1;
-                                frames[frame].offset = 0;
-                            }
-                        };
-                        endpoints(node.tcbKey, node.tcbId);
-                        endpoints(node.linearKey, node.linearId);
-                    }
-                    result["legacy_fixed_endpoint_pixels"] =
-                        difference(render->image(old, false), render->image(shape, false));
-                }
             }
             shape.compact();
             result["compact_document_bytes"] = double(shape.statistics().documentBytes);

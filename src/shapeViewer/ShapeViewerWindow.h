@@ -73,6 +73,7 @@ private:
     QMenu *viewMenu;
     QMenu *view3dMenu;
     QMenu *engMenu;
+    QMenu *animationMenu;
     QMenu *settingsMenu;
     QMenu *helpMenu;
 

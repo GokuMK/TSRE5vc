@@ -25,6 +25,7 @@
 #include <QVector>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeAnimation.h>
 
 class RenderQueue;
 
@@ -151,44 +152,16 @@ public:
         }
     };
 
-    struct AnimFrameId {
-        unsigned int id1 = 0;
-        unsigned int id2 = 0;
-        float offset = 0;
-    };
-
-    struct AnimNode {
-        struct TcbKey {
-            int frame = 0;
-            float quat[4];
-            float param[5];
-        };
-        struct SlerpRot {
-            int frame = 0;
-            float quat[4];
-        };
-        struct LinearKey {
-            int frame = 0;
-            float pos[3];
-        };
-        QVector<TcbKey> tcbKey;
-        QVector<AnimFrameId> tcbId;
-        QVector<SlerpRot> slerpRot;
-        QVector<AnimFrameId> slerpbId;
-        QVector<LinearKey> linearKey;
-        QVector<AnimFrameId> linearId;
-    };
-
+    // Its keyframe animation: one channel per matrix (ShapeAnimation).
     struct Animation {
         int frames = 0;
         float fps = 0;
-        QVector<AnimNode> node;
+        QVector<ShapeAnimation::Channel> node;
         void loadC(FileBuffer* data, int length);
         void loadX(FileBuffer* data);
     };
 
     QVector<Animation> animations;
-    bool animated = false;
 
     QString pathid;
     QString sciezka;
@@ -233,6 +206,9 @@ public:
     bool hasLoadFailed() const override { return loaded == 2; }
     float getSize() const override { return size; }
     const float* getBound() const override { return bound; }
+    // ShapeLoadOption::DoubleSided (the other options are the Complex
+    // backend's).
+    bool setLoadOptions(const ShapeLoadOptions &options) override;
 
     SFileLegacy();
     SFileLegacy(QString pathid, QString name, QString texp );
@@ -258,6 +234,19 @@ public:
     bool isSnapable() const override;
     void addSnapablePoints(QVector<float> &out) override;
     bool matrixByName(const QString &name, float *out) const override;
+    int partCount() const override;
+    QString partName(int part) const override;
+    int partParent(int part) const override;
+    bool partRest(int part, float *out) const override;
+    float partLastFrame(int part) const override;
+    bool partAtFrame(int part, float frame, float *out) const override;
+    float animationFrames() const override;
+    float animationRate() const override;
+    void setPartFrame(unsigned int stateId, int part, float frame) override;
+    void setPartTransform(unsigned int stateId, int part, const float *local) override;
+    void clearPose(unsigned int stateId) override;
+    bool partMatrix(unsigned int stateId, int part, float *out) const override;
+    void releaseState(unsigned int stateId) override;
     void reload() override;
     unsigned int newState() override;
     void setAnimated(unsigned int stateId, bool animated) override;
@@ -272,6 +261,8 @@ public:
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent) override;
 private:
     bool glReady = false;
+    // Its surfaces drawn from both sides (ShapeLoadOption::DoubleSided).
+    bool doubleSided = false;
     // texPath before loadSd() adds the season's directory.
     QString textureRoot;
     // Retires a set of cached packets through the renderer.
@@ -287,7 +278,24 @@ private:
         std::deque<std::array<float, 16>> matrices;
         quint64 frame = 0;
         bool used = false;
+        // What its packets were built for (packetKey, selection id, the
+        // shape's invalidations) and their matrices for (the pose's
+        // version), and each packet's matrix: kept while all hold, only the
+        // matrices written again for a new pose.
+        quint64 key = ~0ULL;
+        quint32 selectionId = 0;
+        unsigned int invalidation = ~0U;
+        unsigned int version = ~0U;
+        int count = -1;
+        std::vector<int> matrixOf;
+        // The matrices that move, and the primitives drawn with the shared
+        // packets (their index in them).
+        std::vector<unsigned char> affected;
+        std::vector<int> sharedIndices;
     };
+    // Counts every time the shape's packets must be built again
+    // (requiresUpdate set).
+    unsigned int invalidations = 0;
     QHash<unsigned int, AnimatedPackets> animatedPackets;
     void clearAnimatedPackets();
     unsigned char gatherSurface(int primState) const;
@@ -323,6 +331,10 @@ public:
 private:
     struct State {
         bool animated = false;
+        // Its parts posed (setPartFrame, setPartTransform).
+        ShapeAnimation::Pose pose;
+        // Released (releaseState): newState() takes it again.
+        bool released = false;
         int enabledSubObjs = 0xFFFFFFFF;
         float frameCount = 0;
         unsigned long long int lastTime = 0;
@@ -333,8 +345,21 @@ private:
 
     void loadSd();
     float* getPmatrix(int currentDlevel, float* pmatrix, int matrix);
-    float* getPmatrixAnimated(int currentDlevel, float* pmatrix, int matrix, float frame);
-    void buildFrameIds();
+    // Every matrix of the level as the state poses it, with its parents,
+    // into `out` (one 4x4 per matrix); `affected` (when given): whether each
+    // moves (posed, looping, or under one that does).
+    void posedMatrices(unsigned int stateId, int currentDlevel, std::vector<std::array<float, 16>> &out,
+                       std::vector<unsigned char> *affected = nullptr) const;
+    std::vector<unsigned char> posedAffected;
+    // The shared packets of the state's level and sub-objects, built when
+    // needed.
+    QVector<RenderItem *> &staticPackets(unsigned int stateId);
+    void pushPosed(RenderQueue &queue, quint32 selectionId, unsigned int stateId, const QVector<RenderItem *> &shared);
+    mutable std::vector<unsigned char> posedDone;
+    mutable std::vector<int> posedChain;
+    // Whether the state's parts move: drawn with matrices of its own.
+    bool movesParts(unsigned int stateId) const;
+    std::vector<std::array<float, 16>> posedScratch;
     bool snapable = false;
     //float *mvMatrix = NULL;
     bool requiresUpdate = false;

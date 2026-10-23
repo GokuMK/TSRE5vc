@@ -387,6 +387,7 @@ void RouteEditorGLWidget::playInit(){
             ActLib::Act[actId]->initToPlay();
             route->activitySelected(ActLib::Act[actId]);
             setSelectedObj((GameObj*)route->getActivityConsist(0));
+            rideCab3D((GameObj*)route->getActivityConsist(0));
             camera->setCameraObject((GameObj*)route->getActivityConsist(0));
         }
 }
@@ -675,7 +676,19 @@ void RouteEditorGLWidget::setCameraObject(GameObj* obj){
     if (simulation->followed() >= 0)
         simulation->follow(-1);
     stopRiding();
+    rideCab3D(obj);
     cameraFree->setCameraObject(obj);
+}
+
+// A consist is ridden from its first vehicle's 3D cab at its front (as
+// listed), where it has one.
+void RouteEditorGLWidget::rideCab3D(GameObj *obj) {
+    if (obj == NULL || obj->typeObj != GameObj::consistobj)
+        return;
+    Consist *consist = static_cast<Consist*>(obj);
+    const Eng *eng = consist->engItems.isEmpty() ? NULL : consist->engItems[0].engPointer;
+    if (eng == NULL || !consist->rideCab3D(0, eng->flip != 0))
+        consist->leaveCab3D();
 }
 
 void RouteEditorGLWidget::releaseCameraObject(){
@@ -3929,6 +3942,19 @@ bool RouteEditorGLWidget::viewTrain(int train) {
     return true;
 }
 
+bool RouteEditorGLWidget::rideTrainVehicle(int train, int vehicle, const float *eye, const float *at) {
+    Consist *consist = Sim::SimulationController::instance()->consistOf(train);
+    if (consist == NULL || !consist->isOnTrack || vehicle < 0 || vehicle >= consist->engItems.size())
+        return false;
+    consist->cameraVehicle = vehicle;
+    cameraFree->setCameraObject(consist);
+    const float look[3] = {at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]};
+    const float distance = std::sqrt(look[0] * look[0] + look[1] * look[1] + look[2] * look[2]);
+    cameraFree->setPos(eye[0], eye[1], eye[2]);
+    cameraFree->setPlayerRot(std::atan2(look[0], look[2]), std::asin(look[1] / std::max(distance, 0.001f)));
+    return true;
+}
+
 bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     Consist *consist = simulation->consistOf(train);
@@ -3948,10 +3974,17 @@ bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
     const int vehicle = front != reversed ? 0 : last;
     const float length = size_t(vehicle) < plan.vehicles.size() ? plan.vehicles[size_t(vehicle)].length : 0.0f;
     consist->cameraVehicle = vehicle;
-    // The consist camera's own place: at the first vehicle's cab window,
-    // looking ahead.
+    // In the 3D cab at its leading end, where it has one: the shape's front
+    // leads unless it is flipped or the train runs reversed.
+    const Eng *eng = consist->engItems[vehicle].engPointer;
+    const bool cab3D = view == RideView::Cab && eng != NULL
+            && consist->rideCab3D(vehicle, (eng->flip != 0) != reversed);
+    if (!cab3D)
+        consist->leaveCab3D();
+    // The consist camera's own place: at the head in the cab, else at the
+    // first vehicle's cab window, looking ahead.
     cameraFree->setCameraObject(consist);
-    if (view == RideView::Cab && !reversed)
+    if (cab3D || (view == RideView::Cab && !reversed))
         return true;
     // In the vehicle's own frame (CameraFree's, riding it): its front at the
     // origin, along it towards its front -z; `ahead` the way the train runs.

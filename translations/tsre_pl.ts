@@ -2725,7 +2725,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5496"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5509"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
@@ -2765,77 +2765,77 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5425"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5438"/>
         <source>Undo</source>
         <translation>Cofnij</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5427"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5440"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>Ostatnia zmiana dotyczy scenariusza: można ją cofnąć po zatrzymaniu symulacji.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5502"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5515"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5508"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5521"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5514"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5527"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5520"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5533"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5526"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5539"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5532"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5545"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5538"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5551"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5544"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5557"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5550"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5563"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5556"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5569"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5562"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5575"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5574"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5587"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5592"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5605"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -3013,7 +3013,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5610"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5623"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -12207,37 +12207,37 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Obrazy (*.png *.bmp *.tga)</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.flip">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="498"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="542"/>
         <source>&amp;Flip</source>
         <translation>&amp;Odwróć</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.left">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="502"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="546"/>
         <source>&amp;Move Left</source>
         <translation>Przesuń w &amp;lewo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="506"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="550"/>
         <source>&amp;Move right</source>
         <translation>Przesuń w &amp;prawo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.delete">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="510"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="554"/>
         <source>&amp;Delete</source>
         <translation>&amp;Usuń</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.copy">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="514"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="558"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.paste.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="518"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="562"/>
         <source>&amp;Paste Right</source>
         <translation>Wklej z &amp;prawej</translation>
     </message>
     <message id="shape.viewer.context.selected.unit">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="532"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="576"/>
         <source>Selected Unit</source>
         <translation>Wybrany pojazd</translation>
     </message>
@@ -12254,9 +12254,9 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
     <message id="shape.viewer.save.save.shape.as">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="52"/>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="102"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="435"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="445"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="462"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="478"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="488"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="505"/>
         <source>Save Shape As</source>
         <translation>Zapisz model 3D jako</translation>
     </message>
@@ -12322,9 +12322,9 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
     <message id="shape.viewer.save.save.shape">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="120"/>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="129"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="403"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="413"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="421"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="446"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="456"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="464"/>
         <source>Save Shape</source>
         <translation>Zapisz model 3D</translation>
     </message>
@@ -12423,48 +12423,98 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <source>&amp;Set Color</source>
         <translation>Ustaw &amp;kolor</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="280"/>
+        <source>&amp;Animation</source>
+        <translation>&amp;Animacja</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.play">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="283"/>
+        <source>&amp;Play</source>
+        <translation>&amp;Odtwarzaj</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.end">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="288"/>
+        <source>Shape at its &amp;Last Frame</source>
+        <translation>Kształt w ostatniej &amp;klatce</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.pantograph1">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="298"/>
+        <source>Pantograph &amp;1 Up</source>
+        <translation>Pantograf &amp;1 podniesiony</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.pantograph2">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="300"/>
+        <source>Pantograph &amp;2 Up</source>
+        <translation>Pantograf &amp;2 podniesiony</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.door.left">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="302"/>
+        <source>Left &amp;Doors Open</source>
+        <translation>Lewe &amp;drzwi otwarte</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.door.right">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="304"/>
+        <source>&amp;Right Doors Open</source>
+        <translation>P&amp;rawe drzwi otwarte</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.mirrors">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="306"/>
+        <source>&amp;Mirrors Open</source>
+        <translation>&amp;Lusterka otwarte</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.windows">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="308"/>
+        <source>&amp;Windows Open</source>
+        <translation>Ok&amp;na otwarte</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.wipers">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="310"/>
+        <source>W&amp;ipers On</source>
+        <translation>&amp;Wycieraczki włączone</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.menu.help.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="279"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="322"/>
         <source>&amp;Help</source>
         <translation>&amp;Pomoc</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.about.action">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="282"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="325"/>
         <source>&amp;About</source>
         <translation>&amp;O programie</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.color">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="348"/>
         <source>Shape View Color</source>
         <translation>Kolor tła podglądu modelu 3D</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="321"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="364"/>
         <source>Save File</source>
         <translation>Zapisz plik</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.filter.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="323"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="366"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Obrazy (*.png *.jpg)</translation>
     </message>
     <message id="shape.viewer.save.the.shape.could.not.be.loaded.completely">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="405"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="437"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="448"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="480"/>
         <source>The shape could not be loaded completely:
 %1</source>
         <translation>Nie udało się w pełni wczytać modelu 3D:
 %1</translation>
     </message>
     <message id="shape.viewer.save.saving.requires.a.complete.shape.document">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="415"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="447"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="458"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="490"/>
         <source>Saving requires a complete shape document.</source>
         <translation>Zapis wymaga kompletnego dokumentu modelu 3D.</translation>
     </message>
     <message id="shape.viewer.save.saved">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="425"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="472"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="468"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="515"/>
         <source>Saved %1</source>
         <translation>Zapisano %1</translation>
     </message>

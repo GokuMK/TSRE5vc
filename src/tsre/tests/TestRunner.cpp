@@ -84,6 +84,9 @@
 #include <tsre/tests/UnitsTestSuite.h>
 #include <tsre/tests/UnitsContentTestSuite.h>
 #include <tsre/tests/EngLightsTestSuite.h>
+#include <tsre/tests/ShapeAnimationTestSuite.h>
+#include <tsre/tests/CarAnimationTestSuite.h>
+#include <tsre/tests/Cab3DTestSuite.h>
 #include <tsre/tests/NightTexturesTestSuite.h>
 #include <tsre/tests/GltfLodTestSuite.h>
 #include <tsre/tests/ForestObjectsTestSuite.h>
@@ -4148,6 +4151,9 @@ QStringList TsreTests::listSuites() {
         "units",
         "units-content",
         "eng-lights",
+        "shape-animation",
+        "car-animation",
+        "cab3d",
         "night-textures",
         "gltf-lod",
         "forest-objects",
@@ -4293,6 +4299,12 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "eng-lights")
         return runEngLightsSuite(opts.verbose);
+    if (suite == "shape-animation")
+        return runShapeAnimationSuite(opts.verbose);
+    if (suite == "car-animation")
+        return runCarAnimationSuite(opts.verbose);
+    if (suite == "cab3d")
+        return runCab3DSuite(opts.verbose);
     if (suite == "night-textures")
         return runNightTexturesSuite(opts.verbose);
     if (suite == "gltf-lod")

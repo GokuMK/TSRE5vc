@@ -15,6 +15,10 @@
 #include <QHash>
 #include <memory>
 #include <tsre/trains/EngLights.h>
+#include <tsre/trains/CarAnimation.h>
+#include <vector>
+#include <tsre/camera/CameraMount.h>
+#include <QStringList>
 
 class RenderQueue;
 
@@ -28,6 +32,7 @@ struct SoundValues;
 class TrainNetworkEng;
 class ContentHierarchyInfo;
 class CarLights;
+class ComplexShape;
 
 struct MapFeatures;
 
@@ -66,6 +71,38 @@ public:
     const EngLights *getLights();
     // The state its lights show, set by its consist.
     EngLights::Train lightsTrain;
+    // Its Open Rails 3D cab (ORTS3DCab, ORTSAlternate3DCabViewPoints in the
+    // Wagon section; the user's 2026-10-23): the shape files named, in
+    // order, and the viewpoints: the head's place in the car's shape
+    // (metres), where it looks at the start (degrees: down, round from
+    // ahead) and how far it may turn from there (degrees; 0 free). Null
+    // without one; shared by its copies.
+    struct Cab3D {
+        struct Viewpoint {
+            float position[3] = {0.0f, 0.0f, 0.0f};
+            float start[3] = {0.0f, 0.0f, 0.0f};
+            float limit[3] = {0.0f, 0.0f, 0.0f};
+        };
+        QStringList shapes;
+        QVector<Viewpoint> viewpoints;
+    };
+    std::shared_ptr<Cab3D> cab3D;
+    // The cab's shape: the last one named that is in its CABVIEW3D (Open
+    // Rails keeps one shape for its cabs), empty for none.
+    QString cab3DShapePath() const;
+    // The viewpoint in the cab at the end its shape faces (rear false) or
+    // the other: the first looking that way (a start direction beyond 90
+    // degrees either way looks back); -1 none.
+    int cab3DViewpoint(bool rear) const;
+    // A camera riding it from that viewpoint: as getCameraPosition, the
+    // origin at the head (placed as its shape is, tilted and leaning with
+    // it); its mount there, looking and moving no farther than the cab
+    // allows (false without the viewpoint).
+    void cab3DCameraPosition(int viewpoint, float *out);
+    bool cab3DMount(int viewpoint, CameraMount &mount) const;
+    // Seen from inside its 3D cab, from that viewpoint (-1 not): the cab
+    // drawn in place of its body (set by its consist).
+    int cabViewpoint = -1;
 
     QString engName;
     QString displayName;
@@ -146,6 +183,23 @@ public:
     // renderer 37), its place in their sums. Trains are animated, standing
     // or not (doors, pantographs).
     bool staticOnTrack = false;
+    // Its moving parts (task shapes 12): what they show (CarAnimation's
+    // groups: doors, pantographs...), set by its consist or a viewer; and
+    // how far its train has gone (metres, the simulation's distance
+    // travelled; reversed: the train runs with the consist's rear ahead),
+    // which turns its wheels and running gear.
+    void setAnimated(CarAnimation::Group group, bool on, bool now = false);
+    bool isAnimated(CarAnimation::Group group) const;
+    void setTravelled(double metres, bool reversed);
+    // The simulator's pantograph n (1 or 2) up (CarAnimation::setPantograph).
+    void setPantograph(int n, bool up);
+    // Its animation, once its shape has loaded and it has been drawn (null
+    // before).
+    const CarAnimation *animation() const { return carAnimation; }
+    // How far a camera in its 3D cab may move from the head's place
+    // (metres either way: across, up, along) and a move key's step.
+    static constexpr float CabMove[3] = {0.5f, 0.3f, 0.5f};
+    static constexpr float CabMoveStep = 0.05f;
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
     // The nearest sound region item ahead of (or behind) the car on its
@@ -165,14 +219,49 @@ public:
     void silenceSounds();
 private:
     std::shared_ptr<EngLightsBlock> lightsBlock;
+    // The 3D cab's shape (cab3DShapePath), in each shape library, double
+    // sided: added when first drawn from inside.
+    EngShape cab3DShape;
+    // The cab's shape in the current shape library, null without one.
+    ComplexShape *cab3DShapeOf(long long int shapeLibId);
     CarLights *carLights = NULL;
+    // Its moving parts posed in a state of its own of the shape drawn
+    // (poseShape), made when that shape is first drawn loaded.
+    CarAnimation *carAnimation = nullptr;
+    ComplexShape *posedShape = nullptr;
+    unsigned int posedState = 0;
+    bool animationWanted[CarAnimation::GroupCount] = {};
+    // The simulator's pantographs up (setPantograph), -1 not set.
+    signed char pantographs[2] = {-1, -1};
+    // Metres in its own frame (+ toward its shape's front): gone, and taken
+    // by the animation; the train's distance last told.
+    double carTravelled = 0.0, carTravelledSeen = 0.0;
+    double trainTravelled = 0.0;
+    bool trainTravelledKnown = false;
+    qint64 animationClock = -1;
+    // The last placement on its carriers (placeOnCarriers), for the ends,
+    // roll and flip it was for.
+    bool placedKnown = false, placedOk = false;
+    float placedKey[16];
+    float placedEnds[14];
+    std::vector<float> placedTurns;
+    // The shape's state to draw it with, its parts posed; bogieTurns as
+    // CarAnimation::pose takes them.
+    unsigned int poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns);
+    // On its bogie pivots and axles (CarAnimation::carriers) rather than its
+    // ends: the ends of the line the body lies on (as the drawing takes
+    // them) and each bogie's turn; false (as it was) before its animation
+    // exists or without carriers.
+    bool placeOnCarriers(const float *front, const float *rear, float roll, float *placedFront,
+                         float *placedRear, std::vector<float> &bogieTurns);
     long long int resolveShapeIds();
     // Drawn between two places on the track (as getDrawPositionOnTrNode
     // gives them: x, y, z, angle, slope, tile x, tile z), its front and rear
     // as the consist lists it, leaning by roll (superelevation), turned when
     // flipped; its footprint for the map between two such places.
     void pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
-                               const float *front, const float *rear, float roll, bool flipped);
+                               const float *front, const float *rear, float roll, bool flipped,
+                               const std::vector<float> *bogieTurns = nullptr);
     void getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
                                const float *rear) const;
     void initBorder();

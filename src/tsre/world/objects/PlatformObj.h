@@ -58,6 +58,8 @@ public:
     float getLength();
     void deleteTrItems();
     int getTrackBegItemId();
+    // Its other end's track item, -1 without one.
+    int getTrackEndItemId();
     int getDefaultDetailLevel();
     void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:

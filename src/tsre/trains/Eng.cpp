@@ -41,6 +41,73 @@
 #include <tsre/geo/GeoCoordinates.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
 #include <tsre/world/ObjectBorders.h>
+#include <QElapsedTimer>
+#include <tsre/trains/CarPlacement.h>
+#include <QFileInfo>
+#include <cmath>
+
+namespace {
+
+// A 3D cab's ORTS3DCab or ORTSAlternate3DCabViewPoint block: its shape
+// file and a viewpoint (as Open Rails' MSTSWagon.Parse3DCab).
+void readCab3D(FileBuffer *data, Eng::Cab3D &cab) {
+    Eng::Cab3D::Viewpoint viewpoint;
+    QString file;
+    QString sh;
+    while (!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
+        if (sh == "orts3dcabfile")
+            file = ParserX::GetStringInside(data);
+        else if (sh == "orts3dcabheadpos")
+            for (float &c : viewpoint.position)
+                c = ParserX::GetNumberInside(data, nullptr, Units::Quantity::Length);
+        else if (sh == "rotationlimit")
+            for (float &c : viewpoint.limit)
+                c = ParserX::GetNumberInside(data);
+        else if (sh == "startdirection")
+            for (float &c : viewpoint.start)
+                c = ParserX::GetNumberInside(data);
+        ParserX::SkipToken(data);
+    }
+    if (!file.trimmed().isEmpty())
+        cab.shapes << file.trimmed();
+    cab.viewpoints << viewpoint;
+}
+
+// The way along the track from an end of a car toward its rear (as its
+// consist lists it), relative to `at` (the end's place, getCurrentPosition)
+// in at's tile: a place half a metre on along the end's node (the other way,
+// reversed, near the node's end); false where the node cannot tell.
+bool towardRear(const Ruch &end, const float *at, float *out) {
+    const float step = 0.5f;
+    float distance = end.nodeDistance() - step * end.nodeWay();
+    float sign = 1.0f;
+    if (distance < 0.0f || distance > end.nodeSpan()) {
+        distance = end.nodeDistance() + step * end.nodeWay();
+        sign = -1.0f;
+    }
+    float p[8];
+    if (distance < 0.0f || distance > end.nodeSpan()
+            || !Game::trackDB->getDrawPositionOnTrNode(p, end.nodeIndex(), distance))
+        return false;
+    out[0] = sign * (p[0] + 2048 * (p[5] - at[5]) - at[0]);
+    out[1] = sign * (p[1] - at[1]);
+    out[2] = sign * (p[2] + 2048 * (p[6] - at[6]) - at[2]);
+    const float length = std::sqrt(out[0] * out[0] + out[1] * out[1] + out[2] * out[2]);
+    if (length < 1e-4f)
+        return false;
+    for (int i = 0; i < 3; ++i)
+        out[i] /= length;
+    return true;
+}
+
+QElapsedTimer &animationTimer() {
+    static QElapsedTimer timer;
+    if (!timer.isValid())
+        timer.start();
+    return timer;
+}
+
+}
 
 Eng::Eng() {
     
@@ -53,6 +120,7 @@ Eng::Eng(Eng *o) {
     shape = o->shape;
     freightanimShape.append(o->freightanimShape);
     lightsBlock = o->lightsBlock;
+    cab3D = o->cab3D;
     
     name = o->name;
     path = o->path;
@@ -93,6 +161,9 @@ Eng::Eng(Eng *o) {
 }
 
 Eng::~Eng() {
+    if (posedShape != nullptr)
+        posedShape->releaseState(posedState);
+    delete carAnimation;
     delete carLights;
     delete ruch1;
     delete ruch2;
@@ -511,6 +582,25 @@ void Eng::load(){
                     ParserX::SkipToken(data);
                     continue;
                 }
+                // Open Rails' 3D cab (the user's 2026-10-23), its alternate
+                // viewpoints only after one (as Open Rails reads them).
+                if (sh == ("orts3dcab")) {
+                    if (cab3D == nullptr)
+                        cab3D = std::make_shared<Cab3D>();
+                    readCab3D(data, *cab3D);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("ortsalternate3dcabviewpoints")) {
+                    QString viewpoint;
+                    while (cab3D != nullptr && !(viewpoint = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
+                        if (viewpoint == "ortsalternate3dcabviewpoint")
+                            readCab3D(data, *cab3D);
+                        ParserX::SkipToken(data);
+                    }
+                    ParserX::SkipToken(data);
+                    continue;
+                }
                 if (sh == ("lights")) {
                     // Kept as it is, read on first use (getLights); a
                     // later block replaces an earlier one.
@@ -862,8 +952,10 @@ long long int Eng::resolveShapeIds() {
 void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
     if (loaded != 1) return;
     const long long int shapeLibId = resolveShapeIds();
-    if (shape.id[shapeLibId] >= 0)
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
+    if (shape.id[shapeLibId] >= 0) {
+        ComplexShape *carShape = Game::currentShapeLib->shape[shape.id[shapeLibId]];
+        carShape->pushRenderItem(queue, selectionId, poseShape(carShape, nullptr));
+    }
 
     float *mv = queue.transform();
     for (int i = 0; i < freightanimShape.size(); i++) {
@@ -899,6 +991,101 @@ bool Eng::isBroken(){
 float *Eng::getCurrentPositionOnTrack(){
     if (loaded != 1) return NULL;
     return ruch1->getCurrentPosition();
+}
+
+QString Eng::cab3DShapePath() const {
+    if (cab3D == nullptr)
+        return QString();
+    for (int i = cab3D->shapes.size() - 1; i >= 0; --i) {
+        const QString file = path + "/CABVIEW3D/" + cab3D->shapes[i];
+        if (QFileInfo::exists(file))
+            return file;
+    }
+    return QString();
+}
+
+int Eng::cab3DViewpoint(bool rear) const {
+    if (cab3D == nullptr)
+        return -1;
+    for (int i = 0; i < cab3D->viewpoints.size(); ++i) {
+        const float yaw = std::fabs(std::remainder(cab3D->viewpoints[i].start[1], 360.0f));
+        if ((yaw > 90.0f) == rear)
+            return i;
+    }
+    return -1;
+}
+
+void Eng::cab3DCameraPosition(int viewpoint, float *out) {
+    getCameraPosition(out);
+    if (out == NULL || loaded != 1 || ruch1 == NULL || ruch2 == NULL || cab3D == nullptr
+            || viewpoint < 0 || viewpoint >= cab3D->viewpoints.size())
+        return;
+    float selev1, selev2;
+    float front[7], rear[7];
+    const float *first = ruch1->getCurrentPosition(&selev1);
+    std::copy(first, first + 7, front);
+    const float *second = ruch2->getCurrentPosition(&selev2);
+    std::copy(second, second + 7, rear);
+    const float roll = (selev1 + selev2) / 2.0;
+    // As its body is drawn: on its bogies once its animation knows them
+    // (task shapes 12), its frame turned and tilted with that body.
+    float placedFront[7], placedRear[7];
+    std::vector<float> bogieTurns;
+    if (placeOnCarriers(front, rear, roll, placedFront, placedRear, bogieTurns)) {
+        std::copy(placedFront, placedFront + 7, front);
+        std::copy(placedRear, placedRear + 7, rear);
+        const float dx = front[0] - (rear[0] + 2048 * (rear[5] - front[5]));
+        const float dy = front[1] - rear[1];
+        const float dz = front[2] - (rear[2] + 2048 * (rear[6] - front[6]));
+        const float length = std::sqrt(dx * dx + dy * dy + dz * dz);
+        // As getCameraPosition turns it.
+        const int side = int((dz + 0.00001f) / std::fabs(dz + 0.00001f));
+        const float rotY = (float(side) + 1.0f) * float(M_PI / 2.0) + std::atan(dx / dz);
+        out[5] = -rotY + float(M_PI);
+        out[6] = length > 0.0f ? std::asin(dy / length) : 0.0f;
+    }
+    // Relative to the front's tile, as getCameraPosition gives it.
+    const float tile[2] = {front[5], -front[6]};
+    float car[16];
+    Mat4::identity(car);
+    CarPlacement::placeCar(car, tile, front, rear, roll, flip);
+    // As a point of its shape, whose root mirrors x.
+    const float *head = cab3D->viewpoints[viewpoint].position;
+    float at[3] = {-head[0], head[1], head[2]};
+    Vec3::transformMat4(at, at, car);
+    std::copy(at, at + 3, out + 2);
+}
+
+// The head's start direction (Open Rails': degrees down, then round from
+// ahead towards the shape's +x) in the riding frame, which has the car's
+// shape facing ahead (-z) unless it is flipped.
+bool Eng::cab3DMount(int viewpoint, CameraMount &mount) const {
+    if (cab3D == nullptr || viewpoint < 0 || viewpoint >= cab3D->viewpoints.size())
+        return false;
+    const Cab3D::Viewpoint &v = cab3D->viewpoints[viewpoint];
+    const float degree = float(M_PI / 180.0);
+    mount = CameraMount();
+    std::fill(mount.position, mount.position + 3, 0.0f);
+    mount.look[0] = (flip ? 0.0f : float(M_PI)) - v.start[1] * degree;
+    mount.look[1] = -v.start[0] * degree;
+    std::copy(CabMove, CabMove + 3, mount.moveBox);
+    mount.moveStep = CabMoveStep;
+    mount.turnLimit[0] = v.limit[1] * degree;
+    mount.turnLimit[1] = v.limit[0] * degree;
+    mount.id = viewpoint + 1;
+    return true;
+}
+
+ComplexShape *Eng::cab3DShapeOf(long long int shapeLibId) {
+    if (!cab3DShape.id.contains(shapeLibId)) {
+        const QString file = cab3DShapePath();
+        ShapeLoadOptions options;
+        options.insert(QString::fromLatin1(ShapeLoadOption::DoubleSided), true);
+        cab3DShape.id[shapeLibId] = file.isEmpty() ? -1
+                : Game::currentShapeLib->addShape(file, QFileInfo(file).path(), options);
+    }
+    const int id = cab3DShape.id[shapeLibId];
+    return id >= 0 ? Game::currentShapeLib->shape[id] : nullptr;
 }
 
 void Eng::getCameraPosition(float* out){
@@ -986,41 +1173,137 @@ void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 sele
     float drawPosition1[7];
     const float *first = ruch1->getCurrentPosition(&selev1);
     std::copy(first, first + 7, drawPosition1);
-    float *drawPosition2 = ruch2->getCurrentPosition(&selev2);
-    pushRenderItemBetween(queue, playerT, selectionId, selected, drawPosition1, drawPosition2,
-                          (selev1 + selev2) / 2.0, flip);
+    float drawPosition2[7];
+    const float *second = ruch2->getCurrentPosition(&selev2);
+    std::copy(second, second + 7, drawPosition2);
+    const float roll = (selev1 + selev2) / 2.0;
+    // On its bogies (task shapes 12), once its animation knows them.
+    float placedFront[7], placedRear[7];
+    std::vector<float> bogieTurns;
+    if (placeOnCarriers(drawPosition1, drawPosition2, roll, placedFront, placedRear, bogieTurns))
+        pushRenderItemBetween(queue, playerT, selectionId, selected, placedFront, placedRear, roll, flip, &bogieTurns);
+    else
+        pushRenderItemBetween(queue, playerT, selectionId, selected, drawPosition1, drawPosition2, roll, flip);
+}
+
+void Eng::setAnimated(CarAnimation::Group group, bool on, bool now) {
+    animationWanted[group] = on;
+    if (carAnimation != nullptr)
+        carAnimation->set(group, on, now);
+}
+
+bool Eng::isAnimated(CarAnimation::Group group) const {
+    return animationWanted[group];
+}
+
+void Eng::setPantograph(int n, bool up) {
+    if (n < 1 || n > 2)
+        return;
+    pantographs[n - 1] = up ? 1 : 0;
+    if (carAnimation != nullptr)
+        carAnimation->setPantograph(n, up, flip != 0);
+}
+
+void Eng::setTravelled(double metres, bool reversed) {
+    if (trainTravelledKnown) {
+        // Along the train's way: toward this car's front (as its consist
+        // lists it) unless the train runs reversed; its shape's front the
+        // other way when flipped.
+        const double gone = (metres - trainTravelled) * (reversed ? -1.0 : 1.0) * (flip ? -1.0 : 1.0);
+        carTravelled += gone;
+    }
+    trainTravelled = metres;
+    trainTravelledKnown = true;
+}
+
+unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns) {
+    if (carShape == nullptr || !carShape->isLoaded())
+        return 0;
+    if (carAnimation == nullptr || posedShape != carShape) {
+        if (posedShape != nullptr)
+            posedShape->releaseState(posedState);
+        delete carAnimation;
+        posedShape = carShape;
+        posedState = carShape->newState();
+        carAnimation = new CarAnimation(*carShape, wagonTypeId >= 4, wagonTypeId == 6, wheelRadius, driverWheelRadius);
+        for (int g = 0; g < CarAnimation::GroupCount; ++g)
+            carAnimation->set(CarAnimation::Group(g), animationWanted[g]);
+        for (int n = 1; n <= 2; ++n)
+            if (pantographs[n - 1] >= 0)
+                carAnimation->setPantograph(n, pantographs[n - 1] > 0, flip != 0);
+        // What it found, with TSRE_ANIMATION_LOG set.
+        static const bool log = qEnvironmentVariableIsSet("TSRE_ANIMATION_LOG");
+        if (log)
+            qInfo().noquote() << "animation" << carShape->getPathId() << carAnimation->summary();
+        carTravelledSeen = carTravelled;
+        animationClock = -1;
+        placedKnown = false;
+    }
+    const qint64 now = animationTimer().elapsed();
+    const float dt = animationClock < 0 ? 0.0f : std::clamp(float(now - animationClock) / 1000.0f, 0.0f, 0.5f);
+    animationClock = now;
+    carAnimation->update(float(carTravelled - carTravelledSeen), dt);
+    carTravelledSeen = carTravelled;
+    carAnimation->pose(*carShape, posedState, bogieTurns);
+    return posedState;
+}
+
+bool Eng::placeOnCarriers(const float *front, const float *rear, float roll, float *placedFront, float *placedRear,
+                          std::vector<float> &bogieTurns) {
+    if (carAnimation == nullptr || carAnimation->carriers().size() < 2 || ruch1 == NULL || ruch2 == NULL
+            || posedShape == nullptr)
+        return false;
+    // Both ends in the front's tile, the way toward the rear at each.
+    const float p0[3] = {front[0], front[1], front[2]};
+    const float p1[3] = {rear[0] + 2048 * (rear[5] - front[5]), rear[1], rear[2] + 2048 * (rear[6] - front[6])};
+    // Placed as last time while its ends and roll are.
+    float key[16];
+    std::copy(front, front + 7, key);
+    std::copy(rear, rear + 7, key + 7);
+    key[14] = roll;
+    key[15] = flip ? 1.0f : 0.0f;
+    if (placedKnown && std::equal(key, key + 16, placedKey)) {
+        std::copy(placedEnds, placedEnds + 7, placedFront);
+        std::copy(placedEnds + 7, placedEnds + 14, placedRear);
+        bogieTurns = placedTurns;
+        return placedOk;
+    }
+    float t0[3], t1[3];
+    // Where the track cannot tell its way: the chord's.
+    float chord[3] = {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
+    const float chordLength = std::sqrt(chord[0] * chord[0] + chord[1] * chord[1] + chord[2] * chord[2]);
+    for (float &c : chord)
+        c = chordLength > 0.0f ? c / chordLength : 0.0f;
+    if (!towardRear(*ruch1, front, t0))
+        std::copy(chord, chord + 3, t0);
+    if (!towardRear(*ruch2, rear, t1))
+        std::copy(chord, chord + 3, t1);
+    std::vector<CarPlacement::Bogie> bogies;
+    for (const CarAnimation::Bogie &b : carAnimation->bogies()) {
+        bogies.emplace_back();
+        bogies.back().z = b.z;
+        if (!posedShape->partRest(b.part, bogies.back().rest))
+            return false;
+    }
+    placedOk = CarPlacement::onCarriers(front, p0, t0, p1, t1, roll, flip != 0, carAnimation->carriers(), bogies,
+                                        placedFront, placedRear, bogieTurns);
+    std::copy(key, key + 16, placedKey);
+    std::copy(placedFront, placedFront + 7, placedEnds);
+    std::copy(placedRear, placedRear + 7, placedEnds + 7);
+    placedTurns = bogieTurns;
+    placedKnown = true;
+    return placedOk;
 }
 
 void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
-                                const float *front, const float *rear, float roll, bool flipped) {
+                                const float *front, const float *rear, float roll, bool flipped,
+                                const std::vector<float> *bogieTurns) {
     if (loaded != 1) return;
 
     const long long int shapeLibId = resolveShapeIds();
 
-    float drawPosition1[7], drawPosition2[7];
-    std::copy(front, front + 7, drawPosition1);
-    std::copy(rear, rear + 7, drawPosition2);
-
-    float pos[5];
-    pos[3] = drawPosition1[5];
-    pos[4] = drawPosition1[6];
-    drawPosition2[0] += 2048*(drawPosition2[5] - drawPosition1[5]);
-    drawPosition2[2] += 2048*(drawPosition2[6] - drawPosition1[6]);
-    Vec3::add(pos, drawPosition1, drawPosition2);
-    Vec3::scale(pos, pos, 0.5);
-    float dlugosc = Vec3::distance(drawPosition1, drawPosition2);
-
-    int someval = (((drawPosition1[2] - drawPosition2[2]) + 0.00001f) / fabs((drawPosition1[2] - drawPosition2[2]) + 0.00001f));
-    float rotY = ((float)someval + 1.0)*(M_PI / 2.0)+(float)(atan((drawPosition1[0] - drawPosition2[0]) / (drawPosition1[2] - drawPosition2[2])));
-    float rotX = -(float)(asin((drawPosition1[1] - drawPosition2[1]) / (dlugosc)));
-
     queue.pushTransform();
-
-    Mat4::translate(queue.transform(), queue.transform(), pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + 0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
-    Mat4::rotateY(queue.transform(), queue.transform(), -rotY);
-    Mat4::rotateX(queue.transform(), queue.transform(), rotX);
-    Mat4::rotate(queue.transform(), queue.transform(), -roll, 0, 0, 1);
-    Mat4::rotateY(queue.transform(), queue.transform(), flipped ? M_PI : 0.0);
+    CarPlacement::placeCar(queue.transform(), playerT, front, rear, roll, flipped);
 
     // Its distance level (shapes task 11) as world objects choose theirs,
     // from where its origin is from the camera; the shadow maps take the
@@ -1035,7 +1318,8 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     if (staticOnTrack) {
         const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
                                   rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
-                                  float(shape.id[shapeLibId]), roll, 0.0f, 0.0f, 0.0f};
+                                  float(shape.id[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
+                                  float(cabViewpoint), 0.0f};
         const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
         queue.addShadowSignature(hash);
         queue.addSceneSignature(hash);
@@ -1051,13 +1335,26 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     const bool animated = queue.animatedEnabled();
     queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(!staticOnTrack);
-    if (shape.id[shapeLibId] >= 0) {
+    // Seen from inside its 3D cab, the cab's shape in place of its body and
+    // its loads (Open Rails draws the cab alone); the body until the cab has
+    // loaded (pushed, a shape starts loading).
+    ComplexShape *cab = cabViewpoint >= 0 ? cab3DShapeOf(shapeLibId) : nullptr;
+    if (cab != nullptr && !cab->isLoaded()) {
+        cab->pushRenderItem(queue, selectionId, 0);
+        cab = nullptr;
+    }
+    if (cab != nullptr) {
+        if (ShapeLod::apply(*cab, 0, place))
+            cab->pushRenderItem(queue, selectionId, 0);
+    } else if (shape.id[shapeLibId] >= 0) {
+        // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shape.id[shapeLibId]];
-        if (ShapeLod::apply(*carShape, 0, place))
-            carShape->pushRenderItem(queue, selectionId, 0);
+        const unsigned int state = poseShape(carShape, bogieTurns);
+        if (ShapeLod::apply(*carShape, state, place))
+            carShape->pushRenderItem(queue, selectionId, state);
     }
 
-    for (int i = 0; i < freightanimShape.size(); i++) {
+    for (int i = 0; i < freightanimShape.size() && cab == nullptr; i++) {
         if (freightanimShape[i].id[shapeLibId] >= 0) {
             queue.pushTransform();
             Mat4::translate(queue.transform(), queue.transform(), freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
@@ -1067,22 +1364,26 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             queue.popTransform();
         }
     }
-    // Its lamps (task renderer 34), once its shape shows.
+    // Its lamps (task renderer 34), once its shape shows; from its cab their
+    // beams alone.
     const EngLights *carLightsData = getLights();
     if (carLightsData != nullptr && shape.id[shapeLibId] >= 0
             && Game::currentShapeLib->shape[shape.id[shapeLibId]]->isLoaded()) {
         if (carLights == nullptr)
             carLights = new CarLights();
-        carLights->push(queue, *carLightsData, lightsTrain, sizez * 0.5f, selectionId);
+        carLights->push(queue, *carLightsData, lightsTrain, sizez * 0.5f, selectionId, cab == nullptr);
     }
     queue.setLayer(layer);
     queue.setAnimated(animated);
-    if (selected)
+    if (selected && cab == nullptr)
         pushDrawBorder3d(queue);
     queue.popTransform();
 }
 
 void Eng::move(float m){
+    // Its wheels turned by it (task shapes 12): toward its front as its
+    // consist lists it, its shape's the other way when flipped.
+    carTravelled += flip ? -m : m;
     if(ruch1 != NULL)
         ruch1->next(m);
     if(ruch2 != NULL)
