@@ -156,12 +156,24 @@ Open Rails rules kept:
   light of the light grid at the cone's position and direction, outer
   half-angle `Angle` / 2, inner about 0.7 of it, reaching the cone's reach
   (the car asks for that reach with `setLightReach`, at most 250 m).
-- One beam a car, its first lit cone (the reversed copies come after the
-  ENG's own), as Open Rails picks its headlight (`LightDrawer`'s active
-  cone). Content relies on it: the EP07's `Lights_303E_v2.inc` (Prudnik's
-  TLK 48511) follows its forward dim and bright cones with cones at the
-  front aimed back over the train, which lit the first coach's end while
-  every lit cone was a beam (user, 2026-10-23).
+- The first lit cone only (the reversed copies come after the ENG's own),
+  as Open Rails picks its headlight (`LightDrawer`'s active cone). Content
+  relies on it: the EP07's `Lights_303E_v2.inc` (Prudnik's TLK 48511)
+  follows its forward dim and bright cones with cones at the front aimed
+  back over the train, which lit the first coach's end while every lit
+  cone was a beam (user, 2026-10-23).
+- A beam out of each head lamp (2026-10-23): the cone gives the way,
+  spread, reach and strength, the car's lit head lamps where the light
+  comes from, the strength shared between them. Head lamps: lit glows
+  about white (weakest channel at least half the strongest: not red tail
+  lamps or blue pantograph effects), facing within about 45 degrees of
+  the cone, in the outer 40 % of the car at the end it shines from;
+  lamps within 5 cm are one (the EP07 lights its player and AI lamps
+  together). A car without such lamps shines the cone's own beam. In
+  Prudnik's valley fog at 03:51 a train coming the other way shows beams
+  from its lamps instead of one from below its buffers; the ballast right
+  in front of it is darker, as content starts its cones low (the EP07's
+  0.1 and 0.6 m up) and the lamps are higher.
 - Strength: TSRE's own, not Open Rails' (user, 2026-10-17: our lights are
   adjusted for our engine): at its reach a beam lights a surface facing it
   to a faint 0.01 (task 21's units, the sun's light 0.7), I = 0.01 pi D^2,
@@ -289,12 +301,10 @@ Open Rails rules kept:
   Open Rails light the scene with one headlight. In fog the beam shows,
   and the simplification with it; to be changed in the data (cones from
   the lamps), not by TSRE guessing. Left for now.
-- Real beams for the fog (user, 2026-10-23): since `f80adc7` a car shines
-  only its first lit cone, Open Rails' rule, because content hides
-  unrelated cones behind it (the EP07's backward ones). That single
-  invisible cone is MSTS' and Open Rails' fake; TSRE's volumetric fog
-  shows each beam, so it needs a beam out of each real lamp, at the
-  lamp's place and aimed its way. Content does not describe that: a way
-  to get it (beams of the lit headlamp glows, a TSRE or ORTS extension of
-  the `Lights` block, or per-lamp cones in our ENGs) is to be decided
-  with the lamps' beam data; the one-cone rule goes with it.
+- Real beams for the fog (user, 2026-10-23): a car takes only its first
+  lit cone, Open Rails' rule, because content hides unrelated cones
+  behind it (the EP07's backward ones). That single invisible cone is
+  MSTS' and Open Rails' fake; TSRE's volumetric fog shows each beam. A
+  first rule shines it out of the lit head lamps (above); each lamp's own
+  aim, spread and strength would need data content does not have (a TSRE
+  or ORTS extension of the `Lights` block, or per-lamp cones in our ENGs).

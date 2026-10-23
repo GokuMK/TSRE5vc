@@ -2,6 +2,7 @@
 #include "TokenTestSupport.h"
 #include <QFile>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <cmath>
 #include <tsre/Game.h>
 #include <tsre/trains/Eng.h>
@@ -300,27 +301,53 @@ int TsreTests::runEngLightsSuite(bool verbose) {
                    "a tail lamp: a centimetre behind, facing backwards");
     }
 
-    // Beams: spot lights of the lit cones, reaching as far as the cones,
-    // from the car's end at the latest (the fixture's cone is 1 m beyond
-    // it).
+    // Beams: spot lights of the first lit cone, reaching as far as it, out
+    // of the car's lit head lamps (white, facing the cone's way, at its
+    // end: the fixture's front lamp; not the white light at the middle);
+    // without lamps from the cone, at the car's end at the latest (the
+    // fixture's cone is 1 m beyond it).
     const float halfLength = eng.sizez * 0.5f;
+    const float half = float(M_PI) / 12.0f, reach = 35.0f / std::sin(half);
+    const float down = 5.0f * float(M_PI) / 180.0f;
+    const float strength = 0.01f * float(M_PI) * reach * reach;
     const std::vector<RenderItem::Light> beams = CarLights::beams(lights, standard, halfLength);
-    test.check(beams.size() == 1, "one beam for the lit cone");
+    test.check(beams.size() == 1, "one beam for the lit cone, out of its one head lamp");
     if (beams.size() == 1) {
         const RenderItem::Light &b = beams[0];
-        const float half = float(M_PI) / 12.0f, reach = 35.0f / std::sin(half);
-        const float down = 5.0f * float(M_PI) / 180.0f;
-        test.check(near(halfLength, 10.0f) && b.type == RenderItem::Light::SPOT && near(b.position[0], -0.5f)
-                       && near(b.position[2], 10.0f) && near(b.position[1], 3.5f + std::tan(down))
+        test.check(near(halfLength, 10.0f) && b.type == RenderItem::Light::SPOT && near(b.position[0], -1.1f)
+                       && near(b.position[1], 1.7f) && near(b.position[2], 8.71f)
                        && near(b.direction[1], -std::sin(down)) && b.direction[2] > 0.99f,
-                   "the beam from the car's end, moved back along it from the cone (x mirrored), a little down");
-        test.check(near(b.range, reach, 1e-2f) && near(b.intensity, 0.01f * float(M_PI) * reach * reach, 1.0f)
+                   "the beam out of the head lamp (x mirrored), the cone's way, a little down");
+        test.check(near(b.range, reach, 1e-2f) && near(b.intensity, strength, 1.0f)
                        && near(b.innerCone, 0.7f * half) && near(b.outerCone, 1.5f * half) && near(b.color[0], 1.0f),
                    "its reach (135 m), its strength (faint at its reach) and cone");
-        const std::vector<RenderItem::Light> unmoved = CarLights::beams(lights, standard, 0.0f);
-        test.check(unmoved.size() == 1 && near(unmoved[0].position[2], 11.0f) && near(unmoved[0].position[1], 3.5f),
-                   "without the car's size, the beam at the cone's place");
     }
+    // Two head lamps share the cone's strength; one lit twice (player and
+    // AI lamps of one place) counts once.
+    EngLights twoLamps = lights, sameLamp = lights, coneOnly = lights;
+    for (const EngLights::Light &light : lights.lights)
+        if (light.type == EngLights::Glow && !light.states.isEmpty() && light.states[0].colour == 0x85fffddau) {
+            EngLights::Light other = light;
+            other.states[0].position[0] = -other.states[0].position[0];
+            twoLamps.lights.push_back(other);
+            sameLamp.lights.push_back(light);
+        }
+    const std::vector<RenderItem::Light> shared = CarLights::beams(twoLamps, standard, halfLength);
+    test.check(shared.size() == 2 && near(shared[0].intensity, strength * 0.5f, 1.0f)
+                   && near(shared[1].intensity, strength * 0.5f, 1.0f)
+                   && near(shared[0].position[0], -shared[1].position[0]),
+               "two head lamps: a beam out of each, half the strength each");
+    test.check(CarLights::beams(sameLamp, standard, halfLength).size() == 1, "a lamp lit twice: one beam");
+    coneOnly.lights.erase(std::remove_if(coneOnly.lights.begin(), coneOnly.lights.end(),
+                                         [](const EngLights::Light &light) { return light.type == EngLights::Glow; }),
+                          coneOnly.lights.end());
+    const std::vector<RenderItem::Light> fromCone = CarLights::beams(coneOnly, standard, halfLength);
+    test.check(fromCone.size() == 1 && near(fromCone[0].position[0], -0.5f) && near(fromCone[0].position[2], 10.0f)
+                   && near(fromCone[0].position[1], 3.5f + std::tan(down)) && near(fromCone[0].intensity, strength, 1.0f),
+               "without head lamps, the cone's beam from the car's end, moved back along it (x mirrored)");
+    const std::vector<RenderItem::Light> unmoved = CarLights::beams(coneOnly, standard, 0.0f);
+    test.check(unmoved.size() == 1 && near(unmoved[0].position[2], 11.0f) && near(unmoved[0].position[1], 3.5f),
+               "without head lamps and the car's size, the beam at the cone's place");
     const std::vector<RenderItem::Light> back = CarLights::beams(lights, flipped, halfLength);
     test.check(back.size() == 1 && near(back[0].position[2], -10.0f) && back[0].direction[2] < -0.99f,
                "flipped: the reversed cone's beam, backwards from the other end");

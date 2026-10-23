@@ -58,6 +58,16 @@ constexpr float BeamRadius = 0.1f;
 // are weaker. TSRE's own scale, not Open Rails' headlight; to be tuned by
 // eye.
 constexpr float BeamLightAtReach = 0.01f;
+// The car's head lamps, which shine its beam (CarLights::beams): lit glows
+// about white (their weakest colour channel at least this share of the
+// strongest; not red tail lamps), facing within about 45 degrees of the
+// beam, in the outer part of the car at the end it shines from (beyond
+// this share of half its length). Lamps closer than LampMerge (metres)
+// are one: player and AI lamps of one place are lit together.
+constexpr float LampWhite = 0.5f;
+constexpr float LampFacing = 0.7f;
+constexpr float LampEnd = 0.6f;
+constexpr float LampMerge = 0.05f;
 
 float toLinear(float c) {
     return std::pow(std::clamp(c, 0.0f, 1.0f), 2.2f);
@@ -296,7 +306,45 @@ std::vector<RenderItem::Light> CarLights::beams(const EngLights &lights, const E
         beam.radius = BeamRadius;
         beam.innerCone = BeamInner * s.halfAngle();
         beam.outerCone = std::min(BeamOuter * s.halfAngle(), float(M_PI) * 0.5f);
-        out.push_back(beam);
+        // The cone gives the beam's way, spread, reach and strength; its
+        // head lamps give where it comes from: a beam out of each, the
+        // cone's strength shared, as real lamps show in fog. Without
+        // lamps, the cone's own beam.
+        std::vector<const Lens *> lamps;
+        const std::vector<Lens> lit = lenses(lights, train);
+        for (const Lens &lens : lit) {
+            const float r = ((lens.colour >> 16) & 255) / 255.0f, g = ((lens.colour >> 8) & 255) / 255.0f,
+                        b = (lens.colour & 255) / 255.0f;
+            const float strongest = std::max({r, g, b});
+            if (strongest <= 0.0f || std::min({r, g, b}) < LampWhite * strongest)
+                continue;
+            const float facing = lens.direction[0] * beam.direction[0] + lens.direction[1] * beam.direction[1]
+                    + lens.direction[2] * beam.direction[2];
+            if (facing < LampFacing)
+                continue;
+            if (std::fabs(beam.direction[2]) > 0.5f
+                    && (lens.position[2] * beam.direction[2] <= 0.0f
+                        || (halfLength > 0.0f && std::fabs(lens.position[2]) < LampEnd * halfLength)))
+                continue;
+            const bool merged = std::any_of(lamps.begin(), lamps.end(), [&](const Lens *other) {
+                const float dx = other->position[0] - lens.position[0], dy = other->position[1] - lens.position[1],
+                            dz = other->position[2] - lens.position[2];
+                return dx * dx + dy * dy + dz * dz < LampMerge * LampMerge;
+            });
+            if (!merged)
+                lamps.push_back(&lens);
+        }
+        if (lamps.empty()) {
+            out.push_back(beam);
+            return out;
+        }
+        for (const Lens *lamp : lamps) {
+            RenderItem::Light own = beam;
+            for (int c = 0; c < 3; ++c)
+                own.position[c] = lamp->position[c];
+            own.intensity = beam.intensity / float(lamps.size());
+            out.push_back(own);
+        }
     }
     return out;
 }
