@@ -74,6 +74,10 @@ uniform float materialTransparency;
 // Rails' 250 of 255), 2 only the others, 0 all.
 uniform int blendedTexels;
 const float BlendedOpaqueAlpha = 250.0 / 255.0;
+// The translucent texels (2) write no depth, so they cover nothing they let
+// through: only the nearly invisible ones are left out, not those under the
+// vertices' threshold (0.3 for blended parts, which hid faint glass).
+const float BlendedTranslucentAlpha = 4.0 / 255.0;
 
 vec2 poissonDisk[16] = vec2[]( 
    vec2( -0.94201624, -0.39906216 ), 
@@ -163,7 +167,7 @@ void main() {
             //    discard;    
             fragColor.a = max(fragColor.a, vAlpha);  
             // discard if transparent 
-            if(fragColor.a < -vAlpha)
+            if(fragColor.a < (blendedTexels == 2 ? min(-vAlpha, BlendedTranslucentAlpha) : -vAlpha))
                 discard;
             if(blendedTexels == 1) {
                 if(fragColor.a < BlendedOpaqueAlpha)
