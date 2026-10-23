@@ -217,8 +217,9 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
         return;
     auto &s = d->states[id];
     auto &lod = d->lods[s.lod];
-    // Animated states own their packets; static ones share theirs by key.
-    const bool animated = s.animated && !d->animations.empty();
+    // Animated or posed states own their packets; static ones share theirs
+    // by key.
+    const bool animated = (s.animated && !d->animations.empty()) || s.pose.posed;
     Data::SharedPackets *shared = nullptr;
     if (!animated) {
         shared = &d->sharedPackets[packetKey(id)];

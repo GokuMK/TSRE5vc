@@ -25,6 +25,7 @@
 #include <QVector>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeAnimation.h>
 
 class RenderQueue;
 
@@ -151,44 +152,16 @@ public:
         }
     };
 
-    struct AnimFrameId {
-        unsigned int id1 = 0;
-        unsigned int id2 = 0;
-        float offset = 0;
-    };
-
-    struct AnimNode {
-        struct TcbKey {
-            int frame = 0;
-            float quat[4];
-            float param[5];
-        };
-        struct SlerpRot {
-            int frame = 0;
-            float quat[4];
-        };
-        struct LinearKey {
-            int frame = 0;
-            float pos[3];
-        };
-        QVector<TcbKey> tcbKey;
-        QVector<AnimFrameId> tcbId;
-        QVector<SlerpRot> slerpRot;
-        QVector<AnimFrameId> slerpbId;
-        QVector<LinearKey> linearKey;
-        QVector<AnimFrameId> linearId;
-    };
-
+    // Its keyframe animation: one channel per matrix (ShapeAnimation).
     struct Animation {
         int frames = 0;
         float fps = 0;
-        QVector<AnimNode> node;
+        QVector<ShapeAnimation::Channel> node;
         void loadC(FileBuffer* data, int length);
         void loadX(FileBuffer* data);
     };
 
     QVector<Animation> animations;
-    bool animated = false;
 
     QString pathid;
     QString sciezka;
@@ -258,6 +231,18 @@ public:
     bool isSnapable() const override;
     void addSnapablePoints(QVector<float> &out) override;
     bool matrixByName(const QString &name, float *out) const override;
+    int partCount() const override;
+    QString partName(int part) const override;
+    int partParent(int part) const override;
+    bool partRest(int part, float *out) const override;
+    float partLastFrame(int part) const override;
+    float animationFrames() const override;
+    float animationRate() const override;
+    void setPartFrame(unsigned int stateId, int part, float frame) override;
+    void setPartTransform(unsigned int stateId, int part, const float *local) override;
+    void clearPose(unsigned int stateId) override;
+    bool partMatrix(unsigned int stateId, int part, float *out) const override;
+    void releaseState(unsigned int stateId) override;
     void reload() override;
     unsigned int newState() override;
     void setAnimated(unsigned int stateId, bool animated) override;
@@ -323,6 +308,10 @@ public:
 private:
     struct State {
         bool animated = false;
+        // Its parts posed (setPartFrame, setPartTransform).
+        ShapeAnimation::Pose pose;
+        // Released (releaseState): newState() takes it again.
+        bool released = false;
         int enabledSubObjs = 0xFFFFFFFF;
         float frameCount = 0;
         unsigned long long int lastTime = 0;
@@ -333,8 +322,12 @@ private:
 
     void loadSd();
     float* getPmatrix(int currentDlevel, float* pmatrix, int matrix);
-    float* getPmatrixAnimated(int currentDlevel, float* pmatrix, int matrix, float frame);
-    void buildFrameIds();
+    // Every matrix of the level as the state poses it, with its parents,
+    // into `out` (one 4x4 per matrix).
+    void posedMatrices(unsigned int stateId, int currentDlevel, std::vector<std::array<float, 16>> &out) const;
+    // Whether the state's parts move: drawn with matrices of its own.
+    bool movesParts(unsigned int stateId) const;
+    std::vector<std::array<float, 16>> posedScratch;
     bool snapable = false;
     //float *mvMatrix = NULL;
     bool requiresUpdate = false;

@@ -92,6 +92,32 @@ public:
     virtual void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val);
     virtual void updateSim(float deltaTime, unsigned int stateId = 0) = 0;
 
+    // Its parts (task shapes 12): its matrices, as it names them, in the
+    // most detailed level's hierarchy (-1: at the root), each one's rest
+    // transform relative to its parent (4x4, column major) and the last
+    // frame of its keys (-1 without keys); the animation's frame count and
+    // rate (frames a second), 0 without one. Empty until loaded.
+    virtual int partCount() const { return 0; }
+    virtual QString partName(int part) const;
+    virtual int partParent(int part) const;
+    virtual bool partRest(int part, float *out) const;
+    virtual float partLastFrame(int part) const;
+    virtual float animationFrames() const { return 0.0f; }
+    virtual float animationRate() const { return 0.0f; }
+    // A state's pose (rolling stock: wheels, bogies, doors): a part at a
+    // frame of its keys (ShapeAnimation), or at a transform of its own,
+    // relative to its parent (null: back to its keys or rest). The other
+    // parts stay at rest, or loop with the state's animation (setAnimated).
+    virtual void setPartFrame(unsigned int stateId, int part, float frame);
+    virtual void setPartTransform(unsigned int stateId, int part, const float *local);
+    virtual void clearPose(unsigned int stateId);
+    // A part as the state poses it, with its parents, in the most detailed
+    // level: the space the shape's vertices are drawn in. False when the
+    // shape is not loaded or has no such part.
+    virtual bool partMatrix(unsigned int stateId, int part, float *out) const;
+    // A state no longer used (a car gone): newState() may give it again.
+    virtual void releaseState(unsigned int stateId);
+
     virtual void pushRenderItem(RenderQueue &queue) = 0;
     virtual void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) = 0;
 
@@ -113,6 +139,54 @@ public:
     // has no such matrix.
     virtual bool matrixByName(const QString &name, float *out) const;
 };
+
+inline QString ComplexShape::partName(int part) const {
+    (void)part;
+    return QString();
+}
+
+inline int ComplexShape::partParent(int part) const {
+    (void)part;
+    return -1;
+}
+
+inline bool ComplexShape::partRest(int part, float *out) const {
+    (void)part;
+    (void)out;
+    return false;
+}
+
+inline float ComplexShape::partLastFrame(int part) const {
+    (void)part;
+    return -1.0f;
+}
+
+inline void ComplexShape::setPartFrame(unsigned int stateId, int part, float frame) {
+    (void)stateId;
+    (void)part;
+    (void)frame;
+}
+
+inline void ComplexShape::setPartTransform(unsigned int stateId, int part, const float *local) {
+    (void)stateId;
+    (void)part;
+    (void)local;
+}
+
+inline void ComplexShape::clearPose(unsigned int stateId) {
+    (void)stateId;
+}
+
+inline bool ComplexShape::partMatrix(unsigned int stateId, int part, float *out) const {
+    (void)stateId;
+    (void)part;
+    (void)out;
+    return false;
+}
+
+inline void ComplexShape::releaseState(unsigned int stateId) {
+    (void)stateId;
+}
 
 inline bool ComplexShape::matrixByName(const QString &name, float *out) const {
     (void)name;

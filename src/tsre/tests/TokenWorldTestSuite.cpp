@@ -450,9 +450,9 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
         SFileLegacy::Animation animation;
         animation.loadC(data.get(), header.end);
         test.check(animation.frames == 8 && animation.node.size() == 1
-                   && animation.node[0].linearKey.size() == 1
-                   && animation.node[0].linearKey[0].frame == 3
-                   && animation.node[0].linearKey[0].pos[2] == 6, "actual shape animation reader: scoped keys and labels");
+                   && animation.node[0].positions.size() == 1
+                   && animation.node[0].positions[0].frame == 3
+                   && animation.node[0].positions[0].position[2] == 6, "actual shape animation reader: scoped keys and labels");
     }
     {
         const QByteArray rotation = block(TS::tcb_rot, uints({2})
@@ -464,12 +464,13 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
         const auto header = data->readBlock();
         SFileLegacy::Animation animation;
         animation.loadC(data.get(), header.end);
-        test.check(animation.node.size() == 1 && animation.node[0].tcbKey.size() == 1
-            && animation.node[0].slerpRot.size() == 1
-            && animation.node[0].tcbKey[0].quat[0] == -1
-            && animation.node[0].tcbKey[0].param[4] == 9
-            && animation.node[0].slerpRot[0].quat[2] == -3,
-            "TCB and slerp token dispatch preserves quaternion convention");
+        test.check(animation.node.size() == 1 && animation.node[0].rotations.size() == 2
+            && animation.node[0].rotations[0].frame == 1
+            && animation.node[0].rotations[0].rotation[0] == -1
+            && animation.node[0].rotations[0].rotation[3] == 4
+            && animation.node[0].rotations[1].frame == 2
+            && animation.node[0].rotations[1].rotation[2] == -3,
+            "TCB and slerp keys: rotation keys in TSRE's space (the conjugate)");
     }
     {
         auto data = buffer(block(TS::points, uints({1}) + block(TS::point, floats({1, 2})))

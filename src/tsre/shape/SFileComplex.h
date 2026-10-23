@@ -5,6 +5,7 @@
 
 class QMatrix4x4;
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeAnimation.h>
 
 class RenderQueue;
 
@@ -60,6 +61,18 @@ class SFileComplex final : public ComplexShape {
     void adopt(ComplexShape &copy) override;
     void reload() override;
     unsigned int newState() override;
+    void releaseState(unsigned int) override;
+    int partCount() const override;
+    QString partName(int) const override;
+    int partParent(int) const override;
+    bool partRest(int, float *) const override;
+    float partLastFrame(int) const override;
+    float animationFrames() const override;
+    float animationRate() const override;
+    void setPartFrame(unsigned int, int, float) override;
+    void setPartTransform(unsigned int, int, const float *) override;
+    void clearPose(unsigned int) override;
+    bool partMatrix(unsigned int, int, float *) const override;
     void setAnimated(unsigned int, bool) override;
     void setEnabledSubObjs(unsigned int, unsigned int) override;
     void setCurrentDistanceLevel(unsigned int, int) override;
@@ -89,9 +102,10 @@ class SFileComplex final : public ComplexShape {
     bool extract();
     void loadMetadata(bool readFile = true);
     void updateMatrices(unsigned int);
-    // Hierarchy matrices of a LOD at an animation frame; animated false
-    // gives the static pose.
-    void fillMatrices(int lod, bool animated, float frame, std::vector<QMatrix4x4> &out) const;
+    // Hierarchy matrices of a LOD as the pose has its parts (null: none),
+    // the others looping at `frame` when `looping`, else at rest.
+    void fillMatrices(int lod, const ShapeAnimation::Pose *pose, bool looping, float frame,
+                      std::vector<QMatrix4x4> &out) const;
     // Static pose of a LOD, shared by non-animated states.
     const std::vector<QMatrix4x4> &staticMatrices(int lod);
     // Identifies the parts a state draws, for sharing static packets.
