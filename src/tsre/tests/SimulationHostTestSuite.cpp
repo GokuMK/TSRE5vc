@@ -16,6 +16,7 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QThread>
+#include <set>
 #include <QTime>
 #include <QTreeWidget>
 #include <cmath>
@@ -401,6 +402,63 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
     };
     const double realTime = rateAt(1.0);
     check(realTime > 0.5 && realTime < 1.5, QString("at 1× the simulation keeps to the clock (%1×)").arg(realTime));
+    {
+        // At 1× a running train moves in the frames every tick, not only at
+        // each step (0.1 s): drawn moved on by the time not yet stepped.
+        // From the start again, then on, 5 s at a time, to where a train
+        // runs.
+        const unsigned long long restarted = send([shared](Sim::SimulationHost *h, unsigned long long n) { h->start(shared, n); });
+        waitFor(latest, acknowledged(restarted), 5000);
+        for (int i = 0; i < 120; ++i) {
+            FramePointer now = host->frame();
+            bool running = false;
+            for (const Sim::TrainFrame &train : now->trains)
+                running = running || (!train.fronts.empty() && train.state.speed > 2.0f);
+            if (running)
+                break;
+            const double to = now->time + 5.0;
+            const unsigned long long ran = send([to](Sim::SimulationHost *h, unsigned long long n) { h->runTo(to, n); });
+            waitFor(latest, [&](const Sim::SimulationFrame &x) { return x.acknowledged >= ran && x.mode == Sim::RunMode::Paused; },
+                    5000);
+        }
+        send([](Sim::SimulationHost *h, unsigned long long n) { h->setSpeed(1.0, n); });
+        const unsigned long long playing = send([](Sim::SimulationHost *h, unsigned long long n) { h->play(n); });
+        waitFor(latest, acknowledged(playing), 5000);
+        QElapsedTimer wall;
+        wall.start();
+        FramePointer last;
+        int frames = 0, moves = 0, watch = -1;
+        std::set<unsigned long long> steps;
+        float lastX = 0.0f, lastZ = 0.0f;
+        QStringList speeds;
+        while (wall.elapsed() < 400) {
+            FramePointer now = host->frame();
+            if (now != nullptr && watch < 0) {
+                speeds.clear();
+                for (size_t t = 0; t < now->trains.size(); ++t) {
+                    speeds << QString::number(now->trains[t].state.speed, 'f', 1);
+                    if (watch < 0 && !now->trains[t].fronts.empty() && now->trains[t].state.speed > 0.5f)
+                        watch = int(t);
+                }
+            }
+            if (now != nullptr && now != last && watch >= 0 && size_t(watch) < now->trains.size()
+                    && !now->trains[size_t(watch)].fronts.empty()) {
+                last = now;
+                const Sim::TrackPose &front = now->trains[size_t(watch)].fronts[0];
+                moves += frames > 0 && (front.x != lastX || front.z != lastZ) ? 1 : 0;
+                lastX = front.x;
+                lastZ = front.z;
+                steps.insert(now->steps);
+                ++frames;
+            }
+            QThread::msleep(1);
+        }
+        const unsigned long long paused = send([](Sim::SimulationHost *h, unsigned long long n) { h->pause(n); });
+        waitFor(latest, acknowledged(paused), 5000);
+        check(frames >= 10 && moves > int(steps.size()) + frames / 3,
+              QString("at 1× a running train moves in %1 of %2 frames, over %3 steps (speeds %4)")
+                  .arg(moves).arg(frames).arg(steps.size()).arg(speeds.join(", ")));
+    }
     const double fast = rateAt(64.0);
     check(fast > 24.0 && fast < 96.0, QString("at 64× (%1×)").arg(fast));
 

@@ -16,10 +16,19 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
     if (before != nullptr && before->runId != frame->runId)
         before = nullptr;
     frame->trains.resize(states.size());
+    // Trains are drawn where they are by the time not yet stepped (under a
+    // step, 0.1 s), their speed and acceleration carried on, short of where
+    // they would stop: they move every tick, not every step. The steps, and
+    // so the run, stay as they are.
+    const double unstepped = core.pendingTime();
     for (size_t i = 0; i < states.size(); ++i) {
         TrainFrame &train = frame->trains[i];
         train.state = states[i];
-        core.vehicleEnds(int(i), train.fronts, train.rears);
+        const double v = states[i].speed, a = states[i].acceleration;
+        double ahead = v * unstepped + 0.5 * a * unstepped * unstepped;
+        if (a < 0.0 && v + a * unstepped < 0.0)
+            ahead = v * v / (-2.0 * a);
+        core.vehicleEnds(int(i), train.fronts, train.rears, std::max(ahead, 0.0));
         train.carsVersion = core.carsVersion(int(i));
         if (before != nullptr && i < before->trains.size() && before->trains[i].vehicles != nullptr
                 && before->trains[i].carsVersion == train.carsVersion)

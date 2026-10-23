@@ -476,6 +476,31 @@ Engine ( Test
               && std::fabs(std::hypot(fronts[0].x - rears[0].x, fronts[0].z - rears[0].z) - 20.0f) < 0.05f
               && std::fabs(rears[0].x - fronts[1].x) < 0.05f && fronts[0].x > rears[1].x,
           "its cars' ends: 20 m apart, coupled, the first ahead");
+    {
+        // Drawn between steps (SimulationHost): moved on by the time not yet
+        // stepped, and at the next step where that step puts it.
+        Sim::SimulationCore drawn(input);
+        for (int i = 0; i < 15; ++i)
+            drawn.step(1.0);
+        const auto aheadIn = [&](double dt) {
+            const Sim::TrainState &s = drawn.trains()[0];
+            return std::max(0.0, s.speed * dt + 0.5 * s.acceleration * dt * dt);
+        };
+        std::vector<Sim::TrackPose> still, half, predicted, stepped, ends;
+        drawn.vehicleEnds(0, still, ends);
+        drawn.step(0.05);
+        const double unstepped = drawn.pendingTime();
+        drawn.vehicleEnds(0, half, ends, aheadIn(unstepped));
+        drawn.vehicleEnds(0, predicted, ends, aheadIn(Sim::SimulationCore::MaxStep));
+        drawn.step(0.05);
+        drawn.vehicleEnds(0, stepped, ends);
+        const float moved = std::hypot(half[0].x - still[0].x, half[0].z - still[0].z);
+        const float apart = std::hypot(predicted[0].x - stepped[0].x, predicted[0].z - stepped[0].z);
+        check(std::fabs(unstepped - 0.05) < 1e-6 && moved > 0.2f && moved < 0.35f && apart < 0.02f
+                  && drawn.pendingTime() < 1e-6,
+              QString("between steps drawn moved on (%1 m after 0.05 s at 5 m/s), at the step where it puts it (%2 m)")
+                  .arg(moved).arg(apart));
+    }
     int steps = 0;
     while (core.trains()[0].part == 0 && steps++ < 1000)
         core.step(1.0);
