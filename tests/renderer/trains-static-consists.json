@@ -1,0 +1,40 @@
+{
+ "output": "build/renderer-trains-static-consists",
+ "width": 1280,
+ "height": 800,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 30,
+ "hideAll": true,
+ "views": [
+  {
+   "name": "trains",
+   "tile": [
+    97,
+    118
+   ],
+   "pos": [
+    -0.93,
+    28.85,
+    -64.21
+   ],
+   "rot": [
+    -3.161314874137329,
+    -0.2607521902479528
+   ],
+   "time": 12,
+   "weatherPreset": "clear",
+   "settle": {
+    "minFrames": 40,
+    "stableFrames": 3,
+    "maxFrames": 120,
+    "maxSeconds": 120
+   }
+  }
+ ],
+ "activity": "file0.act",
+ "notes": "The user's TRAINS test scene (2026-10-23): 15 static consists of activity file0 (37 engines, 150 wagons of 22 kinds) on a flat route; the car rendering cost (renderer task 37, static consists in the cached shadow maps)."
+}

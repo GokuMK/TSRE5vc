@@ -1150,7 +1150,7 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
     // A timetable set's static trains, as loose consists (task 08).
     if (isTimetables() && showsLooseConsists() && renderMode != RenderQueue::RENDER_SELECTION)
         for (const std::shared_ptr<Consist> &standing : timetableStatics())
-            standing->pushRenderItemsOnTrack(queue, playerT, 0);
+            standing->pushRenderItemsOnTrack(queue, playerT, 0, false, true);
 
     for (int i = 0; i < activityFailedSignal.size(); i++) {
         activityFailedSignal[i]->pushRenderItems(queue, playerT, renderMode, i + 3500);

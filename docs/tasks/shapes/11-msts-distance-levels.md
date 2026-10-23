@@ -44,6 +44,13 @@ the grass shapes' far level (a field thins in the middle distance, as in Open
 Rails); mode 2 also drops a near catenary mast and leaves bare patches in the
 grass from a high editor camera, so it is not the default.
 
+Rolling stock (2026-10-23): each car on the track chooses its level the
+same way (`Eng::pushRenderItemBetween`, its freight loads too), from its
+origin's distance to the camera; the shadow maps take the same level, so a
+near car shadows itself in detail. In the TRAINS scene (renderer task 37)
+few cars are far enough to change: 0.23 % of pixels, 2793 draws against
+2775 at level 0.
+
 ## Not covered
 
 - Signals, dynamic track and forests (their own paths; forests have no

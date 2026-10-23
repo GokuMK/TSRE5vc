@@ -296,8 +296,9 @@ Drawn on top every frame:
 - what animates (`RenderQueue::setAnimated`, `WorldObj::animates`):
   objects with the Animate flag (MSTS and glTF shapes animate only with it),
   car spawners with their cars, level crossings, signals (arms in the
-  simulation), and rolling stock, which always counts as animated
-  (`Eng::pushRenderItemBetween`: its freight loads and lamps too);
+  simulation), and trains, which count as animated standing or not (doors,
+  pantographs; `Eng::pushRenderItemBetween`: their freight loads and lamps
+  too);
 - objects being edited (`RenderQueue::setShadowDynamic`,
   `WorldObj::recentlyChanged`);
 - overlay and frame items (markers).
@@ -305,6 +306,19 @@ Drawn on top every frame:
 What animates is no roof in the sky enclosure maps either (task 27): cached
 too, they would keep its cover where it stood. Objects being edited stay
 roofs, the enclosure following them.
+
+Static consists are not animated (the user, 2026-10-23): an activity's loose
+consists, a timetable set's static trains and the simulation's standing
+trains (`Consist::pushRenderItemsOnTrack`'s `staticConsist`,
+`Eng::staticOnTrack`) go into the cached shadow maps and are roofs in the
+enclosure. Each car adds its track placement to both sums, so the caches
+are drawn again when one is placed, moved, coupled away or comes into reach.
+The user's TRAINS scene (`tests/renderer/trains-static-consists.json`: 15
+consists, 37 engines and 150 wagons on a flat route, 1280x800): frame 91.1
+to 58.1 ms, CPU 25.3 to 13.8 ms, draws 6972 to 2793 (the shadow passes drew
+the cars into all three maps every frame); cached and uncached identical.
+The cars' own work there is small: placement and lamp state 0.55 ms a
+frame, submitting their shapes 0.72 ms.
 
 Rolling stock (fixed 2026-10-23, the user): trains are pushed in the scene
 layer, so the overlay rule missed them and a running simulation train cast

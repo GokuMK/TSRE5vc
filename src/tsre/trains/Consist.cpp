@@ -828,7 +828,8 @@ void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
 
 bool Consist::showBorder = true;
 
-void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool outlined) {
+void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool outlined,
+                                     bool staticConsist) {
     if (loaded != 1) return;
 
     quint32 scolor = 0;
@@ -837,8 +838,10 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
         if (selectionId != 0) {
             scolor = SelectionIdCodec::withPart(selectionId, i);
         }
-        if (engItems[i].engPointer != NULL)
+        if (engItems[i].engPointer != NULL) {
             engItems[i].engPointer->lightsTrain = lightsTrain(i);
+            engItems[i].engPointer->staticOnTrack = staticConsist;
+        }
         if (engItems[i].engPointer != NULL)
             engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor,
                                                           showBorder && (outlined || selectedIdx == i));

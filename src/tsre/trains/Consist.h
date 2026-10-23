@@ -139,7 +139,10 @@ public:
     // and the selected one; neither without showBorder (the Consist
     // properties' Show border, for every consist, not saved).
     static bool showBorder;
-    void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId, bool outlined = false);
+    // `staticConsist`: an activity's loose consist, a timetable set's static
+    // train or the simulation's standing train: not animated (Eng::staticOnTrack).
+    void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId, bool outlined = false,
+                                bool staticConsist = false);
     // The state vehicle's lights show (task renderer 34): its place in the
     // consist (first, last, flipped, coupled, the leading locomotive), the
     // scene's day and weather, the rest the test state until the

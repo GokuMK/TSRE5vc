@@ -860,7 +860,7 @@ void SimulationController::pushRenderItems(RenderQueue &queue, float *playerT, i
         const TrackPose &a = st.fronts.front();
         if (std::fabs(a.tileX - playerT[0]) > reach || std::fabs(-a.tileZ - playerT[1]) > reach)
             continue;
-        consist->pushRenderItemsOnTrack(queue, playerT, 0, false);
+        consist->pushRenderItemsOnTrack(queue, playerT, 0, false, true);
     }
 }
 
