@@ -294,8 +294,14 @@ logs these redraws too.
 Drawn on top every frame (`RenderQueue::setShadowDynamic`,
 `WorldObj::castsMovingShadow`): objects with the Animate flag (MSTS and glTF
 shapes animate only with it), car spawners, level crossings, signals (arms
-in the simulation), overlay and frame items (trains, markers), and objects
-being edited.
+in the simulation), rolling stock (`Eng::pushRenderItemBetween`), overlay
+and frame items (markers), and objects being edited.
+
+Rolling stock (fixed 2026-10-23, the user): trains are pushed in the scene
+layer, so the overlay rule missed them and a running simulation train cast
+into the cached static maps, its shadow left behind until a redraw. Every
+car on the track, its freight loads and lamps now cast on top, also the
+editors' standing consists (a few cars).
 
 Editing (the user's question, 2026-10-21): an object is dynamic while it is
 changed and for a second after its last change (`WorldObj::changedAt`,
