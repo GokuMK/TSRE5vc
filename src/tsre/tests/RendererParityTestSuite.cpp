@@ -95,6 +95,10 @@ struct ViewSpec {
     int trainVehicle = -1;
     float trainEye[3] = {0, 0, 0};
     float trainAt[3] = {0, 0, 0};
+    // The simulation run on to this time before the view ("HH:mm:ss",
+    // after the file's "simulateTo"): what a train does a few seconds on,
+    // such as doors opening at a stop.
+    QString simulateTo;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -395,6 +399,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.train = object.value("train").toInt(-1);
         view.trainView = object.value("trainView").toString();
         view.trainVehicle = object.value("trainVehicle").toInt(-1);
+        view.simulateTo = object.value("simulateTo").toString();
         readFloatArray(object.value("trainEye"), view.trainEye, 3);
         readFloatArray(object.value("trainAt"), view.trainAt, 3);
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
@@ -745,6 +750,28 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     }
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
+        if (!spec.simulateTo.isEmpty()) {
+            Sim::SimulationController *simulation = Sim::SimulationController::instance();
+            const QTime time = QTime::fromString(spec.simulateTo, "HH:mm:ss");
+            QString error;
+            Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
+            if (!time.isValid() || !simulation->runTo(activity, time.msecsSinceStartOfDay() / 1000, &error)) {
+                qWarning() << CaptureLog << spec.name << "no simulation to" << spec.simulateTo << error;
+            } else {
+                QElapsedTimer waited;
+                waited.start();
+                while (waited.elapsed() < 300000) {
+                    QCoreApplication::processEvents();
+                    simulation->poll();
+                    const auto frame = simulation->frame();
+                    if (frame->acknowledged >= simulation->lastCommand() && frame->mode == Sim::RunMode::Paused)
+                        break;
+                    QThread::msleep(2);
+                }
+                qInfo().noquote() << CaptureLog << spec.name << "simulated to" << simulation->frame()->time
+                                  << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
+            }
+        }
         if (spec.windowWidth > 0 && spec.windowHeight > 0) {
             widget.resize(spec.windowWidth, spec.windowHeight);
             QCoreApplication::processEvents();
