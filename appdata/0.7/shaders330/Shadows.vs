@@ -22,6 +22,9 @@ uniform int terrainMapPass;
 
 out vec2 vTextureCoord;
 out float vTerrainGap;
+// Paged terrain casts whole, its texture's alpha aside (it is drawn
+// opaque, StandardFog).
+out float vOpaque;
 
 void main() {
     // QRhi has no packed 2_10_10_10 vertex format: the paged terrain normal
@@ -56,4 +59,5 @@ void main() {
     gl_Position = uShadowPMatrix * instanceModelView() * uMSMatrix * renderVertex;
     vTextureCoord = renderUv;
     vTerrainGap = terrainPaged != 0 && terrainApplyGaps != 0 ? vertexNormal.w : 0.0;
+    vOpaque = terrainPaged != 0 ? 1.0 : 0.0;
 }

@@ -77,4 +77,9 @@ Noted in their tasks:
   holes where the alpha was under 0.01. `StandardFog`/`StandardFast` set
   alpha 1 for terrain outside the map's terrain pass, as Open Rails draws
   it; the whole terrain a little more saturated (it was washed with sky
-  wherever its alpha was below 1).
+  wherever its alpha was below 1). Terrain casts no sun shadows (task 10),
+  but the sky enclosure maps draw it with the shadow program, which drops
+  texels under alpha 0.3: holes in terrain covering a tunnel or underpass
+  let the sky in. Paged terrain is whole there now (`Shadows.vs/fs`,
+  `vOpaque`); the legacy mesh is still tested (Prudnik's views, with no
+  covered terrain, are unchanged to the pixel).

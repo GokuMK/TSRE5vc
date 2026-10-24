@@ -2,6 +2,7 @@
 
 in vec2 vTextureCoord;
 in float vTerrainGap;
+in float vOpaque;
 in float fogFactor;
 in vec3 vNormal;
 
@@ -27,7 +28,7 @@ void main() {
         if(vTerrainGap > 0.0)
             discard;
       //color = vec4(1.0, 1.0, 0.5, 1.0);
-        if(textureEnabled != 0){
+        if(textureEnabled != 0 && vOpaque < 0.5){
             vec4 color = texture(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
             //color.a = max(color.a, isAlpha);  
             if(color.a < alphaTest)
