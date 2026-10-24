@@ -150,13 +150,14 @@ player's, works another way.
   connection. A loco script returns its force demand, brake force and
   power drawn; C++ applies them and gives the wheel slip back on the next
   step.
-- **The Lua runtime in its own folder** (`docs/tasks/scripting/`) when it
-  starts: embedding, one Lua state per thread (the simulation's, the
-  UI's), a sandbox, the state tables, saving, reloading. RmlUi, cab
-  displays, signal scripts and loco scripts all use it, so it is designed
-  once.
-- **RmlUi** for the game UI and cab displays in its own folder when that
-  work starts.
+- **The Lua runtime in its own folder** (`docs/tasks/scripting/`):
+  embedding, one Lua state per thread (the simulation's, the UI's), a
+  sandbox, the state tables, saving, reloading. RmlUi, cab displays,
+  signal scripts and loco scripts all use it, so it is designed once.
+  Started 2026-10-25 with RmlUi:
+  `docs/tasks/scripting/01-lua-and-rmlui-foundations.md` (design).
+- **RmlUi** for the game UI and cab displays: its foundations in the same
+  scripting task; the game UI and cab display tasks when that work starts.
 
 ## Execution Order (first steps)
 - [x] Core: `docs/tasks/core/si-units.md`, SI inside and the user's units
