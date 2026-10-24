@@ -1,7 +1,8 @@
 # Task 01 - Lua and RmlUi foundations
 
-Status: design (2026-10-25); nothing built. The open questions at the end
-wait for the user.
+Status: design (2026-10-25); nothing built. The user's answers of
+2026-10-25 are at the end; where vendored code lives and drawing to a
+texture are still open.
 
 The user's request (2026-10-25): put RmlUi and Lua into the project before
 the driving work needs them; design first: where they live in the project,
@@ -246,19 +247,18 @@ thread.
 5. Measures (Release): the build time and binary size added, the HUD's
    CPU time per frame, memory.
 
-## Open questions (for the user)
-1. **Source folders**: `src/tsre/script/` and `src/tsre/ui/`, or other
-   names (`ui` next to the editors' `gui` may confuse)?
-2. **Fonts**: ship one free family in `appdata/0.7/ui/fonts/` (Noto Sans,
-   SIL OFL, Latin with Polish, Greek, Cyrillic; regular and bold about
-   1 MB), so documents look the same everywhere; or use the system's fonts
-   through Qt only?
-3. **Translations of TSRE's own documents**: text ids in the RML (for
-   example `ui.hud.speed`) translated through the existing English and
-   Polish catalogues, the validator also reading `appdata/0.7/ui/`; or
-   English only for now?
-4. **First use**: the HUD as above, SimpleHud kept as an option until you
-   have looked at it; or another first document?
-5. **Lua 5.5** rather than 5.4: recommended (above); scripts written for
-   5.4 run unless they use `global` as a name or change a `for` loop's
-   variable.
+## Decisions (user, 2026-10-25)
+1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.
+2. **A font shipped** in `appdata/0.7/ui/fonts/`: yes (Noto Sans regular
+   and bold, SIL OFL, its licence beside it).
+3. **TSRE's own documents stay in English**: the system interface's
+   `TranslateString` returns the text unchanged. Translating later would
+   mean text ids in the documents looked up in the en/pl catalogues there.
+4. **First use**: the HUD, SimpleHud kept as an option until reviewed.
+5. **Lua 5.5**: yes.
+
+## Still open
+- Where vendored code lives: `src/thirdparty/` (miniaudio today) or a
+  `thirdparty/` beside `src/`, and whether miniz and earcut move there.
+- Drawing documents straight into the frame (proposed above for the
+  screen) or into a texture first (needed by cab displays later).
