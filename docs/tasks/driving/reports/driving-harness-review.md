@@ -193,6 +193,46 @@ temperature, the consist's mean brake pipe pressure for the lead.
 - Licence: the code MPL 2.0 (file-level copyleft); the assets (vehicle
   definitions, cabs, sounds) under a separate custom licence.
 
+### Vehicle files and placement (checked 2026-10-24)
+- A vehicle type is a pair of text files in its folder under `dynamic/`:
+  `<type>.fiz`, the physics (read by `LoadFIZ`, `vehicle/DynObj.cpp:1987`),
+  and `<type>.mmd`, the rest (`LoadMMediaFile`, `DynObj.cpp:5181`):
+  `models:` the 3D model (`.t3d`/`.e3d`, relative to the folder; a trailing
+  `#` for several replaceable textures), `animations:`, `sounds:`,
+  `internaldata:` (the cabs: model, driver positions, controls bound to
+  submodels, Python screens), attachments, loads, destination signs.
+  Textures are looked up in the vehicle's folder.
+- No consist files: a scenario defines trains inline in `trainset ...
+  endtrainset` blocks of `dynamic` entries (`simulation/simulationstateserializer.cpp:1518`):
+  `<data folder> <skin> <type> <track> <offset> <driver> <coupling>
+  <velocity> <load amount> <load type>`. A vehicle is a folder, a type and
+  a skin; the skin (replaceable texture) is chosen where the vehicle is
+  placed, so one type serves every livery.
+- For the ENG-making script: one ENG per folder, type and skin (a livery
+  wanted in TSRE); its shape the `.mmd`'s model drawn by the MaSzyna shape
+  class, the skin passed as a shape load option (as double-sided drawing is
+  passed for 3D cabs); the ENG keeps the `.fiz` and `.mmd` names so later
+  tasks find the physics, cab and sounds; only what TSRE's simulation uses
+  today (length, mass, force, power) written as ENG values.
+
+### Wrapping the mover (checked 2026-10-24)
+- The force parts are public and can be called on their own:
+  `TractionForce`, `BrakeForce`, `FrictionForce`, `CouplerForce`,
+  `ComputeTotalForce`, `ComputeMovement` (`MOVER.h`, public from line 1554).
+  Wheel slip and the adhesion limit sit inside `ComputeTotalForce`
+  (`Mover.cpp:5030-5069`) together with the couplers and gravity, so a
+  host that owns the couplers and the motion needs a small patch there
+  (skip the coupler loop and gravity), kept MPL and marked.
+- "Coupled vehicles are not supported" (MaSzyna's `tests/unit/README.md`)
+  is about its own unit-test host only: a mover finds its neighbours
+  through the game's vehicle object (`TDynamicObject`, with its model and
+  track follower), which that host does not make. In the game coupling
+  works; for us it means a stand-in for that object, or a patch letting a
+  neighbour be another mover (`Couplers[].Connected` already is one).
+- MaSzyna's own export tool only turns `.t3d` into `.e3d`
+  (`export_e3d_standalone.cpp`); drawing both directly (decisions of
+  2026-10-24) needs no conversion.
+
 ## MaSzyna-Reloaded (a quick look, 2026-10-24)
 
 Another integration of MaSzyna's physics, in the Godot engine
