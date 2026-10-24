@@ -193,6 +193,44 @@ temperature, the consist's mean brake pipe pressure for the lead.
 - Licence: the code MPL 2.0 (file-level copyleft); the assets (vehicle
   definitions, cabs, sounds) under a separate custom licence.
 
+## MaSzyna-Reloaded (a quick look, 2026-10-24)
+
+Another integration of MaSzyna's physics, in the Godot engine
+(github.com/MaSzyna-Reloaded, repositories `libmaszyna`, `libreloaded`,
+`datapack-specs`, read 2026-10-24). Not a reference for our design (the
+user), and with no licence files in those repositories their own code is
+for reading only (the MaSzyna files they vendor stay MPL). Worth knowing:
+- **Their shape.** A core (`libreloaded`, "Rails Reloaded") with MaSzyna as
+  a plugin (`libmaszyna`): vehicles built of components (`RailVehicle<X>`:
+  brakes, master controller, power supply, security system, wipers...),
+  each a contract of facts, state getters, commands and a dump; the Mover
+  adapters implement them. The Mover is vendored (about 9,600 lines,
+  without the `.fiz` loader, which they rewrote as their own parser into
+  those components).
+- **The original's quirks, written down**: `MASZYNA_ORIGINAL_QUIRKS.md`
+  in `libmaszyna` (602 lines). For a Mover in our harness, among others:
+  - couplers depend on the frame rate (the gap extrapolated ten times the
+    movement since the last refresh, refreshed once a frame): long trains
+    lock up at slow frames; they refresh positions and neighbours before
+    every sub-step, which our host-owned couplers avoid anyway;
+  - the vendored sources need the original's precompiled header
+    (`stdafx.h`, which brings `<stdlib.h>`): without it `abs()` in
+    `hamulce.cpp` truncates pressure differences below 1 bar to zero,
+    silently;
+  - a vehicle nobody drives is not simulated (`ComputeTotalForce` switches
+    its physics off at rest without a cab);
+  - `.fiz` keys: the first of a repeated key counts (the data relies on it),
+    one key can feed two fields, some valves' areas are read crossed, and
+    which keys are read depends on the engine type;
+  - commands between units only go backwards from a cab (a cab switched on
+    before coupling never reaches the other cab car), and a rear cab's
+    activation can set the other cars' reversers wrong.
+- **Their asset direction**: a glTF profile for models and vehicles
+  (`datapack-specs`, draft 0.4.0: replaceable textures, light layers,
+  animations sampled by door, controller and wiper state, axles, bogies,
+  cabs, contact and attachment points), i.e. conversion into glTF, where
+  ours is to draw `.t3d`/`.e3d` directly (decisions of 2026-10-24).
+
 ## Side by side
 
 | | Open Rails | MaSzyna | For TSRE |
