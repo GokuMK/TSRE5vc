@@ -1,6 +1,7 @@
 # Task 12 - Shape and rolling stock animation
 
-Status: in progress (branch `feature/animations`, from 2026-10-23).
+Status: merged into `main` (0774339, 2026-10-24) with the 3D cabs
+(`feature/cab3d`) and doors at platforms; the user's review on hardware left.
 
 The user's request (2026-10-23): TSRE's shape animations are disabled or
 broken; make animated trains come alive in the simulation's rendering.
@@ -125,6 +126,27 @@ drawing already takes its two places, and each bogie turns as the track
 position on the TDB node says (its angle and slope): no cubic, no fit.
 Editor consists walk to their pivots with the activity's junction map, as
 they already do to their rear end.
+
+### Later: lighting in 3D cabs (findings, 2026-10-23)
+
+- Open Rails lights a 3D cab as any scenery shape: no NIGHT textures for it
+  (those are 2D cabs' whole images, `CABVIEW/NIGHT` and `CABVIEW/CABLIGHT`)
+  and no light inside it (its shader has the sun and one headlight cone;
+  ENG `Lights` only Glow and Cone). The night look is the content's.
+- The 183's 3D cab: dials, needles and the signal display in the full-bright
+  material (-8); the rest normal (-5), dark at night. Its cab light: the
+  `ORTS_CABLIGHT:0:1..3` parts, overlays with pre-lit textures (half- or
+  full-bright), two key frames moved by the cab light switch: off, sunk into
+  the panel; on, 1-2 cm forward.
+- TSRE draws every material below -7 unlit, so half-bright (-11) is
+  full-bright here; Open Rails draws it at 0.75 and dims it partly at
+  night (all MSTS shapes, not only cabs; `docs/tasks/renderer/35-night-textures.md`).
+- The cab light waits for the cab's controls (driving tasks); until then its
+  overlays rest, off. Our sky enclosure darkens the inside under the cab's
+  roof (Open Rails does not); a night capture not taken yet.
+- Possible later, beyond Open Rails: a real cab lamp from our local lights
+  (a point light under the roof while the cab light is on); the ENG has no
+  place for it, so an extension or a guess from the cab light's parts.
 
 ## Steps
 
