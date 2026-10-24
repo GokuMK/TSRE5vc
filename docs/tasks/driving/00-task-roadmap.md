@@ -59,6 +59,20 @@ player's, works another way.
   change models, possibly using MaSzyna's brake valves and motors as
   building blocks (the user would prefer Lua loco scripts, but at 20,000
   lines it is no longer a user script).
+- **Open Rails' physics as the target of the Lua examples**, first as
+  inspiration for slightly simplified code: the electric loco (traction
+  curve, dynamic brake, pantograph and circuit breaker), the diesel
+  (engine speed and power, its traction), the steam loco certainly
+  simplified (regulator and cut-off to cylinder force, a basic boiler).
+  More detailed C++ versions or conversions later, if users ask for them.
+  Sizes for reference (Open Rails, C#, about 53,000 lines in all): the
+  electric loco's own file 490 lines, the diesel 1,500 plus its engine
+  2,200 and gearbox 1,100, the steam loco 11,000; the shared loco base
+  6,500 (much of it cab values, sounds, controllers); axles 1,700, brakes
+  5,600, power supplies 8,900 (axles, brakes, couplers and controllers are
+  the harness's own parts in C++). Open Rails stays a behavioural
+  reference, its formulas written afresh (GPL 3, compatible, but no code
+  taken, as in the simulation tasks).
 - **MaSzyna's models drawn directly**: `.t3d` and `.e3d` as another
   `ComplexShape` beside MSTS and glTF shapes, with TSRE's engine and
   content paths in mind, not converted (which also avoids licensing
