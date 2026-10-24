@@ -817,6 +817,23 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
           QString("T2 (path P2.): on to Delta beyond its path's end, centred on it (route %1 m, front %2)")
               .arg(t2 != nullptr ? t2->route.parts.back().length() : -1.0, 0, 'f', 1)
               .arg(t2 != nullptr && !t2->stops.empty() ? t2->stops[0].front : -1.0, 0, 'f', 1));
+    // Their doors (task shapes 12): each stop refers to an item of its
+    // platform, as an activity's stop does (Open Rails' timetable trains
+    // open none; ours on the platform's side).
+    const auto platformOf = [&layout](int id) -> QString {
+        const auto it = layout.db.trackItems.find(id);
+        return it != layout.db.trackItems.end() && it->second != nullptr && it->second->platformTrItemData != nullptr
+                ? it->second->stationName : QString();
+    };
+    bool doors = t1 != nullptr && t2 != nullptr;
+    QStringList doorItems;
+    for (const Sim::TrainPlan *plan : {t1, t2})
+        if (plan != nullptr)
+            for (const Sim::StopPlan &stop : plan->stops) {
+                doors = doors && platformOf(stop.platformItem).compare(stop.platform, Qt::CaseInsensitive) == 0;
+                doorItems << QString("%1 %2").arg(stop.platform).arg(stop.platformItem);
+            }
+    check(doors, "T1's and T2's stops refer to their platforms' items, for the doors: " + doorItems.join(", "));
     // T3: Epsilon behind its start with a signal between: another track
     // section, not on its route.
     check(t3 != nullptr && t3->stops.empty() && input->warnings.join("\n").contains("T3: the stop at Epsilon is not on its path"),
