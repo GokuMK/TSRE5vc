@@ -111,6 +111,8 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 
 #ifdef TSRE_TERRAIN
 #include "TerrainMaterial.glsl"
+// Drawing the map's terrain layer: the texture's alpha is kept.
+uniform int terrainMapPass;
 #endif
 #include "ShadowSampling.glsl"
 #ifdef TSRE_RHI
@@ -166,6 +168,13 @@ void main() {
             //if(gl_FragColor.a < alphaTest)
             //    discard;    
             fragColor.a = max(fragColor.a, vAlpha);  
+#ifdef TSRE_TERRAIN
+            // Terrain is opaque, as Open Rails draws it: a texture's alpha
+            // let the sky behind it through (Prudnik's fields and forest
+            // floors pale; the view blends) or, below 0.01, cut holes.
+            if(terrainMapPass == 0)
+                fragColor.a = 1.0;
+#endif
             // discard if transparent 
             if(fragColor.a < (blendedTexels == 2 ? min(-vAlpha, BlendedTranslucentAlpha) : -vAlpha))
                 discard;

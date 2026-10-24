@@ -39,6 +39,8 @@ uniform float unlitScale;
 
 #ifdef TSRE_TERRAIN
 #include "TerrainMaterial.glsl"
+// Drawing the map's terrain layer: the texture's alpha is kept.
+uniform int terrainMapPass;
 #endif
 
 void main() {
@@ -63,6 +65,11 @@ void main() {
         fragColor = terrainMaterialColor();
 #endif
     fragColor.a = max(fragColor.a, vAlpha);
+#ifdef TSRE_TERRAIN
+    // Terrain is opaque (StandardFog).
+    if (terrainMapPass == 0)
+        fragColor.a = 1.0;
+#endif
     if (fragColor.a < (blendedTexels == 2 ? min(-vAlpha, BlendedTranslucentAlpha) : -vAlpha))
         discard;
     if (blendedTexels == 1) {

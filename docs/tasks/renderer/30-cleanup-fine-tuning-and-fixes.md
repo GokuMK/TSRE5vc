@@ -68,3 +68,13 @@ Noted in their tasks:
   those that appear cast (task 37).
 
 ## Done
+
+- Terrain drawn opaque (user, 2026-10-24, Prudnik,
+  `core.startup.camera=-5422,14872,-705.89,268.45,735.38,72.63,-48.93`):
+  both terrain paths kept the texture's alpha (paged terrain's vertex
+  alpha 0, the legacy mesh's -0.01) while the view blends, so fields and
+  forest floors paled with the sky behind them, and the legacy mesh cut
+  holes where the alpha was under 0.01. `StandardFog`/`StandardFast` set
+  alpha 1 for terrain outside the map's terrain pass, as Open Rails draws
+  it; the whole terrain a little more saturated (it was washed with sky
+  wherever its alpha was below 1).
