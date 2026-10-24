@@ -11,6 +11,17 @@ done; 06 activity events and 07 coupling come first). The built-in simple
 AI driving (simulation tasks 01 and 03) stays; advanced driving, the
 player's, works another way.
 
+## Reviews
+- [Driving harness review](reports/driving-harness-review.md) (2026-10-24):
+  what Open Rails' and MaSzyna's vehicle models need from a host and give
+  back (stepping, train motion and couplers, adhesion, brake pipes, power,
+  multiple-unit control, scripting, cab, sound, external interfaces), and
+  what that suggests for the harness. The user's goal for it: trains and
+  locos with the world, their cabs and RmlUi displays, and a train bus
+  between cars (force, air, electricity); simple and detailed models
+  (one force, or each axle and motor); messages to Lua and later
+  websockets; the AI's simple driving kept as the base of AI trains.
+
 ## Decisions (user, 2026-10-17)
 - **Before any driving task**: the SI units task
   (`docs/tasks/core/si-units.md`) and the ENG refactor (task 01 below).
