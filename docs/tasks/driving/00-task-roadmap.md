@@ -36,11 +36,9 @@ player's, works another way.
   trains or signals but get render-ready results from the server.
 - **MaSzyna: physics first**, the harness and buses designed so its
   vehicle physics can be integrated later; its cab and sound formats are
-  needed in the future. The first MaSzyna asset task: a script making an
-  ENG file (and what the renderer needs) for one MaSzyna loco or car, so
-  TSRE finds it, draws it and puts it in consists.
+  needed in the future.
 
-## Proposed (2026-10-24, for the user to confirm)
+## Decisions (user, 2026-10-24, the review's recommendations accepted)
 - **The host owns the train's motion and its couplers**; vehicle models
   give forces (motive, brake, resistance) and never move themselves. The
   couplers: springs and dampers with slack per pair (MaSzyna's buffer and
@@ -59,7 +57,15 @@ player's, works another way.
   the track inputs and neighbours and takes its forces, skipping its own
   couplers and motion. Lua stays the way for content creators to write or
   change models, possibly using MaSzyna's brake valves and motors as
-  building blocks.
+  building blocks (the user would prefer Lua loco scripts, but at 20,000
+  lines it is no longer a user script).
+- **MaSzyna's models drawn directly**: `.t3d` and `.e3d` as another
+  `ComplexShape` beside MSTS and glTF shapes, with TSRE's engine and
+  content paths in mind, not converted (which also avoids licensing
+  questions about converted assets). The first MaSzyna asset task: a script
+  making an ENG for one MaSzyna loco or car, its model drawn by that shape
+  class, so TSRE finds it, draws it and puts it in consists.
+
 
 ## Decisions (user, 2026-10-17)
 - **Before any driving task**: the SI units task

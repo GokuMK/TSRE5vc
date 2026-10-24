@@ -20,6 +20,8 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [10-gltf-native-lod.md](10-gltf-native-lod.md) — native glTF levels of detail, internal (MSFT_lod) and external (`_lod01` files), chosen by screen coverage, with tree impostors, the LOD bias and coverage-preserving mipmaps for trees; merged from `feature/gltf-lod`. Coverages proposed for tree-gen: [0.444, 0.167, 0.060]. Open: instance scale, instance profiles, mipmaps for other content. Recommended first vegetation experiment before Forest/STF impostors or terrain scattering.
 
+- [ ] MaSzyna `.t3d` / `.e3d` models as another `ComplexShape` (planned, the user 2026-10-24): drawn directly with TSRE's engine and content paths in mind, not converted; MaSzyna locos and cars in TSRE through a script making their ENG files (`docs/tasks/driving/00-task-roadmap.md`, decisions of 2026-10-24).
+
 ## Ground Rules For All Tasks
 
 - Keep MSTS `.s` + `.sd` support working throughout.
