@@ -250,12 +250,14 @@ int TsreTests::runRmlUiSuite(bool verbose) {
         Rml::String hudSpeed = "0", hudUnit = "km/h", hudDistance = "0.0 km";
         int hudThrottle = 0, hudBrake = 0;
         Rml::Context *hud = Rml::CreateContext("hud-test", Rml::Vector2i(800, 600), &recorder);
+        Rml::DataModelHandle hudModel;
         if (Rml::DataModelConstructor constructor = hud->CreateDataModel("train")) {
             constructor.Bind("speed", &hudSpeed);
             constructor.Bind("speedUnit", &hudUnit);
             constructor.Bind("distance", &hudDistance);
             constructor.Bind("throttle", &hudThrottle);
             constructor.Bind("brake", &hudBrake);
+            hudModel = constructor.GetModelHandle();
         }
         Rml::ElementDocument *hudDocument = nullptr;
         {
@@ -290,6 +292,48 @@ int TsreTests::runRmlUiSuite(bool verbose) {
         test.check(hudDocument != nullptr && label == qtTrId("ui.hud.speed") && label != "ui.hud.speed",
                    QString("the HUD document loads, its labels translated (%1)").arg(label));
         test.check(rising && falling, "the HUD's Lua colours the speed by its trend from trainupdate");
+
+        // Its CPU time a frame, every value changing every frame (the worst
+        // case: its texts laid out again each frame).
+        if (hudDocument != nullptr) {
+            const int frames = 300;
+            qint64 eventNs = 0, updateNs = 0, renderNs = 0;
+            QElapsedTimer timer;
+            for (int i = 0; i < frames; ++i) {
+                hudSpeed = std::to_string(40 + i % 60);
+                hudDistance = std::to_string(i) + ".5 km";
+                hudThrottle = i % 100;
+                hudBrake = (i * 7) % 100;
+                for (const char *name : {"speed", "distance", "throttle", "brake"})
+                    hudModel.DirtyVariable(name);
+                timer.start();
+                {
+                    Script::State::Deadline deadline(Ui::Runtime::get()->lua());
+                    Rml::Dictionary parameters;
+                    parameters["speed"] = 10.0 + i % 7;
+                    parameters["time"] = 10.0 + i * 0.3;
+                    hudDocument->DispatchEvent("trainupdate", parameters);
+                }
+                eventNs += timer.nsecsElapsed();
+                timer.start();
+                {
+                    Script::State::Deadline deadline(Ui::Runtime::get()->lua());
+                    hud->Update();
+                }
+                updateNs += timer.nsecsElapsed();
+                timer.start();
+                recorder.draws.clear();
+                hud->Render();
+                renderNs += timer.nsecsElapsed();
+            }
+            const double event = eventNs / 1e3 / frames, update = updateNs / 1e3 / frames,
+                         render = renderNs / 1e3 / frames;
+            qInfo().noquote() << QString("[tests:rmlui] HUD CPU a frame, every value changing: event and Lua %1 us, "
+                                         "update %2 us, render %3 us, all %4 us; %5 draws")
+                                     .arg(event, 0, 'f', 1).arg(update, 0, 'f', 1).arg(render, 0, 'f', 1)
+                                     .arg(event + update + render, 0, 'f', 1).arg(recorder.draws.size());
+            test.check(event + update + render < 5000, "the HUD costs under 5 ms of CPU a frame");
+        }
         Rml::RemoveContext("hud-test");
 
         // Every translation id TSRE's documents use is in the catalogues.

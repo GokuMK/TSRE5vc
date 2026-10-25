@@ -71,6 +71,12 @@ private:
     std::unordered_map<quint64, QRhiShaderResourceBindings *> bindings;
     std::vector<Command> commands;
     QSize size;
+    // TSRE_UI_LOG: CPU time of prepare() and record(), every 5 s in the log.
+    qint64 timed = 0;
+    qint64 timedMost = 0;
+    qint64 prepared = 0;
+    int timedFrames = 0;
+    qint64 timedSince = 0;
 
     bool ensurePipeline(QRhiRenderPassDescriptor *pass, QRhiResourceUpdateBatch *batch);
     void ensureUniforms(quint32 draws);

@@ -245,8 +245,9 @@ thread.
    (decision 8).
 4. [x] The play view's HUD as a UI document, the setting, captures on both
    renderers. Input, the debugger key and parity captures left (below).
-5. Measures (Release): the build time and binary size added (steps 1 and
-   2), the HUD's CPU time per frame (left).
+5. [x] Measures (Release): the build time and binary size added (steps 1
+   and 2), the HUD's CPU time per frame and the renderers compared
+   (below, "Measures").
 
 ## Step 1 done (2026-10-25)
 - `thirdparty/lua/`: Lua 5.5.1's `src/` unchanged without `lua.c`,
@@ -358,9 +359,25 @@ thread.
   its Lua trend, its ids), `script` 28, consist-preview-gl 15,
   shape-complex-gl 131; ctest 11/11.
 - Left: input (mouse and keys to the documents) and a key for RmlUi's
-  debugger; a HUD capture in the renderer parity suite; ACE images;
-  clip masks, filters and gradients; the HUD's CPU time per frame
-  (Release); cab displays drawing into a texture (another task).
+  debugger; ACE images; clip masks, filters and gradients; cab displays
+  drawing into a texture (another task).
+
+## Measures (2026-10-26, Release, this machine: llvmpipe, no GPU)
+- The HUD's CPU time a frame, RmlUi's part alone (suite `rmlui`, every
+  value changing every frame, so its texts laid out each frame): event
+  and Lua 9 us, update 24 us, render into the draw list 12 us; 45 us, 12
+  draws.
+- In play mode (`TSRE_UI_LOG=1`: every 5 s the HUD's parts and the QRhi
+  drawer's, mean and largest): QRhi (Vulkan) 0.13-0.22 ms for the HUD and
+  0.02-0.03 ms for the drawer in `present()`; OpenGL 0.27-0.35 ms with the
+  drawer (its GL calls 0.17-0.19 ms on llvmpipe). Frames take 150-350 ms
+  here, so the HUD is under 0.2 % of them; on hardware its share stays
+  small, the frames shorter.
+- The renderers compared (`tests/renderer/hud-views.json`, EUROPE1
+  lclsrvce at 09:03, riding the player's train; `--set
+  core.rendering.backend=opengl` and `=qrhi`): whole frames RMSE 1.02, 0.06 %
+  of pixels apart; the HUD panel alone (230 x 200 px) at most 1/255 apart
+  for the document's HUD and 2/255 for SimpleHud.
 
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.

@@ -35,6 +35,39 @@ struct Hud::Model {
 namespace {
 int nextContext = 1;
 
+// TSRE_UI_LOG: the CPU time of the HUD's parts, every 5 s in the log.
+struct Timing {
+    // The data and the event (its Lua), the update, RmlUi's rendering
+    // into the draw list, the renderer's drawer.
+    enum Part { Event, Update, Render, Draw, Parts };
+    qint64 total[Parts] = {};
+    qint64 most[Parts] = {};
+    int frames = 0;
+    QElapsedTimer since;
+    void add(const qint64 *ns) {
+        for (int i = 0; i < Parts; ++i) {
+            total[i] += ns[i];
+            most[i] = std::max(most[i], ns[i]);
+        }
+        ++frames;
+        if (!since.isValid())
+            since.start();
+        if (since.elapsed() < 5000)
+            return;
+        static const char *const names[Parts] = {"event", "update", "render", "draw"};
+        QString line = QString("[ui] HUD CPU over %1 frames, mean/max ms:").arg(frames);
+        qint64 sum = 0;
+        for (int i = 0; i < Parts; ++i) {
+            line += QString(" %1 %2/%3").arg(names[i]).arg(total[i] / 1e6 / frames, 0, 'f', 3).arg(most[i] / 1e6, 0, 'f', 3);
+            sum += total[i];
+        }
+        line += QString(", all %1").arg(sum / 1e6 / frames, 0, 'f', 3);
+        qInfo().noquote() << line;
+        *this = Timing();
+        since.start();
+    }
+};
+
 // Sets a bound value, marking it changed only when it is.
 template <typename T>
 void set(Rml::DataModelHandle &handle, T &bound, const T &value, const char *name) {
@@ -89,6 +122,12 @@ bool Hud::draw(Renderer *renderer, int width, int height, float scale, const Val
         failed = true;
         return false;
     }
+    static const bool logged = qEnvironmentVariableIsSet("TSRE_UI_LOG");
+    static Timing timing;
+    QElapsedTimer part;
+    qint64 ns[Timing::Parts] = {};
+    if (logged)
+        part.start();
     Rml::Context *context = model->context;
     if (context->GetDimensions() != Rml::Vector2i(width, height))
         context->SetDimensions(Rml::Vector2i(width, height));
@@ -115,12 +154,22 @@ bool Hud::draw(Renderer *renderer, int width, int height, float scale, const Val
             parameters["time"] = double(clock.nsecsElapsed()) * 1e-9;
             model->document->DispatchEvent("trainupdate", parameters);
         }
+        if (logged)
+            ns[Timing::Event] = part.nsecsElapsed();
         Script::State::Deadline deadline(lua);
         context->Update();
+        if (logged)
+            ns[Timing::Update] = part.nsecsElapsed() - ns[Timing::Event];
     }
     renderInterface->beginFrame(width, height);
     context->Render();
+    if (logged)
+        ns[Timing::Render] = part.nsecsElapsed() - ns[Timing::Event] - ns[Timing::Update];
     renderer->drawUi(renderInterface->list());
+    if (logged) {
+        ns[Timing::Draw] = part.nsecsElapsed() - ns[Timing::Event] - ns[Timing::Update] - ns[Timing::Render];
+        timing.add(ns);
+    }
     return true;
 }
 

@@ -13,6 +13,9 @@
 #include <tsre/renderer/UiProjection.h>
 #include <tsre/renderer/rhi/RhiProgram.h>
 
+#include <QDebug>
+#include <QDateTime>
+#include <QElapsedTimer>
 #include <QMatrix4x4>
 #include <rhi/qrhi.h>
 
@@ -237,6 +240,19 @@ void RhiUiDrawer::freeReleased(UiDrawList &list) {
 
 void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass,
                           const QSize &frameSize) {
+    static const bool logged = qEnvironmentVariableIsSet("TSRE_UI_LOG");
+    QElapsedTimer timer;
+    if (logged)
+        timer.start();
+    struct Timed {
+        QElapsedTimer &timer;
+        bool logged;
+        qint64 &prepared;
+        ~Timed() {
+            if (logged)
+                prepared = timer.nsecsElapsed();
+        }
+    } stopwatch{timer, logged, prepared};
     commands.clear();
     size = frameSize;
     if (list.width < 1 || list.height < 1)
@@ -278,6 +294,10 @@ void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhi
 void RhiUiDrawer::record(QRhiCommandBuffer *cb) {
     if (commands.empty() || pipeline == nullptr)
         return;
+    static const bool logged = qEnvironmentVariableIsSet("TSRE_UI_LOG");
+    QElapsedTimer timer;
+    if (logged)
+        timer.start();
     cb->setGraphicsPipeline(pipeline);
     cb->setViewport(QRhiViewport(0, 0, float(size.width()), float(size.height())));
     for (const Command &command : commands) {
@@ -295,4 +315,21 @@ void RhiUiDrawer::record(QRhiCommandBuffer *cb) {
         cb->drawIndexed(command.geometry->count);
     }
     commands.clear();
+    if (!logged)
+        return;
+    const qint64 frame = prepared + timer.nsecsElapsed();
+    timed += frame;
+    timedMost = std::max(timedMost, frame);
+    ++timedFrames;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (timedSince == 0)
+        timedSince = now;
+    if (now - timedSince >= 5000) {
+        qInfo().noquote() << QString("[ui] QRhi UI drawer CPU over %1 frames, mean/max ms: %2/%3")
+                                 .arg(timedFrames).arg(timed / 1e6 / timedFrames, 0, 'f', 3)
+                                 .arg(timedMost / 1e6, 0, 'f', 3);
+        timed = timedMost = 0;
+        timedFrames = 0;
+        timedSince = now;
+    }
 }
