@@ -83,8 +83,11 @@ Hud::Hud() : renderInterface(new RenderInterface) {
 }
 
 Hud::~Hud() {
-    if (model && model->context != nullptr)
+    // RmlUi lets go of the render interface before it goes.
+    if (model && model->context != nullptr && Runtime::get() != nullptr) {
         Rml::RemoveContext(model->name.toStdString());
+        Rml::ReleaseRenderManagers();
+    }
 }
 
 bool Hud::load(int width, int height) {

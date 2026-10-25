@@ -358,9 +358,38 @@ thread.
   brake bar full); the same on both. Suites: `rmlui` 16 (the HUD document,
   its Lua trend, its ids), `script` 28, consist-preview-gl 15,
   shape-complex-gl 131; ctest 11/11.
-- Left: input (mouse and keys to the documents) and a key for RmlUi's
-  debugger; ACE images; clip masks, filters and gradients; cab displays
-  drawing into a texture (another task).
+- Left: input (mouse and keys to the documents; the user rethinks it
+  first) and a key for RmlUi's debugger; clip masks, filters and
+  gradients; cab displays drawing into a texture (another task).
+
+## Images through TexLib (2026-10-26)
+- A document's images load through TexLib, as all of TSRE's textures:
+  ACE, DDS, PNG, JPEG, BMP, TGA, with TSRE's path rules, shared with the 3D
+  scene. `TexLib::addTex` takes how to load (`Loading::Setting`, the
+  setting `core.rendering.threadedTextureLoading` as before; `Background`,
+  a thread of its own whatever the setting; `Now`, in the caller's
+  thread), so the UI need not change the one switch for everything.
+- The render thread does not wait: `TexLib::imageSize` reads the size from
+  the file's header (ACE plain or compressed: only its first 16 bytes
+  inflated; DDS; the others through `QImageReader`), RmlUi lays the document
+  out with it at once, TexLib decodes on its thread, and the drawers leave
+  the image out until it is loaded (a frame or so later).
+- The drawers sample TexLib's own textures (each renderer's lookup, mipmaps
+  as the renderer samples them), premultiplying their straight alpha in the
+  shader; references taken and given back with RmlUi's.
+- A path that is a file system path stays as it is (content's files);
+  others are relative to the document (RmlUi read a leading "/" as its own
+  root).
+- RmlUi keeps a render manager for each render interface until
+  `Rml::ReleaseRenderManagers()`: called after a view's context is removed,
+  before its render interface goes (found by the test).
+- Checked: the suite `rmlui` (20 checks: header sizes of plain and
+  compressed ACE and PNG, a document's images by relative and absolute
+  path laid out at once and drawn from TexLib, loaded on its thread); two
+  EUROPE1 ACE textures (DXT1, 1-bit alpha) over the HUD captured with
+  OpenGL and QRhi: drawn alike, transparent without fringes; their leaf
+  edges up to 39/255 apart, the two drivers' DXT1 decoding, as these
+  textures differ in the 3D scene too.
 
 ## Measures (2026-10-26, Release, this machine: llvmpipe, no GPU)
 - The HUD's CPU time a frame, RmlUi's part alone (suite `rmlui`, every

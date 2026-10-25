@@ -18,10 +18,12 @@ namespace Ui {
 
 // RmlUi's drawing for TSRE's renderers (task scripting 01): what a context
 // renders goes into a UiDrawList, which the view hands to its renderer
-// (Renderer::drawUi). Images load through Qt (PNG, JPEG and the other
-// formats it reads). Clip masks, layers, filters and shaders are not
-// supported yet: RmlUi draws without them (no rounded or rotated clipping,
-// blur, drop shadows or gradients).
+// (Renderer::drawUi). Images load through TexLib, as all of TSRE's textures
+// (ACE, DDS, PNG, JPEG, BMP, TGA), on a thread of their own; their size is
+// read from the file's header, so documents are laid out at once and an
+// image shows when it has loaded. Clip masks, layers, filters and shaders
+// are not supported yet: RmlUi draws without them (no rounded or rotated
+// clipping, blur, drop shadows or gradients).
 class RenderInterface : public Rml::RenderInterface {
 public:
     // A new frame of the given size in pixels: the last frame's draws gone.

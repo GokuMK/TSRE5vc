@@ -13,6 +13,7 @@
 
 #include <QPointer>
 #include <QtGlobal>
+#include <functional>
 #include <unordered_map>
 
 class QOpenGLContext;
@@ -26,8 +27,12 @@ struct UiDrawList;
 // is put back.
 class GlUiDrawer {
 public:
+    // The GL texture of a TexLib texture, false while it is not loaded (the
+    // renderer's own lookup).
+    using LibraryTexture = std::function<bool(int textureId, unsigned int &texture)>;
+
     ~GlUiDrawer();
-    void draw(UiDrawList &list);
+    void draw(UiDrawList &list, const LibraryTexture &library);
     // Frees the GL objects; with the context they were made in current.
     void release();
 
@@ -42,6 +47,7 @@ private:
     QOpenGLShaderProgram *program = nullptr;
     int transformUniform = -1;
     int translationUniform = -1;
+    int premultiplyUniform = -1;
     unsigned int white = 0;
     std::unordered_map<quint64, Geometry> geometries;
     std::unordered_map<quint64, unsigned int> textures;

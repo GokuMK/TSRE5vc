@@ -12,6 +12,11 @@
 #include <tsre/Game.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/ui/UiRuntime.h>
+#include <tsre/ui/UiRenderInterface.h>
+#include <tsre/texture/AceDocument.h>
+#include <tsre/texture/TexLib.h>
+#include <QImage>
+#include <QThread>
 
 namespace {
 
@@ -352,6 +357,86 @@ int TsreTests::runRmlUiSuite(bool verbose) {
         }
         test.check(missing.isEmpty(), "translation ids of TSRE's documents in the catalogues" +
                                           (missing.isEmpty() ? QString() : " (missing: " + missing.join(", ") + ")"));
+    }
+
+    // Images through TexLib: ACE (plain and compressed) and PNG, their size
+    // read from the header, their pixels loaded on TexLib's thread.
+    {
+        const int width = 48, height = 32;
+        std::vector<unsigned char> pixels(size_t(width) * height * 4);
+        for (size_t i = 0; i < pixels.size(); i += 4) {
+            pixels[i] = 200;
+            pixels[i + 1] = 40;
+            pixels[i + 2] = 40;
+            pixels[i + 3] = (i / 4) % 2 ? 255 : 128;
+        }
+        AceWriteOptions options;
+        options.encoding = AceEncoding::Rgba;
+        AceDocument ace;
+        QString error;
+        const bool written = AceDocument::fromPixels(pixels.data(), qsizetype(pixels.size()), width, height, 4,
+                                                     options, ace, error)
+                && ace.write(temporary.filePath("plain.ace"), false, error)
+                && ace.write(temporary.filePath("packed.ace"), true, error);
+        QImage png(20, 10, QImage::Format_RGBA8888);
+        png.fill(Qt::blue);
+        png.save(temporary.filePath("image.png"));
+        test.check(written && TexLib::imageSize(temporary.filePath("plain.ace")) == QSize(width, height)
+                       && TexLib::imageSize(temporary.filePath("packed.ace")) == QSize(width, height)
+                       && TexLib::imageSize(temporary.filePath("image.png")) == QSize(20, 10),
+                   "image sizes read from their headers: ACE plain and compressed, PNG");
+
+        const QString imagesPath = temporary.filePath("images.rml");
+        {
+            QFile file(imagesPath);
+            if (file.open(QIODevice::WriteOnly))
+                file.write(QString(R"(<rml><head></head><body><img id="ace" src="packed.ace"/><img id="png" src="image.png"/>)"
+                                   R"(<img id="absolute" src="%1"/></body></rml>)")
+                               .arg(temporary.filePath("plain.ace")).toUtf8());
+        }
+        Ui::RenderInterface drawing;
+        Rml::Context *images = Rml::CreateContext("images-test", Rml::Vector2i(200, 100), &drawing);
+        Rml::ElementDocument *imagesDocument = images->LoadDocument(imagesPath.toStdString());
+        bool laidOut = false;
+        size_t imageDraws = 0;
+        std::vector<int> loading;
+        if (imagesDocument != nullptr) {
+            imagesDocument->Show();
+            images->Update();
+            drawing.beginFrame(200, 100);
+            images->Render();
+            laidOut = imagesDocument->GetElementById("ace")->GetOffsetWidth() == width
+                      && imagesDocument->GetElementById("ace")->GetOffsetHeight() == height
+                      && imagesDocument->GetElementById("png")->GetOffsetWidth() == 20
+                      && imagesDocument->GetElementById("absolute")->GetOffsetWidth() == width;
+            const UiDrawList &list = drawing.list();
+            for (const UiDrawList::Draw &draw : list.draws)
+                if (list.libraryTextures.count(draw.texture) != 0)
+                    ++imageDraws;
+            for (const auto &entry : list.libraryTextures)
+                loading.push_back(entry.second);
+        }
+        test.check(laidOut && imageDraws == 3 && loading.size() == 3,
+                   "a document's images (relative and absolute paths) laid out at their size at once and drawn "
+                   "from TexLib's textures");
+        // TexLib loads them on a thread of its own.
+        QElapsedTimer waited;
+        waited.start();
+        bool loaded = false;
+        while (!loaded && waited.elapsed() < 5000) {
+            loaded = !loading.empty();
+            for (int id : loading) {
+                const auto found = TexLib::mtex.find(id);
+                loaded = loaded && found != TexLib::mtex.end() && found->second->loaded;
+            }
+            if (!loaded)
+                QThread::msleep(5);
+        }
+        test.check(loaded, QString("TexLib loads the images on its own thread (%1 ms)").arg(waited.elapsed()));
+        // Its render interface goes with this block: RmlUi lets go of it
+        // first.
+        Rml::RemoveContext("images-test");
+        Rml::ReleaseRenderManagers();
     }
 
     // The debugger, for documents' authors.

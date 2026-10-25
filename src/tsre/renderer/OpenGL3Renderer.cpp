@@ -1385,5 +1385,7 @@ void OpenGL3Renderer::renderFrame(){
 }
 
 void OpenGL3Renderer::drawUi(UiDrawList &list){
-    uiDrawer.draw(list);
+    uiDrawer.draw(list, [](int textureId, unsigned int &texture) {
+        return resolveTexLibTexture(textureId, texture);
+    });
 }

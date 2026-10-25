@@ -18,7 +18,11 @@
 #include <tsre/texture/Texture.h>
 #include <QDebug>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
+#include <QtEndian>
+#include <miniz/miniz.h>
 #include <QOpenGLShaderProgram>
 #include <tsre/Game.h>
 #include <cstring>
@@ -322,8 +326,13 @@ bool TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes, Q
     return true;
 }
 
-int TexLib::addTex(QString pathid, bool reload) {
+int TexLib::addTex(QString pathid, bool reload, Loading loading) {
     pathid = ContentPath::normalize(pathid);
+    // On a thread of its own when asked, or as the setting says (`setting`:
+    // the loader's switch, which follows it).
+    auto threaded = [&](bool setting) {
+        return !reload && (loading == Loading::Background || (loading == Loading::Setting && setting));
+    };
     int texId = findTexture(ContentPath::key(pathid));
     if(texId < 0) {
         const QString fallback = ContentPath::textureSource(pathid);
@@ -353,21 +362,21 @@ int TexLib::addTex(QString pathid, bool reload) {
     if(tType == "ace"){
         AceLib* t = new AceLib();
         t->texture = newFile;
-        if(AceLib::IsThread && !reload)
+        if(threaded(AceLib::IsThread))
             t->start();
         else
             t->run();
     } else if(tType == "dds"){
         DdsLib* t = new DdsLib();
         t->texture = newFile;
-        if(DdsLib::IsThread && !reload)
+        if(threaded(DdsLib::IsThread))
             t->start();
         else
             t->run();
     } else if(tType == "png"||tType == "bmp"||tType == "jpg"||tType == "jpeg"/*||tType == "dds"*/||tType == "tga"){
         ImageLib* t = new ImageLib();
         t->texture = newFile;
-        if(ImageLib::IsThread && !reload)
+        if(threaded(ImageLib::IsThread))
             t->start();
         else
             t->run();
@@ -390,6 +399,51 @@ int TexLib::addTex(QString pathid, bool reload) {
     //AceLib::LoadACE(newFile);
     //tConcurrent::run();
     return texId;
+}
+
+QSize TexLib::imageSize(QString pathid) {
+    const QString path = ContentPath::textureSource(ContentPath::normalize(pathid));
+    QFile file(path);
+    if(!file.open(QIODevice::ReadOnly))
+        return QSize();
+    const QString type = QFileInfo(path).suffix().toLower();
+    auto u32 = [](const QByteArray &bytes, int at) {
+        return bytes.size() >= at + 4 ? qFromLittleEndian<quint32>(bytes.constData() + at) : 0u;
+    };
+    if(type == "dds"){
+        // "DDS ", the header's size, flags, height, width.
+        const QByteArray header = file.read(20);
+        if(!header.startsWith("DDS "))
+            return QSize();
+        return QSize(int(u32(header, 16)), int(u32(header, 12)));
+    }
+    if(type == "ace"){
+        // The SIMISA envelope, then the ACE header: version, flags, width,
+        // height. A compressed envelope inflated only that far.
+        const QByteArray start = file.read(4096);
+        QByteArray body;
+        if(start.startsWith("SIMISA@@@@@@@@@@")){
+            body = start.mid(16, 16);
+        } else if(start.startsWith("SIMISA@F") && start.size() > 16){
+            body.resize(16);
+            mz_stream z{};
+            z.next_in = reinterpret_cast<const unsigned char *>(start.constData() + 16);
+            z.avail_in = mz_uint32(start.size() - 16);
+            z.next_out = reinterpret_cast<unsigned char *>(body.data());
+            z.avail_out = 16;
+            if(mz_inflateInit(&z) != MZ_OK)
+                return QSize();
+            mz_inflate(&z, MZ_SYNC_FLUSH);
+            const bool ok = z.total_out == 16;
+            mz_inflateEnd(&z);
+            if(!ok)
+                return QSize();
+        }
+        if(body.size() < 16 || u32(body, 0) != 1)
+            return QSize();
+        return QSize(int(u32(body, 8)), int(u32(body, 12)));
+    }
+    return QImageReader(&file).size();
 }
 
 bool TexLib::reloadTexIfPresent(QString pathid) {

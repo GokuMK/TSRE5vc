@@ -2856,7 +2856,8 @@ void main() {
     if (pendingUi != nullptr) {
         if (!uiDrawer)
             uiDrawer = std::make_unique<RhiUiDrawer>(rhi);
-        uiDrawer->prepare(*pendingUi, updates, frame.passDescriptor, frame.pixelSize);
+        uiDrawer->prepare(*pendingUi, updates, frame.passDescriptor, frame.pixelSize,
+                          [this](int textureId, bool &mipmapped) { return libraryTexture(textureId, mipmapped); });
         pendingUi = nullptr;
     }
     QRhiCommandBuffer *cb = frame.commandBuffer;

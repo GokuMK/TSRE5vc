@@ -13,6 +13,7 @@
 
 #include <QSize>
 #include <QtGlobal>
+#include <functional>
 #include <unordered_map>
 #include <vector>
 
@@ -33,12 +34,16 @@ struct UiDrawList;
 // Geometry and textures are kept by their ids until the list releases them.
 class RhiUiDrawer {
 public:
+    // The texture of a TexLib texture, null while it is not loaded, and
+    // whether it has mipmaps (the renderer's own lookup).
+    using LibraryTexture = std::function<QRhiTexture *(int textureId, bool &mipmapped)>;
+
     explicit RhiUiDrawer(QRhi *rhi);
     ~RhiUiDrawer();
     // Before the frame's pass: the list's new geometry and textures and the
     // draws' uniforms recorded into `batch`, the pipeline for `pass`.
     void prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass,
-                 const QSize &frameSize);
+                 const QSize &frameSize, const LibraryTexture &library);
     // Inside the pass: the draws prepared.
     void record(QRhiCommandBuffer *cb);
 
@@ -64,11 +69,18 @@ private:
     quint32 uniformStride = 0;
     quint32 uniformCapacity = 0;
     QRhiSampler *sampler = nullptr;
+    // For textures with mipmaps (TexLib's), as the renderer samples them.
+    QRhiSampler *mipmapSampler = nullptr;
     QRhiTexture *white = nullptr;
     std::unordered_map<quint64, Geometry> geometries;
     std::unordered_map<quint64, QRhiTexture *> textures;
-    // One resource set for each texture drawn with (0: white).
-    std::unordered_map<quint64, QRhiShaderResourceBindings *> bindings;
+    // One resource set for each texture drawn with (0: white), and the
+    // texture it was made with.
+    struct Set {
+        QRhiShaderResourceBindings *bindings = nullptr;
+        QRhiTexture *texture = nullptr;
+    };
+    std::unordered_map<quint64, Set> bindings;
     std::vector<Command> commands;
     QSize size;
     // TSRE_UI_LOG: CPU time of prepare() and record(), every 5 s in the log.
@@ -81,7 +93,9 @@ private:
     bool ensurePipeline(QRhiRenderPassDescriptor *pass, QRhiResourceUpdateBatch *batch);
     void ensureUniforms(quint32 draws);
     const Geometry *geometryFor(UiDrawList &list, quint64 id, QRhiResourceUpdateBatch *batch);
-    QRhiShaderResourceBindings *bindingsFor(UiDrawList &list, quint64 texture, QRhiResourceUpdateBatch *batch);
+    QRhiShaderResourceBindings *bindingsFor(UiDrawList &list, quint64 texture, QRhiResourceUpdateBatch *batch,
+                                            const LibraryTexture &library);
+    QRhiShaderResourceBindings *makeBindings(quint64 key, QRhiTexture *texture, bool mipmapped = false);
     void freeReleased(UiDrawList &list);
 };
 

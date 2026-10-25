@@ -11,6 +11,7 @@
 #include <tsre/ui/UiRenderInterface.h>
 
 #include <RmlUi/Core/Vertex.h>
+#include <tsre/texture/TexLib.h>
 #include <QDebug>
 #include <atomic>
 #include <cstring>
@@ -66,15 +67,18 @@ void RenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle geometry) {
 }
 
 Rml::TextureHandle RenderInterface::LoadTexture(Rml::Vector2i &dimensions, const Rml::String &source) {
-    QImage image(QString::fromStdString(source));
-    if (image.isNull()) {
-        qWarning().noquote() << "[ui] image not read:" << QString::fromStdString(source);
+    const QString path = QString::fromStdString(source);
+    // Its size now, its pixels from TexLib's thread: the render thread does
+    // not wait for them.
+    const QSize size = TexLib::imageSize(path);
+    const int texture = size.isEmpty() ? -1 : TexLib::addTex(path, false, TexLib::Loading::Background);
+    if (texture < 0) {
+        qWarning().noquote() << "[ui] image not read:" << path;
         return 0;
     }
-    image.convertTo(QImage::Format_RGBA8888_Premultiplied);
-    dimensions = Rml::Vector2i(image.width(), image.height());
+    dimensions = Rml::Vector2i(size.width(), size.height());
     const quint64 id = nextId();
-    drawList.textures[id] = image;
+    drawList.libraryTextures[id] = texture;
     return Rml::TextureHandle(id);
 }
 
@@ -90,6 +94,11 @@ Rml::TextureHandle RenderInterface::GenerateTexture(Rml::Span<const Rml::byte> s
 }
 
 void RenderInterface::ReleaseTexture(Rml::TextureHandle texture) {
+    auto library = drawList.libraryTextures.find(quint64(texture));
+    if (library != drawList.libraryTextures.end()) {
+        TexLib::delRef(library->second);
+        drawList.libraryTextures.erase(library);
+    }
     drawList.textures.erase(quint64(texture));
     drawList.releasedTextures.push_back(quint64(texture));
 }

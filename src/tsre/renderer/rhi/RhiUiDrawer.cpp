@@ -28,6 +28,7 @@ layout(location = 2) in vec2 uv;
 layout(std140, binding = 0) uniform Draw {
     mat4 transform;
     vec2 translation;
+    float premultiply;
 };
 layout(location = 0) out vec4 vColour;
 layout(location = 1) out vec2 vUv;
@@ -41,15 +42,24 @@ void main() {
 const char *FragmentShader = R"(#version 440
 layout(location = 0) in vec4 vColour;
 layout(location = 1) in vec2 vUv;
+layout(std140, binding = 0) uniform Draw {
+    mat4 transform;
+    vec2 translation;
+    // 1 for straight alpha textures (TexLib's).
+    float premultiply;
+};
 layout(binding = 1) uniform sampler2D image;
 layout(location = 0) out vec4 fragColor;
 void main() {
-    fragColor = vColour * texture(image, vUv);
+    vec4 texel = texture(image, vUv);
+    texel.rgb *= mix(1.0, texel.a, premultiply);
+    fragColor = vColour * texel;
 }
 )";
 
-// mat4 and vec2, std140.
+// mat4, vec2 and float, std140.
 const quint32 UniformBytes = 80;
+const auto UniformStages = QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage;
 
 }
 
@@ -59,7 +69,7 @@ RhiUiDrawer::RhiUiDrawer(QRhi *rhi) : rhi(rhi) {
 // Called with the frames done (the renderer's resources going).
 RhiUiDrawer::~RhiUiDrawer() {
     for (auto &entry : bindings)
-        delete entry.second;
+        delete entry.second.bindings;
     for (auto &entry : geometries) {
         delete entry.second.vertices;
         delete entry.second.indices;
@@ -70,6 +80,7 @@ RhiUiDrawer::~RhiUiDrawer() {
     delete layout;
     delete uniforms;
     delete sampler;
+    delete mipmapSampler;
     delete white;
 }
 
@@ -78,6 +89,9 @@ bool RhiUiDrawer::ensurePipeline(QRhiRenderPassDescriptor *pass, QRhiResourceUpd
         sampler = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                   QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
         sampler->create();
+        mipmapSampler = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::Linear,
+                                        QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+        mipmapSampler->create();
         // Untextured draws sample white.
         white = rhi->newTexture(QRhiTexture::RGBA8, QSize(1, 1));
         white->create();
@@ -101,7 +115,7 @@ bool RhiUiDrawer::ensurePipeline(QRhiRenderPassDescriptor *pass, QRhiResourceUpd
     if (layout == nullptr) {
         layout = rhi->newShaderResourceBindings();
         layout->setBindings({QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
-                                 0, QRhiShaderResourceBinding::VertexStage, uniforms, UniformBytes),
+                                 0, UniformStages, uniforms, UniformBytes),
                              QRhiShaderResourceBinding::sampledTexture(
                                  1, QRhiShaderResourceBinding::FragmentStage, white, sampler)});
         layout->create();
@@ -141,7 +155,7 @@ void RhiUiDrawer::ensureUniforms(quint32 draws) {
     // The resource sets and the pipeline's layout name the buffer: made
     // again with it.
     for (auto &entry : bindings)
-        entry.second->deleteLater();
+        entry.second.bindings->deleteLater();
     bindings.clear();
     if (layout != nullptr)
         layout->deleteLater();
@@ -179,38 +193,49 @@ const RhiUiDrawer::Geometry *RhiUiDrawer::geometryFor(UiDrawList &list, quint64 
     return &(geometries[id] = geometry);
 }
 
-QRhiShaderResourceBindings *RhiUiDrawer::bindingsFor(UiDrawList &list, quint64 texture,
-                                                     QRhiResourceUpdateBatch *batch) {
-    auto kept = bindings.find(texture);
-    if (kept != bindings.end())
-        return kept->second;
-    QRhiTexture *sampled = white;
-    if (texture != 0) {
-        auto made = textures.find(texture);
-        if (made != textures.end()) {
-            sampled = made->second;
-        } else {
-            auto source = list.textures.find(texture);
-            if (source != list.textures.end() && !source->second.isNull()) {
-                sampled = rhi->newTexture(QRhiTexture::RGBA8, source->second.size());
-                sampled->create();
-                // The first row at v = 0, as RmlUi's texture coordinates
-                // count from the top.
-                batch->uploadTexture(sampled, source->second);
-                textures[texture] = sampled;
-            } else {
-                return bindingsFor(list, 0, batch);
-            }
-        }
+QRhiShaderResourceBindings *RhiUiDrawer::makeBindings(quint64 key, QRhiTexture *texture, bool mipmapped) {
+    auto kept = bindings.find(key);
+    if (kept != bindings.end()) {
+        if (kept->second.texture == texture)
+            return kept->second.bindings;
+        // TexLib made the texture again (reloaded).
+        kept->second.bindings->deleteLater();
+        bindings.erase(kept);
     }
     QRhiShaderResourceBindings *set = rhi->newShaderResourceBindings();
-    set->setBindings({QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
-                          0, QRhiShaderResourceBinding::VertexStage, uniforms, UniformBytes),
+    set->setBindings({QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(0, UniformStages, uniforms,
+                                                                                 UniformBytes),
                       QRhiShaderResourceBinding::sampledTexture(1, QRhiShaderResourceBinding::FragmentStage,
-                                                                sampled, sampler)});
+                                                                texture, mipmapped ? mipmapSampler : sampler)});
     set->create();
-    bindings[texture] = set;
+    bindings[key] = {set, texture};
     return set;
+}
+
+QRhiShaderResourceBindings *RhiUiDrawer::bindingsFor(UiDrawList &list, quint64 texture,
+                                                     QRhiResourceUpdateBatch *batch, const LibraryTexture &library) {
+    if (texture == 0)
+        return makeBindings(0, white);
+    // A TexLib texture: null until it is loaded, and the draw left out.
+    const auto fromLibrary = list.libraryTextures.find(texture);
+    if (fromLibrary != list.libraryTextures.end()) {
+        bool mipmapped = false;
+        QRhiTexture *sampled = library ? library(fromLibrary->second, mipmapped) : nullptr;
+        return sampled != nullptr ? makeBindings(texture, sampled, mipmapped) : nullptr;
+    }
+    auto made = textures.find(texture);
+    if (made == textures.end()) {
+        auto source = list.textures.find(texture);
+        if (source == list.textures.end() || source->second.isNull())
+            return makeBindings(0, white);
+        QRhiTexture *created = rhi->newTexture(QRhiTexture::RGBA8, source->second.size());
+        created->create();
+        // The first row at v = 0, as RmlUi's texture coordinates count from
+        // the top.
+        batch->uploadTexture(created, source->second);
+        made = textures.emplace(texture, created).first;
+    }
+    return makeBindings(texture, made->second);
 }
 
 void RhiUiDrawer::freeReleased(UiDrawList &list) {
@@ -225,7 +250,7 @@ void RhiUiDrawer::freeReleased(UiDrawList &list) {
     for (quint64 id : list.releasedTextures) {
         auto set = bindings.find(id);
         if (set != bindings.end()) {
-            set->second->deleteLater();
+            set->second.bindings->deleteLater();
             bindings.erase(set);
         }
         auto kept = textures.find(id);
@@ -239,7 +264,7 @@ void RhiUiDrawer::freeReleased(UiDrawList &list) {
 }
 
 void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass,
-                          const QSize &frameSize) {
+                          const QSize &frameSize, const LibraryTexture &library) {
     static const bool logged = qEnvironmentVariableIsSet("TSRE_UI_LOG");
     QElapsedTimer timer;
     if (logged)
@@ -277,7 +302,9 @@ void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhi
             continue;
         Command command;
         command.geometry = geometry;
-        command.bindings = bindingsFor(list, draw.texture, batch);
+        command.bindings = bindingsFor(list, draw.texture, batch, library);
+        if (command.bindings == nullptr)
+            continue;
         command.uniformOffset = quint32(commands.size()) * uniformStride;
         command.scissor = draw.scissor;
         std::copy(draw.scissorRect, draw.scissorRect + 4, command.scissorRect);
@@ -285,6 +312,7 @@ void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhi
         UiProjection::multiply(values, projection, draw.transformed ? draw.transform : nullptr);
         values[16] = draw.translation[0];
         values[17] = draw.translation[1];
+        values[18] = list.libraryTextures.count(draw.texture) != 0 ? 1.0f : 0.0f;
         commands.push_back(command);
     }
     if (!commands.empty())

@@ -38,9 +38,13 @@ const char *FragmentShader = R"(#version 330 core
 in vec4 vColour;
 in vec2 vUv;
 uniform sampler2D image;
+// 1 for straight alpha textures (TexLib's).
+uniform float premultiply;
 out vec4 fragColor;
 void main() {
-    fragColor = vColour * texture(image, vUv);
+    vec4 texel = texture(image, vUv);
+    texel.rgb *= mix(1.0, texel.a, premultiply);
+    fragColor = vColour * texel;
 }
 )";
 
@@ -85,6 +89,7 @@ bool GlUiDrawer::ensureProgram() {
     }
     transformUniform = program->uniformLocation("transform");
     translationUniform = program->uniformLocation("translation");
+    premultiplyUniform = program->uniformLocation("premultiply");
     program->bind();
     program->setUniformValue("image", 0);
     program->release();
@@ -179,7 +184,7 @@ void GlUiDrawer::freeReleased(UiDrawList &list) {
     list.releasedTextures.clear();
 }
 
-void GlUiDrawer::draw(UiDrawList &list) {
+void GlUiDrawer::draw(UiDrawList &list, const LibraryTexture &library) {
     QOpenGLContext *current = QOpenGLContext::currentContext();
     if (current == nullptr || list.width < 1 || list.height < 1)
         return;
@@ -218,6 +223,15 @@ void GlUiDrawer::draw(UiDrawList &list) {
         const Geometry *geometry = geometryFor(list, draw.geometry);
         if (geometry == nullptr || geometry->count == 0)
             continue;
+        // A TexLib texture: drawn once loaded, its alpha straight.
+        unsigned int texture = 0;
+        const auto fromLibrary = list.libraryTextures.find(draw.texture);
+        if (fromLibrary != list.libraryTextures.end()) {
+            if (!library || !library(fromLibrary->second, texture))
+                continue;
+        } else {
+            texture = textureFor(list, draw.texture);
+        }
         if (draw.scissor) {
             f->glEnable(GL_SCISSOR_TEST);
             // From the bottom left.
@@ -230,7 +244,8 @@ void GlUiDrawer::draw(UiDrawList &list) {
         UiProjection::multiply(transform, projection, draw.transformed ? draw.transform : nullptr);
         program->setUniformValue(transformUniform, *reinterpret_cast<const float(*)[4][4]>(transform));
         program->setUniformValue(translationUniform, draw.translation[0], draw.translation[1]);
-        f->glBindTexture(GL_TEXTURE_2D, textureFor(list, draw.texture));
+        program->setUniformValue(premultiplyUniform, fromLibrary != list.libraryTextures.end() ? 1.0f : 0.0f);
+        f->glBindTexture(GL_TEXTURE_2D, texture);
         f->glBindVertexArray(geometry->array);
         f->glDrawElements(GL_TRIANGLES, geometry->count, GL_UNSIGNED_INT, nullptr);
     }

@@ -59,6 +59,16 @@ public:
         return 0;
     }
 
+    // A file system path (content's files) as it is; others relative to the
+    // document, as RmlUi joins them (its leading "/" meaning its own root).
+    void JoinPath(Rml::String &translated, const Rml::String &documentPath, const Rml::String &path) override {
+        if (QDir::isAbsolutePath(fromRml(path))) {
+            translated = path;
+            return;
+        }
+        Rml::SystemInterface::JoinPath(translated, documentPath, path);
+    }
+
     bool LogMessage(Rml::Log::Type type, const Rml::String &message) override {
         switch (type) {
         case Rml::Log::LT_ERROR:

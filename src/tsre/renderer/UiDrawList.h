@@ -52,6 +52,10 @@ struct UiDrawList {
     std::unordered_map<quint64, Geometry> geometries;
     // QImage::Format_RGBA8888_Premultiplied.
     std::unordered_map<quint64, QImage> textures;
+    // TexLib's textures (the documents' images: ACE, DDS, PNG...) by their
+    // TexLib ids: straight alpha, premultiplied when drawn; draws of one
+    // TexLib has not loaded yet are left out.
+    std::unordered_map<quint64, int> libraryTextures;
     // Released since a renderer last drew the list.
     std::vector<quint64> releasedGeometries;
     std::vector<quint64> releasedTextures;
