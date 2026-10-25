@@ -19,7 +19,7 @@ answers bbox queries from it quickly. These queries serve:
 |---|---|
 | Storage | Convert once into a spatially sorted PBF with coordinates on ways (`LocationsOnWays`). It stays a standard PBF that other tools can read. |
 | Backends | Consumers use an `OsmStore` interface. `SortedPbfStore` comes first; a derived `GridStore` can be added later behind the same interface. |
-| Dependencies | None new. Own protobuf code, deflate through the vendored miniz (`src/mzip/miniz`), own multipolygon assembly. |
+| Dependencies | None new. Own protobuf code, deflate through the vendored miniz (`thirdparty/miniz`, `src/mzip/miniz` until 2026-10-25), own multipolygon assembly. |
 | Directory | One modern setting, `core.paths.osmData` (directory, group "maps"). No legacy key and no `Game::` field. Only top-level `*.osm.pbf` files are read, never subdirectories. A different data set means a different directory. |
 | Original file | Setting: keep both, or delete the original after a successful conversion. |
 | Overlapping files in one directory | Query all files whose header bbox intersects the request. Drop duplicates by (type, id), preferring the newer header timestamp. |

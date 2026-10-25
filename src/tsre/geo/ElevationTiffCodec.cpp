@@ -2,7 +2,7 @@
 #include <tsre/geo/ElevationRaster.h>
 
 #define MINIZ_HEADER_FILE_ONLY
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 #include <QtEndian>
 #include <algorithm>

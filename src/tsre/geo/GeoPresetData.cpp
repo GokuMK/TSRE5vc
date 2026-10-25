@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 #include <tsre/Game.h>
 
 namespace {

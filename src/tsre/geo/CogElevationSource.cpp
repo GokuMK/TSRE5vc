@@ -4,7 +4,7 @@
 #include <tsre/geo/ElevationTiffCodec.h>
 
 #define MINIZ_HEADER_FILE_ONLY
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 #include <QDir>
 #include <QDirIterator>

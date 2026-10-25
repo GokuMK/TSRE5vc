@@ -9,7 +9,7 @@
  */
 
 #include <tsre/geo/osm/OsmPbf.h>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 #include <cstring>
 #include <QDateTime>
 #include <QFileInfo>

@@ -19,7 +19,7 @@
 #include <QTextStream>
 #include <cmath>
 #include <memory>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 namespace {
 bool writeFile(const QString &path, const QByteArray &contents) {

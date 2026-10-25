@@ -11,7 +11,7 @@
 #include <limits>
 #include <type_traits>
 #define MINIZ_HEADER_FILE_ONLY
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 namespace TerrainFile {
 namespace {

@@ -15,7 +15,7 @@
 #include <tsre/fileFunctions/SimisTextReader.h>
 #include <tsre/shape/SFileDocument.h>
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 using SFileDetail::Document;
 using SFileDetail::Node;

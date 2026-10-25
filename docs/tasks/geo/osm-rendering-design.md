@@ -89,7 +89,7 @@ Measured on all filled areas of the views above, one thread:
   of the polygons saved 3%. So there is no performance reason to accept edge
   cases; earcut it is.
 - Polygons are independent, so the work splits across threads.
-- Vendored as `src/earcut/earcut.hpp` with its licence, upstream commit
+- Vendored as `src/earcut/earcut.hpp` (since 2026-10-25 `thirdparty/earcut/`) with its licence, upstream commit
   `177bd66` (2026-09-28).
 
 ## Design

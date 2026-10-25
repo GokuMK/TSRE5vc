@@ -46,17 +46,20 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_package(OpenGL REQUIRED)
 endif()
 
-# Sound plays through miniaudio (src/thirdparty/miniaudio), compiled into
+# Sound plays through miniaudio (thirdparty/miniaudio), compiled into
 # TSRE; it loads the system's audio libraries at run time.
 find_package(Threads REQUIRED)
 
 qt_standard_project_setup()
 
 include_directories("./src")
+# Third-party libraries (thirdparty/README.md), apart from TSRE's own code;
+# a system include root, so their headers bring no warnings.
+include_directories(SYSTEM "./thirdparty")
 
 file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
-    "./src/mzip/miniz/miniz.h"
-    "./src/earcut/earcut.hpp"
+    "./thirdparty/miniz/miniz.h"
+    "./thirdparty/earcut/earcut.hpp"
     "./src/*.h"
     "./src/*.cpp"
     "./src/settings/*.h"
@@ -142,7 +145,7 @@ qt_add_resources(TSRE5vc osm_classes PREFIX "/osm"
     BASE "src/tsre/geo/osm" FILES "src/tsre/geo/osm/osm-map-classes.json")
 # Shown by the About window: the ISC licence asks for its notice in every copy.
 qt_add_resources(TSRE5vc earcut_licence PREFIX "/licences/earcut"
-    BASE "src/earcut" FILES "src/earcut/LICENSE")
+    BASE "thirdparty/earcut" FILES "thirdparty/earcut/LICENSE")
 target_include_directories(TSRE5vc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")

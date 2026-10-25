@@ -16,7 +16,7 @@
 #include <tsre/ErrorMessage.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/Game.h>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>

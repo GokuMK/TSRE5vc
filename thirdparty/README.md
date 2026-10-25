@@ -1,0 +1,18 @@
+# Third-party code
+
+Libraries TSRE builds from source, kept apart from TSRE's own code in
+`src/` (user, 2026-10-25). Each folder holds the library, its licence and a
+README with the version, where it came from (with a checksum) and any
+changes TSRE made; to update one, follow its README.
+
+| Folder | Library | Licence | Changed by TSRE |
+|---|---|---|---|
+| `earcut/` | earcut.hpp, polygon triangulation | ISC | no |
+| `miniaudio/` | miniaudio, audio playback | public domain or MIT-0 | no |
+| `miniz/` | miniz, deflate and ZIP | MIT | yes, listed in its README |
+
+`thirdparty/` is an include root: include them as `<earcut/earcut.hpp>`,
+`<miniaudio/miniaudio.h>`, `<miniz/miniz.h>`. Their warnings are not ours
+to fix: it is a system include root (no warnings from these headers), and
+what TSRE compiles of them on its own (miniaudio's implementation, in
+`src/tsre/sound/Miniaudio.cpp`) builds with warnings off.

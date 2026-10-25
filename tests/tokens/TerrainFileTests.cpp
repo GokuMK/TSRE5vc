@@ -7,7 +7,7 @@
 #include <QFile>
 #include <QtEndian>
 #include <cstring>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 int main(int argc,char **argv) {
     QCoreApplication app(argc,argv);
     const int scan=app.arguments().indexOf("--scan");

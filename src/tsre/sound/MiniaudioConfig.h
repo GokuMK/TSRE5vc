@@ -19,6 +19,6 @@
 #define MA_NO_ENCODING
 #define MA_NO_RESOURCE_MANAGER
 #define MA_NO_GENERATION
-#include <thirdparty/miniaudio/miniaudio.h>
+#include <miniaudio/miniaudio.h>
 
 #endif

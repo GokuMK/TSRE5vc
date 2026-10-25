@@ -47,7 +47,7 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
         //% "Polygon triangulation: earcut.hpp © 2015 Mapbox, <a href=\"earcut\">ISC licence</a>."
         qtTrId("route.editor.about.window.label.earcut"));
     myLabel5->setContentsMargins(5,0,0,0);
-    // The licence text ships with the program (resource from src/earcut/LICENSE).
+    // The licence text ships with the program (resource from thirdparty/earcut/LICENSE).
     connect(myLabel5, &QLabel::linkActivated, this, [this](const QString &) {
         QFile licence(":/licences/earcut/LICENSE");
         licence.open(QIODevice::ReadOnly);

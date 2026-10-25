@@ -10,7 +10,7 @@
 
 #include <QDebug>
 #include "MZip.h"
-#include "miniz/miniz.h"
+#include <miniz/miniz.h>
 
 MZip::MZip() {
 }

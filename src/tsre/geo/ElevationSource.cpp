@@ -2,7 +2,7 @@
 #include <tsre/geo/CogElevationSource.h>
 #include <tsre/geo/WfsElevationSource.h>
 #include <tsre/geo/ElevationDownload.h>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 #include <QCache>
 #include <QCryptographicHash>
