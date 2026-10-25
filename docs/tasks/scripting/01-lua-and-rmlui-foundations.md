@@ -235,11 +235,11 @@ thread.
    `script`: the sandbox closed, errors with file and line, an endless
    loop stopped, the memory limit, a save round trip (integers and floats
    kept), functions and cycles refused, a state on another thread.
-2. RmlUi: vendored subset, `tsre_rmlui` with the Qt font file and the Lua
-   plugin, system and file interfaces. Suite `rmlui`, no GPU: a document
-   laid out, text widths from Qt's fonts, geometry recorded by a test
-   render interface, a Lua handler changing an element, a data binding
-   following its value.
+2. [x] RmlUi (below, "Step 2 done"): vendored subset, `tsre_rmlui` with
+   the Qt font file and the Lua plugin, system and file interfaces. Suite
+   `rmlui`, no GPU: a document laid out, text widths from Qt's fonts,
+   geometry recorded by a test render interface, a Lua handler changing an
+   element, a data binding following its value.
 3. The render queue: the UI vertex layout, scissor and premultiplied
    blending in both backends; a test document captured with GL and QRhi
    (renderer parity).
@@ -276,13 +276,53 @@ thread.
 - Suite `script`: 27 checks pass; ctest 11/11; units 18, tokens 1631,
   sigcfg 22, simulation-core 89.
 
+## Step 2 done (2026-10-25)
+- `thirdparty/rmlui/`: RmlUi 6.3's `Include/`, `Source/Core`, `Source/Lua`
+  and `Source/Debugger`, unchanged without its CMake and clang-format
+  files; built into the static library `tsre_rmlui` (all of it about 40 s
+  on 12 threads; the program grew by 3.4 MB, 0.7 MB of it the debugger's
+  embedded font). RmlUi's definitions reach TSRE's sources through the
+  link, so adding it rebuilt everything once.
+- `src/tsre/ui/RmlQtFontInterface.cpp`: RmlUi's FreeType functions on
+  `QRawFont`, built into `tsre_rmlui` in place of RmlUi's file. Glyphs are
+  filled from their outlines by Qt's rasteriser (unhinted, the same pixels
+  on every system); their atlas looked at (2026-10-25): clean, Polish
+  letters drawn. Kerning only from a 'kern' table, which Noto Sans does
+  not have (only GPOS): no pair kerning, as RmlUi's own FreeType file would
+  give (it reads 'kern' only too).
+- `src/tsre/ui/UiRuntime.h`: `Ui::Runtime::start(folder)` and `stop()`;
+  RmlUi gets Qt's clock, log (`[ui]`), clipboard, the cursor through a
+  handler, files through `QFile` (compiled Lua refused: a bytecode chunk
+  could crash Lua), the fonts in `<folder>/fonts`, and the UI's sandboxed
+  Lua state for its plugin.
+- Changed from the design while building:
+  - Translations: a text that is exactly any TSRE id found in the
+    catalogues shows translated (not only `ui.*` ids); ids only documents
+    use go into `src/tsre/ui/UiTexts.cpp` (step 4, with the first ids).
+  - The UI's state takes globals in its global environment: RmlUi's plugin
+    runs documents' scripts and handlers there and sets globals of its
+    own. "No new globals in the libraries' table" is the simulation's
+    state only.
+  - One deadline for each input event or update: once one has passed,
+    every handler under it fails at once, so the views wrap each in its
+    own.
+  - RmlUi has no default style sheet: an element is inline (width and
+    height ignored) unless a style sheet says otherwise. TSRE's documents
+    get a base style sheet (`appdata/0.7/ui/base.rcss`, step 4).
+- `appdata/0.7/ui/fonts/`: Noto Sans 2.015, unhinted regular and bold
+  (0.86 MB), the OFL beside them. The appdata archive for releases without
+  appdata (koniec.org) gets them when it is next rebuilt from a release.
+- The About window credits RmlUi (MIT; its containers' MIT and its
+  debugger font's OFL under details).
+- Suites: `rmlui` 13 checks pass, `script` 28; ctest 11/11.
+
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.
 2. **A font shipped** in `appdata/0.7/ui/fonts/`: yes (Noto Sans regular
    and bold, SIL OFL, its licence beside it).
 3. **TSRE's own documents in English, with translation ids from the
    start** (the user's follow-up): a text that is exactly a TSRE id
-   (`<span>ui.hud.speed</span>`) is looked up with `qtTrId` in the
+   (`<span>ui.hud.speed</span>`; any id, see "Step 2 done") is looked up with `qtTrId` in the
    system interface's `TranslateString`, which RmlUi calls for document
    text and for data-bound text; anything else is shown unchanged. The
    ids are listed in one C++ file (`src/tsre/ui/UiTexts.cpp`) as

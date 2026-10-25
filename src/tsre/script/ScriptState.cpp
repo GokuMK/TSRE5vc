@@ -323,13 +323,17 @@ void State::openLibraries(unsigned seed) {
     lua_newtable(L);
     lua_setfield(L, LUA_REGISTRYINDEX, ModulesKey);
 
-    // The libraries take no new globals: each script keeps its own.
-    lua_createtable(L, 0, 2);
-    lua_pushcfunction(L, newGlobal);
-    lua_setfield(L, -2, "__newindex");
-    lua_pushboolean(L, 0);
-    lua_setfield(L, -2, "__metatable");
-    lua_setmetatable(L, globals);
+    // The simulation's libraries take no new globals: each script keeps its
+    // own. The UI's documents share theirs, as RmlUi's Lua plugin has it
+    // (their scripts and handlers run in the global environment).
+    if (stateKind == Kind::Simulation) {
+        lua_createtable(L, 0, 2);
+        lua_pushcfunction(L, newGlobal);
+        lua_setfield(L, -2, "__newindex");
+        lua_pushboolean(L, 0);
+        lua_setfield(L, -2, "__metatable");
+        lua_setmetatable(L, globals);
+    }
     lua_pop(L, 1);
 }
 

@@ -74,7 +74,7 @@ void checkSandbox(TokenTest::Suite &test) {
 }
 
 void checkGlobals(TokenTest::Suite &test) {
-    State state(State::Kind::Ui);
+    State state(State::Kind::Simulation);
     const int first = state.loadText(R"(
 x = 1
 _G.y = 2
@@ -88,7 +88,17 @@ end
     test.check(callText(state, first, "get") == "12" && callText(state, second, "get") == "nilnil",
                "each script keeps its own globals");
     test.check(callText(state, first, "viaLoad").contains("cannot be set in the shared libraries"),
-               "a chunk loaded without an environment cannot set shared globals");
+               "simulation: a chunk loaded without an environment cannot set shared globals");
+    State ui(State::Kind::Ui);
+    const int document = ui.loadText(R"(
+function viaLoad()
+  local chunk = load("shared = 1")
+  chunk()
+  return tostring(_ENV.shared) .. " " .. tostring(rawget(getmetatable(_ENV).__index, "shared"))
+end
+)", "document.lua");
+    test.check(callText(ui, document, "viaLoad") == "1 1",
+               "UI: the global environment takes globals (RmlUi's documents keep theirs there)");
 }
 
 void checkErrors(TokenTest::Suite &test) {

@@ -37,8 +37,10 @@ struct Limits {
 // Sandboxed: base, coroutine, math, string, table and utf8 only; no files,
 // processes or C modules; `load` reads text only; `require` finds modules
 // in the state's module folders; `print` writes to TSRE's log. Each script
-// runs in an environment of its own, reading the libraries through it, so
-// scripts of one state share no globals. While Lua runs under a deadline
+// loaded here runs in an environment of its own, reading the libraries
+// through it, so scripts share no globals; the simulation's state takes no
+// new global in the libraries' table either (the UI's does: RmlUi's
+// documents keep theirs there). While Lua runs under a deadline
 // (every call TSRE makes) it stops with an error past its time, and the
 // state holds no more memory than its limit; TSRE's own values pushed
 // between calls are not refused (Lua would abort on an error there).

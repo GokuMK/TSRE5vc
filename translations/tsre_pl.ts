@@ -1126,8 +1126,14 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <source>Scripting: Lua © 1994-2026 Lua.org, PUC-Rio, &lt;a href=&quot;lua&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Skrypty: Lua © 1994-2026 Lua.org, PUC-Rio, &lt;a href=&quot;lua&quot;&gt;licencja MIT&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.rmlui">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
+        <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>
+        <translation>Interfejs gry: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;licencja MIT&lt;/a&gt;.</translation>
+    </message>
     <message id="route.editor.about.window.button.browse">
-        <location filename="../src/routeEditor/AboutWindow.cpp" line="72"/>
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="88"/>
+        <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="210"/>
         <source>Close</source>
         <translation>Zamknij</translation>
     </message>

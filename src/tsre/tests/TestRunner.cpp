@@ -87,6 +87,7 @@
 #include <tsre/tests/ShapeAnimationTestSuite.h>
 #include <tsre/tests/CarAnimationTestSuite.h>
 #include <tsre/tests/ScriptTestSuite.h>
+#include <tsre/tests/RmlUiTestSuite.h>
 #include <tsre/tests/Cab3DTestSuite.h>
 #include <tsre/tests/NightTexturesTestSuite.h>
 #include <tsre/tests/GltfLodTestSuite.h>
@@ -4155,6 +4156,7 @@ QStringList TsreTests::listSuites() {
         "shape-animation",
         "car-animation",
         "script",
+        "rmlui",
         "cab3d",
         "night-textures",
         "gltf-lod",
@@ -4307,6 +4309,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runCarAnimationSuite(opts.verbose);
     if (suite == "script")
         return runScriptSuite(opts.verbose);
+    if (suite == "rmlui")
+        return runRmlUiSuite(opts.verbose);
     if (suite == "cab3d")
         return runCab3DSuite(opts.verbose);
     if (suite == "night-textures")
