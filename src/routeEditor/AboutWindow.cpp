@@ -53,6 +53,16 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
         licence.open(QIODevice::ReadOnly);
         QMessageBox::information(this, "earcut.hpp", QString::fromUtf8(licence.readAll()));
     });
+    QLabel* myLabel6 = new QLabel(
+        //% "Scripting: Lua © 1994-2026 Lua.org, PUC-Rio, <a href=\"lua\">MIT licence</a>."
+        qtTrId("route.editor.about.window.label.lua"));
+    myLabel6->setContentsMargins(5,0,0,0);
+    // The licence text ships with the program (resource from thirdparty/lua/LICENSE).
+    connect(myLabel6, &QLabel::linkActivated, this, [this](const QString &) {
+        QFile licence(":/licences/lua/LICENSE");
+        licence.open(QIODevice::ReadOnly);
+        QMessageBox::information(this, "Lua", QString::fromUtf8(licence.readAll()));
+    });
   
     
     myLabel->setPixmap(QPixmap::fromImage(*myImage));
@@ -69,6 +79,7 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     mainLayout->addWidget(myLabel3);
     mainLayout->addWidget(myLabel4);
     mainLayout->addWidget(myLabel5);
+    mainLayout->addWidget(myLabel6);
     mainLayout->addWidget(browse);
     
     mainLayout->setAlignment(myLabel, Qt::AlignTop);

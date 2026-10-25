@@ -50,6 +50,23 @@ endif()
 # TSRE; it loads the system's audio libraries at run time.
 find_package(Threads REQUIRED)
 
+# Lua 5.5 (thirdparty/lua) for TSRE's scripts (src/tsre/script), compiled
+# as C++: a Lua error unwinds as a C++ exception, so destructors in TSRE's
+# code run. Its warnings are not ours to fix.
+file(GLOB TSRE_LUA_SRC CONFIGURE_DEPENDS "./thirdparty/lua/*.c")
+set_source_files_properties(${TSRE_LUA_SRC} PROPERTIES LANGUAGE CXX)
+add_library(tsre_lua STATIC ${TSRE_LUA_SRC})
+target_include_directories(tsre_lua SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/lua")
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # mkstemp rather than tmpnam in the os library (never opened whole).
+    target_compile_definitions(tsre_lua PUBLIC LUA_USE_POSIX)
+endif()
+if(MSVC)
+    target_compile_options(tsre_lua PRIVATE /w)
+else()
+    target_compile_options(tsre_lua PRIVATE -w)
+endif()
+
 qt_standard_project_setup()
 
 include_directories("./src")
@@ -94,6 +111,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/sim/*.cpp"
     "./src/tsre/units/*.h"
     "./src/tsre/units/*.cpp"
+    "./src/tsre/script/*.h"
+    "./src/tsre/script/*.cpp"
     "./src/tsre/renderer/*.h"
     "./src/tsre/renderer/*.cpp"
     "./src/tsre/renderer/rhi/*.h"
@@ -143,9 +162,12 @@ qt_add_resources(TSRE5vc imagery_catalog PREFIX "/geo"
     BASE "src/tsre/geo" FILES "src/tsre/geo/imagery-datasets.json")
 qt_add_resources(TSRE5vc osm_classes PREFIX "/osm"
     BASE "src/tsre/geo/osm" FILES "src/tsre/geo/osm/osm-map-classes.json")
-# Shown by the About window: the ISC licence asks for its notice in every copy.
+# Shown by the About window: the ISC and MIT licences ask for their notices
+# in every copy.
 qt_add_resources(TSRE5vc earcut_licence PREFIX "/licences/earcut"
     BASE "thirdparty/earcut" FILES "thirdparty/earcut/LICENSE")
+qt_add_resources(TSRE5vc lua_licence PREFIX "/licences/lua"
+    BASE "thirdparty/lua" FILES "thirdparty/lua/LICENSE")
 target_include_directories(TSRE5vc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -153,7 +175,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 
 target_link_libraries(TSRE5vc PRIVATE Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets
-    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate Threads::Threads ${CMAKE_DL_LIBS})
+    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate Threads::Threads ${CMAKE_DL_LIBS} tsre_lua)
 # miniaudio is not ours to fix: no warnings from its implementation.
 if(MSVC)
     set_source_files_properties(src/tsre/sound/Miniaudio.cpp PROPERTIES COMPILE_OPTIONS "/w")

@@ -228,11 +228,13 @@ thread.
   about SimpleHud (question 4); RmlUi's debugger on a key in play mode.
 
 ## Steps
-1. Lua: vendored, `tsre_lua` target, `Script::State`, sandbox, limits,
-   values, save and restore. Suite `script`: the sandbox closed, errors
-   with file and line, an endless loop stopped, the memory limit, a save
-   round trip (integers and floats kept), functions and cycles refused, a
-   state on another thread.
+0. [x] `thirdparty/` beside `src/` (3beee84): miniaudio, miniz and earcut
+   moved, miniz's licence and its changes recorded (decision 6).
+1. [x] Lua (below, "Step 1 done"): vendored, `tsre_lua` target,
+   `Script::State`, sandbox, limits, values, save and restore. Suite
+   `script`: the sandbox closed, errors with file and line, an endless
+   loop stopped, the memory limit, a save round trip (integers and floats
+   kept), functions and cycles refused, a state on another thread.
 2. RmlUi: vendored subset, `tsre_rmlui` with the Qt font file and the Lua
    plugin, system and file interfaces. Suite `rmlui`, no GPU: a document
    laid out, text widths from Qt's fonts, geometry recorded by a test
@@ -245,6 +247,34 @@ thread.
    model, the setting, the debugger key; captures.
 5. Measures (Release): the build time and binary size added, the HUD's
    CPU time per frame, memory.
+
+## Step 1 done (2026-10-25)
+- `thirdparty/lua/`: Lua 5.5.1's `src/` unchanged without `lua.c`,
+  `luac.c`, `lua.hpp` and its Makefile; built as C++ into the static
+  library `tsre_lua` (about 3 s; the program grew by about 440 KB);
+  `LUA_USE_POSIX` off Windows.
+- `src/tsre/script/ScriptState.h`: `Script::State` as designed, plus:
+  - The memory limit holds while Lua runs under a deadline (every call
+    TSRE makes, every restore). Values TSRE pushes between calls are not
+    refused: an error outside a protected call makes Lua abort.
+  - Past the deadline `pcall`, `xpcall` and `coroutine.resume` pass the
+    error on, so a loop that catches it still stops; a coroutine may yield
+    inside `pcall` (the wrapper has a continuation).
+  - The libraries' table takes no new globals (`load` without an
+    environment cannot set one); the library tables themselves are shared
+    by a state's scripts, so a script changing `string.format` changes it
+    for the others.
+  - Saved text: keys in order, the shortest digits that read back exactly
+    (`0.1`, `1e+300`), `-0.0`, `(0/0)` and `(1/0)`, `math.mininteger` as
+    `(-9223372036854775807-1)`; restored in an empty environment, then
+    checked as if saved again.
+- `src/main.cpp`: `LC_NUMERIC` back to "C" after the application starts.
+  Qt gives C's functions the system's locale on Unix, so on a Polish system
+  Lua's `tostring(0.5)` would be `0,5`, and RmlUi reads style values with C
+  too. Not seen on this machine (no locale with a decimal comma installed).
+- The About window credits Lua and shows its licence, as earcut's.
+- Suite `script`: 27 checks pass; ctest 11/11; units 18, tokens 1631,
+  sigcfg 22, simulation-core 89.
 
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.

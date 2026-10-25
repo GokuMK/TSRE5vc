@@ -8,11 +8,13 @@ changes TSRE made; to update one, follow its README.
 | Folder | Library | Licence | Changed by TSRE |
 |---|---|---|---|
 | `earcut/` | earcut.hpp, polygon triangulation | ISC | no |
+| `lua/` | Lua 5.5, scripting (compiled as C++) | MIT | no |
 | `miniaudio/` | miniaudio, audio playback | public domain or MIT-0 | no |
 | `miniz/` | miniz, deflate and ZIP | MIT | yes, listed in its README |
 
 `thirdparty/` is an include root: include them as `<earcut/earcut.hpp>`,
-`<miniaudio/miniaudio.h>`, `<miniz/miniz.h>`. Their warnings are not ours
+`<miniaudio/miniaudio.h>`, `<miniz/miniz.h>`; Lua's headers through
+`src/tsre/script/LuaApi.h`. Their warnings are not ours
 to fix: it is a system include root (no warnings from these headers), and
 what TSRE compiles of them on its own (miniaudio's implementation, in
 `src/tsre/sound/Miniaudio.cpp`) builds with warnings off.

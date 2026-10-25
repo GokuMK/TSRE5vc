@@ -42,6 +42,7 @@
 #include <tsre/world/RouteCreator.h>
 #include <tsre/world/Trk.h>
 #include <tsre/units/Units.h>
+#include <clocale>
 
 QFile logFile;
 QTextStream logFileOut;
@@ -533,6 +534,10 @@ int main(int argc, char *argv[]){
     //QApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true); // has no effect?
     //QApplication::pr
     QApplication app(argc, argv);
+    // Qt gives C's functions the system's locale too (on Unix). Numbers C
+    // writes and reads (Lua's tostring and string.format, RmlUi's style
+    // values) keep the point whatever the language.
+    std::setlocale(LC_NUMERIC, "C");
     // The shared QRhi must go while the windowing system is still up.
     struct RhiShutdown { ~RhiShutdown() { RhiContext::shutdown(); } } rhiShutdown;
     TranslationManager translationManager;

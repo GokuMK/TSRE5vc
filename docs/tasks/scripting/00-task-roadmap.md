@@ -6,7 +6,8 @@ cab displays, loco scripts and advanced signal scripts (the driving
 roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
 
 ## Execution Order
-- [ ] `01-lua-and-rmlui-foundations.md` (design, 2026-10-25): Lua 5.5 and
+- [ ] `01-lua-and-rmlui-foundations.md` (on `feature/scripting`: step 1,
+  the Lua runtime, done 2026-10-25; next RmlUi): Lua 5.5 and
   RmlUi 6.3 vendored, no other new dependency (RmlUi's fonts through Qt,
   not FreeType); the Lua runtime (`src/tsre/script/`): one state per
   thread, a sandbox, time and memory limits, state tables saved and
