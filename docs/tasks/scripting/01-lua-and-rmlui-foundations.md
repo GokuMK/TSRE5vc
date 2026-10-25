@@ -240,13 +240,13 @@ thread.
    `rmlui`, no GPU: a document laid out, text widths from Qt's fonts,
    geometry recorded by a test render interface, a Lua handler changing an
    element, a data binding following its value.
-3. The render queue: the UI vertex layout, scissor and premultiplied
-   blending in both backends; a test document captured with GL and QRhi
-   (renderer parity).
-4. The play view: its context, input, the HUD document, the `sim` data
-   model, the setting, the debugger key; captures.
-5. Measures (Release): the build time and binary size added, the HUD's
-   CPU time per frame, memory.
+3. [x] Drawing (below, "Steps 3 and 4 done"): not through the render queue
+   as first designed but through each renderer's own small UI drawer
+   (decision 8).
+4. [x] The play view's HUD as a UI document, the setting, captures on both
+   renderers. Input, the debugger key and parity captures left (below).
+5. Measures (Release): the build time and binary size added (steps 1 and
+   2), the HUD's CPU time per frame (left).
 
 ## Step 1 done (2026-10-25)
 - `thirdparty/lua/`: Lua 5.5.1's `src/` unchanged without `lua.c`,
@@ -316,6 +316,52 @@ thread.
   debugger font's OFL under details).
 - Suites: `rmlui` 13 checks pass, `script` 28; ctest 11/11.
 
+## Steps 3 and 4 done (2026-10-25)
+- `--play` and the old HUD checked first (EUROPE1 `aftstorm.act`, the
+  stand-in driver): the train runs (71 km/h at 30 s, stopped at 1.3 km in
+  a tunnel at 90 s) and SimpleHud shows speed and distance; its 7-segment
+  font (Ni7seg) is not installed here, so a fallback font draws it.
+- `src/tsre/renderer/UiDrawList.h`: a frame of 2D UI for the renderers,
+  without RmlUi's types: geometry and textures kept by ids unique in the
+  program, the draws in order (translation, transform, texture, scissor),
+  releases since the last draw.
+- `Renderer::drawUi(list)`: `GlUiDrawer` draws at once into the view's
+  framebuffer (the OpenGL renderer has no tone mapping), its GL state put
+  back; `RhiUiDrawer` is fed in `present()`, after the view is composed
+  (tone mapped) and before the QPainter overlay, so a document's colours
+  do not change with exposure. Both: one small shader (position, colour,
+  texture coordinates; untextured draws sample white), premultiplied
+  alpha, no depth, a scissor rectangle per draw; geometry and textures
+  copied to the GPU once and freed when RmlUi releases them.
+- `src/tsre/ui/UiRenderInterface.h`: RmlUi's render interface filling the
+  list; images through Qt (PNG, JPEG...; not ACE yet). Not supported yet,
+  so RmlUi draws without them: clip masks (rounded or rotated clipping),
+  layers and filters (blur, drop shadow), shaders (gradients).
+- `src/tsre/ui/UiHud.h`: the HUD as the document `appdata/0.7/ui/hud.rml`
+  (with `base.rcss`, the defaults RmlUi lacks, `hud.rcss`, `hud.lua`): the
+  ridden train's speed, distance (the user's units), throttle and brake
+  through the data model `train`; each frame also the event `trainupdate`
+  (SI values, time) for the document's Lua, which colours the speed by its
+  trend (rising green, falling amber). `Consist::hudValues` gives the
+  values SimpleHud shows and the sounds' throttle and brake, for the
+  stand-in driver and simulated trains alike.
+- Setting `core.interface.hud.document` (on by default; the HUD itself
+  stays off by default, `core.interface.hud.enabled`): the document's HUD
+  for a ridden train; off, or the document not loading, SimpleHud.
+- Texts: the labels are ids (`ui.hud.speed` ...) listed in
+  `src/tsre/ui/UiTexts.cpp`, English and Polish in the catalogues; the
+  `rmlui` suite checks every id a document in `appdata/0.7/ui` names is in
+  them.
+- Checked: play mode on QRhi (Vulkan, llvmpipe) and OpenGL under Xvfb,
+  screenshots at 30 s (45 mph, rising, throttle bar) and 90 s (stopped,
+  brake bar full); the same on both. Suites: `rmlui` 16 (the HUD document,
+  its Lua trend, its ids), `script` 28, consist-preview-gl 15,
+  shape-complex-gl 131; ctest 11/11.
+- Left: input (mouse and keys to the documents) and a key for RmlUi's
+  debugger; a HUD capture in the renderer parity suite; ACE images;
+  clip masks, filters and gradients; the HUD's CPU time per frame
+  (Release); cab displays drawing into a texture (another task).
+
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.
 2. **A font shipped** in `appdata/0.7/ui/fonts/`: yes (Noto Sans regular
@@ -340,3 +386,13 @@ thread.
 7. **Drawing straight into the frame** for the screen's documents first;
    drawing into a texture later, with the cab displays (the same render
    interface, another target).
+8. **Not through the render queue** (asked when building step 3): the
+   queue's UI pass has no vertex colour in its shader, no per-item
+   scissor, groups items by texture, and in QRhi is drawn before tone
+   mapping. Each renderer gets a small UI drawer instead
+   (`Renderer::drawUi`), as RmlUi's own backends do; it reuses the
+   renderers, their shader baking and the place after tone mapping where
+   QRhi lays its overlay. The OSM map shader (geo, open item 7) was
+   considered for a shared layer and left apart: its needs (instancing,
+   lines widened in the shader, the selection pass, inside the map view)
+   are not known enough yet; the UI drawers are a pattern to follow.

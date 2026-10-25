@@ -87,6 +87,10 @@ class Coords;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
+namespace Ui {
+class Hud;
+}
+
 class RouteEditorGLWidget : public QWidget, public RenderSurfaceClient,
         protected QOpenGLFunctions, private ToolContext
 {
@@ -606,6 +610,8 @@ private:
     ViewMode currentViewMode = ViewMode::Scene3D;
     CameraMap *cameraMap = NULL;
     std::unique_ptr<TrackMapLayer> trackMap;
+    // The HUD from the UI document (task scripting 01).
+    std::unique_ptr<Ui::Hud> uiHud;
     std::unique_ptr<TrackItemMapLayer> trackItemMap;
     std::unique_ptr<ActivityMapLayer> activityMap;
     std::unique_ptr<TerrainMapLayer> terrainMap;

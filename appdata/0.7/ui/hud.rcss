@@ -1,0 +1,62 @@
+body
+{
+    width: 100%;
+    height: 100%;
+}
+
+#panel
+{
+    position: absolute;
+    left: 12dp;
+    top: 12dp;
+    width: 180dp;
+    padding: 8dp 12dp 10dp 12dp;
+    background-color: #10141cc8;
+    border-radius: 6dp;
+}
+
+.label
+{
+    font-size: 12dp;
+    color: #a8b4c8;
+}
+
+#speed
+{
+    font-size: 40dp;
+    font-weight: bold;
+}
+
+#speedValue.rising { color: #8ee08e; }
+#speedValue.falling { color: #ffb347; }
+
+.unit
+{
+    margin-left: 4dp;
+    font-size: 16dp;
+    font-weight: normal;
+    color: #c8d0dc;
+}
+
+#distance
+{
+    font-size: 20dp;
+    margin-bottom: 6dp;
+}
+
+.bar
+{
+    height: 6dp;
+    margin: 2dp 0 6dp 0;
+    background-color: #ffffff28;
+    border-radius: 3dp;
+}
+
+.fill
+{
+    height: 100%;
+    border-radius: 3dp;
+}
+
+.throttle { background-color: #4caf50; }
+.brake { background-color: #e57373; }

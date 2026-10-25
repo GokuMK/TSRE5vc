@@ -19,6 +19,7 @@
 #include <vector>
 
 class RenderSurface;
+struct UiDrawList;
 
 // A render queue that also draws: the frame owner gathers producers into it,
 // then draws the queued work pass by pass. Producers only see RenderQueue.
@@ -415,6 +416,11 @@ public:
                                std::vector<float> &spheres) const = 0;
     // Draws all remaining passes and ends the frame's submissions.
     virtual void renderFrame();
+    // The frame's 2D user interface (RmlUi's documents) over the finished
+    // view, after tone mapping, once the frame is rendered. The list must
+    // stay as it is until the frame is shown; the renderer takes its
+    // releases and keeps its own copies of its geometry and textures.
+    virtual void drawUi(UiDrawList &list) { (void)list; }
     // Starts a frame: drops queued work and rebalances the transform stack.
     virtual void resetFrame();
     // Increments at every resetFrame() of any renderer.

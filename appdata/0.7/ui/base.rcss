@@ -1,0 +1,25 @@
+/* Defaults for TSRE's UI documents. RmlUi has no style sheet of its own:
+   without these, every element is inline and width and height do nothing. */
+
+body, div, p, h1, h2, h3, h4, ul, ol, li, form
+{
+    display: block;
+}
+
+table { display: table; }
+tr { display: table-row; }
+td, th { display: table-cell; }
+
+body
+{
+    font-family: "Noto Sans";
+    font-weight: normal;
+    font-style: normal;
+    font-size: 16dp;
+    color: #ffffff;
+}
+
+h1 { font-size: 2em; font-weight: bold; }
+h2 { font-size: 1.5em; font-weight: bold; }
+h3 { font-size: 1.17em; font-weight: bold; }
+strong, b { font-weight: bold; }

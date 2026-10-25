@@ -1383,3 +1383,7 @@ void OpenGL3Renderer::renderFrame(){
     clearQueues();
     Renderer::renderFrame();
 }
+
+void OpenGL3Renderer::drawUi(UiDrawList &list){
+    uiDrawer.draw(list);
+}

@@ -64,6 +64,7 @@
 #include "PlayActivitySelectWindow.h"
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Consist.h>
+#include <tsre/ui/UiHud.h>
 #include <tsre/world/Skydome.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/EnvironmentMap.h>
@@ -1062,8 +1063,12 @@ void RouteEditorGLWidget::paintScene(){
     }
     
     
-    // HUD
-    if(!selectionPass && Game::hudEnabled){
+    // HUD: the UI document's over the finished frame (task scripting 01)
+    // for a ridden train, otherwise the built-in one in the UI pass.
+    Consist *hudTrain = !selectionPass && Game::hudEnabled && Game::hudDocument
+            ? dynamic_cast<Consist*>(camera->getCameraObject()) : nullptr;
+    const bool hudFromDocument = hudTrain != nullptr && (!uiHud || uiHud->usable());
+    if(!selectionPass && Game::hudEnabled && !hudFromDocument){
         int shadowsState = Game::shadowsEnabled;
         Game::shadowsEnabled = 0;
         float hudScale = Game::hudScale;
@@ -1080,6 +1085,14 @@ void RouteEditorGLWidget::paintScene(){
         renderer->releaseProgram();
     }
     renderer->renderFrame();
+    if (hudFromDocument) {
+        if (!uiHud)
+            uiHud = std::make_unique<Ui::Hud>();
+        Ui::Hud::Values values;
+        hudTrain->hudValues(values.speed, values.distance, values.throttle, values.brake);
+        uiHud->draw(renderer, qRound(this->width() * Game::PixelRatio), qRound(this->height() * Game::PixelRatio),
+                    Game::PixelRatio * Game::hudScale, values);
+    }
     if (!selectionPass && Game::environmentMapPreview && environmentMap != NULL
             && environmentMap->complete())
         environmentMap->drawPreview(8, 8, qRound(48 * Game::PixelRatio));

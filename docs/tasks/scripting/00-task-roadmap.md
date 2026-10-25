@@ -7,14 +7,15 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
 
 ## Execution Order
 - [ ] `01-lua-and-rmlui-foundations.md` (on `feature/scripting`: steps 1
-  and 2, the Lua runtime and RmlUi, done 2026-10-25; next drawing through
-  the render queue): Lua 5.5 and
+  to 4 done 2026-10-25: the Lua runtime, RmlUi, each renderer's UI drawer,
+  the play HUD as a document; left: input, the debugger key, parity
+  captures): Lua 5.5 and
   RmlUi 6.3 vendored, no other new dependency (RmlUi's fonts through Qt,
   not FreeType); the Lua runtime (`src/tsre/script/`): one state per
   thread, a sandbox, time and memory limits, state tables saved and
-  restored; RmlUi in TSRE (`src/tsre/ui/`): drawn through the render queue
-  by both renderers, Qt input, Lua in documents, data from the simulation's
-  frame; first use: the play mode HUD as an RmlUi document.
+  restored; RmlUi in TSRE (`src/tsre/ui/`): drawn by each renderer's own UI
+  drawer over the finished frame, Lua in documents, data from the ridden
+  train; first use: the play mode HUD as an RmlUi document.
 
 ## Later (other tasks, to be laid out)
 - Cab displays: an RmlUi context drawn into a texture on a 3D cab's screen

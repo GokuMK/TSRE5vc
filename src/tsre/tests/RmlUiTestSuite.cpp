@@ -2,6 +2,7 @@
 #include "TokenTestSupport.h"
 #include <QDir>
 #include <QElapsedTimer>
+#include <QRegularExpression>
 #include <QFile>
 #include <QTemporaryDir>
 #include <RmlUi/Core.h>
@@ -243,6 +244,71 @@ int TsreTests::runRmlUiSuite(bool verbose) {
     test.check(handle == 0, "compiled Lua is not served to documents");
     if (handle != 0)
         Rml::GetFileInterface()->Close(handle);
+
+    // TSRE's HUD document: its labels' ids translated, its data, its Lua.
+    {
+        Rml::String hudSpeed = "0", hudUnit = "km/h", hudDistance = "0.0 km";
+        int hudThrottle = 0, hudBrake = 0;
+        Rml::Context *hud = Rml::CreateContext("hud-test", Rml::Vector2i(800, 600), &recorder);
+        if (Rml::DataModelConstructor constructor = hud->CreateDataModel("train")) {
+            constructor.Bind("speed", &hudSpeed);
+            constructor.Bind("speedUnit", &hudUnit);
+            constructor.Bind("distance", &hudDistance);
+            constructor.Bind("throttle", &hudThrottle);
+            constructor.Bind("brake", &hudBrake);
+        }
+        Rml::ElementDocument *hudDocument = nullptr;
+        {
+            Script::State::Deadline deadline(Ui::Runtime::get()->lua());
+            hudDocument = hud->LoadDocument((folder + "/hud.rml").toStdString());
+            if (hudDocument != nullptr)
+                hudDocument->Show();
+            hud->Update();
+        }
+        auto send = [&](double speed, double time) {
+            Script::State::Deadline deadline(Ui::Runtime::get()->lua());
+            Rml::Dictionary parameters;
+            parameters["speed"] = speed;
+            parameters["distance"] = 0.0;
+            parameters["throttle"] = 0.5;
+            parameters["brake"] = 0.0;
+            parameters["time"] = time;
+            hudDocument->DispatchEvent("trainupdate", parameters);
+            hud->Update();
+        };
+        bool rising = false, falling = false;
+        QString label;
+        if (hudDocument != nullptr) {
+            label = QString::fromStdString(hudDocument->GetElementById("panel")->GetChild(0)->GetInnerRML());
+            send(10.0, 0.0);
+            send(12.0, 1.0);
+            Rml::Element *value = hudDocument->GetElementById("speedValue");
+            rising = value->IsClassSet("rising") && !value->IsClassSet("falling");
+            send(9.0, 2.0);
+            falling = value->IsClassSet("falling") && !value->IsClassSet("rising");
+        }
+        test.check(hudDocument != nullptr && label == qtTrId("ui.hud.speed") && label != "ui.hud.speed",
+                   QString("the HUD document loads, its labels translated (%1)").arg(label));
+        test.check(rising && falling, "the HUD's Lua colours the speed by its trend from trainupdate");
+        Rml::RemoveContext("hud-test");
+
+        // Every translation id TSRE's documents use is in the catalogues.
+        QStringList missing;
+        const QRegularExpression textId(">\\s*([a-z0-9]+(?:\\.[a-z0-9]+)+)\\s*<");
+        for (const QString &name : QDir(folder).entryList({"*.rml"}, QDir::Files)) {
+            QFile file(QDir(folder).filePath(name));
+            if (!file.open(QIODevice::ReadOnly))
+                continue;
+            const QString text = QString::fromUtf8(file.readAll());
+            for (auto match = textId.globalMatch(text); match.hasNext();) {
+                const QString id = match.next().captured(1);
+                if (qtTrId(id.toUtf8().constData()) == id)
+                    missing << name + ": " + id;
+            }
+        }
+        test.check(missing.isEmpty(), "translation ids of TSRE's documents in the catalogues" +
+                                          (missing.isEmpty() ? QString() : " (missing: " + missing.join(", ") + ")"));
+    }
 
     // The debugger, for documents' authors.
     const size_t before = recorder.draws.size();
