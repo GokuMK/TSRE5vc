@@ -1,8 +1,7 @@
 # Task 01 - Lua and RmlUi foundations
 
-Status: design (2026-10-25); nothing built. The user's answers of
-2026-10-25 are at the end; where vendored code lives and drawing to a
-texture are still open.
+Status: design decided (2026-10-25, the user's answers at the end); being
+built on `feature/scripting` (worktree `../TSRE5vc-scripting`).
 
 The user's request (2026-10-25): put RmlUi and Lua into the project before
 the driving work needs them; design first: where they live in the project,
@@ -28,7 +27,7 @@ UI's), a sandbox, saving and reloading, designed once for all of them.
   input. The simulation runs in `SimulationHost`'s thread, publishes
   immutable `SimulationFrame`s, and takes commands as queued calls with
   sequence numbers (`SimulationController`).
-- Third-party code: `src/thirdparty/miniaudio`, unchanged, with its
+- Third-party code (before this task): `src/thirdparty/miniaudio`, unchanged, with its
   licence and a README (version, source, SHA-256), compiled once with
   warnings off. The Windows release builds with MinGW from Qt's installer
   and no package manager (`.github/workflows/release.yml`): anything not
@@ -107,8 +106,8 @@ Lua's and RmlUi's MIT notices go into the About window as earcut's does
 
 | Folder | What |
 |---|---|
-| `src/thirdparty/lua/` | Lua 5.5.1, unchanged; LICENSE, README (version, source, SHA-256) |
-| `src/thirdparty/rmlui/` | RmlUi 6.3 subset, unchanged; LICENSE, README (version, source, SHA-256, what is left out) |
+| `thirdparty/lua/` | Lua 5.5.1, unchanged; LICENSE, README (version, source, SHA-256) |
+| `thirdparty/rmlui/` | RmlUi 6.3 subset, unchanged; LICENSE, README (version, source, SHA-256, what is left out) |
 | `src/tsre/script/` | the Lua runtime: states, sandbox, limits, values in and out, state tables and saving. No RmlUi or renderer headers: the simulation links it |
 | `src/tsre/ui/` | RmlUi in TSRE: system and file interfaces, the Qt font file, the render interface on the render queue, Qt input, a view's documents; later the HUD, menus, cab displays |
 | `appdata/0.7/ui/` | TSRE's own documents, style sheets, Lua and fonts, shipped as the shaders are |
@@ -251,14 +250,23 @@ thread.
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.
 2. **A font shipped** in `appdata/0.7/ui/fonts/`: yes (Noto Sans regular
    and bold, SIL OFL, its licence beside it).
-3. **TSRE's own documents stay in English**: the system interface's
-   `TranslateString` returns the text unchanged. Translating later would
-   mean text ids in the documents looked up in the en/pl catalogues there.
+3. **TSRE's own documents in English, with translation ids from the
+   start** (the user's follow-up): a text that is exactly a TSRE id
+   (`<span>ui.hud.speed</span>`) is looked up with `qtTrId` in the
+   system interface's `TranslateString`, which RmlUi calls for document
+   text and for data-bound text; anything else is shown unchanged. The
+   ids are listed in one C++ file (`src/tsre/ui/UiTexts.cpp`) as
+   `//% "Speed"` and `QT_TRID_NOOP("ui.hud.speed")`, so lupdate and the
+   validator treat them as today's; a check finds ids used by
+   `appdata/0.7/ui/` documents but missing from it. Lua gets `tr(id)`.
 4. **First use**: the HUD, SimpleHud kept as an option until reviewed.
 5. **Lua 5.5**: yes.
 
-## Still open
-- Where vendored code lives: `src/thirdparty/` (miniaudio today) or a
-  `thirdparty/` beside `src/`, and whether miniz and earcut move there.
-- Drawing documents straight into the frame (proposed above for the
-  screen) or into a texture first (needed by cab displays later).
+6. **Vendored code beside `src/`** (option B): `thirdparty/` at the top
+   of the repository, an include root; miniaudio, miniz and earcut moved
+   there first, each with its licence and a README (miniz's lists TSRE's
+   changes to it); `src/` holds only TSRE's own code. `src/mzip/MZip`
+   (TSRE's) stays.
+7. **Drawing straight into the frame** for the screen's documents first;
+   drawing into a texture later, with the cab displays (the same render
+   interface, another target).
