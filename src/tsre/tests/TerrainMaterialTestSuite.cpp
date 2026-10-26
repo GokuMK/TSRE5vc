@@ -1063,6 +1063,22 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         baked.spacing(4096.0f/n); view.cameraLocalX=5000; view.cameraLocalZ=1024;
         check(baked.proceduralNearCamera(view),"large-terrain-overlapping-near-region-is-procedural");
         baked.spacing(2048.0f/n);
+        {
+            // A bake made at another baked size (the setting changed since):
+            // not current, but it shows the map, and switching to static
+            // textures takes it with no save first (user, 2026-10-26).
+            QScopedValueRollback<int> bakeSize(TerrainMaterialMap::BakedSide,TerrainMaterialMap::BakedSide*2);
+            baked.setModified(false);
+            baked.loadProceduralMaterial(tileDir);
+            Undo::StateBegin();
+            const bool switched=baked.setProceduralMaterial(false,error);
+            Undo::StateEnd();
+            check(switched && !baked.usesProceduralMaterial(),"disable-takes-a-bake-of-another-size");
+            Undo::UndoLast();
+            check(baked.usesProceduralMaterial(),"undo-restores-procedural-after-it");
+        }
+        baked.loadProceduralMaterial(tileDir);
+        check(finishMaterialJobs(),"reload-bake-after-other-size");
         check(baked.setProceduralMaterial(false,error) && baked.save(),"disable-saves-baked-appearance");
         check(baked.setProceduralMaterial(true,error) && baked.descriptor().materialCount()==3,
               "reenable-does-not-reserve-another-bake-slot");
