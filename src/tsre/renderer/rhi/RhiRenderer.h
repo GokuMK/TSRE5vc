@@ -23,6 +23,7 @@
 #include <QMatrix4x4>
 #include <rhi/qrhi.h>
 #include <tsre/renderer/QueueRenderer.h>
+#include <tsre/renderer/rhi/RhiUiDrawer.h>
 
 class GLUU;
 class RhiContext;
@@ -72,6 +73,8 @@ public:
                              ShadowCasters casters = CASTERS_ALL,
                              ShadowSet set = SET_ALL) override;
     void renderFrame() override;
+    // Drawn when the frame is shown (present()), over the composed view.
+    void drawUi(UiDrawList &list) override;
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
     void setSky(const Sky &sky) override;
@@ -1073,6 +1076,10 @@ private:
     QRhiShaderResourceBindings *overlayBindings = nullptr;
     QRhiGraphicsPipeline *overlayPipeline = nullptr;
     QRhiRenderPassDescriptor *overlayPassKey = nullptr;
+    // The 2D user interface of the frame, drawn by present() after the view
+    // and before the overlay.
+    std::unique_ptr<RhiUiDrawer> uiDrawer;
+    UiDrawList *pendingUi = nullptr;
 
     // Shadow maps: near, middle and far.
     Attachments shadowMaps[3];

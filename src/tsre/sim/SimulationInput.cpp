@@ -1193,6 +1193,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             plan.player = player;
             plan.service = train.name;
             plan.serviceTime = player ? -1 : train.startTime;
+            plan.timetableTrain = true;
             plan.traffic = player ? -1 : index;
             plan.consist = train.consist;
             vehiclesOf(input, plan, parts, player, name, !train.isStatic);

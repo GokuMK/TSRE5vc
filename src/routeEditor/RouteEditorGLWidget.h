@@ -83,9 +83,15 @@ class MapMeasureLayer;
 class MapScaleBar;
 class QLabel;
 class MapLabelLayer;
+struct MapLabel;
 class Coords;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
+
+namespace Ui {
+class Hud;
+class Screen;
+}
 
 class RouteEditorGLWidget : public QWidget, public RenderSurfaceClient,
         protected QOpenGLFunctions, private ToolContext
@@ -424,6 +430,8 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
     void wheelEvent(QWheelEvent *event) Q_DECL_OVERRIDE;
     void keyPressEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
+    // The camera lets go of the keys it holds.
+    void focusOutEvent(QFocusEvent *event) Q_DECL_OVERRIDE;
     void keyReleaseEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
     void pushRenderPointer(RenderQueue &queue);
@@ -611,6 +619,13 @@ private:
     ViewMode currentViewMode = ViewMode::Scene3D;
     CameraMap *cameraMap = NULL;
     std::unique_ptr<TrackMapLayer> trackMap;
+    // The UI over the view and its documents (task scripting 01); the
+    // screen made first, gone last.
+    std::unique_ptr<Ui::Screen> uiScreen;
+    std::unique_ptr<Ui::Hud> uiHud;
+    bool uiCursor = false;
+    // The UI over the view, made on first use: false when it cannot start.
+    bool uiScreenReady();
     std::unique_ptr<TrackItemMapLayer> trackItemMap;
     std::unique_ptr<ActivityMapLayer> activityMap;
     std::unique_ptr<TerrainMapLayer> terrainMap;
@@ -677,6 +692,10 @@ private:
     void showMapContextMenu(const QPoint &position);
     std::vector<const void *> mapLabelSources;
     bool mapLabelsInvalid = true;
+    // The trains' names on the map, when last taken, and a count of changes.
+    std::vector<MapLabel> trainLabels;
+    QElapsedTimer trainLabelsTaken;
+    quint64 trainLabelsVersion = 0;
     void updateMapLabels();
     // Where a press began in map mode: a left click that moves the map no
     // more than this goes to the active tool.

@@ -10,7 +10,7 @@
 #include <limits>
 #include <vector>
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 namespace {
 // Parser-local view: unlike the private std-backed QByteArray::fromRawData,

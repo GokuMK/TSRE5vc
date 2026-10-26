@@ -23,7 +23,7 @@ enum class MapLayer {
 // starts, or where a simulation has them), the loose consists, speed zones,
 // failed signals, events, and a simulation's track use and signal aspects.
 enum class MapActivityKind {
-    PlayerPath, AIPaths, Trains, LooseConsists, SpeedZones, FailedSignals, Events, SimulatedTrack, Count
+    PlayerPath, AIPaths, Trains, LooseConsists, SpeedZones, FailedSignals, Events, SimulatedTrack, TrainNames, Count
 };
 
 struct MapLayers {

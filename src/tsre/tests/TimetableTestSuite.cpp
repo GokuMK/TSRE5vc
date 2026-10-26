@@ -793,6 +793,10 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     check(t1 != nullptr && t2 != nullptr && t3 != nullptr && std::fabs(t1->length - 40.0) < 0.01
               && t1->startTime == 8 * 3600 && t1->traffic >= 0 && !t1->player,
           "each an AI train of the consist (40 m), from its start time");
+    // The user's review: a timetable's trains named by their columns alone
+    // (unique there), without the start time an activity's AI service takes.
+    check(t1 != nullptr && t1->timetableTrain && Sim::TrainName(*input, t1->id) == "T1",
+          "a timetable's train named by its column alone: " + (t1 != nullptr ? Sim::TrainName(*input, t1->id) : QString()));
     // T1: Alpha behind its path's start, in the same track section: the
     // train is at that station from its start (Open Rails); Beta's booked
     // dwell under the platform's least waiting time (180 s); Gamma's one

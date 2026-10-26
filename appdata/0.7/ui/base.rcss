@@ -1,0 +1,55 @@
+/* Defaults for TSRE's UI documents. RmlUi has no style sheet of its own:
+   without these, every element is inline and width and height do nothing. */
+
+body, div, p, h1, h2, h3, h4, ul, ol, li, form
+{
+    display: block;
+}
+
+table { display: table; }
+tr { display: table-row; }
+td, th { display: table-cell; }
+
+/* A document lies over the whole view: where it has nothing to click, the
+   mouse is the view's (its camera and tools). Parts that take the mouse say
+   pointer-events: auto. A handle keeps what it drags inside the view, and
+   the view resized, it stays at its place in it. Sizes in dp are virtual
+   pixels, the view 1080 of them tall (times the HUD scale): documents grow
+   and shrink with the view. */
+body
+{
+    width: 100%;
+    height: 100%;
+    font-family: "Noto Sans";
+    font-weight: normal;
+    font-style: normal;
+    font-size: 20dp;
+    color: #ffffff;
+    pointer-events: none;
+}
+
+/* Controls take the mouse, and keys (or a gamepad) reach them in a menu:
+   Tab, the arrows, Enter. */
+button, input, select, textarea, handle
+{
+    pointer-events: auto;
+}
+
+button, input, select, textarea
+{
+    tab-index: auto;
+    nav-up: auto;
+    nav-down: auto;
+    nav-left: auto;
+    nav-right: auto;
+}
+
+handle
+{
+    cursor: move;
+}
+
+h1 { font-size: 2em; font-weight: bold; }
+h2 { font-size: 1.5em; font-weight: bold; }
+h3 { font-size: 1.17em; font-weight: bold; }
+strong, b { font-weight: bold; }

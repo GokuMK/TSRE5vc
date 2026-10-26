@@ -192,6 +192,10 @@ int TsreTests::runMapViewSuite(bool verbose) {
                       && placed[3].x() < 0 && placed[4].y() > 5,
               "labels: the first name above its dot; one on the same dot left out; a neighbour moved aside; "
               "off screen left out; at the top edge placed below");
+        C train{100, 100, 60, 16, 0, true}, blocked{100, 200, 60, 16, 0, true}, wall{140, 192, 60, 16};
+        const auto beside = MapLabelLayer::place({train, wall, blocked}, 400, 300, 5.0f, 2.0f);
+        check(beside[0] == QPoint(107, 92) && beside[1].x() >= 0 && beside[2] == QPoint(33, 192),
+              "labels: a name beside its dot starts right of it, else ends left of it");
         C kraków{100, 100, 60, 16, 7}, sameName{100, 160, 60, 16, 7}, other{100, 220, 60, 16, 9}, far{350, 100, 40, 16, 7};
         const auto deduped = MapLabelLayer::place({kraków, sameName, other, far}, 500, 300, 5.0f, 2.0f, 120.0f);
         check(deduped[0].x() >= 0 && deduped[1].x() < 0 && deduped[2].x() >= 0 && deduped[3].x() >= 0,

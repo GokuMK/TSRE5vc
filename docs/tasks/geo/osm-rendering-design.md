@@ -89,7 +89,7 @@ Measured on all filled areas of the views above, one thread:
   of the polygons saved 3%. So there is no performance reason to accept edge
   cases; earcut it is.
 - Polygons are independent, so the work splits across threads.
-- Vendored as `src/earcut/earcut.hpp` with its licence, upstream commit
+- Vendored as `src/earcut/earcut.hpp` (since 2026-10-25 `thirdparty/earcut/`) with its licence, upstream commit
   `177bd66` (2026-09-28).
 
 ## Design
@@ -545,6 +545,10 @@ In rough order of what the user asked about:
      ID buffer unless drawn wider for the pass;
    - on OpenGL and QRhi; measured on the Deck (frame time, memory, upload
      time) to choose the vertex layout and line method.
+   - (2026-10-25) The UI drawers of task scripting 01 (`GlUiDrawer`,
+     `RhiUiDrawer`: a program with its own vertex format and blending on
+     both renderers) are a small pattern to follow; a layer shared with
+     them was considered and left until this shader's needs are known.
 8. Smaller (the dark style is done, 2026-10-09): an option to start with OSM
    Data on, the multipolygon cache (little
    gain since the speed work), the detail read just below the regional switch

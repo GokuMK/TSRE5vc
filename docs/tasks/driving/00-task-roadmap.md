@@ -11,6 +11,76 @@ done; 06 activity events and 07 coupling come first). The built-in simple
 AI driving (simulation tasks 01 and 03) stays; advanced driving, the
 player's, works another way.
 
+## Reviews
+- [Driving harness review](reports/driving-harness-review.md) (2026-10-24):
+  what Open Rails' and MaSzyna's vehicle models need from a host and give
+  back (stepping, train motion and couplers, adhesion, brake pipes, power,
+  multiple-unit control, scripting, cab, sound, external interfaces), and
+  what that suggests for the harness. The user's goal for it: trains and
+  locos with the world, their cabs and RmlUi displays, and a train bus
+  between cars (force, air, electricity); simple and detailed models
+  (one force, or each axle and motor); messages to Lua and later
+  websockets; the AI's simple driving kept as the base of AI trains.
+
+## Decisions (user, 2026-10-24, after the harness review)
+- **Neighbours through the buses**; a simple read-only data bus may expose
+  the train's vehicles (mass, place, speed, type, couplings, flags) where
+  that helps (train-wide displays, blending).
+- **Our own command system**, able to take Open Rails' and MaSzyna's cabs.
+  MaSzyna content comes in through intermediate files made by scripts (for
+  example extended CVF definitions for MaSzyna cabs): its assets are
+  supported, not necessarily without conversion or proxy files.
+- **Multiplayer: state sync, the server authoritative.** The server runs
+  the simulation; a remote train's loco may be a provider of force (it
+  gets messages and returns only results); clients do not simulate other
+  trains or signals but get render-ready results from the server.
+- **MaSzyna: physics first**, the harness and buses designed so its
+  vehicle physics can be integrated later; its cab and sound formats are
+  needed in the future.
+
+## Decisions (user, 2026-10-24, the review's recommendations accepted)
+- **The host owns the train's motion and its couplers**; vehicle models
+  give forces (motive, brake, resistance) and never move themselves. The
+  couplers: springs and dampers with slack per pair (MaSzyna's buffer and
+  coupler parameters map onto them), all solved together each step
+  implicitly (one tridiagonal system along the train, as Open Rails solves
+  its couplers), so stiff and rigid couplers stay stable at 0.01 s and
+  Open Rails' rigid behaviour is the stiff limit. A train driven by the AI
+  stays one mass.
+- **The buses solved by the host**: each vehicle model reports what it
+  puts into or takes from a line (a valve's air flow and volume, a current
+  drawn or supplied, a command sent); the host works out the brake pipe,
+  main reservoir pipe and electric lines along the train each step,
+  implicitly as for the couplers, so no sub-steps are needed.
+- **MaSzyna's mover in C++**, as one kind of vehicle model (its 22,600
+  lines, MPL 2.0, kept as they are with marked patches): the host gives it
+  the track inputs and neighbours and takes its forces, skipping its own
+  couplers and motion. Lua stays the way for content creators to write or
+  change models, possibly using MaSzyna's brake valves and motors as
+  building blocks (the user would prefer Lua loco scripts, but at 20,000
+  lines it is no longer a user script).
+- **Open Rails' physics as the target of the Lua examples**, first as
+  inspiration for slightly simplified code: the electric loco (traction
+  curve, dynamic brake, pantograph and circuit breaker), the diesel
+  (engine speed and power, its traction), the steam loco certainly
+  simplified (regulator and cut-off to cylinder force, a basic boiler).
+  More detailed C++ versions or conversions later, if users ask for them.
+  Sizes for reference (Open Rails, C#, about 53,000 lines in all): the
+  electric loco's own file 490 lines, the diesel 1,500 plus its engine
+  2,200 and gearbox 1,100, the steam loco 11,000; the shared loco base
+  6,500 (much of it cab values, sounds, controllers); axles 1,700, brakes
+  5,600, power supplies 8,900 (axles, brakes, couplers and controllers are
+  the harness's own parts in C++). Open Rails stays a behavioural
+  reference, its formulas written afresh (GPL 3, compatible, but no code
+  taken, as in the simulation tasks).
+- **MaSzyna's models drawn directly**: `.t3d` and `.e3d` as another
+  `ComplexShape` beside MSTS and glTF shapes, with TSRE's engine and
+  content paths in mind, not converted (which also avoids licensing
+  questions about converted assets). The first MaSzyna asset task: a script
+  making an ENG for one MaSzyna loco or car, its model drawn by that shape
+  class, so TSRE finds it, draws it and puts it in consists.
+
+
 ## Decisions (user, 2026-10-17)
 - **Before any driving task**: the SI units task
   (`docs/tasks/core/si-units.md`) and the ENG refactor (task 01 below).
@@ -80,13 +150,14 @@ player's, works another way.
   connection. A loco script returns its force demand, brake force and
   power drawn; C++ applies them and gives the wheel slip back on the next
   step.
-- **The Lua runtime in its own folder** (`docs/tasks/scripting/`) when it
-  starts: embedding, one Lua state per thread (the simulation's, the
-  UI's), a sandbox, the state tables, saving, reloading. RmlUi, cab
-  displays, signal scripts and loco scripts all use it, so it is designed
-  once.
-- **RmlUi** for the game UI and cab displays in its own folder when that
-  work starts.
+- **The Lua runtime in its own folder** (`docs/tasks/scripting/`):
+  embedding, one Lua state per thread (the simulation's, the UI's), a
+  sandbox, the state tables, saving, reloading. RmlUi, cab displays,
+  signal scripts and loco scripts all use it, so it is designed once.
+  Started 2026-10-25 with RmlUi:
+  `docs/tasks/scripting/01-lua-and-rmlui-foundations.md` (design).
+- **RmlUi** for the game UI and cab displays: its foundations in the same
+  scripting task; the game UI and cab display tasks when that work starts.
 
 ## Execution Order (first steps)
 - [x] Core: `docs/tasks/core/si-units.md`, SI inside and the user's units

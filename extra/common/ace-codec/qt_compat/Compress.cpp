@@ -1,6 +1,6 @@
 #include "Compat.h"
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 #include <limits>
 
 QByteArray qCompress(const QByteArray& data, int level) {

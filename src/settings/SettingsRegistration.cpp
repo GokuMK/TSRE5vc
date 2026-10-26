@@ -1303,6 +1303,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Scale multiplier used to build the Route Editor HUD projection."
                 QT_TRID_NOOP("settings.core.interface.hud.scale.description")).withRange(0.25, 4, 0.05).inGroup("interface").inSubgroup("hud"),
         "hudScale", "Game::hudScale", "HUD", true, "cached");
+    ADD(SettingsDefinition::boolean("core.interface.hud.document", true)
+            .withNameId(
+                //% "HUD from the UI document"
+                QT_TRID_NOOP("settings.core.interface.hud.document.name")).withDescriptionId(
+                //% "Draw the HUD from TSRE's UI document (appdata, ui/hud.rml) rather than the built-in one."
+                QT_TRID_NOOP("settings.core.interface.hud.document.description")).inGroup("interface").inSubgroup("hud"),
+        "", "Game::hudDocument", "HUD", true, "cached");
     ADD(SettingsDefinition::boolean("core.interface.hud.showEditorFps", false)
             .withNameId(
                 //% "Show editor FPS"

@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <QString>
 #include <QHash>
+#include <QSize>
 #include <tsre/texture/Texture.h>
 
 #ifndef TEXLIB_H
@@ -34,8 +35,20 @@ public:
     // prepares it for the GPU and keeps no CPU copy; it is never edited), or
     // it may be Editable (terrain: its CPU pixels can be had).
     enum Use { Display, Editable };
+    // How addTex loads a texture it does not have yet: as the setting
+    // core.rendering.threadedTextureLoading says, on a thread of its own
+    // whatever the setting (the caller, say the render thread, never waits),
+    // or at once in the caller's thread. A reload loads at once.
+    enum class Loading { Setting, Background, Now };
     static int addTex(QString path, QString name, bool reload = false, Use use = Display);
-    static int addTex(QString pathid, bool reload = false, Use use = Display);
+    static int addTex(QString pathid, bool reload = false, Use use = Display,
+                      Loading loading = Loading::Setting);
+    static int addTex(QString pathid, bool reload, Loading loading) {
+        return addTex(pathid, reload, Display, loading);
+    }
+    // The size an image file says in its header (ACE, DDS, PNG, JPEG, BMP,
+    // TGA), read without loading the image; empty when it cannot tell.
+    static QSize imageSize(QString pathid);
     static int addTex(Texture* texture, bool reload = false);
     static bool reloadTexIfPresent(QString pathid);
     // Texture memory residency (docs/tasks/textures/04-texture-memory.md).

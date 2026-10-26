@@ -9,7 +9,7 @@
 #include <cstring>
 #define MINIZ_HEADER_FILE_ONLY
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 namespace {
 constexpr int HeaderSize = 20;

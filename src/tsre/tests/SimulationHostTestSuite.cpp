@@ -18,6 +18,7 @@
 #include <QThread>
 #include <set>
 #include <QTime>
+#include <QTimer>
 #include <QTreeWidget>
 #include <cmath>
 #include <functional>
@@ -38,6 +39,8 @@
 #include <tsre/environment/WorldClock.h>
 #include <tsre/map/MapFeatures.h>
 #include <tsre/map/MapLabelLayer.h>
+#include <tsre/map/MapLabelSources.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/sim/SimulationController.h>
@@ -647,6 +650,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
           "Play: a simulation of the activity, the player's train and the AI train");
     check(simulation->input()->trains[0].length > 39.0f && simulation->input()->trains[0].vehicles[0].type >= 4,
           "the trains have their vehicles: an engine and a carriage, 40 m");
+    check(runToTime->time() == QTime(8, 0, 0), "a new run: Run to: from 00:00:00 up to the run's start, 08:00:00");
     check(std::fabs(Game::timeOfDayHours - 8.0f) < 1e-4f, "the world's time is set to the activity's start");
     check(ActivityNotifier::editingLocked() && !activities->isEnabled() && !add->isEnabled()
               && !events.eventProperties->isEnabled() && !timetable.timetableProperties->isEnabled(),
@@ -809,7 +813,27 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.time > 8 * 3600 + 1800; }, 10000, pump);
     check(f && std::fabs(clock->hours() - (8 + 1.5 / 60)) < 1e-6 && clock->rate() == 0.0,
           "as fast as possible the world keeps its time");
+    // The user's review: a time before the run's start (the next day's,
+    // hours on) is asked about first; No leaves the run as it is.
+    const auto answer = [](QMessageBox::StandardButton button, QString *text) {
+        QTimer::singleShot(0, [button, text] {
+            if (QMessageBox *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
+                if (text != nullptr)
+                    *text = box->text();
+                box->button(button)->click();
+            }
+        });
+    };
+    QString question;
+    const unsigned long long commandBefore = simulation->lastCommand();
+    answer(QMessageBox::No, &question);
     runToTime->setTime(QTime(7, 59, 0));
+    runTo->click();
+    pump();
+    check(question.contains("07:59:00") && question.contains("08:00:00") && simulation->lastCommand() == commandBefore
+              && simulation->runs(),
+          "Run to 07:59, before the start: asked first; No leaves the run going: " + question);
+    answer(QMessageBox::Yes, nullptr);
     runTo->click();
     // As fast as possible the run can pass that time before the host takes
     // the command (a day of this activity takes well under a second): the
@@ -824,6 +848,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-4 && std::fabs(clock->hours() - (7 + 59.0 / 60)) < 1e-6
               && clock->date() == "2026-10-16",
           QString("Run to 07:59, before the start: the next day; the world's clock there (%1 %2)").arg(clock->hours()).arg(clock->date()));
+    const QLabel *shownTime = tools.findChild<QLabel *>("simulationTime");
+    check(shownTime != nullptr && shownTime->text() == "07:59:00, day 2",
+          "the panel's time says the day past midnight: " + (shownTime != nullptr ? shownTime->text() : QString()));
 
     // The clock's controls (the environment window's) drive the simulation.
     clock->setSpeed(5.0);
@@ -1164,6 +1191,37 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         check(labels.size() == 1 && labels[0].text.contains("Marker") && labels[0].kind == MapLabelKind::Event,
               QString("the map shows the latest message beside the player's train (%1)")
                   .arg(labels.empty() ? QString("none") : labels[0].text));
+        // The trains' names beside them (the users' request): at their
+        // heads, ahead of their centres the way they run, as the simulation
+        // names them; a click on a name picks its train, the leading vehicle.
+        {
+            std::vector<MapLabel> trains;
+            MapLabelSources::appendTrains(trains, activity);
+            bool named = !trains.empty();
+            QStringList names;
+            for (const MapLabel &label : trains) {
+                names << label.text;
+                int train = -1;
+                for (int t = 0; t < int(simulation->viewFrame()->trains.size()); ++t)
+                    if (simulation->trainName(t) == label.text)
+                        train = t;
+                int tile[2], centreTile[2], vehicle = -1;
+                float position[3], centre[3], heading[3];
+                quint32 picks = 0;
+                named = named && train >= 0 && label.kind == MapLabelKind::Train && label.beside
+                        && simulation->trainHead(train, tile, position, &vehicle)
+                        && SelectionIdCodec::tryActivityService(simulation->serviceId(train), vehicle, picks)
+                        && label.selectionId == picks
+                        && simulation->trainPlace(train, centreTile, centre, heading) && label.tileX == tile[0]
+                        && label.tileZ == tile[1] && std::fabs(label.x - position[0]) < 0.01f
+                        && std::fabs(label.z - position[2]) < 0.01f && label.priority < labels[0].priority
+                        && ((tile[0] - centreTile[0]) * 2048.0f + position[0] - centre[0]) * heading[0]
+                                + ((tile[1] - centreTile[1]) * 2048.0f + position[2] - centre[2]) * heading[2]
+                            > 1.0f;
+            }
+            check(named && names.filter("(player)").size() == 1,
+                  "the map names the trains beside them, as the simulation does: " + names.join(" | "));
+        }
         stop->click();
         pump();
         {

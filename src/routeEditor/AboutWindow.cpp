@@ -47,11 +47,37 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
         //% "Polygon triangulation: earcut.hpp © 2015 Mapbox, <a href=\"earcut\">ISC licence</a>."
         qtTrId("route.editor.about.window.label.earcut"));
     myLabel5->setContentsMargins(5,0,0,0);
-    // The licence text ships with the program (resource from src/earcut/LICENSE).
+    // The licence text ships with the program (resource from thirdparty/earcut/LICENSE).
     connect(myLabel5, &QLabel::linkActivated, this, [this](const QString &) {
         QFile licence(":/licences/earcut/LICENSE");
-        licence.open(QIODevice::ReadOnly);
-        QMessageBox::information(this, "earcut.hpp", QString::fromUtf8(licence.readAll()));
+        if (licence.open(QIODevice::ReadOnly))
+            QMessageBox::information(this, "earcut.hpp", QString::fromUtf8(licence.readAll()));
+    });
+    QLabel* myLabel6 = new QLabel(
+        //% "Scripting: Lua © 1994-2026 Lua.org, PUC-Rio, <a href=\"lua\">MIT licence</a>."
+        qtTrId("route.editor.about.window.label.lua"));
+    myLabel6->setContentsMargins(5,0,0,0);
+    // The licence text ships with the program (resource from thirdparty/lua/LICENSE).
+    connect(myLabel6, &QLabel::linkActivated, this, [this](const QString &) {
+        QFile licence(":/licences/lua/LICENSE");
+        if (licence.open(QIODevice::ReadOnly))
+            QMessageBox::information(this, "Lua", QString::fromUtf8(licence.readAll()));
+    });
+    QLabel* myLabel7 = new QLabel(
+        //% "Game UI: RmlUi © The RmlUi Team, <a href=\"rmlui\">MIT licence</a>."
+        qtTrId("route.editor.about.window.label.rmlui"));
+    myLabel7->setContentsMargins(5,0,0,0);
+    // RmlUi's licence, with its containers' and its debugger font's below
+    // (resources from thirdparty/rmlui).
+    connect(myLabel7, &QLabel::linkActivated, this, [this](const QString &) {
+        auto read = [](const QString &path) {
+            QFile file(path);
+            return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+        };
+        QMessageBox box(QMessageBox::Information, "RmlUi", read(":/licences/rmlui/LICENSE.txt"), QMessageBox::Ok, this);
+        box.setDetailedText(read(":/licences/rmlui/Include/RmlUi/Core/Containers/LICENSE.txt") + "\n\n"
+                            + read(":/licences/rmlui/Source/Debugger/LICENSE.txt"));
+        box.exec();
     });
   
     
@@ -69,6 +95,8 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     mainLayout->addWidget(myLabel3);
     mainLayout->addWidget(myLabel4);
     mainLayout->addWidget(myLabel5);
+    mainLayout->addWidget(myLabel6);
+    mainLayout->addWidget(myLabel7);
     mainLayout->addWidget(browse);
     
     mainLayout->setAlignment(myLabel, Qt::AlignTop);

@@ -61,6 +61,9 @@ public:
     // As fast as possible up to a time of day (seconds), then paused there;
     // a time before the simulation's is reached again from the start.
     bool runTo(Activity *activity, int timeOfDay, QString *error = nullptr);
+    // The simulation's time a run to a time of day goes to: the next day's
+    // when it is before the run's start (an activity running past midnight).
+    double timeOfRunTo(int timeOfDay) const;
     // A new input from the editor's data, back at the start, running on
     // when it ran.
     void reset();
@@ -111,6 +114,10 @@ public:
     // tile x, tile z (the camera's), x, y, z; its length; false when not on
     // the track.
     bool trainPlace(int train, int *tile, float *position, float *heading, float *length = nullptr) const;
+    // Where a train begins: its first vehicle's front (its last one's rear
+    // when it runs reversed), as trainPlace's centre, and that vehicle's
+    // place in it; false when not on the track.
+    bool trainHead(int train, int *tile, float *position, int *vehicle = nullptr) const;
 
     // The world's clock while a simulation exists (WorldClock::Source): the
     // simulation's time of day and date (days from the world's date at

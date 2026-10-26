@@ -105,11 +105,17 @@ QString TrainName(const SimulationInput &in, int train) {
     if (train < 0 || size_t(train) >= in.trains.size())
         return QString();
     const TrainPlan &plan = in.trains[size_t(train)];
-    return plan.player ?
+    return TrainName(plan.service, plan.player, plan.timetableTrain ? -1 : plan.serviceTime);
+}
+
+QString TrainName(const QString &service, bool player, int time) {
+    if (!player && time < 0)
+        return service;
+    return player ?
         //% "%1 (player)"
-        qtTrId("simulation.train.player").arg(plan.service) :
+        qtTrId("simulation.train.player").arg(service) :
         //% "%1 %2"
-        qtTrId("simulation.train.ai").arg(plan.service, clock(plan.serviceTime));
+        qtTrId("simulation.train.ai").arg(service, clock(time));
 }
 
 QString HolderName(const SimulationInput &in, int holder) {

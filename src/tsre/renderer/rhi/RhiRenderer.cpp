@@ -253,6 +253,8 @@ RhiRenderer::~RhiRenderer() {
 }
 
 void RhiRenderer::releaseResources() {
+    uiDrawer.reset();
+    pendingUi = nullptr;
     for (auto &entry : pipelines)
         delete entry.second;
     pipelines.clear();
@@ -2942,12 +2944,22 @@ void main() {
     QRhiResourceUpdateBatch *updates = overlayUpload != nullptr ? overlayUpload
                                                                 : rhi->nextResourceUpdateBatch();
     updates->updateDynamicBuffer(presentUniforms, 0, sizeof(image), image);
+    // The 2D user interface's new geometry, textures and uniforms.
+    if (pendingUi != nullptr) {
+        if (!uiDrawer)
+            uiDrawer = std::make_unique<RhiUiDrawer>(rhi);
+        uiDrawer->prepare(*pendingUi, updates, frame.passDescriptor, frame.pixelSize,
+                          [this](int textureId, bool &mipmapped) { return libraryTexture(textureId, mipmapped); });
+        pendingUi = nullptr;
+    }
     QRhiCommandBuffer *cb = frame.commandBuffer;
     cb->beginPass(frame.target, Qt::black, {1.0f, 0}, updates);
     cb->setGraphicsPipeline(presentPipeline);
     cb->setViewport(QRhiViewport(0, 0, float(frame.pixelSize.width()), float(frame.pixelSize.height())));
     cb->setShaderResources(presentBindings);
     cb->draw(3);
+    if (uiDrawer)
+        uiDrawer->record(cb);
     if (!overlayDrawn.isEmpty() && overlayTexture != nullptr && overlayPipeline != nullptr) {
         cb->setGraphicsPipeline(overlayPipeline);
         cb->setShaderResources(overlayBindings);
@@ -2958,6 +2970,10 @@ void main() {
         cb->draw(3);
     }
     cb->endPass();
+}
+
+void RhiRenderer::drawUi(UiDrawList &list) {
+    pendingUi = &list;
 }
 
 void RhiRenderer::renderFrame() {
@@ -3020,6 +3036,8 @@ void RhiRenderer::logCreation() {
 }
 
 void RhiRenderer::resetFrame() {
+    // A frame without a UI draws none.
+    pendingUi = nullptr;
     beginFrameIfNeeded();
     logCreation();
     QueueRenderer::resetFrame();

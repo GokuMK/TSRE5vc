@@ -46,17 +46,59 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_package(OpenGL REQUIRED)
 endif()
 
-# Sound plays through miniaudio (src/thirdparty/miniaudio), compiled into
+# Sound plays through miniaudio (thirdparty/miniaudio), compiled into
 # TSRE; it loads the system's audio libraries at run time.
 find_package(Threads REQUIRED)
+
+# Lua 5.5 (thirdparty/lua) for TSRE's scripts (src/tsre/script), compiled
+# as C++: a Lua error unwinds as a C++ exception, so destructors in TSRE's
+# code run. Its warnings are not ours to fix.
+file(GLOB TSRE_LUA_SRC CONFIGURE_DEPENDS "./thirdparty/lua/*.c")
+set_source_files_properties(${TSRE_LUA_SRC} PROPERTIES LANGUAGE CXX)
+add_library(tsre_lua STATIC ${TSRE_LUA_SRC})
+target_include_directories(tsre_lua SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/lua")
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    # mkstemp rather than tmpnam in the os library (never opened whole).
+    target_compile_definitions(tsre_lua PUBLIC LUA_USE_POSIX)
+endif()
+if(MSVC)
+    target_compile_options(tsre_lua PRIVATE /w)
+else()
+    target_compile_options(tsre_lua PRIVATE -w)
+endif()
+
+# RmlUi 6.3 (thirdparty/rmlui) for the game UI (src/tsre/ui): its core, Lua
+# plugin and debugger, Lua compiled as C++. Its own font engine (enabled by
+# RMLUI_FONT_ENGINE_FREETYPE, after the library it normally uses) gets its
+# glyphs from Qt: TSRE's RmlQtFontInterface.cpp is built in place of RmlUi's
+# FreeType file, so there is no FreeType to find or ship.
+set(TSRE_RMLUI "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmlui")
+file(GLOB_RECURSE TSRE_RMLUI_SRC CONFIGURE_DEPENDS
+    "${TSRE_RMLUI}/Source/Core/*.cpp" "${TSRE_RMLUI}/Source/Lua/*.cpp" "${TSRE_RMLUI}/Source/Debugger/*.cpp")
+list(FILTER TSRE_RMLUI_SRC EXCLUDE REGEX "/FontEngineDefault/FreeTypeInterface\\.cpp$")
+add_library(tsre_rmlui STATIC ${TSRE_RMLUI_SRC} "./src/tsre/ui/RmlQtFontInterface.cpp")
+target_include_directories(tsre_rmlui SYSTEM PUBLIC "${TSRE_RMLUI}/Include")
+target_include_directories(tsre_rmlui PRIVATE "${TSRE_RMLUI}/Source/Core")
+target_compile_definitions(tsre_rmlui PUBLIC RMLUI_STATIC_LIB RMLUI_LUA_AS_CXX
+    PRIVATE RMLUI_FONT_ENGINE_FREETYPE "RMLUI_VERSION=\"6.3\"")
+target_link_libraries(tsre_rmlui PUBLIC tsre_lua PRIVATE Qt6::Gui)
+# Its warnings are not ours to fix.
+if(MSVC)
+    set_source_files_properties(${TSRE_RMLUI_SRC} PROPERTIES COMPILE_OPTIONS "/w")
+else()
+    set_source_files_properties(${TSRE_RMLUI_SRC} PROPERTIES COMPILE_OPTIONS "-w")
+endif()
 
 qt_standard_project_setup()
 
 include_directories("./src")
+# Third-party libraries (thirdparty/README.md), apart from TSRE's own code;
+# a system include root, so their headers bring no warnings.
+include_directories(SYSTEM "./thirdparty")
 
 file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
-    "./src/mzip/miniz/miniz.h"
-    "./src/earcut/earcut.hpp"
+    "./thirdparty/miniz/miniz.h"
+    "./thirdparty/earcut/earcut.hpp"
     "./src/*.h"
     "./src/*.cpp"
     "./src/settings/*.h"
@@ -91,6 +133,10 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/sim/*.cpp"
     "./src/tsre/units/*.h"
     "./src/tsre/units/*.cpp"
+    "./src/tsre/script/*.h"
+    "./src/tsre/script/*.cpp"
+    "./src/tsre/ui/*.h"
+    "./src/tsre/ui/*.cpp"
     "./src/tsre/renderer/*.h"
     "./src/tsre/renderer/*.cpp"
     "./src/tsre/renderer/rhi/*.h"
@@ -133,6 +179,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/contentCase/*.cpp"
 )
 
+# Built into tsre_rmlui (above).
+list(FILTER TSRE5vc_SRC EXCLUDE REGEX "/src/tsre/ui/RmlQtFontInterface\\.cpp$")
 qt_add_executable(TSRE5vc ${TSRE5vc_SRC})
 qt_add_resources(TSRE5vc elevation_catalog PREFIX "/geo"
     BASE "src/tsre/geo" FILES "src/tsre/geo/elevation-datasets.json")
@@ -140,9 +188,15 @@ qt_add_resources(TSRE5vc imagery_catalog PREFIX "/geo"
     BASE "src/tsre/geo" FILES "src/tsre/geo/imagery-datasets.json")
 qt_add_resources(TSRE5vc osm_classes PREFIX "/osm"
     BASE "src/tsre/geo/osm" FILES "src/tsre/geo/osm/osm-map-classes.json")
-# Shown by the About window: the ISC licence asks for its notice in every copy.
+# Shown by the About window: the ISC and MIT licences ask for their notices
+# in every copy.
 qt_add_resources(TSRE5vc earcut_licence PREFIX "/licences/earcut"
-    BASE "src/earcut" FILES "src/earcut/LICENSE")
+    BASE "thirdparty/earcut" FILES "thirdparty/earcut/LICENSE")
+qt_add_resources(TSRE5vc lua_licence PREFIX "/licences/lua"
+    BASE "thirdparty/lua" FILES "thirdparty/lua/LICENSE")
+qt_add_resources(TSRE5vc rmlui_licence PREFIX "/licences/rmlui"
+    BASE "thirdparty/rmlui" FILES "thirdparty/rmlui/LICENSE.txt"
+    "thirdparty/rmlui/Include/RmlUi/Core/Containers/LICENSE.txt" "thirdparty/rmlui/Source/Debugger/LICENSE.txt")
 target_include_directories(TSRE5vc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -150,7 +204,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 
 target_link_libraries(TSRE5vc PRIVATE Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets
-    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate Threads::Threads ${CMAKE_DL_LIBS})
+    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate Threads::Threads ${CMAKE_DL_LIBS} tsre_lua tsre_rmlui)
 # miniaudio is not ours to fix: no warnings from its implementation.
 if(MSVC)
     set_source_files_properties(src/tsre/sound/Miniaudio.cpp PROPERTIES COMPILE_OPTIONS "/w")

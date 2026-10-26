@@ -158,7 +158,7 @@ precedence, truncated data, refusals, mono).
 
 ## Step 2: miniaudio backend (done)
 
-- `src/thirdparty/miniaudio/`: miniaudio 0.11.25 unchanged, its licence and
+- `src/thirdparty/miniaudio/` (since 2026-10-25 `thirdparty/miniaudio/`): miniaudio 0.11.25 unchanged, its licence and
   a README with the version and checksums. `Miniaudio.cpp` compiles it once
   (no warnings shown) with the options of `MiniaudioConfig.h`: no
   decoders, encoders, generators or resource manager. CMake links threads

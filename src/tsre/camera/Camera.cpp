@@ -162,6 +162,12 @@ void Camera::MouseDown(QMouseEvent* e) {
 void Camera::MouseUp(QMouseEvent* e) {
 }
 
+void Camera::releaseKeys() {
+    jestcontrol = 0;
+    moveF = moveR = moveB = moveL = false;
+    przesx = przesz = Game::cameraSpeedStd;
+}
+
 void Camera::keyUp(QKeyEvent * e) {
 }
 

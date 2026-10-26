@@ -14,7 +14,7 @@
 // Supply the same bundled codec used by TSRE, without linking the GL
 // application.
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 int main(int argc, char **argv) {
     for (int i = 1; i < argc; ++i)
         if (QByteArray(argv[i]) == "--shapeconv")

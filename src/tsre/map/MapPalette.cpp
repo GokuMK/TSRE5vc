@@ -43,6 +43,7 @@ MapPalette MapPalette::dark() {
     palette.quadBorder = QColor(50, 53, 61);
     palette.label = QColor(236, 237, 242);
     palette.labelHalo = QColor(20, 22, 26);
+    palette.trainLabel = QColor(140, 175, 255);
     palette.marker = QColor(255, 96, 192);
     palette.place = QColor(180, 182, 190);
     palette.osmStation = QColor(110, 160, 240);
@@ -108,6 +109,7 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("selection", palette.selection);
     read("label", palette.label);
     read("labelHalo", palette.labelHalo);
+    read("trainLabel", palette.trainLabel);
     read("marker", palette.marker);
     read("place", palette.place);
     read("osmStation", palette.osmStation);

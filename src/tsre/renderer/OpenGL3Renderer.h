@@ -12,6 +12,7 @@
 #ifndef OPENGL3RENDERER_H
 #define OPENGL3RENDERER_H
 
+#include <tsre/renderer/GlUiDrawer.h>
 #include <tsre/renderer/QueueRenderer.h>
 #include <tsre/renderer/SelectionRenderer.h>
 #include <tsre/renderer/WaterWaves.h>
@@ -63,8 +64,11 @@ public:
                              ShadowCasters casters = CASTERS_ALL,
                              ShadowSet set = SET_ALL) override;
     void renderFrame() override;
+    // Drawn at once, into the bound framebuffer.
+    void drawUi(UiDrawList &list) override;
 
 private:
+    GlUiDrawer uiDrawer;
     void drawOrdered(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
                      int pass);
     void drawGrouped(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,

@@ -46,14 +46,14 @@ function Add-Notice([string]$Source, [string]$Text) {
     }
     $noticeSources[$Text].Add($Source)
 }
-$minizPath = Join-Path $root 'src/mzip/miniz/miniz.h'
+$minizPath = Join-Path $root 'thirdparty/miniz/miniz.h'
 $minizComments = [regex]::Matches([IO.File]::ReadAllText($minizPath), '(?s)/\*.*?\*/')
 $minizNotices = @($minizComments | Where-Object {
     $_.Value -match 'Permission is hereby granted|This is free and unencumbered software'
 })
 if (!$minizNotices.Count) { throw 'No miniz license notices found; review the source before packaging' }
 foreach ($notice in $minizNotices) {
-    Add-Notice 'Bundled miniz (src/mzip/miniz/miniz.h)' $notice.Value
+    Add-Notice 'Bundled miniz (thirdparty/miniz/miniz.h)' $notice.Value
 }
 if ($RuntimeLicenseDirectory) {
     $licenseRoot = (Get-Item -LiteralPath $RuntimeLicenseDirectory).FullName.TrimEnd('\', '/')

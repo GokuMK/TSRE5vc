@@ -131,6 +131,9 @@ public:
     bool getWagonWorldPosition(int id, float *posTW);
     void updateSim(float deltaTime);
     void pushRenderHud(RenderQueue &queue);
+    // What a HUD shows of the train: its speed (m/s), the distance it has
+    // gone (m), throttle and brake (0 to 1) as its sounds take them.
+    void hudValues(float &speed, float &distance, float &throttle, float &brake) const;
     // Where a camera riding the consist is: on vehicle cameraVehicle (the
     // first by default).
     void getCameraPosition(float *out);

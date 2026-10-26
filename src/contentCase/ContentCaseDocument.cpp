@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <memory>
 #define MINIZ_HEADER_FILE_ONLY
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 namespace ContentCase {
 namespace {
