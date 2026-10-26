@@ -13,7 +13,7 @@
 #include <cstring>
 #include <memory>
 #include <tsre/world/TerrainFileData.h>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 
 template<class File> static QByteArray encode(File &file) {
     QByteArray bytes;

@@ -1,0 +1,26 @@
+<rml>
+<head>
+    <title>HUD</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="hud.rcss"/>
+    <script src="hud.lua"></script>
+</head>
+<!-- The heads-up display of the ridden train. TSRE fills the data model
+     `train` (texts in the user's units) and sends `trainupdate` each frame
+     (speed and distance in SI, throttle and brake 0 to 1, time in seconds).
+     Texts that are translation ids show translated. -->
+<body data-model="train" ontrainupdate="hudUpdate(event, document)">
+    <div id="panel">
+        <!-- The panel dragged by any of it, kept inside the view. -->
+        <handle id="drag" move_target="#parent"></handle>
+        <div class="label">ui.hud.speed</div>
+        <div id="speed"><span id="speedValue">{{speed}}</span> <span class="unit">{{speedUnit}}</span></div>
+        <div class="label">ui.hud.distance</div>
+        <div id="distance">{{distance}}</div>
+        <div class="label">ui.hud.throttle</div>
+        <div class="bar"><div class="fill throttle" data-style-width="throttle + '%'"></div></div>
+        <div class="label">ui.hud.brake</div>
+        <div class="bar"><div class="fill brake" data-style-width="brake + '%'"></div></div>
+    </div>
+</body>
+</rml>

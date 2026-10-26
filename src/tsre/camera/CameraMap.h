@@ -44,6 +44,7 @@ public:
     void MouseUp(QMouseEvent *e) override;
     void keyDown(QKeyEvent *e) override;
     void keyUp(QKeyEvent *e) override;
+    void releaseKeys() override;
     void update(float fps) override;
     PreciseTileCoordinate *getCurrentPos() override;
 

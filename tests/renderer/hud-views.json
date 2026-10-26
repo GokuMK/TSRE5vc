@@ -1,0 +1,19 @@
+{
+  "notes": "The HUD over a ridden train (docs/tasks/scripting/01-lua-and-rmlui-foundations.md, steps 3 and 4): EUROPE1's lclsrvce run to 09:03 (train 5, the player's, running), ridden from its front. 'document': the UI document's HUD (hud.rml through each renderer's UI drawer, after tone mapping); 'simple': the built-in SimpleHud (the render queue's UI pass). Capture with --set core.rendering.backend=opengl and =qrhi and compare: the HUD panel should match between the renderers; the scene behind differs as in other parity views.",
+  "output": "build/renderer-hud",
+  "activity": "lclsrvce.act",
+  "simulateTo": "09:03:00",
+  "width": 1280,
+  "height": 800,
+  "hud": true,
+  "hideAll": true,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "document", "train": 5, "trainView": "front", "settings": {"core.interface.hud.document": true}},
+    {"name": "simple", "train": 5, "trainView": "front", "settings": {"core.interface.hud.document": false}}
+  ]
+}

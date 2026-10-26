@@ -808,6 +808,14 @@ void Consist::pushRenderHud(RenderQueue &queue){
     hud->pushRenderItems(queue);
 }
 
+void Consist::hudValues(float &speed, float &distance, float &throttle, float &brake) const {
+    speed = trainSpeed;
+    distance = trainTotalDistance;
+    const Eng *lead = engItems.isEmpty() ? NULL : engItems[0].engPointer;
+    throttle = simulated ? simulatedThrottle : lead != NULL ? lead->soundThrottle() : 0.0f;
+    brake = simulated ? simulatedBrake : lead != NULL ? lead->soundBrake() : 0.0f;
+}
+
 void Consist::getCameraPosition(float *out){
     if (loaded != 1) 
         return;

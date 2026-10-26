@@ -8,6 +8,6 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
-// The miniaudio implementation (src/thirdparty/miniaudio), compiled once.
+// The miniaudio implementation (thirdparty/miniaudio), compiled once.
 #define MINIAUDIO_IMPLEMENTATION
 #include <tsre/sound/MiniaudioConfig.h>

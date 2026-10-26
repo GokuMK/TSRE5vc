@@ -1,7 +1,7 @@
 #include <tsre/tests/QuadTreeRecoveryTestSuite.h>
 #include <tsre/Game.h>
 #include <QCoreApplication>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 QString Game::root;
 QString Game::route;
 bool Game::writeEnabled = true;

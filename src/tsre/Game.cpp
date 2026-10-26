@@ -157,6 +157,7 @@ ProceduralTracksMode Game::proceduralTracks = ProceduralTracksMode::Disabled;
 bool Game::fullscreen = false;
 bool Game::hudEnabled = false;
 float Game::hudScale = 1.0;
+bool Game::hudDocument = true;
 bool Game::editorFpsHudEnabled = false;
 bool Game::markerLines = false;
 
@@ -447,6 +448,7 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     nullableColour("core.interface.shapeBackground", colorShapeView);
     boolean("core.interface.hud.enabled", hudEnabled);
     floating("core.interface.hud.scale", hudScale);
+    boolean("core.interface.hud.document", hudDocument);
     boolean("core.interface.hud.showEditorFps", editorFpsHudEnabled);
     boolean("core.interface.markerLines", markerLines);
 

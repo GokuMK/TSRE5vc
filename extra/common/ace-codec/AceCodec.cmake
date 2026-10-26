@@ -9,5 +9,6 @@ function(tsre_add_ace_codec target)
     target_compile_features(${target} PUBLIC cxx_std_17)
     target_include_directories(${target} PUBLIC
         "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/qt_compat" "${root}/src")
+    target_include_directories(${target} SYSTEM PUBLIC "${root}/thirdparty")
     target_compile_definitions(${target} PRIVATE MINIZ_NO_ARCHIVE_APIS MINIZ_NO_STDIO)
 endfunction()

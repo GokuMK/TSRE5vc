@@ -10,7 +10,7 @@
 #include <cstring>
 #include <functional>
 #include <limits>
-#include <mzip/miniz/miniz.h>
+#include <miniz/miniz.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
 namespace SFileDetail {
 constexpr quint32 none = std::numeric_limits<quint32>::max();

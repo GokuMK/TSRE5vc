@@ -228,6 +228,8 @@ public:
     
     static bool hudEnabled;
     static float hudScale;
+    // The HUD from TSRE's UI document (appdata/<version>/ui/hud.rml).
+    static bool hudDocument;
     static bool editorFpsHudEnabled;
     
     static bool markerLines;

@@ -1,8 +1,7 @@
 # Task 01 - Lua and RmlUi foundations
 
-Status: design (2026-10-25); nothing built. The user's answers of
-2026-10-25 are at the end; where vendored code lives and drawing to a
-texture are still open.
+Status: built on `feature/scripting` and merged into main (2026-10-26).
+What is left belongs to later tasks (the roadmap's "Later").
 
 The user's request (2026-10-25): put RmlUi and Lua into the project before
 the driving work needs them; design first: where they live in the project,
@@ -28,7 +27,7 @@ UI's), a sandbox, saving and reloading, designed once for all of them.
   input. The simulation runs in `SimulationHost`'s thread, publishes
   immutable `SimulationFrame`s, and takes commands as queued calls with
   sequence numbers (`SimulationController`).
-- Third-party code: `src/thirdparty/miniaudio`, unchanged, with its
+- Third-party code (before this task): `src/thirdparty/miniaudio`, unchanged, with its
   licence and a README (version, source, SHA-256), compiled once with
   warnings off. The Windows release builds with MinGW from Qt's installer
   and no package manager (`.github/workflows/release.yml`): anything not
@@ -107,8 +106,8 @@ Lua's and RmlUi's MIT notices go into the About window as earcut's does
 
 | Folder | What |
 |---|---|
-| `src/thirdparty/lua/` | Lua 5.5.1, unchanged; LICENSE, README (version, source, SHA-256) |
-| `src/thirdparty/rmlui/` | RmlUi 6.3 subset, unchanged; LICENSE, README (version, source, SHA-256, what is left out) |
+| `thirdparty/lua/` | Lua 5.5.1, unchanged; LICENSE, README (version, source, SHA-256) |
+| `thirdparty/rmlui/` | RmlUi 6.3 subset, unchanged; LICENSE, README (version, source, SHA-256, what is left out) |
 | `src/tsre/script/` | the Lua runtime: states, sandbox, limits, values in and out, state tables and saving. No RmlUi or renderer headers: the simulation links it |
 | `src/tsre/ui/` | RmlUi in TSRE: system and file interfaces, the Qt font file, the render interface on the render queue, Qt input, a view's documents; later the HUD, menus, cab displays |
 | `appdata/0.7/ui/` | TSRE's own documents, style sheets, Lua and fonts, shipped as the shaders are |
@@ -229,36 +228,295 @@ thread.
   about SimpleHud (question 4); RmlUi's debugger on a key in play mode.
 
 ## Steps
-1. Lua: vendored, `tsre_lua` target, `Script::State`, sandbox, limits,
-   values, save and restore. Suite `script`: the sandbox closed, errors
-   with file and line, an endless loop stopped, the memory limit, a save
-   round trip (integers and floats kept), functions and cycles refused, a
-   state on another thread.
-2. RmlUi: vendored subset, `tsre_rmlui` with the Qt font file and the Lua
-   plugin, system and file interfaces. Suite `rmlui`, no GPU: a document
-   laid out, text widths from Qt's fonts, geometry recorded by a test
-   render interface, a Lua handler changing an element, a data binding
-   following its value.
-3. The render queue: the UI vertex layout, scissor and premultiplied
-   blending in both backends; a test document captured with GL and QRhi
-   (renderer parity).
-4. The play view: its context, input, the HUD document, the `sim` data
-   model, the setting, the debugger key; captures.
-5. Measures (Release): the build time and binary size added, the HUD's
-   CPU time per frame, memory.
+0. [x] `thirdparty/` beside `src/` (3beee84): miniaudio, miniz and earcut
+   moved, miniz's licence and its changes recorded (decision 6).
+1. [x] Lua (below, "Step 1 done"): vendored, `tsre_lua` target,
+   `Script::State`, sandbox, limits, values, save and restore. Suite
+   `script`: the sandbox closed, errors with file and line, an endless
+   loop stopped, the memory limit, a save round trip (integers and floats
+   kept), functions and cycles refused, a state on another thread.
+2. [x] RmlUi (below, "Step 2 done"): vendored subset, `tsre_rmlui` with
+   the Qt font file and the Lua plugin, system and file interfaces. Suite
+   `rmlui`, no GPU: a document laid out, text widths from Qt's fonts,
+   geometry recorded by a test render interface, a Lua handler changing an
+   element, a data binding following its value.
+3. [x] Drawing (below, "Steps 3 and 4 done"): not through the render queue
+   as first designed but through each renderer's own small UI drawer
+   (decision 8).
+4. [x] The play view's HUD as a UI document, the setting, captures on both
+   renderers. Input, the debugger key and parity captures left (below).
+5. [x] Measures (Release): the build time and binary size added (steps 1
+   and 2), the HUD's CPU time per frame and the renderers compared
+   (below, "Measures").
+
+## Step 1 done (2026-10-25)
+- `thirdparty/lua/`: Lua 5.5.1's `src/` unchanged without `lua.c`,
+  `luac.c`, `lua.hpp` and its Makefile; built as C++ into the static
+  library `tsre_lua` (about 3 s; the program grew by about 440 KB);
+  `LUA_USE_POSIX` off Windows.
+- `src/tsre/script/ScriptState.h`: `Script::State` as designed, plus:
+  - The memory limit holds while Lua runs under a deadline (every call
+    TSRE makes, every restore). Values TSRE pushes between calls are not
+    refused: an error outside a protected call makes Lua abort.
+  - Past the deadline `pcall`, `xpcall` and `coroutine.resume` pass the
+    error on, so a loop that catches it still stops; a coroutine may yield
+    inside `pcall` (the wrapper has a continuation).
+  - The libraries' table takes no new globals (`load` without an
+    environment cannot set one); the library tables themselves are shared
+    by a state's scripts, so a script changing `string.format` changes it
+    for the others.
+  - Saved text: keys in order, the shortest digits that read back exactly
+    (`0.1`, `1e+300`), `-0.0`, `(0/0)` and `(1/0)`, `math.mininteger` as
+    `(-9223372036854775807-1)`; restored in an empty environment, then
+    checked as if saved again.
+- `src/main.cpp`: `LC_NUMERIC` back to "C" after the application starts.
+  Qt gives C's functions the system's locale on Unix, so on a Polish system
+  Lua's `tostring(0.5)` would be `0,5`, and RmlUi reads style values with C
+  too. Not seen on this machine (no locale with a decimal comma installed).
+- The About window credits Lua and shows its licence, as earcut's.
+- Suite `script`: 27 checks pass; ctest 11/11; units 18, tokens 1631,
+  sigcfg 22, simulation-core 89.
+
+## Step 2 done (2026-10-25)
+- `thirdparty/rmlui/`: RmlUi 6.3's `Include/`, `Source/Core`, `Source/Lua`
+  and `Source/Debugger`, unchanged without its CMake and clang-format
+  files; built into the static library `tsre_rmlui` (all of it about 40 s
+  on 12 threads; the program grew by 3.4 MB, 0.7 MB of it the debugger's
+  embedded font). RmlUi's definitions reach TSRE's sources through the
+  link, so adding it rebuilt everything once.
+- `src/tsre/ui/RmlQtFontInterface.cpp`: RmlUi's FreeType functions on
+  `QRawFont`, built into `tsre_rmlui` in place of RmlUi's file. Glyphs are
+  filled from their outlines by Qt's rasteriser (unhinted, the same pixels
+  on every system); their atlas looked at (2026-10-25): clean, Polish
+  letters drawn. Kerning only from a 'kern' table, which Noto Sans does
+  not have (only GPOS): no pair kerning, as RmlUi's own FreeType file would
+  give (it reads 'kern' only too).
+- `src/tsre/ui/UiRuntime.h`: `Ui::Runtime::start(folder)` and `stop()`;
+  RmlUi gets Qt's clock, log (`[ui]`), clipboard, the cursor through a
+  handler, files through `QFile` (compiled Lua refused: a bytecode chunk
+  could crash Lua), the fonts in `<folder>/fonts`, and the UI's sandboxed
+  Lua state for its plugin.
+- Changed from the design while building:
+  - Translations: a text that is exactly any TSRE id found in the
+    catalogues shows translated (not only `ui.*` ids); ids only documents
+    use go into `src/tsre/ui/UiTexts.cpp` (step 4, with the first ids).
+  - The UI's state takes globals in its global environment: RmlUi's plugin
+    runs documents' scripts and handlers there and sets globals of its
+    own. "No new globals in the libraries' table" is the simulation's
+    state only.
+  - One deadline for each input event or update: once one has passed,
+    every handler under it fails at once, so the views wrap each in its
+    own.
+  - RmlUi has no default style sheet: an element is inline (width and
+    height ignored) unless a style sheet says otherwise. TSRE's documents
+    get a base style sheet (`appdata/0.7/ui/base.rcss`, step 4).
+- `appdata/0.7/ui/fonts/`: Noto Sans 2.015, unhinted regular and bold
+  (0.86 MB), the OFL beside them. The appdata archive for releases without
+  appdata (koniec.org) gets them when it is next rebuilt from a release.
+- The About window credits RmlUi (MIT; its containers' MIT and its
+  debugger font's OFL under details).
+- Suites: `rmlui` 13 checks pass, `script` 28; ctest 11/11.
+
+## Steps 3 and 4 done (2026-10-25)
+- `--play` and the old HUD checked first (EUROPE1 `aftstorm.act`, the
+  stand-in driver): the train runs (71 km/h at 30 s, stopped at 1.3 km in
+  a tunnel at 90 s) and SimpleHud shows speed and distance; its 7-segment
+  font (Ni7seg) is not installed here, so a fallback font draws it.
+- `src/tsre/renderer/UiDrawList.h`: a frame of 2D UI for the renderers,
+  without RmlUi's types: geometry and textures kept by ids unique in the
+  program, the draws in order (translation, transform, texture, scissor),
+  releases since the last draw.
+- `Renderer::drawUi(list)`: `GlUiDrawer` draws at once into the view's
+  framebuffer (the OpenGL renderer has no tone mapping), its GL state put
+  back; `RhiUiDrawer` is fed in `present()`, after the view is composed
+  (tone mapped) and before the QPainter overlay, so a document's colours
+  do not change with exposure. Both: one small shader (position, colour,
+  texture coordinates; untextured draws sample white), premultiplied
+  alpha, no depth, a scissor rectangle per draw; geometry and textures
+  copied to the GPU once and freed when RmlUi releases them.
+- `src/tsre/ui/UiRenderInterface.h`: RmlUi's render interface filling the
+  list; images through Qt (PNG, JPEG...; not ACE yet). Not supported yet,
+  so RmlUi draws without them: clip masks (rounded or rotated clipping),
+  layers and filters (blur, drop shadow), shaders (gradients).
+- `src/tsre/ui/UiHud.h`: the HUD as the document `appdata/0.7/ui/hud.rml`
+  (with `base.rcss`, the defaults RmlUi lacks, `hud.rcss`, `hud.lua`): the
+  ridden train's speed, distance (the user's units), throttle and brake
+  through the data model `train`; each frame also the event `trainupdate`
+  (SI values, time) for the document's Lua, which colours the speed by its
+  trend (rising green, falling amber). `Consist::hudValues` gives the
+  values SimpleHud shows and the sounds' throttle and brake, for the
+  stand-in driver and simulated trains alike.
+- Setting `core.interface.hud.document` (on by default; the HUD itself
+  stays off by default, `core.interface.hud.enabled`): the document's HUD
+  for a ridden train; off, or the document not loading, SimpleHud.
+- Texts: the labels are ids (`ui.hud.speed` ...) listed in
+  `src/tsre/ui/UiTexts.cpp`, English and Polish in the catalogues; the
+  `rmlui` suite checks every id a document in `appdata/0.7/ui` names is in
+  them.
+- Checked: play mode on QRhi (Vulkan, llvmpipe) and OpenGL under Xvfb,
+  screenshots at 30 s (45 mph, rising, throttle bar) and 90 s (stopped,
+  brake bar full); the same on both. Suites: `rmlui` 16 (the HUD document,
+  its Lua trend, its ids), `script` 28, consist-preview-gl 15,
+  shape-complex-gl 131; ctest 11/11.
+- Left: clip masks, filters and gradients; cab displays drawing into a
+  texture (another task). Input: done 2026-10-26 (below).
+
+## Images through TexLib (2026-10-26)
+- A document's images load through TexLib, as all of TSRE's textures:
+  ACE, DDS, PNG, JPEG, BMP, TGA, with TSRE's path rules, shared with the 3D
+  scene. `TexLib::addTex` takes how to load (`Loading::Setting`, the
+  setting `core.rendering.threadedTextureLoading` as before; `Background`,
+  a thread of its own whatever the setting; `Now`, in the caller's
+  thread), so the UI need not change the one switch for everything.
+- The render thread does not wait: `TexLib::imageSize` reads the size from
+  the file's header (ACE plain or compressed: only its first 16 bytes
+  inflated; DDS; the others through `QImageReader`), RmlUi lays the document
+  out with it at once, TexLib decodes on its thread, and the drawers leave
+  the image out until it is loaded (a frame or so later).
+- The drawers sample TexLib's own textures (each renderer's lookup, mipmaps
+  as the renderer samples them), premultiplying their straight alpha in the
+  shader; references taken and given back with RmlUi's.
+- A path that is a file system path stays as it is (content's files);
+  others are relative to the document (RmlUi read a leading "/" as its own
+  root).
+- RmlUi keeps a render manager for each render interface until
+  `Rml::ReleaseRenderManagers()`: called after a view's context is removed,
+  before its render interface goes (found by the test).
+- Checked: the suite `rmlui` (20 checks: header sizes of plain and
+  compressed ACE and PNG, a document's images by relative and absolute
+  path laid out at once and drawn from TexLib, loaded on its thread); two
+  EUROPE1 ACE textures (DXT1, 1-bit alpha) over the HUD captured with
+  OpenGL and QRhi: drawn alike, transparent without fringes; their leaf
+  edges up to 39/255 apart, the two drivers' DXT1 decoding, as these
+  textures differ in the 3D scene too.
+
+## Measures (2026-10-26, Release, this machine: llvmpipe, no GPU)
+- The HUD's CPU time a frame, RmlUi's part alone (suite `rmlui`, every
+  value changing every frame, so its texts laid out each frame): event
+  and Lua 9 us, update 24 us, render into the draw list 12 us; 45 us, 12
+  draws.
+- In play mode (`TSRE_UI_LOG=1`: every 5 s the HUD's parts and the QRhi
+  drawer's, mean and largest): QRhi (Vulkan) 0.13-0.22 ms for the HUD and
+  0.02-0.03 ms for the drawer in `present()`; OpenGL 0.27-0.35 ms with the
+  drawer (its GL calls 0.17-0.19 ms on llvmpipe). Frames take 150-350 ms
+  here, so the HUD is under 0.2 % of them; on hardware its share stays
+  small, the frames shorter.
+- The renderers compared (`tests/renderer/hud-views.json`, EUROPE1
+  lclsrvce at 09:03, riding the player's train; `--set
+  core.rendering.backend=opengl` and `=qrhi`): whole frames RMSE 1.02, 0.06 %
+  of pixels apart; the HUD panel alone (230 x 200 px) at most 1/255 apart
+  for the document's HUD and 2/255 for SimpleHud.
+
+## Input (2026-10-26)
+The user's wishes: widgets dragged by the mouse (by a bar, or by any part
+that does nothing else); the keyboard for menus and, later, a gamepad: a
+widget in focus (Esc shows the game menu, which takes the keys), in-game
+widgets usually not.
+
+Decided (user, 2026-10-26): nothing remembered (widget places, like the
+editor's Qt windows, belong to a later task saving the session); the game
+menu on Esc in play mode is a later task, the backend ready for it; a
+gamepad later, the backend shaped so it fits (actions), its details not
+decided; the editor view only, the one view there is.
+
+Built (`src/tsre/ui/UiScreen.h`, `Ui::Screen`: the UI over a view, its
+context, documents and input):
+- The router, before the view's camera and tools in each event handler:
+  - Mouse: whoever gets a press keeps that button until its release. A
+    press goes to the UI only over an element that takes the mouse;
+    documents' bodies fill the view and let the mouse through
+    (`pointer-events: none` in `base.rcss`), controls and handles take it.
+    A drag the view started stays the view's over a document. While a menu
+    is shown the mouse is all the UI's. Moves reach the UI for hover; the
+    wheel only over something it scrolls.
+  - Keys: the view's (the camera's, the tools'), the menu's (a modal
+    document shown: every key and action; arrows, Tab and Enter navigate
+    it, as RmlUi does with `nav-*`, `tab-index` from `base.rcss`; Esc closes
+    it), or a text field's (clicked into: typing until Enter, Esc or a click
+    elsewhere). Hovering or clicking a widget never takes the keys.
+  - With the view's keys: Esc asks the menu handler (`setMenuHandler`, the
+    game menu later; without one Esc stays the view's, which closes the
+    editor today), F8 shows RmlUi's debugger.
+  - Actions (`Screen::action`: up, down, left, right, accept, back, next,
+    previous, menu): what a gamepad will send; with a menu shown they
+    navigate it as the keys do.
+- `showMenu(document)`: modal, the keys its own, its first control
+  focused (or the one marked `autofocus`), so keys and a gamepad work at
+  once.
+- The camera: `Camera::releaseKeys()` lets go of the keys it holds (move,
+  speed, turn) when the UI takes the keys or the view loses the focus; its
+  mouse buttons need not, their release reaches the view that got the
+  press (cancelling drags on focus loss broke them under Xvfb, where focus
+  moves on a click).
+- Dragging: RmlUi's `<handle move_target="#parent">` (the target is found
+  from the handle: `#parent`, `#document` or `#self`, not an id). It keeps
+  the target inside its container (`edge_margin`, 0 by default), so with
+  the bodies filling the view a widget stays inside it. The HUD's panel is
+  dragged by any of it (a handle behind its texts).
+- The pointer: shapes the documents ask for (`cursor: move` on handles)
+  set on the view.
+- `Ui::Hud` is now a document on the screen; the screen updates and draws
+  every document (TSRE_UI_LOG times them all).
+- Checked: suite `rmlui` (30 checks: a view's press and its drag over a
+  widget, a widget dragged by its handle, a button clicked with the keys
+  still the view's, the wheel, a text field's typing and Esc, a menu's keys,
+  modal mouse and navigation by keys and by actions, Esc closing it, Esc
+  with the view's keys); play mode under Xvfb driven by xdotool: the HUD
+  panel dragged across the view (300 x 240 px), a click outside the
+  panel going to the view, F8 showing the debugger over it.
+
+## The view resized (user's test, 2026-10-26)
+The user found documents laid out in fixed pixels: the window resized,
+the UI kept its size and place and went out of the view.
+- Size: a virtual pixel (`dp`) is the view's height over 1080, times the
+  HUD scale (it was the display's pixel ratio): documents grow and shrink
+  with the view, as SimpleHud did. Height only, as games do: a wider or
+  narrower view shows more or less beside them (fitting a whole 1920 x 1080
+  canvas into the editor's narrow view made the HUD's labels 5 px tall).
+  The HUD's sizes are set for that canvas.
+- Place: a widget moved by a handle keeps its place as parts of the room
+  around it in its container (`data-place`, from the `dragend` event); the
+  view resized, the screen puts it back at those parts, so one at the right
+  edge stays there and none leaves the view. Widgets never moved keep the
+  places their style sheets give (in dp or %).
+- Checked: suite `rmlui` (32 checks: the virtual pixel at three sizes and
+  scales, a moved widget at its parts of the room after the view shrank and
+  grew); play mode with the window resized under Xvfb: the panel dragged to
+  the bottom right stayed at the view's bottom right corner at 849 x 777,
+  569 x 597 and 1149 x 957 (Xvfb without a window manager lays the editor's
+  docks out oddly at those sizes, so its screenshots show little).
 
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.
 2. **A font shipped** in `appdata/0.7/ui/fonts/`: yes (Noto Sans regular
    and bold, SIL OFL, its licence beside it).
-3. **TSRE's own documents stay in English**: the system interface's
-   `TranslateString` returns the text unchanged. Translating later would
-   mean text ids in the documents looked up in the en/pl catalogues there.
+3. **TSRE's own documents in English, with translation ids from the
+   start** (the user's follow-up): a text that is exactly a TSRE id
+   (`<span>ui.hud.speed</span>`; any id, see "Step 2 done") is looked up with `qtTrId` in the
+   system interface's `TranslateString`, which RmlUi calls for document
+   text and for data-bound text; anything else is shown unchanged. The
+   ids are listed in one C++ file (`src/tsre/ui/UiTexts.cpp`) as
+   `//% "Speed"` and `QT_TRID_NOOP("ui.hud.speed")`, so lupdate and the
+   validator treat them as today's; a check finds ids used by
+   `appdata/0.7/ui/` documents but missing from it. Lua gets `tr(id)`.
 4. **First use**: the HUD, SimpleHud kept as an option until reviewed.
 5. **Lua 5.5**: yes.
 
-## Still open
-- Where vendored code lives: `src/thirdparty/` (miniaudio today) or a
-  `thirdparty/` beside `src/`, and whether miniz and earcut move there.
-- Drawing documents straight into the frame (proposed above for the
-  screen) or into a texture first (needed by cab displays later).
+6. **Vendored code beside `src/`** (option B): `thirdparty/` at the top
+   of the repository, an include root; miniaudio, miniz and earcut moved
+   there first, each with its licence and a README (miniz's lists TSRE's
+   changes to it); `src/` holds only TSRE's own code. `src/mzip/MZip`
+   (TSRE's) stays.
+7. **Drawing straight into the frame** for the screen's documents first;
+   drawing into a texture later, with the cab displays (the same render
+   interface, another target).
+8. **Not through the render queue** (asked when building step 3): the
+   queue's UI pass has no vertex colour in its shader, no per-item
+   scissor, groups items by texture, and in QRhi is drawn before tone
+   mapping. Each renderer gets a small UI drawer instead
+   (`Renderer::drawUi`), as RmlUi's own backends do; it reuses the
+   renderers, their shader baking and the place after tone mapping where
+   QRhi lays its overlay. The OSM map shader (geo, open item 7) was
+   considered for a shared layer and left apart: its needs (instancing,
+   lines widened in the shader, the selection pass, inside the map view)
+   are not known enough yet; the UI drawers are a pattern to follow.

@@ -42,6 +42,7 @@ if(BUILD_TESTING)
         find_package(Qt6 REQUIRED COMPONENTS Core)
         add_executable(ace_codec_corpus_qt tests/Corpus.cpp ${CODEC_SOURCES})
         target_include_directories(ace_codec_corpus_qt PRIVATE "${TSRE_ROOT}/src")
+        target_include_directories(ace_codec_corpus_qt SYSTEM PRIVATE "${TSRE_ROOT}/thirdparty")
         target_compile_definitions(ace_codec_corpus_qt PRIVATE MINIZ_NO_ARCHIVE_APIS MINIZ_NO_STDIO)
         target_link_libraries(ace_codec_corpus_qt PRIVATE Qt6::Core)
         add_test(NAME codec_parity COMMAND "${CMAKE_COMMAND}"

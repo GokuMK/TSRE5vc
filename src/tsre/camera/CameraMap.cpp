@@ -156,6 +156,11 @@ void CameraMap::keyDown(QKeyEvent *e) {
     }
 }
 
+void CameraMap::releaseKeys() {
+    Camera::releaseKeys();
+    turnLeft = turnRight = false;
+}
+
 void CameraMap::keyUp(QKeyEvent *e) {
     switch (e->key()) {
     case Qt::Key_W:
