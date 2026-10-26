@@ -18,6 +18,8 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [12-shape-and-rolling-stock-animation.md](12-shape-and-rolling-stock-animation.md) (merged into main 2026-10-24, the user's hardware review left) — keyframes posed as Open Rails poses them (one evaluator for both MSTS backends, the conjugate quaternion, rotation replacing the rest rotation), parts posed per shape state; rolling stock: wheels, bogies, running gear, pantographs, doors, cars on their bogie pivots; Shape Viewer controls.
 
+- [ ] [13-msts-pbr-materials-and-editor.md](13-msts-pbr-materials-and-editor.md) (proposal 2026-10-27) — PBR materials for S files (base colour, ORM, normal map through the glTF shading; factors in the TSRE sidecar), MSTS specular, a materials editor in the Shape Viewer, shape-part selection ids shared with the consist editor.
+
 - [ ] [10-gltf-native-lod.md](10-gltf-native-lod.md) — native glTF levels of detail, internal (MSFT_lod) and external (`_lod01` files), chosen by screen coverage, with tree impostors, the LOD bias and coverage-preserving mipmaps for trees; merged from `feature/gltf-lod`. Coverages proposed for tree-gen: [0.444, 0.167, 0.060]. Open: instance scale, instance profiles, mipmaps for other content. Recommended first vegetation experiment before Forest/STF impostors or terrain scattering.
 
 - [ ] MaSzyna `.t3d` / `.e3d` models as another `ComplexShape` (planned, the user 2026-10-24): drawn directly with TSRE's engine and content paths in mind, not converted; MaSzyna locos and cars in TSRE through a script making their ENG files (`docs/tasks/driving/00-task-roadmap.md`, decisions of 2026-10-24).
