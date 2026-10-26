@@ -106,7 +106,13 @@ public:
 class Files : public Rml::FileInterface {
 public:
     Rml::FileHandle Open(const Rml::String &path) override {
-        auto file = std::make_unique<QFile>(fromRml(path));
+        // RmlUi keeps a document's external scripts with ':' as '|'
+        // (DocumentHeader): "C|/..." opened as it is never opened.
+        QString name = fromRml(path);
+        if (name.size() > 2 && name[1] == QLatin1Char('|') && name[0].isLetter()
+                && (name[2] == QLatin1Char('/') || name[2] == QLatin1Char('\\')))
+            name[1] = QLatin1Char(':');
+        auto file = std::make_unique<QFile>(name);
         if (!file->open(QIODevice::ReadOnly))
             return 0;
         // A compiled Lua chunk could crash Lua: documents get text only.
