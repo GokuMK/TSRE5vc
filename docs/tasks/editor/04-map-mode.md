@@ -796,14 +796,34 @@ kind checked on its own (a submenu is off while its layer is):
   (`TrackItemMapLayer::Kind`).
 - Activity Objects: the player's path, the AI trains' paths, the trains
   (at their starts, or where a simulation has them), loose consists,
-  speed zones, failed signals, events, and a simulation's track use and
-  signal aspects (`MapActivityKind`).
+  speed zones, failed signals, events, the trains' names, and a
+  simulation's track use and signal aspects (`MapActivityKind`).
 
 The kinds drawn are bits in `MapLayers` (`trackObjectKinds`,
 `activityKinds`), all set at first and not saved, as the layers' switches.
 A kind hidden is left out of the layers' builds (so of their picking too)
 and of the labels (platforms with their stations, sidings, events). A
 capture view takes `trackObjectKinds` and `activityKinds` (the same bits).
+
+### Train names (done, 2026-10-26)
+
+Users asked for the trains on the map to be named beside them, as stations
+and markers are. Map > Activity > Activity Objects > Train Names (with
+Trains on) labels the activity's trains, not its loose consists or static
+trains (`appendTrains` in `MapLabelSources`, `MapLabelKind::Train`):
+
+- before a run: the player's train and the AI trains shown, at their
+  starts, by the middle vehicle of their consists; named as the simulation
+  names them (`Sim::TrainName`: "service (player)", "service hh:mm:ss");
+- while a simulation runs: its trains where it has them (`trainPlace`,
+  `trainName`), taken again every 100 ms and the labels rebuilt only when
+  one changed;
+- dots in the engines' colour, ranked below the simulation's messages and
+  the measured distance, above the rest (events next); trains starting at
+  one place show one name, the earliest's.
+- Check: simulation-ui suite (each train's label at its place, with its
+  name); captures of `tests/renderer/map-ai-trains.json` show the names
+  before a run.
 
 ## Phases
 

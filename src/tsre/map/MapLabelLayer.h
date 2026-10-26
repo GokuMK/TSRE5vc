@@ -29,7 +29,9 @@ struct MapPalette;
 
 // What a label names: its dot takes the palette colour of the kind.
 // Measure: the length the map's Measure Distance tool shows, in the pointer's colour.
-enum class MapLabelKind : unsigned char { Marker, Station, Platform, Siding, Event, Place, OsmStation, Measure, Count };
+// Train: an activity's train (not its loose consists), in the colour of engines.
+enum class MapLabelKind : unsigned char { Marker, Station, Platform, Siding, Event, Place, OsmStation, Measure, Train,
+                                          Count };
 
 // A named point for the map (task editor 04, labels; docs/tasks/geo/osm-rendering-design.md).
 struct MapLabel {

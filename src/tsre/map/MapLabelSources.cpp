@@ -17,15 +17,23 @@
 #include <tsre/coords/Coords.h>
 #include <tsre/coords/CoordsRoutePlaces.h>
 #include <tsre/sim/EventResults.h>
+#include <tsre/sim/SimulationController.h>
+#include <tsre/sim/SimulationTexts.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActivityEvent.h>
+#include <tsre/trains/ActivityTrains.h>
+#include <tsre/trains/Consist.h>
+#include <tsre/trains/Service.h>
 
 namespace MapLabelSources {
 
 namespace {
 
+// Above every name that stays in place; the simulation's messages beside
+// the trains above them.
+constexpr double TrainPriority = 5e12;
 constexpr double EventPriority = 4e12;
 constexpr double StationPriority = 3e12;
 constexpr double PlatformPriority = 1e12;
@@ -165,6 +173,55 @@ void appendActivity(std::vector<MapLabel> &out, Activity *activity) {
         label.kind = MapLabelKind::Event;
         label.priority = EventPriority;
         out.push_back(std::move(label));
+    }
+}
+
+void appendTrains(std::vector<MapLabel> &out, Activity *activity) {
+    if (activity == nullptr)
+        return;
+    auto add = [&](int tileX, int tileZ, float x, float z, const QString &name) {
+        MapLabel label;
+        label.tileX = tileX;
+        label.tileZ = tileZ;
+        label.x = x;
+        label.z = z;
+        label.text = name;
+        label.kind = MapLabelKind::Train;
+        label.priority = TrainPriority;
+        out.push_back(std::move(label));
+    };
+    // Running: where the simulation has them (its trains are the running
+    // ones; standing ones apart).
+    const Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (simulation->shows(activity)) {
+        const int count = int(simulation->viewFrame()->trains.size());
+        for (int train = 0; train < count; ++train) {
+            int tile[2];
+            float position[3], heading[3];
+            if (simulation->trainPlace(train, tile, position, heading))
+                add(tile[0], tile[1], position[0], position[2], simulation->trainName(train));
+        }
+        return;
+    }
+    // Before a run: those the map draws (ActivityMapLayer), at their
+    // starts, by the middle vehicle of their consists.
+    auto place = [&](Service *service, const QString &name) {
+        Consist *consist = service != nullptr ? service->getConsistPointer() : nullptr;
+        float posTW[5];
+        if (consist == nullptr || consist->engItems.isEmpty()
+                || !consist->getWagonWorldPosition(consist->engItems.size() / 2, posTW))
+            return;
+        // tile x, tile z, x, z (database convention).
+        add(int(posTW[0]), -int(posTW[1]), posTW[2], -posTW[4], name);
+    };
+    const QVector<int> shown = activity->shownAITrains();
+    for (const ActivityTrains::Train &train : ActivityTrains::List(activity)) {
+        if (train.staticTrain)
+            continue;
+        if (train.kind == ActivityTrains::Player)
+            place(activity->playerService(), Sim::TrainName(train.service, true, train.time));
+        else if (train.kind == ActivityTrains::AI && shown.contains(train.index))
+            place(activity->aiTrainService(train.index), Sim::TrainName(train.service, false, train.time));
     }
 }
 

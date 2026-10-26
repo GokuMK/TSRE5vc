@@ -594,6 +594,8 @@ RouteEditorWindow::RouteEditorWindow() {
                  qtTrId("route.editor.route.editor.window.action.map.activity.ai.paths"), MapActivityKind::AIPaths},
                 {//% "&Trains"
                  qtTrId("route.editor.route.editor.window.action.map.activity.trains"), MapActivityKind::Trains},
+                {//% "Train &Names"
+                 qtTrId("route.editor.route.editor.window.action.map.activity.train.names"), MapActivityKind::TrainNames},
                 {//% "&Loose Consists"
                  qtTrId("route.editor.route.editor.window.action.map.activity.loose.consists"), MapActivityKind::LooseConsists},
                 {//% "&Speed Zones"
