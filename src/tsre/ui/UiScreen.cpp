@@ -22,7 +22,9 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 namespace Ui {
 
@@ -98,6 +100,50 @@ int buttonIndex(Qt::MouseButton button) {
     }
 }
 
+// Where a widget moved by a handle sits: x and y as parts of the room
+// around it in its container (0 the left or top edge, 1 the right or
+// bottom), kept in this attribute.
+const char *PlaceAttribute = "data-place";
+
+// What a handle moves: "#parent", "#document" or "#self", as RmlUi reads
+// its move_target, or an element under it.
+Rml::Element *moveTarget(Rml::Element *handle) {
+    const Rml::String name = handle->GetAttribute<Rml::String>("move_target", "");
+    if (name == "#self")
+        return handle;
+    if (name == "#parent")
+        return handle->GetParentNode();
+    if (name == "#document")
+        return handle->GetOwnerDocument();
+    return name.empty() ? nullptr : handle->GetElementById(name);
+}
+
+// The room around an element in its container, in pixels.
+Rml::Vector2f room(Rml::Element *element) {
+    Rml::Element *container = element->GetOffsetParent();
+    if (container == nullptr)
+        return Rml::Vector2f(0.0f, 0.0f);
+    return Rml::Vector2f(std::max(0.0f, container->GetClientWidth() - element->GetOffsetWidth()),
+                         std::max(0.0f, container->GetClientHeight() - element->GetOffsetHeight()));
+}
+
+// A widget a handle moved: its place kept as parts of the room around it.
+class Placer : public Rml::EventListener {
+public:
+    void ProcessEvent(Rml::Event &event) override {
+        Rml::Element *handle = event.GetTargetElement();
+        if (handle == nullptr || handle->GetTagName() != "handle")
+            return;
+        Rml::Element *widget = moveTarget(handle);
+        if (widget == nullptr || widget->GetOffsetParent() == nullptr)
+            return;
+        const Rml::Vector2f space = room(widget);
+        const float x = space.x > 0.0f ? std::clamp(widget->GetOffsetLeft() / space.x, 0.0f, 1.0f) : 0.0f;
+        const float y = space.y > 0.0f ? std::clamp(widget->GetOffsetTop() / space.y, 0.0f, 1.0f) : 0.0f;
+        widget->SetAttribute(PlaceAttribute, Rml::CreateString("%g %g", x, y));
+    }
+};
+
 // Lua runs only under a deadline: one for each event.
 struct Deadline {
     std::unique_ptr<Script::State::Deadline> deadline;
@@ -111,6 +157,9 @@ struct Deadline {
 
 struct Screen::Data {
     std::unique_ptr<RenderInterface> renderInterface{new RenderInterface};
+    Placer placer;
+    // The view's size or the scale changed: moved widgets placed again.
+    bool resized = false;
     Rml::Context *context = nullptr;
     std::string name;
     float pixelRatio = 1.0f;
@@ -161,12 +210,19 @@ bool Screen::ready(int width, int height, float pixelRatio, float scale) {
             d->failed = true;
             return false;
         }
+        d->context->AddEventListener("dragend", &d->placer);
     }
     d->pixelRatio = pixelRatio;
-    if (d->context->GetDimensions() != Rml::Vector2i(width, height))
+    if (d->context->GetDimensions() != Rml::Vector2i(width, height)) {
         d->context->SetDimensions(Rml::Vector2i(width, height));
-    if (std::fabs(d->context->GetDensityIndependentPixelRatio() - scale) > 1e-3f)
-        d->context->SetDensityIndependentPixelRatio(scale);
+        d->resized = true;
+    }
+    // A virtual pixel: the view's height over CanvasHeight.
+    const float dp = float(height) / CanvasHeight * scale;
+    if (std::fabs(d->context->GetDensityIndependentPixelRatio() - dp) > 1e-4f) {
+        d->context->SetDensityIndependentPixelRatio(dp);
+        d->resized = true;
+    }
     return true;
 }
 
@@ -185,6 +241,27 @@ void Screen::update() {
     timer.start();
     Deadline deadline;
     d->context->Update();
+    // Resized: widgets moved by handles back at their parts of the room
+    // (laid out at the new size first, then moved).
+    if (d->resized) {
+        d->resized = false;
+        bool moved = false;
+        for (int i = 0; i < d->context->GetNumDocuments(); ++i) {
+            Rml::ElementList placed;
+            d->context->GetDocument(i)->QuerySelectorAll(placed, Rml::String("[") + PlaceAttribute + "]");
+            for (Rml::Element *widget : placed) {
+                float x = 0.0f, y = 0.0f;
+                if (std::sscanf(widget->GetAttribute<Rml::String>(PlaceAttribute, "").c_str(), "%f %f", &x, &y) != 2)
+                    continue;
+                const Rml::Vector2f space = room(widget);
+                widget->SetProperty(Rml::PropertyId::Left, Rml::Property(std::round(x * space.x), Rml::Unit::PX));
+                widget->SetProperty(Rml::PropertyId::Top, Rml::Property(std::round(y * space.y), Rml::Unit::PX));
+                moved = true;
+            }
+        }
+        if (moved)
+            d->context->Update();
+    }
     measured(Part::Update, timer.nsecsElapsed());
 }
 

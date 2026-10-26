@@ -1,12 +1,12 @@
 #panel
 {
     position: absolute;
-    left: 12dp;
-    top: 12dp;
-    width: 180dp;
-    padding: 8dp 12dp 10dp 12dp;
+    left: 16dp;
+    top: 16dp;
+    width: 240dp;
+    padding: 10dp 16dp 14dp 16dp;
     background-color: #10141cc8;
-    border-radius: 6dp;
+    border-radius: 8dp;
 }
 
 #drag
@@ -20,13 +20,13 @@
 
 .label
 {
-    font-size: 12dp;
+    font-size: 16dp;
     color: #a8b4c8;
 }
 
 #speed
 {
-    font-size: 40dp;
+    font-size: 54dp;
     font-weight: bold;
 }
 
@@ -35,30 +35,30 @@
 
 .unit
 {
-    margin-left: 4dp;
-    font-size: 16dp;
+    margin-left: 5dp;
+    font-size: 22dp;
     font-weight: normal;
     color: #c8d0dc;
 }
 
 #distance
 {
-    font-size: 20dp;
-    margin-bottom: 6dp;
+    font-size: 27dp;
+    margin-bottom: 8dp;
 }
 
 .bar
 {
-    height: 6dp;
-    margin: 2dp 0 6dp 0;
+    height: 8dp;
+    margin: 3dp 0 8dp 0;
     background-color: #ffffff28;
-    border-radius: 3dp;
+    border-radius: 4dp;
 }
 
 .fill
 {
     height: 100%;
-    border-radius: 3dp;
+    border-radius: 4dp;
 }
 
 .throttle { background-color: #4caf50; }

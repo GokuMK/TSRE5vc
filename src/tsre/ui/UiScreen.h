@@ -41,7 +41,14 @@ class RenderInterface;
 // through to the view; base.rcss), or anywhere while a menu is shown; a drag
 // the view started never goes to the UI, even over a document. Moves always
 // reach the UI for hover, the wheel only over something it scrolls.
-// Documents move their widgets with RmlUi's `<handle move_target="...">`.
+// Documents move their widgets with RmlUi's `<handle move_target="...">`;
+// a widget moved keeps its place as a part of the room around it, so the
+// view resized it stays where it was (at the right edge, in the middle),
+// inside the view.
+//
+// Size: a virtual pixel (dp) is the view's height over 1080, times the UI
+// scale: documents grow and shrink with the view (a wider or narrower view
+// shows more or less beside them, as games do).
 //
 // Keyboard: the view has the keys, unless a menu is shown (a modal
 // document: every key and action goes to the UI, which navigates it, Esc
@@ -62,9 +69,13 @@ public:
 
     Screen();
     ~Screen();
+    // Virtual pixels the view is tall.
+    static constexpr int CanvasHeight = 1080;
+
     // The context over a view of width x height pixels (`pixelRatio` pixels
-    // a logical pixel of the view's events), documents at `scale` times
-    // their size. Starts the UI first; false when it cannot.
+    // a logical pixel of the view's events), a virtual pixel `scale` times
+    // its height over CanvasHeight. Starts the UI first; false when it
+    // cannot.
     bool ready(int width, int height, float pixelRatio, float scale);
     // False once the UI failed to start.
     bool usable() const;

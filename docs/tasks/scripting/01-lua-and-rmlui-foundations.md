@@ -465,6 +465,27 @@ context, documents and input):
   panel dragged across the view (300 x 240 px), a click outside the
   panel going to the view, F8 showing the debugger over it.
 
+## The view resized (user's test, 2026-10-26)
+The user found documents laid out in fixed pixels: the window resized,
+the UI kept its size and place and went out of the view.
+- Size: a virtual pixel (`dp`) is the view's height over 1080, times the
+  HUD scale (it was the display's pixel ratio): documents grow and shrink
+  with the view, as SimpleHud did. Height only, as games do: a wider or
+  narrower view shows more or less beside them (fitting a whole 1920 x 1080
+  canvas into the editor's narrow view made the HUD's labels 5 px tall).
+  The HUD's sizes are set for that canvas.
+- Place: a widget moved by a handle keeps its place as parts of the room
+  around it in its container (`data-place`, from the `dragend` event); the
+  view resized, the screen puts it back at those parts, so one at the right
+  edge stays there and none leaves the view. Widgets never moved keep the
+  places their style sheets give (in dp or %).
+- Checked: suite `rmlui` (32 checks: the virtual pixel at three sizes and
+  scales, a moved widget at its parts of the room after the view shrank and
+  grew); play mode with the window resized under Xvfb: the panel dragged to
+  the bottom right stayed at the view's bottom right corner at 849 x 777,
+  569 x 597 and 1149 x 957 (Xvfb without a window manager lays the editor's
+  docks out oddly at those sizes, so its screenshots show little).
+
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.
 2. **A font shipped** in `appdata/0.7/ui/fonts/`: yes (Noto Sans regular

@@ -2344,7 +2344,7 @@ bool RouteEditorGLWidget::uiScreenReady() {
         });
     }
     if (!uiScreen->ready(qRound(this->width() * Game::PixelRatio), qRound(this->height() * Game::PixelRatio),
-                         Game::PixelRatio, Game::PixelRatio * Game::hudScale))
+                         Game::PixelRatio, Game::hudScale))
         return false;
     if (!uiCursor) {
         uiCursor = true;

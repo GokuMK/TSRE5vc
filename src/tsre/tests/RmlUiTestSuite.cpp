@@ -577,6 +577,28 @@ button { display: block; width: 100px; height: 30px; }
             key(Qt::Key_Escape);
             test.check(viewEscape && gameMenu && screen.keys() == Ui::Screen::Keys::View,
                        "Esc with the view's keys: the view's, or the game menu once there is one");
+
+            // The view resized: a virtual pixel its height over 1080, and the
+            // widget moved by its handle (to 200, 150 in 800 x 600: a third of
+            // the room across, three tenths down) at the same parts of the
+            // room, inside the view.
+            const float before = screen.context()->GetDensityIndependentPixelRatio();
+            screen.ready(500, 400, 1.0f, 1.0f);
+            screen.update();
+            const Rml::Vector2f smaller = panel->GetAbsoluteOffset();
+            const float after = screen.context()->GetDensityIndependentPixelRatio();
+            screen.ready(1200, 900, 1.0f, 2.0f);
+            screen.update();
+            const Rml::Vector2f larger = panel->GetAbsoluteOffset();
+            qInfo().noquote() << "[tests:rmlui] resized: dp" << before << after
+                              << screen.context()->GetDensityIndependentPixelRatio() << "panel at" << smaller.x
+                              << smaller.y << "then" << larger.x << larger.y;
+            test.check(std::fabs(before - 600.0f / 1080.0f) < 1e-4f && std::fabs(after - 400.0f / 1080.0f) < 1e-4f
+                           && std::fabs(screen.context()->GetDensityIndependentPixelRatio() - 2.0f * 900.0f / 1080.0f) < 1e-4f,
+                       "a virtual pixel: the view's height over 1080, times the scale");
+            test.check(std::fabs(smaller.x - 100) < 1.0f && std::fabs(smaller.y - 90) < 1.0f
+                           && std::fabs(larger.x - 333) < 1.0f && std::fabs(larger.y - 240) < 1.0f,
+                       "a moved widget keeps its place in the view resized, inside it");
         }
     }
 
