@@ -83,6 +83,8 @@ struct MapPalette {
     // Map labels (markers, places): names with a halo, and their dots.
     QColor label = QColor(30, 30, 36);
     QColor labelHalo = QColor(255, 255, 255);
+    // An activity's trains' names (Activity Objects > Train Names).
+    QColor trainLabel = QColor(20, 45, 150);
     QColor marker = QColor(176, 32, 122);
     // OSM data's named places and railway stations.
     QColor place = QColor(90, 90, 100);

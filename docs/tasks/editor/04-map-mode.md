@@ -812,18 +812,27 @@ and markers are. Map > Activity > Activity Objects > Train Names (with
 Trains on) labels the activity's trains, not its loose consists or static
 trains (`appendTrains` in `MapLabelSources`, `MapLabelKind::Train`):
 
+- named where each begins, the name starting right of it (left of it when
+  that place is taken, then above or below: `MapLabel::beside`);
 - before a run: the player's train and the AI trains shown, at their
-  starts, by the middle vehicle of their consists; named as the simulation
-  names them (`Sim::TrainName`: "service (player)", "service hh:mm:ss");
-- while a simulation runs: its trains where it has them (`trainPlace`,
-  `trainName`), taken again every 100 ms and the labels rebuilt only when
-  one changed;
-- dots in the engines' colour, ranked below the simulation's messages and
+  starts, at the front of their consists' first vehicles; named as the
+  simulation names them (`Sim::TrainName`: "service (player)",
+  "service hh:mm:ss");
+- while a simulation runs: its trains where it has them, at their leading
+  ends (`SimulationController::trainHead`: the first vehicle's front, the
+  last one's rear when running reversed), taken again every 100 ms and the
+  labels rebuilt only when one changed;
+- names in the palette's `trainLabel` (dark blue in the light palette,
+  light blue in the dark one; the atlas paints a name in its kind's colour),
+  dots in the engines' colour; ranked below the simulation's messages and
   the measured distance, above the rest (events next); trains starting at
   one place show one name, the earliest's.
-- Check: simulation-ui suite (each train's label at its place, with its
-  name); captures of `tests/renderer/map-ai-trains.json` show the names
-  before a run.
+- User's review (2026-10-26): names at the trains' heads, not their middles,
+  starting beside them rather than centred, in their own colour.
+- Check: simulation-ui suite (each train's label at its head, ahead of its
+  centre, with its name), map-view suite (names beside their dots);
+  captures of `tests/renderer/map-ai-trains.json` show the names before a
+  run, in both palettes.
 
 ## Phases
 

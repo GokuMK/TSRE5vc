@@ -95,15 +95,17 @@ void MapLabelAtlas::clear() {
     ++clears;
 }
 
-const MapLabelAtlas::Entry *MapLabelAtlas::get(const QString &text, bool major) {
-    const QString key = (major ? QStringLiteral("1") : QStringLiteral("0")) + text;
+const MapLabelAtlas::Entry *MapLabelAtlas::get(const QString &text, bool major, const QColor &colour) {
+    const QString key = (major ? QStringLiteral("1") : QStringLiteral("0"))
+            + (colour.isValid() ? colour.name() : QString()) + QChar(0x1f) + text;
     auto found = entries.constFind(key);
     if (found != entries.constEnd())
         return &found.value();
-    return paint(key, text, major);
+    return paint(key, text, major, colour.isValid() ? colour : textColor);
 }
 
-const MapLabelAtlas::Entry *MapLabelAtlas::paint(const QString &key, const QString &text, bool major) {
+const MapLabelAtlas::Entry *MapLabelAtlas::paint(const QString &key, const QString &text, bool major,
+                                                 const QColor &colour) {
     const QSize size = measure(text, major);
     if (size.width() > PageSize || size.height() > PageSize)
         return nullptr;
@@ -166,7 +168,7 @@ const MapLabelAtlas::Entry *MapLabelAtlas::paint(const QString &key, const QStri
             for (int k = std::max(0, y - r); k <= std::min(h - 1, y + r); ++k) m = std::max(m, row[size_t(k) * w + x]);
             grown[size_t(y) * w + x] = m;
         }
-    const float tr = textColor.redF(), tg = textColor.greenF(), tb = textColor.blueF();
+    const float tr = colour.redF(), tg = colour.greenF(), tb = colour.blueF();
     const float hr = haloColor.redF(), hg = haloColor.greenF(), hb = haloColor.blueF();
     for (int y = 0; y < h; ++y) {
         uchar *out = page->image.scanLine(rect.y() + y) + rect.x() * 4;
@@ -273,7 +275,9 @@ std::vector<QPoint> MapLabelLayer::place(const std::vector<Candidate> &candidate
                                  {x + reach, y - h / 2},      // right
                                  {x - w / 2, y + reach + 1},  // below
                                  {x - reach - w, y - h / 2}}; // left
-        for (const QPoint &p : tries) {
+        static const int around[4] = {0, 1, 2, 3}, beside[4] = {1, 3, 0, 2};
+        for (int t : c.beside ? beside : around) {
+            const QPoint &p = tries[t];
             const QRect r(p, QSize(w, h));
             if (!screen.contains(r) || !isFree(r)) continue;
             take(r);
@@ -308,6 +312,10 @@ QColor MapLabelLayer::dotColour(const MapPalette &palette, MapLabelKind kind) {
     }
 }
 
+QColor MapLabelLayer::textColour(const MapPalette &palette, MapLabelKind kind) {
+    return kind == MapLabelKind::Train ? palette.trainLabel : QColor();
+}
+
 MapLabelLayer::~MapLabelLayer() = default;
 
 void MapLabelLayer::setLabels(std::vector<MapLabel> next) {
@@ -334,7 +342,7 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
         if (px < -margin || py < -margin || px > view.width + margin || py > view.height + margin)
             continue;
         const QSize size = atlas.measure(l.text, l.major);
-        candidates.push_back({px, py, size.width(), size.height(), uint(qHash(l.text)) | 1u});
+        candidates.push_back({px, py, size.width(), size.height(), uint(qHash(l.text)) | 1u, l.beside});
         source.push_back(i);
     }
     const float dotPixels = DotPixels * pixelRatio, gapPixels = GapPixels * pixelRatio;
@@ -358,7 +366,7 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
         for (size_t k = 0; k < candidates.size(); ++k) {
             if (corners[k].x() < 0) continue;  // left out
             const MapLabel &l = labels[source[k]];
-            const MapLabelAtlas::Entry *entry = atlas.get(l.text, l.major);
+            const MapLabelAtlas::Entry *entry = atlas.get(l.text, l.major, textColour(palette, l.kind));
             if (entry == nullptr) { full = true; break; }
             const float x0 = float(corners[k].x()), y0 = float(corners[k].y());
             const float x1 = x0 + entry->rect.width(), y1 = y0 + entry->rect.height();

@@ -188,28 +188,30 @@ void appendTrains(std::vector<MapLabel> &out, Activity *activity) {
         label.text = name;
         label.kind = MapLabelKind::Train;
         label.priority = TrainPriority;
+        label.beside = true;
         out.push_back(std::move(label));
     };
-    // Running: where the simulation has them (its trains are the running
-    // ones; standing ones apart).
+    // Named where they begin (the leading vehicle's front). Running: where the
+    // simulation has them (its trains are the running ones; standing ones
+    // apart).
     const Sim::SimulationController *simulation = Sim::SimulationController::instance();
     if (simulation->shows(activity)) {
         const int count = int(simulation->viewFrame()->trains.size());
         for (int train = 0; train < count; ++train) {
             int tile[2];
-            float position[3], heading[3];
-            if (simulation->trainPlace(train, tile, position, heading))
+            float position[3];
+            if (simulation->trainHead(train, tile, position))
                 add(tile[0], tile[1], position[0], position[2], simulation->trainName(train));
         }
         return;
     }
     // Before a run: those the map draws (ActivityMapLayer), at their
-    // starts, by the middle vehicle of their consists.
+    // starts, by the front of their consists' first vehicles (an Eng's
+    // first track point).
     auto place = [&](Service *service, const QString &name) {
         Consist *consist = service != nullptr ? service->getConsistPointer() : nullptr;
         float posTW[5];
-        if (consist == nullptr || consist->engItems.isEmpty()
-                || !consist->getWagonWorldPosition(consist->engItems.size() / 2, posTW))
+        if (consist == nullptr || consist->engItems.isEmpty() || !consist->getWagonWorldPosition(0, posTW))
             return;
         // tile x, tile z, x, z (database convention).
         add(int(posTW[0]), -int(posTW[1]), posTW[2], -posTW[4], name);

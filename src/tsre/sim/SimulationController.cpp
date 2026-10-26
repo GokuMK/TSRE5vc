@@ -613,6 +613,22 @@ bool SimulationController::trainPlace(int train, int *tile, float *position, flo
     return true;
 }
 
+bool SimulationController::trainHead(int train, int *tile, float *position) const {
+    const std::shared_ptr<const SimulationFrame> now = viewFrame();
+    if (train < 0 || size_t(train) >= now->trains.size())
+        return false;
+    const TrainFrame &t = now->trains[size_t(train)];
+    if (t.fronts.empty() || t.rears.empty())
+        return false;
+    const TrackPose &head = t.state.reversed ? t.rears.back() : t.fronts.front();
+    tile[0] = head.tileX;
+    tile[1] = -head.tileZ;
+    position[0] = head.x;
+    position[1] = head.y;
+    position[2] = -head.z;
+    return true;
+}
+
 QString SimulationController::stateText(int train) const {
     const std::shared_ptr<const SimulationFrame> now = frame();
     if (in == nullptr || train < 0 || size_t(train) >= now->trains.size())

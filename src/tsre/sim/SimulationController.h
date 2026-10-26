@@ -111,6 +111,10 @@ public:
     // tile x, tile z (the camera's), x, y, z; its length; false when not on
     // the track.
     bool trainPlace(int train, int *tile, float *position, float *heading, float *length = nullptr) const;
+    // Where a train begins: its first vehicle's front (its last one's rear
+    // when it runs reversed), as trainPlace's centre; false when not on the
+    // track.
+    bool trainHead(int train, int *tile, float *position) const;
 
     // The world's clock while a simulation exists (WorldClock::Source): the
     // simulation's time of day and date (days from the world's date at

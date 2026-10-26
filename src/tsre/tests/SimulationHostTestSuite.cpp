@@ -1165,8 +1165,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         check(labels.size() == 1 && labels[0].text.contains("Marker") && labels[0].kind == MapLabelKind::Event,
               QString("the map shows the latest message beside the player's train (%1)")
                   .arg(labels.empty() ? QString("none") : labels[0].text));
-        // The trains' names beside them (the users' request): where the
-        // simulation has them, as it names them.
+        // The trains' names beside them (the users' request): at their
+        // heads, ahead of their centres the way they run, as the simulation
+        // names them.
         {
             std::vector<MapLabel> trains;
             MapLabelSources::appendTrains(trains, activity);
@@ -1178,12 +1179,16 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
                 for (int t = 0; t < int(simulation->viewFrame()->trains.size()); ++t)
                     if (simulation->trainName(t) == label.text)
                         train = t;
-                int tile[2];
-                float position[3], heading[3];
-                named = named && train >= 0 && label.kind == MapLabelKind::Train
-                        && simulation->trainPlace(train, tile, position, heading) && label.tileX == tile[0]
+                int tile[2], centreTile[2];
+                float position[3], centre[3], heading[3];
+                named = named && train >= 0 && label.kind == MapLabelKind::Train && label.beside
+                        && simulation->trainHead(train, tile, position)
+                        && simulation->trainPlace(train, centreTile, centre, heading) && label.tileX == tile[0]
                         && label.tileZ == tile[1] && std::fabs(label.x - position[0]) < 0.01f
-                        && std::fabs(label.z - position[2]) < 0.01f && label.priority < labels[0].priority;
+                        && std::fabs(label.z - position[2]) < 0.01f && label.priority < labels[0].priority
+                        && ((tile[0] - centreTile[0]) * 2048.0f + position[0] - centre[0]) * heading[0]
+                                + ((tile[1] - centreTile[1]) * 2048.0f + position[2] - centre[2]) * heading[2]
+                            > 1.0f;
             }
             check(named && names.filter("(player)").size() == 1,
                   "the map names the trains beside them, as the simulation does: " + names.join(" | "));

@@ -29,7 +29,8 @@ struct MapPalette;
 
 // What a label names: its dot takes the palette colour of the kind.
 // Measure: the length the map's Measure Distance tool shows, in the pointer's colour.
-// Train: an activity's train (not its loose consists), in the colour of engines.
+// Train: an activity's train (not its loose consists), in the colour of engines, its
+// name in the palette's trainLabel.
 enum class MapLabelKind : unsigned char { Marker, Station, Platform, Siding, Event, Place, OsmStation, Measure, Train,
                                           Count };
 
@@ -48,6 +49,8 @@ struct MapLabel {
     MapLabelKind kind = MapLabelKind::Marker;
     // Shown at this resolution and finer (metres per pixel); 0: at every one.
     float maxMetresPerPixel = 0.0f;
+    // Its name tried right of its dot first, then left (a train's begins at its head).
+    bool beside = false;
 };
 
 // Rank of a place name from its GeoNames feature code and population: capitals,
@@ -70,8 +73,9 @@ public:
     ~MapLabelAtlas();
     // The size a label is painted at (pixels), without painting it.
     QSize measure(const QString &text, bool major) const;
-    // The label's place in a page, painted on first use; null when it cannot fit at all.
-    const Entry *get(const QString &text, bool major);
+    // The label's place in a page, painted on first use (in its own colour when one is
+    // given, else the style's); null when it cannot fit at all.
+    const Entry *get(const QString &text, bool major, const QColor &colour = QColor());
     // Colours and pixel ratio: a change empties the atlas.
     void setStyle(const QColor &text, const QColor &halo, float pixelRatio);
     // Sends painted rows to the textures; texture ids per page after.
@@ -86,7 +90,7 @@ public:
 private:
     struct Page;
     QFont font(bool major) const;
-    const Entry *paint(const QString &key, const QString &text, bool major);
+    const Entry *paint(const QString &key, const QString &text, bool major, const QColor &colour);
     std::vector<std::unique_ptr<Page>> pages;
     QHash<QString, Entry> entries;
     QColor textColor = Qt::black;
@@ -97,7 +101,8 @@ private:
 
 // Map labels: each label's dot and name at a fixed screen size and upright,
 // whatever the zoom and heading, with names that would overlap left out (by
-// priority) and each name tried above, right of, below and left of its dot.
+// priority) and each name tried above, right of, below and left of its dot (right,
+// left, above and below for names beside it).
 class MapLabelLayer {
 public:
     // Above the route's data (TrackItemMapLayer 600, ActivityMapLayer 700), under the
@@ -112,8 +117,9 @@ public:
     ~MapLabelLayer();
     // Replaces the labels (sorted by priority here).
     void setLabels(std::vector<MapLabel> labels);
-    // The palette colour of a kind's dots.
+    // The palette colour of a kind's dots, and of its names (invalid: the labels' colour).
     static QColor dotColour(const MapPalette &palette, MapLabelKind kind);
+    static QColor textColour(const MapPalette &palette, MapLabelKind kind);
     size_t labelCount() const { return labels.size(); }
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette, float pixelRatio);
     // Labels placed in the last build.
@@ -128,6 +134,7 @@ public:
         float x = 0.0f, y = 0.0f;
         int width = 0, height = 0;
         unsigned int key = 0;
+        bool beside = false;
     };
     static std::vector<QPoint> place(const std::vector<Candidate> &candidates, int screenWidth, int screenHeight,
                                      float dotPixels, float gapPixels, float duplicatePixels = 0.0f);
