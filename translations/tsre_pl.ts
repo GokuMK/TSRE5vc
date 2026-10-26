@@ -1447,18 +1447,18 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
     </message>
     <message id="route.editor.activity.tools.button.simulation.run.to.tooltip">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="484"/>
-        <source>As fast as possible to the time, then paused; an earlier time is reached again from the start.</source>
-        <translation>Najszybciej jak się da do podanego czasu, potem pauza; wcześniejszy czas jest osiągany ponownie od startu.</translation>
+        <source>As fast as possible to the time, then paused; an earlier time is reached again from the start, a time before the run&apos;s start is the next day&apos;s (asked first).</source>
+        <translation>Najszybciej jak się da do podanego czasu, potem pauza; wcześniejszy czas jest osiągany ponownie od startu, czas przed startem przebiegu oznacza następny dzień (z pytaniem).</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.speed">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="497"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="997"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1018"/>
         <source>%1×</source>
         <translation>%1×</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.speed.fastest">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="499"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="998"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1019"/>
         <source>As fast as possible</source>
         <translation>Najszybciej jak się da</translation>
     </message>
@@ -1620,149 +1620,161 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
     </message>
     <message id="route.editor.activity.tools.simulation.title">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="948"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="967"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1055"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="969"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="980"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="988"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1090"/>
         <source>Simulation</source>
         <translation>Symulacja</translation>
     </message>
+    <message id="route.editor.activity.tools.simulation.run.to.next.day">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="982"/>
+        <source>%1 is before the run&apos;s start (%2). Run on to %1 the next day, %3 h %4 min ahead?</source>
+        <translation>%1 jest przed startem przebiegu (%2). Symulować dalej do %1 następnego dnia, %3 h %4 min naprzód?</translation>
+    </message>
+    <message id="route.editor.activity.tools.simulation.time.day">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1048"/>
+        <source>%1, day %2</source>
+        <translation>%1, dzień %2</translation>
+    </message>
     <message id="route.editor.activity.tools.simulation.time.rate">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1017"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1052"/>
         <source>%1 (%2×)</source>
         <translation>%1 (%2×)</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.not.simulated">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1024"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1059"/>
         <source>%1 notes on the run&apos;s trains:</source>
         <translation>%1 uwag o pociągach przebiegu:</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.not.simulated.link">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1026"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1061"/>
         <source>Check Activity lists them</source>
         <translation>lista w Sprawdź scenariusz</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.deadlock">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1061"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1096"/>
         <source>These trains wait for each other and will not move again (a deadlock): %1. The simulation goes on. Change their times or paths so they meet where one can pass the other, then reset the simulation.</source>
         <translation>Te pociągi czekają na siebie nawzajem i już nie ruszą (zakleszczenie): %1. Symulacja trwa dalej. Zmień ich czasy lub ścieżki tak, by spotkały się tam, gdzie jeden może minąć drugi, a potem zresetuj symulację.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.merged">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1093"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1128"/>
         <source>The overlay %1 is merged; it is renamed when the activity is saved.</source>
         <translation>Nakładka %1 jest scalona; zostanie przemianowana przy zapisie scenariusza.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.present">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1095"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1130"/>
         <source>Open Rails adds the overlay %1 to this activity.</source>
         <translation>Open Rails dodaje do tego scenariusza nakładkę %1.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1107"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1142"/>
         <source>Merge the Overlay</source>
         <translation>Scal nakładkę</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.intro">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1111"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1146"/>
         <source>These additions go into the activity as edits (one undo step). Saving the activity renames %1 to %2.</source>
         <translation>Te dodatki trafią do scenariusza jako edycja (jeden krok cofania). Zapis scenariusza zmieni nazwę %1 na %2.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.unreadable">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1113"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1148"/>
         <source>The overlay %1 cannot be read.</source>
         <translation>Nie można odczytać nakładki %1.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.left.out">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1122"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1157"/>
         <source>Left out: %1</source>
         <translation>Pominięte: %1</translation>
     </message>
     <message id="route.editor.activity.tools.title.save.changes">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1212"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1247"/>
         <source>Save changes?</source>
         <translation>Zapisać zmiany?</translation>
     </message>
     <message id="route.editor.activity.tools.message.save.changes.in.activities">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1215"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1250"/>
         <source>Save changes in activities?</source>
         <translation>Zapisać zmiany w scenariuszach?</translation>
     </message>
     <message id="route.editor.activity.tools.save.check.errors">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1229"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1264"/>
         <source>%1: %2 errors (Check Activity lists them)</source>
         <translation>%1: błędy: %2 (lista w oknie Sprawdź scenariusz)</translation>
     </message>
     <message id="activity.failed.signal.id">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1385"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1420"/>
         <source>Signal ID: %1</source>
         <translation>ID sygnalizatora: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1427"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1456"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1462"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1491"/>
         <source>Path</source>
         <translation>Droga przejazdu</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.file">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1433"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1468"/>
         <source>File name</source>
         <translation>Nazwa pliku</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1436"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1471"/>
         <source>Display name</source>
         <translation>Nazwa wyświetlana</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.taken">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1459"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1494"/>
         <source>A path named %1 exists already.</source>
         <translation>Droga przejazdu o nazwie %1 już istnieje.</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.invalid">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1461"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1496"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>Nazwa pliku nie może być pusta ani zawierać \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1515"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1550"/>
         <source>Delete Path</source>
         <translation>Usuń drogę przejazdu</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.read.only">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1519"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1554"/>
         <source>The route is read-only.</source>
         <translation>Trasa jest tylko do odczytu.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.question">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1524"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1559"/>
         <source>Delete the path %1 and its file? This cannot be undone.</source>
         <translation>Usunąć drogę przejazdu %1 i jej plik? Tej operacji nie można cofnąć.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.users">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1529"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1564"/>
         <source>These services and activities name it: %1</source>
         <translation>Używają jej te kursy i scenariusze: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.failed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1535"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1570"/>
         <source>The file %1 could not be deleted.</source>
         <translation>Nie udało się usunąć pliku %1.</translation>
     </message>
     <message id="route.editor.activity.tools.title.signal.not.disabled">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1747"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1782"/>
         <source>Signal not disabled!</source>
         <translation>Sygnalizator nie został wyłączony!</translation>
     </message>
     <message id="route.editor.activity.tools.text.select.signal.before.using.this.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1750"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1785"/>
         <source>Select signal before using this button.</source>
         <translation>Przed użyciem tego przycisku wybierz sygnalizator.</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="2110"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="2145"/>
         <source>Activity Description</source>
         <translation>Opis scenariusza</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="2130"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="2165"/>
         <source>Activity Description</source>
         <translation>Opis scenariusza</translation>
     </message>
@@ -5320,7 +5332,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="route.editor.activity.timetable.window.summary.unchanged">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="100"/>
-        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="958"/>
+        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="983"/>
         <source>Nothing changed.</source>
         <translation>Nic się nie zmieniło.</translation>
     </message>
@@ -14628,190 +14640,190 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stoi, start o %1</translation>
     </message>
     <message id="simulation.wait.single">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="147"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="149"/>
         <source>waiting for the single track ahead, claimed by %1</source>
         <translation>czeka na odcinek jednotorowy przed nim, zarezerwowany przez %1</translation>
     </message>
     <message id="simulation.wait.single.signal">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="149"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="151"/>
         <source>at signal %1: the single track beyond is claimed by %2</source>
         <translation>przy semaforze %1: odcinek jednotorowy za nim zarezerwował %2</translation>
     </message>
     <message id="simulation.wait.passing">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="153"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="155"/>
         <source>waiting for the passing track, held by %1</source>
         <translation>czeka na tor mijankowy zajęty przez %1</translation>
     </message>
     <message id="simulation.wait.passing.signal">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="155"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="157"/>
         <source>at signal %1: the passing track is held by %2</source>
         <translation>przy semaforze %1: tor mijankowy zajmuje %2</translation>
     </message>
     <message id="simulation.wait.follow">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="159"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="161"/>
         <source>following %1, waiting for it to pass</source>
         <translation>jedzie za %1, czeka, aż przejedzie</translation>
     </message>
     <message id="simulation.wait.follow.signal">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="161"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="163"/>
         <source>at signal %1: following %2, waiting for it to pass</source>
         <translation>przy semaforze %1: jedzie za %2, czeka, aż przejedzie</translation>
     </message>
     <message id="simulation.state.blocked">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="167"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="169"/>
         <source>waiting for track held by %1</source>
         <translation>czeka na tor zajęty przez %1</translation>
     </message>
     <message id="simulation.wait.track.signal">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="169"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="171"/>
         <source>at signal %1: the track beyond is held by %2</source>
         <translation>przy semaforze %1: tor za nim zajmuje %2</translation>
     </message>
     <message id="simulation.why.car.train">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="184"/>
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="196"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="186"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="198"/>
         <source>car %1 in %2</source>
         <translation>wagon %1 w %2</translation>
     </message>
     <message id="simulation.why.car.loose">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="187"/>
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="201"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="189"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="203"/>
         <source>car %1 in the loose consist %2</source>
         <translation>wagon %1 w luźnym składzie %2</translation>
     </message>
     <message id="simulation.why.car.left">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="189"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="191"/>
         <source>car %1 standing where %2 left it</source>
         <translation>wagon %1 stoi tam, gdzie zostawił go %2</translation>
     </message>
     <message id="simulation.why.car.none">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="190"/>
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="203"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="192"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="205"/>
         <source>car %1 in no train</source>
         <translation>wagon %1 w żadnym pociągu</translation>
     </message>
     <message id="simulation.work.impractical">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="257"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="259"/>
         <source>work order %1 skipped, too complicated: %2</source>
         <translation>zlecenie %1 pominięte jako zbyt skomplikowane: %2</translation>
     </message>
     <message id="simulation.work.skipped">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="259"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="261"/>
         <source>work order %1 skipped, no plan for it: %2</source>
         <translation>zlecenie %1 pominięte, brak planu: %2</translation>
     </message>
     <message id="simulation.why.passengers">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="274"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="276"/>
         <source>PickUpPassengers never fires (as in Open Rails).</source>
         <translation>PickUpPassengers nigdy nie jest wywoływane (jak w Open Rails).</translation>
     </message>
     <message id="simulation.why.inactive">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="277"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="279"/>
         <source>Never active (its level stayed at %1).</source>
         <translation>Nigdy nieaktywne (jego poziom pozostał %1).</translation>
     </message>
     <message id="simulation.why.time">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="282"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="284"/>
         <source>Its time, %1, is after the run&apos;s end.</source>
         <translation>Jego czas, %1, wypada po końcu przebiegu.</translation>
     </message>
     <message id="simulation.why.trigger.missing">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="289"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="291"/>
         <source>Its triggering train %1 is not in the activity: the player&apos;s train is looked at.</source>
         <translation>Jego pociągu wyzwalającego %1 nie ma w scenariuszu: sprawdzany jest pociąg gracza.</translation>
     </message>
     <message id="simulation.why.off.track">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="293"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="295"/>
         <source>Its point is %1 m from the track: within 2.5 m it would be on it (Open Rails).</source>
         <translation>Jego punkt leży %1 m od toru: w odległości 2,5 m byłby na nim (Open Rails).</translation>
     </message>
     <message id="simulation.why.no.track">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="296"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="298"/>
         <source>Its point is not near any track.</source>
         <translation>Jego punkt nie leży przy żadnym torze.</translation>
     </message>
     <message id="simulation.why.other.track">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="300"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="302"/>
         <source>Its point is on another track, %1 m from the path of %2: within 2.5 m of the track a train runs on it would fire (Open Rails).</source>
         <translation>Jego punkt leży na innym torze, %1 m od drogi przejazdu %2: w odległości 2,5 m od toru, po którym jedzie pociąg, zostałoby wywołane (Open Rails).</translation>
     </message>
     <message id="simulation.why.not.on.path">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="303"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="305"/>
         <source>The path of %1 does not pass its point.</source>
         <translation>Droga przejazdu %1 nie przechodzi przez jego punkt.</translation>
     </message>
     <message id="simulation.why.passed.inactive">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="306"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="308"/>
         <source>%1 passed it at %2, before it was active (from %3).</source>
         <translation>%1 minął je o %2, zanim stało się aktywne (od %3).</translation>
     </message>
     <message id="simulation.why.passed.lowered">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="310"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="312"/>
         <source>%1 passed it at %2, when it was no longer active (active from %3).</source>
         <translation>%1 minął je o %2, gdy nie było już aktywne (aktywne od %3).</translation>
     </message>
     <message id="simulation.why.passed.no.stop">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="313"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="315"/>
         <source>%1 passed it at %2 without stopping: active too late to stop.</source>
         <translation>%1 minął je o %2 bez zatrzymania: aktywne za późno, by się zatrzymać.</translation>
     </message>
     <message id="simulation.why.passed">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="316"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="318"/>
         <source>%1 passed it at %2.</source>
         <translation>%1 minął je o %2.</translation>
     </message>
     <message id="simulation.why.not.there">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="319"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="321"/>
         <source>%1 did not get there.</source>
         <translation>%1 tam nie dojechał.</translation>
     </message>
     <message id="simulation.why.no.stops">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="326"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="328"/>
         <source>The player&apos;s train has no station stops.</source>
         <translation>Pociąg gracza nie ma postojów na stacjach.</translation>
     </message>
     <message id="simulation.why.last.stop">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="329"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="331"/>
         <source>The player&apos;s train did not leave its last station stop.</source>
         <translation>Pociąg gracza nie odjechał z ostatniego postoju na stacji.</translation>
     </message>
     <message id="simulation.why.speed">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="333"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="335"/>
         <source>The player&apos;s train reached %1 at most, %2 asked.</source>
         <translation>Pociąg gracza osiągnął najwyżej %1, wymagane %2.</translation>
     </message>
     <message id="simulation.why.siding">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="345"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="347"/>
         <source>The player&apos;s train did not reach the siding.</source>
         <translation>Pociąg gracza nie dojechał na tor boczny.</translation>
     </message>
     <message id="simulation.why.work.impractical">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="350"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="352"/>
         <source>The autopilot skipped it as too complicated: %1.</source>
         <translation>Autopilot pominął je jako zbyt skomplikowane: %1.</translation>
     </message>
     <message id="simulation.why.work.none">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="353"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="355"/>
         <source>The autopilot found no plan for it: %1.</source>
         <translation>Autopilot nie znalazł dla niego planu: %1.</translation>
     </message>
     <message id="simulation.why.work.off">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="356"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="358"/>
         <source>The autopilot was not asked to do the work.</source>
         <translation>Autopilot nie miał wykonać tej pracy.</translation>
     </message>
     <message id="simulation.why.cars.at">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="358"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="360"/>
         <source>The cars: %1.</source>
         <translation>Wagony: %1.</translation>
     </message>
     <message id="simulation.why.ended">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="367"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="369"/>
         <source>The activity ended at %1.</source>
         <translation>Scenariusz zakończył się o %1.</translation>
     </message>
     <message id="simulation.train.player">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="114"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="116"/>
         <source>%1 (player)</source>
         <translation>%1 (gracz)</translation>
     </message>
@@ -14821,142 +14833,142 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>jedzie %1</translation>
     </message>
     <message id="simulation.train.ai">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="116"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="118"/>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
     </message>
     <message id="simulation.holder.consist">
-        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="122"/>
+        <location filename="../src/tsre/sim/SimulationTexts.cpp" line="124"/>
         <source>a standing consist</source>
         <translation>stojący skład</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="647"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="664"/>
         <source>started</source>
         <translation>ruszył</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="651"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="668"/>
         <source>arrived at %1, booked %2</source>
         <translation>przyjechał na %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="653"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="670"/>
         <source>arrived at %1</source>
         <translation>przyjechał na %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="657"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="674"/>
         <source>departed from %1, booked %2</source>
         <translation>odjechał z %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="659"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="676"/>
         <source>departed from %1</source>
         <translation>odjechał z %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="664"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="681"/>
         <source>at a waiting point: %1</source>
         <translation>w punkcie oczekiwania: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="668"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="685"/>
         <source>reversed</source>
         <translation>zmienił kierunek</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="671"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="688"/>
         <source>sounded the horn</source>
         <translation>dał sygnał</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="674"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="691"/>
         <source>reached its path&apos;s end</source>
         <translation>dojechał do końca drogi przejazdu</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="679"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="696"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>zakleszczony: czeka na %1, który czeka na niego</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="686"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="703"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>zdarzenie %1 (przez pociąg gracza: jego pociąg wyzwalający jeszcze nie ruszył)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="688"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="705"/>
         <source>event %1</source>
         <translation>zdarzenie %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="697"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="714"/>
         <source>the activity ends: success</source>
         <translation>scenariusz kończy się sukcesem</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="699"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="716"/>
         <source>the activity ends without success</source>
         <translation>scenariusz kończy się porażką</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="702"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="719"/>
         <source>coupled to %1 cars</source>
         <translation>sprzęgnięty z wagonami (%1)</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="705"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="722"/>
         <source>joined the cars standing ahead</source>
         <translation>dołączył do wagonów stojących przed nim</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="708"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="725"/>
         <source>cut off %1 cars</source>
         <translation>odczepił wagony (%1)</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="711"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="728"/>
         <source>took %1 cars from %2</source>
         <translation>zabrał wagony (%1) z pociągu %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="714"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="731"/>
         <source>left %1 cars to %2</source>
         <translation>zostawił wagony (%1) pociągowi %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="717"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="734"/>
         <source>joined %1</source>
         <translation>dołączył do pociągu %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="720"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="737"/>
         <source>runs on its own again, parted from %1</source>
         <translation>jedzie znów sam, odłączony od pociągu %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="723"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="740"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>usunięty: zabrane wagony stoją poza jego drogą (jak w Open Rails)</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="733"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="750"/>
         <source>restarted by event %1</source>
         <translation>wznowiony przez zdarzenie %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="825"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="842"/>
         <source>Every train has finished its path.</source>
         <translation>Wszystkie pociągi przejechały swoje drogi.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="827"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="844"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Pociągi: %1 czeka, %2 jedzie, %3 stoi, %4 zakończyło.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="836"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="853"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Zakleszczenie: %1 czekają na siebie nawzajem.</translation>
     </message>

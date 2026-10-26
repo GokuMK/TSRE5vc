@@ -18,6 +18,7 @@
 #include <QThread>
 #include <set>
 #include <QTime>
+#include <QTimer>
 #include <QTreeWidget>
 #include <cmath>
 #include <functional>
@@ -648,6 +649,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
           "Play: a simulation of the activity, the player's train and the AI train");
     check(simulation->input()->trains[0].length > 39.0f && simulation->input()->trains[0].vehicles[0].type >= 4,
           "the trains have their vehicles: an engine and a carriage, 40 m");
+    check(runToTime->time() == QTime(8, 0, 0), "a new run: Run to: from 00:00:00 up to the run's start, 08:00:00");
     check(std::fabs(Game::timeOfDayHours - 8.0f) < 1e-4f, "the world's time is set to the activity's start");
     check(ActivityNotifier::editingLocked() && !activities->isEnabled() && !add->isEnabled()
               && !events.eventProperties->isEnabled() && !timetable.timetableProperties->isEnabled(),
@@ -810,7 +812,27 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.time > 8 * 3600 + 1800; }, 10000, pump);
     check(f && std::fabs(clock->hours() - (8 + 1.5 / 60)) < 1e-6 && clock->rate() == 0.0,
           "as fast as possible the world keeps its time");
+    // The user's review: a time before the run's start (the next day's,
+    // hours on) is asked about first; No leaves the run as it is.
+    const auto answer = [](QMessageBox::StandardButton button, QString *text) {
+        QTimer::singleShot(0, [button, text] {
+            if (QMessageBox *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
+                if (text != nullptr)
+                    *text = box->text();
+                box->button(button)->click();
+            }
+        });
+    };
+    QString question;
+    const unsigned long long commandBefore = simulation->lastCommand();
+    answer(QMessageBox::No, &question);
     runToTime->setTime(QTime(7, 59, 0));
+    runTo->click();
+    pump();
+    check(question.contains("07:59:00") && question.contains("08:00:00") && simulation->lastCommand() == commandBefore
+              && simulation->runs(),
+          "Run to 07:59, before the start: asked first; No leaves the run going: " + question);
+    answer(QMessageBox::Yes, nullptr);
     runTo->click();
     // As fast as possible the run can pass that time before the host takes
     // the command (a day of this activity takes well under a second): the
@@ -825,6 +847,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-4 && std::fabs(clock->hours() - (7 + 59.0 / 60)) < 1e-6
               && clock->date() == "2026-10-16",
           QString("Run to 07:59, before the start: the next day; the world's clock there (%1 %2)").arg(clock->hours()).arg(clock->date()));
+    const QLabel *shownTime = tools.findChild<QLabel *>("simulationTime");
+    check(shownTime != nullptr && shownTime->text() == "07:59:00, day 2",
+          "the panel's time says the day past midnight: " + (shownTime != nullptr ? shownTime->text() : QString()));
 
     // The clock's controls (the environment window's) drive the simulation.
     clock->setSpeed(5.0);

@@ -130,6 +130,16 @@ time); those stops behave as untimed ones.
 - Run to a time continues to it when it is ahead; a time before the
   simulation's is reached again from the start (a new input). Reset makes
   a new input and goes back to the start, running on when it ran.
+- Run to a time before the run's start is the next day's (activities
+  running past midnight). The user's review (2026-10-26): Run to
+  00:07:00 on EUROPE1's Local Service (its first train at 07:15) ran
+  16 h 52 min on to the next day with no word; the field started at
+  00:00:00 and the time shown had no day. Now the panel asks first ("...
+  Run on to 00:07:00 the next day, 16 h 52 min ahead?"; not once the run
+  is past midnight), a new run moves Run to: up to its start when it
+  holds an earlier time, and the time shown says the day past midnight
+  ("00:07:00, day 2"). `SimulationController::timeOfRunTo` says where a
+  time of day goes.
 
 Tests: `simulation-host` (15 checks: start, run to a time, pause, play,
 speed and stop acknowledged; the latest frame kept; events in order and

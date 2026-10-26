@@ -252,11 +252,12 @@ void SimulationController::setSpeed(double value) {
 bool SimulationController::runTo(Activity *activity, int timeOfDay, QString *error) {
     if (!exists() && !start(activity, error))
         return false;
-    double target = timeOfDay;
+    return runToTime(timeOfRunTo(timeOfDay), false, error);
+}
+
+double SimulationController::timeOfRunTo(int timeOfDay) const {
     // Before the start: the next day's.
-    if (target < in->startTime)
-        target += 86400.0;
-    return runToTime(target, false, error);
+    return in != nullptr && timeOfDay < in->startTime ? timeOfDay + 86400.0 : double(timeOfDay);
 }
 
 bool SimulationController::runToTime(double target, bool thenRun, QString *error, int untilOnTrack) {

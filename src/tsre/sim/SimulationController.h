@@ -61,6 +61,9 @@ public:
     // As fast as possible up to a time of day (seconds), then paused there;
     // a time before the simulation's is reached again from the start.
     bool runTo(Activity *activity, int timeOfDay, QString *error = nullptr);
+    // The simulation's time a run to a time of day goes to: the next day's
+    // when it is before the run's start (an activity running past midnight).
+    double timeOfRunTo(int timeOfDay) const;
     // A new input from the editor's data, back at the start, running on
     // when it ran.
     void reset();
