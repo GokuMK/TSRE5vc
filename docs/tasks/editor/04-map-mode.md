@@ -831,8 +831,16 @@ trains (`appendTrains` in `MapLabelSources`, `MapLabelKind::Train`):
   one place show one name, the earliest's.
 - User's review (2026-10-26): names at the trains' heads, not their middles,
   starting beside them rather than centred, in their own colour.
+- A click on a name picks its train as a click on the train does (its
+  consist selected, chosen in the Timetable window): the label carries the
+  train's selection ID (`MapLabel::selectionId`: the service, the leading
+  vehicle as the part) and the label layer draws the names it placed under
+  their IDs in the map's selection pass (`MapLabelLayer::pushSelection`,
+  above the trains). The user's request, 2026-10-26.
 - Check: simulation-ui suite (each train's label at its head, ahead of its
-  centre, with its name), map-view suite (names beside their dots);
+  centre, with its name and its train's ID), map-view suite (names beside
+  their dots); a capture centred on the chosen AI train's name in
+  `map-ai-trains.json`'s place picks service 12, vehicle 0;
   captures of `tests/renderer/map-ai-trains.json` show the names before a
   run, in both palettes.
 

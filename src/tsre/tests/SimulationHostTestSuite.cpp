@@ -40,6 +40,7 @@
 #include <tsre/map/MapFeatures.h>
 #include <tsre/map/MapLabelLayer.h>
 #include <tsre/map/MapLabelSources.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/sim/SimulationController.h>
@@ -1192,7 +1193,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
                   .arg(labels.empty() ? QString("none") : labels[0].text));
         // The trains' names beside them (the users' request): at their
         // heads, ahead of their centres the way they run, as the simulation
-        // names them.
+        // names them; a click on a name picks its train, the leading vehicle.
         {
             std::vector<MapLabel> trains;
             MapLabelSources::appendTrains(trains, activity);
@@ -1204,10 +1205,13 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
                 for (int t = 0; t < int(simulation->viewFrame()->trains.size()); ++t)
                     if (simulation->trainName(t) == label.text)
                         train = t;
-                int tile[2], centreTile[2];
+                int tile[2], centreTile[2], vehicle = -1;
                 float position[3], centre[3], heading[3];
+                quint32 picks = 0;
                 named = named && train >= 0 && label.kind == MapLabelKind::Train && label.beside
-                        && simulation->trainHead(train, tile, position)
+                        && simulation->trainHead(train, tile, position, &vehicle)
+                        && SelectionIdCodec::tryActivityService(simulation->serviceId(train), vehicle, picks)
+                        && label.selectionId == picks
                         && simulation->trainPlace(train, centreTile, centre, heading) && label.tileX == tile[0]
                         && label.tileZ == tile[1] && std::fabs(label.x - position[0]) < 0.01f
                         && std::fabs(label.z - position[2]) < 0.01f && label.priority < labels[0].priority

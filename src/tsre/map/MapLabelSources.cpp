@@ -16,6 +16,7 @@
 #include <cmath>
 #include <tsre/coords/Coords.h>
 #include <tsre/coords/CoordsRoutePlaces.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sim/SimulationTexts.h>
@@ -179,7 +180,7 @@ void appendActivity(std::vector<MapLabel> &out, Activity *activity) {
 void appendTrains(std::vector<MapLabel> &out, Activity *activity) {
     if (activity == nullptr)
         return;
-    auto add = [&](int tileX, int tileZ, float x, float z, const QString &name) {
+    auto add = [&](int tileX, int tileZ, float x, float z, const QString &name, quint32 selectionId) {
         MapLabel label;
         label.tileX = tileX;
         label.tileZ = tileZ;
@@ -189,6 +190,7 @@ void appendTrains(std::vector<MapLabel> &out, Activity *activity) {
         label.kind = MapLabelKind::Train;
         label.priority = TrainPriority;
         label.beside = true;
+        label.selectionId = selectionId;
         out.push_back(std::move(label));
     };
     // Named where they begin (the leading vehicle's front). Running: where the
@@ -198,33 +200,37 @@ void appendTrains(std::vector<MapLabel> &out, Activity *activity) {
     if (simulation->shows(activity)) {
         const int count = int(simulation->viewFrame()->trains.size());
         for (int train = 0; train < count; ++train) {
-            int tile[2];
+            int tile[2], vehicle = 0;
             float position[3];
-            if (simulation->trainHead(train, tile, position))
-                add(tile[0], tile[1], position[0], position[2], simulation->trainName(train));
+            quint32 id = 0;
+            if (simulation->trainHead(train, tile, position, &vehicle))
+                add(tile[0], tile[1], position[0], position[2], simulation->trainName(train),
+                    SelectionIdCodec::tryActivityService(simulation->serviceId(train), vehicle, id) ? id : 0);
         }
         return;
     }
     // Before a run: those the map draws (ActivityMapLayer), at their
     // starts, by the front of their consists' first vehicles (an Eng's
     // first track point).
-    auto place = [&](Service *service, const QString &name) {
+    auto place = [&](Service *service, const QString &name, int serviceId) {
         Consist *consist = service != nullptr ? service->getConsistPointer() : nullptr;
         float posTW[5];
         if (consist == nullptr || consist->engItems.isEmpty() || !consist->getWagonWorldPosition(0, posTW))
             return;
         // tile x, tile z, x, z (database convention).
-        add(int(posTW[0]), -int(posTW[1]), posTW[2], -posTW[4], name);
+        quint32 id = 0;
+        add(int(posTW[0]), -int(posTW[1]), posTW[2], -posTW[4], name,
+            SelectionIdCodec::tryActivityService(serviceId, 0, id) ? id : 0);
     };
     const QVector<int> shown = activity->shownAITrains();
     for (const ActivityTrains::Train &train : ActivityTrains::List(activity)) {
         if (train.staticTrain)
             continue;
         if (train.kind == ActivityTrains::Player)
-            place(activity->playerService(), Sim::TrainName(train.service, true, train.time));
+            place(activity->playerService(), Sim::TrainName(train.service, true, train.time), 0);
         else if (train.kind == ActivityTrains::AI && shown.contains(train.index))
             place(activity->aiTrainService(train.index),
-                  Sim::TrainName(train.service, false, train.orTimetable >= 0 ? -1 : train.time));
+                  Sim::TrainName(train.service, false, train.orTimetable >= 0 ? -1 : train.time), train.index + 1);
     }
 }
 

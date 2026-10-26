@@ -3555,7 +3555,8 @@ void RouteEditorGLWidget::updateMapLabels() {
         MapLabelSources::appendTrains(now, trainsNamed);
         trainLabelsTaken.start();
         auto same = [](const MapLabel &a, const MapLabel &b) {
-            return a.tileX == b.tileX && a.tileZ == b.tileZ && a.x == b.x && a.z == b.z && a.text == b.text;
+            return a.tileX == b.tileX && a.tileZ == b.tileZ && a.x == b.x && a.z == b.z && a.text == b.text
+                    && a.selectionId == b.selectionId;
         };
         if (!std::equal(now.begin(), now.end(), trainLabels.begin(), trainLabels.end(), same)) {
             trainLabels = std::move(now);
@@ -3770,6 +3771,8 @@ void RouteEditorGLWidget::paintMapSelection(int width, int height) {
         trackItemMap->pushSelection(*mapSelection, view);
     activityMap->pushSelection(*mapSelection, view, route, mapLayers.shows(MapLayer::Activity),
                                mapLayers.activityKinds);
+    // The trains' names pick their trains (above the trains, as drawn).
+    mapLabels->pushSelection(*mapSelection);
     mapSelection->pushRenderItems(queue);
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     renderer->setShadowCasting(true);

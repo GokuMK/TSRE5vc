@@ -10,6 +10,7 @@
 
 #include "MapLabelLayer.h"
 #include "MapPalette.h"
+#include "MapSelection.h"
 #include "MapView.h"
 #include "TrackMapLayer.h"
 #include <QDebug>
@@ -322,6 +323,8 @@ void MapLabelLayer::setLabels(std::vector<MapLabel> next) {
     std::stable_sort(next.begin(), next.end(), [](const MapLabel &a, const MapLabel &b) { return a.priority > b.priority; });
     labels = std::move(next);
     dirty = true;
+    // Picked again once built.
+    picks.clear();
 }
 
 void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float pixelRatio) {
@@ -360,6 +363,7 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
         for (auto &d : dotTriangles)
             d.clear();
         haloTriangles.clear();
+        picks.clear();
         placed = 0;
         const int generation = atlas.generation();
         bool full = false;
@@ -385,6 +389,12 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
             std::vector<float> &q = quads[size_t(entry->page)];
             for (int c : order[cross > 0 ? 0 : 1])
                 q.insert(q.end(), {g[c][0], TextHeight, g[c][1], uv[c][0], uv[c][1], 0.0f});
+            if (l.selectionId != 0) {
+                std::vector<float> pick;
+                for (int c : order[cross > 0 ? 0 : 1])
+                    pick.insert(pick.end(), {g[c][0], TextHeight, g[c][1]});
+                picks.emplace_back(l.selectionId, std::move(pick));
+            }
             float dx, dz;
             ground(candidates[k].x, candidates[k].y, dx, dz);
             TrackMapLayer::appendOctagon(haloTriangles, dx, DotHaloHeight, dz, (DotPixels + 2.0f) * pixelRatio * mpp);
@@ -435,4 +445,11 @@ void MapLabelLayer::pushRenderItems(RenderQueue &queue, const MapView &view, con
         d->pushRenderItem(queue);
     for (auto &object : textObjects)
         object->pushRenderItem(queue);
+}
+
+void MapLabelLayer::pushSelection(MapSelection &selection) const {
+    for (const auto &pick : picks) {
+        std::vector<float> &shape = selection.shape(pick.first);
+        shape.insert(shape.end(), pick.second.begin(), pick.second.end());
+    }
 }

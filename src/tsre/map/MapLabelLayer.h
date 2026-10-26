@@ -22,6 +22,7 @@
 #include <vector>
 
 class MapView;
+class MapSelection;
 class OglObj;
 class RenderQueue;
 class Texture;
@@ -51,6 +52,9 @@ struct MapLabel {
     float maxMetresPerPixel = 0.0f;
     // Its name tried right of its dot first, then left (a train's begins at its head).
     bool beside = false;
+    // A click on its name picks this (the ID drawn under it in the map's selection
+    // pass: a train's, so its consist); 0: none.
+    quint32 selectionId = 0;
 };
 
 // Rank of a place name from its GeoNames feature code and population: capitals,
@@ -122,6 +126,8 @@ public:
     static QColor textColour(const MapPalette &palette, MapLabelKind kind);
     size_t labelCount() const { return labels.size(); }
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette, float pixelRatio);
+    // The names placed in the last build that pick something, under their IDs.
+    void pushSelection(MapSelection &selection) const;
     // Labels placed in the last build.
     size_t placedCount() const { return placed; }
 
@@ -155,6 +161,9 @@ private:
     std::vector<std::unique_ptr<OglObj>> textObjects;  // one per atlas page
     std::unique_ptr<OglObj> dots[int(MapLabelKind::Count)];
     std::unique_ptr<OglObj> dotHalos;
+    // Names placed in the last build with a selection ID: their two triangles on the
+    // ground (x, y, z a vertex).
+    std::vector<std::pair<quint32, std::vector<float>>> picks;
 };
 
 #endif

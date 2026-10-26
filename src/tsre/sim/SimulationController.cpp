@@ -614,7 +614,7 @@ bool SimulationController::trainPlace(int train, int *tile, float *position, flo
     return true;
 }
 
-bool SimulationController::trainHead(int train, int *tile, float *position) const {
+bool SimulationController::trainHead(int train, int *tile, float *position, int *vehicle) const {
     const std::shared_ptr<const SimulationFrame> now = viewFrame();
     if (train < 0 || size_t(train) >= now->trains.size())
         return false;
@@ -622,6 +622,8 @@ bool SimulationController::trainHead(int train, int *tile, float *position) cons
     if (t.fronts.empty() || t.rears.empty())
         return false;
     const TrackPose &head = t.state.reversed ? t.rears.back() : t.fronts.front();
+    if (vehicle != nullptr)
+        *vehicle = t.state.reversed ? int(t.rears.size()) - 1 : 0;
     tile[0] = head.tileX;
     tile[1] = -head.tileZ;
     position[0] = head.x;
