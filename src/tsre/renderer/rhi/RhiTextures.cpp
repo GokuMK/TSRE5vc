@@ -13,6 +13,7 @@
 #include <QMap>
 #include <QStringList>
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <vector>
 
@@ -22,14 +23,28 @@ struct Entry {
     bool mipmaps = false;
     bool clamp = false;
     bool nearest = false;
+    // Released for memory, the handle kept for its texture to come back.
+    bool evicted = false;
+    qint64 used = 0;
 };
 std::vector<Entry> &store() {
     static std::vector<Entry> textures;
     return textures;
 }
 QRhiResourceUpdateBatch *pending = nullptr;
+std::vector<QRhiTexture *> retired;
+qint64 useClock = 0;
 
-unsigned int add(const Entry &entry) {
+// Handles are never reused, except an evicted one given back as reuse.
+unsigned int add(Entry entry, unsigned int reuse = 0) {
+    entry.used = useClock;
+    if (reuse != 0 && reuse <= store().size() && store()[reuse - 1].evicted) {
+        Entry &slot = store()[reuse - 1];
+        entry.clamp = slot.clamp;
+        entry.nearest = slot.nearest;
+        slot = entry;
+        return reuse;
+    }
     store().push_back(entry);
     return static_cast<unsigned int>(store().size());
 }
@@ -71,7 +86,7 @@ QRhiResourceUpdateBatch *takeUpdates() {
     return batch;
 }
 
-unsigned int create(int width, int height, const QVector<QByteArray> &levels) {
+unsigned int create(int width, int height, const QVector<QByteArray> &levels, unsigned int reuse) {
     RhiContext *context = RhiContext::instance();
     if (context == nullptr || context->rhi() == nullptr || levels.isEmpty() || width <= 0
             || height <= 0)
@@ -102,19 +117,29 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels) {
     batch->uploadTexture(texture, upload);
     if (!complete)
         batch->generateMips(texture);
-    return add(Entry{texture, false, false, false});
+    return add(Entry{texture, false, false, false}, reuse);
 }
+
+static std::atomic<int> blocksKnown{-1};
 
 bool supportsBlocks() {
     RhiContext *context = RhiContext::instance();
     QRhi *rhi = context != nullptr ? context->rhi() : nullptr;
-    return rhi != nullptr && rhi->isTextureFormatSupported(QRhiTexture::BC1)
+    if (rhi == nullptr)
+        return false;
+    const bool supported = rhi->isTextureFormatSupported(QRhiTexture::BC1)
             && rhi->isTextureFormatSupported(QRhiTexture::BC2)
             && rhi->isTextureFormatSupported(QRhiTexture::BC3);
+    blocksKnown.store(supported ? 1 : 0, std::memory_order_release);
+    return supported;
+}
+
+int blocksSupportKnown() {
+    return blocksKnown.load(std::memory_order_acquire);
 }
 
 unsigned int createCompressed(int width, int height, Blocks format,
-                              const QVector<QByteArray> &levels) {
+                              const QVector<QByteArray> &levels, unsigned int reuse) {
     RhiContext *context = RhiContext::instance();
     if (context == nullptr || context->rhi() == nullptr || levels.isEmpty() || width <= 0
             || height <= 0)
@@ -139,7 +164,7 @@ unsigned int createCompressed(int width, int height, Blocks format,
     QRhiTextureUploadDescription upload;
     upload.setEntries(entries.cbegin(), entries.cend());
     updates()->uploadTexture(texture, upload);
-    return add(Entry{texture, false, false, false});
+    return add(Entry{texture, false, false, false}, reuse);
 }
 
 unsigned int createData(int width, int height, bool floats, const QByteArray &data) {
@@ -157,6 +182,24 @@ unsigned int createData(int width, int height, bool floats, const QByteArray &da
     description.setSourceSize(QSize(width, height));
     updates()->uploadTexture(texture, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, description)));
     return add(Entry{texture, false, true, true});
+}
+
+bool replaceLevel0(unsigned int handle, int width, int height, const QByteArray &rgba) {
+    QRhiTexture *target = texture(handle);
+    if (target == nullptr || target->format() != QRhiTexture::RGBA8
+            || target->pixelSize() != QSize(width, height)
+            || rgba.size() != qsizetype(width) * height * 4 || updates() == nullptr)
+        return false;
+    // Without its own mipmaps (file levels) it cannot make them again.
+    const bool remake = target->flags().testFlag(QRhiTexture::UsedWithGenerateMips);
+    if (target->flags().testFlag(QRhiTexture::MipMapped) && !remake)
+        return false;
+    QRhiTextureSubresourceUploadDescription description(rgba);
+    description.setSourceSize(QSize(width, height));
+    updates()->uploadTexture(target, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, description)));
+    if (remake)
+        updates()->generateMips(target);
+    return true;
 }
 
 void updateRegion(unsigned int handle, int x, int y, int width, int height, const QByteArray &data) {
@@ -265,7 +308,37 @@ unsigned int createArray(int side, const QVector<QByteArray> &layers) {
 QRhiTexture *texture(unsigned int handle) {
     if (handle == 0 || handle > store().size())
         return nullptr;
-    return store()[handle - 1].texture;
+    Entry &entry = store()[handle - 1];
+    entry.used = useClock;
+    return entry.texture;
+}
+
+void evict(unsigned int handle) {
+    if (handle == 0 || handle > store().size())
+        return;
+    Entry &entry = store()[handle - 1];
+    if (entry.texture != nullptr)
+        retired.push_back(entry.texture);
+    entry.texture = nullptr;
+    entry.evicted = true;
+}
+
+bool evicted(unsigned int handle) {
+    return handle != 0 && handle <= store().size() && store()[handle - 1].evicted;
+}
+
+qint64 lastUsed(unsigned int handle) {
+    return handle != 0 && handle <= store().size() ? store()[handle - 1].used : 0;
+}
+
+void setClock(qint64 milliseconds) {
+    useClock = milliseconds;
+}
+
+std::vector<QRhiTexture *> takeRetired() {
+    std::vector<QRhiTexture *> taken;
+    taken.swap(retired);
+    return taken;
 }
 
 void setSampling(unsigned int handle, bool mipmaps, bool clamp) {
@@ -284,6 +357,9 @@ bool clampedToEdge(unsigned int handle) {
 }
 
 void releaseAll() {
+    for (QRhiTexture *texture : retired)
+        delete texture;
+    retired.clear();
     for (Entry &entry : store()) {
         delete entry.texture;
         entry = Entry();
@@ -338,7 +414,7 @@ void release(unsigned int handle) {
         return;
     Entry &entry = store()[handle - 1];
     if (entry.texture != nullptr)
-        entry.texture->deleteLater();
+        retired.push_back(entry.texture);
     entry = Entry();
 }
 

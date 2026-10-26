@@ -93,7 +93,7 @@ unsigned int OglObj::layerTexture(int layer) {
     int &id = layerTexIds[layer];
     if (id == -1)
         id = TexLib::addTex(*layerRes[layer]);
-    if (id < 0 || !TexLib::mtex[id]->loaded)
+    if (id < 0 || !TexLib::request(id))
         return 0;
     if (!TexLib::mtex[id]->glLoaded)
         TexLib::mtex[id]->GLTextures();
@@ -180,7 +180,7 @@ void OglObj::pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod){
             texId = TexLib::addTex(*res);
         }
         materialColor = missing;
-        if (TexLib::mtex[texId]->loaded) {
+        if (TexLib::request(texId)) {
             if (!TexLib::mtex[texId]->glLoaded)
                 TexLib::mtex[texId]->GLTextures();
             if(TexLib::mtex[texId]->glLoaded){

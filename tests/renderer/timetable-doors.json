@@ -1,0 +1,119 @@
+{
+ "notes": "Doors at a timetable stop (docs/tasks/shapes/12-shape-and-rolling-stock-animation.md): Prudnik's PSK_2026 timetable, train 119 (0749 Bielsko-Biala - Sosnowiec, KSL EN57-730, its three cars) standing at Katowice 07:56-07:58 with the platform on its left. Run to 07:56, then 07:57 (first seen at the stop), then 07:57:30: each car's left doors open to the platform, the right ones shut. Route Prudnik (--game-root C:/trainsim --route Prudnik).",
+ "output": "build/renderer-timetable-doors",
+ "activity": "PSK_2026.timetable_or",
+ "aiTrains": "all",
+ "simulateTo": "07:56:00",
+ "width": 1280,
+ "height": 800,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 1,
+ "settle": {
+  "minFrames": 20,
+  "stableFrames": 3,
+  "maxFrames": 40,
+  "maxSeconds": 120
+ },
+ "views": [
+  {
+   "name": "arrived",
+   "train": 119,
+   "simulateTo": "07:57:00"
+  },
+  {
+   "name": "car0-left",
+   "train": 119,
+   "trainVehicle": 0,
+   "trainEye": [
+    -6.0,
+    2.2,
+    10.0
+   ],
+   "trainAt": [
+    0.0,
+    1.6,
+    10.0
+   ],
+   "simulateTo": "07:57:30"
+  },
+  {
+   "name": "car0-right",
+   "train": 119,
+   "trainVehicle": 0,
+   "trainEye": [
+    6.0,
+    2.2,
+    10.0
+   ],
+   "trainAt": [
+    0.0,
+    1.6,
+    10.0
+   ]
+  },
+  {
+   "name": "car1-left",
+   "train": 119,
+   "trainVehicle": 1,
+   "trainEye": [
+    -6.0,
+    2.2,
+    10.0
+   ],
+   "trainAt": [
+    0.0,
+    1.6,
+    10.0
+   ]
+  },
+  {
+   "name": "car1-right",
+   "train": 119,
+   "trainVehicle": 1,
+   "trainEye": [
+    6.0,
+    2.2,
+    10.0
+   ],
+   "trainAt": [
+    0.0,
+    1.6,
+    10.0
+   ]
+  },
+  {
+   "name": "car2-left",
+   "train": 119,
+   "trainVehicle": 2,
+   "trainEye": [
+    -6.0,
+    2.2,
+    10.0
+   ],
+   "trainAt": [
+    0.0,
+    1.6,
+    10.0
+   ]
+  },
+  {
+   "name": "car2-right",
+   "train": 119,
+   "trainVehicle": 2,
+   "trainEye": [
+    6.0,
+    2.2,
+    10.0
+   ],
+   "trainAt": [
+    0.0,
+    1.6,
+    10.0
+   ]
+  }
+ ]
+}

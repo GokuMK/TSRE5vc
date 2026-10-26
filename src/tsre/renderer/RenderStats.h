@@ -76,6 +76,15 @@ struct FrameStats {
     // Draw calls per Renderer::RenderPass.
     static constexpr int PassSlots = 13;
     quint64 passDraws[PassSlots] = {};
+    // GPU resources the frame made (QRhi): textures uploaded and the time
+    // their uploads, meshes, resource sets and pipelines took on the CPU.
+    quint64 texturesCreated = 0;
+    double textureCreateMs = 0.0;
+    double meshCreateMs = 0.0;
+    double bindingCreateMs = 0.0;
+    double pipelineCreateMs = 0.0;
+    // Textures and meshes left for later frames by the upload budget.
+    quint64 uploadsDeferred = 0;
 };
 
 bool enabled();

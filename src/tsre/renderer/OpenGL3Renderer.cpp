@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include <tsre/renderer/OpenGL3Renderer.h>
+#include <tsre/texture/Texture.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
@@ -474,6 +475,8 @@ private:
 }
 
 OpenGL3Renderer::OpenGL3Renderer() {
+    // Mipmaps on shape textures (the switch; the rest is the QRhi renderer's).
+    Texture::readMipmapSettings();
 }
 
 OpenGL3Renderer::~OpenGL3Renderer() {

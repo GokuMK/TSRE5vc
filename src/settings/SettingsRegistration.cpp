@@ -331,6 +331,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Mirror Qt log messages to the process console as well as log.txt."
                 QT_TRID_NOOP("settings.core.system.console.output.description")).inGroup("system").inSubgroup("logging"),
         "consoleOutput", "Game::consoleOutput", "Game", false, "startup");
+    ADD(SettingsDefinition::boolean("core.system.frameLog", false)
+            .withNameId(
+                //% "Frame log"
+                QT_TRID_NOOP("settings.core.system.frame.log.name")).withDescriptionId(
+                //% "Write one line a frame of the 3D view to frames-YYYYMMDD-HHMMSS.csv beside log.txt, a file each session: where the frame's time went (waiting for the GPU, gathering, shadows, the scene, the submit), the GPU's time, the textures and meshes made, the world and terrain tiles loaded, and where the camera was. For finding stutter in a real session. Applies after a restart."
+                QT_TRID_NOOP("settings.core.system.frame.log.description")).inGroup("system").inSubgroup("logging").asAdvanced(),
+        "", "", "FrameLog", false, "startup");
     ADD(SettingsDefinition::boolean("core.system.systemTheme", false)
             .withNameId(
                 //% "Use system theme"
@@ -729,6 +736,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shapes loading at once on worker threads when threaded shape loading is on. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.object.loading.parallel.shapes.description")).withRange(1, 32, 1).inGroup("rendering").inSubgroup("visibility").asAdvanced(),
         "", "", "ShapeLoader", false, "startup");
+    ADD(SettingsDefinition::integer("core.rendering.objectLoading.uploadBudgetMs", 4)
+            .withNameId(
+                //% "GPU upload time per frame (ms)"
+                QT_TRID_NOOP("settings.core.rendering.object.loading.upload.budget.name")).withDescriptionId(
+                //% "Time a frame may spend making the textures and meshes of newly loaded objects; the rest waits for the next frames, and those objects appear a little later instead of the frame stuttering. Terrain, the first view and the view after a camera jump are not limited. 0: no limit. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.object.loading.upload.budget.description")).withRange(0, 50, 1).inGroup("rendering").inSubgroup("visibility").asAdvanced(),
+        "", "", "Renderer", false, "startup");
+    ADD(SettingsDefinition::integer("core.rendering.textureMemoryBudget", 0)
+            .withNameId(
+                //% "Texture memory budget (MB)"
+                QT_TRID_NOOP("settings.core.rendering.texture.memory.budget.name")).withDescriptionId(
+                //% "Memory for textures: on the GPU, and loaded ones waiting for their first draw. Above it, the textures unused the longest are released and load again when they are needed. Edited textures are always kept. 0: automatic, with a discrete GPU 60% of its memory (1 to 16 GB), else an eighth of the installed memory (1 to 4 GB). Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.texture.memory.budget.description")).withRange(0, 32768, 256).inGroup("rendering").inSubgroup("visibility").asAdvanced(),
+        "", "", "TexLib", false, "startup");
     ADD(SettingsDefinition::string("core.rendering.terrainMesh", "paged", SettingType::Enum)
             .withNameId(
                 //% "Terrain mesh backend"
@@ -767,6 +788,34 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "OpenGL"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "rhiApi", "Game::rhiApi", "RouteEditorGLWidget", false, "renderer-restart");
+    ADD(SettingsDefinition::boolean("core.rendering.shapeTextures.mipmaps", false)
+            .withNameId(
+                //% "Mipmaps on shape textures"
+                QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmaps.name")).withDescriptionId(
+                //% "Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer. Off, as before: their full-size image only. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmaps.description")).inGroup("rendering").inSubgroup("textures"),
+        "", "", "Texture", false, "startup");
+    ADD(SettingsDefinition::string("core.rendering.shapeTextures.mipmapSource", "improve", SettingType::Enum)
+            .withNameId(
+                //% "Shape texture mipmaps from"
+                QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmap.source.name")).withDescriptionId(
+                //% "Where the mipmaps of shape textures come from, with mipmaps on. The file's own: as their authors made them, some of them ugly; made only where a file has none. Made again: from the full image, colours mixed as light, alpha-tested leaves and fences as dense at a distance as close up. Improved: the file's own where they look like the full image made smaller, made again from the first that does not. Made again and improved take extra time as textures load (decoding and encoding compressed textures). Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmap.source.description"))
+            .withOptions(choices({{"file",
+                //% "The file's own"
+                QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmap.source.option.file")}, {"regenerate",
+                //% "Made again"
+                QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmap.source.option.regenerate")}, {"improve",
+                //% "Improved"
+                QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmap.source.option.improve")}})).inGroup("rendering").inSubgroup("textures"),
+        "", "", "Texture", false, "startup");
+    ADD(SettingsDefinition::floating("core.rendering.textureLodBias", 0.0)
+            .withNameId(
+                //% "Texture sharpness bias"
+                QT_TRID_NOOP("settings.core.rendering.texture.lod.bias.name")).withDescriptionId(
+                //% "Shifts which mipmap level textures use: below 0 sharper at a distance (some shimmer), above 0 softer. QRhi renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.texture.lod.bias.description")).withRange(-2, 2, 0.25).inGroup("rendering").inSubgroup("textures"),
+        "", "", "Texture", false, "startup");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withNameId(
                 //% "Threaded texture loading"

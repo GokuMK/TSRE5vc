@@ -323,7 +323,17 @@ Selected minimal disable rule: require a successful save of current procedural
 edits before disabling. If the bake is absent/stale, ask the user to save first;
 do not silently revert to the last bake and lose visible unsaved paint. Once
 current, clear the procedural reference and retain baked shader/UV assignments.
-The ordinary route save persists that mode change. Keep unreferenced ID data for
+The ordinary route save persists that mode change.
+
+"Current" for disabling means the saved bake shows the tile's material map as
+saved (bake revision, no unsaved edits; the input signature too with validation
+on), whatever bake settings made it (`bakeShowsMap`). Before 2026-10-26 it
+needed the bake settings too: tiles baked at 512 before the default became 1024
+loaded as "Bake validation mismatch", and with validation off nothing marked
+them modified, so saving skipped them and Disable refused even right after a
+clean open and a save (user, route `procedural`). An older-size bake is a
+static texture all the same; the next save of the tile bakes it at the current
+size. The load warning now names the failed check. Keep unreferenced ID data for
 recovery; no automatic source/sidecar deletion. Disable no longer restores the
 original patch textures. Re-enabling initializes from the first procedural source
 (now ID 1), not the reserved bake at ID 0; it does not reconstruct IDs from the

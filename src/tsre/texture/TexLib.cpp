@@ -16,16 +16,24 @@
 #include <tsre/texture/PaintTexLib.h>
 #include <tsre/texture/MapLib.h>
 #include <tsre/texture/Texture.h>
+#include <QCoreApplication>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QMutex>
 #include <QImageReader>
 #include <QtEndian>
 #include <miniz/miniz.h>
 #include <QOpenGLShaderProgram>
+#include <QThreadPool>
+#include <settings/SettingsAccess.h>
 #include <tsre/Game.h>
+#include <tsre/renderer/rhi/RhiTextures.h>
+#include <algorithm>
 #include <cstring>
+#include <vector>
 
 int TexLib::jesttextur = 0;
 std::unordered_map<int, Texture*> TexLib::mtex;
@@ -39,14 +47,180 @@ bool textureIdentityMatches(const QString &key, const Texture &texture) {
     return ContentPath::synthetic(key) || !texture.pathid.endsWith(".dds", Qt::CaseInsensitive)
             || key.endsWith(".dds", Qt::CaseInsensitive);
 }
-int findTexture(const QString &key) {
+// The texture of a key: a usable one; with failed, else one that failed to
+// load. A failure is remembered: asked for again, it is shared, not loaded
+// again (a new entry and load each time before), until a reload tries it.
+int findTexture(const QString &key, bool failed = false) {
+    int failedId = -1;
     for(const auto &entry : TexLib::mtex) {
         const auto *texture = entry.second;
-        if(texture && !texture->missing && !texture->error && textureIdentityMatches(key, *texture))
+        if(!texture)
+            continue;
+        const bool usable = !texture->missing && !texture->error;
+        if(!usable && (!failed || failedId >= 0))
+            continue;
+        if(!textureIdentityMatches(key, *texture))
+            continue;
+        if(usable)
             return entry.first;
+        failedId = entry.first;
     }
-    return -1;
+    return failedId;
 }
+
+// Texture files load on a few pool threads, not a QThread each: a route asks
+// for thousands, and every thread object started was kept. File textures
+// are never deleted (delRef only drops them from mtex), so a queued load's
+// texture outlives it. A load still queued when a newer one of the same
+// texture is asked for (a reload, run at once) is skipped: it would write
+// the texture while the render thread uploads it.
+QMutex loadMutex;
+QHash<Texture *, quint64> newestLoad;
+quint64 loadRequests = 0;
+
+QThreadPool &loaderPool() {
+    static QThreadPool *pool = [] {
+        QCoreApplication *application = QCoreApplication::instance();
+        // Owned by the application, whose end waits for the running loads;
+        // the queued ones are dropped when it quits.
+        auto *created = new QThreadPool(application);
+        // TSRE_TEXTURE_LOADERS sets the count (measurements).
+        const int loaders = qEnvironmentVariableIntValue("TSRE_TEXTURE_LOADERS");
+        created->setMaxThreadCount(loaders > 0 ? loaders : std::max(2, QThread::idealThreadCount() - 1));
+        if(application)
+            QObject::connect(application, &QCoreApplication::aboutToQuit, created, &QThreadPool::clear);
+        return created;
+    }();
+    return *pool;
+}
+
+template<class Loader>
+void loadTexture(Texture *texture, bool threaded) {
+    quint64 request = 0;
+    {
+        QMutexLocker lock(&loadMutex);
+        request = ++loadRequests;
+        newestLoad[texture] = request;
+    }
+    auto load = [texture, request] {
+        {
+            QMutexLocker lock(&loadMutex);
+            const auto found = newestLoad.constFind(texture);
+            if(found == newestLoad.cend() || found.value() != request)
+                return;
+            newestLoad.remove(texture);
+        }
+        Loader loader;
+        loader.texture = texture;
+        loader.run();
+    };
+    if(threaded)
+        loaderPool().start(load);
+    else
+        load();
+}
+
+// Residency: TexLib's clock (milliseconds, set once a frame), the last
+// pass, the budget, and the textures released while holding a GPU handle.
+constexpr qint64 ResidencyPassMs = 500;
+constexpr qint64 ResidencyMinAgeMs = 30000;
+constexpr int ResidencyMaxPerPass = 512;
+QElapsedTimer residencyClock;
+qint64 residencyNow = 0;
+qint64 lastResidencyPass = -ResidencyPassMs;
+qint64 budgetOverride = -1;
+qint64 budgetFromSettings = -1;
+qint64 gpuMemory = 0;
+bool gpuDiscrete = false;
+QHash<unsigned int, Texture *> evictedHandles;
+// Releases since the last log line (one at most every 10 s).
+constexpr qint64 ResidencyLogMs = 10000;
+qint64 lastResidencyLog = -ResidencyLogMs;
+int releasedSinceLog = 0;
+qint64 releasedBytesSinceLog = 0;
+
+qint64 installedMemory();
+
+// What a texture holds in memory: its GPU texture once uploaded, its CPU
+// content while it waits for its first draw.
+qint64 residentBytes(const Texture &texture) {
+    if (texture.glLoaded)
+        return texture.estimatedVramBytes();
+    return texture.loaded ? texture.estimatedCpuBytes() : 0;
+}
+
+// Only what loads back the same from its file: never edited (reloadable
+// goes with any change of its pixels), cloned, generated or embedded content.
+// Texture::editable only says its CPU pixels are there (loaders set it).
+bool residencyCandidate(const Texture &texture) {
+    return texture.reloadable && !texture.released && !texture.missing && !texture.error
+            && texture.aceDocument == nullptr && (texture.glLoaded || texture.loaded);
+}
+
+// When it was last drawn, or asked for if it has not been yet.
+qint64 lastUse(const Texture &texture) {
+    if (texture.glLoaded && texture.tex != nullptr && texture.tex[0] != 0)
+        return std::max(texture.requested, RhiTextures::lastUsed(texture.tex[0]));
+    return texture.requested;
+}
+
+void releaseResident(Texture &texture) {
+    const unsigned int handle = texture.glLoaded && texture.tex != nullptr ? texture.tex[0] : 0;
+    texture.releaseContent(true);
+    texture.released = true;
+    if (handle != 0)
+        evictedHandles.insert(handle, &texture);
+}
+
+// The loader of a texture file's type, false for none. Reloads run at once.
+bool fileType(const QString &type) {
+    return type == "ace" || type == "dds" || type == "png" || type == "bmp" || type == "jpg"
+            || type == "jpeg" || type == "tga";
+}
+
+bool hasLoader(const QString &type) {
+    return fileType(type) || type == ":painttex" || type == ":maptex";
+}
+
+void startLoad(Texture *texture, bool reload, TexLib::Loading loading = TexLib::Loading::Setting) {
+    const QString type = QFileInfo(texture->pathid).suffix().toLower();
+    // Loaded from its file: residency may release it and load it again.
+    texture->reloadable = fileType(type);
+    // On a loader thread when asked, or as the setting says (`setting`: the
+    // loader's switch, which follows it); a reload loads at once.
+    auto threaded = [&](bool setting) {
+        return !reload && (loading == TexLib::Loading::Background
+                           || (loading == TexLib::Loading::Setting && setting));
+    };
+    if(type == "ace"){
+        loadTexture<AceLib>(texture, threaded(AceLib::IsThread));
+    } else if(type == "dds"){
+        loadTexture<DdsLib>(texture, threaded(DdsLib::IsThread));
+    } else if(type == "png"||type == "bmp"||type == "jpg"||type == "jpeg"/*||type == "dds"*/||type == "tga"){
+        loadTexture<ImageLib>(texture, threaded(ImageLib::IsThread));
+    } else if(type == ":painttex"){
+        loadTexture<PaintTexLib>(texture, false);
+    } else if(type == ":maptex"){
+        MapLib* t = new MapLib();
+        t->texture = texture;
+        t->start();
+        if(reload) {
+            t->wait();
+            delete t;
+        } else {
+            QObject::connect(t,&QThread::finished,t,&QObject::deleteLater);
+        }
+    }
+}
+}
+
+void Texture::readMipmapSettings() {
+    shapeMipmaps.store(Settings::boolean("core.rendering.shapeTextures.mipmaps"), std::memory_order_relaxed);
+    const QString source = Settings::string("core.rendering.shapeTextures.mipmapSource", SettingType::Enum);
+    mipmapSource.store(int(source == "file" ? MipmapSource::File
+                           : source == "regenerate" ? MipmapSource::Regenerate : MipmapSource::Improve),
+                       std::memory_order_relaxed);
+    lodBias = float(Settings::floating("core.rendering.textureLodBias"));
 }
 
 void TexLib::reset() {
@@ -147,6 +321,10 @@ void TexLib::delRef(int texx) {
         if (t->ref <= 0) {
             //System.out.println("--refs: "+mtex.get(texx).ref);
             if (t->glLoaded) {
+                // Its memory goes with it; the object stays (code may hold it).
+                if (t->tex != nullptr)
+                    evictedHandles.remove(t->tex[0]);
+                t->releaseContent(false);
                 t->delVBO();
                 mtex.erase(texx);
             }
@@ -165,11 +343,11 @@ void TexLib::addRef(int texx) {
     }
 }
 
-int TexLib::addTex(QString path, QString name, bool reload) {
+int TexLib::addTex(QString path, QString name, bool reload, Use use) {
     QString pathid = (path+"/"+name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
-    return addTex(pathid, reload);
+    return addTex(pathid, reload, use);
 }
 
 int TexLib::getTex(QString pathid) {
@@ -326,78 +504,54 @@ bool TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes, Q
     return true;
 }
 
-int TexLib::addTex(QString pathid, bool reload, Loading loading) {
+int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
     pathid = ContentPath::normalize(pathid);
-    // On a thread of its own when asked, or as the setting says (`setting`:
-    // the loader's switch, which follows it).
-    auto threaded = [&](bool setting) {
-        return !reload && (loading == Loading::Background || (loading == Loading::Setting && setting));
-    };
-    int texId = findTexture(ContentPath::key(pathid));
+    int texId = findTexture(ContentPath::key(pathid), true);
     if(texId < 0) {
         const QString fallback = ContentPath::textureSource(pathid);
         if(fallback != pathid) {
             pathid = fallback;
-            texId = findTexture(ContentPath::key(pathid));
+            texId = findTexture(ContentPath::key(pathid), true);
         }
     }
     Texture* newFile = texId < 0 ? nullptr : mtex[texId];
     if(newFile) {
-        if(!reload) { newFile->ref++; return texId; }
+        // Displayed until now and wanted editable: from now on its loads keep
+        // the source, and one without it loads again (a load on its way may
+        // have dropped it: it goes stale).
+        const bool editableNow = use == Editable && newFile->displayOnly;
+        if (editableNow)
+            newFile->displayOnly = false;
+        if(!reload && !(editableNow && !newFile->released && newFile->imageData == nullptr
+                        && newFile->compressedData.isEmpty() && newFile->reloadable)) {
+            newFile->ref++;
+            newFile->requested = residencyNow;
+            reloadReleased(newFile);
+            return texId;
+        }
+        if (!reload) {
+            newFile->ref++;
+            newFile->requested = residencyNow;
+            startLoad(newFile, true);
+            return texId;
+        }
         pathid = newFile->pathid; // Reload the selected asset using its stored spelling.
     }
-    const QString tType = QFileInfo(pathid).suffix().toLower();
     if(!newFile) {
         newFile = new Texture(pathid);
+        newFile->displayOnly = use == Display;
         newFile->ref++;
         texId = jesttextur++;
         mtex[texId] = newFile;
     } else {
         newFile->delVBO();
         newFile->pathid = pathid;
+        if (newFile->released && newFile->tex != nullptr)
+            evictedHandles.remove(newFile->tex[0]);
+        newFile->released = false;
     }
-    //qDebug() << pathid.toLower();
-    //qDebug() << tType;
-
-    if(tType == "ace"){
-        AceLib* t = new AceLib();
-        t->texture = newFile;
-        if(threaded(AceLib::IsThread))
-            t->start();
-        else
-            t->run();
-    } else if(tType == "dds"){
-        DdsLib* t = new DdsLib();
-        t->texture = newFile;
-        if(threaded(DdsLib::IsThread))
-            t->start();
-        else
-            t->run();
-    } else if(tType == "png"||tType == "bmp"||tType == "jpg"||tType == "jpeg"/*||tType == "dds"*/||tType == "tga"){
-        ImageLib* t = new ImageLib();
-        t->texture = newFile;
-        if(threaded(ImageLib::IsThread))
-            t->start();
-        else
-            t->run();
-    } else if(tType == ":painttex"){
-        PaintTexLib* t = new PaintTexLib();
-        t->texture = newFile;
-        //t->start();
-        t->run();
-    } else if(tType == ":maptex"){
-        MapLib* t = new MapLib();
-        t->texture = newFile;
-        t->start();
-        if(reload) {
-            t->wait();
-            delete t;
-        } else {
-            QObject::connect(t,&QThread::finished,t,&QObject::deleteLater);
-        }
-    }
-    //AceLib::LoadACE(newFile);
-    //tConcurrent::run();
+    newFile->requested = residencyNow;
+    startLoad(newFile, reload, loading);
     return texId;
 }
 
@@ -448,10 +602,148 @@ QSize TexLib::imageSize(QString pathid) {
 
 bool TexLib::reloadTexIfPresent(QString pathid) {
     pathid=ContentPath::normalize(pathid);
-    const int id=findTexture(ContentPath::key(pathid));
+    const int id=findTexture(ContentPath::key(pathid), true);
     if(id<0 || mtex[id]==nullptr)return false;
     addTex(mtex[id]->pathid,true);
     return true;
+}
+
+void TexLib::residencyFrame() {
+    if (!residencyClock.isValid())
+        residencyClock.start();
+    residencyNow = residencyClock.elapsed();
+    RhiTextures::setClock(residencyNow);
+    if (residencyNow - lastResidencyPass < ResidencyPassMs)
+        return;
+    lastResidencyPass = residencyNow;
+    enforceResidency(residencyNow, ResidencyMinAgeMs);
+}
+
+int TexLib::enforceResidency(qint64 now, qint64 minAgeMs) {
+    const qint64 budget = residencyBudget();
+    if (budget <= 0)
+        return 0;
+    struct Candidate { qint64 used; qint64 bytes; Texture *texture; };
+    std::vector<Candidate> candidates;
+    qint64 total = 0;
+    for (const auto &entry : mtex) {
+        Texture *texture = entry.second;
+        if (texture == nullptr)
+            continue;
+        const qint64 bytes = residentBytes(*texture);
+        total += bytes;
+        if (bytes <= 0 || !residencyCandidate(*texture))
+            continue;
+        const qint64 used = lastUse(*texture);
+        if (now - used >= minAgeMs)
+            candidates.push_back({used, bytes, texture});
+    }
+    if (total <= budget)
+        return 0;
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate &a, const Candidate &b) { return a.used < b.used; });
+    const qint64 target = budget - budget / 10;
+    int count = 0;
+    for (const Candidate &candidate : candidates) {
+        if (total <= target || count >= ResidencyMaxPerPass)
+            break;
+        releaseResident(*candidate.texture);
+        total -= candidate.bytes;
+        releasedBytesSinceLog += candidate.bytes;
+        ++count;
+    }
+    releasedSinceLog += count;
+    if (releasedSinceLog > 0 && now - lastResidencyLog >= ResidencyLogMs) {
+        qInfo().noquote() << "Texture memory budget" << (budget >> 20) << "MB:" << releasedSinceLog
+                          << "textures released (" << (releasedBytesSinceLog >> 20) << "MB ), now"
+                          << (total >> 20) << "MB";
+        lastResidencyLog = now;
+        releasedSinceLog = 0;
+        releasedBytesSinceLog = 0;
+    }
+    return count;
+}
+
+qint64 TexLib::residencyBudget() {
+    if (budgetOverride >= 0)
+        return budgetOverride;
+    if (budgetFromSettings < 0) {
+        const qint64 megabytes = Settings::integer("core.rendering.textureMemoryBudget");
+        const qint64 installed = installedMemory();
+        constexpr qint64 GB = qint64(1) << 30;
+        // Uploaded textures live in a discrete GPU's own memory, not in the
+        // RAM (their CPU pixels go once uploaded); an integrated GPU's take
+        // RAM.
+        QString basis;
+        if (megabytes > 0) {
+            budgetFromSettings = megabytes << 20;
+            basis = "the setting";
+        } else if (gpuDiscrete && gpuMemory > 0) {
+            budgetFromSettings = std::clamp(gpuMemory * 3 / 5, GB, 16 * GB);
+            basis = QString("60% of the discrete GPU's %1 MB").arg(gpuMemory >> 20);
+        } else {
+            budgetFromSettings = installed > 0 ? std::clamp(installed / 8, GB, 4 * GB) : 2 * GB;
+            basis = QString("an eighth of %1 MB installed").arg(installed >> 20);
+        }
+        qInfo().noquote() << "Texture memory budget" << (budgetFromSettings >> 20) << "MB:" << basis;
+    }
+    return budgetFromSettings;
+}
+
+void TexLib::setResidencyBudget(qint64 bytes) {
+    budgetOverride = bytes;
+}
+
+void TexLib::setGpuMemory(qint64 bytes, bool discrete) {
+    gpuMemory = bytes;
+    gpuDiscrete = discrete;
+    budgetFromSettings = -1;
+}
+
+void TexLib::reloadReleased(Texture *texture) {
+    if (texture == nullptr || !texture->released)
+        return;
+    texture->released = false;
+    if (texture->tex != nullptr)
+        evictedHandles.remove(texture->tex[0]);
+    texture->requested = residencyNow;
+    startLoad(texture, false);
+}
+
+void TexLib::reloadNow(Texture *texture) {
+    if (texture == nullptr || !texture->released)
+        return;
+    texture->released = false;
+    if (texture->tex != nullptr)
+        evictedHandles.remove(texture->tex[0]);
+    texture->requested = residencyNow;
+    startLoad(texture, true);
+}
+
+void TexLib::reloadEvicted(unsigned int handle) {
+    const auto found = evictedHandles.constFind(handle);
+    if (found != evictedHandles.cend())
+        reloadReleased(found.value());
+}
+
+bool TexLib::request(int id) {
+    const auto found = mtex.find(id);
+    if (found == mtex.end() || found->second == nullptr)
+        return false;
+    reloadReleased(found->second);
+    return found->second->loaded;
+}
+
+bool TexLib::retryIfFailed(int id) {
+    const auto found = mtex.find(id);
+    Texture *texture = found == mtex.end() ? nullptr : found->second;
+    if(texture == nullptr || (!texture->missing && !texture->error)
+            || ContentPath::synthetic(texture->pathid)
+            || !hasLoader(QFileInfo(texture->pathid).suffix().toLower()))
+        return false;
+    texture->delVBO();
+    startLoad(texture, true);
+    return texture->loaded;
 }
 
 int TexLib::cloneTex(int id) {
@@ -460,6 +752,7 @@ int TexLib::cloneTex(int id) {
         qDebug() << "null texture " << id;
         return -2;
     }
+    reloadNow(t);
     Texture* newFile = new Texture(t);
     newFile->ref++;
     mtex[jesttextur] = newFile;
@@ -474,4 +767,30 @@ void TexLib::save(QString type, QString path, int id){
     if(!t->editable)
         t->setEditable();
     AceLib::save(path, t);
+}
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
+namespace {
+// Installed memory in bytes, 0 when unknown.
+qint64 installedMemory() {
+#ifdef _WIN32
+    MEMORYSTATUSEX status {};
+    status.dwLength = sizeof(status);
+    return GlobalMemoryStatusEx(&status) ? qint64(status.ullTotalPhys) : 0;
+#else
+    const long pages = sysconf(_SC_PHYS_PAGES), size = sysconf(_SC_PAGE_SIZE);
+    return pages > 0 && size > 0 ? qint64(pages) * size : 0;
+#endif
+}
 }

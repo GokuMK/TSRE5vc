@@ -1,0 +1,1855 @@
+{
+ "notes": "Loading stutter on a heavy line: from the route start (Kedzierzyn-Kozle) 3.2 km toward Opole along the line, 80 views 40 m apart, 40 m above the ground, 4 frames each, no images (docs/tasks/textures/04-texture-memory.md). Read the per-view \"frames ... slowest ... CPU ... made ... deferred\" log lines; scripts/hardware/Measure-Memory.ps1 runs it at 1280x800. Route Prudnik (--game-root C:/trainsim --route Prudnik).",
+ "output": "build/renderer-flight-heavy",
+ "width": 1280,
+ "height": 800,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 1,
+ "saveImages": false,
+ "views": [
+  {
+   "name": "f0000",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -256.0,
+    0.0,
+    480.0
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0001",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -288.5950718559325,
+    0.0,
+    456.6697365269065
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0002",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -321.19014371186495,
+    0.0,
+    433.339473053813
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0003",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -353.78521556966007,
+    0.0,
+    410.00920958071947
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0004",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -386.38028742559254,
+    0.0,
+    386.67894610762596
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0005",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -418.975359281525,
+    0.0,
+    363.34868263453245
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0006",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -451.5704311374575,
+    0.0,
+    340.01841916143894
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0007",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -484.16550299338996,
+    0.0,
+    316.68815568834543
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0008",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -516.7605748511851,
+    0.0,
+    293.3578922152519
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0009",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -549.3556467071176,
+    0.0,
+    270.0276287421584
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0010",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -581.95071856305,
+    0.0,
+    246.6973652690649
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0011",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -614.5457904189825,
+    0.0,
+    223.3671017959714
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0012",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -647.140862274915,
+    0.0,
+    200.03683832287788
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0013",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -679.7359341308475,
+    0.0,
+    176.70657484978437
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0014",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -712.3310059886426,
+    0.0,
+    153.37631137669086
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0015",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -744.926077844575,
+    0.0,
+    130.04604790359735
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0016",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -777.5211497005075,
+    0.0,
+    106.71578443050385
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0017",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -810.11622155644,
+    0.0,
+    83.38552095741034
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0018",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -842.7112934123725,
+    0.0,
+    60.055257484316826
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0019",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -875.3063652701676,
+    0.0,
+    36.724994011223316
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0020",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -907.9014371261001,
+    0.0,
+    13.394730538129807
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0021",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -940.4965089820325,
+    0.0,
+    -9.935532934963703
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0022",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -973.091580837965,
+    0.0,
+    -33.26579640805721
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0023",
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -1005.6866526938975,
+    0.0,
+    -56.59605988115072
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0024",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    1009.7182754483074,
+    0.0,
+    -79.92632335424423
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0025",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    977.1232035923749,
+    0.0,
+    -103.25658682733774
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0026",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    944.5281317364424,
+    0.0,
+    -126.58685030043125
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0027",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    911.93305988051,
+    0.0,
+    -149.91711377352476
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0028",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    879.3379880245775,
+    0.0,
+    -173.24737724661827
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0029",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    846.7429161667824,
+    0.0,
+    -196.57764071971178
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0030",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    814.1478443108499,
+    0.0,
+    -219.9079041928053
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0031",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    781.5527724549174,
+    0.0,
+    -243.2381676658988
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0032",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    748.957700598985,
+    0.0,
+    -266.5684311389923
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0033",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    716.3626287430525,
+    0.0,
+    -289.8986946120858
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0034",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    683.7675568852574,
+    0.0,
+    -313.22895808517933
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0035",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    651.1724850293249,
+    0.0,
+    -336.55922155827284
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0036",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    618.5774131733924,
+    0.0,
+    -359.88948503136635
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0037",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    585.9823413174599,
+    0.0,
+    -383.21974850445986
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0038",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    553.3872694615275,
+    0.0,
+    -406.55001197755337
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0039",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    520.792197605595,
+    0.0,
+    -429.8802754506469
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0040",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    488.1971257477999,
+    0.0,
+    -453.2105389237404
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0041",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    455.6020538918674,
+    0.0,
+    -476.5408023968339
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0042",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    423.0069820359349,
+    0.0,
+    -499.8710658662021
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0043",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    390.41191018000245,
+    0.0,
+    -523.2013293392956
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0044",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    357.81683832407,
+    0.0,
+    -546.5315928123891
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0045",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    325.22176646627486,
+    0.0,
+    -569.8618562854826
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0046",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    292.6266946103424,
+    0.0,
+    -593.1921197585762
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0047",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    260.0316227544099,
+    0.0,
+    -616.5223832316697
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0048",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    227.43655089847744,
+    0.0,
+    -639.8526467047632
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0049",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    194.84147904254496,
+    0.0,
+    -663.1829101778567
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0050",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    162.24640718474984,
+    0.0,
+    -686.5131736509502
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0051",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    129.65133532881737,
+    0.0,
+    -709.8434371240437
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0052",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    97.0562634728849,
+    0.0,
+    -733.1737005971372
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0053",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    64.46119161695242,
+    0.0,
+    -756.5039640702307
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0054",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    31.866119761019945,
+    0.0,
+    -779.8342275433242
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0055",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -0.7289520967751741,
+    0.0,
+    -803.1644910164177
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0056",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -33.32402395270765,
+    0.0,
+    -826.4947544895113
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0057",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -65.91909580864012,
+    0.0,
+    -849.8250179626048
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0058",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -98.5141676645726,
+    0.0,
+    -873.1552814356983
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0059",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -131.10923952050507,
+    0.0,
+    -896.4855449087918
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0060",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -163.70431137643754,
+    0.0,
+    -919.8158083818853
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0061",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -196.29938323423266,
+    0.0,
+    -943.1460718549788
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0062",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -228.89445509016514,
+    0.0,
+    -966.4763353280723
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0063",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -261.4895269460976,
+    0.0,
+    -989.8065988011658
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0064",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    -294.0845988020301,
+    0.0,
+    -1013.1368622742593
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0065",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -326.67967065796256,
+    0.0,
+    1011.5328742526472
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0066",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -359.2747425157577,
+    0.0,
+    988.2026107795537
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0067",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -391.86981437169015,
+    0.0,
+    964.8723473064601
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0068",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -424.4648862276226,
+    0.0,
+    941.5420838333666
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0069",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -457.0599580835551,
+    0.0,
+    918.2118203602731
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0070",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -489.6550299394876,
+    0.0,
+    894.8815568871796
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0071",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -522.2501017972827,
+    0.0,
+    871.5512934140861
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0072",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -554.8451736532152,
+    0.0,
+    848.2210299409926
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0073",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -587.4402455091476,
+    0.0,
+    824.8907664678991
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0074",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -620.0353173650801,
+    0.0,
+    801.5605029948056
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0075",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -652.6303892210126,
+    0.0,
+    778.2302395217121
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0076",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -685.2254610788077,
+    0.0,
+    754.8999760486186
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0077",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -717.8205329347402,
+    0.0,
+    731.569712575525
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0078",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -750.4156047906727,
+    0.0,
+    708.2394491024315
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  },
+  {
+   "name": "f0079",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    -783.0106766466051,
+    0.0,
+    684.909185629338
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.192021649521233,
+    -0.12
+   ],
+   "settle": {
+    "minFrames": 4,
+    "stableFrames": 0,
+    "maxFrames": 4,
+    "maxSeconds": 30
+   }
+  }
+ ]
+}

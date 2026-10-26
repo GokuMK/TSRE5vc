@@ -40,6 +40,9 @@ uniform vec4 ambientColor;
 uniform vec4 specularColor;
 uniform vec3 lightDirection;
 uniform sampler2D uSampler;
+// Mip level bias of the base texture (core.rendering.textureLodBias):
+// below 0 sharper, above 0 softer.
+uniform float textureLodBias;
 uniform sampler2D uSampler2;
 uniform sampler2DShadow shadow1;
 uniform sampler2DShadow shadow2;
@@ -111,6 +114,8 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 
 #ifdef TSRE_TERRAIN
 #include "TerrainMaterial.glsl"
+// Drawing the map's terrain layer: the texture's alpha is kept.
+uniform int terrainMapPass;
 #endif
 #include "ShadowSampling.glsl"
 #ifdef TSRE_RHI
@@ -153,7 +158,7 @@ void main() {
             fragColor.rgb *= unlitScale;
 #endif
         } else {
-            fragColor = texture(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+            fragColor = texture(uSampler, vec2(vTextureCoord.s, vTextureCoord.t), textureLodBias);
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
             float isSecondTexEnabled = sign(secondTexEnabled);
             fragColor = fragColor*(1-isSecondTexEnabled) + fragColor*tex2*2.0*isSecondTexEnabled;
@@ -166,6 +171,13 @@ void main() {
             //if(gl_FragColor.a < alphaTest)
             //    discard;    
             fragColor.a = max(fragColor.a, vAlpha);  
+#ifdef TSRE_TERRAIN
+            // Terrain is opaque, as Open Rails draws it: a texture's alpha
+            // let the sky behind it through (Prudnik's fields and forest
+            // floors pale; the view blends) or, below 0.01, cut holes.
+            if(terrainMapPass == 0)
+                fragColor.a = 1.0;
+#endif
             // discard if transparent 
             if(fragColor.a < (blendedTexels == 2 ? min(-vAlpha, BlendedTranslucentAlpha) : -vAlpha))
                 discard;
@@ -176,6 +188,13 @@ void main() {
             } else if(blendedTexels == 2 && fragColor.a >= BlendedOpaqueAlpha) {
                 discard;
             }
+            // Alpha tested (-0.51): what passes is opaque, as Open Rails and
+            // glTF's MASK draw it. Blended at its filtered alpha, a cutout's
+            // edge took the colour of what was drawn before it (the sky) and
+            // hid the leaves behind drawn after: pale rings round the holes
+            // of trees.
+            if(vAlpha < -0.5)
+                fragColor.a = 1.0;
             fragColor.a *= 1.0 - materialTransparency;
             //gl_FragColor.a = 1.0;
 

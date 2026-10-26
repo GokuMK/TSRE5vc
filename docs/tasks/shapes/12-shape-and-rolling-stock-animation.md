@@ -87,7 +87,8 @@ Doors (TR:16664-16729, AITrain.cs:1853-1926, Signals.cs:4238-4242): the side
 from the world file `Platform` object's `PlatformData` (0x2 left, 0x4
 right, relative to the platform's TDB item order, swapped when the stop
 references the `ffff0000` end); AI trains open 4 s after arriving and close
-10 s before leaving; timetable trains never open automatically.
+10 s before leaving; timetable trains never open automatically (TSRE's do,
+below).
 
 ## Design
 
@@ -192,4 +193,15 @@ they already do to their rear end.
       swapped where it faces against the way the train runs. Checked: the
       PSK EN76 at Scotby (EUROPE1 lclsrvce, 09:08) opens its left doors to
       the platform.
+- [x] Doors at timetable stops too (user, 2026-10-24: better than Open
+      Rails): a stop keeps the platform item where its path leaves the
+      platform, the end an activity's PlatformStartID names (all 191 stops
+      of EUROPE1's lclsrvce); with the end met first they opened on the
+      track's side. Stops behind the path's start, beyond its end or inside
+      a reversal keep the item those lookups find (their side not checked
+      on content). Checked: Prudnik's PSK_2026 timetable, 0749 Bielsko-Biala
+      - Sosnowiec (KSL EN57-730) at Katowice (07:56-07:58) opens its left
+      doors to the platform on all three cars, the right ones shut (captures
+      with the views' new `simulateTo`, the simulation run on a few seconds
+      between views); timetable-trains checks the stops' items.
 - [ ] The user's review on hardware.

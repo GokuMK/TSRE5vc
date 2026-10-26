@@ -519,10 +519,12 @@ QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::U
 }
 
 bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
-                      Meshes::RhiBuffers &buffers, int depth) {
+                      Meshes::RhiBuffers &buffers, int depth, bool firstUpload = true) {
     if (!live(s, handle) || depth > 1)
         return false;
     Entry &entry = s.entries[handle.index];
+    if (entry.pending && !firstUpload && entry.rhiUploads == 0)
+        return false;
     if (entry.pending) {
         MeshData &data = *entry.pending;
         int size = 0;
@@ -611,7 +613,7 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
     if (entry.sharedIndices.valid()) {
         const MeshHandle shared = entry.sharedIndices;
         Meshes::RhiBuffers indices;
-        buffers.indexBuffer = prepareRhiLocked(s, shared, rhi, batch, indices, depth + 1)
+        buffers.indexBuffer = prepareRhiLocked(s, shared, rhi, batch, indices, depth + 1, firstUpload)
                 ? indices.vertexBuffer : nullptr;
         buffers.indexOffset = indices.vertexOffset;
     }
@@ -621,10 +623,14 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
 }
 
 bool Meshes::prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
-                        RhiBuffers &buffers) {
+                        RhiBuffers &buffers, bool firstUpload, bool *uploaded) {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
-    return prepareRhiLocked(s, handle, rhi, batch, buffers, 0);
+    const int before = s.rhiNewUploads + s.rhiAgainUploads + s.rhiRangeUploads;
+    const bool ready = prepareRhiLocked(s, handle, rhi, batch, buffers, 0, firstUpload);
+    if (uploaded != nullptr)
+        *uploaded = s.rhiNewUploads + s.rhiAgainUploads + s.rhiRangeUploads != before;
+    return ready;
 }
 
 QRhiTexture *Meshes::dataTextureRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch) {
@@ -673,7 +679,15 @@ QString Meshes::rhiTraceSummary() {
     for (const Pool *pool : {&s.rhiVertexPool, &s.rhiIndexPool})
         for (const Chunk &chunk : pool->chunks)
             other += chunk.buffer->size();
+    // Meshes created but never drawn keep their data on the CPU.
+    qint64 pending = 0;
+    int pendingMeshes = 0;
     for (const Entry &entry : s.entries) {
+        if (entry.pending != nullptr) {
+            pending += qint64(entry.pending->vertices.size()) * qint64(sizeof(float))
+                    + entry.pending->bytes.size() + entry.pending->indices.size();
+            ++pendingMeshes;
+        }
         if (entry.rhiVertex != nullptr && entry.rhiVertexSlice.buffer == nullptr)
             (entry.rhiVertex->type() == QRhiBuffer::Immutable ? immutable : other)
                     += entry.rhiVertex->size();
@@ -683,9 +697,11 @@ QString Meshes::rhiTraceSummary() {
         if (entry.rhiData != nullptr)
             immutable += qint64(entry.rhiData->pixelSize().width()) * DataTexelBytes;
     }
-    const QString summary = QString("immutable MB %1 static MB %2 uploads new %3 again %4 ranges %5 KB %6")
+    const QString summary = QString("immutable MB %1 static MB %2 uploads new %3 again %4 ranges %5 KB %6"
+                                    " pending %7 CPU MB %8")
             .arg(immutable / 1048576).arg(other / 1048576).arg(s.rhiNewUploads)
-            .arg(s.rhiAgainUploads).arg(s.rhiRangeUploads).arg(s.rhiUploadBytes / 1024);
+            .arg(s.rhiAgainUploads).arg(s.rhiRangeUploads).arg(s.rhiUploadBytes / 1024)
+            .arg(pendingMeshes).arg(pending / 1048576);
     s.rhiNewUploads = s.rhiAgainUploads = s.rhiRangeUploads = 0;
     s.rhiUploadBytes = 0;
     return summary;

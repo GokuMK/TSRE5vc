@@ -103,6 +103,12 @@ public:
     void pushRenderItemsLo(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode) override;
     void pushRenderItemsWater(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) override;
     void pushRenderItemsWaterLo(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) override;
+    // Detailed (or distant) terrain tiles in memory: the memory report of
+    // renderer captures.
+    int loadedTileCount(bool distant = false) const;
+    // Whether detailed tiles the gather leaves behind are released (loaded
+    // again from their files when the camera comes back).
+    virtual bool releasesUnusedTiles() const { return true; }
 protected:
     void loadRecoveryTree(bool low);
     bool adoptRecoveredTree(bool low, QString &result);

@@ -44,6 +44,8 @@ void ShapeLib::reset() {
     shape.clear();
     contexts.clear();
     pathKeys.clear();
+    byKey.clear();
+    keys.clear();
 }
         
 void ShapeLib::delRef(int texx) {
@@ -63,6 +65,13 @@ void ShapeLib::addRef(int texx) {
     //mtex.get(texx).ref++;
 }
 
+const QString &ShapeLib::cachedKey(const QString &path) {
+    auto found = keys.find(path);
+    if (found == keys.end())
+        found = keys.insert(path, ContentPath::key(path));
+    return found.value();
+}
+
 int ShapeLib::addShape(QString path){
     return addShape(path, Game::root+"/ROUTES/"+Game::route+"/TEXTURES");
 }       
@@ -76,14 +85,17 @@ int ShapeLib::addShape(QString path, QString texPath, const ShapeLoadOptions &op
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
     texPath = ContentPath::normalize(texPath);
-    QString context = ContentPath::key(texPath) + "\n" + Game::season;
+    QString context = cachedKey(texPath) + "\n" + Game::season;
     for (auto it = options.begin(); it != options.end(); ++it)
         context += "\n" + it.key() + "=" + it.value().toString();
-    const QString pathKey = ContentPath::key(pathid);
-    for (const auto &entry : shape) {
-        if(entry.second && !entry.second->hasLoadFailed() && pathKeys[entry.first] == pathKey
-                && contexts[entry.first] == context)
-            return entry.first;
+    const QString pathKey = cachedKey(pathid);
+    // One that failed to load is made again.
+    const QString lookup = pathKey + QLatin1Char('\n') + context;
+    const auto known = byKey.constFind(lookup);
+    if (known != byKey.cend()) {
+        const auto found = shape.find(known.value());
+        if (found != shape.end() && found->second && !found->second->hasLoadFailed())
+            return found->first;
     }
     qDebug() << "Nowy " << jestshape << " shape: " << pathid;
 
@@ -107,6 +119,7 @@ int ShapeLib::addShape(QString path, QString texPath, const ShapeLoadOptions &op
     shape[jestshape] = asset;
     contexts[jestshape] = context;
     pathKeys[jestshape] = pathKey;
+    byKey.insert(lookup, jestshape);
 
     return jestshape++;
 }

@@ -18,6 +18,7 @@
 #include <QDebug>
 #include <QFloat16>
 #include <QElapsedTimer>
+#include <QSet>
 #include <algorithm>
 #include <cstring>
 #include <rhi/qshaderbaker.h>
@@ -28,6 +29,7 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/renderer/FrameLog.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/WaterWaves.h>
 #include <tsre/shape/NightTextures.h>
@@ -167,6 +169,13 @@ size_t RhiRenderer::BindingKeyHash::operator()(const BindingKey &k) const {
 
 RhiRenderer::RhiRenderer(RhiContext *context)
     : context(context), rhi(context->rhi()), gluu(GLUU::get()) {
+    uploadBudgetNs = qint64(std::max(0, Settings::integer("core.rendering.objectLoading.uploadBudgetMs"))) * 1000000;
+    if (context != nullptr)
+        TexLib::setGpuMemory(context->deviceMemory(), context->discreteGpu());
+    // Texture loaders prepare for the formats it takes (Texture::prepareForRhi),
+    // with the mipmap settings.
+    Texture::readMipmapSettings();
+    RhiTextures::supportsBlocks();
     uniformStride = quint32(rhi->ubufAligned(1));
     baseInstance = rhi->isFeatureSupported(QRhi::BaseInstance);
     targets[TARGET_VIEW].attachments = &view;
@@ -252,6 +261,9 @@ void RhiRenderer::releaseResources() {
     for (auto &entry : resourceSets)
         delete entry.second;
     resourceSets.clear();
+    for (QRhiShaderResourceBindings *set : retiredLayouts)
+        delete set;
+    retiredLayouts.clear();
     for (QRhiSampler *&sampler : samplers) {
         delete sampler;
         sampler = nullptr;
@@ -405,6 +417,8 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
+    // Sharper or softer textures (core.rendering.textureLodBias).
+    program->setFloat("textureLodBias", Texture::lodBias);
     // With auto exposure (task 29) the light of the sun and the sky in the
     // scene's scale (display colours: linear light by sceneLight); unlit
     // shading and emissive colour are designed for the screen: undone by the
@@ -676,15 +690,24 @@ QRhiTexture *RhiRenderer::packetTexture(const RenderItem *item, bool &mipmapped)
     unsigned int handle = 0;
     if (item->material.textureId < 0) {
         handle = item->material.textureObject;
+        // Released for memory: it loads again under the same handle.
+        if (RhiTextures::evicted(handle))
+            TexLib::reloadEvicted(handle);
     } else {
         const auto found = TexLib::mtex.find(item->material.textureId);
         if (found == TexLib::mtex.end() || found->second == nullptr)
             return nullptr;
         Texture *texture = found->second;
+        TexLib::reloadReleased(texture);
+        if (!texture->glLoaded && texture->loaded && !mayUpload()) {
+            ++uploadsDeferred;
+            return nullptr;
+        }
         if (!texture->glLoaded && texture->loaded) {
             QElapsedTimer made;
             made.start();
-            texture->GLTextures();
+            // Shape textures (legacy shapes): mipmapped by the setting.
+            texture->GLTextures(Texture::shapeMipmaps.load(std::memory_order_relaxed));
             ++creation.textures;
             creation.textureNs += made.nsecsElapsed();
         }
@@ -758,6 +781,11 @@ QRhiTexture *RhiRenderer::libraryTexture(int textureId, bool &mipmapped) {
     if (found == TexLib::mtex.end() || found->second == nullptr)
         return nullptr;
     Texture *texture = found->second;
+    TexLib::reloadReleased(texture);
+    if (!texture->glLoaded && texture->loaded && !mayUpload()) {
+        ++uploadsDeferred;
+        return nullptr;
+    }
     if (!texture->glLoaded && texture->loaded) {
         QElapsedTimer made;
         made.start();
@@ -905,6 +933,50 @@ void RhiRenderer::beginFrameIfNeeded() {
     targets[TargetSelection].attachments = &selection;
     currentTarget = TARGET_VIEW;
     Meshes::collectGarbageRhi();
+    // Library textures over their memory budget go (task textures 04), then
+    // every released texture with the resource sets made with it: no draw
+    // of this frame holds one yet.
+    TexLib::residencyFrame();
+    forgetRetiredTextures();
+}
+
+bool RhiRenderer::textureComing(const RenderItem *item) const {
+    if (item->material.textureId < 0)
+        return RhiTextures::evicted(item->material.textureObject);
+    const auto found = TexLib::mtex.find(item->material.textureId);
+    if (found == TexLib::mtex.end() || found->second == nullptr)
+        return false;
+    const Texture *texture = found->second;
+    return !texture->missing && !texture->error;
+}
+
+void RhiRenderer::forgetRetiredTextures() {
+    const std::vector<QRhiTexture *> retired = RhiTextures::takeRetired();
+    if (retired.empty())
+        return;
+    const QSet<QRhiTexture *> gone(retired.cbegin(), retired.cend());
+    for (auto it = resourceSets.begin(); it != resourceSets.end();) {
+        const BindingKey &key = it->first;
+        const bool uses = std::any_of(key.textures.cbegin(), key.textures.cend(),
+                                      [&gone](QRhiTexture *texture) { return gone.contains(texture); });
+        if (!uses) {
+            ++it;
+            continue;
+        }
+        // A program's layout set stays alive: its pipelines are made with it
+        // (only its layout counts there, never its textures).
+        const bool layout = std::any_of(programs.cbegin(), programs.cend(),
+                                        [&it](const std::unique_ptr<RhiProgram> &program) {
+                                            return program && program->layout == it->second;
+                                        });
+        if (layout)
+            retiredLayouts.push_back(it->second);
+        else if (it->second != nullptr)
+            it->second->deleteLater();
+        it = resourceSets.erase(it);
+    }
+    for (QRhiTexture *texture : retired)
+        texture->deleteLater();
 }
 
 bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
@@ -2023,13 +2095,25 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     }
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
+    // World items' first uploads go within the frame's budget.
+    uploadBudgeted = category == RenderStats::CategoryWorld
+            && item->material.surface != RenderItem::SURFACE_TERRAIN;
     Meshes::RhiBuffers buffers;
     QElapsedTimer prepared;
     prepared.start();
-    const bool meshReady = Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers);
-    creation.meshNs += prepared.nsecsElapsed();
+    const bool mayMake = mayUpload();
+    bool uploaded = false;
+    const bool meshReady = Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers, mayMake, &uploaded);
+    // Uploads only (the budget, the stats): looking up a mesh already there
+    // is the draw's own cost.
+    if (uploaded)
+        creation.meshNs += prepared.nsecsElapsed();
     if (!meshReady
             || buffers.format == MeshData::Buffer) {
+        if (!meshReady && !mayMake)
+            ++uploadsDeferred;
+        if (!meshReady)
+            ++waitingDraws;
         debugCount("skip-prepare");
         return;
     }
@@ -2046,6 +2130,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     QRhiTexture *base = nullptr;
     if (item->material.textured && selectionId == 0) {
         base = packetTexture(item, mipmapped);
+        // Drawn once its texture is there: not magenta while it loads or
+        // waits for the upload budget (only a failed one is).
+        if (base == nullptr && textureComing(item)) {
+            ++waitingDraws;
+            debugCount("skip-texture");
+            return;
+        }
         if (base != nullptr) {
             setFloatAt(program, UniformTextureEnabled, 1.0f);
         } else {
@@ -2508,6 +2599,7 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
         return;
     // Casters in range and inside the light view, instanced by packet.
     planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
+    waitingDraws += quint64(plannedShapesWaiting);
     recordCasters(statsSlot);
 }
 
@@ -2912,6 +3004,21 @@ void RhiRenderer::renderFrame() {
     if (RhiRenderSurface *s = surface())
         s->setFrameEnd([this] { present(); });
     clearQueues();
+    if (RenderStats::inFrame()) {
+        RenderStats::FrameStats &frame = RenderStats::current();
+        frame.texturesCreated = quint64(creation.textures);
+        frame.textureCreateMs = creation.textureNs / 1e6;
+        frame.meshCreateMs = creation.meshNs / 1e6;
+        frame.bindingCreateMs = creation.bindingNs / 1e6;
+        frame.pipelineCreateMs = creation.pipelineNs / 1e6;
+        frame.uploadsDeferred = quint64(uploadsDeferred);
+    }
+    if (FrameLog::active()) {
+        FrameLog::add(FrameLog::TexturesMade, creation.textures);
+        FrameLog::add(FrameLog::TextureMs, creation.textureNs / 1e6);
+        FrameLog::add(FrameLog::MeshMs, creation.meshNs / 1e6);
+        FrameLog::add(FrameLog::UploadsDeferred, uploadsDeferred);
+    }
     Renderer::renderFrame();
 }
 
@@ -2925,6 +3032,7 @@ void RhiRenderer::logCreation() {
                              .arg(c.bindings).arg(c.bindingNs / 1e6, 0, 'f', 1).arg(c.textures)
                              .arg(c.textureNs / 1e6, 0, 'f', 1).arg(c.meshNs / 1e6, 0, 'f', 1);
     creation = Creation();
+    uploadsDeferred = 0;
 }
 
 void RhiRenderer::resetFrame() {

@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <QDebug>
 #include <functional>
+#include <memory>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <tsre/renderer/Renderer.h>
@@ -2139,13 +2140,18 @@ void TDB::refresh() {
 void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
 
     if (!loaded) return;
-    int hash = (int)playerT[0] * 10000 + (int)playerT[1];
-    if (!isInitLines || lineHash != hash) {
-        TRnode *n;
-        int lLen = 0, kLen = 0, pLen = 0;
+    // The network's lines are built once around an origin tile and moved
+    // with the camera: again after an edit (refresh) or LineRebuildTiles
+    // away (float precision), not at each tile crossing (the whole route's
+    // lines: 140 to 180 ms on a large one).
+    constexpr int LineRebuildTiles = 16;
+    const int hash = (int)playerT[0] * 10000 + (int)playerT[1];
+    const bool rebuild = !isInitLines || std::fabs(playerT[0] - lineOrigin[0]) > LineRebuildTiles
+            || std::fabs(playerT[1] - lineOrigin[1]) > LineRebuildTiles;
+    TRnode *n;
+    if (rebuild || lineHash != hash) {
+        // The node numbers: those within a tile of the camera's.
         lineHash = hash;
-        isInitLines = true;
-
         for (auto it = endIdObj.begin(); it != endIdObj.end(); ++it) {
             TextObj* obj = (TextObj*) it->second;
             obj->inUse = false;
@@ -2154,6 +2160,31 @@ void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
             TextObj* obj = (TextObj*) it->second;
             obj->inUse = false;
         }
+        for (int i = 1; i <= iTRnodes && !road; i++) {
+            n = trackNodes[i];
+            if (n == NULL || (n->typ != 0 && n->typ != 2)) continue;
+            if (fabs(n->uid.tileX - playerT[0]) > 1) continue;
+            if (fabs(-n->uid.tileZ - playerT[1]) > 1) continue;
+            std::unordered_map<int, TextObj*> &labels = n->typ == 0 ? endIdObj : junctIdObj;
+            if (labels[i] == NULL) {
+                labels[i] = new TextObj(i);
+                if (n->typ == 0)
+                    labels[i]->setColor(50, 50, 255);
+                else
+                    labels[i]->setColor(255, 50, 50);
+            }
+            labels[i]->inUse = true;
+            labels[i]->pos[0] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+            labels[i]->pos[1] = n->uid.y + wysokoscSieci;
+            labels[i]->pos[2] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
+        }
+    }
+    if (rebuild) {
+        int lLen = 0, kLen = 0, pLen = 0;
+        lineOrigin[0] = playerT[0];
+        lineOrigin[1] = playerT[1];
+        const float *origin = lineOrigin;
+        isInitLines = true;
 
         for (int i = 1; i <= iTRnodes; i++) {
             n = trackNodes[i];
@@ -2182,67 +2213,39 @@ void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
             if (n->typ == 1) {
                 if (n->iTrv < 1) continue;
                 for (int i = 0; i < n->iTrv - 1; i++) {
-                    linie[lPtr++] = ((n->trVectorSection[i].tileX - playerT[0])*2048 + n->trVectorSection[i].x);
+                    linie[lPtr++] = ((n->trVectorSection[i].tileX - origin[0])*2048 + n->trVectorSection[i].x);
                     linie[lPtr++] = (n->trVectorSection[i].y + wysokoscSieci);
-                    linie[lPtr++] = (((-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z));
+                    linie[lPtr++] = (((-n->trVectorSection[i].tileZ - origin[1])*2048 - n->trVectorSection[i].z));
 
-                    linie[lPtr++] = ((n->trVectorSection[i + 1].tileX - playerT[0])*2048 + n->trVectorSection[i + 1].x);
+                    linie[lPtr++] = ((n->trVectorSection[i + 1].tileX - origin[0])*2048 + n->trVectorSection[i + 1].x);
                     linie[lPtr++] = (n->trVectorSection[i + 1].y + wysokoscSieci);
-                    linie[lPtr++] = (((-n->trVectorSection[i + 1].tileZ - playerT[1])*2048 - n->trVectorSection[i + 1].z));
+                    linie[lPtr++] = (((-n->trVectorSection[i + 1].tileZ - origin[1])*2048 - n->trVectorSection[i + 1].z));
                 }
                 if (n->pins[1].link != 0) {
-                    linie[lPtr++] = ((n->trVectorSection[n->iTrv - 1].tileX - playerT[0])*2048 + n->trVectorSection[n->iTrv - 1].x);
+                    linie[lPtr++] = ((n->trVectorSection[n->iTrv - 1].tileX - origin[0])*2048 + n->trVectorSection[n->iTrv - 1].x);
                     linie[lPtr++] = (n->trVectorSection[n->iTrv - 1].y + wysokoscSieci);
-                    linie[lPtr++] = (((-n->trVectorSection[n->iTrv - 1].tileZ - playerT[1])*2048 - n->trVectorSection[n->iTrv - 1].z));
+                    linie[lPtr++] = (((-n->trVectorSection[n->iTrv - 1].tileZ - origin[1])*2048 - n->trVectorSection[n->iTrv - 1].z));
 
-                    linie[lPtr++] = ((trackNodes[n->pins[1].link]->uid.tileX - playerT[0])*2048 + trackNodes[n->pins[1].link]->uid.x);
+                    linie[lPtr++] = ((trackNodes[n->pins[1].link]->uid.tileX - origin[0])*2048 + trackNodes[n->pins[1].link]->uid.x);
                     linie[lPtr++] = (trackNodes[n->pins[1].link]->uid.y + wysokoscSieci);
-                    linie[lPtr++] = (((-trackNodes[n->pins[1].link]->uid.tileZ - playerT[1])*2048 - trackNodes[n->pins[1].link]->uid.z));
+                    linie[lPtr++] = (((-trackNodes[n->pins[1].link]->uid.tileZ - origin[1])*2048 - trackNodes[n->pins[1].link]->uid.z));
                 }
             } else if (n->typ == 0) {
-                konce[kPtr++] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                konce[kPtr++] = ((n->uid.tileX - origin[0])*2048 + n->uid.x);
                 konce[kPtr++] = (n->uid.y);
-                konce[kPtr++] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
+                konce[kPtr++] = ((-n->uid.tileZ - origin[1])*2048 - n->uid.z);
 
-                konce[kPtr++] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                konce[kPtr++] = ((n->uid.tileX - origin[0])*2048 + n->uid.x);
                 konce[kPtr++] = (n->uid.y + wysokoscSieci);
-                konce[kPtr++] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
-
-                if (fabs(n->uid.tileX - playerT[0]) > 1) continue;
-                if (fabs(-n->uid.tileZ - playerT[1]) > 1) continue;
-
-                if (!road) {
-                    if (endIdObj[i] == NULL) {
-                        endIdObj[i] = new TextObj(i);
-                        endIdObj[i]->setColor(50, 50, 255);
-                    }
-                    endIdObj[i]->inUse = true;
-                    endIdObj[i]->pos[0] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
-                    endIdObj[i]->pos[1] = n->uid.y + wysokoscSieci;
-                    endIdObj[i]->pos[2] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
-                }
+                konce[kPtr++] = ((-n->uid.tileZ - origin[1])*2048 - n->uid.z);
             } else if (n->typ == 2) {
-                punkty[pPtr++] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                punkty[pPtr++] = ((n->uid.tileX - origin[0])*2048 + n->uid.x);
                 punkty[pPtr++] = (n->uid.y);
-                punkty[pPtr++] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
+                punkty[pPtr++] = ((-n->uid.tileZ - origin[1])*2048 - n->uid.z);
 
-                punkty[pPtr++] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                punkty[pPtr++] = ((n->uid.tileX - origin[0])*2048 + n->uid.x);
                 punkty[pPtr++] = (n->uid.y + wysokoscSieci);
-                punkty[pPtr++] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
-
-                if (fabs(n->uid.tileX - playerT[0]) > 1) continue;
-                if (fabs(-n->uid.tileZ - playerT[1]) > 1) continue;
-
-                if (!road) {
-                    if (junctIdObj[i] == NULL) {
-                        junctIdObj[i] = new TextObj(i);
-                        junctIdObj[i]->setColor(255, 50, 50);
-                    }
-                    junctIdObj[i]->inUse = true;
-                    junctIdObj[i]->pos[0] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
-                    junctIdObj[i]->pos[1] = n->uid.y + wysokoscSieci;
-                    junctIdObj[i]->pos[2] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
-                }
+                punkty[pPtr++] = ((-n->uid.tileZ - origin[1])*2048 - n->uid.z);
             }
         }
         linieSieci.setMaterial(0.5, 0.5, 0.5);
@@ -2259,9 +2262,13 @@ void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
         delete[] punkty;
     }
 
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), (lineOrigin[0] - playerT[0]) * 2048, 0,
+                    (lineOrigin[1] - playerT[1]) * 2048);
     linieSieci.pushRenderItem(queue);
     konceSieci.pushRenderItem(queue);
     punktySieci.pushRenderItem(queue);
+    queue.popTransform();
 
     if (!road) {
         for (auto it = endIdObj.begin(); it != endIdObj.end(); ++it) {
@@ -2396,60 +2403,74 @@ void TDB::getTrackSegments(std::vector<float> &segments, int nodeId, float from,
 void TDB::pushRenderLines(RenderQueue &queue, float* playerT, float playerRot) {
 
     if (!loaded) return;
-    int hash = (int)playerT[0] * 10000 + (int)playerT[1];
-    if (!sectionLines.loaded || sectionHash != hash || !isInitSectLines) {
-        Vector3f p;
-        Vector3f o;
-        sectionHash = hash;
+    // The section lines of the tiles around the camera, built a tile each in
+    // its own frame and kept: a tile crossing builds the new row only.
+    // An edit (refresh) builds them again.
+    constexpr int TileRadius = 1;
+    if (!isInitSectLines) {
+        sectionTiles.clear();
         isInitSectLines = true;
-
-        int len = 0;
-        int tileRadius = 1;
-        int hOffset = 0;
-        for (int j = 1; j <= iTRnodes; j++) {
-            TRnode* n = trackNodes[j];
-            if (n == NULL) continue;
-            if (n->typ == -1) continue;
-            if (n->typ == 1) {
-                for (int i = 0; i < n->iTrv; i++) {
-                    if (fabs(n->trVectorSection[i].tileX - playerT[0]) > tileRadius || fabs(-n->trVectorSection[i].tileZ - playerT[1]) > tileRadius) continue;
-                    len += getLineBufferSize((int) n->trVectorSection[i].sectionIndex, 3, 6);
-                }
-            }
-        }
-        float* punkty = new float[len];
-        float* ptr = punkty;
-        for (int j = 1; j <= iTRnodes; j++) {
-            TRnode* n = trackNodes[j];
-            if (n == NULL) continue;
-            if (n->typ == -1) continue;
-            if (n->typ == 1) {
-                for (int i = 0; i < n->iTrv; i++) {
-                    if (fabs(n->trVectorSection[i].tileX - playerT[0]) > tileRadius || fabs(-n->trVectorSection[i].tileZ - playerT[1]) > tileRadius)
-                        continue;
-                    p.set(
-                            (n->trVectorSection[i].tileX - playerT[0])*2048 + n->trVectorSection[i].x,
-                            n->trVectorSection[i].y + hOffset,
-                            (-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z
-                            );
-                    o.set(
-                            n->trVectorSection[i].ax,
-                            n->trVectorSection[i].ay,
-                            n->trVectorSection[i].az
-                            );
-                    drawLine(NULL, ptr, p, o, (int) n->trVectorSection[i].sectionIndex);
-                }
-            }
-        }
-        if (road)
-            sectionLines.setMaterial(0.0, 0.0, 1.0);
-        else
-            sectionLines.setMaterial(1.0, 1.0, 0.0);
-        sectionLines.init(punkty, ptr - punkty, RenderItem::V, GL_LINES);
-        delete[] punkty;
     }
+    const int px = (int)playerT[0], pz = (int)playerT[1];
+    for (auto it = sectionTiles.begin(); it != sectionTiles.end();) {
+        if (std::abs(it->first.first - px) > TileRadius + 1 || std::abs(it->first.second - pz) > TileRadius + 1)
+            it = sectionTiles.erase(it);
+        else
+            ++it;
+    }
+    for (int tx = px - TileRadius; tx <= px + TileRadius; ++tx)
+        for (int tz = pz - TileRadius; tz <= pz + TileRadius; ++tz) {
+            std::unique_ptr<OglObj> &lines = sectionTiles[{tx, tz}];
+            if (!lines)
+                lines = sectionLinesOfTile(tx, tz);
+            if (!lines->loaded)
+                continue;
+            queue.pushTransform();
+            Mat4::translate(queue.transform(), queue.transform(), float(tx - px) * 2048, 0, float(tz - pz) * 2048);
+            lines->pushRenderItem(queue);
+            queue.popTransform();
+        }
+}
 
-    sectionLines.pushRenderItem(queue);
+std::unique_ptr<OglObj> TDB::sectionLinesOfTile(int tileX, int tileZ) {
+    auto lines = std::make_unique<OglObj>();
+    Vector3f p;
+    Vector3f o;
+    int len = 0;
+    const int hOffset = 0;
+    for (int j = 1; j <= iTRnodes; j++) {
+        TRnode* n = trackNodes[j];
+        if (n == NULL || n->typ != 1) continue;
+        for (int i = 0; i < n->iTrv; i++)
+            if (n->trVectorSection[i].tileX == tileX && -n->trVectorSection[i].tileZ == tileZ)
+                len += getLineBufferSize((int) n->trVectorSection[i].sectionIndex, 3, 6);
+    }
+    if (len == 0)
+        return lines;
+    float* punkty = new float[len];
+    float* ptr = punkty;
+    for (int j = 1; j <= iTRnodes; j++) {
+        TRnode* n = trackNodes[j];
+        if (n == NULL || n->typ != 1) continue;
+        for (int i = 0; i < n->iTrv; i++) {
+            if (n->trVectorSection[i].tileX != tileX || -n->trVectorSection[i].tileZ != tileZ)
+                continue;
+            p.set(n->trVectorSection[i].x, n->trVectorSection[i].y + hOffset, -n->trVectorSection[i].z);
+            o.set(
+                    n->trVectorSection[i].ax,
+                    n->trVectorSection[i].ay,
+                    n->trVectorSection[i].az
+                    );
+            drawLine(NULL, ptr, p, o, (int) n->trVectorSection[i].sectionIndex);
+        }
+    }
+    if (road)
+        lines->setMaterial(0.0, 0.0, 1.0);
+    else
+        lines->setMaterial(1.0, 1.0, 0.0);
+    lines->init(punkty, ptr - punkty, RenderItem::V, GL_LINES);
+    delete[] punkty;
+    return lines;
 }
 
 bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev){

@@ -327,6 +327,7 @@ protected:
     // (it sits outside the train), or Cab for the lead engine's cab sounds.
     SoundView playSoundView = SoundView::External;
     void surfacePaint() override;
+    bool logsFrames() const override { return true; }
     void surfaceRelease() override;
     void renderShadowMaps();
     // Renders the scheduled environment map faces from the camera position.
@@ -355,6 +356,8 @@ protected:
         quint64 signature = 0;
         unsigned uploads = 0;
         unsigned shapes = 0;
+        // Some casters were skipped, their mesh or texture still coming.
+        bool incomplete = false;
         qint64 drawnAt = 0;
     } shadowCaches[3];
     // Time of day (Game::timeOfDayEnabled): puts the sun where it stands over
@@ -540,6 +543,8 @@ private:
     double fpsDisplayAccumMs = 0.0;
     int fpsDisplayAccumFrames = 0;
     unsigned long long int fpsDisplayLastUpdate = 0;
+    // The frame time the camera moves by: smoothed, at most 250 ms.
+    double cameraFrameMs = 0.0;
     QPointF m_lastPos;
     Eng* eng;
     Tile* tile;

@@ -80,6 +80,7 @@ public:
     void setSky(const Sky &sky) override;
     void setClouds(const Clouds &clouds) override;
     bool beginShadowCache(int map) override;
+    quint64 drawsWaiting() const override { return waitingDraws; }
     bool copyShadowCache(int map) override;
     bool vegetationShadows() const override { return true; }
     bool beginSkyEnclosure(int size, int map = 0) override;
@@ -232,6 +233,10 @@ private:
     };
 
     void beginFrameIfNeeded();
+    void setUploadsUnlimited(bool unlimited) override { uploadsUnlimited = unlimited; }
+    // Textures released since the last frame leave with the resource sets
+    // made with them (RhiTextures::takeRetired).
+    void forgetRetiredTextures();
     // Colour and depth, or depth only (a shadow map) when colorFormat is
     // UnknownFormat.
     bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
@@ -957,6 +962,23 @@ private:
         int pipelines = 0, bindings = 0, textures = 0;
         qint64 pipelineNs = 0, bindingNs = 0, textureNs = 0, meshNs = 0;
     } creation;
+    // Per-frame upload budget (core.rendering.objectLoading.uploadBudgetMs):
+    // a world item's texture or mesh is made while the frame's texture and
+    // mesh making stays under it (always the first), else it waits for a
+    // later frame and the item with it. Terrain and overlays never wait, nor
+    // a frame that shows everything at once (uploadsUnlimited).
+    qint64 uploadBudgetNs = 0;
+    bool uploadsUnlimited = false;
+    bool uploadBudgeted = false;
+    int uploadsDeferred = 0;
+    quint64 waitingDraws = 0;
+    bool mayUpload() const {
+        return !uploadBudgeted || uploadsUnlimited || uploadBudgetNs <= 0
+                || creation.textureNs + creation.meshNs < uploadBudgetNs;
+    }
+    // Whether a textured item's texture is still coming (loading, released,
+    // or waiting for the budget) rather than failed: its draw waits too.
+    bool textureComing(const RenderItem *item) const;
     void logCreation();
     quint64 lightsHash = 0;
     QRhiTexture *lightData = nullptr;
@@ -1031,6 +1053,9 @@ private:
     bool blending = true;
     std::unordered_map<PipelineKey, QRhiGraphicsPipeline *, PipelineKeyHash> pipelines;
     std::unordered_map<BindingKey, QRhiShaderResourceBindings *, BindingKeyHash> resourceSets;
+    // Programs' layout sets that left resourceSets with a released texture,
+    // kept for the programs' pipelines until the resources go.
+    std::vector<QRhiShaderResourceBindings *> retiredLayouts;
     // By wrapSampler's 6-bit key; looked up for every texture of every draw.
     std::array<QRhiSampler *, 64> samplers{};
     // Stand-ins for textures a program declares but a draw does not use.

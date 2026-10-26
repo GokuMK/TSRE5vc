@@ -14,6 +14,7 @@ editor themselves and need no administrator rights.
 | `Screenshot-Editor.ps1` | Screenshot of the editor window, overlays included. |
 | `Capture-Frame.ps1` | One RenderDoc capture of the editor. |
 | `Inspect-Capture.ps1` | Reports on a capture: `draws` (state, VS output, pixel history), `resources` (textures and buffers by size). |
+| `Measure-Memory.ps1` | A capture's memory sampled every second (private, GPU shared/dedicated), stopped before the machine runs out; with `tests/renderer/memory-jumps*.json`. |
 
 Output goes to `build\hardware\` (ignored by git). Settings go in as
 `-Set key=value,...` (`--set` of TSRE), environment variables as

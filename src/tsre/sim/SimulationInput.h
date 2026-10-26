@@ -81,8 +81,9 @@ struct StopPlan {
     float efficiency = 1.0f;
     QString platform;
     // The platform's track item the stop refers to (an activity's
-    // PlatformStartID; task shapes 12: the side its doors open on), -1 for
-    // none (Open Rails' timetable trains open none).
+    // PlatformStartID; a timetable's: the item its path leaves it at; task
+    // shapes 12: the side its doors open on), -1 for none. Open Rails'
+    // timetable trains open no doors; ours do.
     int platformItem = -1;
     // Its row in the train's timetable.
     int entry = -1;

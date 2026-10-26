@@ -36,6 +36,9 @@ private:
     QString text;
     QString fontName;
     void init();
+    // A number (track node and car numbers): quads cut from one texture of
+    // the digits a colour, nothing painted a label; false for other text.
+    bool initDigits();
     QColor color;
     QColor ocolor;
     bool isOutline = false;

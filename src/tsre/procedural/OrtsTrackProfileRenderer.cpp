@@ -1133,8 +1133,8 @@ int profileTextureId(const QString &routePath, const QString &textureName) {
     const QString cacheKey = ContentPath::key(normalizedRoute) + "\n" + normalizedName.toLower();
     const auto cached = textureIds.constFind(cacheKey);
     const Texture *existing = textures.value(cacheKey);
-    if(cached != textureIds.cend() && textureIdMatches(cached.value(), existing)
-            && !existing->missing && !existing->error)
+    // A failed texture too: TexLib keeps its id until a reload tries it.
+    if(cached != textureIds.cend() && textureIdMatches(cached.value(), existing))
         return cached.value();
 
     const QString path = ContentPath::textureSource(normalizedTextureId(

@@ -1340,6 +1340,12 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                 }
                 const TRitem *item = platformItem(tdb, pass->trItemId);
                 book(stop, booked, item != nullptr ? item->platformMinWaitingTime : 0);
+                // Its doors open on the platform's side (task shapes 12),
+                // the side read from the platform's end the train leaves it
+                // at (the end it meets first opened them on the track's
+                // side: Prudnik's 0749 at Katowice); Open Rails' timetable
+                // trains open none.
+                stop.platformItem = pass->trItemId;
                 plan.stops.push_back(stop);
             }
             // A station not passed with a platform behind the path's start
@@ -1371,6 +1377,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                     if (const TRitem *inside = reversalInside(tdb, legs, key, plan, stop)) {
                         used[size_t(s)] = true;
                         book(stop, booked, inside->platformMinWaitingTime);
+                        stop.platformItem = int(inside->trItemId);
                         plan.stops.insert(std::find_if(plan.stops.begin(), plan.stops.end(),
                                                        [&stop](const StopPlan &other) {
                                                            return other.part > stop.part
@@ -1397,6 +1404,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                                             0.0, stop.platformEnd);
                 }
                 book(stop, booked, platform->platformMinWaitingTime);
+                stop.platformItem = int(platform->trItemId);
                 plan.stops.insert(atStart ? plan.stops.begin() : plan.stops.end(), stop);
             }
             for (size_t k = 0; k < plan.stops.size(); ++k)

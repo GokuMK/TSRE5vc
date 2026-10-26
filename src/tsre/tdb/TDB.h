@@ -15,6 +15,8 @@
 #include <array>
 
 #include <QString>
+#include <map>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 #include <QVector>
@@ -186,11 +188,14 @@ protected:
     OglObj linieSieci;
     OglObj konceSieci;
     OglObj punktySieci;
-    OglObj sectionLines;
+    // The section lines a tile each (pushRenderLines), in the tile's frame.
+    std::map<std::pair<int, int>, std::unique_ptr<OglObj>> sectionTiles;
+    std::unique_ptr<OglObj> sectionLinesOfTile(int tileX, int tileZ);
     int defaultEnd = 0;
     int wysokoscSieci;
     int lineHash;
-    int sectionHash;
+    // The tile the network's lines are built around (pushRenderAll).
+    float lineOrigin[2] = {0.0f, 0.0f};
     int iobjHash;
     bool isInitSectLines = false;
     bool isInitLines = false;

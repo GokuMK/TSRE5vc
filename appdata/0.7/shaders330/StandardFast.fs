@@ -24,6 +24,9 @@ uniform vec4 diffuseColor;
 uniform vec4 ambientColor;
 uniform vec3 lightDirection;
 uniform sampler2D uSampler;
+// Mip level bias of the base texture (core.rendering.textureLodBias):
+// below 0 sharper, above 0 softer.
+uniform float textureLodBias;
 uniform sampler2D uSampler2;
 uniform float secondTexEnabled;
 uniform mat4 uMVMatrix;
@@ -39,6 +42,8 @@ uniform float unlitScale;
 
 #ifdef TSRE_TERRAIN
 #include "TerrainMaterial.glsl"
+// Drawing the map's terrain layer: the texture's alpha is kept.
+uniform int terrainMapPass;
 #endif
 
 void main() {
@@ -53,7 +58,7 @@ void main() {
         return;
     }
 
-    fragColor = texture(uSampler, vTextureCoord);
+    fragColor = texture(uSampler, vTextureCoord, textureLodBias);
     if (secondTexEnabled != 0.0) {
         vec4 detail = texture(uSampler2, vTextureCoord * secondTexEnabled);
         fragColor *= detail * 2.0;
@@ -63,6 +68,11 @@ void main() {
         fragColor = terrainMaterialColor();
 #endif
     fragColor.a = max(fragColor.a, vAlpha);
+#ifdef TSRE_TERRAIN
+    // Terrain is opaque (StandardFog).
+    if (terrainMapPass == 0)
+        fragColor.a = 1.0;
+#endif
     if (fragColor.a < (blendedTexels == 2 ? min(-vAlpha, BlendedTranslucentAlpha) : -vAlpha))
         discard;
     if (blendedTexels == 1) {
@@ -72,6 +82,9 @@ void main() {
     } else if (blendedTexels == 2 && fragColor.a >= BlendedOpaqueAlpha) {
         discard;
     }
+    // Alpha tested: what passes is opaque (StandardFog).
+    if (vAlpha < -0.5)
+        fragColor.a = 1.0;
     fragColor.a *= 1.0 - materialTransparency;
 
 #ifdef TSRE_UNLIT

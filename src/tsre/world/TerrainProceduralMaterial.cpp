@@ -361,6 +361,10 @@ struct TerrainProceduralState {
     bool ready = false;
     bool changed = false;
     bool bakeAvailable = false, bakeCurrent = false, nearCamera = true;
+    // The saved bake shows the tile's material map as saved, though maybe
+    // made with other bake settings or sources (bakeCurrent false then): a
+    // static texture all the same, what switching to static textures takes.
+    bool bakeShowsMap = false;
     bool detailViewValid=false;
     double detailCameraX=0, detailCameraZ=0;
     bool fullBakeRequired=true;
@@ -772,7 +776,7 @@ void Terrain::synchronizeMaterialLibrary() {
         qWarning() << name << procedural->error; return;
     }
     procedural->error.clear();
-    procedural->fullBakeRequired=true; procedural->bakeCurrent=false;
+    procedural->fullBakeRequired=true; procedural->bakeCurrent=procedural->bakeShowsMap=false;
     modified=true;
 }
 void Terrain::beginProceduralFrame() {
@@ -975,14 +979,31 @@ void Terrain::loadProceduralMaterial(const QString &directory, bool prefetch) {
                 && tfile->seasonalBakes.value(proceduralVariant).revision==tfile->materialContentRevision
                 && (!TerrainMaterialMap::ValidateBakeOnLoad
                     || storedBakeValidation(tfile->bakedMaterialInfo)==proceduralBakeSignature());
+        procedural->bakeShowsMap=procedural->bakeCurrent;
         procedural->bakeSettings=storedBakeSettings(tfile->bakedMaterialInfo);
         procedural->loadedSourcesKey=bakeSettingsKey(*tfile,proceduralSourceRoot(),gridLayout.patchesPerSide,
                                                      proceduralVariant,procedural->map.side());
         procedural->fullBakeRequired=!procedural->bakeCurrent || procedural->bakeSettings.isEmpty()
                 || procedural->bakeSettings!=procedural->loadedSourcesKey;
         procedural->bakeCurrent &= !procedural->fullBakeRequired;
-        if (procedural->ready && procedural->bakeAvailable && !procedural->bakeCurrent)
-            qWarning() << name << "Bake validation mismatch; retaining saved fallback and marking tile for rebake";
+        if (procedural->ready && procedural->bakeAvailable && !procedural->bakeCurrent) {
+            // Which check failed.
+            QStringList why;
+            if (!tfile->seasonalBakes.contains(proceduralVariant))
+                why << "no bake recorded for " + proceduralVariant;
+            else if (tfile->seasonalBakes.value(proceduralVariant).revision!=tfile->materialContentRevision)
+                why << QString("bake revision %1, material revision %2")
+                        .arg(tfile->seasonalBakes.value(proceduralVariant).revision).arg(tfile->materialContentRevision);
+            if (TerrainMaterialMap::ValidateBakeOnLoad
+                    && storedBakeValidation(tfile->bakedMaterialInfo)!=proceduralBakeSignature())
+                why << "material map or sources differ from the bake's";
+            if (procedural->bakeSettings.isEmpty())
+                why << "no bake settings stored";
+            else if (procedural->bakeSettings!=procedural->loadedSourcesKey)
+                why << "bake settings or sources differ";
+            qWarning() << name << "Bake validation mismatch (" + why.join("; ")
+                    + "); retaining saved fallback, baked again at the tile's next save";
+        }
         if (procedural->ready && TerrainMaterialMap::ValidateBakeOnLoad && !procedural->bakeCurrent) modified=true;
         if (procedural->ready && procedural->bakeAvailable) {
             procedural->prefetchBakeKey="B:"+QDir(texturepath).filePath(primaryName(*tfile,0)).toUtf8()+":"+tfile->bakedMaterialInfo.toUtf8();
@@ -1087,7 +1108,8 @@ bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materi
         tfile->sampleMaterialBuffer = name + "_materials.pmap";
         previousPath.commit();previousRoot.commit();previousVariant.commit();previousIdentity.commit();
     } else {
-        if (!procedural || !procedural->bakeCurrent || procedural->changed
+        // A saved bake of the map as it is, whatever bake settings made it.
+        if (!procedural || !(procedural->bakeCurrent || procedural->bakeShowsMap) || procedural->changed
                 || !QFileInfo::exists(QDir(texturepath).filePath(primaryName(*tfile,0)))) {
             error="Save the current procedural tile successfully before switching to static textures"; return false;
         }
@@ -1264,7 +1286,7 @@ QImage readTexture(QOpenGLContext *context,unsigned int texture) {
 }
 
 // Level 0 of a library texture as RGBA8, from its CPU pixels, or decoded
-// again from its file when they went with an upload.
+// again from its file when they went with an upload (or its preparation).
 QImage textureImage(int id) {
     auto found=TexLib::mtex.find(id);
     if (found==TexLib::mtex.end() || !found->second || !found->second->loaded) return QImage();
@@ -1276,7 +1298,7 @@ QImage textureImage(int id) {
                       source.bytesPerPixel==3 ? QImage::Format_RGB888 : QImage::Format_RGBA8888)
                 .convertToFormat(QImage::Format_RGBA8888);
     };
-    if (!texture->glLoaded) return image(*texture);
+    if (!texture->glLoaded && !texture->prepared) return image(*texture);
     Texture copy(texture->pathid);
     QString error;
     if (texture->pathid.endsWith(".ace",Qt::CaseInsensitive)) {
@@ -1509,13 +1531,14 @@ bool Terrain::prepareProceduralGpuResources(QVector<int> &materials) {
         }
         if (!procedural->gpuBaseTextures.contains(id)) {
             const QString path=TerrainSeason::resolve(proceduralSourceRoot(),proceduralVariant,base);
+            // Terrain textures (the painted ones are the same files): editable.
             procedural->gpuBaseTextures[id]=path.isEmpty() ? -1
-                    : TexLib::addTex(QFileInfo(path).path(),QFileInfo(path).fileName());
+                    : TexLib::addTex(QFileInfo(path).path(),QFileInfo(path).fileName(),false,TexLib::Editable);
         }
         if (!procedural->gpuDetailTextures.contains(id)) {
             const QString path=TerrainSeason::resolve(proceduralSourceRoot(),proceduralVariant,detail);
             procedural->gpuDetailTextures[id]=path.isEmpty() ? -1
-                    : TexLib::addTex(QFileInfo(path).path(),QFileInfo(path).fileName());
+                    : TexLib::addTex(QFileInfo(path).path(),QFileInfo(path).fileName(),false,TexLib::Editable);
             procedural->gpuDetailScales[id]=detailScale;
         }
         unsigned int unused=0;
@@ -1625,7 +1648,7 @@ int Terrain::proceduralFallbackTexture() {
     if (!rendersProceduralMaterial() || !hasProceduralBake()) return -1;
     const QByteArray key="B:"+QDir(texturepath).filePath(primaryName(*tfile,0)).toUtf8()+":"+tfile->bakedMaterialInfo.toUtf8();
     if (procedural->failedRecipes.contains(key)) {
-        procedural->bakeAvailable=procedural->bakeCurrent=false;
+        procedural->bakeAvailable=procedural->bakeCurrent=procedural->bakeShowsMap=false;
         procedural->nearCamera=true; modified=true;
         return -1; // Missing/failed file returns to generation, not permanent blank far terrain.
     }
@@ -1674,7 +1697,7 @@ int Terrain::proceduralDetailTexture() {
     if (!procedural->detailSourceAttempted) {
         procedural->detailSourceAttempted=true;
         const QString &source=procedural->detailSourcePath;
-        if (!source.isEmpty()) procedural->detailTextureId = TexLib::addTex(QFileInfo(source).path(),QFileInfo(source).fileName());
+        if (!source.isEmpty()) procedural->detailTextureId = TexLib::addTex(QFileInfo(source).path(),QFileInfo(source).fileName(),false,TexLib::Editable);
     }
     auto it = TexLib::mtex.find(procedural->detailTextureId);
     if (it == TexLib::mtex.end() || !it->second || !it->second->loaded) return -1;
@@ -1700,7 +1723,7 @@ int Terrain::proceduralSourceTexture(int x, int z, float posx, float posz) {
     const int id=procedural->map.at(int(posx*procedural->map.side()/gridLayout.terrainWorldSize),
                                     int(posz*procedural->map.side()/gridLayout.terrainWorldSize));
     const QString source=TerrainSeason::resolve(proceduralSourceRoot(),proceduralVariant,sourceName(*tfile,id));
-    return source.isEmpty()?-1:TexLib::addTex(QFileInfo(source).path(),QFileInfo(source).fileName());
+    return source.isEmpty()?-1:TexLib::addTex(QFileInfo(source).path(),QFileInfo(source).fileName(),false,TexLib::Editable);
 }
 void Terrain::rememberProceduralSource(Brush *brush, int x, int z, float posx, float posz) {
     if (!TerrainMaterialMap::Enabled) return;
@@ -1894,7 +1917,7 @@ bool Terrain::saveProceduralBake() {
     if (TerrainMaterialMap::ValidateBakeOnLoad && storedBakeValidation(tfile->bakedMaterialInfo)!=signature)
         fullBake=true;
     if (!procedural->changed && !fullBake) {
-        procedural->bakeAvailable=procedural->bakeCurrent=true;
+        procedural->bakeAvailable=procedural->bakeCurrent=procedural->bakeShowsMap=true;
         return true;
     }
     // Check current source pixels too when writing a bake. No full ID-map hash
@@ -2107,7 +2130,7 @@ void Terrain::proceduralSaveCompleted() {
             if (it.key().startsWith("B:")) it=procedural->cache.erase(it); else ++it;
         }
         procedural->previousPatchData.clear(); procedural->bakeWritten=false;
-        procedural->bakeAvailable=procedural->bakeCurrent=true;
+        procedural->bakeAvailable=procedural->bakeCurrent=procedural->bakeShowsMap=true;
         procedural->bakeImage=std::move(procedural->pendingBakeImage);
         procedural->bakeSettings=std::move(procedural->pendingBakeSettings);
         procedural->fullBakeRequired=false;

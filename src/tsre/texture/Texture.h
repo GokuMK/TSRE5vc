@@ -73,6 +73,38 @@ class Texture {
     bool editable = false;
     bool missing = false;
     bool error = false;
+    // Memory residency (docs/tasks/textures/04-texture-memory.md): content
+    // loaded from its file and unchanged since, which TexLib may release over
+    // the memory budget and load again; released, waiting for a use to load
+    // it again; when it was last asked for (TexLib's clock), for a texture
+    // not drawn yet.
+    bool reloadable = false;
+    bool released = false;
+    qint64 requested = 0;
+    // Its requesters only display it (TexLib::Display): the loader prepares
+    // its GPU levels on its thread and drops the source pixels, and it is
+    // never edited (setEditable fails; getImageData reads a copy).
+    std::atomic<bool> displayOnly{false};
+    // GPU-ready levels (QRhi), made on the loader's thread: block-compressed
+    // in preparedFormat (a GL compressed format), or RGBA8 (0).
+    bool prepared = false;
+    int preparedFormat = 0;
+    QVector<QByteArray> preparedLevels;
+    // Builds them from the source (pixels or blocks) and drops the source;
+    // false when it cannot (before a renderer said which formats it takes):
+    // the upload builds them then.
+    bool prepareForRhi();
+
+    // Mipmaps on shape textures (core.rendering.shapeTextures.*), read once
+    // on the main thread (readMipmapSettings) before textures load: whether
+    // shapes sample them, where their levels come from (the file's own, ours
+    // made from level 0, or the file's where they are a fair downsample),
+    // and the shaders' sharpness bias (QRhi).
+    enum class MipmapSource { File, Regenerate, Improve };
+    static std::atomic<bool> shapeMipmaps;
+    static std::atomic<int> mipmapSource;
+    static float lodBias;
+    static void readMipmapSettings();
 
     void setEditable();
     // Decode retained ACE/DDS blocks without uploading or reading back a GL texture.
@@ -98,7 +130,14 @@ class Texture {
     void sendToUndo(int id);
     void fillData(unsigned char *data);
     unsigned char *getImageData(int width, int height);
+    // Its level 0 as bytesPerPixel pixels, rows packed, without editing it:
+    // the CPU pixels, the prepared level, or a read back from the GPU.
+    bool readPixels(QByteArray &pixels);
     void delVBO();
+    // Drops the content: the GPU texture (QRhi) and the CPU pixels and
+    // blocks; size, sampling and alpha class stay. keepHandle: the GPU handle
+    // stays for the next upload, so code holding it gets the texture back.
+    void releaseContent(bool keepHandle);
 
   private:
 };

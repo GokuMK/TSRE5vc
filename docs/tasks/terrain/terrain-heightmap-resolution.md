@@ -9,6 +9,9 @@ newer implementation notes and linked feature/analysis reports take precedence.
 
 Related tasks:
 
+- [Loading tiles ahead of the camera](../world/tile-streaming.md): memory
+  and paged mesh build time by resolution (2026-10-26: 9.7 MB of GPU mesh
+  and about 100 ms of build on the main thread at 1024 samples).
 - [Variable terrain patch count](terrain-patch-count.md)
 - [Terrain adjacent-edge cache](terrain-adjacent-edge-cache.md)
 - [Terrain height-brush CPU performance](terrain-height-brush-performance.md)

@@ -10,6 +10,7 @@
 
 #include <tsre/shape/ShapeLoader.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/renderer/FrameLog.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <QCoreApplication>
@@ -83,6 +84,8 @@ ShapeLoader::Request ShapeLoader::request(ComplexShape *shape) {
             return Request::Wait;
         l.jobs.erase(found);
         shape->adopt(*job->copy);
+        if (FrameLog::active())
+            FrameLog::add(FrameLog::ShapesAdopted, 1);
         delete job;
         return Request::Adopted;
     }

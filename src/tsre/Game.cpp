@@ -401,6 +401,15 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.timeOfDay.running", SettingType::Bool);
     // Read by ShapeLod, cached and refreshed as the profile changes.
     claim("core.rendering.lodBias", SettingType::Int);
+    // Read where they are used: TexLib (the budget), the QRhi renderer (the
+    // upload budget, the mipmaps through Texture::readMipmapSettings) and
+    // the frame log.
+    claim("core.rendering.textureMemoryBudget", SettingType::Int);
+    claim("core.rendering.objectLoading.uploadBudgetMs", SettingType::Int);
+    claim("core.system.frameLog", SettingType::Bool);
+    claim("core.rendering.shapeTextures.mipmaps", SettingType::Bool);
+    claim("core.rendering.shapeTextures.mipmapSource", SettingType::Enum);
+    claim("core.rendering.textureLodBias", SettingType::Float);
     // Read by SkySatellites each frame (task editor 05).
     claim("core.rendering.sky.sun", SettingType::Bool);
     claim("core.rendering.sky.moon", SettingType::Bool);

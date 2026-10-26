@@ -15,6 +15,11 @@ intentionally unchanged after reviewing its current callers.
 
 ## Current tasks
 
+Planned (2026-10-26): [loading tiles ahead of the camera](../world/tile-streaming.md)
+(world and terrain tiles at a tile crossing). Measured there: terrain tile
+memory by resolution (256 to 1024 samples, 2048 expected), the paged mesh
+build's time at 1024 samples, and about 21 MB held by each procedural tile.
+
 New draft (2026-10-18): [terrain painting, vegetation scattering and bulk
 instance submission](terrain-vegetation-scattering.md). Optional scatter presets
 on existing materials, deterministic terrain-fitted instance cells and a generic

@@ -29,6 +29,8 @@
 #include <tsre/world/Trk.h>
 #include <tsre/world/Environment.h>
 #include <tsre/world/TerrainInfo.h>
+#include <tsre/renderer/FrameLog.h>
+#include <QElapsedTimer>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/texture/TexLib.h>
@@ -97,10 +99,18 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
         }
     }
     if (load) {
-        (*currentQt)[terrainNameId] = new TerrainInfo();
-        currentQuadTree->fillTerrainInfo(x, -y, (*currentQt)[terrainNameId]);
-        //qDebug() << terrainNameId;
-        (*currentQt)[terrainNameId]->t = new Terrain((*currentQt)[terrainNameId]);
+        // A tile released before keeps its info (no leak of a new one).
+        TerrainInfo *&info = (*currentQt)[terrainNameId];
+        if (info == NULL)
+            info = new TerrainInfo();
+        currentQuadTree->fillTerrainInfo(x, -y, info);
+        QElapsedTimer loading;
+        loading.start();
+        info->t = new Terrain(info);
+        if (FrameLog::active()) {
+            FrameLog::add(FrameLog::TerrainTiles, 1);
+            FrameLog::add(FrameLog::TerrainTileMs, loading.nsecsElapsed() / 1e6);
+        }
         if ((*currentQt)[terrainNameId]->t->loaded)
             terrainAvailabilityChanged((*currentQt)[terrainNameId]->t);
         return (*currentQt)[terrainNameId]->t;
@@ -218,6 +228,14 @@ bool TerrainLibQt::deleteQuadTile(const QuadTree::Quad &quad, QString &error) {
     if (quad.populated)
         currentQuadTree->setPopulated(quad.x, quad.y, quad.level, false);
     return true;
+}
+
+int TerrainLibQt::loadedTileCount(bool distant) const {
+    int count = 0;
+    for (const TerrainInfo *info : distant ? terrainQtLo : terrainQt)
+        if (info != nullptr && info->t != nullptr)
+            ++count;
+    return count;
 }
 
 QuadTree* TerrainLibQt::getQuadTreeDetailed(){
@@ -1503,14 +1521,27 @@ void TerrainLibQt::pushRenderItems(RenderQueue &queue, float * playerT, float* p
         return;
     
     QHashIterator<unsigned int, TerrainInfo*> i(terrainQt);
-    // Gather retains Terrain objects; still release their derived textures when
-    // outside the tile region. No render item from this pass references these tiles.
+    // Tiles the camera left behind go, as the legacy renderer released them
+    // until 93a6fda (a 1024-sample tile holds many megabytes): those not
+    // gathered this frame, unless edited or selected; their files bring them
+    // back. No render item from this pass references them; their earlier
+    // items retire (Renderer::retirePacket) and their meshes release
+    // deferred. Nothing else keeps a Terrain between frames: adjacent edges
+    // copy heights and check neighbours by name, the LOD state lasts one
+    // pass, material workers hold snapshots.
+    const bool release = releasesUnusedTiles();
     while (i.hasNext()) {
         i.next();
         if (i.value() == NULL) continue;
         Terrain* obj = (Terrain*) i.value()->t;
         if(obj == NULL) continue;
         if (!rendered.contains(obj->name)) obj->releaseProceduralTextures();
+        if (release && !obj->inUse && !rendered.contains(obj->name) && obj->loaded
+                && !obj->isModified() && !obj->isSelected()) {
+            delete obj;
+            i.value()->t = NULL;
+            continue;
+        }
         obj->inUse = false;
     }
 }

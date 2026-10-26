@@ -410,8 +410,11 @@ void DdsLib::run()
         }
 
         texture->classifyAlpha();
-        texture->loaded = true;
         texture->editable = false;
+        // Only displayed: made ready for the GPU here, off the render thread.
+        if (texture->displayOnly)
+            texture->prepareForRhi();
+        texture->loaded = true;
         return;
 
     } else if (pf.dwFlags & DDPF_RGB) {
@@ -524,8 +527,10 @@ void DdsLib::run()
         }
 
         texture->classifyAlpha();
-        texture->loaded = true;
         texture->editable = true;
+        if (texture->displayOnly)
+            texture->prepareForRhi();
+        texture->loaded = true;
         return;
     } else {
         texture->missing = true;

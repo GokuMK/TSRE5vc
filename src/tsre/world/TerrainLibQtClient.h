@@ -21,6 +21,8 @@ public:
     Terrain* getTerrainByXY(int x, int y, bool load = false);
     void updateTerrainHeightmap(Terrain *t);
     void updateTerrainTFile(Terrain *t);
+    // Its tiles come from the server, not from files: they stay.
+    bool releasesUnusedTiles() const override { return false; }
 private:
 
 };

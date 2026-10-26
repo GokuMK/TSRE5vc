@@ -9,6 +9,9 @@
  */
 
 #include <QApplication>
+#include <QElapsedTimer>
+#include <QThread>
+#include <tsre/renderer/FrameLog.h>
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <contentCase/ContentCase.h>
 #include <tsre/world/TerrainBakeCommand.h>
@@ -59,6 +62,12 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
         default: symbol = '?'; break;
     }
     QString output = QString("[%1] %2").arg(symbol).arg(msg);
+    // The frame log counts the lines, and the main thread's time on them.
+    const bool frameLog = FrameLog::active();
+    QElapsedTimer writing;
+    if (frameLog)
+        writing.start();
+    {
     // Texture and shape loading threads log too.
     static QMutex mutex;
     QMutexLocker lock(&mutex);
@@ -67,6 +76,9 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
     logFileOut << output << "\n";
     logFileOut.flush();
     logFile.flush(); 
+    }
+    if (frameLog)
+        FrameLog::countLogLine(QThread::currentThread() == qApp->thread() ? writing.nsecsElapsed() : 0);
     
     if( type == QtFatalMsg ) abort(); 
 }

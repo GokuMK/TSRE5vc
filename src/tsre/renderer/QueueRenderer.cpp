@@ -434,6 +434,18 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
                                       float minRadius, bool alphaTested, ShadowCasters casters,
                                       ShadowSet set){
     const Frustum lightFrustum = frustumOf(viewProjection);
+    // Static casters still loading in reach, by their place (a shape's size
+    // is not known before it loads): what a cached map misses.
+    constexpr float WaitingReach = 100.0f;
+    plannedShapesWaiting = 0;
+    if(!enclosure && casters != CASTERS_DYNAMIC)
+        for(const std::array<float, 3> &place : waitingShapes){
+            const float dx = place[0] - viewPosition[0];
+            const float dz = place[2] - viewPosition[2];
+            const float reach = range + WaitingReach;
+            if(dx * dx + dz * dz <= reach * reach)
+                ++plannedShapesWaiting;
+        }
     // Depth does not depend on draw order, so repeated packets draw instanced.
     shadowCasters.clear();
     const auto consider = [&](const DrawInstance &instance, bool terrain){

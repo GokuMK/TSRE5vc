@@ -92,9 +92,12 @@ namespace Meshes {
         RenderItem::VertexAttr layout = RenderItem::NO_ATTR;
     };
     // Records uploads of pending data and ranges into the batch and returns
-    // the mesh's buffers; false for a released mesh.
+    // the mesh's buffers; false for a released mesh. firstUpload false: a
+    // mesh never uploaded waits (false, nothing recorded; the renderer's
+    // per-frame upload budget); new data of an uploaded one still goes.
+    // uploaded: whether it recorded an upload (else it only looked up).
     bool prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
-                    RhiBuffers &buffers);
+                    RhiBuffers &buffers, bool firstUpload = true, bool *uploaded = nullptr);
     // A Buffer-format mesh (terrain patch parameters) as a one-row RGBA32F
     // texture, one texel per 16 bytes, for shaders to fetch from.
     QRhiTexture *dataTextureRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch);

@@ -77,7 +77,9 @@ unsigned char RenderItem::drawSurface() const{
     unsigned char alpha = material.textureAlpha;
     if(material.textureId >= 0){
         const auto found = TexLib::mtex.find(material.textureId);
-        alpha = found != TexLib::mtex.end() && found->second != nullptr && found->second->loaded
+        // A texture released for memory keeps its class until it is back.
+        alpha = found != TexLib::mtex.end() && found->second != nullptr
+                        && (found->second->loaded || found->second->released)
                 ? found->second->alphaClass.load() : TextureAlpha::Unknown;
     }
     // A texture without transparent texels cuts nothing out: opaque (so it

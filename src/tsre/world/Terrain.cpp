@@ -705,8 +705,10 @@ int Terrain::loadTerrainTexture(const QString &filename) {
     }
     const QString &source = entry.value();
     // Retain the normal missing-texture placeholder/cache behavior when absent.
-    return source.isEmpty() ? TexLib::addTex(texturepath, filename)
-                            : TexLib::addTex(QFileInfo(source).path(), QFileInfo(source).fileName());
+    // Terrain paints its textures: they keep their CPU pixels.
+    return source.isEmpty() ? TexLib::addTex(texturepath, filename, false, TexLib::Editable)
+                            : TexLib::addTex(QFileInfo(source).path(), QFileInfo(source).fileName(), false,
+                                             TexLib::Editable);
 }
 
 bool Terrain::preparePaintTexture(int patch, const QString &filename) {
@@ -2474,7 +2476,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                             //texid = TexLib.addTex(texturepath,"nasyp-k.ace", gl);
                             //    gl.glDisable(GL2.GL_TEXTURE_2D);
                         }
-                        if (TexLib::mtex[texid[yy * patches + uu]]->loaded) {
+                        if (TexLib::request(texid[yy * patches + uu])) {
                             uploadTerrainBaseTexture(TexLib::mtex[texid[patchId]],
                                                      shaderId==0 && !tfile->bakedMaterialInfo.isEmpty());
                             r->enableTextures(TexLib::mtex[texid[yy * patches + uu]]->tex[0]);
@@ -2486,7 +2488,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                         if (texid2[patchId]==-1)
                             texid2[patchId]=loadTerrainTexture(tfile->material(0).textures[1].filename);
                         const auto detail=TexLib::mtex.find(texid2[patchId]);
-                        if (detail!=TexLib::mtex.end() && detail->second && detail->second->loaded) {
+                        if (detail!=TexLib::mtex.end() && detail->second && TexLib::request(detail->first)) {
                             if (!detail->second->glLoaded) detail->second->GLTextures(true);
                             r->material.detailTextureObject=detail->second->tex[0];
                             r->material.detailScale=ProceduralDetailScale*patches;
@@ -2499,7 +2501,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                             texid2[patchId] = tfile->material(shaderId).textures.size() < 2 ? -2
                                     : loadTerrainTexture(tfile->material(shaderId).textures[1].filename);
                         const auto detail = TexLib::mtex.find(texid2[patchId]);
-                        if (detail != TexLib::mtex.end() && detail->second && detail->second->loaded) {
+                        if (detail != TexLib::mtex.end() && detail->second && TexLib::request(detail->first)) {
                             if (!detail->second->glLoaded) detail->second->GLTextures(true);
                             r->material.detailTextureObject = detail->second->tex[0];
                             r->material.detailScale = tfile->detailScale(shaderId);

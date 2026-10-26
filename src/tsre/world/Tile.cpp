@@ -31,6 +31,8 @@
 #include <QString>
 #include <QStringList>
 #include <QDebug>
+#include <QElapsedTimer>
+#include <tsre/renderer/FrameLog.h>
 #include <QFile>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -237,6 +239,8 @@ void Tile::load() {
     path = Game::root + "/ROUTES/" + Game::route + "/WORLD/w" + getNameXY(x) + "" + getNameXY(-z) + ".w";
     path = ContentPath::normalize(path);
     
+    QElapsedTimer timer;
+    timer.start();
     QFile *file = new QFile(path);
     if (!file->open(QIODevice::ReadOnly)){
         qDebug() << "W file: not exist " << path;
@@ -269,11 +273,19 @@ void Tile::load() {
             return;
         }
     }
-    qDebug() << obiekty.size();
+    const qint64 parsedMs = timer.restart();
     loaded = 0;
     wczytajObiekty();
     checkForErrors();
+    const qint64 objectsMs = timer.restart();
     loadWS();
+    // On the main thread as the camera reaches the tile: a stutter's share.
+    qInfo().noquote() << "World tile" << x << -z << ":" << obiekty.size() << "objects, read in" << parsedMs
+                      << "ms, made in" << objectsMs << "ms, sounds" << timer.elapsed() << "ms";
+    if (FrameLog::active()) {
+        FrameLog::add(FrameLog::WorldTiles, 1);
+        FrameLog::add(FrameLog::WorldTileMs, double(parsedMs + objectsMs + timer.elapsed()));
+    }
     file->close();
     delete data;
     delete file;
