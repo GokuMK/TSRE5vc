@@ -252,11 +252,12 @@ void SimulationController::setSpeed(double value) {
 bool SimulationController::runTo(Activity *activity, int timeOfDay, QString *error) {
     if (!exists() && !start(activity, error))
         return false;
-    double target = timeOfDay;
+    return runToTime(timeOfRunTo(timeOfDay), false, error);
+}
+
+double SimulationController::timeOfRunTo(int timeOfDay) const {
     // Before the start: the next day's.
-    if (target < in->startTime)
-        target += 86400.0;
-    return runToTime(target, false, error);
+    return in != nullptr && timeOfDay < in->startTime ? timeOfDay + 86400.0 : double(timeOfDay);
 }
 
 bool SimulationController::runToTime(double target, bool thenRun, QString *error, int untilOnTrack) {
@@ -610,6 +611,24 @@ bool SimulationController::trainPlace(int train, int *tile, float *position, flo
         heading[1] = 0.0f;
         heading[2] = 1.0f;
     }
+    return true;
+}
+
+bool SimulationController::trainHead(int train, int *tile, float *position, int *vehicle) const {
+    const std::shared_ptr<const SimulationFrame> now = viewFrame();
+    if (train < 0 || size_t(train) >= now->trains.size())
+        return false;
+    const TrainFrame &t = now->trains[size_t(train)];
+    if (t.fronts.empty() || t.rears.empty())
+        return false;
+    const TrackPose &head = t.state.reversed ? t.rears.back() : t.fronts.front();
+    if (vehicle != nullptr)
+        *vehicle = t.state.reversed ? int(t.rears.size()) - 1 : 0;
+    tile[0] = head.tileX;
+    tile[1] = -head.tileZ;
+    position[0] = head.x;
+    position[1] = head.y;
+    position[2] = -head.z;
     return true;
 }
 

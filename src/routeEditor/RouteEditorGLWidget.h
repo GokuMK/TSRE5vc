@@ -83,6 +83,7 @@ class MapMeasureLayer;
 class MapScaleBar;
 class QLabel;
 class MapLabelLayer;
+struct MapLabel;
 class Coords;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
@@ -686,6 +687,10 @@ private:
     void showMapContextMenu(const QPoint &position);
     std::vector<const void *> mapLabelSources;
     bool mapLabelsInvalid = true;
+    // The trains' names on the map, when last taken, and a count of changes.
+    std::vector<MapLabel> trainLabels;
+    QElapsedTimer trainLabelsTaken;
+    quint64 trainLabelsVersion = 0;
     void updateMapLabels();
     // Where a press began in map mode: a left click that moves the map no
     // more than this goes to the active tool.

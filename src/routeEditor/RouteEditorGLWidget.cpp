@@ -3543,6 +3543,29 @@ void RouteEditorGLWidget::updateMapLabels() {
     const bool messages = activity != NULL && simulation->shows(activity);
     const unsigned long long messagesVersion = messages ? simulation->messagesVersion() : 0;
     const void *messageFrame = messagesVersion % 1000 != 0 ? simulation->viewFrame().get() : NULL;
+    // The activity's trains named beside them (Activity Objects > Trains and
+    // Train Names). Running, they follow the trains, ten times a second at
+    // most; before a run, their consists placed at their starts.
+    Activity *trainsNamed = mapLayers.shows(MapLayer::Activity)
+            && MapLayers::has(mapLayers.activityKinds, int(MapActivityKind::Trains))
+            && MapLayers::has(mapLayers.activityKinds, int(MapActivityKind::TrainNames)) && route != NULL
+            ? route->getCurrentActivity() : NULL;
+    if (trainsNamed != NULL && (!trainLabelsTaken.isValid() || trainLabelsTaken.elapsed() >= 100)) {
+        std::vector<MapLabel> now;
+        MapLabelSources::appendTrains(now, trainsNamed);
+        trainLabelsTaken.start();
+        auto same = [](const MapLabel &a, const MapLabel &b) {
+            return a.tileX == b.tileX && a.tileZ == b.tileZ && a.x == b.x && a.z == b.z && a.text == b.text
+                    && a.selectionId == b.selectionId;
+        };
+        if (!std::equal(now.begin(), now.end(), trainLabels.begin(), trainLabels.end(), same)) {
+            trainLabels = std::move(now);
+            ++trainLabelsVersion;
+        }
+    } else if (trainsNamed == NULL && !trainLabels.empty()) {
+        trainLabels.clear();
+        ++trainLabelsVersion;
+    }
     // What is labelled, and how much of it: a change rebuilds the labels.
     const std::vector<const void *> sources = {
         osm, reinterpret_cast<const void *>(quintptr(osm != NULL ? osm->labelsVersion() : 0)),
@@ -3551,6 +3574,7 @@ void RouteEditorGLWidget::updateMapLabels() {
         activity, reinterpret_cast<const void *>(quintptr(activity != NULL ? activity->event.size() : 0)),
         reinterpret_cast<const void *>(quintptr(Sim::EventResultStore::instance()->version())),
         reinterpret_cast<const void *>(quintptr(messagesVersion)), messageFrame,
+        reinterpret_cast<const void *>(quintptr(trainLabelsVersion)),
         mapMeasure.get(), reinterpret_cast<const void *>(quintptr(mapMeasure->version()))};
     if (!mapLabelsInvalid && sources == mapLabelSources)
         return;
@@ -3559,6 +3583,7 @@ void RouteEditorGLWidget::updateMapLabels() {
         labels.push_back(mapMeasure->label(Game::GeoCoordConverter));
     if (messages)
         simulation->messageLabels(labels);
+    labels.insert(labels.end(), trainLabels.begin(), trainLabels.end());
     MapLabelSources::appendActivity(labels, activity);
     MapLabelSources::appendTrackDatabase(labels, track,
                                          MapLayers::has(mapLayers.trackObjectKinds, TrackItemMapLayer::Platform),
@@ -3746,6 +3771,8 @@ void RouteEditorGLWidget::paintMapSelection(int width, int height) {
         trackItemMap->pushSelection(*mapSelection, view);
     activityMap->pushSelection(*mapSelection, view, route, mapLayers.shows(MapLayer::Activity),
                                mapLayers.activityKinds);
+    // The trains' names pick their trains (above the trains, as drawn).
+    mapLabels->pushSelection(*mapSelection);
     mapSelection->pushRenderItems(queue);
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     renderer->setShadowCasting(true);

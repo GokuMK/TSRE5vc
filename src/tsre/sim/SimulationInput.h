@@ -192,6 +192,9 @@ struct TrainPlan {
     QString service;
     int serviceTime = -1;
     int traffic = -1;
+    // An Open Rails timetable's train: named by its column alone (names are
+    // unique there; an activity's AI services repeat, their times with them).
+    bool timetableTrain = false;
     // The consist file, for drawing the vehicles.
     QString consist;
     std::vector<Vehicle> vehicles;

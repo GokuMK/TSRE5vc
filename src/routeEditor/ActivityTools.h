@@ -13,6 +13,7 @@
 
 #include <QtWidgets>
 #include <QString>
+#include <memory>
 
 class Route;
 class ActivityCheckWindow;
@@ -22,6 +23,7 @@ class Activity;
 class ActivityServiceDefinition;
 class Path;
 class PreciseTileCoordinate;
+namespace Sim { struct SimulationInput; }
 
 class ActivityTools : public QWidget{
     Q_OBJECT
@@ -210,6 +212,9 @@ private:
     QPushButton *simRunTo = NULL;
     QComboBox simSpeed;
     QTimeEdit simRunToTime;
+    // The run the controls last showed: a new one moves Run to: up to its
+    // start when it holds an earlier time (which would be the next day's).
+    std::weak_ptr<const Sim::SimulationInput> shownRun;
     QLabel simTime;
     QLabel simStatus;
     // The run's notes on the trains it made, counted, linked to Check

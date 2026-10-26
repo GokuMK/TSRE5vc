@@ -480,7 +480,7 @@ ActivityTools::ActivityTools(QString name)
             //% "Run"
             qtTrId("route.editor.activity.tools.button.simulation.run.to"));
         simRunTo->setToolTip(
-            //% "As fast as possible to the time, then paused; an earlier time is reached again from the start."
+            //% "As fast as possible to the time, then paused; an earlier time is reached again from the start, a time before the run's start is the next day's (asked first)."
             qtTrId("route.editor.activity.tools.button.simulation.run.to.tooltip"));
         simPlay->setObjectName("simulationPlay");
         simPause->setObjectName("simulationPause");
@@ -962,8 +962,29 @@ void ActivityTools::simResetEnabled(){
 
 void ActivityTools::simRunToEnabled(){
     QString error;
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    // Read first: a run started here moves an earlier time up to its start.
     const int time = simRunToTime.time().msecsSinceStartOfDay() / 1000;
-    if(!Sim::SimulationController::instance()->runTo(currentActivity(), time, &error))
+    if(!simulation->exists() && !simulation->start(currentActivity(), &error)){
+        QMessageBox::warning(this, qtTrId("route.editor.activity.tools.simulation.title"), error);
+        return;
+    }
+    // A time before the run's start is the next day's: hours on, often a
+    // time typed for the day of the run, so asked first (not once the run
+    // is past midnight).
+    const double target = simulation->timeOfRunTo(time);
+    const double now = simulation->frame()->time;
+    if(target >= 86400.0 && now < 86400.0 && simulation->input() != nullptr){
+        const int ahead = int(std::lround((target - std::max(now, double(simulation->input()->startTime))) / 60.0));
+        const QString start = QTime::fromMSecsSinceStartOfDay(simulation->input()->startTime % 86400 * 1000).toString("HH:mm:ss");
+        if(QMessageBox::question(this, qtTrId("route.editor.activity.tools.simulation.title"),
+                //% "%1 is before the run's start (%2). Run on to %1 the next day, %3 h %4 min ahead?"
+                qtTrId("route.editor.activity.tools.simulation.run.to.next.day")
+                    .arg(QTime::fromMSecsSinceStartOfDay(time * 1000).toString("HH:mm:ss"), start).arg(ahead / 60).arg(ahead % 60))
+                != QMessageBox::Yes)
+            return;
+    }
+    if(!simulation->runTo(currentActivity(), time, &error))
         QMessageBox::warning(this, qtTrId("route.editor.activity.tools.simulation.title"), error);
 }
 
@@ -1008,9 +1029,23 @@ void ActivityTools::showSimulation(){
         simWarnings.hide();
         return;
     }
+    // A new run: Run to: holding a time before its start (00:00:00 at
+    // first) is moved to the start, a time of the run's day to change.
+    const std::shared_ptr<const Sim::SimulationInput> run = simulation->input();
+    if(run != nullptr && run != shownRun.lock()){
+        shownRun = run;
+        const int start = run->startTime % 86400;
+        if(simRunToTime.time().msecsSinceStartOfDay() / 1000 < start)
+            simRunToTime.setTime(QTime::fromMSecsSinceStartOfDay(start * 1000));
+    }
     const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
     const int seconds = (int(std::floor(frame->time)) % 86400 + 86400) % 86400;
     QString time = QTime::fromMSecsSinceStartOfDay(seconds * 1000).toString("HH:mm:ss");
+    // Past midnight (a run on to the next day): which day.
+    const int day = int(std::floor(frame->time / 86400.0));
+    if(day > 0)
+        //% "%1, day %2"
+        time = qtTrId("route.editor.activity.tools.simulation.time.day").arg(time).arg(day + 1);
     // Short of the speed asked (or as fast as possible): the speed reached.
     if(runs && frame->rate > 0 && (frame->speed <= 0 || frame->rate < 0.9 * frame->speed))
         //% "%1 (%2×)"

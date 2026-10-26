@@ -796,14 +796,53 @@ kind checked on its own (a submenu is off while its layer is):
   (`TrackItemMapLayer::Kind`).
 - Activity Objects: the player's path, the AI trains' paths, the trains
   (at their starts, or where a simulation has them), loose consists,
-  speed zones, failed signals, events, and a simulation's track use and
-  signal aspects (`MapActivityKind`).
+  speed zones, failed signals, events, the trains' names, and a
+  simulation's track use and signal aspects (`MapActivityKind`).
 
 The kinds drawn are bits in `MapLayers` (`trackObjectKinds`,
 `activityKinds`), all set at first and not saved, as the layers' switches.
 A kind hidden is left out of the layers' builds (so of their picking too)
 and of the labels (platforms with their stations, sidings, events). A
 capture view takes `trackObjectKinds` and `activityKinds` (the same bits).
+
+### Train names (done, 2026-10-26)
+
+Users asked for the trains on the map to be named beside them, as stations
+and markers are. Map > Activity > Activity Objects > Train Names (with
+Trains on) labels the activity's trains, not its loose consists or static
+trains (`appendTrains` in `MapLabelSources`, `MapLabelKind::Train`):
+
+- named where each begins, the name starting right of it (left of it when
+  that place is taken, then above or below: `MapLabel::beside`);
+- before a run: the player's train and the AI trains shown, at their
+  starts, at the front of their consists' first vehicles; named as the
+  simulation names them (`Sim::TrainName`: "service (player)",
+  "service hh:mm:ss"; an Open Rails timetable's train by its column's
+  name alone, unique there, as `TrainPlan::timetableTrain` says; its
+  trains are drawn, so named, only while a simulation runs);
+- while a simulation runs: its trains where it has them, at their leading
+  ends (`SimulationController::trainHead`: the first vehicle's front, the
+  last one's rear when running reversed), taken again every 100 ms and the
+  labels rebuilt only when one changed;
+- names in the palette's `trainLabel` (dark blue in the light palette,
+  light blue in the dark one; the atlas paints a name in its kind's colour),
+  dots in the engines' colour; ranked below the simulation's messages and
+  the measured distance, above the rest (events next); trains starting at
+  one place show one name, the earliest's.
+- User's review (2026-10-26): names at the trains' heads, not their middles,
+  starting beside them rather than centred, in their own colour.
+- A click on a name picks its train as a click on the train does (its
+  consist selected, chosen in the Timetable window): the label carries the
+  train's selection ID (`MapLabel::selectionId`: the service, the leading
+  vehicle as the part) and the label layer draws the names it placed under
+  their IDs in the map's selection pass (`MapLabelLayer::pushSelection`,
+  above the trains). The user's request, 2026-10-26.
+- Check: simulation-ui suite (each train's label at its head, ahead of its
+  centre, with its name and its train's ID), map-view suite (names beside
+  their dots); a capture centred on the chosen AI train's name in
+  `map-ai-trains.json`'s place picks service 12, vehicle 0;
+  captures of `tests/renderer/map-ai-trains.json` show the names before a
+  run, in both palettes.
 
 ## Phases
 

@@ -40,6 +40,12 @@ void appendTrackDatabase(std::vector<MapLabel> &out, TDB *database, bool platfor
 // activity's last run (task simulation 06) while that is for the activity
 // as it is.
 void appendActivity(std::vector<MapLabel> &out, Activity *activity);
+// An activity's trains named beside them, as the simulation names them
+// ("Local 09:30", "Express (player)"): where the simulation has them while
+// it shows the activity, otherwise the player's and the AI trains shown,
+// at their starts. Not its loose consists, nor an Open Rails set's static
+// trains (the users' request, 2026-10-26).
+void appendTrains(std::vector<MapLabel> &out, Activity *activity);
 
 }
 
