@@ -105,10 +105,12 @@ QString TrainName(const SimulationInput &in, int train) {
     if (train < 0 || size_t(train) >= in.trains.size())
         return QString();
     const TrainPlan &plan = in.trains[size_t(train)];
-    return TrainName(plan.service, plan.player, plan.serviceTime);
+    return TrainName(plan.service, plan.player, plan.timetableTrain ? -1 : plan.serviceTime);
 }
 
 QString TrainName(const QString &service, bool player, int time) {
+    if (!player && time < 0)
+        return service;
     return player ?
         //% "%1 (player)"
         qtTrId("simulation.train.player").arg(service) :

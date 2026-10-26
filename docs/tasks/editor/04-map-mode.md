@@ -817,7 +817,9 @@ trains (`appendTrains` in `MapLabelSources`, `MapLabelKind::Train`):
 - before a run: the player's train and the AI trains shown, at their
   starts, at the front of their consists' first vehicles; named as the
   simulation names them (`Sim::TrainName`: "service (player)",
-  "service hh:mm:ss");
+  "service hh:mm:ss"; an Open Rails timetable's train by its column's
+  name alone, unique there, as `TrainPlan::timetableTrain` says; its
+  trains are drawn, so named, only while a simulation runs);
 - while a simulation runs: its trains where it has them, at their leading
   ends (`SimulationController::trainHead`: the first vehicle's front, the
   last one's rear when running reversed), taken again every 100 ms and the

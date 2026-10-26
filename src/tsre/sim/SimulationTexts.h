@@ -13,7 +13,8 @@ namespace Sim {
 QString StateText(const SimulationInput &in, const TrainState &state, double time, int train);
 QString TrainName(const SimulationInput &in, int train);
 // The same name from a service: "service (player)", or the service and its
-// start time (seconds after midnight), before a simulation has the train.
+// start time (seconds after midnight), before a simulation has the train;
+// the service alone with no time (an Open Rails timetable's train).
 QString TrainName(const QString &service, bool player, int time);
 QString HolderName(const SimulationInput &in, int holder);
 QString SignalName(const SimulationInput &in, int signal);

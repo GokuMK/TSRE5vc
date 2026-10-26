@@ -223,7 +223,8 @@ void appendTrains(std::vector<MapLabel> &out, Activity *activity) {
         if (train.kind == ActivityTrains::Player)
             place(activity->playerService(), Sim::TrainName(train.service, true, train.time));
         else if (train.kind == ActivityTrains::AI && shown.contains(train.index))
-            place(activity->aiTrainService(train.index), Sim::TrainName(train.service, false, train.time));
+            place(activity->aiTrainService(train.index),
+                  Sim::TrainName(train.service, false, train.orTimetable >= 0 ? -1 : train.time));
     }
 }
 
