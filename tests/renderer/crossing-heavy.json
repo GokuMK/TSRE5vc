@@ -1,0 +1,337 @@
+{
+ "notes": "A tile crossing on Prudnik replayed: the frame log of the user's run (2026-10-26) crossed from tile -5418,-14865 into -5418,-14866 at 30 m/s with a 287 ms frame. One settled view, then single frames 2.5 m apart across the border (c08 crosses). Read the per-view \"frames ... slowest ... CPU\" log lines; no images (docs/tasks/textures/04-texture-memory.md, \"Tile crossing\"). Route Prudnik (--game-root C:/trainsim --route Prudnik).",
+ "output": "build/renderer-crossing",
+ "width": 1280,
+ "height": 800,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 1,
+ "saveImages": false,
+ "views": [
+  {
+   "name": "c00",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    958.6,
+    0.0,
+    -1007.2
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 0,
+    "maxFrames": 30,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c01",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    957.2666666666667,
+    0.0,
+    -1009.3111111111111
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c02",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    955.9333333333333,
+    0.0,
+    -1011.4222222222222
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c03",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    954.5999999999999,
+    0.0,
+    -1013.5333333333333
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c04",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    953.2666666666665,
+    0.0,
+    -1015.6444444444444
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c05",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    951.9333333333332,
+    0.0,
+    -1017.7555555555555
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c06",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    950.5999999999998,
+    0.0,
+    -1019.8666666666666
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c07",
+   "tile": [
+    -5418,
+    -14865
+   ],
+   "pos": [
+    949.2666666666664,
+    0.0,
+    -1021.9777777777776
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c08",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    947.933333333333,
+    0.0,
+    1023.9111111111113
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c09",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    946.5999999999997,
+    0.0,
+    1021.8000000000002
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c10",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    945.2666666666663,
+    0.0,
+    1019.6888888888891
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c11",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    943.9333333333329,
+    0.0,
+    1017.577777777778
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c12",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    942.5999999999996,
+    0.0,
+    1015.4666666666669
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  },
+  {
+   "name": "c13",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    941.2666666666662,
+    0.0,
+    1013.3555555555558
+   ],
+   "aboveGround": 40.0,
+   "rot": [
+    -2.578276392097825,
+    -0.08
+   ],
+   "settle": {
+    "minFrames": 1,
+    "stableFrames": 0,
+    "maxFrames": 1,
+    "maxSeconds": 60
+   }
+  }
+ ]
+}

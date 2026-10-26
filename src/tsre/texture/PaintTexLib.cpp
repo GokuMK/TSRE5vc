@@ -24,6 +24,10 @@ void PaintTexLib::run() {
     
     int size = 4;
     int resM = 1;
+    // cells:n and cellw:pixels: a character a cell of that width, each
+    // centred in its own (TextObj's digit texture).
+    int cells = 0;
+    int cellWidth = 0;
     QString fontname = "Arial";
     bool isOutline = false;
     
@@ -50,10 +54,16 @@ void PaintTexLib::run() {
         if(data[i].split(":").first() == "font"){
             fontname = data[i].split(":").last();
         }
+        if(data[i].split(":").first() == "cells"){
+            cells = data[i].split(":").last().toInt();
+        }
+        if(data[i].split(":").first() == "cellw"){
+            cellWidth = data[i].split(":").last().toInt();
+        }
     }
     
     int h = 32*resM;
-    int w = size*h;
+    int w = cells > 0 && cellWidth > 0 ? cells*cellWidth*resM : size*h;
     
     texture->width = w;
     texture->height = h;
@@ -74,13 +84,22 @@ void PaintTexLib::run() {
     p.begin(&img);
     p.setRenderHint(QPainter::RenderHint::Antialiasing, false);
     QFont font(fontname, 24*resM);
+    // Cells: 32 px a line whatever the screen (24 pt are 32 px at 96 dpi,
+    // 80 px at 240), so a character fits its cell.
+    if(cells > 0 && cellWidth > 0)
+        font.setPixelSize(32*resM);
     p.setFont(font);
     QPen spen(color);
     QPen apen(colorOutline);
     apen.setWidth(3);
     QBrush abrush(color);
     
-    if(!isOutline){
+    if(cells > 0 && cellWidth > 0){
+        p.setPen(spen);
+        const int cw = w / cells;
+        for(int c = 0; c < cells && c < val.size(); ++c)
+            p.drawText(QRect(c*cw, 0, cw, h), Qt::AlignCenter, QString(val[c]));
+    } else if(!isOutline){
         p.setPen(spen); 
         p.drawText(QRect(0,0,w,h), Qt::AlignCenter, val);
     } else {

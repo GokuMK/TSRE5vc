@@ -2,6 +2,7 @@
 #define	SHAPELIB_H
 
 #include <unordered_map>
+#include <QHash>
 #include <QString>
 #include <QVariantMap>
 
@@ -32,6 +33,15 @@ public:
 private:
     std::unordered_map<int, QString> contexts;
     std::unordered_map<int, QString> pathKeys;
+    // The shapes by path key and context: addShape looks them up here
+    // instead of comparing every shape (most of a world tile's object
+    // making on a large route).
+    QHash<QString, int> byKey;
+    // ContentPath::key of the paths asked for (an absolute path made from
+    // the working directory each time: 15 us a call, a world tile's objects
+    // ask thousands of times for the same few).
+    QHash<QString, QString> keys;
+    const QString &cachedKey(const QString &path);
     QString mstsBackend; // Fixed per library; cache cannot mix implementations.
     bool firstMstsLodOnly = false;
 
