@@ -325,6 +325,12 @@ QJsonObject toJson(const FrameStats &stats) {
     json["culledInstances"] = double(stats.culledInstances);
     json["instancedDraws"] = double(stats.instancedDraws);
     json["instancedInstances"] = double(stats.instancedInstances);
+    json["texturesCreated"] = double(stats.texturesCreated);
+    json["textureCreateMs"] = stats.textureCreateMs;
+    json["meshCreateMs"] = stats.meshCreateMs;
+    json["bindingCreateMs"] = stats.bindingCreateMs;
+    json["pipelineCreateMs"] = stats.pipelineCreateMs;
+    json["uploadsDeferred"] = double(stats.uploadsDeferred);
     static_assert(Renderer::PASS_COUNT <= FrameStats::PassSlots, "pass slots");
     // Shadow cascades follow the render passes.
     static const char *passNames[FrameStats::PassSlots] = {

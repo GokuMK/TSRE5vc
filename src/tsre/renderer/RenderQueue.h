@@ -14,6 +14,7 @@
 #include <QVector>
 #include <QtGlobal>
 #include <array>
+#include <vector>
 
 class RenderItem;
 
@@ -129,6 +130,11 @@ public:
     // frame turns it back to 0.
     void setLightReach(float metres);
     float lightReach() const { return currentLightReach; }
+    // A shape asked for here is still loading: with shadow casting on, its
+    // place (the transform's) is kept for the frame, so a cached shadow map
+    // reaching it knows it misses a caster (task renderer 37). A new frame
+    // clears them.
+    void noteShapeWaiting();
 
 protected:
     void resetQueueState();
@@ -143,6 +149,7 @@ protected:
     quint64 shadowSignatureSum = 0;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;
+    std::vector<std::array<float, 3>> waitingShapes;
 
 private:
     float ownMvMatrix[16];

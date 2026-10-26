@@ -1235,6 +1235,16 @@ int GltfShape::addTexture(const QString &path, Texture *embedded) {
 
 void GltfShape::reload() {
     ShapeLoader::cancel(this);
+    // Its texture files that failed to load are tried again (TexLib
+    // remembers a failure until a reload).
+    for (MeshGpu *mesh : meshes)
+        for (MeshPrimitiveGpu *prim : mesh->primitives) {
+            if (prim->material.texId >= 0)
+                TexLib::retryIfFailed(prim->material.texId);
+            for (int texture : prim->material.pbr.textures)
+                if (texture >= 0)
+                    TexLib::retryIfFailed(texture);
+        }
     invalidateRenderState(true);
     cleanupGpu();
     cleanupNodeMatrices();
@@ -1312,8 +1322,10 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
 
     if (loaded == 0) {
         const ShapeLoader::Request request = ShapeLoader::request(this);
-        if (request == ShapeLoader::Request::Wait)
+        if (request == ShapeLoader::Request::Wait) {
+            queue.noteShapeWaiting();
             return;
+        }
         if (request == ShapeLoader::Request::LoadHere) {
             loaded = 2;
             load();
@@ -2646,6 +2658,7 @@ void GltfShape::syncTextureAddresses() {
                 continue;
             }
 
+            TexLib::reloadReleased(t);
             if (!t->loaded) {
                 requiresUpdate = true;
                 continue;
@@ -2675,6 +2688,8 @@ void GltfShape::syncTextureAddresses() {
         for (MeshPrimitiveGpu *prim : mesh->primitives)
             for (int id : prim->material.pbr.textures) {
                 const auto it = TexLib::mtex.find(id);
+                if (id >= 0 && it != TexLib::mtex.end() && it->second != nullptr)
+                    TexLib::reloadReleased(it->second);
                 if (id >= 0 && it != TexLib::mtex.end() && it->second != nullptr && it->second->loaded
                         && !it->second->glLoaded)
                     it->second->GLTextures(true);

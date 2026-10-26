@@ -1,6 +1,7 @@
 #include "AceLib.h"
 #include "Texture.h"
 #include <tsre/Game.h>
+#include <tsre/texture/TexLib.h>
 #include <QDebug>
 #include <QFileInfo>
 #include <QImage>
@@ -101,6 +102,9 @@ bool AceLib::load(const QString &path, Texture &target, const AceLoadOptions &o,
         incoming.editable = true;
     }
     incoming.classifyAlpha();
+    // Only displayed: made ready for the GPU here, off the render thread.
+    if (target.displayOnly && !o.cpuPixels && !o.preserveDocument)
+        incoming.prepareForRhi();
     incoming.loaded = true;
     target.takeContentFrom(incoming);
     error.clear();
@@ -134,6 +138,8 @@ bool AceLib::save(QString path, Texture *texture) {
 }
 
 bool AceLib::save(QString path, Texture *texture, const AceWriteOptions &options, QString &error) {
+    if (texture != nullptr && texture->released)
+        TexLib::reloadNow(texture);
     if (!texture || !texture->loaded) {
         error = "No loaded texture to save";
         return false;

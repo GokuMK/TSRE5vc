@@ -4,19 +4,26 @@
 #include <tsre/Undo.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
+#include <tsre/texture/TexLib.h>
 int Game::textureQuality = 1;
 // The tool uploads with OpenGL only.
 QString Game::renderBackend = "opengl";
 namespace RhiTextures {
-unsigned int create(int, int, const QVector<QByteArray> &) { return 0; }
+unsigned int create(int, int, const QVector<QByteArray> &, unsigned int) { return 0; }
 bool supportsBlocks() { return false; }
-unsigned int createCompressed(int, int, Blocks, const QVector<QByteArray> &) { return 0; }
+int blocksSupportKnown() { return -1; }
+unsigned int createCompressed(int, int, Blocks, const QVector<QByteArray> &, unsigned int) { return 0; }
+bool evicted(unsigned int) { return false; }
+void evict(unsigned int) {}
 void release(unsigned int) {}
 void setSampling(unsigned int, bool, bool) {}
 void updateRegion(unsigned int, int, int, int, int, const QByteArray &) {}
+bool replaceLevel0(unsigned int, int, int, const QByteArray &) { return false; }
 Contents readBack(unsigned int, QByteArray &) { return Contents::None; }
 bool clampedToEdge(unsigned int) { return false; }
 }
+// Texture memory residency: the tool's textures are never released.
+void TexLib::reloadNow(Texture *) {}
 int Game::AASamples = 0;
 bool Game::AARemoveBorder = false;
 void Undo::PushTextureData(int, unsigned char *, unsigned int) {}

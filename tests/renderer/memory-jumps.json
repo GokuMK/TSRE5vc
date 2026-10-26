@@ -1,0 +1,344 @@
+{
+ "notes": "Memory as the camera jumps across Prudnik station by station (Prudnik, Nysa, Glucholazy, Opole Gl, Kedzierzyn-Kozle, Gliwice, Zabrze, Katowice, Sosnowiec Glowny, Bedzin, Myslowice), then back to four of them (docs/tasks/textures/04-texture-memory.md). Each view reports memory in capture.json and a \"memory:\" log line. Run it with scripts/hardware/Measure-Memory.ps1, which stops the capture before the machine runs out of memory. Route Prudnik (--game-root C:/trainsim --route Prudnik).",
+ "output": "build/renderer-memory-jumps",
+ "width": 1280,
+ "height": 800,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 1,
+ "views": [
+  {
+   "name": "01-Prudnik",
+   "tile": [
+    -5442,
+    -14866
+   ],
+   "pos": [
+    853.385,
+    285.123,
+    590.153
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "02-Nysa",
+   "tile": [
+    -5450,
+    -14876
+   ],
+   "pos": [
+    -133.91,
+    215.703,
+    889.777
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "03-Glucholazy",
+   "tile": [
+    -5449,
+    -14866
+   ],
+   "pos": [
+    411.047,
+    299.817,
+    694.468
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "04-Opole_Gl",
+   "tile": [
+    -5427,
+    -14883
+   ],
+   "pos": [
+    603.908,
+    177.842,
+    557.548
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "05-Kedzierzyn-Kozle",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    719.561,
+    191.014,
+    459.686
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "06-Gliwice",
+   "tile": [
+    -5401,
+    -14864
+   ],
+   "pos": [
+    -358.429,
+    247.226,
+    -947.436
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "07-Zabrze",
+   "tile": [
+    -5397,
+    -14865
+   ],
+   "pos": [
+    111.159,
+    274.608,
+    729.678
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "08-Katowice",
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    576.461,
+    303.669,
+    -383.185
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "09-Sosnowiec_Glowny",
+   "tile": [
+    -5385,
+    -14863
+   ],
+   "pos": [
+    824.891,
+    285.967,
+    -671.351
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "10-Bedzin",
+   "tile": [
+    -5384,
+    -14865
+   ],
+   "pos": [
+    83.3672,
+    285.967,
+    177.448
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "11-Myslowice",
+   "tile": [
+    -5384,
+    -14861
+   ],
+   "pos": [
+    -633.097,
+    295.831,
+    -508.63
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "12-Opole_Gl-again",
+   "tile": [
+    -5427,
+    -14883
+   ],
+   "pos": [
+    603.908,
+    177.842,
+    557.548
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "13-Prudnik-again",
+   "tile": [
+    -5442,
+    -14866
+   ],
+   "pos": [
+    853.385,
+    285.123,
+    590.153
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "14-Kedzierzyn-Kozle-again",
+   "tile": [
+    -5418,
+    -14866
+   ],
+   "pos": [
+    719.561,
+    191.014,
+    459.686
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  },
+  {
+   "name": "15-Katowice-again",
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    576.461,
+    303.669,
+    -383.185
+   ],
+   "rot": [
+    0.0,
+    0.35
+   ],
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 120
+   }
+  }
+ ]
+}

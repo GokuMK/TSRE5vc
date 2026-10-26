@@ -149,6 +149,8 @@ protected:
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> shadowCasters;
+    // Static casters the last plan misses: shapes still loading in its reach.
+    int plannedShapesWaiting = 0;
     std::vector<char> instanceVisible;
     std::vector<float> instanceUpload;
     // Frame storage is cleared, not freed, so steady frames do not allocate.

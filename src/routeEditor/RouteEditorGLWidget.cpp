@@ -9,6 +9,7 @@
  */
 
 #include "RouteEditorGLWidget.h"
+#include <tsre/renderer/FrameLog.h>
 #include <QMouseEvent>
 #include <QOpenGLExtraFunctions>
 #include <QOpenGLShaderProgram>
@@ -324,7 +325,14 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         Game::objectLoadingTokens += 2;
 
     followTrain();
-    camera->update(fps);
+    // The camera moves by real time. The frame time is smoothed a little,
+    // so an uneven frame rate does not change the speed from frame to frame
+    // (a frame shows the time the one before took), and a stall counts as a
+    // quarter of a second at most (not 100 ms: under 10 frames a second the
+    // camera slowed at every long frame).
+    const double movedMs = std::min(250.0, double(frameTimeMs));
+    cameraFrameMs = cameraFrameMs <= 0.0 ? movedMs : 0.5 * cameraFrameMs + 0.5 * movedMs;
+    camera->update(float(1000.0 / cameraFrameMs));
     
     update();
 }
@@ -715,6 +723,8 @@ bool RouteEditorGLWidget::canRenderFrame() const{
 void RouteEditorGLWidget::surfacePaint(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
+    if (FrameLog::active())
+        FrameLog::paintStart();
     Terrain::beginProceduralFrame();
     renderer->resetState();
 
@@ -737,6 +747,11 @@ void RouteEditorGLWidget::surfacePaint(){
         // every selection callback with a visible frame before returning to Qt.
         renderer->resetState();
         paintScene();
+    }
+    if (FrameLog::active()) {
+        FrameLog::setGpuMs(renderer->gpuFrameMs());
+        FrameLog::setCamera(int(camera->pozT[0]), int(camera->pozT[1]), camera->getPos(),
+                            camera->getRotX(), camera->getRotY());
     }
 }
 
@@ -859,7 +874,12 @@ void RouteEditorGLWidget::paintScene(){
             loadWholeView("first view", -1);
         else if (jumped)
             loadWholeView("camera jump", jumpWaitMs);
+        // That frame shows everything at once; others make GPU resources
+        // within the per-frame budget.
+        renderer->setUploadsUnlimited(wholeViewReason != nullptr);
     }
+    if (FrameLog::active())
+        FrameLog::mark(FrameLog::WholeView);
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());
@@ -934,22 +954,31 @@ void RouteEditorGLWidget::paintScene(){
 
     if (wholeViewReason != nullptr)
         wholeViewMarks[1] = wholeViewShown.elapsed();
+    const bool frameLog = FrameLog::active();
+    if (frameLog)
+        FrameLog::mark(FrameLog::Gather);
     // Render Shadows
     if (!selectionPass && Game::shadowsEnabled > 0 && sunCastsShadows){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderShadowMaps();
         RenderStats::endPhase(RenderStats::PhaseShadow);
     }
+    if (frameLog)
+        FrameLog::mark(FrameLog::Shadows);
     if (!selectionPass){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderSkyEnclosure();
         RenderStats::endPhase(RenderStats::PhaseShadow);
     }
+    if (frameLog)
+        FrameLog::mark(FrameLog::Enclosure);
     if (renderEnvironment){
         RenderStats::beginPhase(RenderStats::PhaseEnvironment);
         renderEnvironmentMap();
         RenderStats::endPhase(RenderStats::PhaseEnvironment);
     }
+    if (frameLog)
+        FrameLog::mark(FrameLog::Environment);
     bool reflectWater = false;
     if (!selectionPass && Game::waterShaded && Game::waterReflection){
         RenderStats::beginPhase(RenderStats::PhaseReflection);
@@ -1043,6 +1072,8 @@ void RouteEditorGLWidget::paintScene(){
     RenderStats::endPhase(RenderStats::PhaseScene);
 
     renderer->endView(mainView);
+    if (frameLog)
+        FrameLog::mark(FrameLog::Scene);
     if (wholeViewReason != nullptr)
         wholeViewMarks[2] = wholeViewShown.elapsed();
     // render compass
@@ -1079,7 +1110,11 @@ void RouteEditorGLWidget::paintScene(){
         Game::shadowsEnabled = shadowsState;
         renderer->releaseProgram();
     }
+    if (frameLog)
+        FrameLog::mark(FrameLog::Overlay);
     renderer->renderFrame();
+    if (frameLog)
+        FrameLog::mark(FrameLog::Finish);
     if (!selectionPass && Game::environmentMapPreview && environmentMap != NULL
             && environmentMap->complete())
         environmentMap->drawPreview(8, 8, qRound(48 * Game::PixelRatio));
@@ -1644,10 +1679,13 @@ void RouteEditorGLWidget::computeShadowMatrices() {
 // cache holds them for the place and sun it was drawn for, and the frame's
 // map starts as a copy of it with the moving casters drawn on top. A cache
 // is drawn again at once when what it holds changes (the static objects'
-// signature, a texture or shape loaded) or the camera's tile changed, and
-// one a frame when its centre would have moved more than its ShadowLead,
-// the view has turned 30 degrees (objects culling themselves by the view
-// come and go), the sun has moved or it is a few seconds old.
+// signature) or the camera's tile changed, and one a frame when its centre
+// would have moved more than its ShadowLead, the view has turned 30 degrees
+// (objects culling themselves by the view come and go), the sun has moved,
+// it is a few seconds old, or content it missed (casters whose shape, mesh
+// or texture was still coming) may have come and it is ArrivalMs old:
+// content streams in while the camera moves, and redrawing every cache for
+// each texture or shape, anywhere, cost a third of a frame.
 // TSRE_SHADOW_CACHE=0 turns the caches off, TSRE_SHADOW_CACHE_LOG=1 logs
 // their redraws.
 void RouteEditorGLWidget::renderShadowMaps() {
@@ -1665,6 +1703,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
     constexpr float SunMoved = 0.9999985f;
     const float ViewTurned = std::cos(float(M_PI) / 6.0f);
     constexpr qint64 RefreshMs = 4000;
+    constexpr qint64 ArrivalMs = 500;
     const float ranges[3] = {250.0f, 600.0f, 1000.0f};
     const int sizes[3] = {shadowMapSize, shadowMapSize, distantShadowMapSize};
     const int statsSlots[3] = {RenderStats::FrameStats::PassSlots - 3, RenderStats::FrameStats::PassSlots - 2,
@@ -1689,20 +1728,21 @@ void RouteEditorGLWidget::renderShadowMaps() {
     // tile's frame. In turn: it was drawn for another place, view, sun or
     // time; one a frame, the one drawn longest ago, so a fast camera still
     // moves the middle and far maps along.
-    bool atOnce[3] = {}, due[3] = {};
+    bool atOnce[3] = {}, due[3] = {}, arrived[3] = {};
     int inTurn = -1;
     for (int map = 0; caching && map < 3; ++map) {
         const ShadowCache &cache = shadowCaches[map];
         atOnce[map] = !cache.valid || cache.size != sizes[map] || cache.signature != signature
-                || cache.uploads != Texture::uploads || cache.shapes != ShapeLoader::progress()
                 || cache.tile[0] != tile[0] || cache.tile[1] != tile[1];
+        arrived[map] = now - cache.drawnAt > ArrivalMs && cache.incomplete
+                && (cache.uploads != Texture::uploads || cache.shapes != ShapeLoader::progress());
         float moved = 0.0f;
         for (int c = 0; c < 3; ++c)
             moved += (shadowCentres[map][c] - cache.centre[c]) * (shadowCentres[map][c] - cache.centre[c]);
         due[map] = moved > ShadowLead[map] * ShadowLead[map]
                 || cache.forward[0] * shadowForward[0] + cache.forward[1] * shadowForward[1] < ViewTurned
                 || cache.sun[0] * sun[0] + cache.sun[1] * sun[1] + cache.sun[2] * sun[2] < SunMoved
-                || now - cache.drawnAt > RefreshMs;
+                || now - cache.drawnAt > RefreshMs || arrived[map];
         if (due[map] && !atOnce[map] && (inTurn < 0 || cache.drawnAt < shadowCaches[inTurn].drawnAt))
             inTurn = map;
     }
@@ -1721,6 +1761,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
         ShadowCache &cache = shadowCaches[map];
         // The caches of both sets: the main one, then vegetation's.
         bool drawn = false;
+        const quint64 waiting = renderer->drawsWaiting();
         if (caching && (atOnce[map] || map == inTurn) && renderer->beginShadowCache(map)) {
             drawWith(matrices[map]);
             renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map], Renderer::CASTERS_STATIC,
@@ -1734,10 +1775,9 @@ void RouteEditorGLWidget::renderShadowMaps() {
             if (cacheLog)
                 qInfo().noquote() << "shadow cache" << map << "drawn:"
                                   << (!cache.valid ? "new" : cache.signature != signature ? "casters"
-                                      : cache.uploads != Texture::uploads ? "textures"
-                                      : cache.shapes != ShapeLoader::progress() ? "shapes"
                                       : cache.size != sizes[map] ? "size"
                                       : cache.tile[0] != tile[0] || cache.tile[1] != tile[1] ? "tile"
+                                      : arrived[map] ? "content came"
                                       : now - cache.drawnAt > RefreshMs ? "refresh" : "place, view or sun");
             cache.valid = true;
             std::copy(matrices[map], matrices[map] + 16, cache.matrix);
@@ -1749,6 +1789,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
             cache.signature = signature;
             cache.uploads = Texture::uploads;
             cache.shapes = ShapeLoader::progress();
+            cache.incomplete = renderer->drawsWaiting() != waiting;
             cache.drawnAt = now;
         } else if (!caching || atOnce[map]) {
             cache.valid = false;

@@ -236,6 +236,11 @@ void SFileComplex::adopt(ComplexShape &copy) {
 }
 void SFileComplex::reload() {
     ShapeLoader::cancel(this);
+    // Its textures that failed to load are tried again (TexLib remembers a
+    // failure until a reload).
+    for (const auto &image : d->images)
+        if (image.id >= 0)
+            TexLib::retryIfFailed(image.id);
     releaseGL();
     d->loaded = false;
     d->sourceAvailable = false;

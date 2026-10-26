@@ -74,6 +74,7 @@
 #include <tsre/tests/WeatherTestSuite.h>
 #include <tsre/tests/SkyTestSuite.h>
 #include <tsre/tests/DxtCodecTestSuite.h>
+#include <tsre/tests/TextureResidencyTestSuite.h>
 #include <tsre/tests/RhiShaderTestSuite.h>
 #include <tsre/tests/GltfPbrTestSuite.h>
 #include <tsre/tests/ConsistPreviewTestSuite.h>
@@ -4139,6 +4140,7 @@ QStringList TsreTests::listSuites() {
         "weather",
         "sky",
         "dxt-codec",
+        "texture-residency",
         "gltf-pbr-gl",
         "consist-preview-gl",
         "renderer-capture",
@@ -4266,6 +4268,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSkySuite(opts.verbose);
     if (suite == "dxt-codec")
         return runDxtCodecSuite(opts.verbose);
+    if (suite == "texture-residency")
+        return runTextureResidencySuite(opts.verbose);
     if (suite == "gltf-pbr-gl")
         return runGltfPbrGlSuite(opts.verbose);
 

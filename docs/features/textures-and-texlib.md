@@ -58,6 +58,7 @@ Loader dispatch is based on file extension (or pseudo extension):
 `TexLib` de-duplicates by **string identity**, not by image content:
 - it scans existing textures and compares `pathid` against each `Texture::hashid[]` entry.
 - this supports aliases (e.g. treat `.dds` and `.ace` as equivalent in some cases).
+- a texture that failed to load (`missing` or `error`) is remembered: `addTex` returns its id again (a usable texture of the same identity wins) instead of making a new entry and loading the file again for every shape that asks. `getTex` still finds only usable textures. A reload tries it again, at once and in place, so every holder of the id gets it: `addTex(..., true)` (legacy shape reload), `reloadTexIfPresent`, and `TexLib::retryIfFailed(id)`, which complex and glTF shape reloads call for their textures. `TexLib::reset()` (a route load) forgets them. An `.ace` asked for after its `.dds` fallback failed is still looked for on disk first, so an `.ace` added later is found by the next request.
 
 ### 2.2 Procedural/In-memory Textures Already Exist
 `TextObj` creates textures via a pseudo path ending with `.:paintTex` (e.g. `"Hello.size:32.color:#ffffff.:paintTex"`) (`src/tsre/ogl/TextObj.cpp:64`).
@@ -70,12 +71,26 @@ This pattern is important for GLB embedded images: TSRE already has a mechanism 
 ## 3. Threading Model (Load vs Upload)
 
 ### 3.1 Loader Threads
-Most loaders are `QThread`-based (`AceLib`, `DdsLib`, `ImageLib`) and write into a shared `Texture*`:
+Most loaders (`AceLib`, `DdsLib`, `ImageLib`) write into a shared `Texture*`:
 - they read from disk (or generate pixels)
 - they fill `Texture` fields (`width/height/type/imageData/...`) and may also fill `compressedData` for encoded sources
 - they set `loaded = true` (and often `editable = true`)
 
-### 3.2 OpenGL Upload Happens Later
+`TexLib::addTex` runs them as tasks on one `QThreadPool` (`loaderPool()` in `TexLib.cpp`, one thread fewer than the CPU has, at least two), not as a `QThread` each: a route asks for thousands of textures, and every thread object started was kept. The pool belongs to the application; queued loads are dropped when it quits, running ones finished. A second request for a texture already registered returns its id and starts nothing. A reload runs at once on the calling thread, and a load of the same texture still queued is then skipped, so it cannot write the texture while the render thread uploads it. `MapLib` keeps its own thread.
+
+A requester says whether it only displays a file texture or may edit it (`TexLib::addTex(..., TexLib::Display)`, the default, or `TexLib::Editable`: terrain, the procedural terrain material, terrain brushes). Under QRhi a display-only texture (`Texture::displayOnly`) is prepared on its loader thread (`Texture::prepareForRhi`: GPU-ready levels in `preparedLevels`, the source dropped); its upload only creates the GPU texture. It is never edited: `setEditable` does nothing, and `getImageData`/`readPixels`/copies read its pixels into a copy (CPU pixels, the prepared level, or a GPU readback). Asked for later as Editable, it loads again from its file with its source kept.
+
+### 3.2 Memory Residency (QRhi)
+Library textures stay under a memory budget (`core.rendering.textureMemoryBudget`; automatic by default: 60% of a discrete GPU's own memory, else an eighth of the RAM; `docs/tasks/textures/04-texture-memory.md`). `TexLib::residencyFrame` runs once a frame from the renderer; over the budget it releases the least recently used textures loaded from files and unchanged since (`Texture::reloadable`), unused for 30 s or more. A released texture (`Texture::released`) keeps its object, id and GPU handle; it loads again when used. Code that checks `Texture::loaded` itself must call `TexLib::request(id)` (or `TexLib::reloadReleased`) so a released texture comes back; code that needs the CPU pixels at once goes through `setEditable`/`decodeToCpu`, which reload it first (`TexLib::reloadNow`). Any change of a texture's pixels clears `reloadable`: edited textures are never released. `RhiTextures::release` retires a texture; the renderer deletes it once it dropped the resource sets made with it.
+
+### 3.2.1 Mipmaps on Shape Textures
+Shapes sample their textures without mipmaps by default (`GLTextures()`: many MSTS textures' own mipmaps are ugly, and plain generated ones thin out alpha-tested foliage). `core.rendering.shapeTextures.mipmaps` turns them on for shapes (`SFileComplex::syncTextures`, legacy shapes through `RhiRenderer::packetTexture`). Under QRhi a display-only texture's levels come from `core.rendering.shapeTextures.mipmapSource`, made on its loader thread (`applyShapeMipmaps` in `Texture::prepareForRhi`):
+- `file`: the file's own while they chain, ours below.
+- `regenerate`: ours from level 0: 2x2 means with colours in linear light, and for cutouts (binary alpha) alpha scaled to keep level 0's coverage at the shapes' alpha test (0.51), so trees and fences stay dense at a distance.
+- `improve` (default): the file's own while each is within 12 (mean colour difference, 0 to 255) of ours made from the level above and, for a cutout, its coverage (scaled) within 0.1 of level 0's; ours from the first that is not.
+Block-compressed textures keep level 0 as it is; their levels are decoded, made or kept, and encoded again (`DxtCodec::encode`, a bounding-box fit) when changed. `regenerate` and `improve` cost load time (decoding and encoding); off, nothing changes. `core.rendering.textureLodBias` shifts the base texture's mip level in `StandardFog.fs` and `StandardFast.fs` (QRhi; the OpenGL renderer leaves it at 0). All three apply after a restart; the OpenGL renderer has the switch only (its upload keeps the file's mipmaps or generates them).
+
+### 3.3 OpenGL Upload Happens Later
 OpenGL upload is not performed in the loader threads.
 Instead, render code checks `Texture::loaded` and calls `Texture::GLTextures()` on demand (e.g. `SFileLegacy::pushRenderItem`, `OglObj::pushRenderItem`, terrain gather) to upload to GPU on the GL context thread.
 

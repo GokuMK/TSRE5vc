@@ -339,7 +339,7 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     auto push = [&queue](std::vector<Group> &groups, float opacity = 1.0f) {
         for (Group &group : groups) {
             auto found = TexLib::mtex.find(group.texture);
-            if (found != TexLib::mtex.end() && found->second != nullptr && found->second->loaded) {
+            if (found != TexLib::mtex.end() && found->second != nullptr && TexLib::request(found->first)) {
                 group.object->setOpacity(opacity);
                 group.object->pushRenderItem(queue);
             }

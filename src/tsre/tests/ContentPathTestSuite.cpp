@@ -122,8 +122,14 @@ int TsreTests::runContentPathSuite(bool verbose) {
     const QString late=a+"/TEXTURES/Late.png";
     const int failed=TexLib::addTex(late);
     test.check(!TexLib::mtex[failed]->loaded && pixels.save(late),"missing-first image fixture");
-    const int recovered=TexLib::addTex(late);
-    test.check(recovered!=failed && TexLib::mtex[recovered]->loaded,"failed image cannot poison later successful request");
+    test.check(TexLib::addTex(late)==failed && !TexLib::mtex[failed]->loaded && TexLib::getTex(late)==-1,
+            "a failed image is remembered: asked for again it is shared, not loaded again; getTex finds no usable one");
+    test.check(TexLib::addTex(late,true)==failed && TexLib::mtex[failed]->loaded,"a reload loads a failed image again, in place");
+    const QString later=a+"/TEXTURES/Later.png";
+    const int failedLater=TexLib::addTex(later);
+    test.check(!TexLib::retryIfFailed(failedLater) && pixels.save(later) && TexLib::retryIfFailed(failedLater)
+            && TexLib::addTex(later)==failedLater && !TexLib::retryIfFailed(failedLater),
+            "a shape's reload retries its failed texture in place, only a failed one");
     const QString ace=a+"/TEXTURES/Leaf.ACE", dds=a+"/TEXTURES/Leaf.dds";
     put(dds,"DDS fixture");
     auto *cachedDds=new Texture(dds);cachedDds->loaded=true;

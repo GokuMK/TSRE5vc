@@ -140,8 +140,9 @@ void SFileComplex::syncTextures() {
         if (it == TexLib::mtex.end() || !it->second)
             continue;
         auto *tex = it->second;
+        TexLib::reloadReleased(tex);
         if (tex->loaded && !tex->glLoaded && !tex->missing && !tex->error)
-            tex->GLTextures();
+            tex->GLTextures(Texture::shapeMipmaps.load(std::memory_order_relaxed));
         if (tex->glLoaded) {
             image.address = tex->tex[0];
             image.alpha = tex->alphaClass.load();
@@ -214,8 +215,12 @@ bool SFileComplex::prepare(unsigned int id) {
 }
 void SFileComplex::pushRenderItem(RenderQueue &queue) { pushRenderItem(queue, 0, 0); }
 void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigned int id) {
-    if (!prepare(id))
+    if (!prepare(id)) {
+        // Still loading (not failed).
+        if (!d->loaded && !d->attempted && RenderContext::ready())
+            queue.noteShapeWaiting();
         return;
+    }
     auto &s = d->states[id];
     auto &lod = d->lods[s.lod];
     // Animated or posed states own their packets; static ones share theirs

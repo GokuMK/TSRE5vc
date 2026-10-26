@@ -95,6 +95,10 @@ public:
     // cleared; the casters drawn into it after go on top. False when there
     // is no such cache (a new renderer): draw every caster then.
     virtual bool beginShadowCache(int map) { (void)map; return false; }
+    // Draws skipped so far because their mesh or texture is still coming
+    // (loading, or waiting for the upload budget): a count that only grows,
+    // to tell whether what was drawn in between missed anything.
+    virtual quint64 drawsWaiting() const { return 0; }
     virtual bool copyShadowCache(int map) { (void)map; return false; }
     // Draws and consumes queued work of passes first..last; later passes stay
     // queued. Use it where direct drawing must happen between passes.
@@ -325,6 +329,9 @@ public:
         float seconds = 0.0f;
     };
     virtual void setExposureControl(const ExposureControl &control) {}
+    // A frame that must show everything at once (the first view, a camera
+    // jump) makes GPU resources without the per-frame upload budget.
+    virtual void setUploadsUnlimited(bool unlimited) {}
     // Whether the view can hold the light auto exposure needs (QRhi with
     // tone mapping).
     virtual bool autoExposureAvailable() const { return false; }

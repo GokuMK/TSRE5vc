@@ -51,6 +51,11 @@ public:
 #endif
     // Backend and device, for reports.
     QString info() const;
+    // The GPU's own memory (Vulkan: its largest device-local heap; 0 when
+    // unknown), and whether it is a discrete GPU: an integrated one's own
+    // memory is a part of the RAM. For the texture memory budget.
+    qint64 deviceMemory() const;
+    bool discreteGpu() const;
 
     struct Program {
         QShader vertex;

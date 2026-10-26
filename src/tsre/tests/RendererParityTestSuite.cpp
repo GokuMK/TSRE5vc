@@ -56,10 +56,94 @@
 #include <QThread>
 #include <QTime>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/renderer/Mesh.h>
+#include <tsre/renderer/rhi/RhiContext.h>
+#include <tsre/renderer/rhi/RhiTextures.h>
+#include <tsre/shape/ShapeLib.h>
+#include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
+#include <tsre/world/TerrainLibQt.h>
+
+// The process's and the system's memory (bottom of the file: windows.h).
+struct ProcessMemory {
+    double privateMB = -1, workingSetMB = -1, peakWorkingSetMB = -1;
+    double systemUsedMB = -1, systemTotalMB = -1, commitMB = -1, commitLimitMB = -1;
+};
+static ProcessMemory processMemory();
 
 namespace {
 
 const char *CaptureLog = "[tests:renderer-capture]";
+
+// Where memory goes after a view, for finding what grows as the camera
+// jumps: the process, QRhi's allocations, library textures, meshes, and how
+// many textures, shapes and world tiles are loaded.
+QJsonObject memoryReport(const QString &view) {
+    const ProcessMemory process = processMemory();
+    QJsonObject memory;
+    memory["privateMB"] = process.privateMB;
+    memory["workingSetMB"] = process.workingSetMB;
+    memory["peakWorkingSetMB"] = process.peakWorkingSetMB;
+    memory["systemUsedMB"] = process.systemUsedMB;
+    memory["systemTotalMB"] = process.systemTotalMB;
+    memory["commitMB"] = process.commitMB;
+    memory["commitLimitMB"] = process.commitLimitMB;
+    // QRhi's allocator (Vulkan): memory its allocations use, and what its
+    // blocks hold unused. The driver's total usage reads 0 on the Deck.
+    double rhiUsedMB = -1, rhiUnusedMB = -1;
+    if (RhiContext *context = RhiContext::instance(); context != nullptr && context->rhi() != nullptr) {
+        const QRhiStats stats = context->rhi()->statistics();
+        rhiUsedMB = double(stats.usedBytes) / 1048576.0;
+        rhiUnusedMB = double(stats.unusedBytes) / 1048576.0;
+        memory["rhiAllocations"] = double(stats.allocCount);
+        memory["rhiBlocks"] = double(stats.blockCount);
+    }
+    memory["rhiUsedMB"] = rhiUsedMB;
+    memory["rhiUnusedMB"] = rhiUnusedMB;
+    memory["rhiTextures"] = RhiTextures::memorySummary();
+    memory["meshes"] = Meshes::rhiTraceSummary();
+    int textures = 0, uploaded = 0, failed = 0, waiting = 0;
+    qint64 textureBytes = 0, textureCpuBytes = 0;
+    for (const auto &entry : TexLib::mtex) {
+        const Texture *texture = entry.second;
+        if (texture == nullptr)
+            continue;
+        ++textures;
+        if (texture->glLoaded) {
+            ++uploaded;
+            textureBytes += texture->estimatedVramBytes();
+        }
+        if (texture->missing || texture->error)
+            ++failed;
+        // Loaded, never uploaded: its pixels wait in CPU memory for a draw.
+        if (texture->loaded && !texture->glLoaded)
+            ++waiting;
+        textureCpuBytes += texture->estimatedCpuBytes();
+    }
+    memory["libraryTextures"] = textures;
+    memory["libraryTexturesUploaded"] = uploaded;
+    memory["libraryTexturesFailed"] = failed;
+    memory["libraryTextureMB"] = double(textureBytes) / 1048576.0;
+    memory["libraryTexturesWaiting"] = waiting;
+    memory["libraryTextureCpuMB"] = double(textureCpuBytes) / 1048576.0;
+    memory["shapes"] = Game::currentShapeLib != nullptr ? int(Game::currentShapeLib->shape.size()) : -1;
+    memory["worldTiles"] = Game::currentRoute != nullptr ? int(Game::currentRoute->tile.size()) : -1;
+    const auto *terrain = dynamic_cast<const TerrainLibQt *>(Game::terrainLib);
+    memory["terrainTiles"] = terrain != nullptr ? terrain->loadedTileCount(false) : -1;
+    memory["distantTerrainTiles"] = terrain != nullptr ? terrain->loadedTileCount(true) : -1;
+    qInfo().noquote() << CaptureLog << view << "memory: private MB" << qRound(process.privateMB)
+                      << "working set MB" << qRound(process.workingSetMB)
+                      << "system used MB" << qRound(process.systemUsedMB) << "of" << qRound(process.systemTotalMB)
+                      << "commit MB" << qRound(process.commitMB) << "of" << qRound(process.commitLimitMB)
+                      << "| QRhi used MB" << qRound(rhiUsedMB) << "unused" << qRound(rhiUnusedMB)
+                      << "| library textures" << textures << "uploaded" << uploaded << "failed" << failed
+                      << "MB" << qRound(double(textureBytes) / 1048576.0) << "waiting" << waiting
+                      << "CPU MB" << qRound(double(textureCpuBytes) / 1048576.0)
+                      << "| shapes" << memory["shapes"].toInt() << "world tiles" << memory["worldTiles"].toInt()
+                      << "terrain tiles" << memory["terrainTiles"].toInt() << "distant" << memory["distantTerrainTiles"].toInt()
+                      << "| textures" << memory["rhiTextures"].toString() << "| meshes" << memory["meshes"].toString();
+    return memory;
+}
 const char *CompareLog = "[tests:renderer-compare]";
 
 struct SettleOptions {
@@ -239,6 +323,9 @@ struct Options {
     // section lines, track items, interactives, grids, markers, the pointer)
     // and the compass: the scene alone.
     bool hideAll = false;
+    // false: no image written per view (motion sequences timing frames: a
+    // PNG takes half a second, a pause the loaders would use).
+    bool saveImages = true;
     Thresholds thresholds;
     // Map mode layers: an activity and a path to select, by file name.
     QString activity;
@@ -327,6 +414,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.pivotPoints = root.value("pivotPoints").toBool(options.pivotPoints);
     options.snapable = root.value("snapable").toBool(options.snapable);
     options.hideAll = root.value("hideAll").toBool(options.hideAll);
+    options.saveImages = root.value("saveImages").toBool(options.saveImages);
     if (options.hideAll)
         options.compass = options.pointer = options.pivotPoints = options.snapable = false;
 
@@ -750,6 +838,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     }
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
+        QElapsedTimer viewTimer;
+        viewTimer.start();
         if (!spec.simulateTo.isEmpty()) {
             Sim::SimulationController *simulation = Sim::SimulationController::instance();
             const QTime time = QTime::fromString(spec.simulateTo, "HH:mm:ss");
@@ -886,13 +976,38 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         unsigned lastShapeProgress = ShapeLoader::progress();
         int frames = 0;
         bool settled = false;
+        const qint64 setupMs = viewTimer.elapsed();
+        // Every frame of the view: the slowest one and the GPU resources
+        // made (camera motion sequences: stutter as content streams in).
+        double slowestFrameMs = 0.0, slowestCpuMs = 0.0;
+        quint64 viewTextures = 0, viewDeferred = 0;
+        double viewTextureMs = 0.0, viewMeshMs = 0.0, viewBindingMs = 0.0, viewPipelineMs = 0.0;
+        int viewFrames = 0;
+        auto countFrame = [&](double ms) {
+            const RenderStats::FrameStats last = RenderStats::lastFrame();
+            slowestFrameMs = std::max(slowestFrameMs, ms);
+            slowestCpuMs = std::max(slowestCpuMs, last.cpuMs);
+            viewTextures += last.texturesCreated;
+            viewDeferred += last.uploadsDeferred;
+            viewTextureMs += last.textureCreateMs;
+            viewMeshMs += last.meshCreateMs;
+            viewBindingMs += last.bindingCreateMs;
+            viewPipelineMs += last.pipelineCreateMs;
+            ++viewFrames;
+        };
+        QElapsedTimer settleFrameTimer;
         while (frames < settle.maxFrames
                && settleTimer.elapsed() < qint64(settle.maxSeconds) * 1000) {
             pumpEvents(settle.frameIntervalMs);
+            settleFrameTimer.start();
             const QByteArray hash = imageHash(widget.grabFramebuffer());
+            countFrame(settleFrameTimer.nsecsElapsed() / 1e6);
             frames++;
             stableCount = hash == lastHash ? stableCount + 1 : 0;
             lastHash = hash;
+            // Nor settled while uploads wait for the per-frame budget.
+            if (RenderStats::lastFrame().uploadsDeferred > 0)
+                stableCount = 0;
             // A frame can repeat while shapes still load on the workers.
             const unsigned shapeProgress = ShapeLoader::progress();
             if (shapeProgress != lastShapeProgress)
@@ -923,6 +1038,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             frameTimer.start();
             image = widget.grabFramebuffer();
             frameMs.push_back(frameTimer.nsecsElapsed() / 1e6);
+            countFrame(frameMs.back());
             const QByteArray hash = imageHash(image);
             if (i > 0 && hash != previousHash)
                 stable = false;
@@ -947,18 +1063,26 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             pointer = widget.probePointer(QPoint(image.width() / 2, image.height() / 2));
 
         const QString imageName = spec.name + ".png";
-        image.save(QDir(outputDir).filePath(imageName));
+        QElapsedTimer saveTimer;
+        saveTimer.start();
+        if (options.saveImages)
+            image.save(QDir(outputDir).filePath(imageName));
+        const qint64 saveMs = saveTimer.elapsed();
 
         QJsonArray pointList;
         QJsonArray idList;
+        QJsonArray describedList;
         for (int i = 0; i < points.size(); ++i) {
             pointList.append(QJsonArray{points[i].x(), points[i].y()});
             idList.append(i < picks.size() ? double(picks[i]) : -1.0);
+            describedList.append(i < picks.size() ? describeSelection(picks[i]) : QString());
         }
         QJsonObject picking;
         picking["valid"] = picks.size() == points.size();
         picking["points"] = pointList;
         picking["ids"] = idList;
+        // What each id is (tile, object and part), for reading the report.
+        picking["described"] = describedList;
 
         QJsonObject statsJson = RenderStats::toJson(stats);
         statsJson["minCpuMs"] = minCpuMs;
@@ -981,12 +1105,36 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         view["settleFrames"] = frames;
         view["settleMs"] = double(settleTimer.elapsed());
         view["stableAcrossTimingFrames"] = stable;
-        view["image"] = imageName;
+        view["image"] = options.saveImages ? imageName : QString();
         view["picking"] = picking;
         view["pointer"] = QJsonArray{pointer.x(), pointer.y(), pointer.z()};
         view["stats"] = statsJson;
+        QJsonObject frameSummary;
+        frameSummary["frames"] = viewFrames;
+        frameSummary["slowestMs"] = slowestFrameMs;
+        frameSummary["slowestCpuMs"] = slowestCpuMs;
+        frameSummary["texturesCreated"] = double(viewTextures);
+        frameSummary["uploadsDeferred"] = double(viewDeferred);
+        frameSummary["textureCreateMs"] = viewTextureMs;
+        frameSummary["meshCreateMs"] = viewMeshMs;
+        frameSummary["bindingCreateMs"] = viewBindingMs;
+        frameSummary["pipelineCreateMs"] = viewPipelineMs;
+        view["frames"] = frameSummary;
+        QElapsedTimer memoryTimer;
+        memoryTimer.start();
+        view["memory"] = memoryReport(spec.name);
+        const qint64 memoryMs = memoryTimer.elapsed();
         viewReports.append(view);
 
+        qInfo().noquote() << CaptureLog << spec.name << "frames" << viewFrames << "slowest"
+                          << QString::number(slowestFrameMs, 'f', 1) << "ms, CPU"
+                          << QString::number(slowestCpuMs, 'f', 1) << "ms; made" << viewTextures
+                          << "textures" << QString::number(viewTextureMs, 'f', 1) << "ms, meshes"
+                          << QString::number(viewMeshMs, 'f', 1) << "ms, resource sets"
+                          << QString::number(viewBindingMs, 'f', 1) << "ms, pipelines"
+                          << QString::number(viewPipelineMs, 'f', 1) << "ms, deferred" << viewDeferred
+                          << "; view" << viewTimer.elapsed()
+                          << "ms (setup" << setupMs << ", image save" << saveMs << ", memory report" << memoryMs << ")";
         qInfo().noquote() << CaptureLog << spec.name
                           << (settled ? "settled" : "did not settle") << "after" << frames
                           << "frames," << settleMs << "ms; draws" << stats.drawCalls
@@ -1532,4 +1680,37 @@ int TsreTests::runShapeViewerCompareSuite(const QString &casesFile,
             out << row << "\n";
     }
     return 0;
+}
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <psapi.h>
+#endif
+
+static ProcessMemory processMemory() {
+    ProcessMemory memory;
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS_EX counters {};
+    if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&counters),
+                                sizeof(counters))) {
+        memory.privateMB = double(counters.PrivateUsage) / 1048576.0;
+        memory.workingSetMB = double(counters.WorkingSetSize) / 1048576.0;
+        memory.peakWorkingSetMB = double(counters.PeakWorkingSetSize) / 1048576.0;
+    }
+    MEMORYSTATUSEX status {};
+    status.dwLength = sizeof(status);
+    if (GlobalMemoryStatusEx(&status)) {
+        memory.systemTotalMB = double(status.ullTotalPhys) / 1048576.0;
+        memory.systemUsedMB = double(status.ullTotalPhys - status.ullAvailPhys) / 1048576.0;
+        memory.commitLimitMB = double(status.ullTotalPageFile) / 1048576.0;
+        memory.commitMB = double(status.ullTotalPageFile - status.ullAvailPageFile) / 1048576.0;
+    }
+#endif
+    return memory;
 }

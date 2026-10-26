@@ -1,8 +1,11 @@
 #include "DxtCodec.h"
+#include <QtAlgorithms>
 #include <QtEndian>
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <limits>
+#include <vector>
 
 namespace {
 using Pixel = std::array<int, 4>;
@@ -260,5 +263,120 @@ bool dxt1ToBc3(const QByteArray &dxt1, QByteArray &bc3) {
     }
     bc3 = std::move(result);
     return true;
+}
+
+void bleedBc3Transparent(QByteArray &bc3, int width, int height) {
+    const int bw = (width + 3) / 4, bh = (height + 3) / 4;
+    if (bw <= 0 || bh <= 0 || bc3.size() != qsizetype(bw) * bh * 16)
+        return;
+    auto *data = reinterpret_cast<unsigned char *>(bc3.data());
+    const qsizetype count = qsizetype(bw) * bh;
+    // Each block's transparent texels (bit i). Blocks as dxt1ToBc3 writes
+    // them (alpha endpoints 255 and 0) need no alpha palette: index 1 is the
+    // only transparent one, every index 0 an opaque block.
+    // The mean of the colour endpoints of blocks with opaque texels colours
+    // the transparent blocks no such block touches.
+    std::vector<quint16> clear(static_cast<size_t>(count), 0);
+    long sum[3] = {0, 0, 0}, endpoints = 0;
+    bool any = false;
+    for (qsizetype b = 0; b < count; ++b) {
+        const unsigned char *block = data + b * 16;
+        quint16 mask = 0;
+        quint64 indices = 0;
+        for (int i = 0; i < 6; ++i)
+            indices |= quint64(block[2 + i]) << (8 * i);
+        if (block[0] == 255 && block[1] == 0) {
+            for (int i = 0; indices != 0 && i < 16; ++i)
+                if (((indices >> (3 * i)) & 7) == 1)
+                    mask |= quint16(1u << i);
+        } else if (block[0] != 255 || indices != 0) {
+            const std::array<int, 8> a = alphas(block[0], block[1]);
+            for (int i = 0; i < 16; ++i)
+                if (a[(indices >> (3 * i)) & 7] == 0)
+                    mask |= quint16(1u << i);
+        }
+        clear[size_t(b)] = mask;
+        any = any || mask != 0;
+        if (mask != 0xFFFF) {
+            for (int e = 0; e < 2; ++e) {
+                const Pixel c = unpack565(qFromLittleEndian<quint16>(block + 8 + 2 * e));
+                for (int k = 0; k < 3; ++k)
+                    sum[k] += c[k];
+            }
+            endpoints += 2;
+        }
+    }
+    if (!any || endpoints == 0)
+        return;
+    // Partly transparent blocks: the colour index of an opaque texel next to
+    // each transparent one, else two texels away, else any in the block.
+    static const auto around = [] {
+        std::array<std::array<quint16, 16>, 2> masks{};
+        for (int i = 0; i < 16; ++i)
+            for (int j = 0; j < 16; ++j) {
+                const int d = std::max(std::abs((i & 3) - (j & 3)), std::abs((i >> 2) - (j >> 2)));
+                for (int r = 0; r < 2; ++r)
+                    if (j != i && d <= r + 1)
+                        masks[size_t(r)][size_t(i)] |= quint16(1u << j);
+            }
+        return masks;
+    }();
+    for (qsizetype b = 0; b < count; ++b) {
+        const quint16 mask = clear[size_t(b)];
+        if (mask == 0 || mask == 0xFFFF)
+            continue;
+        const quint16 opaque = quint16(~mask);
+        unsigned char *block = data + b * 16;
+        const quint32 selectors = qFromLittleEndian<quint32>(block + 12);
+        quint32 result = selectors;
+        for (int i = 0; i < 16; ++i) {
+            if (!(mask & (1u << i)))
+                continue;
+            quint16 from = opaque & around[0][size_t(i)];
+            if (from == 0)
+                from = opaque & around[1][size_t(i)];
+            if (from == 0)
+                from = opaque;
+            const int j = qCountTrailingZeroBits(from);
+            result = (result & ~(3u << (2 * i))) | (((selectors >> (2 * j)) & 3u) << (2 * i));
+        }
+        qToLittleEndian(result, block + 12);
+    }
+    // Transparent blocks: one colour, the mean of the blocks beside them with
+    // opaque texels (all their texels now an opaque one's colour), else the
+    // endpoints' mean. They read only such blocks: in place is safe.
+    const Pixel fallback{int(sum[0] / endpoints), int(sum[1] / endpoints), int(sum[2] / endpoints), 255};
+    for (qsizetype b = 0; b < count; ++b) {
+        if (clear[size_t(b)] != 0xFFFF)
+            continue;
+        const int bx = int(b % bw), by = int(b / bw);
+        long near[3] = {0, 0, 0}, n = 0;
+        const int around[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        for (const auto &step : around) {
+            const int nx = bx + step[0], ny = by + step[1];
+            if (nx < 0 || ny < 0 || nx >= bw || ny >= bh)
+                continue;
+            const qsizetype nb = qsizetype(ny) * bw + nx;
+            if (clear[size_t(nb)] == 0xFFFF)
+                continue;
+            const unsigned char *block = data + nb * 16;
+            const std::array<Pixel, 4> c = colors(qFromLittleEndian<quint16>(block + 8),
+                                                  qFromLittleEndian<quint16>(block + 10), false);
+            const quint32 selectors = qFromLittleEndian<quint32>(block + 12);
+            for (int j = 0; j < 16; ++j) {
+                const Pixel &p = c[(selectors >> (2 * j)) & 3];
+                for (int k = 0; k < 3; ++k)
+                    near[k] += p[k];
+                ++n;
+            }
+        }
+        const Pixel colour = n == 0 ? fallback
+                                    : Pixel{int(near[0] / n), int(near[1] / n), int(near[2] / n), 255};
+        unsigned char *block = data + b * 16;
+        const quint16 packed = pack565(colour);
+        qToLittleEndian(packed, block + 8);
+        qToLittleEndian(packed, block + 10);
+        qToLittleEndian<quint32>(0, block + 12);
+    }
 }
 } // namespace DxtCodec

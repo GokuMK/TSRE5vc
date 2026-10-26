@@ -20,6 +20,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 #if TSRE_RHI_VULKAN
+#include <QVulkanFunctions>
 #include <QVulkanInstance>
 #endif
 #include <rhi/qshaderbaker.h>
@@ -216,6 +217,29 @@ QSurface::SurfaceType RhiContext::surfaceType() const {
     default: break;
     }
     return QSurface::RasterSurface;
+}
+
+qint64 RhiContext::deviceMemory() const {
+#if TSRE_RHI_VULKAN
+    if (!rhiInstance || rhiInstance->backend() != QRhi::Vulkan || !vulkan)
+        return 0;
+    const auto *handles = static_cast<const QRhiVulkanNativeHandles *>(rhiInstance->nativeHandles());
+    if (handles == nullptr || handles->physDev == VK_NULL_HANDLE)
+        return 0;
+    VkPhysicalDeviceMemoryProperties memory {};
+    vulkan->functions()->vkGetPhysicalDeviceMemoryProperties(handles->physDev, &memory);
+    qint64 largest = 0;
+    for (uint32_t i = 0; i < memory.memoryHeapCount; ++i)
+        if (memory.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+            largest = std::max(largest, qint64(memory.memoryHeaps[i].size));
+    return largest;
+#else
+    return 0;
+#endif
+}
+
+bool RhiContext::discreteGpu() const {
+    return rhiInstance && rhiInstance->driverInfo().deviceType == QRhiDriverInfo::DiscreteDevice;
 }
 
 QString RhiContext::info() const {

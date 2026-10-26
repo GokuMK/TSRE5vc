@@ -226,10 +226,8 @@ A cache is drawn again at once when what it holds changes, and in turn
 middle and far maps along) when it was drawn for another place, view, sun
 or time:
 
-- At once: the static objects' signature, textures uploaded
-  (`Texture::uploads`), shapes loaded (`ShapeLoader::progress()`), the map's
-  size, or the camera's tile (positions are the tile's, so a cached matrix
-  is wrong in another). The signature (`RenderQueue::addShadowSignature`,
+- At once: the static objects' signature, the map's size, or the camera's
+  tile (positions are the tile's, so a cached matrix is wrong in another). The signature (`RenderQueue::addShadowSignature`,
   from `Tile::pushRenderItems`) sums a hash of each loaded object that
   casts and is not being edited: its identity, tile, place, rotation and
   last change, cached on the object (`WorldObj::signatureHash`) and
@@ -246,6 +244,22 @@ or time:
   its last draw (a safety net, as the enclosure maps' redraw once a
   second). At 100 km/h (28 m/s): the near map about 1.7 times a second, the
   middle one 0.5, the far one every 5 seconds.
+- In turn, at least 500 ms after its last draw, content it missed: it
+  skipped casters still coming (`Renderer::drawsWaiting` grew while it was
+  drawn: a mesh or texture not there yet, or a shape still loading within
+  its reach, `RenderQueue::noteShapeWaiting`), and shapes loaded
+  (`ShapeLoader::progress()`) or textures uploaded (`Texture::uploads`)
+  since. Loading elsewhere redraws nothing. These were redraws of all three
+  maps at once for any shape or texture (2026-10-26): with content
+  streaming in as the camera moves, the per-frame upload budget made about
+  one texture a frame, and each, anywhere on the route, redrew every cache.
+  The user's frame log (1.2 km at 30 m/s, 4K): frames that made a texture
+  spent 19.6 ms on the shadow maps against 2.7 ms for the others, a third
+  of the moving frames. The first 40 views of
+  `tests/renderer/flight-heavy.json` (1.6 km): 256 cache redraws before, 71
+  after, all for the camera's place (none for content); the slowest frame's
+  CPU a view median 55 to 51 ms, p90 77 to 66 (textures only); settled
+  images identical.
 
 The LOD of static objects is kept as it was at the redraw while the camera
 moves; harmless. `TSRE_SHADOW_CACHE=0` turns the caches off (the maps drawn

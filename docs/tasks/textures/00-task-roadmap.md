@@ -6,6 +6,8 @@ This folder contains ordered tasks for refactoring texture decoding/upload and a
 - [x] `01-texture-format-and-upload-refactor.md`
 - [x] `02-texture-memory-stats-and-debug-dump.md`
 - [x] `03-ace-converter.md` — GUI and console texture conversion.
+- [ ] `04-texture-memory.md` — memory measured jumping across Prudnik (textures 54% of the growth); safe releasing, residency under a budget and the terrain release done; BC7 benchmarked, compression open.
+- [x] Mipmaps on shape textures (2026-10-26, `docs/features/textures-and-texlib.md` 3.2.1): off by default; the file's own, made again or improved (coverage kept for cutouts); a sharpness bias. Settings `core.rendering.shapeTextures.*`, `core.rendering.textureLodBias`.
 
 ## Ground Rules For All Tasks
 - Keep existing formats (`.ace`, `.dds`, common image files, `.:paintTex`) working throughout.

@@ -24,5 +24,13 @@ bool encode(const unsigned char *pixels, qsizetype size, int width, int height, 
 // most a sixth of the endpoints' distance off. False when the size is not
 // whole blocks.
 bool dxt1ToBc3(const QByteArray &dxt1, QByteArray &bc3);
+// A BC3 image's fully transparent texels (alpha 0) take the colour of the
+// opaque ones beside them, alpha kept: in a block the colour index of its
+// nearest opaque texel, a block of transparent texels only one colour, the
+// mean of the blocks beside it with opaque texels, or of the whole image's.
+// Filtering at a cutout's edge then mixes in no colour of what was behind the
+// cutout (DXT1 converted: the first endpoint's, often the white or blue an
+// artist's tool fitted it to). Nothing when the size does not match.
+void bleedBc3Transparent(QByteArray &bc3, int width, int height);
 } // namespace DxtCodec
 #endif

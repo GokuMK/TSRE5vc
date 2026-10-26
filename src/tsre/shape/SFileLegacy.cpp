@@ -1071,8 +1071,10 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
         return;
     if (loaded == 0) {
         const ShapeLoader::Request request = ShapeLoader::request(this);
-        if (request == ShapeLoader::Request::Wait)
+        if (request == ShapeLoader::Request::Wait) {
+            queue.noteShapeWaiting();
             return;
+        }
         if (request == ShapeLoader::Request::LoadHere) {
             loaded = 2;
             load();

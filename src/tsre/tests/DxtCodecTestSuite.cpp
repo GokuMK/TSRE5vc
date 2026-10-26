@@ -102,6 +102,31 @@ int TsreTests::runDxtCodecSuite(bool verbose) {
     }
     check(!DxtCodec::dxt1ToBc3(QByteArray(12, '\0'), bc3), "a partial block is rejected");
 
+    // Bleeding (8x4: two blocks): the left block's opaque texels red (index
+    // 1), its right half transparent (index 3, the first endpoint blue once
+    // converted); the right block transparent throughout. Both end red, their
+    // alpha kept.
+    QByteArray cutout(16, '\0');
+    for (int b = 0; b < 2; ++b) {
+        qToLittleEndian<quint16>(0x001F, cutout.data() + b * 8);
+        qToLittleEndian<quint16>(0xF800, cutout.data() + b * 8 + 2);
+    }
+    quint32 half = 0;
+    for (int i = 0; i < 16; ++i)
+        half |= ((i & 3) < 2 ? 1u : 3u) << (2 * i);
+    qToLittleEndian<quint32>(half, cutout.data() + 4);
+    qToLittleEndian<quint32>(0xFFFFFFFFu, cutout.data() + 12);
+    QByteArray bled, bledPixels;
+    const bool converted = DxtCodec::dxt1ToBc3(cutout, bled);
+    DxtCodec::bleedBc3Transparent(bled, 8, 4);
+    bool red = converted && DxtCodec::decode(bled, 8, 4, Format::Dxt5, true, bledPixels, error);
+    for (int y = 0; red && y < 4; ++y)
+        for (int x = 0; x < 8; ++x) {
+            const unsigned char *p = reinterpret_cast<const unsigned char *>(bledPixels.constData()) + (y * 8 + x) * 4;
+            red = red && p[0] > 240 && p[1] < 16 && p[2] < 16 && p[3] == ((x < 2) ? 255 : 0);
+        }
+    check(red, "transparent texels take their opaque neighbours' colour, in the block and the block beside it");
+
     qInfo() << "[tests:dxt-codec] cases=" << (passed + failed) << "passed=" << passed
             << "failed=" << failed;
     return failed == 0 ? 0 : 1;

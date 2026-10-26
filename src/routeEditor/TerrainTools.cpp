@@ -667,7 +667,8 @@ bool TerrainTools::chooseProceduralMaterial(const QString &message) {
         const auto library=TerrainMaterialLibrary::current();
         const auto material=library->find(dialog.selectedUid());
         if (!material) return false;
-        const int textureId=TexLib::addTex(library->textureDirectory(),material->texture);
+        // Brush textures go into the terrain's: editable.
+        const int textureId=TexLib::addTex(library->textureDirectory(),material->texture,false,TexLib::Editable);
         setBrushTextureId(textureId);
         TexLib::delRef(textureId);
         paintBrush->terrainMaterialUid=material->uid;
@@ -698,7 +699,7 @@ void TerrainTools::setTexToolEnabled(){
         filename = fd.selectedFiles()[i];
         qDebug()<<"texture file "<<filename;
 
-        int tid = TexLib::addTex(filename);
+        int tid = TexLib::addTex(filename, false, TexLib::Editable);
         setBrushTextureId(tid);
         TexLib::delRef(tid);
         rememberCurrentMaterial();
@@ -905,7 +906,7 @@ void TerrainTools::texPreviewEnabled(int val){
             qtTrId("route.editor.terrain.tools.dialog.title.recent.terrain.material"),
             //% "This procedural material is not available in the current route. Use Choose to select another material."
             qtTrId("route.editor.terrain.tools.dialog.message.this.procedural.material.is.not.available.in")); return; }
-        const int textureId=TexLib::addTex(library->textureDirectory(),material->texture);
+        const int textureId=TexLib::addTex(library->textureDirectory(),material->texture,false,TexLib::Editable);
         setBrushTextureId(textureId); TexLib::delRef(textureId);
         paintBrush->terrainMaterialUid=entry.uid; paintBrush->terrainMaterialRoute=entry.route;
     } else {

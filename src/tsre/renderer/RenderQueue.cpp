@@ -72,7 +72,13 @@ void RenderQueue::setLightReach(float metres) {
     currentLightReach = metres > 0.0f ? metres : 0.0f;
 }
 
+void RenderQueue::noteShapeWaiting() {
+    if (shadowCasting && mvMatrix != nullptr)
+        waitingShapes.push_back({mvMatrix[12], mvMatrix[13], mvMatrix[14]});
+}
+
 void RenderQueue::resetQueueState() {
+    waitingShapes.clear();
     currentLayer = LAYER_SCENE;
     shadowCasting = true;
     shadowOnly = false;

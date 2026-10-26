@@ -62,8 +62,11 @@ void ImageLib::run(){
     //memcpy(texture->imageData, img.bits(), texture->width*texture->height*texture->bytesPerPixel);
     
     texture->classifyAlpha();
-    texture->loaded = true;
     texture->editable = true;
+    // Only displayed: made ready for the GPU here, off the render thread.
+    if (texture->displayOnly)
+        texture->prepareForRhi();
+    texture->loaded = true;
     
     return;
 }
