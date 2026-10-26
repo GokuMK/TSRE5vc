@@ -358,9 +358,8 @@ thread.
   brake bar full); the same on both. Suites: `rmlui` 16 (the HUD document,
   its Lua trend, its ids), `script` 28, consist-preview-gl 15,
   shape-complex-gl 131; ctest 11/11.
-- Left: input (mouse and keys to the documents; the user rethinks it
-  first) and a key for RmlUi's debugger; clip masks, filters and
-  gradients; cab displays drawing into a texture (another task).
+- Left: clip masks, filters and gradients; cab displays drawing into a
+  texture (another task). Input: done 2026-10-26 (below).
 
 ## Images through TexLib (2026-10-26)
 - A document's images load through TexLib, as all of TSRE's textures:
@@ -407,6 +406,64 @@ thread.
   core.rendering.backend=opengl` and `=qrhi`): whole frames RMSE 1.02, 0.06 %
   of pixels apart; the HUD panel alone (230 x 200 px) at most 1/255 apart
   for the document's HUD and 2/255 for SimpleHud.
+
+## Input (2026-10-26)
+The user's wishes: widgets dragged by the mouse (by a bar, or by any part
+that does nothing else); the keyboard for menus and, later, a gamepad: a
+widget in focus (Esc shows the game menu, which takes the keys), in-game
+widgets usually not.
+
+Decided (user, 2026-10-26): nothing remembered (widget places, like the
+editor's Qt windows, belong to a later task saving the session); the game
+menu on Esc in play mode is a later task, the backend ready for it; a
+gamepad later, the backend shaped so it fits (actions), its details not
+decided; the editor view only, the one view there is.
+
+Built (`src/tsre/ui/UiScreen.h`, `Ui::Screen`: the UI over a view, its
+context, documents and input):
+- The router, before the view's camera and tools in each event handler:
+  - Mouse: whoever gets a press keeps that button until its release. A
+    press goes to the UI only over an element that takes the mouse;
+    documents' bodies fill the view and let the mouse through
+    (`pointer-events: none` in `base.rcss`), controls and handles take it.
+    A drag the view started stays the view's over a document. While a menu
+    is shown the mouse is all the UI's. Moves reach the UI for hover; the
+    wheel only over something it scrolls.
+  - Keys: the view's (the camera's, the tools'), the menu's (a modal
+    document shown: every key and action; arrows, Tab and Enter navigate
+    it, as RmlUi does with `nav-*`, `tab-index` from `base.rcss`; Esc closes
+    it), or a text field's (clicked into: typing until Enter, Esc or a click
+    elsewhere). Hovering or clicking a widget never takes the keys.
+  - With the view's keys: Esc asks the menu handler (`setMenuHandler`, the
+    game menu later; without one Esc stays the view's, which closes the
+    editor today), F8 shows RmlUi's debugger.
+  - Actions (`Screen::action`: up, down, left, right, accept, back, next,
+    previous, menu): what a gamepad will send; with a menu shown they
+    navigate it as the keys do.
+- `showMenu(document)`: modal, the keys its own, its first control
+  focused (or the one marked `autofocus`), so keys and a gamepad work at
+  once.
+- The camera: `Camera::releaseKeys()` lets go of the keys it holds (move,
+  speed, turn) when the UI takes the keys or the view loses the focus; its
+  mouse buttons need not, their release reaches the view that got the
+  press (cancelling drags on focus loss broke them under Xvfb, where focus
+  moves on a click).
+- Dragging: RmlUi's `<handle move_target="#parent">` (the target is found
+  from the handle: `#parent`, `#document` or `#self`, not an id). It keeps
+  the target inside its container (`edge_margin`, 0 by default), so with
+  the bodies filling the view a widget stays inside it. The HUD's panel is
+  dragged by any of it (a handle behind its texts).
+- The pointer: shapes the documents ask for (`cursor: move` on handles)
+  set on the view.
+- `Ui::Hud` is now a document on the screen; the screen updates and draws
+  every document (TSRE_UI_LOG times them all).
+- Checked: suite `rmlui` (30 checks: a view's press and its drag over a
+  widget, a widget dragged by its handle, a button clicked with the keys
+  still the view's, the wheel, a text field's typing and Esc, a menu's keys,
+  modal mouse and navigation by keys and by actions, Esc closing it, Esc
+  with the view's keys); play mode under Xvfb driven by xdotool: the HUD
+  panel dragged across the view (300 x 240 px), a click outside the
+  panel going to the view, F8 showing the debugger over it.
 
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.

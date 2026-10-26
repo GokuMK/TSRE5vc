@@ -11,6 +11,8 @@
      Texts that are translation ids show translated. -->
 <body data-model="train" ontrainupdate="hudUpdate(event, document)">
     <div id="panel">
+        <!-- The panel dragged by any of it, kept inside the view. -->
+        <handle id="drag" move_target="#parent"></handle>
         <div class="label">ui.hud.speed</div>
         <div id="speed"><span id="speedValue">{{speed}}</span> <span class="unit">{{speedUnit}}</span></div>
         <div class="label">ui.hud.distance</div>

@@ -10,13 +10,40 @@ table { display: table; }
 tr { display: table-row; }
 td, th { display: table-cell; }
 
+/* A document lies over the whole view: where it has nothing to click, the
+   mouse is the view's (its camera and tools). Parts that take the mouse say
+   pointer-events: auto. A handle keeps what it drags inside the view. */
 body
 {
+    width: 100%;
+    height: 100%;
     font-family: "Noto Sans";
     font-weight: normal;
     font-style: normal;
     font-size: 16dp;
     color: #ffffff;
+    pointer-events: none;
+}
+
+/* Controls take the mouse, and keys (or a gamepad) reach them in a menu:
+   Tab, the arrows, Enter. */
+button, input, select, textarea, handle
+{
+    pointer-events: auto;
+}
+
+button, input, select, textarea
+{
+    tab-index: auto;
+    nav-up: auto;
+    nav-down: auto;
+    nav-left: auto;
+    nav-right: auto;
+}
+
+handle
+{
+    cursor: move;
 }
 
 h1 { font-size: 2em; font-weight: bold; }

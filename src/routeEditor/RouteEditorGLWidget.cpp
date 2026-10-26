@@ -65,6 +65,8 @@
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/ui/UiHud.h>
+#include <tsre/ui/UiRuntime.h>
+#include <tsre/ui/UiScreen.h>
 #include <tsre/world/Skydome.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/EnvironmentMap.h>
@@ -1067,7 +1069,8 @@ void RouteEditorGLWidget::paintScene(){
     // for a ridden train, otherwise the built-in one in the UI pass.
     Consist *hudTrain = !selectionPass && Game::hudEnabled && Game::hudDocument
             ? dynamic_cast<Consist*>(camera->getCameraObject()) : nullptr;
-    const bool hudFromDocument = hudTrain != nullptr && (!uiHud || uiHud->usable());
+    const bool hudFromDocument = hudTrain != nullptr && (!uiScreen || uiScreen->usable())
+            && (!uiHud || uiHud->usable());
     if(!selectionPass && Game::hudEnabled && !hudFromDocument){
         int shadowsState = Game::shadowsEnabled;
         Game::shadowsEnabled = 0;
@@ -1085,13 +1088,21 @@ void RouteEditorGLWidget::paintScene(){
         renderer->releaseProgram();
     }
     renderer->renderFrame();
-    if (hudFromDocument) {
-        if (!uiHud)
-            uiHud = std::make_unique<Ui::Hud>();
-        Ui::Hud::Values values;
-        hudTrain->hudValues(values.speed, values.distance, values.throttle, values.brake);
-        uiHud->draw(renderer, qRound(this->width() * Game::PixelRatio), qRound(this->height() * Game::PixelRatio),
-                    Game::PixelRatio * Game::hudScale, values);
+    // The UI over the view: its documents updated and drawn.
+    if (!selectionPass) {
+        if (hudFromDocument && uiScreenReady()) {
+            if (!uiHud)
+                uiHud = std::make_unique<Ui::Hud>(*uiScreen);
+            Ui::Hud::Values values;
+            hudTrain->hudValues(values.speed, values.distance, values.throttle, values.brake);
+            uiHud->update(values);
+        } else if (uiHud) {
+            uiHud->hide();
+        }
+        if (uiScreen && uiScreen->context() != nullptr) {
+            uiScreen->update();
+            uiScreen->draw(renderer);
+        }
     }
     if (!selectionPass && Game::environmentMapPreview && environmentMap != NULL
             && environmentMap->complete())
@@ -2323,8 +2334,46 @@ void RouteEditorGLWidget::surfaceResize(int w, int h) {
     //gluu->m_proj.perspective(45.0f, GLfloat(w) / h, 0.01f, 100.0f);
 }
 
+bool RouteEditorGLWidget::uiScreenReady() {
+    if (!uiScreen) {
+        uiScreen = std::make_unique<Ui::Screen>();
+        // The camera lets go of the keys it holds when the UI takes them.
+        uiScreen->setKeysTaken([this] {
+            if (camera != NULL)
+                camera->releaseKeys();
+        });
+    }
+    if (!uiScreen->ready(qRound(this->width() * Game::PixelRatio), qRound(this->height() * Game::PixelRatio),
+                         Game::PixelRatio, Game::PixelRatio * Game::hudScale))
+        return false;
+    if (!uiCursor) {
+        uiCursor = true;
+        // The pointer shapes the documents ask for (a handle's "move").
+        Ui::Runtime::get()->setCursorHandler([this](const QString &name) {
+            static const QHash<QString, Qt::CursorShape> shapes = {
+                {"move", Qt::SizeAllCursor}, {"pointer", Qt::PointingHandCursor}, {"text", Qt::IBeamCursor},
+                {"resize", Qt::SizeFDiagCursor}, {"cross", Qt::CrossCursor}};
+            const auto shape = shapes.find(name);
+            if (shape != shapes.end())
+                setCursor(shape.value());
+            else
+                unsetCursor();
+        });
+    }
+    return true;
+}
+
+void RouteEditorGLWidget::focusOutEvent(QFocusEvent *event) {
+    if (camera != NULL)
+        camera->releaseKeys();
+    QWidget::focusOutEvent(event);
+}
+
 void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
     Game::currentShapeLib = currentShapeLib;
+    // The UI first: a menu or a text field has the keys, or Esc and F8.
+    if (uiScreen && uiScreen->keyPress(event))
+        return;
     
     if (event->key() == Qt::Key_F10
             && (event->modifiers() & Qt::ControlModifier)
@@ -2492,6 +2541,8 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
 
 void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
     Game::currentShapeLib = currentShapeLib;
+    if (uiScreen && uiScreen->keyRelease(event))
+        return;
     if (!route->loaded) return;
     camera->keyUp(event);
     switch (event->key()) {
@@ -2514,6 +2565,9 @@ void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
 
 void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     Game::currentShapeLib = currentShapeLib;
+    // A press over a document's widget is the UI's, with its drag.
+    if (uiScreen && uiScreen->mousePress(event))
+        return;
     bolckContextMenu = false;
     if (!route->loaded) return;
     m_lastPos = event->position();
@@ -2629,6 +2683,8 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
 }
 
 void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
+    if (uiScreen && uiScreen->wheel(event))
+        return;
     float numDegrees = 0.01 * event->angleDelta().y();
     if (currentViewMode == ViewMode::Map) {
         const QPointF position = event->position() * Game::PixelRatio;
@@ -2681,6 +2737,8 @@ void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
 
 void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     Game::currentShapeLib = currentShapeLib;
+    if (uiScreen && uiScreen->mouseRelease(event))
+        return;
     if (!route->loaded) return;
     camera->MouseUp(event);
     if (currentViewMode == ViewMode::Map) {
@@ -2745,6 +2803,9 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
+    // Hover for the documents; the UI's drag stays the UI's.
+    if (uiScreen && uiScreen->mouseMove(event))
+        return;
     mouseClick = false;
     bolckContextMenu = false;
     Game::currentShapeLib = currentShapeLib;

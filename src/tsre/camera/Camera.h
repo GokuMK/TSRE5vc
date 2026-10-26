@@ -55,6 +55,10 @@ public:
     virtual void MouseUp(QMouseEvent* e);
     virtual void keyDown(QKeyEvent * e);
     virtual void keyUp(QKeyEvent * e);
+    // Lets go of the keys it holds, as if released (the UI took the keys,
+    // or the view lost the focus): it stops moving. Mouse buttons need not:
+    // their release reaches the view that got the press.
+    virtual void releaseKeys();
     virtual void update(float fps);
     virtual void pushRenderHud(RenderQueue &queue);
     virtual void setCameraObject(GameObj* o);

@@ -13,6 +13,10 @@
 #include <tsre/script/ScriptState.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/ui/UiRenderInterface.h>
+#include <tsre/ui/UiScreen.h>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
 #include <tsre/texture/AceDocument.h>
 #include <tsre/texture/TexLib.h>
 #include <QImage>
@@ -286,7 +290,7 @@ int TsreTests::runRmlUiSuite(bool verbose) {
         bool rising = false, falling = false;
         QString label;
         if (hudDocument != nullptr) {
-            label = QString::fromStdString(hudDocument->GetElementById("panel")->GetChild(0)->GetInnerRML());
+            label = QString::fromStdString(hudDocument->QuerySelector(".label")->GetInnerRML());
             send(10.0, 0.0);
             send(12.0, 1.0);
             Rml::Element *value = hudDocument->GetElementById("speedValue");
@@ -437,6 +441,143 @@ int TsreTests::runRmlUiSuite(bool verbose) {
         // first.
         Rml::RemoveContext("images-test");
         Rml::ReleaseRenderManagers();
+    }
+
+    // Input: the router between the UI and the view.
+    {
+        const QString base = folder + "/base.rcss";
+        const QString inputPath = temporary.filePath("input.rml");
+        const QString menuPath = temporary.filePath("menu.rml");
+        auto write = [](const QString &path, const QString &text) {
+            QFile file(path);
+            if (file.open(QIODevice::WriteOnly))
+                file.write(text.toUtf8());
+        };
+        write(inputPath, QString(R"rml(<rml><head><link type="text/rcss" href="%1"/><style>
+#panel { position: absolute; left: 100px; top: 100px; width: 200px; height: 100px; background-color: #333333; }
+#bar { position: absolute; left: 0; top: 0; width: 100%; height: 20px; }
+#go { position: absolute; left: 20px; top: 50px; width: 80px; height: 30px; }
+#scroll { position: absolute; left: 400px; top: 100px; width: 100px; height: 60px; overflow: auto; pointer-events: auto; }
+#field { position: absolute; left: 400px; top: 300px; width: 150px; height: 24px; }
+</style><script>function pressed(element) element.inner_rml = "pressed" end</script></head><body>
+<div id="panel"><handle id="bar" move_target="#parent"></handle><button id="go" onclick="pressed(element)">go</button></div>
+<div id="scroll"><div style="height: 400px;">tall</div></div>
+<input id="field" type="text"/>
+</body></rml>)rml").arg(base));
+        write(menuPath, QString(R"rml(<rml><head><link type="text/rcss" href="%1"/><style>
+button { display: block; width: 100px; height: 30px; }
+</style><script>function chose(element) element.inner_rml = "chosen" end</script></head><body>
+<button id="first" onclick="chose(element)">first</button><button id="second" onclick="chose(element)">second</button>
+</body></rml>)rml").arg(base));
+
+        Ui::Screen screen;
+        int taken = 0;
+        screen.setKeysTaken([&] { ++taken; });
+        const bool ready = screen.ready(800, 600, 1.0f, 1.0f);
+        Rml::ElementDocument *page = ready ? screen.context()->LoadDocument(inputPath.toStdString()) : nullptr;
+        Rml::ElementDocument *menu = ready ? screen.context()->LoadDocument(menuPath.toStdString()) : nullptr;
+        test.check(ready && page != nullptr && menu != nullptr, "a screen over a view with a page and a menu");
+        if (page != nullptr && menu != nullptr) {
+            page->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
+            screen.update();
+            auto mouse = [&](QEvent::Type type, int x, int y, Qt::MouseButton button = Qt::LeftButton) {
+                const Qt::MouseButtons held = type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::MouseButtons(button);
+                QMouseEvent event(type, QPointF(x, y), QPointF(x, y), type == QEvent::MouseMove ? Qt::NoButton : button,
+                                  held, Qt::NoModifier);
+                const bool took = type == QEvent::MouseButtonPress ? screen.mousePress(&event)
+                                  : type == QEvent::MouseButtonRelease ? screen.mouseRelease(&event)
+                                                                       : screen.mouseMove(&event);
+                screen.update();
+                return took;
+            };
+            auto key = [&](int code, const QString &text = QString(), Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+                QKeyEvent press(QEvent::KeyPress, code, modifiers, text);
+                QKeyEvent release(QEvent::KeyRelease, code, modifiers, text);
+                const bool took = screen.keyPress(&press);
+                screen.keyRelease(&release);
+                screen.update();
+                return took;
+            };
+            auto wheel = [&](int x, int y) {
+                QWheelEvent event(QPointF(x, y), QPointF(x, y), QPoint(), QPoint(0, -240), Qt::NoButton, Qt::NoModifier,
+                                  Qt::NoScrollPhase, false);
+                const bool took = screen.wheel(&event);
+                screen.update();
+                return took;
+            };
+            Rml::Element *panel = page->GetElementById("panel");
+
+            // The mouse: the view's where nothing takes it.
+            const bool viewPress = !mouse(QEvent::MouseButtonPress, 50, 50);
+            const bool viewDragOver = !mouse(QEvent::MouseMove, 150, 110) && !mouse(QEvent::MouseMove, 160, 160);
+            const bool viewRelease = !mouse(QEvent::MouseButtonRelease, 160, 160);
+            test.check(viewPress && viewDragOver && viewRelease,
+                       "a press where the document has nothing is the view's, its drag too, over a widget");
+            // A widget dragged by its bar.
+            const bool barPress = mouse(QEvent::MouseButtonPress, 150, 110);
+            const bool barDrag = mouse(QEvent::MouseMove, 200, 140) && mouse(QEvent::MouseMove, 250, 160);
+            const bool barRelease = mouse(QEvent::MouseButtonRelease, 250, 160);
+            test.check(barPress && barDrag && barRelease && std::fabs(panel->GetAbsoluteOffset().x - 200) < 0.5f
+                           && std::fabs(panel->GetAbsoluteOffset().y - 150) < 0.5f,
+                       QString("a widget dragged by its handle, the drag the UI's (moved to %1, %2)")
+                           .arg(panel->GetAbsoluteOffset().x).arg(panel->GetAbsoluteOffset().y));
+            // A button clicked; the keys stay the view's.
+            mouse(QEvent::MouseMove, 250, 215);
+            const bool buttonPress = mouse(QEvent::MouseButtonPress, 250, 215);
+            mouse(QEvent::MouseButtonRelease, 250, 215);
+            test.check(buttonPress && innerOf(page, "go") == "pressed" && screen.keys() == Ui::Screen::Keys::View
+                           && !key(Qt::Key_W) && taken == 0,
+                       "a widget's button clicked, the keys still the view's");
+            // The wheel: the UI's over what it scrolls.
+            Rml::Element *scroll = page->GetElementById("scroll");
+            const bool scrolled = wheel(450, 130) && scroll->GetScrollTop() > 0;
+            test.check(scrolled && !wheel(50, 50), "the wheel scrolls a document's part, elsewhere it is the view's");
+
+            // A text field: typing until Esc.
+            mouse(QEvent::MouseButtonPress, 450, 310);
+            mouse(QEvent::MouseButtonRelease, 450, 310);
+            const bool typing = screen.keys() == Ui::Screen::Keys::Text && taken == 1;
+            key(Qt::Key_A, "a");
+            key(Qt::Key_B, "b");
+            const QString typed = QString::fromStdString(page->GetElementById("field")->GetAttribute<Rml::String>("value", ""));
+            key(Qt::Key_Escape);
+            test.check(typing && typed == "ab" && screen.keys() == Ui::Screen::Keys::View,
+                       QString("a text field clicked takes the keys for typing (\"%1\"), Esc gives them back").arg(typed));
+
+            // A menu: every key the UI's, navigated by keys and actions.
+            screen.showMenu(menu);
+            const bool menuKeys = screen.keys() == Ui::Screen::Keys::Menu && taken == 2 && key(Qt::Key_W);
+            const bool modalMouse = mouse(QEvent::MouseButtonPress, 700, 500);
+            mouse(QEvent::MouseButtonRelease, 700, 500);
+            Rml::Element *focus = screen.context()->GetFocusElement();
+            const bool firstFocused = focus != nullptr && focus->GetId() == "first";
+            key(Qt::Key_Down);
+            focus = screen.context()->GetFocusElement();
+            const bool secondFocused = focus != nullptr && focus->GetId() == "second";
+            key(Qt::Key_Return);
+            const bool chosen = innerOf(menu, "second") == "chosen";
+            screen.action(Ui::Screen::Action::Up);
+            screen.action(Ui::Screen::Action::Accept);
+            const bool actions = innerOf(menu, "first") == "chosen";
+            test.check(menuKeys && modalMouse, "a menu shown has every key and the mouse, the camera let go");
+            test.check(firstFocused && secondFocused && chosen && actions,
+                       "a menu navigated by keys (Down, Enter) and by actions (Up, Accept), as a gamepad will");
+            key(Qt::Key_Escape);
+            test.check(!menu->IsVisible() && screen.keys() == Ui::Screen::Keys::View, "Esc closes the menu: the keys the view's");
+
+            // Esc with the view's keys: the game menu, when there is one.
+            const bool viewEscape = !key(Qt::Key_Escape);
+            bool asked = false;
+            screen.setMenuHandler([&] {
+                asked = true;
+                screen.showMenu(menu);
+                return true;
+            });
+            const bool gameMenu = key(Qt::Key_Escape) && asked && screen.keys() == Ui::Screen::Keys::Menu;
+            key(Qt::Key_Escape);
+            test.check(viewEscape && gameMenu && screen.keys() == Ui::Screen::Keys::View,
+                       "Esc with the view's keys: the view's, or the game menu once there is one");
+        }
     }
 
     // The debugger, for documents' authors.

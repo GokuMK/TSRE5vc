@@ -12,21 +12,18 @@
 #define UIHUD_H
 
 #include <QElapsedTimer>
-#include <QString>
 #include <memory>
-
-class Renderer;
 
 namespace Ui {
 
-class RenderInterface;
+class Screen;
 
-// The heads-up display as a UI document (task scripting 01, the first one):
-// appdata/<version>/ui/hud.rml shows the ridden train's speed, distance,
-// throttle and brake through the data model `train`, each frame's values
-// also sent to it as the event `trainupdate` (parameters speed, distance,
-// throttle, brake in SI and 0 to 1, time in seconds) for its Lua. Drawn by
-// the view's renderer over the finished frame.
+// The heads-up display as a UI document on a view's screen (task scripting
+// 01, the first one): appdata/<version>/ui/hud.rml shows the ridden train's
+// speed, distance, throttle and brake through the data model `train`, each
+// frame's values also sent to it as the event `trainupdate` (parameters
+// speed, distance, throttle, brake in SI and 0 to 1, time in seconds) for
+// its Lua. Its panel can be dragged.
 class Hud {
 public:
     // What it shows.
@@ -37,23 +34,25 @@ public:
         float brake = 0.0f;
     };
 
-    Hud();
+    // The screen outlives it.
+    explicit Hud(Screen &screen);
     ~Hud();
-    // The document over a view of width x height pixels, `scale` times its
-    // own size (the display's pixel ratio and the HUD scale). False when
-    // the UI or the document cannot be loaded: the caller draws its own.
-    bool draw(Renderer *renderer, int width, int height, float scale, const Values &values);
-    // False once the UI or the document failed to load.
+    // Shown with this frame's values. False when the document cannot be
+    // loaded: the caller draws its own.
+    bool update(const Values &values);
+    // Not shown (no train ridden).
+    void hide();
+    // False once the document failed to load.
     bool usable() const { return !failed; }
 
 private:
     struct Model;
-    std::unique_ptr<RenderInterface> renderInterface;
+    Screen &screen;
     std::unique_ptr<Model> model;
     QElapsedTimer clock;
     bool failed = false;
 
-    bool load(int width, int height);
+    bool load();
 };
 
 }
