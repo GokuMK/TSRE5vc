@@ -9,6 +9,7 @@
  */
 
 #include "RhiRenderSurface.h"
+#include <tsre/renderer/FrameLog.h>
 #include "RhiContext.h"
 #include "RhiRenderer.h"
 #include <QCoreApplication>
@@ -193,6 +194,9 @@ void RhiRenderSurface::render() {
     if (trace && !clock.isValid())
         clock.start();
     const qint64 start = trace ? clock.nsecsElapsed() : 0;
+    const bool logged = client->logsFrames() && FrameLog::enabled();
+    if (logged)
+        FrameLog::frameStart();
     QRhi::FrameOpResult result = rhi->beginFrame(swapChain.get());
     if (result == QRhi::FrameOpSwapChainOutOfDate) {
         swapChainReady = false;
@@ -203,6 +207,8 @@ void RhiRenderSurface::render() {
     if (result != QRhi::FrameOpSuccess)
         return;
     const qint64 begun = trace ? clock.nsecsElapsed() : 0;
+    if (logged)
+        FrameLog::frameBegun();
     current.commandBuffer = swapChain->currentFrameCommandBuffer();
     current.target = swapChain->currentFrameRenderTarget();
     current.passDescriptor = passDescriptor.get();
@@ -210,7 +216,11 @@ void RhiRenderSurface::render() {
     current.offscreen = false;
     paintFrame();
     const qint64 painted = trace ? clock.nsecsElapsed() : 0;
+    if (logged)
+        FrameLog::framePainted();
     rhi->endFrame(swapChain.get());
+    if (logged)
+        FrameLog::frameEnd();
     if (trace) {
         const qint64 end = clock.nsecsElapsed();
         if (lastEnd != 0) {

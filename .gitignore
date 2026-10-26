@@ -102,6 +102,8 @@ trains.dat
 users.txt
 moc_*.cpp
 log.txt
+# The frame log (core.system.frameLog), a file a session.
+frames*.csv
 startup-args.txt
 *.7z
 /*.zip

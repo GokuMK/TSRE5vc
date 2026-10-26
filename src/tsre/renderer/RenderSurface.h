@@ -29,6 +29,8 @@ public:
     virtual void surfacePaint() = 0;
     // The surface's graphics resources are about to go away.
     virtual void surfaceRelease() = 0;
+    // Its frames go to the frame log (FrameLog, core.system.frameLog).
+    virtual bool logsFrames() const { return false; }
 };
 
 // Where an editor view draws: a QOpenGLWidget child for the OpenGL renderer
