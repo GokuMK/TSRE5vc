@@ -286,6 +286,14 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   (OpenGL binds the night texture only for parts that have one, and the
   PBR shaders declare none). The user's map is light (median 0.87) and
   occlusion darkens the ambient light only, so the track changes little.
+- Shadows on PBR were half as strong (the user, bbb 16:00, 2026-10-27):
+  PBR averaged the shadow map's samples (a half-occluded filter kept half
+  the sun), the rest takes them at 1.6 times (0.8 far), so the shadow maps
+  stand in for occlusion. The thin rails' shadows, mostly penumbra,
+  darkened PBR ballast by 35 % (median) against 82 % on the legacy track.
+  PBR now takes the same contrast (the user: as the rest of the content;
+  vegetation keeps its own share, task 37): 59 %. GTAO may take that role
+  later, not yet.
 
 ### Open
 
