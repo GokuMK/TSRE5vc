@@ -224,6 +224,19 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   load them, Open Rails draws texture 0), not tried.
 - Lamps' highlights on -6/-7 (the sun's only now).
 
+### Occlusion (the user's question, 2026-10-27)
+
+- The texture's occlusion and the view's GTAO multiply: the material
+  darkens its environment light by its map, GTAO subtracts its share of
+  what is left. They mostly see different things (painted creases and
+  rivets; geometry at screen scale) and overlap where a bake holds large
+  shapes too. A material made PBR in the editor starts at occlusion
+  strength 0.6 against that (the `.sd`'s default stays 1). Taking the
+  smaller of the two (Filament) needs the baked value as one more output of
+  every lit shader for the GTAO pass: not now.
+- Reflections: specular and horizon occlusion (shapes task 06, Occlusion)
+  instead of the diffuse occlusion.
+
 ## Steps
 
 1. `Kind::ShapePart` and per-part picking in the Shape Viewer and the

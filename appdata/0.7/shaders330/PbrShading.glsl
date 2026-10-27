@@ -145,6 +145,18 @@ vec3 transmittedDiffuse(vec3 n, vec3 v, vec3 l, vec3 albedo, vec3 f0, vec3 f90) 
     return (1.0 - fresnel) * albedo / PbrPi * backNDotL;
 }
 
+// How much of its surroundings a reflection keeps in a crease: specular
+// occlusion (Lagarde and de Rousiers 2014, as Filament has it), the
+// diffuse occlusion on rough surfaces, less of it on smooth ones seen
+// head-on and more at grazing angles; and none of what a reflection below
+// the surface itself would see (horizon occlusion: a normal map's slopes
+// turned away from the view reflect the inside of the body).
+float reflectionOcclusion(float occlusion, float nDotV, float roughness, vec3 r, vec3 surface) {
+    float specular = clamp(pow(nDotV + occlusion, exp2(-16.0 * roughness - 1.0)) - 1.0 + occlusion, 0.0, 1.0);
+    float horizon = min(1.0 + dot(r, surface), 1.0);
+    return specular * horizon * horizon;
+}
+
 vec4 pbrShade() {
     vec4 base = textureEnabled != 0.0 ? texture(uSampler, pbrUv(0)) : shapeColor;
     base.rgb = toLinear(base.rgb);
@@ -311,23 +323,30 @@ vec4 pbrShade() {
     vec3 irradiance = environmentRadiance(n, 1.0);
     float ambientScale = luminance(toLinear(ambientColor.rgb))
             / max(luminance(toLinear(skyColor.rgb)), 0.05);
-    vec3 reflected = environmentRadiance(reflect(-v, n), roughness);
-    vec3 environment = diffuseAlbedo * irradiance * ambientScale
-            + reflected * environmentBrdf(f0, f90, roughness, nDotV);
+    vec3 r = reflect(-v, n);
+    vec3 reflected = environmentRadiance(r, roughness);
+    vec3 diffuseEnvironment = diffuseAlbedo * irradiance * ambientScale;
     // The sky and surroundings behind a thin surface shine through it.
     if (diffuseTransmission > 0.0)
-        environment += transmittedAlbedo * environmentRadiance(-n, 1.0) * ambientScale;
+        diffuseEnvironment += transmittedAlbedo * environmentRadiance(-n, 1.0) * ambientScale;
+    // The occlusion darkens the diffuse light; reflections their own share
+    // of it (reflectionOcclusion).
+    vec3 environment = diffuseEnvironment * occlusion
+            + reflected * environmentBrdf(f0, f90, roughness, nDotV)
+            * reflectionOcclusion(occlusion, nDotV, roughness, r, geometricNormal);
     if (coat > 0.0) {
-        vec3 coatReflected = environmentRadiance(reflect(-v, coatNormal), coatRoughness);
+        vec3 coatR = reflect(-v, coatNormal);
+        vec3 coatReflected = environmentRadiance(coatR, coatRoughness);
         environment = environment * (1.0 - coatFresnel)
-                + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
+                + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV)
+                * reflectionOcclusion(occlusion, coatNDotV, coatRoughness, coatR, geometricNormal);
     }
 #ifdef TSRE_RHI
     environment *= skyAmbient(shade);
 #endif
-    color += environment * occlusion;
+    color += environment;
 #ifdef TSRE_RHI
-    vec3 ambientLight = environment * occlusion * colorBrightness;
+    vec3 ambientLight = environment * colorBrightness;
 #endif
     color *= colorBrightness;
 
