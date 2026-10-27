@@ -255,6 +255,15 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   shape as the loaders do. With the coat back the body mirrors the ballast
   and the horizon. Debug views of the shader's terms (the coat's
   reflection, the coat factor, the ORM's alpha) found it.
+- PNG, JPG and TGA textures loaded on the calling thread
+  (`ImageLib::IsThread` false; ACE and DDS on the loaders as
+  `core.rendering.threadedTextureLoading` says): the user's six 1024 px PNG
+  maps made their PBR profile's first generation take 200-290 ms (with ACE
+  textures: under 50). Callers that cope with a texture still loading now
+  ask for `TexLib::Loading::Deferrable`, every type as the setting says:
+  S files (both backends), glTF shapes and profile objects. Others, which
+  may read pixels at once (terrain tools, map layers), load as before.
+  The profile then generates under 50 ms, its frames pixel-identical.
 
 ### Open
 
@@ -270,10 +279,6 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   reflective veil over its holes. The user's DB_Track1 maps are fully rough
   there (about 1.6 % reflectance), so nothing shows yet. To fix: a way to
   tell coverage (everything fades with alpha) from glass (2026-10-27).
-- PNG, JPG and TGA textures load on the calling thread
-  (`ImageLib::IsThread` false; ACE and DDS use the loaders): the user's six
-  1024 px PNG maps make the first generation of their profile take 200-290
-  ms (a profile with ACE textures: under 50). PBR maps are mostly PNG.
 
 ### Occlusion (the user's question, 2026-10-27)
 

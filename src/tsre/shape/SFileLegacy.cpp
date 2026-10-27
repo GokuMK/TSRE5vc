@@ -1054,7 +1054,7 @@ void SFileLegacy::setGatherTexture(RenderItem *item, int primState, bool texEnab
     }
     auto &img = image[texture[textureIndex].image];
     if (img.tex == -1)
-        img.tex = TexLib::addTex(texPath, img.name);
+        img.tex = TexLib::addTex(texPath, img.name, false, TexLib::Display, TexLib::Loading::Deferrable);
     if (img.tex < 0) {
         item->disableTextures(1.0, 0.0, 1.0, 1.0);
         return;
@@ -1101,7 +1101,7 @@ int SFileLegacy::dataTexture(int textureIndex) {
         return -1;
     auto &img = image[texture[textureIndex].image];
     if (img.tex == -1)
-        img.tex = TexLib::addTex(texPath, img.name, false, TexLib::Data);
+        img.tex = TexLib::addTex(texPath, img.name, false, TexLib::Data, TexLib::Loading::Deferrable);
     return img.tex;
 }
 

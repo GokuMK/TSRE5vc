@@ -1165,7 +1165,7 @@ int profileTextureId(const QString &routePath, const QString &textureName,
     const QString path = ContentPath::textureSource(normalizedTextureId(
             texturePath(routePath, normalizedName)));
 
-    const int textureId = TexLib::addTex(path, false, use);
+    const int textureId = TexLib::addTex(path, false, use, TexLib::Loading::Deferrable);
     textureIds.insert(cacheKey, textureId);
     const auto loaded = TexLib::mtex.find(textureId);
     textures.insert(cacheKey,

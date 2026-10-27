@@ -1191,7 +1191,8 @@ void GltfShape::adopt(ComplexShape &copy) {
     ids.reserve(o->pendingTextures.size());
     for (PendingTexture &texture : o->pendingTextures) {
         ids.push_back(texture.embedded != nullptr ? TexLib::addTex(texture.embedded)
-                                                  : TexLib::addTex(texture.path));
+                                                  : TexLib::addTex(texture.path, false, TexLib::Display,
+                                                                   TexLib::Loading::Deferrable));
         texture.embedded = nullptr;
     }
     auto resolve = [&ids](int &id) {
@@ -1229,7 +1230,8 @@ void GltfShape::adopt(ComplexShape &copy) {
 
 int GltfShape::addTexture(const QString &path, Texture *embedded) {
     if (!deferTextures)
-        return embedded != nullptr ? TexLib::addTex(embedded) : TexLib::addTex(path);
+        return embedded != nullptr ? TexLib::addTex(embedded)
+                                   : TexLib::addTex(path, false, TexLib::Display, TexLib::Loading::Deferrable);
     pendingTextures.push_back({path, embedded});
     return PendingTextureBase + int(pendingTextures.size()) - 1;
 }

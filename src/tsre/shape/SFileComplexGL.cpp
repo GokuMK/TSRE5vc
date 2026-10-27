@@ -139,7 +139,8 @@ void SFileComplex::syncTextures() {
     for (auto &image : d->images) {
         if (image.id == -1)
             image.id = TexLib::addTex(d->texturePath, image.name, false,
-                                      image.data ? TexLib::Data : TexLib::Display);
+                                      image.data ? TexLib::Data : TexLib::Display,
+                                      TexLib::Loading::Deferrable);
         auto it = TexLib::mtex.find(image.id);
         image.address = -1;
         if (it == TexLib::mtex.end() || !it->second)
