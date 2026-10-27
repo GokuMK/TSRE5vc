@@ -85,6 +85,15 @@ struct FrameStats {
     double pipelineCreateMs = 0.0;
     // Textures and meshes left for later frames by the upload budget.
     quint64 uploadsDeferred = 0;
+    // Auto exposure (task renderer 29), when on: the view's measured log2
+    // luminance (scene light; once measured), the hour's ordinary view's,
+    // the adaptation's correction and the offset (stops).
+    bool exposureActive = false;
+    bool exposureMeasured = false;
+    double exposureMeasuredLog2 = 0.0;
+    double exposureReferenceLog2 = 0.0;
+    double exposureCorrection = 0.0;
+    double exposureBias = 0.0;
 };
 
 bool enabled();

@@ -338,6 +338,17 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   and the fog's sun take the same colour (scaled by the overhead sun's
   luminance, not per channel, which made the sun white overhead); the light
   shafts already had it.
+- Twilight was not the colour: the night's ambient fell to a tenth.
+  With auto exposure the scene's light, the cube's too, is a thirtieth at
+  night, and the sky's light from above came under the floor (1e-4) of the
+  division that scales the cube to the ambient, in PBR (from the start: PBR
+  ballast at night several times darker than the legacy track) and in the
+  legacy shade taken from it. Measured scene light (log2, Prudnik, grey
+  shade, sky shade with the floor, without): 21:00 -15.27, -18.14, -15.34;
+  22:00 -17.48, -19.08, -17.50; every hour within 0.07 stops of the grey
+  shade now, so the exposure curve stays as it is. Captures report auto
+  exposure's numbers per view (`stats.exposure`: measuredLog2,
+  referenceLog2, correction, bias).
 
 ### Open
 

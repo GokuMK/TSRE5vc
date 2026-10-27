@@ -329,13 +329,16 @@ vec4 pbrShade() {
     // cube's own level cancels, so its dark zenith at dawn and dusk (the sky
     // colour, the fog's, glows there: PBR came out several times darker than
     // the rest) and a cube some frames behind a time change (a face a frame:
-    // a jump lit PBR up, then darkened it) light as the rest does.
+    // a jump lit PBR up, then darkened it) light as the rest does. Both are
+    // in the scene's scale: with auto exposure a thirtieth at night, so the
+    // sky's light from above came under the division's former floor of 1e-4
+    // and the night's ambient fell to a tenth (Prudnik 21:00, 2026-10-27).
     float occlusion = 1.0;
     if ((pbrTextures & 4) != 0)
         occlusion = 1.0 + pbrOcclusionStrength * (texture(pbrOcclusionMap, pbrUv(3)).r - 1.0);
     vec3 irradiance = environmentRadiance(n, 1.0);
     float ambientScale = luminance(toLinear(ambientColor.rgb))
-            / max(luminance(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0)), 1e-4);
+            / max(luminance(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0)), 1e-12);
     vec3 r = reflect(-v, n);
     vec3 reflected = environmentRadiance(r, roughness);
     vec3 diffuseEnvironment = diffuseAlbedo * irradiance * ambientScale;

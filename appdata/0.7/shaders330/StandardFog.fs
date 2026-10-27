@@ -139,13 +139,15 @@ uniform int terrainMapPass;
 // colour of the sky's light from above, the light PBR's shade takes (the
 // environment cube's roughest level straight up, PbrShading.glsl): a clear
 // sky's blue, a cloud's grey, a sunset's glow. In plain grey, shadows here
-// were grey beside PBR's blue ones (the user, 2026-10-27).
+// were grey beside PBR's blue ones (the user, 2026-10-27). In the scene's
+// scale, as PBR's (a thirtieth at night with auto exposure): no floor but
+// zero's.
 vec3 ambientLight() {
     vec3 sky = environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0);
     float skyLuminance = luminance(sky);
-    if (skyLuminance < 1e-6)
+    if (skyLuminance < 1e-12)
         return ambientColor.rgb;
-    return pow(sky * (luminance(toLinear(ambientColor.rgb)) / max(skyLuminance, 1e-4)), vec3(1.0 / 2.2));
+    return pow(sky * (luminance(toLinear(ambientColor.rgb)) / skyLuminance), vec3(1.0 / 2.2));
 }
 #endif
 

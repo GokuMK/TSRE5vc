@@ -3033,6 +3033,12 @@ void RhiRenderer::renderFrame() {
         frame.bindingCreateMs = creation.bindingNs / 1e6;
         frame.pipelineCreateMs = creation.pipelineNs / 1e6;
         frame.uploadsDeferred = quint64(uploadsDeferred);
+        frame.exposureActive = exposureActive();
+        frame.exposureMeasured = luminance.measured;
+        frame.exposureMeasuredLog2 = luminance.measuredLog2;
+        frame.exposureReferenceLog2 = exposureControl.referenceLog2;
+        frame.exposureCorrection = luminance.correction;
+        frame.exposureBias = exposureControl.biasStops;
     }
     if (FrameLog::active()) {
         FrameLog::add(FrameLog::TexturesMade, creation.textures);

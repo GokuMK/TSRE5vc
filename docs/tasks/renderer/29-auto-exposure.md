@@ -250,6 +250,15 @@ measurement, so a cloudy day's bright sky no longer darkens its ground.
   darkened a third of a stop, still brighter than the clear evening (45
   against 33).
 
+## In captures (2026-10-27)
+
+The renderer-capture report gives each view's auto exposure
+(`stats.exposure`: the measured log2 luminance, the hour's reference, the
+correction, the offset), from the frame's `RenderStats`. With it the
+twilight's darkness after the sky-coloured shade (shapes task 13) showed as
+scene light, not exposure: a floor in the shaders' ambient scaling, fixed
+there; the curve and the offsets stay.
+
 ## Later
 
 - The overcast's ambient boost at a low sun (above).
