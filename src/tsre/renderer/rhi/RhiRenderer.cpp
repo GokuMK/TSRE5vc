@@ -2306,7 +2306,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             break;
         default:
             texture = dummy2D;
-            if (slot.binding == RhiShaderSource::NightTextureBinding) {
+            // The PBR programs have no night texture; their occlusion map
+            // (pbrOcclusionMap) has the unit. Taken for the night texture,
+            // every PBR material sampled white there: no occlusion at all.
+            if (slot.binding == RhiShaderSource::NightTextureBinding && program->kind != RhiProgram::PBR) {
                 if (night != nullptr) {
                     texture = night;
                     slotSampler = sampler(nightMipmapped, false);

@@ -279,6 +279,13 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   synchronous reload); map layers register textures in memory. So images
   follow the setting as ACE and DDS do, and a failed image load is marked on
   any thread (it was not on one: a missing PNG became a loaded 0x0 image).
+- PBR occlusion maps did nothing on QRhi (the user: self shadowing weak,
+  bbb, 2026-10-27): the night textures' unit (task 35, 13) is the PBR
+  occlusion map's, and the binding loop gave it the night texture or the
+  white dummy for every program. PBR programs now skip that branch
+  (OpenGL binds the night texture only for parts that have one, and the
+  PBR shaders declare none). The user's map is light (median 0.87) and
+  occlusion darkens the ambient light only, so the track changes little.
 
 ### Open
 
