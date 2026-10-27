@@ -13,12 +13,14 @@ uniform float materialSpecular;
 uniform vec3 cameraPosition;
 #endif
 
-// Reflectance head-on of the sky (paint, varnish, glass) and, a little
-// more, of the sun: MSTS authors meant these parts to shine (Open Rails adds
-// the sun's whole light at the peak; a power 25 sheen here peaks at a third
-// of it).
+// Reflectance head-on of the sky (paint, varnish, glass) and, more, of the
+// sun: MSTS authors meant these parts to shine, rail heads most (polished
+// steel). Open Rails adds the sun's whole light at the peak; a power 25
+// sheen here peaks at about that ((25 + 8) / 8 * 0.25), a power 750 glint
+// far above it. At 0.08 bbb's rails gained 40-60 of 255 in the evening
+// sun, too little to see (the user, 2026-10-27).
 const float MstsSpecularF0 = 0.04;
-const float MstsSpecularSunF0 = 0.08;
+const float MstsSpecularSunF0 = 0.25;
 // The spread of normals a pixel takes per metre away (a 1 m wide pixel
 // footprint at 2 km's lens): a 750 glint at 200 m spreads to about 90.
 const float MstsSpecularFar = 1.0 / 2000.0;

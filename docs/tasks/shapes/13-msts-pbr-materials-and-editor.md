@@ -154,8 +154,9 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   the consist preview picks cars as instances (`Consist::pushRenderItems`).
 - **Specular** (`MstsSpecular.glsl`, `RenderItem::Material::specularPower`,
   both renderers): normalized Blinn-Phong, `(p + 8) / 8 * (N.H)^p`, the
-  sun's linear colour, shadowed, Schlick Fresnel from 0.08 (the sun) and
-  0.04 (the sky, `ambientColor`, reflected at grazing angles by
+  sun's linear colour, shadowed, Schlick Fresnel from 0.25 (the sun; 0.08
+  at first, too faint on rails: below) and 0.04 (the sky, `ambientColor`,
+  reflected at grazing angles by
   smoothness); the power drops by the normals' spread over the pixel
   (screen derivatives) plus `(distance / 2000 m)^2`. Not in
   `StandardFast.fs` (the fast shaders) nor on untextured parts.
@@ -210,6 +211,18 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   MSTS stock routes under `C:/MagiPacks/Microsoft Train Simulator`) the rail
   heads gain a sheen, most on the far rails (largest change 43 of 255,
   0.75% of the pixels): visible, not invasive.
+- bbb at the user's camera (-5307,14961, west over the station throat,
+  2026-10-27: "no difference at any time of day"): the shapes give the
+  power right (`SFileLegacy` packets 25 on every A1t `RailTops`/`Railtop`,
+  the main program's uniform set); painting every surface drawn with a
+  specular power magenta showed the A1t rails from about 17 m out, and the
+  foreground without: the A2tFrog7_5d crossing frogs there draw their
+  `Railtop` with light material -5, so the content asks for no highlight
+  (Open Rails and MSTS draw none either). The rest was too faint at a sun
+  reflectance of 0.08 (rails +40-60 of 255); at 0.25 they gain up to 98 at
+  16:00, looking towards the sun. Earlier Prudnik views missed the track
+  (one beside the embankment, below the rails), and their "procedural
+  track" explanation was wrong: Prudnik is mostly standard shapes.
 - The user's Vectron set (AI-made maps; `MRCE_X4E-627_PBR.s` made with the
   editing API: base colour, packed ORM, normal map; clearcoat 1, its
   roughness 0.06, normal strength 0.7): the materials draw as meant; the
