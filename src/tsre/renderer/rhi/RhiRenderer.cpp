@@ -543,12 +543,12 @@ namespace {
 const char *const ItemUniformNames[] = {
     "enableNormals", "colorBrightness", "materialTransparency", "materialVegetation", "blendedTexels",
     "selectionId", "terrainTextureRemap", "secondTexEnabled", "uMSMatrix", "terrainPaged",
-    "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled"};
+    "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled", "materialSpecular"};
 enum ItemUniform {
     UniformEnableNormals, UniformColorBrightness, UniformMaterialTransparency, UniformMaterialVegetation,
     UniformBlendedTexels, UniformSelectionId, UniformTerrainTextureRemap, UniformSecondTexEnabled,
     UniformMsMatrix, UniformTerrainPaged, UniformTextureEnabled, UniformShapeColor,
-    UniformNightTextureEnabled, UniformTerrainMaterialEnabled, ItemUniformCount};
+    UniformNightTextureEnabled, UniformTerrainMaterialEnabled, UniformMaterialSpecular, ItemUniformCount};
 static_assert(sizeof(ItemUniformNames) / sizeof(ItemUniformNames[0]) == ItemUniformCount);
 
 const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
@@ -605,6 +605,8 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     setFloatAt(program, UniformMaterialTransparency, 1.0f - item->material.opacity);
     // Vegetation is never under a roof: no sky enclosure lookups (task 37).
     setIntAt(program, UniformMaterialVegetation, item->material.vegetation ? 1 : 0);
+    // MSTS specular light materials (task shapes 13).
+    setFloatAt(program, UniformMaterialSpecular, item->material.specularPower);
     setIntAt(program, UniformBlendedTexels, texelsOf(item));
     program->setAt(itemUniforms(program)[UniformSelectionId], &selectionId, 4);
     const QVector3D remap = item->terrain.textureRemap;
@@ -2211,6 +2213,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             pbrSamplers[map] = wrapped ? wrapSampler(true, wrapMode(modes[0]), wrapMode(modes[1]))
                                        : sampler(mipmaps, false);
         }
+        // MSTS PBR materials (task shapes 13): the clearcoat mask in the
+        // metallic-roughness map's alpha, and glass.
+        if (p.clearcoatInMetallicRoughnessAlpha && (present & 1) != 0)
+            present |= 1 << 13;
+        if (p.glass)
+            present |= 1 << 14;
         program->setInt("pbrTextures", present);
     }
     // What each texture unit holds for this program, as the OpenGL renderer

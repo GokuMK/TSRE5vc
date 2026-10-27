@@ -125,7 +125,19 @@ public:
     virtual void releaseState(unsigned int stateId);
 
     virtual void pushRenderItem(RenderQueue &queue) = 0;
+    // A ShapePart selection id (task shapes 13) picks a primitive: each is
+    // submitted with its number (SelectionIdCodec::forShapePart).
     virtual void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) = 0;
+    // The primitives of the state's drawn distance level, numbered over its
+    // sub-objects and their primitives in order, disabled sub-objects
+    // included (as picked; not the animation's parts above): how many, and
+    // the material each draws with (MSTS: its primitive state), -1 unknown.
+    virtual int drawnPrimitiveCount(unsigned int stateId) const;
+    virtual int drawnPrimitiveMaterial(unsigned int stateId, int primitive) const;
+    // Submits these primitives of the state again over the shape in a flat
+    // colour (rgba; alpha its opacity): picked primitives highlighted.
+    virtual void pushPrimitiveHighlight(RenderQueue &queue, unsigned int stateId,
+                                        const QVector<int> &primitives, const float *color);
 
     virtual void invalidateRenderState(bool invalidateMatrixCache = true) = 0;
 
@@ -197,6 +209,25 @@ inline bool ComplexShape::partMatrix(unsigned int stateId, int part, float *out)
 
 inline void ComplexShape::releaseState(unsigned int stateId) {
     (void)stateId;
+}
+
+inline int ComplexShape::drawnPrimitiveCount(unsigned int stateId) const {
+    (void)stateId;
+    return 0;
+}
+
+inline int ComplexShape::drawnPrimitiveMaterial(unsigned int stateId, int primitive) const {
+    (void)stateId;
+    (void)primitive;
+    return -1;
+}
+
+inline void ComplexShape::pushPrimitiveHighlight(RenderQueue &queue, unsigned int stateId,
+                                                 const QVector<int> &primitives, const float *color) {
+    (void)queue;
+    (void)stateId;
+    (void)primitives;
+    (void)color;
 }
 
 inline bool ComplexShape::matrixByName(const QString &name, float *out) const {

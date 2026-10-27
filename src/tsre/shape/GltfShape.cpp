@@ -34,6 +34,7 @@
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
@@ -1356,7 +1357,11 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
         queue.setShadowCasting(false);
     {
         const QVector<RenderItem *> &packets = levelPackets(level, frame, selectionId == 0);
-        if (!packets.isEmpty())
+        if (SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart)) {
+            // Picking primitives (task shapes 13): each packet is one.
+            for (int k = 0; k < packets.size(); ++k)
+                queue.submit(packets[k], SelectionIdCodec::forShapePart(selectionId, k));
+        } else if (!packets.isEmpty())
             queue.submit(packets, selectionId);
     }
     if (shadowStandIn) {
@@ -2423,8 +2428,12 @@ bool GltfShape::parseFile() {
                     const float *b = &bitangentSum[i * 3];
                     const float cross[3] = {n[1] * o[2] - n[2] * o[1], n[2] * o[0] - n[0] * o[2],
                                             n[0] * o[1] - n[1] * o[0]};
+                    // The bitangent towards decreasing v (up the image: the
+                    // map's +Y), as Blender bakes and glTF stores it; the
+                    // gradient sums point down the image (Khronos
+                    // NormalTangentTest: its maps read as dents otherwise).
                     const float handedness = cross[0] * b[0] + cross[1] * b[1] + cross[2] * b[2] < 0.0f
-                            ? -1.0f : 1.0f;
+                            ? 1.0f : -1.0f;
                     for (int c = 0; c < 3; ++c)
                         generatedTangents[i * 4 + c] = length > 0.0f ? o[c] / length : 0.0f;
                     generatedTangents[i * 4 + 3] = handedness;

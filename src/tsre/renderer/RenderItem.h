@@ -94,6 +94,9 @@ public:
         // impostor, MSTS cruciform light materials, forests. Never under a
         // roof: no sky enclosure lookups, left out of the enclosure maps.
         bool vegetation = false;
+        // MSTS specular light materials (task shapes 13): the highlight's
+        // power, 25 for -6 (a sheen), 750 for -7 (a glint); 0 none.
+        float specularPower = 0.0f;
     };
 
     // Metallic-roughness material (glTF), drawn by the PBR program variant.
@@ -118,11 +121,18 @@ public:
         float alphaCutoff = -1.0f;
         // Whether alpha is kept for blending (BLEND); otherwise opaque.
         bool blend = false;
+        // Blended glass (MSTS BlendAPbrTexDiff, task shapes 13): alpha covers
+        // only the diffuse light; what it reflects hides what lies behind
+        // as much as it reflects (Fresnel).
+        bool glass = false;
         // KHR_materials_clearcoat: layer strength, its roughness and the
         // scale of its normal map; strength 0 has no layer.
         float clearcoat = 0.0f;
         float clearcoatRoughness = 0.0f;
         float clearcoatNormalScale = 1.0f;
+        // The clearcoat strength also times the metallic-roughness map's
+        // alpha (MSTS ORM(C) textures, task shapes 13).
+        bool clearcoatInMetallicRoughnessAlpha = false;
         // KHR_materials_specular and KHR_materials_ior: strength and colour of
         // the dielectric reflection, and the index of refraction it starts from.
         float specular = 1.0f;

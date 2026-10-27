@@ -237,7 +237,7 @@ bool runtimeBlock(TS::TokenId id, const QString &name = {}) {
         const auto n = name.toLower();
         return n == "esd_detail_level" || n == "esd_alternative_texture" ||
                n == "esd_bounding_box" || n == "esd_complex" || n == "esd_complex_box" ||
-               n == "esd_snapable";
+               n == "esd_snapable" || n == "esd_tsrematerial";
     }
     switch (id) {
     case TS::ESD_Detail_Level:
@@ -1160,6 +1160,125 @@ void Node::appendCopy(Node source) {
         while (store->records[last].nextSibling != none)
             last = store->records[last].nextSibling;
     link(*store, r, last, child, r.valueCount);
+}
+namespace {
+// A copy of `from`'s subtree at `index` in `store`, unlinked; `from` may be
+// `store` itself, so it is read by index and value only.
+quint32 copySubtree(Storage &store, const Storage &from, quint32 index) {
+    const Record original = from.records[index];
+    Record r = original;
+    const auto to = quint32(store.records.size());
+    store.records.emplace_back();
+    r.firstChild = r.nextSibling = none;
+    r.valueOffset = quint32(store.words.size());
+    if (original.extra != none) {
+        Extra e = from.extras[original.extra];
+        if (e.packed != none) {
+            PackedTable table = from.packed[e.packed];
+            e.packed = quint32(store.packed.size());
+            store.packed.push_back(std::move(table));
+        }
+        r.extra = quint32(store.extras.size());
+        store.extras.push_back(std::move(e));
+    }
+    for (quint32 i = 0; i < original.valueCount; ++i) {
+        const auto type = from.types[original.valueOffset + i];
+        auto bits = from.words[original.valueOffset + i];
+        if (type & 0x80) {
+            QString text = from.strings[bits];
+            bits = quint32(store.strings.size());
+            store.strings.push_back(std::move(text));
+        }
+        store.words.push_back(bits);
+        store.types.push_back(type);
+    }
+    quint32 last = none;
+    for (auto c = original.firstChild; c != none; c = from.records[c].nextSibling) {
+        const auto before = from.records[c].before;
+        const auto child = copySubtree(store, from, c);
+        link(store, r, last, child, before);
+    }
+    store.records[to] = r;
+    return to;
+}
+} // namespace
+bool Node::setScalars(const QStringList &values, QString *error) {
+    auto fail = [&](const QString &e) {
+        if (error)
+            *error = e;
+        return false;
+    };
+    if (error)
+        error->clear();
+    if (!store)
+        return fail("Missing block");
+    if (store->records[index].firstChild != none)
+        return fail("Only blocks without children take a new list of values");
+    const Record old = store->records[index];
+    Values v;
+    for (int i = 0; i < values.size(); ++i) {
+        char type = 'a';
+        if (old.valueCount > 0)
+            type = char(store->types[old.valueOffset + std::min(quint32(i), old.valueCount - 1)] & 0x7f);
+        Reader::Token t{Kind::Atom, values[i]};
+        const auto value = textValue(*store, type, t);
+        if ((value.type & 0x80) && type != 's' && type != 'a') {
+            store->strings.pop_back();
+            for (const auto &x : v)
+                if (x.type & 0x80)
+                    store->strings[x.bits].clear();
+            return fail("Value does not match field type/range");
+        }
+        v.push_back(value);
+    }
+    Record &r = store->records[index];
+    finishValues(*store, r, v);
+    return true;
+}
+void Node::setLabel(const QString &label) {
+    if (store)
+        extra(*store, store->records[index]).label = label;
+}
+Node Node::insertCopy(Node source) {
+    return insertCopy(source, Node{});
+}
+Node Node::insertCopy(Node source, Node before) {
+    if (!*this || !source || (before && before.store != store))
+        return {};
+    const auto child = copySubtree(*store, *source.store, source.index);
+    Record &r = store->records[index];
+    store->records[child].before = r.valueCount;
+    if (before && r.firstChild == before.index) {
+        store->records[child].nextSibling = before.index;
+        r.firstChild = child;
+        return {store, child};
+    }
+    quint32 previous = r.firstChild;
+    while (previous != none && store->records[previous].nextSibling != none
+           && !(before && store->records[previous].nextSibling == before.index))
+        previous = store->records[previous].nextSibling;
+    if (previous == none) {
+        r.firstChild = child;
+    } else {
+        store->records[child].nextSibling = store->records[previous].nextSibling;
+        store->records[previous].nextSibling = child;
+    }
+    return {store, child};
+}
+bool Node::removeChild(Node child) {
+    if (!*this || !child || child.store != store)
+        return false;
+    Record &r = store->records[index];
+    if (r.firstChild == child.index) {
+        r.firstChild = store->records[child.index].nextSibling;
+        return true;
+    }
+    for (auto c = r.firstChild; c != none; c = store->records[c].nextSibling)
+        if (store->records[c].nextSibling == child.index) {
+            store->records[c].nextSibling = store->records[child.index].nextSibling;
+            return true;
+        }
+    return false;
 }
 Document::Document() : storage(std::make_unique<Storage>()) {}
 Document::~Document() = default;

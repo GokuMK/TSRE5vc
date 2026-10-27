@@ -84,6 +84,15 @@ public:
     QImage grabFramebuffer();
     bool isValid() const { return surface->isValid(); }
     QString graphicsInfo() { return surface->graphicsInfo(); }
+    // Picking the shown shape's primitives (task shapes 13, the materials
+    // editor): a click (not a drag) picks the primitive under it
+    // (primitivePicked; Ctrl adds), and these are drawn highlighted.
+    void setPrimitivePicking(bool on);
+    bool primitivePicking() const { return pickPrimitives; }
+    void setPickedPrimitives(const QVector<int> &primitives);
+    const QVector<int> &pickedPrimitives() const { return picked; }
+    // The shape shown on its own (Shape Viewer files), else null.
+    ComplexShape *shownShape() const { return renderItem == 4 ? complexShape : nullptr; }
 public slots:
     void showEng(QString path, QString name);
     void showEng(Eng *e);
@@ -119,6 +128,9 @@ public slots:
 signals:
     void selected(int id);
     void refreshItem();
+    // A primitive picked in the view (-1: none, the background); `add`:
+    // with Ctrl, to add to the picked ones or take it out.
+    void primitivePicked(int primitive, bool add);
     
 protected:
     void surfaceInitialize() override;
@@ -170,6 +182,12 @@ private:
     float rotZ = 0;
     Light light;
     bool selection = false;
+    bool pickPrimitives = false;
+    bool pickAdd = false;
+    QVector<int> picked;
+    // Where the left button went down (widget pixels), to tell a click
+    // from a drag.
+    QPointF pressPosition;
     bool getImage = false;
     float backgroundGlColor[3];
     bool cameraInit = false;

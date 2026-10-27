@@ -11,8 +11,8 @@ in float vTerrainGap;
 in vec2 vTerrainMapCoord;
 #ifdef TSRE_RHI
 in float vClipDistance;
-in vec3 vLightPosition;
 #endif
+in vec3 vLightPosition;
 out vec4 fragColor;
 #ifdef TSRE_RHI
 // The share of fragColor that ambient and environment light make, for
@@ -127,6 +127,9 @@ uniform int terrainMapPass;
 #endif
 #ifdef TSRE_WATER
 #include "WaterShading.glsl"
+#endif
+#if !defined(TSRE_PBR) && !defined(TSRE_WATER) && !defined(TSRE_TERRAIN)
+#include "MstsSpecular.glsl"
 #endif
 
 void main() {
@@ -262,6 +265,18 @@ void main() {
                 fragColor.rgb = pow(pow(fragColor.rgb, vec3(2.2)) + glow, vec3(1.0 / 2.2));
                 glowOut.rgb += glow * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor));
 #endif
+            }
+            // MSTS specular light materials (task shapes 13), over the lit
+            // texture in linear terms.
+            if (materialSpecular > 0.0 && enableNormals != 0.0) {
+#ifdef TSRE_RHI
+                vec3 skyLight = ambientColor.rgb * skyAmbient(shade);
+#else
+                vec3 skyLight = ambientColor.rgb;
+#endif
+                vec3 shine = mstsSpecular(normal, lights, clamp(visibility, 0.0, 1.0), skyLight)
+                        * colorBrightness;
+                fragColor.rgb = pow(pow(max(fragColor.rgb, vec3(0.0)), vec3(2.2)) + shine, vec3(1.0 / 2.2));
             }
 #endif
 

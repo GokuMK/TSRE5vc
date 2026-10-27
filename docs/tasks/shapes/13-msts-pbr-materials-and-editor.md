@@ -1,7 +1,6 @@
 # Task 13 - PBR Materials for MSTS Shapes, and a Materials Editor
 
-Status: proposal (2026-10-27), on `feature/shape-materials`; decisions for
-the user at the end.
+Status: decided (the user, 2026-10-27), in work on `feature/shape-materials`.
 
 ## Where we are
 
@@ -11,76 +10,105 @@ the user at the end.
   uses those shader names, so not now.
 - MSTS specular is not drawn. Light materials -6 (Specular 25) and -7
   (Specular 750) shade as plain diffuse; `StandardFog.fs` declares a
-  `specularColor` that nothing sets (task renderer 35 noted it as a task of
-  its own). That is why the scene shows nothing new.
+  `specularColor` that nothing sets. Many shapes use them, track shapes for
+  their rails too.
 - glTF shapes have full metallic-roughness PBR (task 06, `PbrShading.glsl`):
   base colour, metallic-roughness, normal, occlusion and emissive maps,
-  clearcoat, specular, transmission, image-based light from the environment
-  map (task renderer 17), the sun, local lights and shadows; QRhi and
-  OpenGL. MSTS shapes do not read the environment map yet.
+  clearcoat, specular, transmission (a copy of the frame read along the
+  refracted ray), image-based light from the environment map (task renderer
+  17), the sun, local lights and shadows; QRhi and OpenGL. Tangents are made
+  at load when a file has none (`GltfShape.cpp`).
 - The S format already gives a primitive state several textures
   (`prim_state ( ... tex_idxs ( n i0 i1 ... ) ... )`); DetailMod2X and
   GlossMap use two.
 
-## 1. A PBR material for S files
+## Decisions (2026-10-27)
 
-The user's idea: a "ReflectionMap" shader with three textures (diffuse,
-how much it reflects, normal map), the reflection direction from the
-normal map. That is right: the reflected ray is reflect(-view, n), with n
-the vertex normal turned by the normal map, and the environment map gives
-what it sees. Proposed improvements:
+1. The glTF PBR shading for S files, with the second texture packed as
+   glTF's ORM, instead of a reflection-only shader. The user's idea (diffuse,
+   how much it reflects, normal map; the reflection direction from the normal
+   map) is the same three textures: "how much it reflects" becomes roughness
+   (how sharp) and metalness (metal or paint), occlusion comes as a bonus.
+2. Shader names `PbrTexDiff` (opaque, alpha-tested by the primitive state as
+   now) and `BlendAPbrTexDiff` (blended).
+3. Factors in the `.sd`, short: `.sd` files are read for every shape of a
+   route without the shape files, so one line a material, positional, only
+   for materials that differ from the defaults, trailing defaults left out.
+   No `.sd` or no line: the defaults.
+4. Clearcoat and reflective glass in the first step; transmission (the glTF
+   one) as a factor too.
+5. Selection ids: `Kind::ShapePart`, an 11-bit instance and a 16-bit part.
+   Selector 14 of 32 (0-13 taken); ids are never saved, so the layout can
+   change; an escape selector with a sub-kind if they ever run out.
 
-- **The glTF PBR shading, not a shader of its own.** The same look for MSTS
-  and glTF content, the sun's and lamps' highlights as well as the
-  reflections, blurred reflections by roughness (the environment map's
-  prefiltered levels), Fresnel (more reflection at grazing angles: car
-  paint, windows), energy conserving. One code path to keep.
-- **The second texture packed as glTF's ORM:** R occlusion (baked dirt and
-  creases), G roughness, B metalness. "How much it reflects" is metalness
-  and roughness together; Fresnel adds the reflection of paint and glass.
-  Blender and Substance bake exactly this, and a glTF material maps one to
-  one.
-- **Normal maps in tangent space (MikkTSpace, Blender's baker).** MSTS shapes
-  carry no tangents: generated at load for the parts with a normal map.
-- **Factors per material**, so a texture can be left out: base colour tint,
-  metalness, roughness, normal strength, occlusion strength; **clearcoat**
-  strength and roughness (the varnish over painted bodies, the most visible
-  effect on rolling stock); and **reflective glass**: blended parts (windows)
-  keep their alpha and reflect.
-- Not now: emissive maps (night textures do that, task renderer 35),
-  refraction (costly; windows read right as reflective blended glass),
-  anisotropy (brushed metal), sheen.
+Rejected for the factors: a new token in the S file (Open Rails reads S
+blocks in a fixed order and its text reader does not skip an unexpected
+block at a block's end: `SBR.cs`, `VerifyEndOfBlock`; binary files need a
+token number the MSTS tools do not know); light materials (shared through
+vertex states, several primitive states each; the part loses its MSTS
+lighting mode); a JSON sidecar (lost when a shape is copied without it).
 
-### In the S file
+## 1. PBR material for S files
 
-- **Shader names:** `PbrTexDiff` (opaque, alpha-tested by the primitive
-  state as now) and `BlendAPbrTexDiff` (blended). Open Rails gives an
-  unknown name no options and still draws `tex_idxs[0]` (`Shapes.cs`,
-  `ShaderNames`): the diffuse texture shows, lit roughly. MSTS: unknown, to
-  test with one shape.
-- **Textures:** `tex_idxs` with three entries: base colour (alpha as now),
-  ORM, normal. A missing one is -1, or the list is shorter.
-- **Parameters:** the S format has no place for them (light materials hold
-  colours and a specular power). Proposal: TSRE's sidecar of task 03,
-  extended to S files: `shape.s.tsre.json`, a `materials` object keyed by
-  the primitive state's name (else its index), with the factors. MSTS and
-  Open Rails never read it; without it the defaults apply.
-- Considered: parameters in the shader name (breaks the S text format's
-  tokens), in the .sd (MSTS's parser; .sd is per shape anyway), in light
-  material colours (a hack; light configs stay for MSTS lighting).
+- **Textures** (`tex_idxs`, three entries; a missing one -1, or the list
+  shorter):
+  - 0 base colour (alpha as now): the shape's texture as it is; Open Rails
+    and MSTS draw it.
+  - 1 ORM(C): R occlusion, G roughness, B metalness, A clearcoat mask
+    (optional: an opaque texture is clearcoat everywhere the factor says).
+    One atlas holds painted bodies and bare bogies, so the varnish needs a
+    mask.
+  - 2 normal map, tangent space, OpenGL convention (green up), flat
+    128,128,255.
+- **Tangents** made at load for the parts with a normal map, per source
+  vertex from the triangles' texture coordinate gradients, as glTF shapes
+  do (shared code); +16 bytes a vertex for those parts.
+- **The `.sd` line:**
+  `ESD_TSREMaterial ( name r g b a metalness roughness normal occlusion clearcoat clearcoatRoughness transmission )`
+  keyed by the primitive state's name (else `#index`), defaults
+  `1 1 1 1 0 1 1 1 0 0 0`, written up to the last value that differs.
+  Open Rails' `.sd` reader skips unknown tokens with their blocks
+  (`STFReader.ParseBlock`), and Open Rails adds its own there
+  (`ESD_ORTSSoundFileName`).
+  - tint: multiplies the base colour texture.
+  - metalness, roughness: multiply the ORM's B and G (alone without it).
+  - normal: the normal map's strength; occlusion: the ORM's R strength.
+  - clearcoat, its roughness: the varnish layer (times the ORM's A).
+  - transmission: light through the surface (glass), drawn in the
+    transmission pass.
+- **Glass:** `BlendAPbrTexDiff` keeps its alpha and adds its reflection on
+  top (Fresnel: clear head-on, a mirror at grazing angles); transmission
+  above 0 tints and blurs what lies behind instead.
+- Not now: emissive maps (night textures, task renderer 35), anisotropy,
+  sheen.
+
+### Preparing the textures
+
+Base colour stays the shape's texture. The other maps can be baked
+(Blender, Substance), made with Materialize or DeepBump from the image, or
+generated by an image model one map at a time (roughness, metalness,
+occlusion, normal, clearcoat mask; grayscale, same size and layout) and
+packed into the ORM(C) texture. Values: glass roughness 0-5%, chrome and
+polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
+60-80%, rust, dirt, rubber 85-100%; metalness white only for bare metal
+(wheel treads, buffer faces, chrome), paint on metal black.
 
 ## 2. MSTS specular (-6, -7)
 
-Small, and visible on existing content: a Blinn-Phong highlight of power 25
-or 750 for those light materials, the sun's and the lamps'; before and after
-captures of shapes using them (task renderer 35's note: -6 and -7 in GLOBAL
-shapes).
+- -6 a broad sheen (power 25: painted bodies), -7 a tight glint (power 750:
+  rail heads, chrome, glass). Only those parts change.
+- Lit by our sun as it is (its colour and strength through the atmosphere,
+  none at night), shadowed, faded in fog; not tied to Open Rails' white
+  highlight. No setting: tuned here, with captures aimed at the sun.
+- Far away the 750 glint widens and dims, so rails thinner than a pixel do
+  not twinkle.
+- No environment reflection on these parts: the PBR materials bring that.
 
 ## 3. Materials editor in the Shape Viewer
 
 - **A material** is an S file primitive state: its shader name, textures,
   light material and configuration, alpha test, z-bias, depth mode, plus its
-  PBR factors (sidecar).
+  PBR factors (`.sd`).
 - **Materials window:** the shape's materials (name, shader, texture
   thumbnails, the parts using each); add (a copy of the selected one or a
   default), remove (unused ones; or its parts move to another), edit with a
@@ -91,43 +119,31 @@ shapes).
   tree too), then Apply; an option to apply to the same parts in all
   distance levels (same matrix and material).
 - **Live:** the parts redraw with the edited material at once.
-- **Saving:** `SFileComplex::save` (text, binary, compressed) and the
-  sidecar; undo of material edits within the session.
+- **Saving:** `SFileComplex::save` (text, binary, compressed) and the `.sd`;
+  undo of material edits within the session.
 
 ## 4. Selection IDs for shape parts
 
-The editors share `SelectionIdCodec` (5-bit kind, 27-bit payload). The Shape
-Viewer's consist preview uses raw ids today (car index + 1). Proposal, one
-kind for both the Shape Viewer and the consist editor:
-
-- `Kind::ShapePart`: payload = instance (11 bits: the car in a consist, 0
-  for a single shape; 2047 cars) and part (16 bits: the primitive's index in
-  the drawn distance level, counted over its meshes and parts in order;
-  65535 parts; 0xffff the whole instance).
+- `Kind::ShapePart` (selector 14): instance (11 bits: the car in a consist,
+  0 for a single shape; 2047 cars) and part (16 bits: the primitive's index
+  in the drawn distance level, counted over its sub-objects and parts in
+  order, disabled sub-objects included).
 - `SelectionIdCodec::shapePart(instance, part)`, decoded as
-  `primaryId = instance`, `part = part`.
-- `SFileComplex::pushRenderItem` submits each part with
-  `withPart(selection, partIndex)` when picking (packets shared between
-  instances already take their id per submit).
+  `primaryId = instance`, `part = part`; `withPart` takes the 16-bit part.
+- Shapes submit each part with its own id when the selection id is a
+  ShapePart one (packets shared between instances take their id per
+  submit).
 - The consist editor picks cars with it (part ignored); the materials editor
-  reads the part. glTF parts the same way later.
+  reads the part. glTF parts the same way.
 
 ## Steps
 
 1. `Kind::ShapePart` and per-part picking in the Shape Viewer and the
    consist preview; the picked part highlighted.
 2. MSTS specular (-6, -7), with captures.
-3. PBR S materials: the shader names, three textures, the sidecar's
-   factors, generated tangents, into `RenderItem::Pbr`; both renderers.
+3. PBR S materials: the shader names, three textures, the `.sd` factors,
+   generated tangents, into `RenderItem::Pbr`; both MSTS backends, both
+   renderers.
 4. The materials editor: window, assigning, saving, undo.
-5. Tests: S round trip with PBR states (shape-complex), the sidecar,
+5. Tests: S round trip with PBR states (shape-complex), the `.sd` line,
    selection ids, Shape Viewer captures.
-
-## Decisions for the user
-
-1. The glTF PBR shading with an ORM second texture, instead of a
-   reflection-only shader?
-2. Shader names `PbrTexDiff` / `BlendAPbrTexDiff`?
-3. Parameters in `shape.s.tsre.json`?
-4. Clearcoat and reflective glass in the first step?
-5. The selection id layout (11-bit instance, 16-bit part)?

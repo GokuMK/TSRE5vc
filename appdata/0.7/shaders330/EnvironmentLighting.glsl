@@ -3,7 +3,10 @@
 uniform samplerCube environmentMap;
 // Mipmap levels of the environment map; 0 when none is bound.
 uniform float environmentMapLevels;
+#ifndef TSRE_CAMERA_POSITION
+#define TSRE_CAMERA_POSITION
 uniform vec3 cameraPosition;
+#endif
 
 const float PbrPi = 3.14159265;
 

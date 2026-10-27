@@ -52,6 +52,8 @@ public:
     unsigned int shaderBrightness;
     unsigned int shaderFogDensity;
     unsigned int shaderTransparency;
+    // MSTS specular light materials (task shapes 13).
+    int materialSpecular = -1;
     // Blended packets drawn in two (QueueRenderer::BlendedTexels).
     int blendedTexels = -1;
     unsigned int shadow1Res;

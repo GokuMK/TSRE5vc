@@ -33,8 +33,10 @@ public:
     static void addRef(int texx);
     // What a requester does with a file texture: Display only (its loader
     // prepares it for the GPU and keeps no CPU copy; it is never edited), or
-    // it may be Editable (terrain: its CPU pixels can be had).
-    enum Use { Display, Editable };
+    // it may be Editable (terrain: its CPU pixels can be had), or it is
+    // displayed and its texels are Data, not colour (PBR maps, task shapes
+    // 13: never bled as a cutout, mipmaps the means of its values).
+    enum Use { Display, Editable, Data };
     // How addTex loads a texture it does not have yet: as the setting
     // core.rendering.threadedTextureLoading says, on a thread of its own
     // whatever the setting (the caller, say the render thread, never waits),

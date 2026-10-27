@@ -149,6 +149,12 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
         present |= 1 << (map - 1);
     }
     f->glActiveTexture(GL_TEXTURE0);
+    // MSTS PBR materials (task shapes 13): the clearcoat mask in the
+    // metallic-roughness map's alpha, and glass.
+    if(p.clearcoatInMetallicRoughnessAlpha && (present & 1) != 0)
+        present |= 1 << 13;
+    if(p.glass)
+        present |= 1 << 14;
     s->setUniformValue(s->pbrTextures, present);
     s->setUniformValue(s->pbrTexCoords, texCoords);
     s->setUniformValue(s->pbrUvTransforms, transformed);
@@ -168,6 +174,10 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
     // Set for every item: a shader switch would leave a cached value stale.
     gluu->currentShader->setUniformValue(gluu->currentShader->shaderTransparency,
                                          1.0f - item->material.opacity);
+    // MSTS specular light materials (task shapes 13).
+    if(gluu->currentShader->materialSpecular >= 0)
+        gluu->currentShader->setUniformValue(gluu->currentShader->materialSpecular,
+                                             item->material.specularPower);
 
     gluu->setSelectionId(selectionId);
     if (detail.remap != item->terrain.textureRemap) {

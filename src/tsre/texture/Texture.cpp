@@ -841,8 +841,9 @@ static bool compressedLevels(const Texture &t, bool mipmaps, bool blocksSupporte
             if (!DxtCodec::dxt1ToBc3(level, level))
                 return false;
             // Its cutout edges filter without a halo: the transparent texels
-            // coloured as the opaque ones beside them.
-            DxtCodec::bleedBc3Transparent(level, w, h);
+            // coloured as the opaque ones beside them (not a data map's).
+            if (!t.data)
+                DxtCodec::bleedBc3Transparent(level, w, h);
             w = std::max(1, w / 2);
             h = std::max(1, h / 2);
         }
@@ -1061,8 +1062,9 @@ static bool rgbaLevels(Texture &t, bool mipmaps, QVector<QByteArray> &levels) {
     levels.clear();
     levels.push_back(toRgba(imageData, width, height));
     // A cutout's levels bled (bleedTransparent): the base before mipmaps
-    // are made from it, the texture's own mipmaps each.
-    const bool cutout = bytesPerPixel == 4 && t.alphaClass.load() == TextureAlpha::Binary;
+    // are made from it, the texture's own mipmaps each. A data map's alpha
+    // is data too (task shapes 13: an ORM's clearcoat mask).
+    const bool cutout = bytesPerPixel == 4 && !t.data && t.alphaClass.load() == TextureAlpha::Binary;
     if (cutout)
         bleedTransparent(levels.first(), width, height);
     if (mipmaps && t.coverageCutoff >= 0.0f && bytesPerPixel == 4) {
@@ -1134,8 +1136,9 @@ constexpr double ImproveTolerance = 12.0;
 // a file's 0/255 levels that thinned out cannot be scaled back.
 constexpr double CoverageTolerance = 0.1;
 
-// The RGBA level below: 2x2 means, colours in linear light, alpha as is.
-QByteArray downsample(const QByteArray &above, int w, int h) {
+// The RGBA level below: 2x2 means, colours in linear light (a data map's as
+// they are), alpha as is.
+QByteArray downsample(const QByteArray &above, int w, int h, bool data = false) {
     const int lw = std::max(1, w / 2), lh = std::max(1, h / 2);
     const SrgbTables &t = srgb();
     QByteArray level(qsizetype(lw) * lh * 4, Qt::Uninitialized);
@@ -1149,6 +1152,10 @@ QByteArray downsample(const QByteArray &above, int w, int h) {
                                          src + (qsizetype(y1) * w + x0) * 4, src + (qsizetype(y1) * w + x1) * 4};
             unsigned char *out = dst + (qsizetype(y) * lw + x) * 4;
             for (int c = 0; c < 3; ++c) {
+                if (data) {
+                    out[c] = static_cast<unsigned char>((p[0][c] + p[1][c] + p[2][c] + p[3][c] + 2) / 4);
+                    continue;
+                }
                 const float linear = 0.25f * (t.toLinear[p[0][c]] + t.toLinear[p[1][c]] + t.toLinear[p[2][c]]
                                               + t.toLinear[p[3][c]]);
                 out[c] = t.toSrgb[std::clamp(int(linear * 4095.0f + 0.5f), 0, 4095)];
@@ -1209,17 +1216,17 @@ double colourDifference(const QByteArray &a, const QByteArray &b) {
 
 // A shape texture's levels below level 0 (RGBA): the file's (fileLevels, as
 // far as they go) or ours made from the level above, by the source; a
-// cutout's keep level 0's coverage.
+// cutout's keep level 0's coverage; a data map's are means of its values.
 QVector<QByteArray> shapeMipChain(const QByteArray &level0, int width, int height,
                                   const QVector<QByteArray> &fileLevels, Texture::MipmapSource source,
-                                  bool cutout) {
+                                  bool cutout, bool data = false) {
     QVector<QByteArray> chain;
     const double target = cutout ? coverageOf(level0, 1.0f) : 0.0;
     QByteArray above = level0;  // unscaled alpha: the next level is made from it
     int w = width, h = height;
     bool fileStill = source != Texture::MipmapSource::Regenerate;
     for (int k = 0; w > 1 || h > 1; ++k) {
-        QByteArray ours = downsample(above, w, h);
+        QByteArray ours = downsample(above, w, h, data);
         w = std::max(1, w / 2);
         h = std::max(1, h / 2);
         QByteArray level;
@@ -1259,10 +1266,12 @@ static bool applyShapeMipmaps(const Texture &t, QVector<QByteArray> &levels, int
         ++fullChain;
     if (levels.isEmpty() || (source == Texture::MipmapSource::File && levels.size() == fullChain))
         return true;
-    const bool cutout = t.alphaClass.load() == TextureAlpha::Binary;
+    const bool data = t.data;
+    const bool cutout = !data && t.alphaClass.load() == TextureAlpha::Binary;
     if (gpuFormat == 0) {
         const QVector<QByteArray> file = levels.mid(1);
-        levels = QVector<QByteArray>{levels.first()} + shapeMipChain(levels.first(), t.width, t.height, file, source, cutout);
+        levels = QVector<QByteArray>{levels.first()}
+                + shapeMipChain(levels.first(), t.width, t.height, file, source, cutout, data);
         return true;
     }
     // Blocks: as RGBA, then the new levels encoded as level 0 is.
@@ -1279,7 +1288,8 @@ static bool applyShapeMipmaps(const Texture &t, QVector<QByteArray> &levels, int
         w = std::max(1, w / 2);
         h = std::max(1, h / 2);
     }
-    const QVector<QByteArray> chain = shapeMipChain(rgba.first(), t.width, t.height, rgba.mid(1), source, cutout);
+    const QVector<QByteArray> chain = shapeMipChain(rgba.first(), t.width, t.height, rgba.mid(1), source, cutout,
+                                                    data);
     QVector<QByteArray> encoded{levels.first()};
     w = t.width;
     h = t.height;

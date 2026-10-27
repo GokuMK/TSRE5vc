@@ -6,7 +6,10 @@
 // mountains turn blue, farther ridges lighter. The weather's haze
 // (visibility) and the fog density setting add extinction alike in every
 // colour, turning them grey.
+#ifndef TSRE_CAMERA_POSITION
+#define TSRE_CAMERA_POSITION
 uniform vec3 cameraPosition;
+#endif
 // The camera's altitude (km), the haze's extinction at sea level (1/km),
 // on (1; 0 the classic fog), 0.
 uniform vec4 hazeParams;

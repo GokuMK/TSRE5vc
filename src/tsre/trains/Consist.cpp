@@ -764,8 +764,9 @@ void Consist::updateSounds(float move, float seconds){
     }
 }
 
-// Submits the consist for the Shape Viewer and Consist Editor; wagon i is
-// picked as selectionId + i.
+// Submits the consist for the Shape Viewer and Consist Editor; with a
+// selection id wagon i is picked as the ShapePart instance i (task shapes
+// 13), its primitives as the parts.
 void Consist::pushRenderItems(RenderQueue &queue, quint32 selectionId, bool renderText) {
     if (loaded != 1) return;
 
@@ -778,7 +779,10 @@ void Consist::pushRenderItems(RenderQueue &queue, quint32 selectionId, bool rend
             Mat4::rotate(mv, mv, M_PI, 0, 1, 0);
         if(selectionId == 0 && selectedIdx == i)
             eng->pushDrawBorder(queue);
-        eng->pushRenderItems(queue, selectionId != 0 ? selectionId + static_cast<quint32>(i) : 0);
+        quint32 carId = 0;
+        if (selectionId != 0)
+            SelectionIdCodec::tryShapePart(i, 0, carId);
+        eng->pushRenderItems(queue, carId);
         queue.popTransform();
 
         if(selectionId != 0 || !renderText)

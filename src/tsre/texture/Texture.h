@@ -85,6 +85,9 @@ class Texture {
     // its GPU levels on its thread and drops the source pixels, and it is
     // never edited (setEditable fails; getImageData reads a copy).
     std::atomic<bool> displayOnly{false};
+    // Its texels are data, not colour (TexLib::Data: PBR maps, task shapes
+    // 13): never bled as a cutout, mipmaps the means of its values.
+    std::atomic<bool> data{false};
     // GPU-ready levels (QRhi), made on the loader's thread: block-compressed
     // in preparedFormat (a GL compressed format), or RGBA8 (0).
     bool prepared = false;

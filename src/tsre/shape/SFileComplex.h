@@ -1,7 +1,9 @@
 #pragma once
 #include <QStringList>
+#include <QVector>
 #include <memory>
 #include <vector>
+#include <tsre/shape/MstsMaterials.h>
 
 class QMatrix4x4;
 #include <tsre/shape/ComplexShape.h>
@@ -55,6 +57,53 @@ class SFileComplex final : public ComplexShape {
     QString field(const QString &blockPath, int scalarIndex) const;
     bool setField(const QString &blockPath, int scalarIndex, const QString &value,
                   QString *error = nullptr);
+
+    // Materials (task shapes 13, the Shape Viewer's materials editor): the
+    // primitive states. Their label, shader name, textures (image files in
+    // tex_idxs order; PBR: base colour, ORM, normal map), MSTS light
+    // material (their vertex state's, -5 to -12), alpha test, z-bias, the
+    // matrix of their vertex state, the primitives drawn with them (all
+    // levels) and PBR factors (the .sd's, keyed by the first texture).
+    struct MaterialInfo {
+        QString name;
+        QString shader;
+        QStringList textures;
+        int lightMaterial = -5;
+        bool alphaTest = false;
+        float zBias = 0.0f;
+        int matrix = 0;
+        QString matrixName;
+        int uses = 0;
+        MstsMaterials::Factors factors;
+    };
+    int materialCount() const;
+    bool materialInfo(int material, MaterialInfo &out) const;
+    // The distance level a state draws, and the primitives of a level
+    // drawn with a material (ComplexShape's numbering).
+    int drawnLevel(unsigned int stateId) const;
+    QVector<int> primitivesWithMaterial(int level, int material) const;
+    // Edits, in Complete mode; each extracts the shape again (the view
+    // draws it at once). setMaterial: all but the matrix and uses; a
+    // vertex state of its own when its light material changes and others
+    // share it. addMaterial: a copy, its index (-1 failed). removeMaterial:
+    // an unused one. assignMaterial: these primitives of a level drawn with
+    // the material, each at its own matrix (states for other matrices found
+    // or made); with allLevels the other levels' primitives of the same
+    // matrix and material too.
+    bool setMaterial(int material, const MaterialInfo &info, QString *error = nullptr);
+    int addMaterial(int copyOf, QString *error = nullptr);
+    bool removeMaterial(int material, QString *error = nullptr);
+    bool assignMaterial(int level, const QVector<int> &primitives, int material, bool allLevels,
+                        QString *error = nullptr);
+    // The .sd changed (PBR factors), and saving it beside a shape file (made
+    // when the shape had none).
+    bool metadataEdited() const;
+    bool saveMetadataFor(const QString &shapePath, QString *error = nullptr);
+    // Undo: the shape's documents (S and .sd) as they are, and back.
+    struct Snapshot;
+    std::shared_ptr<const Snapshot> snapshot() const;
+    static qint64 snapshotBytes(const Snapshot &snapshot);
+    bool restore(const Snapshot &snapshot, QString *error = nullptr);
     void load() override;
     ComplexShape *detachedCopy() const override;
     void loadDetached() override;
@@ -84,6 +133,9 @@ class SFileComplex final : public ComplexShape {
     void updateSim(float, unsigned int = 0) override;
     void pushRenderItem(RenderQueue &queue) override;
     void pushRenderItem(RenderQueue &queue, quint32, unsigned int) override;
+    int drawnPrimitiveCount(unsigned int) const override;
+    int drawnPrimitiveMaterial(unsigned int, int) const override;
+    void pushPrimitiveHighlight(RenderQueue &, unsigned int, const QVector<int> &, const float *) override;
     void invalidateRenderState(bool = true) override;
     void enablePart(unsigned int, unsigned int = 0) override;
     void disablePart(unsigned int, unsigned int = 0) override;
@@ -114,4 +166,13 @@ class SFileComplex final : public ComplexShape {
     void clearSharedPackets();
     void syncTextures();
     void releaseTextures();
+    // Each PBR material's factors from the .sd's (task shapes 13).
+    void resolvePbrFactors();
+    // A mesh's PBR parts with tangents (initGL).
+    void buildPbrBuffer(size_t lod, size_t mesh);
+    bool editable(QString *error) const;
+    void afterMaterialEdit();
+    void readPbrFactors();
+    bool ensureMetadata(QString *error);
+    bool setPbrFactors(const QString &key, const MstsMaterials::Factors &factors, QString *error);
 };

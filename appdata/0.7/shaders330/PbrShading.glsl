@@ -28,7 +28,9 @@ uniform float emissiveScale;
 // Bit per map present: 1 metallic-roughness, 2 normal, 4 occlusion, 8 emissive,
 // 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal, 128 specular,
 // 256 specular colour, 512 transmission, 1024 thickness, 2048 diffuse
-// transmission, 4096 diffuse transmission colour.
+// transmission, 4096 diffuse transmission colour. MSTS PBR materials (task
+// shapes 13): 8192 the clearcoat also times the metallic-roughness map's
+// alpha, 16384 glass (blended: alpha covers the diffuse light only).
 uniform int pbrTextures;
 // Bit per map (RenderItem::Pbr::Map order) read with the second texture coordinates.
 uniform int pbrTexCoords;
@@ -165,11 +167,17 @@ vec4 pbrShade() {
 
     float metallic = pbrMetallicRoughness.x;
     float roughness = pbrMetallicRoughness.y;
+    float coatMask = 1.0;
     if ((pbrTextures & 1) != 0) {
         vec4 metallicRoughness = texture(pbrMetallicRoughnessMap, pbrUv(1));
         roughness *= metallicRoughness.g;
         metallic *= metallicRoughness.b;
+        if ((pbrTextures & 8192) != 0)
+            coatMask = metallicRoughness.a;
     }
+    // Glass: its paint and dirt cover as alpha says; its reflection is added
+    // whole, and the coverage made up at the end.
+    bool glass = (pbrTextures & 16384) != 0 && pbrBlend != 0;
     metallic = clamp(metallic, 0.0, 1.0);
     roughness = clamp(roughness, 0.03, 1.0);
 
@@ -194,6 +202,8 @@ vec4 pbrShade() {
     vec3 f0 = mix(dielectricF0, base.rgb, metallic);
     vec3 f90 = vec3(mix(specularWeight, 1.0, metallic));
     vec3 diffuseAlbedo = base.rgb * (1.0 - metallic);
+    if (glass)
+        diffuseAlbedo *= alpha;
     // Diffuse transmission (KHR_materials_diffuse_transmission): thin
     // surfaces such as leaves pass that share of the diffuse light through,
     // in their own colour, lighting them from behind.
@@ -221,7 +231,7 @@ vec4 pbrShade() {
     // matte surface facing it is as bright as in the legacy shading.
     // Clearcoat: a smooth dielectric layer (F0 0.04) over the base, with
     // its own roughness and normal. The base receives what it transmits.
-    float coat = pbrClearcoat.x;
+    float coat = pbrClearcoat.x * coatMask;
     float coatRoughness = pbrClearcoat.y;
     vec3 coatNormal = geometricNormal;
     if (coat > 0.0) {
@@ -339,6 +349,15 @@ vec4 pbrShade() {
 #else
     color += emissive;
 #endif
+    // Glass: what it reflects hides what lies behind as much as it reflects
+    // (Fresnel), and a highlight brighter than that as much as it shines.
+    if (glass) {
+        float reflectance = clamp(luminance(environmentBrdf(f0, f90, roughness, nDotV)) + coatFresnel,
+                                  0.0, 1.0);
+        float covered = clamp(max(alpha + (1.0 - alpha) * reflectance, luminance(color)), alpha, 1.0);
+        color /= max(covered, 1e-3);
+        alpha = covered;
+    }
 
 #ifdef TSRE_RHI
     // Shrinking below 32 pixels, the surface hands its glow to its emitters'

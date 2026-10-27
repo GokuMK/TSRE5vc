@@ -522,6 +522,8 @@ int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
         const bool editableNow = use == Editable && newFile->displayOnly;
         if (editableNow)
             newFile->displayOnly = false;
+        if (use == Data)
+            newFile->data = true;
         if(!reload && !(editableNow && !newFile->released && newFile->imageData == nullptr
                         && newFile->compressedData.isEmpty() && newFile->reloadable)) {
             newFile->ref++;
@@ -539,7 +541,8 @@ int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
     }
     if(!newFile) {
         newFile = new Texture(pathid);
-        newFile->displayOnly = use == Display;
+        newFile->displayOnly = use == Display || use == Data;
+        newFile->data = use == Data;
         newFile->ref++;
         texId = jesttextur++;
         mtex[texId] = newFile;

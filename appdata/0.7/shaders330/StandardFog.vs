@@ -65,9 +65,10 @@ out vec2 vTerrainMapCoord;
 // QRhi does not enable clip distances on every backend: the fragment
 // shader discards below the clip plane instead.
 out float vClipDistance;
-// Position in submission space, for the local lights.
-out vec3 vLightPosition;
 #endif
+// Position in submission space, for the local lights and the view
+// direction.
+out vec3 vLightPosition;
 
 void main() {
     // QRhi has no packed 2_10_10_10 vertex format: the paged terrain normal
@@ -133,9 +134,9 @@ void main() {
     vWorldPosition = shadowVertex.xyz;
 #endif
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
+    vLightPosition = shadowVertex.xyz;
 #ifdef TSRE_RHI
     vClipDistance = dot(shadowVertex, clipPlane);
-    vLightPosition = shadowVertex.xyz;
 #else
     gl_ClipDistance[0] = dot(shadowVertex, clipPlane);
 #endif
