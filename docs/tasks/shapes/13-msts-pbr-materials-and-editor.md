@@ -218,7 +218,8 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   specular power magenta showed the A1t rails from about 17 m out, and the
   foreground without: the A2tFrog7_5d crossing frogs there draw their
   `Railtop` with light material -5, so the content asks for no highlight
-  (Open Rails and MSTS draw none either). The rest was too faint at a sun
+  (Open Rails and MSTS draw none either). No override by state name: such
+  shapes are fixed in the assets (the user; those frogs are obsolete). The rest was too faint at a sun
   reflectance of 0.08 (rails +40-60 of 255); at 0.25 they gain up to 98 at
   16:00, looking towards the sun. Earlier Prudnik views missed the track
   (one beside the embankment, below the rails), and their "procedural
