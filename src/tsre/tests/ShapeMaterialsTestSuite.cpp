@@ -352,11 +352,12 @@ int TsreTests::runShapeMaterialsSuite(bool verbose) {
             shader->setCurrentText("PbrTexDiff");
             applyButton->click();
             applied = edited.materialInfo(1, info) && info.shader == "PbrTexDiff"
-                    && materials->topLevelItem(1)->text(2) == "PbrTexDiff" && undoButton->isEnabled();
+                    && materials->topLevelItem(1)->text(2) == "PbrTexDiff" && undoButton->isEnabled()
+                    && near(info.factors.occlusion, 0.6f);
             undoButton->click();
             undone = edited.materialInfo(1, info) && info.shader == "TexDiff";
         }
-        check(found && applied && undone, "materials-window-applies-and-undoes");
+        check(found && applied && undone, "materials-window-applies-and-undoes-new-pbr-occlusion-0.6");
     }
 
     qInfo() << "[tests:shape-materials] cases=" << (passed + failed) << "passed=" << passed << "failed=" << failed;

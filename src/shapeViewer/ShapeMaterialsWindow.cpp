@@ -116,6 +116,11 @@ QDoubleSpinBox *spin(double low, double high, double step) {
     return box;
 }
 
+// A material made PBR starts with its baked occlusion at this strength: the
+// view's ambient occlusion (GTAO) darkens on top of it, and creases both see
+// would darken twice.
+constexpr double NewPbrOcclusion = 0.6;
+
 constexpr qint64 UndoBytes = 256ll * 1024 * 1024;
 constexpr size_t UndoSteps = 20;
 
@@ -230,7 +235,12 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
     shaderCombo->setObjectName("materialsShader");
     shaderCombo->setEditable(true);
     shaderCombo->addItems(shaderNames());
-    connect(shaderCombo, &QComboBox::currentTextChanged, this, [this]() { updateShaderHelp(); });
+    connect(shaderCombo, &QComboBox::currentTextChanged, this, [this](const QString &name) {
+        // Made PBR here: the baked occlusion at its starting strength.
+        if (MstsMaterials::pbr(MstsMaterials::shader(name)) && !MstsMaterials::pbr(MstsMaterials::shader(shownShader)))
+            occlusionSpin->setValue(NewPbrOcclusion);
+        updateShaderHelp();
+    });
     //% "Shader"
     fields->addRow(qtTrId("shape.materials.field.shader"), shaderCombo);
     shaderHelp = help(QString());
@@ -335,7 +345,7 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
     addFactor(occlusionSpin, 1.0,
               //% "Occlusion"
               qtTrId("shape.materials.pbr.occlusion"),
-              //% "How much the ORM's red (baked dirt and creases) darkens."
+              //% "How much the ORM's red (baked dirt and creases) darkens the light from the sky and surroundings. The view's ambient occlusion darkens on top of it, so a material made PBR here starts at 0.6."
               qtTrId("shape.materials.pbr.occlusion.help"));
     addFactor(clearcoatSpin, 1.0,
               //% "Clearcoat"
@@ -470,6 +480,7 @@ void ShapeMaterialsWindow::showMaterial(int material) {
         info = SFileComplex::MaterialInfo();
     nameEdit->setText(info.name);
     const QSignalBlocker blocker(shaderCombo);
+    shownShader = info.shader;
     shaderCombo->setCurrentText(info.shader);
     for (int slot = 0; slot < 3; ++slot)
         textureEdits[slot]->setText(slot < info.textures.size() ? info.textures[slot] : QString());

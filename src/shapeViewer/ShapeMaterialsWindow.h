@@ -73,6 +73,9 @@ private:
     QGroupBox *pbrGroup;
     QPushButton *tintButton;
     QColor tint;
+    // The shown material's shader as stored (a switch to PBR from it sets
+    // the occlusion's starting strength).
+    QString shownShader;
     QDoubleSpinBox *tintAlpha, *metalnessSpin, *roughnessSpin, *normalSpin, *occlusionSpin,
             *clearcoatSpin, *clearcoatRoughnessSpin, *transmissionSpin;
     QPushButton *applyButton, *revertButton;
