@@ -564,10 +564,12 @@ void ShapeMaterialsWindow::editDone(bool ok, const QString &error, int select) {
     if (!ok) {
         if (!undoStack.empty())
             undoStack.pop_back();
-        QMessageBox::warning(this, windowTitle(),
-                             error.isEmpty()
-                                     //% "The material could not be changed."
-                                     ? qtTrId("shape.materials.error.edit") : error);
+        // The comment straight before qtTrId: lupdate misses it inside ?:.
+        QString text = error;
+        if (text.isEmpty())
+            //% "The material could not be changed."
+            text = qtTrId("shape.materials.error.edit");
+        QMessageBox::warning(this, windowTitle(), text);
     } else {
         emit edited();
     }
