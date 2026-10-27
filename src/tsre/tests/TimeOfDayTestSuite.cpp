@@ -108,6 +108,26 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
     light = Daylight::forElevation(-8.0, sky, fog);
     check(light.sky[2] > light.sky[0] && light.sky[2] > 0.15f && light.diffuse[0] == 0.0f,
           "twilight is blue");
+    {
+        // The sun in the air's colour (Atmosphere), as bright.
+        auto luminance = [](const float *c) {
+            return 0.2126 * std::pow(c[0], 2.2) + 0.7152 * std::pow(c[1], 2.2) + 0.0722 * std::pow(c[2], 2.2);
+        };
+        const float noonAir[3] = {0.94f, 0.87f, 0.76f};
+        const float eveningAir[3] = {0.71f, 0.45f, 0.22f};
+        const Daylight::Light white = Daylight::forElevation(60.0, sky, fog);
+        const Daylight::Light warm = Daylight::forElevation(60.0, sky, fog, noonAir);
+        const Daylight::Light low = Daylight::forElevation(10.0, sky, fog);
+        const Daylight::Light lowAir = Daylight::forElevation(10.0, sky, fog, eveningAir);
+        check(warm.diffuse[0] > warm.diffuse[1] && warm.diffuse[1] > warm.diffuse[2]
+                  && near(luminance(warm.diffuse), luminance(white.diffuse), 1e-4)
+                  && near(luminance(lowAir.diffuse), luminance(low.diffuse), 1e-4)
+                  && lowAir.diffuse[2] < 0.7f * lowAir.diffuse[0],
+              "the sun takes the air's colour at its own brightness: a little warm at noon, red low");
+        const float none[3] = {0.0f, 0.0f, 0.0f};
+        check(Daylight::forElevation(-25.0, sky, fog, none).diffuse[0] == 0.0f,
+              "no sun under the horizon, whatever the air");
+    }
     // Auto exposure (task 29).
     check(near(Daylight::forElevation(60.0, sky, fog).sceneLight, 1.0, 1e-6)
               && near(light.sceneLight, Daylight::DayLocalLights, 1e-6)

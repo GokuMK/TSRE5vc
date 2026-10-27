@@ -330,6 +330,14 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   and night are darker on red-brown content (Prudnik 21:00 half as bright,
   a deep blue sky above): the sun's colour from the atmosphere and the
   exposure curve come next.
+- The sun's colour from the atmosphere (the user: noon looked cold with
+  the sky's blue in the shade): `Daylight::forElevation` takes the sun
+  through the air towards it (`Atmosphere::Model::sunLight` from the
+  camera's height) at its own brightness: a little warm at noon, about as
+  Daylight's warm colour at 10 degrees, redder at sunset. The highlights'
+  and the fog's sun take the same colour (scaled by the overhead sun's
+  luminance, not per channel, which made the sun white overhead); the light
+  shafts already had it.
 
 ### Open
 

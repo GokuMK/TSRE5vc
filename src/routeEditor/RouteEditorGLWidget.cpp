@@ -1331,7 +1331,15 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     SunPosition::Result shadowSun = sun;
     shadowSun.elevation = std::max(sun.elevation, Daylight::MinShadowElevation);
     SunPosition::direction(shadowSun, shadowSunDirection);
-    const Daylight::Light light = Daylight::forElevation(sun.elevation, state.sky, state.fog);
+    // The sun's light through the air towards it (Atmosphere), from the
+    // camera's height: its colour lights the shading, its strength the
+    // highlights.
+    const double airHeight = std::max(0.001, double(camera->getPos()[1]) / 1000.0);
+    const Atmosphere::Rgb sunThrough = Atmosphere::model().sunLight(airHeight,
+                                                                    std::sin(sun.elevation * M_PI / 180.0));
+    const Atmosphere::Rgb sunOverhead = Atmosphere::model().sunLight(airHeight, 1.0);
+    const float sunColour[3] = {sunThrough[0], sunThrough[1], sunThrough[2]};
+    const Daylight::Light light = Daylight::forElevation(sun.elevation, state.sky, state.fog, sunColour);
     std::copy(light.sky, light.sky + 4, gluu->skyColor);
     std::copy(light.fog, light.fog + 4, gluu->fogColor);
     std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
@@ -1349,20 +1357,18 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         std::copy(moonLight.diffuse, moonLight.diffuse + 4, gluu->diffuseColor);
     }
     // Highlights (MSTS specular) mirror the sun's disc: the day's sun through
-    // the air towards it (Atmosphere) where that is brighter than the lit
-    // shaders' sun, which fades by the horizon as a look (Daylight), as the
-    // fog's light does (RhiFog.cpp). An evening sun on the rails ahead glinted
-    // with nearly nothing (the user, aaa, 2026-10-27). Under the moon, the
-    // shading's light alone.
+    // the air towards it (Atmosphere), as bright overhead as the lit shaders'
+    // noon sun, where that is brighter than the lit shaders' sun, which fades
+    // by the horizon as a look (Daylight), as the fog's light does
+    // (RhiFog.cpp). An evening sun on the rails ahead glinted with nearly
+    // nothing (the user, aaa, 2026-10-27). Under the moon, the shading's
+    // light alone.
     std::fill(gluu->specularColor, gluu->specularColor + 4, 0.0f);
     if (!moonLit && light.sunUp) {
-        const double height = std::max(0.001, double(camera->getPos()[1]) / 1000.0);
-        const Atmosphere::Rgb through = Atmosphere::model().sunLight(height,
-                                                                     std::sin(sun.elevation * M_PI / 180.0));
-        const Atmosphere::Rgb overhead = Atmosphere::model().sunLight(height, 1.0);
         const float noon = std::pow(Daylight::SunLight, 2.2f);
+        const float overhead = 0.2126f * sunOverhead[0] + 0.7152f * sunOverhead[1] + 0.0722f * sunOverhead[2];
         for (int c = 0; c < 3; ++c)
-            gluu->specularColor[c] = noon * float(through[c] / std::max(overhead[c], 1e-6f));
+            gluu->specularColor[c] = noon * sunThrough[c] / std::max(overhead, 1e-6f);
         gluu->specularColor[3] = 1.0f;
     }
     for (int c = 0; c < 3; ++c)
