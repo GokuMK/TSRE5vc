@@ -1270,6 +1270,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
             std::copy(state.fog, state.fog + 4, gluu->fogColor);
             std::copy(state.diffuse, state.diffuse + 4, gluu->diffuseColor);
             std::copy(state.ambient, state.ambient + 4, gluu->ambientColor);
+            std::fill(gluu->specularColor, gluu->specularColor + 4, 0.0f);
             // Lamps at full strength under the fixed daytime light, by design:
             // time of day off is an editing mode that keeps every lamp's light
             // visible (tasks 21 and 22). Only time of day scales them down.
@@ -1346,6 +1347,23 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         shadowMoon.elevation = std::max(moon.elevation, Daylight::MinShadowElevation);
         MoonPosition::direction(shadowMoon, shadowSunDirection);
         std::copy(moonLight.diffuse, moonLight.diffuse + 4, gluu->diffuseColor);
+    }
+    // Highlights (MSTS specular) mirror the sun's disc: the day's sun through
+    // the air towards it (Atmosphere) where that is brighter than the lit
+    // shaders' sun, which fades by the horizon as a look (Daylight), as the
+    // fog's light does (RhiFog.cpp). An evening sun on the rails ahead glinted
+    // with nearly nothing (the user, aaa, 2026-10-27). Under the moon, the
+    // shading's light alone.
+    std::fill(gluu->specularColor, gluu->specularColor + 4, 0.0f);
+    if (!moonLit && light.sunUp) {
+        const double height = std::max(0.001, double(camera->getPos()[1]) / 1000.0);
+        const Atmosphere::Rgb through = Atmosphere::model().sunLight(height,
+                                                                     std::sin(sun.elevation * M_PI / 180.0));
+        const Atmosphere::Rgb overhead = Atmosphere::model().sunLight(height, 1.0);
+        const float noon = std::pow(Daylight::SunLight, 2.2f);
+        for (int c = 0; c < 3; ++c)
+            gluu->specularColor[c] = noon * float(through[c] / std::max(overhead[c], 1e-6f));
+        gluu->specularColor[3] = 1.0f;
     }
     for (int c = 0; c < 3; ++c)
         gluu->ambientColor[c] += moonLight.ambient[c];

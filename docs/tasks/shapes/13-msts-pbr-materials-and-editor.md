@@ -232,6 +232,20 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   roughness 0.06, normal strength 0.7): the materials draw as meant; the
   maps show what their README warns of (a grey base colour where the body
   is black, painted marks as relief, drifted details).
+- aaa at the user's camera (-5385,15368, the evening sun ahead down the
+  line, 2026-10-27: "can't get any sun reflection at all"): only the
+  `A1tPnt10dLft` points there have -6 rail tops (the `A2t500r20d` double
+  track is all -5). Three things held their glint back: the specular took
+  the lit shaders' visibility, which already holds N.L, and multiplied by
+  N.L again (a 5 degree sun: 0.0076); Blinn-Phong's implicit visibility
+  (N.L alone) dimmed it towards grazing angles, where the PBR sun's Smith
+  term keeps it; and the lit shaders' sun fades by the horizon as a look
+  (`Daylight::forElevation`, linear 0.05 of noon at 7 degrees, 0.0003 at
+  1), so a sun low enough to glint along the rails had no light. Now the
+  highlight takes the shadows alone, the Smith visibility, and the sun
+  through the air where that is brighter (`Atmosphere::sunLight`, as the
+  fog's light: `GLUU::specularColor`, the legacy `specularColor` uniform,
+  0 under the moon, without time of day and in the Shape Viewer).
 - That Vectron in the route view (Prudnik, `file0.act`, the user: plainer
   than in the Shape Viewer, no reflections to see): the route view loads
   S files with `SFileLegacy` on a worker and `adopt()` took every loaded

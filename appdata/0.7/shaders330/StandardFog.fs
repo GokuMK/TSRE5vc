@@ -37,6 +37,8 @@ uniform float alphaTest;
 uniform vec4 skyColor;
 uniform vec4 diffuseColor;
 uniform vec4 ambientColor;
+// The highlights' light where brighter than diffuseColor's (a low sun
+// through the air; linear, 0 without one): MstsSpecular.glsl.
 uniform vec4 specularColor;
 uniform vec3 lightDirection;
 uniform sampler2D uSampler;
@@ -213,11 +215,16 @@ void main() {
             vec3 lights = normalize(lightDirection);
             float cosTheta = clamp(dot( normal, lights ), 0, 1);
             float visibility = shadowedVisibility(cosTheta);
+            // What the shadows leave of the sun, without the N.L the visibility
+            // starts from (the MSTS specular has its own).
+            float sunVisible = clamp(1.0 - cosTheta + visibility, 0.0, 1.0);
 #ifdef TSRE_RHI
-            visibility *= cloudShadow(vLightPosition);
+            float sunPassing = cloudShadow(vLightPosition);
             float shade;
             float enclosed = skyEnclosed(vLightPosition, normal, shade);
-            visibility *= enclosureSun(vLightPosition, shade, lights);
+            sunPassing *= enclosureSun(vLightPosition, shade, lights);
+            visibility *= sunPassing;
+            sunVisible *= sunPassing;
 #endif
 
             // calculate light color
@@ -274,7 +281,7 @@ void main() {
 #else
                 vec3 skyLight = ambientColor.rgb;
 #endif
-                vec3 shine = mstsSpecular(normal, lights, clamp(visibility, 0.0, 1.0), skyLight)
+                vec3 shine = mstsSpecular(normal, lights, sunVisible, skyLight)
                         * colorBrightness;
                 fragColor.rgb = pow(pow(max(fragColor.rgb, vec3(0.0)), vec3(2.2)) + shine, vec3(1.0 / 2.2));
             }

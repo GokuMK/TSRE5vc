@@ -294,13 +294,16 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::shadowsEnabled = 0;
     // Its own light for this frame: the route's sun and light stay for the
     // route editor's views.
-    float routeSun[3], routeSunColor[4], routeAmbient[4];
+    float routeSun[3], routeSunColor[4], routeAmbient[4], routeSpecular[4];
     std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, routeSun);
     std::copy(gluu->diffuseColor, gluu->diffuseColor + 4, routeSunColor);
     std::copy(gluu->ambientColor, gluu->ambientColor + 4, routeAmbient);
     std::copy(light.sun, light.sun + 3, Game::sunLightDirection);
     std::fill(gluu->diffuseColor, gluu->diffuseColor + 3, light.sunColor);
     std::fill(gluu->ambientColor, gluu->ambientColor + 3, light.ambient);
+    // Highlights reflect its own light only.
+    std::copy(gluu->specularColor, gluu->specularColor + 4, routeSpecular);
+    std::fill(gluu->specularColor, gluu->specularColor + 4, 0.0f);
     
     renderer->clear(false, false, backgroundGlColor);
     
@@ -412,6 +415,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     std::copy(routeSun, routeSun + 3, Game::sunLightDirection);
     std::copy(routeSunColor, routeSunColor + 4, gluu->diffuseColor);
     std::copy(routeAmbient, routeAmbient + 4, gluu->ambientColor);
+    std::copy(routeSpecular, routeSpecular + 4, gluu->specularColor);
 }
 
 void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {

@@ -449,7 +449,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     const float exposure = autoExposure();
     program->setFloat("unlitScale", std::pow(1.0f / exposure, 1.0f / 2.2f));
     program->setFloat("emissiveScale", 1.0f / exposure);
-    program->setVec("specularColor", 1.0f, 1.0f, 1.0f, 1.0f);
+    // The highlights' light (linear), in the scene's scale as the sun's.
+    const float sceneLight = std::pow(scene, 2.2f);
+    program->setVec("specularColor", gluu->specularColor[0] * sceneLight, gluu->specularColor[1] * sceneLight,
+                    gluu->specularColor[2] * sceneLight, gluu->specularColor[3]);
     program->setVec("lightDirection", Game::sunLightDirection[0], Game::sunLightDirection[1],
                     Game::sunLightDirection[2]);
     writeCloudShadowUniforms(program);
