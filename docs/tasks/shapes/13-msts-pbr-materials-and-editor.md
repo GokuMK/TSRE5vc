@@ -263,6 +263,17 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
 - MSTS and Open Rails with `PbrTexDiff` shapes (expected: MSTS fails to
   load them, Open Rails draws texture 0), not tried.
 - Lamps' highlights on -6/-7 (the sun's only now).
+- `BlendAPbrTexDiff` is glass: its reflection is added whole and covers
+  what lies behind as much as it reflects, also where alpha is 0. Right for
+  windows; a blended part whose transparent texels are smooth (a profile's
+  feathered ballast edge with a smooth ORM there, a decal) would show a
+  reflective veil over its holes. The user's DB_Track1 maps are fully rough
+  there (about 1.6 % reflectance), so nothing shows yet. To fix: a way to
+  tell coverage (everything fades with alpha) from glass (2026-10-27).
+- PNG, JPG and TGA textures load on the calling thread
+  (`ImageLib::IsThread` false; ACE and DDS use the loaders): the user's six
+  1024 px PNG maps make the first generation of their profile take 200-290
+  ms (a profile with ACE textures: under 50). PBR maps are mostly PNG.
 
 ### Occlusion (the user's question, 2026-10-27)
 
