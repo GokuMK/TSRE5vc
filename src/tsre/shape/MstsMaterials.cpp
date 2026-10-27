@@ -61,6 +61,18 @@ QString key(const QString &imageName) {
     return name.section('/', -1).toLower();
 }
 
+float specularPower(int lightMaterial) {
+    return lightMaterial == -6 ? 25.0f : lightMaterial == -7 ? 750.0f : 0.0f;
+}
+
+void applyLight(RenderItem &item, int lightMaterial) {
+    item.material.lit = lightMaterial >= -7;
+    item.material.brightness = lightMaterial == -12 ? 0.5f : 1.0f;
+    // Cruciform light materials: trees, bushes, hedges (task renderer 37).
+    item.material.vegetation = lightMaterial == -9 || lightMaterial == -10;
+    item.material.specularPower = specularPower(lightMaterial);
+}
+
 void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTexture, Shader shader,
           bool alphaTest) {
     RenderItem::Pbr &p = item.pbr;

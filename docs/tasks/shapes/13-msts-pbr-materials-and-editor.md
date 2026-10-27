@@ -277,6 +277,21 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
 - Reflections: specular and horizon occlusion (shapes task 06, Occlusion)
   instead of the diffuse occlusion.
 
+### Track profiles (the user, 2026-10-27)
+
+Procedural profiles (`TrProfile` LODItems) draw as S files do:
+- `LightModelName` is the MSTS light material Open Rails reads it as
+  (`Viewer3D/Common/Helpers.cs`): `OptSpecular25` and `OptSpecular750` give
+  the -6/-7 specular. One function (`MstsMaterials::applyLight`) now lights
+  S files (both backends) and profile objects.
+- PBR LODItems: `ShaderName ( "PbrTexDiff" )` or `BlendAPbrTexDiff`,
+  `TSREOrmTexName`, `TSRENormalTexName`, `ESD_TSREMaterial` (the .sd line's
+  values without the key). `TexDiff`/`BlendATexDiff` with all three tokens
+  are upgraded, with a diagnostic, so Open Rails still draws such a profile
+  (the user: no other hacks; Open Rails may take the shaders in a PR). The
+  meshes go into the PBR layout with generated tangents and the packets
+  get `MstsMaterials::fill`. Mapping table and syntax: tracks task 07.
+
 ## Steps
 
 1. `Kind::ShapePart` and per-part picking in the Shape Viewer and the

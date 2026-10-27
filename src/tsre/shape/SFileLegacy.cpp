@@ -1033,12 +1033,6 @@ void SFileLegacy::updateSim(float deltaTime, unsigned int stateId){
     }
 }
 
-// MSTS specular light materials (task shapes 13), as Open Rails reads them:
-// -6 Specular 25, -7 Specular 750.
-static float specularPower(int lightMaterial) {
-    return lightMaterial == -6 ? 25.0f : lightMaterial == -7 ? 750.0f : 0.0f;
-}
-
 // Mirrors the per-vertex alpha mode written in initGL(): texdiff is opaque,
 // alpha test mode 1 cuts out below 0.51, other materials blend.
 unsigned char SFileLegacy::gatherSurface(int primState) const {
@@ -1298,18 +1292,7 @@ QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
                 }
                 r->msMatrix = (float*)&macierz[matrix].fixed;
 
-                if( vtxstate[vtx_state].arg2 < -7 )
-                    r->material.lit = 0;
-                else
-                    r->material.lit = 1;
-
-                if( vtxstate[vtx_state].arg2 == -12 )
-                    r->material.brightness = 0.5;
-                else
-                    r->material.brightness = 1.0;
-                // Cruciform light materials: trees, bushes, hedges (task renderer 37).
-                r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
-                r->material.specularPower = specularPower(vtxstate[vtx_state].arg2);
+                MstsMaterials::applyLight(*r, vtxstate[vtx_state].arg2);
 
                 r->material.surface = gatherSurface(prim_state);
                 r->material.doubleSided = doubleSided;
@@ -1434,18 +1417,7 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
                 r->msMatrix = queue.frameMatrix(m);
             }
 
-            if( vtxstate[vtx_state].arg2 < -7 )
-                r->material.lit = 0;
-            else
-                r->material.lit = 1;
-
-            if( vtxstate[vtx_state].arg2 == -12 )
-                r->material.brightness = 0.5;
-            else
-                r->material.brightness = 1.0;
-            // Cruciform light materials: trees, bushes, hedges (task renderer 37).
-            r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
-            r->material.specularPower = specularPower(vtxstate[vtx_state].arg2);
+            MstsMaterials::applyLight(*r, vtxstate[vtx_state].arg2);
 
             r->setSelectionId(numbered(index));
             r->material.surface = gatherSurface(prim_state);

@@ -15,6 +15,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/shape/MstsMaterials.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/math3d/Vector4f.h>
 #include <algorithm>
@@ -150,6 +151,15 @@ void OglObj::pushRenderItem(RenderQueue &queue) {
     pushRenderItem(queue, 0);
 }
 
+void OglObj::setPbr(const MstsMaterials::Factors &factors, int ormTexture, int normalTexture,
+                    MstsMaterials::Shader shader, bool alphaTest){
+    pbrFactors = factors;
+    pbrOrm = ormTexture;
+    pbrNormal = normalTexture;
+    pbrShader = shader;
+    pbrAlphaTest = alphaTest;
+}
+
 void OglObj::setDistanceRange(float min, float max){
     minDistance = min;
     maxDistance = max;
@@ -247,6 +257,10 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
     packet->material.lineWidth = lineWidth;
     packet->material.opacity = opacity;
     packet->material.vegetation = vegetation;
+    if(lightMaterial != 0)
+        MstsMaterials::applyLight(*packet, lightMaterial);
+    if(MstsMaterials::pbr(pbrShader))
+        MstsMaterials::fill(*packet, pbrFactors, pbrOrm, pbrNormal, pbrShader, pbrAlphaTest);
     packet->water.enabled = water;
     std::copy(layers, layers + RenderItem::Water::LAYER_COUNT, packet->water.layers);
     packet->mesh.handle = mesh;

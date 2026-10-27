@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <numeric>
 
 namespace {
 
@@ -36,11 +37,31 @@ constexpr float OpaqueAlpha = 1.0f;
 constexpr float BlendedTransparentCutoff = -1.0f / 255.0f;
 constexpr float AlphaTestCutoff = -0.51f;
 
+// BlendATexDiff, or BlendAPbrTexDiff (named, or upgraded from it).
+bool blended(const OrtsProfileLodItem &item) {
+    const QString shader = item.shader();
+    return shader.compare("BlendATexDiff", Qt::CaseInsensitive) == 0
+            || MstsMaterials::shader(shader) == MstsMaterials::Shader::PbrBlended;
+}
+
+// A PBR LODItem's material (task shapes 13); shader Other for another.
+OrtsGeneratedProfilePbr profilePbr(const OrtsProfileLodItem &item) {
+    OrtsGeneratedProfilePbr pbr;
+    pbr.shader = MstsMaterials::shader(item.shader());
+    if(!MstsMaterials::pbr(pbr.shader))
+        return pbr;
+    pbr.ormTextureName = item.ormTextureName;
+    pbr.normalTextureName = item.normalTextureName;
+    pbr.factors = MstsMaterials::Factors::read(item.materialFactors);
+    pbr.alphaTest = item.alphaTestMode == 1;
+    return pbr;
+}
+
 OrtsGeneratedProfileMesh::MaterialPass materialPass(
         const OrtsProfileLodItem &item) {
     if(item.alphaTestMode == 1)
         return OrtsGeneratedProfileMesh::MaterialPass::AlphaTest;
-    if(item.shaderName.compare("BlendATexDiff", Qt::CaseInsensitive) == 0)
+    if(blended(item))
         return OrtsGeneratedProfileMesh::MaterialPass::Blended;
     return OrtsGeneratedProfileMesh::MaterialPass::Opaque;
 }
@@ -53,7 +74,7 @@ float materialAlpha(const OrtsProfileLodItem &item) {
     // cannot write depth before the opaque profile layers are rendered.
     if(item.alphaTestMode == 1)
         return AlphaTestCutoff;
-    if(item.shaderName.compare("BlendATexDiff", Qt::CaseInsensitive) == 0)
+    if(blended(item))
         return BlendedTransparentCutoff;
     return OpaqueAlpha;
 }
@@ -674,6 +695,8 @@ void appendSharedTemplateGeometry(const OrtsTrackProfile &profile,
         OrtsGeneratedProfileSharedMesh output;
         output.textureName = item.textureName;
         output.materialPass = materialPass(item);
+        output.lightMaterial = item.lightMaterial();
+        output.pbr = profilePbr(item);
         output.minimumDistance = minimumDistance;
         output.maximumDistance = maximumDistance;
         appendSharedTemplateVertices(
@@ -1119,7 +1142,8 @@ bool textureIdMatches(int textureId, const Texture *texture) {
             && found->second == texture;
 }
 
-int profileTextureId(const QString &routePath, const QString &textureName) {
+int profileTextureId(const QString &routePath, const QString &textureName,
+        TexLib::Use use = TexLib::Display) {
     // ORTS profiles can emit many LOD/material objects which all reuse a
     // small set of textures. Resolving each new OglObj independently made
     // every live Flex rebuild repeat filesystem probes and linear TexLib
@@ -1130,7 +1154,8 @@ int profileTextureId(const QString &routePath, const QString &textureName) {
     QString normalizedName = textureName;
     normalizedName.replace('\\', '/');
     QString normalizedRoute = QDir::cleanPath(routePath);
-    const QString cacheKey = ContentPath::key(normalizedRoute) + "\n" + normalizedName.toLower();
+    const QString cacheKey = ContentPath::key(normalizedRoute) + "\n" + normalizedName.toLower()
+            + "\n" + QString::number(int(use));
     const auto cached = textureIds.constFind(cacheKey);
     const Texture *existing = textures.value(cacheKey);
     // A failed texture too: TexLib keeps its id until a reload tries it.
@@ -1140,7 +1165,7 @@ int profileTextureId(const QString &routePath, const QString &textureName) {
     const QString path = ContentPath::textureSource(normalizedTextureId(
             texturePath(routePath, normalizedName)));
 
-    const int textureId = TexLib::addTex(path);
+    const int textureId = TexLib::addTex(path, false, use);
     textureIds.insert(cacheKey, textureId);
     const auto loaded = TexLib::mtex.find(textureId);
     textures.insert(cacheKey,
@@ -1148,10 +1173,64 @@ int profileTextureId(const QString &routePath, const QString &textureName) {
     return textureId;
 }
 
+// A profile mesh's draw object: its texture, light material and LOD range;
+// a PBR item's in the PBR layout with its maps (data textures) and factors,
+// as S files draw theirs (task shapes 13).
+template<typename Mesh>
+OglObj *profileObject(const QString &routePath, const Mesh &mesh) {
+    OglObj *object = new OglObj();
+    object->setMaterialTextureId(profileTextureId(routePath, mesh.textureName));
+    object->setLightMaterial(mesh.lightMaterial);
+    object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
+    const OrtsGeneratedProfilePbr &pbr = mesh.pbr;
+    if(MstsMaterials::pbr(pbr.shader)){
+        QVector<float> vertices = OrtsTrackProfileRenderer::pbrVertices(mesh.vertices);
+        object->init(vertices.data(), vertices.size(), RenderItem::PBR, GL_TRIANGLES);
+        const int orm = pbr.ormTextureName.isEmpty() ? -1
+                : profileTextureId(routePath, pbr.ormTextureName, TexLib::Data);
+        const int normal = pbr.normalTextureName.isEmpty() ? -1
+                : profileTextureId(routePath, pbr.normalTextureName, TexLib::Data);
+        object->setPbr(pbr.factors, orm, normal, pbr.shader, pbr.alphaTest);
+    } else {
+        object->init(const_cast<float*>(mesh.vertices.constData()), mesh.vertices.size(),
+                     RenderItem::VNTA, GL_TRIANGLES);
+    }
+    object->setBound(const_cast<float*>(mesh.bounds));
+    return object;
+}
+
 }
 
 void OrtsTrackProfileRenderer::clearTemplateMeshCache() {
     templateMeshCache().clear();
+}
+
+QVector<float> OrtsTrackProfileRenderer::pbrVertices(const QVector<float> &vertices) {
+    const int stride = RenderItem::VNTA;
+    const int count = vertices.size() / stride;
+    std::vector<int> triangles(size_t(count - count % 3));
+    std::iota(triangles.begin(), triangles.end(), 0);
+    auto source = [&](int vertex, float *position, float *normal, float *uv) {
+        const float *v = vertices.constData() + size_t(vertex) * stride;
+        std::copy_n(v, 3, position);
+        std::copy_n(v + 3, 3, normal);
+        std::copy_n(v + 6, 2, uv);
+        return true;
+    };
+    std::vector<float> tangents;
+    MstsMaterials::tangents(count, source, triangles, tangents);
+    QVector<float> out(count * RenderItem::PBR, 0.0f);
+    for(int vertex = 0; vertex < count; ++vertex){
+        const float *v = vertices.constData() + size_t(vertex) * stride;
+        float *p = out.data() + size_t(vertex) * RenderItem::PBR;
+        std::copy_n(v, 8, p);
+        p[8] = 1.0f;
+        std::copy_n(&tangents[size_t(vertex) * 4], 4, p + 9);
+        p[13] = v[6];
+        p[14] = v[7];
+        std::fill(p + 15, p + 19, 1.0f);
+    }
+    return out;
 }
 
 float OrtsTrackProfileRenderer::generatedPartLod(OglObj *object,
@@ -1221,14 +1300,23 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
     QSet<QString> materialDiagnostics;
     for(const OrtsProfileLod &lod : profile.lods){
         for(const OrtsProfileLodItem &item : lod.items){
+            bool upgraded = false;
+            const QString shader = item.shader(&upgraded);
+            if(upgraded)
+                materialDiagnostics.insert("ShaderName " + item.shaderName
+                                           + " with TSREOrmTexName, TSRENormalTexName and "
+                                           "ESD_TSREMaterial drawn as " + shader);
             if(!item.shaderName.isEmpty()
                     && item.shaderName.compare("TexDiff", Qt::CaseInsensitive) != 0
-                    && item.shaderName.compare("BlendATexDiff", Qt::CaseInsensitive) != 0)
+                    && item.shaderName.compare("BlendATexDiff", Qt::CaseInsensitive) != 0
+                    && !MstsMaterials::pbr(MstsMaterials::shader(shader)))
                 materialDiagnostics.insert("ShaderName " + item.shaderName
                                            + " mapped to TSRE textured material");
-            if(!item.lightModelName.isEmpty())
+            bool knownLightModel = true;
+            item.lightMaterial(&knownLightModel);
+            if(!knownLightModel)
                 materialDiagnostics.insert("LightModelName " + item.lightModelName
-                                           + " mapped to TSRE default lighting");
+                                           + " is unknown; using normal lighting");
             if(item.alphaTestMode != 0 && item.alphaTestMode != 1)
                 materialDiagnostics.insert("AlphaTestMode is not supported; "
                                            "using texture alpha");
@@ -1244,6 +1332,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
             OrtsGeneratedProfileMesh mesh;
             mesh.textureName = item.textureName;
             mesh.materialPass = materialPass(item);
+            mesh.lightMaterial = item.lightMaterial();
+            mesh.pbr = profilePbr(item);
             const float alpha = materialAlpha(item);
             if(profile.lodMethod == OrtsTrackProfile::LodMethod::CompleteReplacement)
                 mesh.minimumDistance = previousCutoff;
@@ -1324,6 +1414,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                 for(OrtsGeneratedProfileMesh &chunkMesh : chunkMeshes){
                     chunkMesh.textureName = mesh.textureName;
                     chunkMesh.materialPass = mesh.materialPass;
+                    chunkMesh.lightMaterial = mesh.lightMaterial;
+                    chunkMesh.pbr = mesh.pbr;
                     chunkMesh.minimumDistance = mesh.minimumDistance;
                     chunkMesh.maximumDistance = mesh.maximumDistance;
                 }
@@ -1354,6 +1446,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                             : stretchMeshes){
                         stretchMesh.textureName = mesh.textureName;
                         stretchMesh.materialPass = mesh.materialPass;
+                        stretchMesh.lightMaterial = mesh.lightMaterial;
+                        stretchMesh.pbr = mesh.pbr;
                         stretchMesh.minimumDistance = mesh.minimumDistance;
                         stretchMesh.maximumDistance = mesh.maximumDistance;
                     }
@@ -1468,6 +1562,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                 for(OrtsGeneratedProfileMesh &spanMesh : spanMeshes){
                     spanMesh.textureName = mesh.textureName;
                     spanMesh.materialPass = mesh.materialPass;
+                    spanMesh.lightMaterial = mesh.lightMaterial;
+                    spanMesh.pbr = mesh.pbr;
                     spanMesh.minimumDistance = mesh.minimumDistance;
                     spanMesh.maximumDistance = mesh.maximumDistance;
                 }
@@ -1630,17 +1726,7 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         for(const OrtsGeneratedProfileMesh &mesh : meshes){
             if(mesh.materialPass != pass)
                 continue;
-            float *vertexData = new float[mesh.vertices.size()];
-            std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
-            OglObj *object = new OglObj();
-            object->setMaterialTextureId(
-                    profileTextureId(routePath, mesh.textureName));
-            object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
-            object->init(
-                    vertexData, mesh.vertices.size(), RenderItem::VNTA, GL_TRIANGLES);
-            object->setBound(const_cast<float*>(mesh.bounds));
-            generated.append(object);
-            delete[] vertexData;
+            generated.append(profileObject(routePath, mesh));
         }
     }
     shape.append(generated);
@@ -1665,18 +1751,7 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         for(const OrtsGeneratedProfileMesh &mesh : meshes){
             if(mesh.materialPass != pass)
                 continue;
-            float *vertexData = new float[mesh.vertices.size()];
-            std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
-            OglObj *object = new OglObj();
-            object->setMaterialTextureId(
-                    profileTextureId(routePath, mesh.textureName));
-            object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
-            object->init(
-                    vertexData, mesh.vertices.size(), RenderItem::VNTA,
-                    GL_TRIANGLES);
-            object->setBound(const_cast<float*>(mesh.bounds));
-            generated.append(object);
-            delete[] vertexData;
+            generated.append(profileObject(routePath, mesh));
         }
     }
     shape.append(generated);
@@ -1705,36 +1780,15 @@ bool OrtsTrackProfileRenderer::generateWithInstances(
         for(const OrtsGeneratedProfileMesh &mesh : meshes){
             if(mesh.materialPass != pass)
                 continue;
-            float *vertexData = new float[mesh.vertices.size()];
-            std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
-            OglObj *object = new OglObj();
-            object->setMaterialTextureId(
-                    profileTextureId(routePath, mesh.textureName));
-            object->setDistanceRange(
-                    mesh.minimumDistance, mesh.maximumDistance);
-            object->init(vertexData, mesh.vertices.size(),
-                         RenderItem::VNTA, GL_TRIANGLES);
-            object->setBound(const_cast<float*>(mesh.bounds));
-            generated.append(object);
-            delete[] vertexData;
+            generated.append(profileObject(routePath, mesh));
         }
         for(const OrtsGeneratedProfileSharedMesh &mesh : sharedMeshes){
             if(mesh.materialPass != pass || mesh.transforms.isEmpty())
                 continue;
-            float *vertexData = new float[mesh.vertices.size()];
-            std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
             OrtsGeneratedProfileInstanceObject instance;
-            instance.object = new OglObj();
-            instance.object->setMaterialTextureId(
-                    profileTextureId(routePath, mesh.textureName));
-            instance.object->setDistanceRange(
-                    mesh.minimumDistance, mesh.maximumDistance);
-            instance.object->init(vertexData, mesh.vertices.size(),
-                                  RenderItem::VNTA, GL_TRIANGLES);
-            instance.object->setBound(const_cast<float*>(mesh.bounds));
+            instance.object = profileObject(routePath, mesh);
             instance.transforms = mesh.transforms;
             instances.append(instance);
-            delete[] vertexData;
         }
     }
     shape.append(generated);
@@ -1809,17 +1863,7 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         for(const OrtsGeneratedProfileMesh &mesh : meshes){
             if(mesh.materialPass != pass)
                 continue;
-            float *vertexData = new float[mesh.vertices.size()];
-            std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
-            OglObj *object = new OglObj();
-            object->setMaterialTextureId(
-                    profileTextureId(routePath, mesh.textureName));
-            object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
-            object->init(
-                    vertexData, mesh.vertices.size(), RenderItem::VNTA, GL_TRIANGLES);
-            object->setBound(const_cast<float*>(mesh.bounds));
-            generated.append(object);
-            delete[] vertexData;
+            generated.append(profileObject(routePath, mesh));
         }
     }
     shape.append(generated);

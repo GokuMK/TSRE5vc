@@ -74,6 +74,14 @@ struct Factors {
 // case (without the directory).
 QString key(const QString &imageName);
 
+// MSTS light materials (vtx_state), as Open Rails reads them: -6 Specular
+// 25, -7 Specular 750; the specular power, 0 for none.
+float specularPower(int lightMaterial);
+// A packet's lighting for a light material, as the shapes draw it: lit down
+// to -7, half bright at -12, vegetation for the cruciform -9 and -10, and
+// the specular power.
+void applyLight(RenderItem &item, int lightMaterial);
+
 // A packet's PBR state for such a material (its base colour is the
 // packet's texture): the factors, the ORM and normal map (TexLib ids, -1
 // none), the surface (blended for PbrBlended, else alpha-tested at 0.51 or

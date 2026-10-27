@@ -268,13 +268,7 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             item->mesh.count = p.count;
             item->mesh.primitive = RenderItem::primitiveFromGl(p.mode);
             item->material.wireframe = false;
-            item->material.lit = mat.light >= -7;
-            item->material.brightness = mat.light == -12 ? 0.5f : 1.0f;
-            // Cruciform light materials: trees, bushes, hedges (task renderer 37).
-            item->material.vegetation = mat.light == -9 || mat.light == -10;
-            // MSTS specular light materials (task shapes 13), as Open Rails
-            // reads them: -6 Specular 25, -7 Specular 750.
-            item->material.specularPower = mat.light == -6 ? 25.0f : mat.light == -7 ? 750.0f : 0.0f;
+            MstsMaterials::applyLight(*item, mat.light);
             // Same classes as the alpha written into the vertices.
             item->material.surface = mat.alpha == 1 ? RenderItem::SURFACE_OPAQUE
                     : mat.alphaTest ? RenderItem::SURFACE_ALPHA_TEST
