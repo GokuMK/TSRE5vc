@@ -1,5 +1,5 @@
 {
- "notes": "MSTS materials test shape (scripts/make-material-spheres.py, docs/tasks/shapes/13-msts-pbr-materials-and-editor.md): left to right diffuse (-5), sheen (-6), glint (-7), clearcoated paint, metal, glass (PBR). Generate it, then run with TSRE_MATERIAL_SPHERES set to its directory.",
+ "notes": "MSTS materials test shape (scripts/make-material-spheres.py, docs/tasks/shapes/13-msts-pbr-materials-and-editor.md): left to right diffuse (-5), sheen (-6), glint (-7), clearcoated paint, metal, glass (PBR). Generate it, then run with TSRE_MATERIAL_SPHERES set to its directory. spheres-picked shows primitives 1 and 3 (sheen, paint) highlighted as the materials editor picks them.",
  "output": "build/material-spheres-capture",
  "itemRoot": "$TSRE_MATERIAL_SPHERES",
  "width": 1200,
@@ -59,6 +59,17 @@
    "pitch": 10,
    "fov": 18,
    "look": 0
+  },
+  {
+   "name": "spheres-picked",
+   "type": "shape",
+   "path": "material-spheres.s",
+   "yaw": 90,
+   "pitch": 10,
+   "picked": [
+    1,
+    3
+   ]
   }
  ]
 }

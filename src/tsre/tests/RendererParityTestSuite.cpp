@@ -1406,6 +1406,8 @@ struct ViewerItem {
     float sun[3] = {-1.0f, 0.0f, 0.0f};
     float sunColor = 0.7f;
     float ambient = 0.3f;
+    // A shape's primitives shown picked (task shapes 13: "picked": [0, 3]).
+    QVector<int> picked;
 };
 
 struct ViewerOptions {
@@ -1469,6 +1471,8 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         readFloatArray(light.value("sun"), item.sun, 3);
         item.sunColor = float(light.value("sunColor").toDouble(item.sunColor));
         item.ambient = float(light.value("ambient").toDouble(item.ambient));
+        for (const QJsonValue &primitive : object.value("picked").toArray())
+            item.picked << primitive.toInt();
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";
             return false;
@@ -1584,6 +1588,8 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             widget.setCarAnimation(g, item.animation.contains(groups[g]), true);
         widget.setAnimationEnd(item.animationEnd);
         widget.setAnimationTravelled(item.travelled);
+        widget.setPrimitivePicking(!item.picked.isEmpty());
+        widget.setPickedPrimitives(item.picked);
 
         QElapsedTimer settleTimer;
         settleTimer.start();
