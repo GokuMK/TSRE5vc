@@ -2026,8 +2026,24 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
     renderer->useProgram(Renderer::PROGRAM_MAIN);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
-    const QVector<int> faces = environmentMap->nextFaces(environmentMap->complete()
-            ? Game::environmentMapFacesPerFrame : EnvironmentMap::FaceCount);
+    // The scene's light (the sun's and the sky's, linear). Faces drawn under a
+    // light far from this one mix two lightings in the cube: after a time of
+    // day jump PBR surfaces reflected the old sky and took a tilted light
+    // from half-updated faces, lit up, then darkened a face a frame (the user,
+    // 2026-10-27). Such a jump draws every face at once; a running clock or a
+    // slow slider keeps a face a frame.
+    auto linearLuminance = [](const float *c) {
+        auto linear = [](float v) { return std::pow(std::max(v, 0.0f), 2.2f); };
+        return 0.2126f * linear(c[0]) + 0.7152f * linear(c[1]) + 0.0722f * linear(c[2]);
+    };
+    const float light = linearLuminance(gluu->ambientColor) + linearLuminance(gluu->diffuseColor);
+    bool stale = !environmentMap->complete();
+    for (int face = 0; face < EnvironmentMap::FaceCount && !stale; ++face) {
+        const float drawn = environmentFaceLight[face];
+        stale = std::fabs(light - drawn) > 0.25f * std::max({light, drawn, 1e-4f});
+    }
+    const QVector<int> faces = environmentMap->nextFaces(stale ? EnvironmentMap::FaceCount
+            : Game::environmentMapFacesPerFrame);
     Renderer::ViewLimits limits;
     limits.maxDistance = Game::environmentMapObjectDistance;
     // A face spans 90 degrees over its texels: skip objects under one texel.
@@ -2044,6 +2060,7 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
         environmentMap->beginFace(face, gluu->skyColor);
         EnvironmentMap::faceView(face, eye, view);
         renderer->renderLayeredView(faceView);
+        environmentFaceLight[face] = light;
     }
     environmentMap->endFaces();
 }

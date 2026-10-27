@@ -255,6 +255,30 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   shape as the loaders do. With the coat back the body mirrors the ballast
   and the horizon. Debug views of the shader's terms (the coat's
   reflection, the coat factor, the ORM's alpha) found it.
+- Time of day (the user, bbb 4:00, 2026-10-27): the PBR profile was half
+  as bright as the rest at dawn and dusk, and a time jump lit it up, then
+  darkened it over some frames. Every PBR material (S files, glTF too):
+  the ambient light took the cube scaled by the legacy ambient over the sky
+  colour, which is the fog's and glows at dawn while the cube's zenith is
+  still dark. Now scaled by the cube's own light from straight up: open
+  sky gives the legacy ambient, the cube's level cancels (track at 4:00
+  14 -> 35 of 255, the legacy track 30; noon unchanged). A jump left the
+  cube with faces of two lightings (a face a frame): old reflections and a
+  tilted light from half-updated faces. The route view now records the
+  scene's light level (linear sun and sky colour) each face was drawn
+  under and draws all six at once when one is 25 % off (about 10-15 ms on
+  that frame); the track then holds its level from the jump frame on.
+- PNG, JPG and TGA textures loaded on the calling thread
+  (`ImageLib::IsThread` false; ACE and DDS on the loaders as
+  `core.rendering.threadedTextureLoading` says): the user's six 1024 px PNG
+  maps made their PBR profile's first generation take 200-290 ms (with ACE
+  textures: under 50). Every `addTex` caller loading files was checked
+  (2026-10-27): all cope with a texture still loading (shapes, glTF,
+  profiles and `OglObj` draw once it is loaded; terrain textures, procedural
+  terrain and brushes check `loaded` and retry, painting clones through a
+  synchronous reload); map layers register textures in memory. So images
+  follow the setting as ACE and DDS do, and a failed image load is marked on
+  any thread (it was not on one: a missing PNG became a loaded 0x0 image).
 
 ### Open
 
@@ -270,17 +294,6 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   reflective veil over its holes. The user's DB_Track1 maps are fully rough
   there (about 1.6 % reflectance), so nothing shows yet. To fix: a way to
   tell coverage (everything fades with alpha) from glass (2026-10-27).
-- PNG, JPG and TGA textures loaded on the calling thread
-  (`ImageLib::IsThread` false; ACE and DDS on the loaders as
-  `core.rendering.threadedTextureLoading` says): the user's six 1024 px PNG
-  maps made their PBR profile's first generation take 200-290 ms (with ACE
-  textures: under 50). Every `addTex` caller loading files was checked
-  (2026-10-27): all cope with a texture still loading (shapes, glTF,
-  profiles and `OglObj` draw once it is loaded; terrain textures, procedural
-  terrain and brushes check `loaded` and retry, painting clones through a
-  synchronous reload); map layers register textures in memory. So images
-  follow the setting as ACE and DDS do, and a failed image load is marked on
-  any thread (it was not on one: a missing PNG became a loaded 0x0 image).
 
 ### Occlusion (the user's question, 2026-10-27)
 

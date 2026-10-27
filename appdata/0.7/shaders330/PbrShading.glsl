@@ -316,13 +316,18 @@ vec4 pbrShade() {
 
     // Image-based light from the prefiltered cube: level i holds reflections
     // for roughness i / (levels - 1); diffuse light uses the roughest level,
-    // scaled so open sky gives the legacy ambient light.
+    // scaled so open sky gives the legacy ambient light: the cube's light
+    // from straight up (the sky colour without a cube) stands for it. The
+    // cube's own level cancels, so its dark zenith at dawn and dusk (the sky
+    // colour, the fog's, glows there: PBR came out several times darker than
+    // the rest) and a cube some frames behind a time change (a face a frame:
+    // a jump lit PBR up, then darkened it) light as the rest does.
     float occlusion = 1.0;
     if ((pbrTextures & 4) != 0)
         occlusion = 1.0 + pbrOcclusionStrength * (texture(pbrOcclusionMap, pbrUv(3)).r - 1.0);
     vec3 irradiance = environmentRadiance(n, 1.0);
     float ambientScale = luminance(toLinear(ambientColor.rgb))
-            / max(luminance(toLinear(skyColor.rgb)), 0.05);
+            / max(luminance(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0)), 1e-4);
     vec3 r = reflect(-v, n);
     vec3 reflected = environmentRadiance(r, roughness);
     vec3 diffuseEnvironment = diffuseAlbedo * irradiance * ambientScale;

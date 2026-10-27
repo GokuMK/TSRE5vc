@@ -809,6 +809,8 @@ private:
     // Owned; draws this widget's frames.
     Renderer *renderer = NULL;
     EnvironmentMap *environmentMap = NULL;
+    // The scene's light level each cube face was drawn under (renderEnvironmentMap).
+    float environmentFaceLight[6] = {};
     RenderSurface *surface = NULL;
     PlanarReflection *waterReflection = NULL;
     // Mirror plane of the last reflection (n . p + d = 0).
