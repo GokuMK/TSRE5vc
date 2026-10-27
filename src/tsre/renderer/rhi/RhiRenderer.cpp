@@ -2464,7 +2464,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.format = quint8(buffers.format);
     key.blend = blending && baseProgram != PROGRAM_SELECTION && target().attachments != nullptr
             && target().attachments->color != nullptr;
-    key.depthWrite = !(item->pbr.enabled && item->pbr.blend) && texelsOf(item) != TEXELS_TRANSLUCENT;
+    // Blended PBR (glass) writes no depth in the blended pass, sorted back to
+    // front. Drawn in submission order in the opaque pass (track profiles'
+    // layers, OglObj) it writes it as legacy parts there do, its holes
+    // discarded (alphaCutoff): else the ambient occlusion took the depth
+    // behind it, the terrain under a ballast shoulder, and darkened the
+    // shoulder by it (black at dusk; the user, 2026-10-27).
+    const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE;
+    key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
     // The sky enclosure maps look down on everything: single-sided roofs and
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow

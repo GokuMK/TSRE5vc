@@ -96,7 +96,10 @@ void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTe
     p.blend = shader == Shader::PbrBlended;
     // Glass: what it reflects is not faded with its alpha.
     p.glass = p.blend;
-    p.alphaCutoff = alphaTest && !p.blend ? 0.51f : -1.0f;
+    // Blended: its holes (alpha 0) are not glass, and are discarded, as the
+    // legacy blended parts' (their vertex alpha -1/255): they neither reflect
+    // nor write depth.
+    p.alphaCutoff = p.blend ? 1.0f / 255.0f : alphaTest ? 0.51f : -1.0f;
     item.material.surface = p.blend ? RenderItem::SURFACE_BLENDED
             : alphaTest ? RenderItem::SURFACE_ALPHA_TEST : RenderItem::SURFACE_OPAQUE;
     item.material.lit = true;

@@ -294,6 +294,21 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   PBR now takes the same contrast (the user: as the rest of the content;
   vegetation keeps its own share, task 37): 59 %. GTAO may take that role
   later, not yet.
+- With screen-space AO on, the PBR profile's blended layers turned black at
+  dusk (the user, bbb 20:00, 2026-10-27; fine at noon, when the sun outweighs
+  the ambient light, and without AO). Blended PBR wrote no depth, so the AO
+  took the depth behind a ballast shoulder (the terrain meeting the bed's
+  edge) and darkened the shoulder by it. Legacy layers drawn in submission
+  order in the opaque pass (profiles' OglObj) write depth for all but their
+  fully transparent texels; blended PBR there now does too, and every blended
+  PBR material discards alpha below 1/255 (holes are not glass). Glass in the
+  sorted blended pass keeps no depth writes. The AO term now matches the
+  legacy profile's.
+- The darker ballast under the rails on the S-path track at 16:00 (the user:
+  shadow map occlusion missing on PBR) is painted into DB_Track1.ace: it
+  stays the same with shadows off. The rails' own shadows fall on both
+  tracks alike; the PBR base colour's ballast strip, rebuilt by the AI from
+  uniform ballast, has no such dirt.
 
 ### Open
 
@@ -306,8 +321,8 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   what lies behind as much as it reflects, also where alpha is 0. Right for
   windows; a blended part whose transparent texels are smooth (a profile's
   feathered ballast edge with a smooth ORM there, a decal) would show a
-  reflective veil over its holes. The user's DB_Track1 maps are fully rough
-  there (about 1.6 % reflectance), so nothing shows yet. To fix: a way to
+  reflective veil over its holes. Holes (alpha 0) are discarded now; a
+  partly transparent smooth decal would still show it. To fix: a way to
   tell coverage (everything fades with alpha) from glass (2026-10-27).
 
 ### Occlusion (the user's question, 2026-10-27)
