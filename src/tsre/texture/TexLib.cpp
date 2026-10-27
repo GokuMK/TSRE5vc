@@ -188,11 +188,9 @@ void startLoad(Texture *texture, bool reload, TexLib::Loading loading = TexLib::
     texture->reloadable = fileType(type);
     // On a loader thread when asked, or as the setting says (`setting`: the
     // loader's switch, which follows it); a reload loads at once.
-    // Deferrable: the setting for every type (AceLib keeps its value).
     auto threaded = [&](bool setting) {
         return !reload && (loading == TexLib::Loading::Background
-                           || (loading == TexLib::Loading::Setting && setting)
-                           || (loading == TexLib::Loading::Deferrable && AceLib::IsThread));
+                           || (loading == TexLib::Loading::Setting && setting));
     };
     if(type == "ace"){
         loadTexture<AceLib>(texture, threaded(AceLib::IsThread));
@@ -345,11 +343,11 @@ void TexLib::addRef(int texx) {
     }
 }
 
-int TexLib::addTex(QString path, QString name, bool reload, Use use, Loading loading) {
+int TexLib::addTex(QString path, QString name, bool reload, Use use) {
     QString pathid = (path+"/"+name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
-    return addTex(pathid, reload, use, loading);
+    return addTex(pathid, reload, use);
 }
 
 int TexLib::getTex(QString pathid) {

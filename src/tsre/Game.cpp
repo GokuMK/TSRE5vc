@@ -35,6 +35,7 @@
 #include <tsre/fileFunctions/TarFile.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
+#include <tsre/texture/ImageLib.h>
 #include <tsre/world/TerrainGridLayout.h>
 #include <settings/SettingsManager.h>
 #include <tsre/world/TerrainMaterialMap.h>
@@ -339,6 +340,7 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     if (appliesNow("core.rendering.threadedTextureLoading")) {
         AceLib::IsThread = textureLoaderThreaded;
         DdsLib::IsThread = textureLoaderThreaded;
+        ImageLib::IsThread = textureLoaderThreaded;
     }
     claim("core.rendering.textureDownscaleFactor", SettingType::Enum);
     if (appliesNow("core.rendering.textureDownscaleFactor"))
@@ -606,6 +608,7 @@ void Game::loadLegacySettings() {
     QString path;
     AceLib::IsThread = textureLoaderThreaded;
     DdsLib::IsThread = textureLoaderThreaded;
+    ImageLib::IsThread = textureLoaderThreaded;
     
     path = "settings.txt";
     QFile file(path);
@@ -739,6 +742,7 @@ void Game::loadLegacySettings() {
                 textureLoaderThreaded = false;
             AceLib::IsThread = textureLoaderThreaded;
             DdsLib::IsThread = textureLoaderThreaded;
+            ImageLib::IsThread = textureLoaderThreaded;
         }
         if(val == "geoPath")
             geoPath = args[1].trimmed();

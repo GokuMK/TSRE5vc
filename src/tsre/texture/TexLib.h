@@ -38,16 +38,13 @@ public:
     // 13: never bled as a cutout, mipmaps the means of its values).
     enum Use { Display, Editable, Data };
     // How addTex loads a texture it does not have yet: as the setting
-    // core.rendering.threadedTextureLoading says (ACE and DDS; images such as
-    // PNG in the caller's thread, as callers that read their pixels at once
-    // need), as the setting says for every type (Deferrable: the caller copes
-    // with a texture still loading, as shapes' and profiles' packets do), on
-    // a thread of its own whatever the setting (the caller, say the render
-    // thread, never waits), or at once in the caller's thread. A reload loads
-    // at once.
-    enum class Loading { Setting, Deferrable, Background, Now };
-    static int addTex(QString path, QString name, bool reload = false, Use use = Display,
-                      Loading loading = Loading::Setting);
+    // core.rendering.threadedTextureLoading says (every type: ACE, DDS and
+    // images such as PNG; a caller that reads pixels at once asks for Now),
+    // on a thread of its own
+    // whatever the setting (the caller, say the render thread, never waits),
+    // or at once in the caller's thread. A reload loads at once.
+    enum class Loading { Setting, Background, Now };
+    static int addTex(QString path, QString name, bool reload = false, Use use = Display);
     static int addTex(QString pathid, bool reload = false, Use use = Display,
                       Loading loading = Loading::Setting);
     static int addTex(QString pathid, bool reload, Loading loading) {

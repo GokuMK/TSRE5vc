@@ -820,9 +820,9 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Threaded texture loading"
                 QT_TRID_NOOP("settings.core.rendering.threaded.texture.loading.name")).withDescriptionId(
-                //% "Load textures on worker threads: ACE and DDS, and the images (PNG, JPEG) of shapes and track profiles."
+                //% "Load textures (ACE, DDS and images such as PNG and JPEG) on worker threads."
                 QT_TRID_NOOP("settings.core.rendering.threaded.texture.loading.description")).inGroup("rendering").inSubgroup("textures"),
-        "textureLoaderThreaded", "Game::textureLoaderThreaded", "AceLib/DdsLib", true, "startup-cache");
+        "textureLoaderThreaded", "Game::textureLoaderThreaded", "AceLib/DdsLib/ImageLib", true, "startup-cache");
     ADD(SettingsDefinition::enumeration("core.rendering.textureDownscaleFactor", 1)
             .withNameId(
                 //% "Texture downscale factor"
