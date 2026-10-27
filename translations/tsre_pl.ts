@@ -11530,7 +11530,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     <message id="settings.dialog.text.clear.override">
         <location filename="../src/settings/ui/SettingsDialog.cpp" line="550"/>
         <source>Clear</source>
-        <translation>Bezchmurnie</translation>
+        <translation>Wyczyść</translation>
     </message>
     <message id="settings.dialog.tooltip.clear.override">
         <location filename="../src/settings/ui/SettingsDialog.cpp" line="554"/>
