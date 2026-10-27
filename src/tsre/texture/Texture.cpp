@@ -1191,9 +1191,13 @@ void keepCoverage(QByteArray &level, double target) {
             high = middle;
     }
     // Coverage moves in steps (many texels share an alpha in small levels):
-    // the step nearer level 0's, above or below.
-    const float scale = std::abs(coverageOf(level, low) - target) < std::abs(coverageOf(level, high) - target)
-            ? low : high;
+    // the step nearer level 0's, above or below. Never under 1: opaque
+    // texels stay opaque. Any scale above the cutoff's passes them as well,
+    // and the smallest made 255 into 131, which a blended part drew half
+    // transparent (a Vectron's body seen through, its texture a cutout for
+    // a few holes; the user, 2026-10-27).
+    const float scale = std::max(1.0f, std::abs(coverageOf(level, low) - target)
+                                               < std::abs(coverageOf(level, high) - target) ? low : high);
     // Truncated: a texel passes as it was counted (rounding passed some
     // counted below the cutoff).
     unsigned char *out = reinterpret_cast<unsigned char *>(level.data());

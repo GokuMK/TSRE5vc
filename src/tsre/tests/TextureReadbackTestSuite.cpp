@@ -225,6 +225,26 @@ int TsreTests::runTextureReadbackSuite(bool verbose) {
             kept = std::abs(coverage(cutout->preparedLevels[k]) - coverage(cutout0)) < 0.1;
         check(kept, "made again: an alpha-tested texture keeps its coverage");
 
+        // An opaque texture with a hole (a cutout all the same) keeps its
+        // opaque texels opaque in every level, made again and improved:
+        // blended parts draw with it too.
+        for (const auto source : {Texture::MipmapSource::Regenerate, Texture::MipmapSource::Improve}) {
+            Texture::mipmapSource = int(source);
+            std::unique_ptr<Texture> holed(shapeTexture(64));
+            for (int i = 0; i < 64 * 64; ++i)
+                holed->imageData[i * 4 + 3] = i % 64 < 4 && i / 64 < 4 ? 0 : 255;
+            holed->classifyAlpha();
+            bool opaque = holed->prepareForRhi() && holed->preparedLevels.size() == 7;
+            for (int k = 1; opaque && k <= 4; ++k) {
+                const QByteArray &level = holed->preparedLevels[k];
+                opaque = static_cast<unsigned char>(level[level.size() - 1]) == 255;
+            }
+            check(opaque, source == Texture::MipmapSource::Regenerate
+                                  ? "made again: a cutout's opaque texels stay opaque"
+                                  : "improved: a cutout's opaque texels stay opaque");
+        }
+        Texture::mipmapSource = int(Texture::MipmapSource::Regenerate);
+
         // Improved on a cutout whose own levels thinned out (0/255 alpha, a
         // texel passing only where most of the 2x2 above did): ours instead,
         // its coverage kept; and none scaled under the shaders' 0.51.
