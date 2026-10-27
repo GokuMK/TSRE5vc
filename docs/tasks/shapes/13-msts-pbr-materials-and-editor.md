@@ -205,8 +205,11 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   shapes. Prudnik's track is TSRE's procedural track, so -6 changes nothing
   there: route captures of the specular need S-file track.
 - In the Shape Viewer's studio light the -6 sheen is faint and the -7 glint
-  a small spot; the route's sun is stronger. Tuned with the spheres; to
-  check on route track at the sun.
+  a small spot; the route's sun is stronger. On EUROPE1's track at 15:00 and
+  16:00 looking along it towards the sun (`tests/renderer/specular-views.json`,
+  MSTS stock routes under `C:/MagiPacks/Microsoft Train Simulator`) the rail
+  heads gain a sheen, most on the far rails (largest change 43 of 255,
+  0.75% of the pixels): visible, not invasive.
 - The user's Vectron set (AI-made maps; `MRCE_X4E-627_PBR.s` made with the
   editing API: base colour, packed ORM, normal map; clearcoat 1, its
   roughness 0.06, normal strength 0.7): the materials draw as meant; the
@@ -215,8 +218,8 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
 
 ### Open
 
-- The user's review: the window by hand, their own maps, specular on route
-  track at the sun.
+- The user's review: the window by hand, their own maps, the specular's
+  strength (a lower sun, a sharper glint).
 - MSTS and Open Rails with `PbrTexDiff` shapes (expected: MSTS fails to
   load them, Open Rails draws texture 0), not tried.
 - Lamps' highlights on -6/-7 (the sun's only now).
