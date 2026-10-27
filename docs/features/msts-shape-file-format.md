@@ -339,6 +339,8 @@ The document reader accepts missing/extra blocks and resolves rendering dependen
 
 At recognized text block headers, unquoted multi-word labels can be joined with a diagnostic and quoted on save. This bounded compatibility extension is not evidence that native MSTS accepts the same invalid syntax. Binary `slerp_rot` with 20 body bytes after the label is recognized as a direct quaternion key; the alternate container is also retained.
 
+TSRE extensions (shapes task 13): the shader names `PbrTexDiff` (opaque, alpha-tested by the primitive state) and `BlendAPbrTexDiff` (blended glass) draw a primitive state through TSRE's PBR shading with up to three `tex_idxs` entries: base colour, ORM(C) (R occlusion, G roughness, B metalness, optional A clearcoat mask) and a tangent-space normal map (OpenGL, green up). Their factors are a descriptor line `ESD_TSREMaterial ( texture r g b a metalness roughness normal occlusion clearcoat clearcoatRoughness transmission )`, keyed by the base colour texture's file name, values after the last given at their defaults. Open Rails' descriptor reader skips unknown tokens with their blocks; Open Rails draws an unknown shader name with its first texture.
+
 Descriptor differences are explicit: `ESD_Detail_Level` and `ESD_Alternative_Texture` have unsigned typed layouts in the document; seasonal paths use TSRE's season flags. All twelve complex-box values survive Complete storage, while current bounds helpers use values 6–11. `ESD_Snapable` currently tests block presence, so an explicit false value is not equivalent to absence. Unknown text descriptor extensions are retained without implying a typed binary schema or runtime support.
 
 ### Open Rails

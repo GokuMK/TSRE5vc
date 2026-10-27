@@ -19,6 +19,7 @@
 class ShapeViewerGLWidget;
 class ShapeHierarchyWindow;
 class ShapeTexturesWindow;
+class ShapeMaterialsWindow;
 class Camera;
 class Consist;
 class EngLib;
@@ -30,6 +31,7 @@ class ConInfoWidget;
 class ShapeInfoWidget;
 class ContentHierarchyInfo;
 class ComplexShape;
+class SFileComplex;
 
 class ShapeViewerWindow : public QMainWindow {
     Q_OBJECT
@@ -49,6 +51,7 @@ public slots:
     void dirFilesSelected(QString file);
     void viewHierarchySelected(bool show);
     void viewTexturesSelected(bool show);
+    void viewMaterialsSelected(bool show);
     void vResetShapeViewSelected(); 
     void copyImgShapeView();
     void saveImgShapeView();
@@ -63,6 +66,9 @@ private:
     ShapeViewerGLWidget *glShapeWidget;
     ShapeHierarchyWindow *hierarchyWindow;
     ShapeTexturesWindow *texturesWindow;
+    ShapeMaterialsWindow *materialsWindow;
+    // The shape the materials window edits.
+    ComplexShape *materialsShape = nullptr;
     AboutWindow* aboutWindow;
     ShapeViewerNavigatorWidget* navigatorWidget;
     EngInfoWidget* engInfo;
@@ -84,6 +90,7 @@ private:
     QAction *fExit;
     QAction *vHierarchyView;
     QAction *vTexturesView;
+    QAction *vMaterialsView;
     QAction *vResetShapeView;
     QAction *vGetImgShapeView;
     QAction *vSaveImgShapeView;
@@ -102,6 +109,8 @@ private:
     QVector<ContentHierarchyInfo*> currentContent;
 
     void updateShapeSaveActions();
+    // Its .sd beside a saved shape when the materials changed it.
+    bool saveShapeMetadata(SFileComplex *shape, const QString &path, const QString &title);
     void updateTextureInfo(bool refreshContentList);
 };
 

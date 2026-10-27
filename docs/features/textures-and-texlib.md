@@ -90,6 +90,9 @@ Shapes sample their textures without mipmaps by default (`GLTextures()`: many MS
 - `improve` (default): the file's own while each is within 12 (mean colour difference, 0 to 255) of ours made from the level above and, for a cutout, its coverage (scaled) within 0.1 of level 0's; ours from the first that is not.
 Block-compressed textures keep level 0 as it is; their levels are decoded, made or kept, and encoded again (`DxtCodec::encode`, a bounding-box fit) when changed. `regenerate` and `improve` cost load time (decoding and encoding); off, nothing changes. `core.rendering.textureLodBias` shifts the base texture's mip level in `StandardFog.fs` and `StandardFast.fs` (QRhi; the OpenGL renderer leaves it at 0). All three apply after a restart; the OpenGL renderer has the switch only (its upload keeps the file's mipmaps or generates them). Open (user, 2026-10-27, for later): at Glucholazy (Prudnik, memory-jumps view 03) a young planted forest thins out more with `improve` than with `regenerate`. Likely fix: for cutouts keep the file's colours but always take ours, coverage-keeping, alpha (the file's alpha is what thins out).
 
+### 3.2.2 Data Textures
+`TexLib::addTex(..., TexLib::Data)` requests a display texture whose texels are data, not colour (PBR maps of MSTS shapes, shapes task 13: ORM(C), normal maps; `Texture::data`): a binary alpha is not treated as a cutout (its transparent texels keep their colour: an ORM's clearcoat mask), and made mipmaps average the values instead of colours in linear light.
+
 ### 3.3 OpenGL Upload Happens Later
 OpenGL upload is not performed in the loader threads.
 Instead, render code checks `Texture::loaded` and calls `Texture::GLTextures()` on demand (e.g. `SFileLegacy::pushRenderItem`, `OglObj::pushRenderItem`, terrain gather) to upload to GPU on the GL context thread.

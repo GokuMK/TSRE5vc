@@ -1,6 +1,8 @@
 # Task 13 - PBR Materials for MSTS Shapes, and a Materials Editor
 
-Status: decided (the user, 2026-10-27), in work on `feature/shape-materials`.
+Status: implemented on `feature/shape-materials` (2026-10-27): steps 1-5
+below; the user's review left (the editor by hand, specular on route track
+shapes, their own maps). Translations of the new texts come with the merge.
 
 ## Where we are
 
@@ -34,7 +36,10 @@ Status: decided (the user, 2026-10-27), in work on `feature/shape-materials`.
 3. Factors in the `.sd`, short: `.sd` files are read for every shape of a
    route without the shape files, so one line a material, positional, only
    for materials that differ from the defaults, trailing defaults left out.
-   No `.sd` or no line: the defaults.
+   No `.sd` or no line: the defaults. Keyed by the base colour texture's
+   file name, not the primitive state's name: exporters name states after
+   their matrix and look (`MAIN_SolidNorm`, `Bogie1_TransNorm`), the same
+   name for many textures.
 4. Clearcoat and reflective glass in the first step; transmission (the glTF
    one) as a factor too.
 5. Selection ids: `Kind::ShapePart`, an 11-bit instance and a 16-bit part.
@@ -64,9 +69,11 @@ lighting mode); a JSON sidecar (lost when a shape is copied without it).
   vertex from the triangles' texture coordinate gradients, as glTF shapes
   do (shared code); +16 bytes a vertex for those parts.
 - **The `.sd` line:**
-  `ESD_TSREMaterial ( name r g b a metalness roughness normal occlusion clearcoat clearcoatRoughness transmission )`
-  keyed by the primitive state's name (else `#index`), defaults
-  `1 1 1 1 0 1 1 1 0 0 0`, written up to the last value that differs.
+  `ESD_TSREMaterial ( texture r g b a metalness roughness normal occlusion clearcoat clearcoatRoughness transmission )`
+  keyed by the base colour texture's file name (lower case), written up to
+  the last value that differs from its default: tint 1, metalness and
+  roughness 1 with an ORM texture (they multiply its B and G) or 0 and 0.5
+  without one (they are the values), normal and occlusion 1, the rest 0.
   Open Rails' `.sd` reader skips unknown tokens with their blocks
   (`STFReader.ParseBlock`), and Open Rails adds its own there
   (`ESD_ORTSSoundFileName`).
@@ -135,6 +142,84 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   submit).
 - The consist editor picks cars with it (part ignored); the materials editor
   reads the part. glTF parts the same way.
+
+## Implementation (2026-10-27)
+
+- **Selection ids** (`SelectionId.h`): selector 14, `shapePart`,
+  `forShapePart` (a ShapePart id takes the part, any other stays).
+  `SFileLegacy`, `SFileComplex` and `GltfShape` submit each primitive with
+  its number on such an id; `ComplexShape::drawnPrimitiveCount`,
+  `drawnPrimitiveMaterial`, `pushPrimitiveHighlight` (a decal tint in the
+  overlay layer). The Shape Viewer picks on a click (not a drag), Ctrl adds;
+  the consist preview picks cars as instances (`Consist::pushRenderItems`).
+- **Specular** (`MstsSpecular.glsl`, `RenderItem::Material::specularPower`,
+  both renderers): normalized Blinn-Phong, `(p + 8) / 8 * (N.H)^p`, the
+  sun's linear colour, shadowed, Schlick Fresnel from 0.08 (the sun) and
+  0.04 (the sky, `ambientColor`, reflected at grazing angles by
+  smoothness); the power drops by the normals' spread over the pixel
+  (screen derivatives) plus `(distance / 2000 m)^2`. Not in
+  `StandardFast.fs` (the fast shaders) nor on untextured parts.
+- **PBR** (`MstsMaterials`, both backends): `PbrTexDiff` opaque or
+  alpha-tested at 0.51, `BlendAPbrTexDiff` blended glass
+  (`RenderItem::Pbr::glass`: alpha covers the diffuse light; the coverage
+  made up from the reflectance and highlights). A sub-object's PBR parts
+  get a second mesh in the `RenderItem::PBR` layout with tangents per
+  source vertex (`MstsMaterials::tangents`); the VNTA mesh keeps every part
+  (highlight). The ORM's alpha times the clearcoat
+  (`clearcoatInMetallicRoughnessAlpha`, bit 8192 of `pbrTextures`).
+  ORM and normal maps load as `TexLib::Data` (never bled as cutouts,
+  mipmaps the means of their values).
+- **Generated tangents** pointed the bitangent down the image (texture
+  coordinates grow down it): normal maps of glTF shapes without `TANGENT`
+  read inside out. Fixed for both; Khronos NormalTangentTest now matches
+  its reference.
+- **Editing** (`SFileComplexMaterials.cpp`, Complete mode): `materialInfo`,
+  `setMaterial` (shader and texture entries added when missing, a vertex
+  state of its own when the light material changes and others share it),
+  `addMaterial`, `removeMaterial` (unused; later states renumbered),
+  `assignMaterial` (a `prim_state_idx` before the part and the old one
+  back after it, redundant ones dropped, a state per matrix found or
+  made, `subobject_shaders` completed), the `.sd` line (an `.sd` made when
+  the shape has none), undo snapshots of both documents (20 steps, 256 MB).
+  On new `SFileDocument::Node` operations: `setScalars`, `setLabel`,
+  `insertCopy`, `removeChild`.
+- **Materials window** (`ShapeMaterialsWindow`, View > Shape Materials):
+  the list (name, shader, textures, lighting, matrix, parts), the form with
+  a description under every field, Pack (an ORM(C) texture from grayscale
+  maps, `MstsMaterials::packOrm`), picking and assigning, Undo. File >
+  Save and Save As write the `.sd` too.
+- **Tests:** `shape-materials` (24: factors, tangent direction, packing,
+  editing, text and compressed binary round trips with the `.sd`, the
+  legacy backend's PBR packets and part ids, specular power, the window);
+  `selection-id` (19); `consist-preview-gl`, `shape-complex`(-gl),
+  `gltf-pbr-gl` and the texture suites pass as before.
+- **Test shape:** `scripts/make-material-spheres.py` writes six spheres
+  (-5, -6, -7, clearcoated paint with an unvarnished stripe and rivets,
+  metal with a rough band, glass); `tests/renderer/material-spheres.json`
+  views them in the Shape Viewer (`TSRE_MATERIAL_SPHERES`).
+
+### Findings
+
+- Global track shapes use -6 for their rail heads (`A1t*`: `RailTops`, 165
+  of 350 text shapes), -7 is rare (13); trainsets use -6 in 8 of 203 text
+  shapes. Prudnik's track is TSRE's procedural track, so -6 changes nothing
+  there: route captures of the specular need S-file track.
+- In the Shape Viewer's studio light the -6 sheen is faint and the -7 glint
+  a small spot; the route's sun is stronger. Tuned with the spheres; to
+  check on route track at the sun.
+- The user's Vectron set (AI-made maps; `MRCE_X4E-627_PBR.s` made with the
+  editing API: base colour, packed ORM, normal map; clearcoat 1, its
+  roughness 0.06, normal strength 0.7): the materials draw as meant; the
+  maps show what their README warns of (a grey base colour where the body
+  is black, painted marks as relief, drifted details).
+
+### Open
+
+- The user's review: the window by hand, their own maps, specular on route
+  track at the sun.
+- MSTS and Open Rails with `PbrTexDiff` shapes (expected: MSTS fails to
+  load them, Open Rails draws texture 0), not tried.
+- Lamps' highlights on -6/-7 (the sun's only now).
 
 ## Steps
 

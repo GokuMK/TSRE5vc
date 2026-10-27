@@ -22,8 +22,10 @@ simplification.
 - Vertices use the `RenderItem::PBR` layout (19 floats): position, normal,
   texture coordinates, alpha, tangent with handedness, second texture
   coordinates and colour (`COLOR_0`). Missing tangents are generated per
-  source vertex from the texture coordinate gradients; missing normals were
-  already generated.
+  source vertex from the texture coordinate gradients, the bitangent up the
+  image (fixed 2026-10-27, shapes task 13: it pointed down, and Khronos
+  NormalTangentTest's maps read as dents); missing normals were already
+  generated.
 - Packets carry a `RenderItem::Pbr` block. The renderer draws them with the
   `StandardFogPbr` program (`TSRE_PBR`, `PbrShading.glsl`) and binds the
   metallic-roughness, normal, occlusion and emissive maps on units 11-14,

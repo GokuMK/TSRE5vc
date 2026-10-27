@@ -11,6 +11,7 @@
 #include <tsre/shape/MstsMaterials.h>
 
 #include <QFileInfo>
+#include <QImage>
 #include <algorithm>
 #include <tsre/renderer/RenderItem.h>
 
@@ -151,6 +152,57 @@ void tangents(int vertexCount, const VertexReader &vertex, const std::vector<int
         // OpenGL normal maps); the gradient sums point down the image.
         tangent[3] = cross[0] * b[0] + cross[1] * b[1] + cross[2] * b[2] < 0.0f ? 1.0f : -1.0f;
     }
+}
+
+bool packOrm(const OrmSources &sources, const QString &out, QString *error) {
+    QImage maps[4];
+    int width = 0, height = 0;
+    for (int c = 0; c < 4; ++c) {
+        if (sources.files[c].trimmed().isEmpty())
+            continue;
+        if (!maps[c].load(sources.files[c])) {
+            if (error)
+                //% "Cannot read %1."
+                *error = qtTrId("shape.materials.error.read.image").arg(sources.files[c]);
+            return false;
+        }
+        width = std::max(width, maps[c].width());
+        height = std::max(height, maps[c].height());
+    }
+    if (width == 0) {
+        width = height = 4;
+    }
+    QImage packed(width, height, QImage::Format_RGBA8888);
+    for (int c = 0; c < 4; ++c) {
+        if (!maps[c].isNull() && (maps[c].width() != width || maps[c].height() != height))
+            maps[c] = maps[c].scaled(width, height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        if (!maps[c].isNull())
+            maps[c] = maps[c].convertToFormat(QImage::Format_RGBA8888);
+    }
+    for (int y = 0; y < height; ++y) {
+        uchar *line = packed.scanLine(y);
+        const uchar *rows[4];
+        for (int c = 0; c < 4; ++c)
+            rows[c] = maps[c].isNull() ? nullptr : maps[c].constScanLine(y);
+        for (int x = 0; x < width; ++x)
+            for (int c = 0; c < 4; ++c) {
+                int value;
+                if (rows[c] != nullptr) {
+                    const uchar *p = rows[c] + x * 4;
+                    value = (54 * p[0] + 183 * p[1] + 19 * p[2] + 128) / 256;
+                } else {
+                    value = int(std::clamp(sources.constants[c], 0.0f, 1.0f) * 255.0f + 0.5f);
+                }
+                line[x * 4 + c] = uchar(value);
+            }
+    }
+    if (!packed.save(out, "PNG")) {
+        if (error)
+            //% "Cannot write %1."
+            *error = qtTrId("shape.materials.error.write.image").arg(out);
+        return false;
+    }
+    return true;
 }
 
 } // namespace MstsMaterials

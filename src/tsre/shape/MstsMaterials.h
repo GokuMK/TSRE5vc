@@ -91,6 +91,16 @@ using VertexReader = std::function<bool(int vertex, float *position, float *norm
 void tangents(int vertexCount, const VertexReader &vertex, const std::vector<int> &triangles,
               std::vector<float> &out);
 
+// An ORM(C) texture packed from grayscale maps (their luminance), one a
+// channel: occlusion (R), roughness (G), metalness (B), clearcoat (A); a
+// missing file (empty path) gives its channel the constant (0 to 1). The
+// maps are scaled to the largest; written as PNG (`out`).
+struct OrmSources {
+    QString files[4];
+    float constants[4] = {1.0f, 0.5f, 0.0f, 1.0f};
+};
+bool packOrm(const OrmSources &sources, const QString &out, QString *error = nullptr);
+
 } // namespace MstsMaterials
 
 #endif // MSTSMATERIALS_H

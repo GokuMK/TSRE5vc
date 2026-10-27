@@ -63,6 +63,7 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SelectionIdTestSuite.h>
+#include <tsre/tests/ShapeMaterialsTestSuite.h>
 #include <tsre/tests/MeshStoreTestSuite.h>
 #include <tsre/tests/EditorToolsTestSuite.h>
 #include <tsre/tests/MapViewTestSuite.h>
@@ -4127,6 +4128,7 @@ QStringList TsreTests::listSuites() {
         "procedural-policy",
         "route-load",
         "selection-id",
+        "shape-materials",
         "mesh-store",
         "editor-tools",
         "map-view",
@@ -4242,6 +4244,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "selection-id")
         return runSelectionIdSuite(opts.verbose);
+    if (suite == "shape-materials")
+        return runShapeMaterialsSuite(opts.verbose);
     if (suite == "mesh-store")
         return runMeshStoreSuite(opts.verbose);
     if (suite == "editor-tools")
@@ -4480,6 +4484,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         rc = std::max(rc, runSelectionIdSuite(opts.verbose));
+        rc = std::max(rc, runShapeMaterialsSuite(opts.verbose));
         rc = std::max(rc, runTokenIdSuite(opts.verbose));
         rc = std::max(rc, runTerrainFileSuite(opts.verbose));
         rc = std::max(rc, runTokenWorldSuite(opts.verbose));
