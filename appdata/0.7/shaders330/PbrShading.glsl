@@ -336,7 +336,7 @@ vec4 pbrShade() {
     float occlusion = 1.0;
     if ((pbrTextures & 4) != 0)
         occlusion = 1.0 + pbrOcclusionStrength * (texture(pbrOcclusionMap, pbrUv(3)).r - 1.0);
-    vec3 irradiance = environmentRadiance(n, 1.0);
+    vec3 irradiance = skyLight(environmentRadiance(n, 1.0));
     float ambientScale = luminance(toLinear(ambientColor.rgb))
             / max(luminance(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0)), 1e-12);
     vec3 r = reflect(-v, n);
@@ -344,7 +344,7 @@ vec4 pbrShade() {
     vec3 diffuseEnvironment = diffuseAlbedo * irradiance * ambientScale;
     // The sky and surroundings behind a thin surface shine through it.
     if (diffuseTransmission > 0.0)
-        diffuseEnvironment += transmittedAlbedo * environmentRadiance(-n, 1.0) * ambientScale;
+        diffuseEnvironment += transmittedAlbedo * skyLight(environmentRadiance(-n, 1.0)) * ambientScale;
     // The occlusion darkens the diffuse light; reflections their own share
     // of it (reflectionOcclusion).
     vec3 environment = diffuseEnvironment * occlusion

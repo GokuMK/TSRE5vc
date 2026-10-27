@@ -143,7 +143,7 @@ uniform int terrainMapPass;
 // scale, as PBR's (a thirtieth at night with auto exposure): no floor but
 // zero's.
 vec3 ambientLight() {
-    vec3 sky = environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0);
+    vec3 sky = skyLight(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0));
     float skyLuminance = luminance(sky);
     if (skyLuminance < 1e-12)
         return ambientColor.rgb;

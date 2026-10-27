@@ -35,6 +35,23 @@ vec3 environmentRadiance(vec3 direction, float roughness) {
     return mix(vec3(0.05), toLinear(skyColor.rgb), smoothstep(-width, width, direction.y));
 }
 
+// The sky's light on surfaces (linear), its colour held in: saturation
+// ((max - min) / max) at most MaxSkyLightSaturation, nearer grey at the
+// same luminance. A night sky's deep blue (about 0.93) tinted the shade
+// strongly; a gentle limit (the user, 2026-10-28) leaves a clear day's
+// (about 0.7) as it is. Diffuse light only: reflections show the sky.
+const float MaxSkyLightSaturation = 0.75;
+
+vec3 skyLight(vec3 light) {
+    float peak = max(light.r, max(light.g, light.b));
+    float low = min(light.r, min(light.g, light.b));
+    if (peak <= 0.0 || peak - low <= MaxSkyLightSaturation * peak)
+        return light;
+    float l = luminance(light);
+    // Mixed towards l: the saturation reaches the limit.
+    return mix(vec3(l), light, MaxSkyLightSaturation * l / (peak - low - MaxSkyLightSaturation * (peak - l)));
+}
+
 // Split-sum environment BRDF as an analytic fit (Karis, mobile), in place
 // of a lookup texture.
 // f90 is the reflectance at grazing angles (1 unless KHR_materials_specular

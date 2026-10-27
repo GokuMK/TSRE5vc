@@ -357,6 +357,13 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   shade now, so the exposure curve stays as it is. Captures report auto
   exposure's numbers per view (`stats.exposure`: measuredLog2,
   referenceLog2, correction, bias).
+- Nights strongly blue in the shade (the night sky's light about 0.93
+  saturated, (max - min) / max in linear light): the sky's diffuse light
+  is held at 0.75 (`skyLight`, EnvironmentLighting.glsl), nearer grey at the
+  same luminance, in the legacy shade and PBR's diffuse and transmitted
+  light alike; reflections show the sky as it is. Gentle on purpose (the
+  user, 2026-10-28): Prudnik from noon to 21:00 not a pixel changed, 22:00
+  ground 6.6, 6.3, 8.3 -> 7.3, 6.3, 6.9, the sky still deep blue.
 
 ### Open
 
