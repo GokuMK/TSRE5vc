@@ -133,6 +133,21 @@ uniform int terrainMapPass;
 #if !defined(TSRE_PBR) && !defined(TSRE_WATER) && !defined(TSRE_TERRAIN)
 #include "MstsSpecular.glsl"
 #endif
+#if !defined(TSRE_PBR) && !defined(TSRE_WATER)
+#include "EnvironmentLighting.glsl"
+// The shade's light (display colour): the ambient's brightness in the
+// colour of the sky's light from above, the light PBR's shade takes (the
+// environment cube's roughest level straight up, PbrShading.glsl): a clear
+// sky's blue, a cloud's grey, a sunset's glow. In plain grey, shadows here
+// were grey beside PBR's blue ones (the user, 2026-10-27).
+vec3 ambientLight() {
+    vec3 sky = environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0);
+    float skyLuminance = luminance(sky);
+    if (skyLuminance < 1e-6)
+        return ambientColor.rgb;
+    return pow(sky * (luminance(toLinear(ambientColor.rgb)) / max(skyLuminance, 1e-4)), vec3(1.0 / 2.2));
+}
+#endif
 
 void main() {
 #ifdef TSRE_RHI
@@ -230,17 +245,18 @@ void main() {
             // calculate light color
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
+            vec3 ambient = ambientLight();
 #ifdef TSRE_RHI
-            color += ambientColor.xyz * skyAmbient(shade);
+            color += ambient * skyAmbient(shade);
 #else
-            color += ambientColor.xyz;
+            color += ambient;
 #endif
 #ifdef TSRE_RHI
             // Lamps and glowing surfaces add their light in linear terms.
             vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(shade);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
-            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * skyAmbient(shade) * colorBrightness
+            ambientOut = vec4(fragColor.rgb * ambient * skyAmbient(shade) * colorBrightness
                               * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor)),
                               fragColor.a);
 #endif
@@ -277,9 +293,9 @@ void main() {
             // texture in linear terms.
             if (materialSpecular > 0.0 && enableNormals != 0.0) {
 #ifdef TSRE_RHI
-                vec3 skyLight = ambientColor.rgb * skyAmbient(shade);
+                vec3 skyLight = ambient * skyAmbient(shade);
 #else
-                vec3 skyLight = ambientColor.rgb;
+                vec3 skyLight = ambient;
 #endif
                 vec3 shine = mstsSpecular(normal, lights, sunVisible, skyLight)
                         * colorBrightness;

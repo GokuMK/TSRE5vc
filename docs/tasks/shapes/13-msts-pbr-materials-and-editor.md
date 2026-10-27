@@ -316,6 +316,20 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   49 % before, 45 % now, the legacy track 37 %; the PBR shadow is a little
   narrower (56 % of the strips beside the rails darkened against 64 %), not
   looked into.
+- Shadows on PBR were blue, the legacy ones grey (white textures, 8:30: PBR
+  41, 48, 57; legacy 48, 48, 48). PBR's ambient light has the environment
+  cube's colour, the sky's, at the legacy ambient's brightness; the legacy
+  ambient is MSTS's constant grey (Daylight). The sky's is the right one, and
+  the two must match (the user). The legacy shading now takes the ambient's
+  brightness in the colour of the cube's roughest level straight up, the
+  light PBR's shade takes (`ambientLight()`, StandardFog.fs; both renderers
+  bind `environmentMap` by name): legacy 39, 49, 62 against PBR's 38, 48, 60.
+  A first try took a clear sky's colour from the atmosphere model on the
+  CPU; the cube also sees clouds, a sunset and the classic sky. Through the
+  day the shade's colour now follows the sky; noon looks cooler, twilight
+  and night are darker on red-brown content (Prudnik 21:00 half as bright,
+  a deep blue sky above): the sun's colour from the atmosphere and the
+  exposure curve come next.
 
 ### Open
 

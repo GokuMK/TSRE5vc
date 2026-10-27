@@ -1,5 +1,6 @@
-// Linear-light helpers and the environment cube shared by the PBR and water
-// shading. Included after the common uniforms (skyColor) of StandardFog.fs.
+// Linear-light helpers and the environment cube shared by the PBR, water and
+// classic shading. Included after the common uniforms (skyColor) of
+// StandardFog.fs.
 uniform samplerCube environmentMap;
 // Mipmap levels of the environment map; 0 when none is bound.
 uniform float environmentMapLevels;

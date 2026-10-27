@@ -36,7 +36,9 @@ World axes: x east, y up, z south (MSTS z points north; TSRE flips it).
 - the sun (diffuse light): the usual 0.7 above 20 degrees, warmer and weaker
   towards the horizon, none 1 degree under it;
 - ambient light: the usual 0.3 by day, a dark blue night light below civil
-  twilight;
+  twilight; the shaders take its brightness in the colour of the sky's
+  light from above, the environment cube's (a clear sky's blue, a cloud's
+  grey, a sunset's glow), as PBR does (shapes task 13, 2026-10-27);
 - sky and fog colours: the configured colours by day, a warm band around
   sunset, twilight blue to -6 degrees, night below -18.
 
