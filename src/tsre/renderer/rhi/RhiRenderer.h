@@ -91,6 +91,7 @@ public:
     void setExposureControl(const ExposureControl &control) override;
     bool autoExposureAvailable() const override;
     void setPlainImage(bool plain) override { plainImage = plain; }
+    void setWarmth(float value) override { warmth = value; }
 
     // The environment map and water reflection storage (RhiReflections.cpp)
     // drive these.
@@ -343,6 +344,7 @@ private:
     // view (1 / sceneLight).
     ExposureControl exposureControl;
     bool plainImage = false;
+    float warmth = 0.0f;
     // The air between the camera and surfaces with a physical sky
     // (Haze.glsl): the horizon's colour by the angle from the sun's
     // direction across the ground (display, greyed under an overcast as the

@@ -382,6 +382,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.water.depth", SettingType::Bool);
     // Read by RouteEditorGLWidget each frame (task renderer 29).
     claim("core.rendering.lampsByDay", SettingType::Enum);
+    // Kept by RouteEditorGLWidget, handed to the renderer's final pass.
+    claim("core.rendering.warmth", SettingType::Float);
     // Kept by RouteEditorGLWidget, passed to the renderer with the fog (task
     // renderer 33).
     claim("core.rendering.mist", SettingType::Enum);

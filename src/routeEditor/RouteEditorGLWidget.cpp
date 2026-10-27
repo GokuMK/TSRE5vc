@@ -151,6 +151,7 @@ tools(std::make_unique<ToolRegistry>()) {
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
+    warmth = float(Settings::floating("core.rendering.warmth"));
     // Undo replaces activity data: a selected loose consist, speed zone or
     // failed signal is gone.
     connect(ActivityNotifier::instance(), &ActivityNotifier::restoring, this, [this] {
@@ -186,6 +187,8 @@ tools(std::make_unique<ToolRegistry>()) {
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
             if (key == "core.rendering.mist")
                 mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
+            if (key == "core.rendering.warmth")
+                warmth = float(Settings::floating("core.rendering.warmth"));
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 timer.start(renderTimerStep(), this);
@@ -873,6 +876,7 @@ void RouteEditorGLWidget::paintScene(){
         lastSceneLight = exposure.sceneLight;
         lastExposureHours = Game::timeOfDayHours;
         renderer->setExposureControl(exposure);
+        renderer->setWarmth(warmth);
         if (wholeViewPending)
             loadWholeView("first view", -1);
         else if (jumped)

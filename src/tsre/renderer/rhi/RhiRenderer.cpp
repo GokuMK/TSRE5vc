@@ -2954,14 +2954,14 @@ void main() {
         }
         overlayDrawn = s->overlayPainted() & overlay->rect();
     }
-    // Tone curve, exposure and bloom strength (bloom levels add up, so
-    // their sum is averaged); none for a plain image.
+    // Tone curve, exposure, bloom strength (bloom levels add up, so their
+    // sum is averaged) and warmth; none for a plain image.
     const float image[4] = {plainImage ? 0.0f : float(toneMapping()),
                             plainImage ? 1.0f : std::exp2(Game::exposure) * autoExposure(),
                             bloomTexture != nullptr
                                     ? Game::bloomStrength / float(std::max<size_t>(1, bloom.levels.size()))
                                     : 0.0f,
-                            0.0f};
+                            plainImage ? 0.0f : std::clamp(warmth, -1.0f, 1.0f)};
     QRhiResourceUpdateBatch *updates = overlayUpload != nullptr ? overlayUpload
                                                                 : rhi->nextResourceUpdateBatch();
     updates->updateDynamicBuffer(presentUniforms, 0, sizeof(image), image);

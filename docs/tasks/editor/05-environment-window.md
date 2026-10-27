@@ -24,7 +24,7 @@ route's ENV files.
     keeps its own copy of the day sky and fog colours
     (`RouteEditorGLWidget`, the saved state handed to `Daylight`).
   - `core.rendering.localLights.enabled`, `core.rendering.bloom`,
-    `core.rendering.exposure`: live.
+    `core.rendering.exposure`, `core.rendering.warmth`: live.
   - `core.startup.season`: chosen when the route loads (seasonal textures).
 - **Session values**: `SettingsManager::setSessionValue` sets a value for
   the running editor only (source `ForcedSession`, above the profile and the
@@ -66,7 +66,7 @@ route's ENV files.
 |---|---|---|
 | Time | on/off; time slider 0-24 h with a field; date picker; "today" | `timeOfDay.enabled`, `.time`, `.date` |
 | Sky and fog | sky colour; fog colour; fog density | `skyColor`, `fogColor`, `fogDensity` |
-| Lights | local lights on/off; bloom strength; exposure | `localLights.enabled`, `bloom`, `exposure` |
+| Lights | local lights on/off; bloom strength; exposure; warmth | `localLights.enabled`, `bloom`, `exposure`, `warmth` |
 | Sun and moon | show sun; show moon | new settings, below |
 
 A read-out under the time shows the sun's elevation and azimuth at the
