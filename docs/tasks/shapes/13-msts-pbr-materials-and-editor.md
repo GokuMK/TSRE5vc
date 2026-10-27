@@ -203,8 +203,11 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
 
 - Global track shapes use -6 for their rail heads (`A1t*`: `RailTops`, 165
   of 350 text shapes), -7 is rare (13); trainsets use -6 in 8 of 203 text
-  shapes. Prudnik's track is TSRE's procedural track, so -6 changes nothing
-  there: route captures of the specular need S-file track.
+  shapes. Prudnik's track is mostly generated `GLOBAL/SHAPES/DB` shapes
+  (`DB3f_a2t100mStrt`, `DB1s_a1t100mStrt` checked): every vertex state is
+  -5, their rail tops (`mt_rtops`) included, and share it with the ballast,
+  so they draw no highlight: an asset fix (a -6 state of their own for the
+  rail tops), not TSRE's.
 - In the Shape Viewer's studio light the -6 sheen is faint and the -7 glint
   a small spot; the route's sun is stronger. On EUROPE1's track at 15:00 and
   16:00 looking along it towards the sun (`tests/renderer/specular-views.json`,
@@ -229,6 +232,15 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   roughness 0.06, normal strength 0.7): the materials draw as meant; the
   maps show what their README warns of (a grey base colour where the body
   is black, painted marks as relief, drifted details).
+- That Vectron in the route view (Prudnik, `file0.act`, the user: plainer
+  than in the Shape Viewer, no reflections to see): the route view loads
+  S files with `SFileLegacy` on a worker and `adopt()` took every loaded
+  field but the .sd's factors, so its materials drew with the defaults
+  (no clearcoat, normal strength 1). The Shape Viewer window loads with
+  `SFileComplex` and was right. Fixed; `shape-materials` loads the legacy
+  shape as the loaders do. With the coat back the body mirrors the ballast
+  and the horizon. Debug views of the shader's terms (the coat's
+  reflection, the coat factor, the ORM's alpha) found it.
 
 ### Open
 

@@ -7,6 +7,7 @@
 #include <QScopedValueRollback>
 #include <QTemporaryDir>
 #include <cmath>
+#include <memory>
 #include <tsre/Game.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
@@ -310,6 +311,19 @@ int TsreTests::runShapeMaterialsSuite(bool verbose) {
         legacy.pushRenderItem(picked, SelectionIdCodec::shapePart(0, 0), 0);
         check(picked.ids.size() == 2 && picked.ids[1] == SelectionIdCodec::shapePart(0, 1),
               "legacy-backend-numbers-primitives");
+        // Loaded on a worker, as the route view loads it (ShapeLoader): the
+        // shape that adopts the copy keeps the .sd's factors.
+        SFileLegacy adopting(text, "saved.s", dir.path());
+        std::unique_ptr<ComplexShape> copy(adopting.detachedCopy());
+        copy->loadDetached();
+        adopting.adopt(*copy);
+        Recorder adopted;
+        adopting.pushRenderItem(adopted, 0, 0);
+        const QVector<RenderItem *> adoptedItems = pbrPackets(adopted);
+        bool adoptedCoat = adoptedItems.size() == 2;
+        for (const RenderItem *item : adoptedItems)
+            adoptedCoat = adoptedCoat && near(item->pbr.clearcoat, 1.0f) && near(item->pbr.clearcoatRoughness, 0.05f);
+        check(adopting.isLoaded() && adoptedCoat, "legacy-backend-loaded-on-a-worker-keeps-sd-factors");
     }
 
     // MSTS specular light materials reach the packets.

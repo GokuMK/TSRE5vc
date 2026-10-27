@@ -102,6 +102,8 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     std::swap(esdAlternativeTexture, o.esdAlternativeTexture);
     std::swap(esdBoundingBox, o.esdBoundingBox);
     std::swap(snapable, o.snapable);
+    std::swap(pbrFactors, o.pbrFactors);
+    std::swap(primFactors, o.primFactors);
     std::swap(tpoints, o.tpoints);
     std::swap(iloscd, o.iloscd);
     std::swap(distancelevel, o.distancelevel);
@@ -2667,6 +2669,7 @@ void SFileLegacy::clearData() {
     delete[] texture; texture = nullptr; ilosct = 0;
     delete[] vtxstate; vtxstate = nullptr; iloscv = 0;
     delete[] primstate; primstate = nullptr; iloscps = 0;
+    primFactors.clear();
     delete[] shader; shader = nullptr; ishaders = 0;
     animations.clear();
     glReady = false;
