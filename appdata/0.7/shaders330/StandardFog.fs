@@ -149,6 +149,20 @@ vec3 ambientLight() {
         return ambientColor.rgb;
     return pow(sky * (luminance(toLinear(ambientColor.rgb)) / skyLuminance), vec3(1.0 / 2.2));
 }
+
+// The sun's and the sky's light on a surface (display colour): as bright as
+// MSTS sums them (display colours added), in the colour they make together
+// (linear light, as PBR's). Summed as display colours, the sky's blue
+// outweighed the sun's warmth on sunlit ground (Prudnik at noon cold, the
+// user, 2026-10-27); in the shade the sky's alone, grey light as before.
+vec3 mixedLight(vec3 sun, vec3 sky) {
+    vec3 summed = sun + sky;
+    vec3 mixed = toLinear(sun) + toLinear(sky);
+    float mixedLuminance = luminance(mixed);
+    if (mixedLuminance < 1e-8)
+        return summed;
+    return pow(mixed * (luminance(toLinear(summed)) / mixedLuminance), vec3(1.0 / 2.2));
+}
 #endif
 
 void main() {
@@ -249,9 +263,9 @@ void main() {
             color *= clamp(visibility, 0.0, 1.0);
             vec3 ambient = ambientLight();
 #ifdef TSRE_RHI
-            color += ambient * skyAmbient(shade);
+            color = mixedLight(color, ambient * skyAmbient(shade));
 #else
-            color += ambient;
+            color = mixedLight(color, ambient);
 #endif
 #ifdef TSRE_RHI
             // Lamps and glowing surfaces add their light in linear terms.

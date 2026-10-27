@@ -338,6 +338,14 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   and the fog's sun take the same colour (scaled by the overhead sun's
   luminance, not per channel, which made the sun white overhead); the light
   shafts already had it.
+- The legacy shading adds the sun and the sky as display colours, which
+  gives the sky's blue about twice its share of real light on sunlit
+  ground: lit white ground came out bluer than PBR's even with the warm
+  sun. The light is now as bright as that sum and in the colour the two
+  make in linear light (`mixedLight`, StandardFog.fs); in the shade the
+  sky's alone, grey light as before. Prudnik at noon, ground (lower two
+  thirds) grey before 95, 83, 67; the sky's shade 87, 83, 75; with both 92,
+  83, 71.
 - Twilight was not the colour: the night's ambient fell to a tenth.
   With auto exposure the scene's light, the cube's too, is a thirtieth at
   night, and the sky's light from above came under the floor (1e-4) of the
