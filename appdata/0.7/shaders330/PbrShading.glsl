@@ -261,7 +261,15 @@ vec4 pbrShade() {
     vec3 color = vec3(0.0);
     vec3 l = normalize(lightDirection);
     float nDotL = max(dot(n, l), 0.0);
-    float shadow = clamp(shadowedVisibility(1.0), 0.0, 1.0);
+    // Shadowed as the rest of the content: the legacy visibility is N.L less
+    // 1.6 times the shadowed share (ShadowSampling.glsl), so a partly shadowed
+    // surface a low sun grazes is dark through. The sun's light here takes
+    // N.L itself, so the shadow is that visibility over N.L (the geometric
+    // normal's, from either side for thin foliage lit through). From 1 less
+    // the share, rails' shadows on PBR ballast at 8:30 were faint patches
+    // beside the legacy track's dark ones (the user, 2026-10-27).
+    float geometricNDotL = max(abs(dot(geometricNormal, l)), 1e-3);
+    float shadow = clamp(shadowedVisibility(geometricNDotL) / geometricNDotL, 0.0, 1.0);
 #ifdef TSRE_RHI
     shadow *= cloudShadow(vLightPosition);
     float shade;

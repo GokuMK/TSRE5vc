@@ -304,11 +304,18 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   PBR material discards alpha below 1/255 (holes are not glass). Glass in the
   sorted blended pass keeps no depth writes. The AO term now matches the
   legacy profile's.
-- The darker ballast under the rails on the S-path track at 16:00 (the user:
-  shadow map occlusion missing on PBR) is painted into DB_Track1.ace: it
-  stays the same with shadows off. The rails' own shadows fall on both
-  tracks alike; the PBR base colour's ballast strip, rebuilt by the AI from
-  uniform ballast, has no such dirt.
+- The rails' shadows on PBR ballast were faint beside the legacy track's
+  dark ones (the user, bbb 16:00 and 8:30, 2026-10-27). First put down to
+  dirt painted into DB_Track1.ace; the user had both tracks drawn with
+  uniform white textures, and most of it was shadow. The legacy visibility
+  is N.L less 1.6 times the shadowed share (ShadowSampling.glsl), so a
+  surface a low sun grazes is dark through where partly shadowed; PBR
+  multiplied N.L by 1 less the share. PBR now takes the legacy visibility
+  over N.L (the geometric normal's, either side for thin foliage). White
+  textures, 8:30, the shadow beside the rails against the lit ballast: PBR
+  49 % before, 45 % now, the legacy track 37 %; the PBR shadow is a little
+  narrower (56 % of the strips beside the rails darkened against 64 %), not
+  looked into.
 
 ### Open
 
