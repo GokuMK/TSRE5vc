@@ -133,8 +133,10 @@ vec2 hammersley(uint i) {
 
 void main() {
     vec3 n = normalize(faceDirection(face, vUv));
+    // A float cube (QRhi) read as 8 bits held it: 0 to 1, the sun and lamps
+    // clamped there.
     if (roughness < 1e-3) {
-        fragColor = vec4(textureLod(environmentSource, n, 0.0).rgb, 1.0);
+        fragColor = vec4(clamp(textureLod(environmentSource, n, 0.0).rgb, 0.0, 1.0), 1.0);
         return;
     }
     float a = roughness * roughness;
@@ -159,7 +161,7 @@ void main() {
         float pdf = a * a / (Pi * d * d) * 0.25 + 1e-4;
         float sampleSolidAngle = 1.0 / (float(Samples) * pdf);
         float lod = max(0.5 * log2(sampleSolidAngle / texelSolidAngle) + 1.0, 0.0);
-        sum += pow(textureLod(environmentSource, l, lod).rgb, vec3(2.2)) * nDotL;
+        sum += pow(clamp(textureLod(environmentSource, l, lod).rgb, 0.0, 1.0), vec3(2.2)) * nDotL;
         weight += nDotL;
     }
     fragColor = vec4(pow(sum / max(weight, 1e-4), vec3(1.0 / 2.2)), 1.0);

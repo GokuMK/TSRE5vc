@@ -1107,6 +1107,8 @@ private:
         QRhiTexture *cube = nullptr;
         QRhiTexture *prefiltered = nullptr;
         QRhiTexture *depth = nullptr;
+        // RGBA16F where the GPU has it (createEnvironment), else RGBA8.
+        QRhiTexture::Format format = QRhiTexture::RGBA8;
         Attachments faces[6];
         // Prefilter targets, face * levels + level.
         std::vector<Attachments> prefilterTargets;
