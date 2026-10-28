@@ -382,8 +382,8 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   cover the shade's colour turns to the neutral ambient's, gradually from
   the cover's edge in (the user: not at once): how far in a point lies, 0 at
   the edge to 1 about 4.5 m in, from the sky enclosure's openness pass (the
-  share of 24 points around a column with the same cover over them,
-  `underCover`, ShadowSampling.glsl), only with cover over the point itself.
+  distance to the cover's edge, `underCover`, ShadowSampling.glsl; renderer
+  task 27, Buried floors), only with cover over the point itself.
   The darkening (shade) counts a roof open at its sides as open, so it could
   not be used. Then the user: less colour, some darkening; half way to the
   neutral colour now (`UnderCoverColour`) and down to 70 % of the sky's

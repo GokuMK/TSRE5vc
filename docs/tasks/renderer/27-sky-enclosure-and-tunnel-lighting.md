@@ -113,6 +113,15 @@ grayscale visibility from above, and they meet in the same shading terms:
   dimming gives way to physical lamp intensities. Tunnels brighten after a
   moment and portals glare. Needs the enclosed ambient first (otherwise a
   tunnel does not measure as dark) and long tuning. Now task 29.
+- **Openness by voxel lighting** (the user, 2026-10-28): the scene around
+  the camera in voxels, the sky's light spread from above through the
+  empty ones and lost step by step, as voxel games light their worlds:
+  computed once per tile and again only where objects change. Station
+  levels over one another, objects buried under the terrain and tunnels
+  then need no special cases; the maps' one floor per column cannot tell
+  them apart (see Buried floors below). Modern engines have examples (sky
+  visibility volumes, voxel global illumination). MSTS shapes are open
+  surfaces, not solids: voxels must close their seams, or light leaks in.
 
 ## Steps
 
@@ -535,6 +544,63 @@ whose first metres in the tunnel are a little lighter. The stepped edge was
 the dark region's edge on the 256 x 256 openness map (1.56 m texels); a
 finer map (512) would smooth what remains of such edges for a few
 milliseconds on frames that redraw the maps.
+
+### Buried floors (2026-10-28)
+
+Two things on the way, from the same roof:
+
+- How far in under cover (g) is the distance to the cover's edge now: the
+  nearest column whose top lies more than 2 m under the point's, from 16
+  directions in 0.5 m steps out to 4.5 m. The share of 24 points stayed
+  near 1 at an edge: under the eave of a roof a hard, stepped change.
+  Ground at the foot of a higher cover (a top more than 2 m higher within
+  2.5 m) reads 0: with no lower edge around it, it read 1, and the
+  texture's filter carried that into the roof's edge beside it.
+- The cover over the point itself is filtered as the texture's filter
+  weights a colour (`overFiltered`: the 4 texels around it): along a roof's
+  outline a smooth edge, not the map's 0.39 m squares.
+
+The broken place again (`-5373,14874,792.56,335.23,-917.83,266.83,-37.73`):
+a faint stepped block on the sunlit platform under the eave. The user
+removed an embankment shape sunk under the terrain there, and it was gone.
+Measured: under the roof the openness was about 1. The open platform beside
+it stood over the embankment: its column's lowest surface lay 4 m and more
+under it, a hollow, and from that deep no opening was found: openness 0. At
+the roof's edge the cover's taps and the cover over the point reach into
+those columns, and the shade there was the full enclosure's.
+
+Now the floor is the ground for what stands on and over it:
+
+- The terrain's heights under each map go with it (`finishSkyEnclosure`):
+  64 x 64 (6.25 m on the near map, about the terrain's own 8 m; 18.75 m on
+  the far one), from the loaded terrain when the map is drawn (0.7-0.8 ms,
+  next to the redraw's few ms), as heights over the map's middle height.
+- The openness pass measures each column twice: from its floor on the
+  ground, no deeper than 1 m under the ground (`GroundMargin`: ballast sunk
+  a little into the terrain), and from its lowest surface as before. The
+  openness map (RGBA16F now) holds both (r, a) and the floor on the
+  ground's height (b).
+- A point a metre and more under that floor takes the lowest floor's
+  openness: a tunnel under a hill or under a house on it, an underpass under
+  a platform. Points on and over the ground take the ground's: whatever is
+  buried under them does not count. The height is the terrain's, smooth
+  across a roof's edge (a first try kept its depth under the column's top:
+  filtered across the eave it fell to the open platform's 2 m, and points
+  under the roof's edge took the buried floor again).
+
+The strip under the eave is now as with the enclosure off (brightness 1.01
+of it; main 0.83 and 0.31 in the roof's shadow beside it, before this 0.88
+and 0.55). The first broken place, the roof, the shade balance views,
+EUROPE1 (portal, tunnel, viaduct from both sides, river bridge) and the CMK
+hall are unchanged, but the grass at one pier's foot under the river
+bridge's arch, a little lighter. rhi-shaders 93/93.
+
+What stays (the user and I, 2026-10-28): one floor per column for each of
+the two. Levels between the ground and a roof (an upper platform level, the
+floors of a building) are measured from the ground; walls are passed
+through, so closed halls read open towards their walls. The binary cover
+(is there anything over a point) holds for any number of levels; the
+openness is the part to replace, by voxel lighting (Later).
 
 ## Known Limitation (0.7.8)
 

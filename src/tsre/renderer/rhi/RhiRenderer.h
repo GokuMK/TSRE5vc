@@ -84,7 +84,8 @@ public:
     bool copyShadowCache(int map) override;
     bool vegetationShadows() const override { return true; }
     bool beginSkyEnclosure(int size, int map = 0) override;
-    void finishSkyEnclosure(bool far, float radius, float metresPerDepth) override;
+    void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
+                            const float *ground = nullptr, int groundSize = 0) override;
     void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
                                 float minRadius = 0.0f) override;
     void setSkyEnclosure(const SkyEnclosure &enclosure) override;
@@ -723,6 +724,9 @@ private:
         QRhiShaderResourceBindings *bindings = nullptr;
         const QRhiTexture *boundTop = nullptr;
         const QRhiTexture *boundBottom = nullptr;
+        // The terrain's heights under the map (finishSkyEnclosure).
+        QRhiTexture *ground = nullptr;
+        const QRhiTexture *boundGround = nullptr;
         bool valid = false;
     } enclosureOpen[2];
     QRhiGraphicsPipeline *opennessPipeline = nullptr;

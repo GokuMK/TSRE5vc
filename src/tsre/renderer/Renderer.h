@@ -349,8 +349,14 @@ public:
     virtual bool beginSkyEnclosure(int size, int map = 0) { return false; }
     // After a map and its view from below: how open the sky is around each
     // point (radius in map coordinates), for the gradual darkening under
-    // cover.
-    virtual void finishSkyEnclosure(bool far, float radius, float metresPerDepth) {}
+    // cover. ground: the terrain's heights under the map, groundSize x
+    // groundSize over its coordinates (rows along its y), in metres over its
+    // middle height (the views' eye less the distance to it);
+    // EnclosureNoGround where no terrain is loaded. Under cover over the
+    // ground, what lies under the ground is buried (null: none known).
+    static constexpr float EnclosureNoGround = -60000.0f;
+    virtual void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
+                                    const float *ground = nullptr, int groundSize = 0) {}
     virtual void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
                                         float minRadius = 0.0f) {}
     virtual void setSkyEnclosure(const SkyEnclosure &enclosure) {}

@@ -234,6 +234,31 @@ float enclosureTapsCoarse(sampler2D map, vec3 m, float spacing) {
     return smoothstep(0.3, 0.9, sum / 4.0);
 }
 
+// Cover 0.5-2 m and more over a point of a map (spacing: 2 texels), from
+// the 4 texels around it weighted as the texture's filter weights a colour:
+// along a roof's outline a smooth edge rather than its texels' squares,
+// which close by showed as stepped blocks (the user, 2026-10-28).
+float overFiltered(sampler2D map, vec3 m, float spacing) {
+    vec4 top = textureGather(map, m.xy);
+    vec4 over = smoothstep(vec4(0.5), vec4(2.0), (m.z - top) * skyEnclosureParams.y);
+    vec2 f = fract(m.xy * (2.0 / spacing) - 0.5);
+    return mix(mix(over.w, over.z, f.x), mix(over.x, over.y, f.x), f.y);
+}
+
+// How open the sky is around a point of a map (its openness map, RhiRenderer
+// OpennessFragment): measured from the floor on the ground (r) where the
+// point lies over it, from the lowest floor (a) a metre and more under it
+// (b: that floor's height over the map's middle height, m; the point's from
+// its depth, the middle's 0.5). On and over the ground the floor is the
+// ground, whatever lies buried under it (an embankment shape at Prudnik
+// darkened a platform roof's sunlit edge in its outline, the user
+// 2026-10-28); in a tunnel, under a hill or a house on it, its own floor.
+float pointOpenness(sampler2D openMap, vec3 m) {
+    vec4 o = textureLod(openMap, m.xy, 0.0);
+    float under = o.b - (0.5 - m.z) * skyEnclosureParams.y;
+    return mix(o.r, o.a, smoothstep(0.5, 1.5, under));
+}
+
 // 0 open to 1 enclosed: the near map, fading into the far one towards its
 // edge, the far one into open sky towards its own. The point is moved 2 m off
 // walls first, past the eaves, so they do not count their own roof.
@@ -253,10 +278,17 @@ float skyEnclosed(vec3 position, vec3 normal, out float shade) {
     vec3 m;
     float near = enclosureShare(skyEnclosureMatrix, p, 0.35, 0.48, m);
     float enclosed = 0.0;
+    // The openness is a column's (its hollow, between its highest and
+    // lowest surfaces): it darkens a point only with cover over the point
+    // itself. On top of its own column (open ground, a platform) a point
+    // took the openness of a hollow under it: an embankment shape under a
+    // Prudnik platform made one, and the sun on the open platform beside
+    // the roof's end dimmed in the map's blocks (the user, 2026-10-28).
     if (near > 0.0) {
         float e = enclosureTaps(skyEnclosureMap, m, skyEnclosureParams.z) * near;
         enclosed = e;
-        shade = skyEnclosureOpen.x > 0.0 ? e * (1.0 - textureLod(skyEnclosureOpenMap, m.xy, 0.0).r) : e;
+        float over = overFiltered(skyEnclosureMap, m, skyEnclosureParams.z);
+        shade = skyEnclosureOpen.x > 0.0 ? e * over * (1.0 - pointOpenness(skyEnclosureOpenMap, m)) : e;
     }
     if (near < 1.0 && skyEnclosureFar.x > 0.0) {
         vec3 f;
@@ -264,7 +296,9 @@ float skyEnclosed(vec3 position, vec3 normal, out float shade) {
         if (far > 0.0) {
             float e = enclosureTapsCoarse(skyEnclosureFarMap, f, skyEnclosureFar.y) * far * (1.0 - near);
             enclosed += e;
-            shade += skyEnclosureOpen.y > 0.0 ? e * (1.0 - textureLod(skyEnclosureFarOpenMap, f.xy, 0.0).r) : e;
+            float over = overFiltered(skyEnclosureFarMap, f, skyEnclosureFar.y);
+            shade += skyEnclosureOpen.y > 0.0
+                    ? e * over * (1.0 - pointOpenness(skyEnclosureFarOpenMap, f)) : e;
         }
     }
     return enclosed;
@@ -310,28 +344,32 @@ float skyAmbient(float enclosed) {
 const float UnderCoverColour = 0.5;
 const float UnderCoverLight = 0.7;
 
-// How far in under cover a point lies: 0 at the cover's edge to 1 about
-// 4.5 m in, from the openness maps' share of the same cover around it (g, 24
-// points; half of them at an edge), filtered between their texels; only
-// with cover over the point itself. The shade's colour and light change
-// under a roof gradually from its edge, not at once (the user, 2026-10-28);
-// under a narrow platform roof, open at its sides, only part way. (8 points
-// looked up here moved it in steps; without the cover over the point, open
-// ground over a deep floor, a hollow with its neighbours as high, read as
-// deep under cover.)
+// How far in under cover a point lies: 0 at the cover's edge to 1 4.5 m in,
+// from the openness maps' distance to the cover's edge (g), filtered between
+// their texels; only with cover over the point itself. The shade's colour
+// and light change under a roof gradually from its edge, not at once (the
+// user, 2026-10-28); under a narrow platform roof or an eave only part way.
+// (8 points looked up here moved it in steps; without the cover over the
+// point, open ground over a deep floor, a hollow with its neighbours as
+// high, read as deep under cover.)
 float underCover(vec3 position) {
     vec3 m;
     float near = enclosureShare(skyEnclosureMatrix, position, 0.35, 0.48, m);
-    float around = 0.0;
-    if (near > 0.0 && skyEnclosureOpen.x > 0.0)
+    float around = 0.0, over = 0.0;
+    if (near > 0.0 && skyEnclosureOpen.x > 0.0) {
         around = textureLod(skyEnclosureOpenMap, m.xy, 0.0).g * near;
+        over = overFiltered(skyEnclosureMap, m, skyEnclosureParams.z) * near;
+    }
     if (near < 1.0 && skyEnclosureFar.x > 0.0 && skyEnclosureOpen.y > 0.0) {
         vec3 f;
         float far = enclosureShare(skyEnclosureFarMatrix, position, 0.4, 0.49, f);
-        if (far > 0.0)
-            around += textureLod(skyEnclosureFarOpenMap, f.xy, 0.0).g * far * (1.0 - near);
+        if (far > 0.0) {
+            float weight = far * (1.0 - near);
+            around += textureLod(skyEnclosureFarOpenMap, f.xy, 0.0).g * weight;
+            over += overFiltered(skyEnclosureFarMap, f, skyEnclosureFar.y) * weight;
+        }
     }
-    return around > 0.5 ? smoothstep(0.5, 1.0, around) * coverOver(position) : 0.0;
+    return smoothstep(0.0, 1.0, around) * over;
 }
 
 float lampScale(float enclosed) {
