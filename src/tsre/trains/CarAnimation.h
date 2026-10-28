@@ -65,6 +65,9 @@ public:
     // Nothing done while its pose is what was put there last (`state` the
     // same).
     void pose(ComplexShape &shape, unsigned int state, const std::vector<float> *bogieTurns);
+    // The shape state's pose was cleared (the Shape Viewer clears its shape's
+    // every frame): the next pose sets every part again.
+    void forgetPose() { posedState = ~0U; }
 
     // Running gear, wheels and two-state groups found (tests, the viewer).
     int wheelCount() const { return int(wheels.size()); }

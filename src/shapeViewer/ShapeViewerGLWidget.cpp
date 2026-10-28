@@ -160,10 +160,27 @@ void ShapeViewerGLWidget::animate(float seconds) {
         if (animationPlaying)
             complexShape->updateSim(seconds, 0);
         complexShape->clearPose(0);
-        if (animationEnd && !animationPlaying)
+        if (animationEnd && !animationPlaying) {
             for (int part = 0; part < complexShape->partCount(); ++part)
                 if (complexShape->partLastFrame(part) >= 0)
                     complexShape->setPartFrame(0, part, complexShape->partLastFrame(part));
+        } else if (!animationPlaying) {
+            // Its pantographs, doors, mirrors, windows and wipers as the
+            // menu sets them, as an engine's: only engines and consists
+            // took them, and a shape opened on its own did not move (the
+            // user, 2026-10-28, CZ-AWT_383-053.s). Play runs all its key
+            // frames instead, Last Frame shows them all at the end.
+            if (!shapeCar || shapeCarFor != complexShape || shapeCarParts != complexShape->partCount()) {
+                shapeCar = std::make_unique<CarAnimation>(*complexShape, false, false, 0.0f, 0.0f);
+                shapeCarFor = complexShape;
+                shapeCarParts = complexShape->partCount();
+            }
+            for (int g = 0; g < CarAnimation::GroupCount; ++g)
+                shapeCar->set(CarAnimation::Group(g), carGroups[g], carGroupsNow);
+            shapeCar->update(0.0f, seconds);
+            shapeCar->forgetPose();
+            shapeCar->pose(*complexShape, 0, nullptr);
+        }
     }
 }
 

@@ -226,6 +226,18 @@ int TsreTests::runCarAnimationSuite(bool verbose) {
     animation.pose(car, 1, nullptr);
     test.check(car.transforms.isEmpty() && !car.frames.contains(12), "a whole turn: back at rest, nothing posed");
 
+    // A pose the shape lost (the Shape Viewer clears its shape's every
+    // frame): unchanged, it is not set again until forgotten.
+    animation.set(CarAnimation::Mirrors, true, true);
+    animation.update(0.0f, 0.0f);
+    animation.pose(car, 1, nullptr);
+    car.clearPose(1);
+    animation.pose(car, 1, nullptr);
+    const bool skipped = car.frames.isEmpty();
+    animation.forgetPose();
+    animation.pose(car, 1, nullptr);
+    test.check(skipped && car.frames.value(14, -1) == 1.0f, "a cleared pose set again once forgotten");
+
     checkCurve(test, false);
     checkCurve(test, true);
     return test.finish();

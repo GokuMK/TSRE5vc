@@ -21,6 +21,7 @@
 #include <math.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/trains/CarAnimation.h>
+#include <memory>
 
 class ComplexShape;
 class Eng;
@@ -204,6 +205,11 @@ private:
     bool animationEnd = false;
     bool carGroups[CarAnimation::GroupCount] = {};
     bool carGroupsNow = false;
+    // A shape opened on its own: its car parts, as an engine's are
+    // (animate), and the shape it was found on.
+    std::unique_ptr<CarAnimation> shapeCar;
+    const ComplexShape *shapeCarFor = nullptr;
+    int shapeCarParts = 0;
     // Metres a shown car has gone while playing.
     double animationTravelled = 0.0;
     // The settings above on what is shown, `seconds` after the last time.
