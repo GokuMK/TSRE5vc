@@ -54,7 +54,6 @@ public:
     void setCamera(Camera* cam);
     ShapeLib *currentShapeLib = NULL;
     //EngLib *currentEngLib = NULL;
-    QImage *screenShot = NULL;
     void setMode(QString n);
     void resetRot();
     // Turns the shown model by yaw radians from the default view, and tilts
@@ -72,7 +71,6 @@ public:
         float ambient = 0.5f;
     };
     void setLight(const Light &light);
-    void getImg();
     void setBackgroundGlColor(float r, float g, float b);
     void fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo *info);
     void fillCurrentShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list);
@@ -189,7 +187,6 @@ private:
     // Where the left button went down (widget pixels), to tell a click
     // from a drag.
     QPointF pressPosition;
-    bool getImage = false;
     float backgroundGlColor[3];
     bool cameraInit = false;
     // Near clip distance, scaled with the shown shape so small ones are not clipped.

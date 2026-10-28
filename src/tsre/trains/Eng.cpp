@@ -1357,7 +1357,11 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     for (int i = 0; i < freightanimShape.size() && cab == nullptr; i++) {
         if (freightanimShape[i].id[shapeLibId] >= 0) {
             queue.pushTransform();
-            Mat4::translate(queue.transform(), queue.transform(), freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
+            // Its offset as Open Rails adds it (z mirrored from MSTS's), in
+            // the car's shape space (x mirrored: the shapes' mirrored root),
+            // as the Shape Viewer has it: x was not mirrored here, and a
+            // driver sat outside the cab (the user, 2026-10-28, SA103-013).
+            Mat4::translate(queue.transform(), queue.transform(), -freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
             ComplexShape *freight = Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]];
             if (ShapeLod::apply(*freight, 0, place))
                 freight->pushRenderItem(queue, selectionId, 0);

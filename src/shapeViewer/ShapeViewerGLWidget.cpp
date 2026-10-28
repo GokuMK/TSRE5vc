@@ -412,21 +412,6 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
         }
     }
     
-    if(getImage && !selectionPass){
-        qDebug() << "get image";
-        if(screenShot != NULL)
-            delete screenShot;
-        qDebug() << "new image";
-        screenShot = NULL;
-        getImage = false;
-        int* viewport = new int[4];
-        renderer->viewport(viewport);
-        unsigned char* winZ = new unsigned char[viewport[2]*viewport[3]*4];
-        renderer->readColor(0, 0, viewport[2], viewport[3], winZ);
-        screenShot = new QImage(winZ, viewport[2], viewport[3], QImage::Format_RGBA8888 );
-        
-    }
-    
     renderer->releaseProgram();
     Game::shadowsEnabled = shadowsState;
     std::copy(routeSun, routeSun + 3, Game::sunLightDirection);
@@ -478,11 +463,6 @@ void ShapeViewerGLWidget::setPrimitivePicking(bool on) {
 void ShapeViewerGLWidget::setPickedPrimitives(const QVector<int> &primitives) {
     picked = primitives;
     update();
-}
-
-void ShapeViewerGLWidget::getImg() {
-    getImage = true;
-    return;
 }
 
 void ShapeViewerGLWidget::surfaceResize(int w, int h) {
