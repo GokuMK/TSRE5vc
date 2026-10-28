@@ -92,8 +92,34 @@ Current Milestone 2 material mapping:
 | --- | --- |
 | `TexName` | Route `textures` first, then global `textures` |
 | `TexDiff`, `BlendATexDiff` | Standard TSRE textured material |
+| `PbrTexDiff`, `BlendAPbrTexDiff` | PBR material, as S files' (shapes task 13) |
 | Other `ShaderName` values | Textured fallback with diagnostic |
-| `LightModelName` | TSRE default lighting with diagnostic |
+| `LightModelName` | The MSTS light material Open Rails reads (`OptSpecular0`/`25`/`750` -5/-6/-7, `OptFullBright` -8, `Cruciform` -9, `OptHalfBright` -11, `DarkShade` -12), drawn as S files draw it (specular included); unknown names: normal lighting with diagnostic |
+| `TSREOrmTexName`, `TSRENormalTexName` | TSRE extension: the PBR material's ORM(C) and normal map, beside `TexName` (the base colour); same texture lookup |
+| `ESD_TSREMaterial` | TSRE extension, the .sd's token (as `ESD_Alternative_Texture`): the PBR factors; a texture key in front, as a copied .sd line has it, is skipped |
+
+A PBR item names `PbrTexDiff` or `BlendAPbrTexDiff`. An item with `TexDiff`
+or `BlendATexDiff` and all three TSRE tokens draws as their PBR shader, with
+a diagnostic, so Open Rails can still draw such a profile with its own
+shaders:
+
+```
+LODItem (
+    Name ( "mt_rtops" )
+    TexName ( "DB_Rails1_basecolor.png" )
+    ShaderName ( "PbrTexDiff" )
+    LightModelName ( "OptSpecular0" )
+    TSREOrmTexName ( "DB_Rails1_orm.png" )
+    TSRENormalTexName ( "DB_Rails1_normal.png" )
+    ESD_TSREMaterial ( 1 1 1 1 1 1 0.7 1 1 0.06 )
+    ...
+)
+```
+
+`ESD_TSREMaterial`: tint R G B A, metalness, roughness, normal strength,
+occlusion strength, clearcoat, clearcoat roughness, transmission; values left
+out keep their defaults. XML profiles take the same names as `LODItem`
+attributes.
 | `AlphaTestMode` | Texture alpha; non-zero modes report a diagnostic |
 | `TexAddrModeName=Wrap` | TSRE default texture addressing |
 | Other address modes | TSRE default with diagnostic |

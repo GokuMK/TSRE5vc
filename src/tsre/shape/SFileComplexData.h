@@ -16,6 +16,7 @@
 #include <map>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/shape/MstsMaterials.h>
 #include <tsre/shape/ShapeAnimation.h>
 #include <vector>
 struct SFileComplex::Data {
@@ -39,11 +40,18 @@ struct SFileComplex::Data {
         QString nightFile;
         signed char night = 0;
         int nightTex = -1;
+        // A PBR map's (task shapes 13): its texels are data (TexLib::Data).
+        bool data = false;
     };
     struct Material {
         int image = -1, matrix = 0, light = 0;
         float alpha = 0;
         bool alphaTest = false;
+        // PBR (task shapes 13): PbrTexDiff or BlendAPbrTexDiff, its ORM and
+        // normal map images (-1 none), and its factors (the .sd's).
+        MstsMaterials::Shader pbr = MstsMaterials::Shader::Other;
+        int ormImage = -1, normalImage = -1;
+        MstsMaterials::Factors factors;
     };
     struct Vertex {
         int point = -1, normal = -1, uv = -1;
@@ -53,6 +61,8 @@ struct SFileComplex::Data {
         unsigned int uid = 0;
         std::vector<int> indices;
         int offset = 0, count = 0;
+        // A PBR part's first vertex in its mesh's PBR buffer, else -1.
+        int pbrOffset = -1;
         unsigned int mode = 0x0004;
         // Sphere around the part's vertices, set when it is uploaded.
         float boundCenter[3] = {0.0f, 0.0f, 0.0f};
@@ -73,6 +83,9 @@ struct SFileComplex::Data {
         std::vector<Vertex> vertices;
         std::vector<Part> parts;
         std::unique_ptr<Gpu> gpu;
+        // Its PBR parts again with tangents (RenderItem::PBR), when it has
+        // any.
+        std::unique_ptr<Gpu> pbrGpu;
     };
     struct Lod {
         float distance = 0;
@@ -128,6 +141,10 @@ struct SFileComplex::Data {
     std::vector<Matrix> matrices;
     std::vector<Image> images;
     std::vector<Material> materials;
+    // PBR material factors from the .sd (ESD_TSREMaterial), by key, and
+    // whether the editor changed them.
+    QHash<QString, MstsMaterials::Factors> pbrFactors;
+    bool metadataEdited = false;
     std::vector<Lod> lods;
     std::vector<Animation> animations;
     std::vector<State> states{1};
@@ -139,6 +156,8 @@ struct SFileComplex::Data {
         quint64 frame = std::numeric_limits<quint64>::max();
         std::vector<std::unique_ptr<RenderItem, State::PacketRetirer>> packets;
         std::vector<RenderItem *> active;
+        // Each active packet's primitive number (ShapePart selection ids).
+        std::vector<int> activeNumbers;
     };
     std::map<QByteArray, SharedPackets> sharedPackets;
 };

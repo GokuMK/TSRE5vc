@@ -25,6 +25,7 @@
 #include <QVector>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/MstsMaterials.h>
 #include <tsre/shape/ShapeAnimation.h>
 
 class RenderQueue;
@@ -45,6 +46,8 @@ public:
     struct fshader {
         QString name;
         float alpha = 0;
+        // PbrTexDiff or BlendAPbrTexDiff (task shapes 13).
+        MstsMaterials::Shader pbr = MstsMaterials::Shader::Other;
     };
 
     struct czes {
@@ -59,6 +62,8 @@ public:
         // the part is uploaded.
         float boundCenter[3] = {0.0f, 0.0f, 0.0f};
         float boundRadius = -1.0f;
+        // A PBR part's first vertex in its sub-object's PBR mesh, else -1.
+        int pbrOffset = -1;
     };
 
     struct fvertex {
@@ -78,6 +83,9 @@ public:
         czes* czesci = nullptr;
         // Renderer-owned VNTA vertices of all parts, uploaded by initGL().
         MeshHandle mesh;
+        // Its PBR parts' vertices with tangents (RenderItem::PBR, task
+        // shapes 13), when it has any.
+        MeshHandle pbrMesh;
     };
 
     struct dist {
@@ -98,6 +106,8 @@ public:
 
     struct primst {
         int vtx_state, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8;
+        // Its second and third textures (PBR: ORM and normal map), -1 none.
+        int ormTexture = -1, normalTexture = -1;
     };
 
     struct text {
@@ -227,6 +237,10 @@ public:
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
     void pushRenderItem(RenderQueue &queue) override;
     void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) override;
+    int drawnPrimitiveCount(unsigned int stateId) const override;
+    int drawnPrimitiveMaterial(unsigned int stateId, int primitive) const override;
+    void pushPrimitiveHighlight(RenderQueue &queue, unsigned int stateId,
+                                const QVector<int> &primitives, const float *color) override;
     void invalidateRenderState(bool invalidateMatrixCache = true) override;
     void getSize();
     bool getBoxPoints(QVector<float> &points) override;
@@ -304,6 +318,17 @@ private:
     // day; the packets are rebuilt when that changes.
     bool nightHeld = false;
     void releaseNightTextures();
+    // PBR materials (task shapes 13): the .sd's factors by material key,
+    // each primitive state's (resolved after loading), and the packet of a
+    // PBR primitive.
+    QHash<QString, MstsMaterials::Factors> pbrFactors;
+    QVector<MstsMaterials::Factors> primFactors;
+    bool pbrPrimState(int primState) const;
+    void resolvePbrFactors();
+    int dataTexture(int textureIndex);
+    void usePbr(RenderItem *item, int primState, const sub &object, const czes &part);
+    // Its PBR parts again in the PBR layout, with tangents (initGL).
+    void buildPbrMesh(sub &object);
     void clearData();
     void releaseMeshes();
 public:
@@ -359,6 +384,9 @@ private:
     mutable std::vector<int> posedChain;
     // Whether the state's parts move: drawn with matrices of its own.
     bool movesParts(unsigned int stateId) const;
+    // The primitive number (ComplexShape::drawnPrimitiveCount) of each of
+    // the state's shared packets, in their order.
+    std::vector<int> primitiveNumbers(unsigned int stateId) const;
     std::vector<std::array<float, 16>> posedScratch;
     bool snapable = false;
     //float *mvMatrix = NULL;

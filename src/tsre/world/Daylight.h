@@ -65,7 +65,12 @@ constexpr float NightExposureBias = 1.75f;
 float exposureBias(double elevationDegrees);
 
 // daySky and dayFog: the colours of a high sun (the sky and fog settings).
-Light forElevation(double elevationDegrees, const float *daySky, const float *dayFog);
+// sunColour: the sun's light through the air (linear, any scale;
+// Atmosphere::Model::sunLight), whose colour the sun takes at its own
+// brightness; without it the sun is white by day and Daylight's warm one
+// low.
+Light forElevation(double elevationDegrees, const float *daySky, const float *dayFog,
+                   const float *sunColour = nullptr);
 
 // Shadows from a sun this low would stretch across the maps; their light
 // keeps at least this elevation (degrees).

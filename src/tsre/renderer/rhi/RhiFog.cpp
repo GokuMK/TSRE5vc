@@ -1025,8 +1025,11 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
         const Atmosphere::Rgb through = Atmosphere::model().sunLight(height, p.light[1]);
         const Atmosphere::Rgb overhead = Atmosphere::model().sunLight(height, 1.0);
         const float noon = std::pow(Daylight::SunLight * scene, 2.2f);
+        // In the air's colour, a little warm overhead too (the lit shaders'
+        // sun, Daylight).
+        const float overheadLuminance = 0.2126f * overhead[0] + 0.7152f * overhead[1] + 0.0722f * overhead[2];
         for (int i = 0; i < 3; ++i)
-            p.lightColour[i] = std::max(p.lightColour[i], noon * float(through[i] / std::max(overhead[i], 1e-6f)));
+            p.lightColour[i] = std::max(p.lightColour[i], noon * through[i] / std::max(overheadLuminance, 1e-6f));
     }
     float plane = 0.0f;
     if (cloudShadowPlane(plane) && maps[0] != dummy2D && p.light[1] > 0.01f) {

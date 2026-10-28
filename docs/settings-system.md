@@ -69,7 +69,7 @@ Each entry in the `settings` array owns its editable metadata as well as its val
     "codeSymbols": ["Game::textureLoaderThreaded"]
   },
   "implementation": {
-    "owner": "AceLib/DdsLib",
+    "owner": "AceLib/DdsLib/ImageLib",
     "requiresRuntimeCache": true,
     "access": "startup-cache"
   }

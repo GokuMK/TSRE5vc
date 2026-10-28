@@ -190,7 +190,7 @@ layout(location = 0) out vec4 fragColor;
 layout(binding = 0) uniform sampler2D view;
 layout(binding = 1) uniform sampler2D bloomTexture;
 layout(std140, binding = 2) uniform Image {
-    // Tone curve, exposure factor, bloom strength.
+    // Tone curve, exposure factor, bloom strength, warmth.
     vec4 settings;
 };
 
@@ -242,11 +242,16 @@ float gradientNoise(vec2 p) {
 void main() {
     vec3 colour = texture(view, uv).rgb;
     int curve = int(settings.x + 0.5);
-    if (curve == 0 && settings.y == 1.0 && settings.z == 0.0) {
+    if (curve == 0 && settings.y == 1.0 && settings.z == 0.0 && settings.w == 0.0) {
         fragColor = vec4(colour, 1.0);
         return;
     }
     vec3 linear = (toLinear(colour) + settings.z * texture(bloomTexture, uv).rgb) * settings.y;
+    // White balance, as a camera's: at warmth 1 red 15 % up and blue 25 %
+    // down, as bright. With the shade in the sky's blue the whole view came
+    // out cooler than before (the user, 2026-10-27).
+    vec3 balance = vec3(1.0 + 0.15 * settings.w, 1.0, 1.0 - 0.25 * settings.w);
+    linear *= balance / dot(balance, vec3(0.2126, 0.7152, 0.0722));
     vec3 display;
     if (curve == 1)
         display = softShoulder(toDisplay(linear));

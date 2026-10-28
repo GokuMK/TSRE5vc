@@ -9,17 +9,67 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QRegularExpression>
 #include <QSet>
 #include <QTextStream>
 #include <QXmlStreamReader>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <tsre/units/UnitConversion.h>
 
 QString OrtsTrackProfileCatalog::loadedRoutePath;
 QMap<QString, QSharedPointer<OrtsTrackProfile>> OrtsTrackProfileCatalog::profiles;
 QStringList OrtsTrackProfileCatalog::loadDiagnostics;
+
+int OrtsProfileLodItem::lightMaterial(bool *known) const {
+    static const QHash<QString, int> names = {
+        {"optspecular0", -5}, {"optspecular25", -6}, {"optspecular750", -7},
+        {"optfullbright", -8}, {"cruciform", -9}, {"opthalfbright", -11},
+        {"darkshade", -12}};
+    const QString name = lightModelName.trimmed().toLower();
+    const auto found = names.constFind(name);
+    if(known != nullptr)
+        *known = name.isEmpty() || found != names.cend();
+    return found != names.cend() ? found.value() : -5;
+}
+
+QString OrtsProfileLodItem::shader(bool *upgraded) const {
+    const QString name = shaderName.trimmed();
+    const bool tsre = !ormTextureName.isEmpty() && !normalTextureName.isEmpty() && hasMaterialFactors;
+    QString drawn = name;
+    if(tsre && name.compare("TexDiff", Qt::CaseInsensitive) == 0)
+        drawn = "PbrTexDiff";
+    else if(tsre && name.compare("BlendATexDiff", Qt::CaseInsensitive) == 0)
+        drawn = "BlendAPbrTexDiff";
+    if(upgraded != nullptr)
+        *upgraded = drawn != name;
+    return drawn;
+}
+
+namespace {
+
+// ESD_TSREMaterial's values, as the .sd line has them after its texture key
+// (a line copied from an .sd keeps the key, skipped here: the LODItem is
+// the material); anything else not a number is NaN (the default).
+QVector<float> factorValues(QStringList tokens) {
+    bool numeric = false;
+    if(!tokens.isEmpty()){
+        tokens.first().trimmed().toFloat(&numeric);
+        if(!numeric)
+            tokens.removeFirst();
+    }
+    QVector<float> values;
+    for(const QString &token : tokens){
+        bool ok = false;
+        const float value = token.trimmed().toFloat(&ok);
+        values.append(ok ? value : std::numeric_limits<float>::quiet_NaN());
+    }
+    return values;
+}
+
+}
 
 namespace {
 
@@ -523,6 +573,12 @@ QSharedPointer<OrtsTrackProfile> profileFromStfNode(
             item.textureName = firstValue(*itemNode, "TexName");
             item.shaderName = firstValue(*itemNode, "ShaderName");
             item.lightModelName = firstValue(*itemNode, "LightModelName");
+            item.ormTextureName = firstValue(*itemNode, "TSREOrmTexName");
+            item.normalTextureName = firstValue(*itemNode, "TSRENormalTexName");
+            if(const StfNode *factors = child(*itemNode, "ESD_TSREMaterial")){
+                item.hasMaterialFactors = true;
+                item.materialFactors = factorValues(factors->values);
+            }
             item.alphaTestMode = intValue(*itemNode, "AlphaTestMode", 0);
             item.textureAddressMode = firstValue(*itemNode, "TexAddrModeName");
             item.alternativeTexture = intValue(
@@ -754,6 +810,15 @@ QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseXml(
             newItem.textureName = attribute(attributes, "TexName");
             newItem.shaderName = attribute(attributes, "ShaderName");
             newItem.lightModelName = attribute(attributes, "LightModelName");
+            newItem.ormTextureName = attribute(attributes, "TSREOrmTexName");
+            newItem.normalTextureName = attribute(attributes, "TSRENormalTexName");
+            for(const QXmlStreamAttribute &candidate : attributes){
+                if(candidate.name().compare(QLatin1String("ESD_TSREMaterial"), Qt::CaseInsensitive) == 0){
+                    newItem.hasMaterialFactors = true;
+                    newItem.materialFactors = factorValues(candidate.value().toString().split(
+                            QRegularExpression("\\s+"), Qt::SkipEmptyParts));
+                }
+            }
             newItem.alphaTestMode = attribute(attributes, "AlphaTestMode").toInt();
             newItem.textureAddressMode = attribute(attributes, "TexAddrModeName");
             newItem.alternativeTexture = attribute(attributes, "ESD_Alternative_Texture").toInt();

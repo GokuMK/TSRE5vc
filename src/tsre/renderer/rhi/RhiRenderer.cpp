@@ -449,7 +449,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     const float exposure = autoExposure();
     program->setFloat("unlitScale", std::pow(1.0f / exposure, 1.0f / 2.2f));
     program->setFloat("emissiveScale", 1.0f / exposure);
-    program->setVec("specularColor", 1.0f, 1.0f, 1.0f, 1.0f);
+    // The highlights' light (linear), in the scene's scale as the sun's.
+    const float sceneLight = std::pow(scene, 2.2f);
+    program->setVec("specularColor", gluu->specularColor[0] * sceneLight, gluu->specularColor[1] * sceneLight,
+                    gluu->specularColor[2] * sceneLight, gluu->specularColor[3]);
     program->setVec("lightDirection", Game::sunLightDirection[0], Game::sunLightDirection[1],
                     Game::sunLightDirection[2]);
     writeCloudShadowUniforms(program);
@@ -543,12 +546,12 @@ namespace {
 const char *const ItemUniformNames[] = {
     "enableNormals", "colorBrightness", "materialTransparency", "materialVegetation", "blendedTexels",
     "selectionId", "terrainTextureRemap", "secondTexEnabled", "uMSMatrix", "terrainPaged",
-    "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled"};
+    "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled", "materialSpecular"};
 enum ItemUniform {
     UniformEnableNormals, UniformColorBrightness, UniformMaterialTransparency, UniformMaterialVegetation,
     UniformBlendedTexels, UniformSelectionId, UniformTerrainTextureRemap, UniformSecondTexEnabled,
     UniformMsMatrix, UniformTerrainPaged, UniformTextureEnabled, UniformShapeColor,
-    UniformNightTextureEnabled, UniformTerrainMaterialEnabled, ItemUniformCount};
+    UniformNightTextureEnabled, UniformTerrainMaterialEnabled, UniformMaterialSpecular, ItemUniformCount};
 static_assert(sizeof(ItemUniformNames) / sizeof(ItemUniformNames[0]) == ItemUniformCount);
 
 const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
@@ -605,6 +608,8 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     setFloatAt(program, UniformMaterialTransparency, 1.0f - item->material.opacity);
     // Vegetation is never under a roof: no sky enclosure lookups (task 37).
     setIntAt(program, UniformMaterialVegetation, item->material.vegetation ? 1 : 0);
+    // MSTS specular light materials (task shapes 13).
+    setFloatAt(program, UniformMaterialSpecular, item->material.specularPower);
     setIntAt(program, UniformBlendedTexels, texelsOf(item));
     program->setAt(itemUniforms(program)[UniformSelectionId], &selectionId, 4);
     const QVector3D remap = item->terrain.textureRemap;
@@ -2211,6 +2216,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             pbrSamplers[map] = wrapped ? wrapSampler(true, wrapMode(modes[0]), wrapMode(modes[1]))
                                        : sampler(mipmaps, false);
         }
+        // MSTS PBR materials (task shapes 13): the clearcoat mask in the
+        // metallic-roughness map's alpha, and glass.
+        if (p.clearcoatInMetallicRoughnessAlpha && (present & 1) != 0)
+            present |= 1 << 13;
+        if (p.glass)
+            present |= 1 << 14;
         program->setInt("pbrTextures", present);
     }
     // What each texture unit holds for this program, as the OpenGL renderer
@@ -2295,7 +2306,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             break;
         default:
             texture = dummy2D;
-            if (slot.binding == RhiShaderSource::NightTextureBinding) {
+            // The PBR programs have no night texture; their occlusion map
+            // (pbrOcclusionMap) has the unit. Taken for the night texture,
+            // every PBR material sampled white there: no occlusion at all.
+            if (slot.binding == RhiShaderSource::NightTextureBinding && program->kind != RhiProgram::PBR) {
                 if (night != nullptr) {
                     texture = night;
                     slotSampler = sampler(nightMipmapped, false);
@@ -2450,7 +2464,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.format = quint8(buffers.format);
     key.blend = blending && baseProgram != PROGRAM_SELECTION && target().attachments != nullptr
             && target().attachments->color != nullptr;
-    key.depthWrite = !(item->pbr.enabled && item->pbr.blend) && texelsOf(item) != TEXELS_TRANSLUCENT;
+    // Blended PBR (glass) writes no depth in the blended pass, sorted back to
+    // front. Drawn in submission order in the opaque pass (track profiles'
+    // layers, OglObj) it writes it as legacy parts there do, its holes
+    // discarded (alphaCutoff): else the ambient occlusion took the depth
+    // behind it, the terrain under a ballast shoulder, and darkened the
+    // shoulder by it (black at dusk; the user, 2026-10-27).
+    const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE;
+    key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
     // The sky enclosure maps look down on everything: single-sided roofs and
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow
@@ -2933,14 +2954,14 @@ void main() {
         }
         overlayDrawn = s->overlayPainted() & overlay->rect();
     }
-    // Tone curve, exposure and bloom strength (bloom levels add up, so
-    // their sum is averaged); none for a plain image.
+    // Tone curve, exposure, bloom strength (bloom levels add up, so their
+    // sum is averaged) and warmth; none for a plain image.
     const float image[4] = {plainImage ? 0.0f : float(toneMapping()),
                             plainImage ? 1.0f : std::exp2(Game::exposure) * autoExposure(),
                             bloomTexture != nullptr
                                     ? Game::bloomStrength / float(std::max<size_t>(1, bloom.levels.size()))
                                     : 0.0f,
-                            0.0f};
+                            plainImage ? 0.0f : std::clamp(warmth, -1.0f, 1.0f)};
     QRhiResourceUpdateBatch *updates = overlayUpload != nullptr ? overlayUpload
                                                                 : rhi->nextResourceUpdateBatch();
     updates->updateDynamicBuffer(presentUniforms, 0, sizeof(image), image);
@@ -3012,6 +3033,12 @@ void RhiRenderer::renderFrame() {
         frame.bindingCreateMs = creation.bindingNs / 1e6;
         frame.pipelineCreateMs = creation.pipelineNs / 1e6;
         frame.uploadsDeferred = quint64(uploadsDeferred);
+        frame.exposureActive = exposureActive();
+        frame.exposureMeasured = luminance.measured;
+        frame.exposureMeasuredLog2 = luminance.measuredLog2;
+        frame.exposureReferenceLog2 = exposureControl.referenceLog2;
+        frame.exposureCorrection = luminance.correction;
+        frame.exposureBias = exposureControl.biasStops;
     }
     if (FrameLog::active()) {
         FrameLog::add(FrameLog::TexturesMade, creation.textures);

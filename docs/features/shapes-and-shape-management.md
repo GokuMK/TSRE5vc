@@ -101,6 +101,12 @@ packets to the `RenderQueue` (see `src/tsre/renderer/RenderQueue.h`).
 
 ---
 
+### 1.6 Materials (Shapes Task 13)
+- MSTS light materials -6 and -7 draw a specular highlight of the sun (powers 25 and 750, `MstsSpecular.glsl`).
+- PBR materials: primitive states with the shader names `PbrTexDiff` and `BlendAPbrTexDiff`, textures base colour, ORM(C) and normal map, factors from the `.sd` (`ESD_TSREMaterial`, keyed by the base colour texture), drawn through the glTF shading (`MstsMaterials`, both MSTS backends).
+- Shape parts: on a `SelectionIdCodec::Kind::ShapePart` id a shape submits each primitive of its drawn level with its number; the Shape Viewer picks and highlights them.
+- The Shape Viewer's materials window (View > Shape Materials) edits a complete MSTS shape's materials (`SFileComplex::setMaterial`, `assignMaterial`...), saved with File > Save, the `.sd` too. See `docs/tasks/shapes/13-msts-pbr-materials-and-editor.md`.
+
 ## 2. Shape Cache / Manager: `ShapeLib`
 
 `ShapeLib` is the central cache of complex shapes used by both the editor and runtime:

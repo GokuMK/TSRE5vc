@@ -25,6 +25,10 @@ float mix(float a, float b, float t) {
     return a + (b - a) * t;
 }
 
+float luminance(const float *linear) {
+    return 0.2126f * linear[0] + 0.7152f * linear[1] + 0.0722f * linear[2];
+}
+
 // Colours of the hours without a high sun.
 const float SunsetSun[3] = {1.0f, 0.62f, 0.32f};
 const float SunsetSky[3] = {0.93f, 0.62f, 0.45f};
@@ -36,7 +40,7 @@ const float MoonSkyColour[3] = {0.7f, 0.8f, 1.0f};
 
 }
 
-Light forElevation(double elevationDegrees, const float *daySky, const float *dayFog) {
+Light forElevation(double elevationDegrees, const float *daySky, const float *dayFog, const float *sunColour) {
     Light light;
     const float h = float(elevationDegrees);
     // The sun: full above 20 degrees, warm and weaker towards the horizon,
@@ -46,6 +50,19 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     for (int c = 0; c < 3; ++c)
         light.diffuse[c] = SunLight * strength * mix(SunsetSun[c], 1.0f, white);
     light.diffuse[3] = SunLight * strength;
+    // The sun's colour through the air, as bright (in linear light): a
+    // little warm at noon, red at sunset. With the shade in the blue sky's
+    // light (StandardFog.fs, PBR) a white sun made noon cold (the user,
+    // Prudnik, 2026-10-27); the air takes from the sun the blue it gives the
+    // sky.
+    if (sunColour != nullptr && luminance(sunColour) > 1e-9f) {
+        float linear[3];
+        for (int c = 0; c < 3; ++c)
+            linear[c] = std::pow(light.diffuse[c], 2.2f);
+        const float scale = luminance(linear) / luminance(sunColour);
+        for (int c = 0; c < 3; ++c)
+            light.diffuse[c] = std::pow(std::max(sunColour[c], 0.0f) * scale, 1.0f / 2.2f);
+    }
     // Ambient: the day's light down to civil twilight, then night.
     const float day = smoothstep(-12.0f, 8.0f, h);
     for (int c = 0; c < 3; ++c)

@@ -454,6 +454,8 @@ bool SFileComplex::extract() {
                      shaders[sh]->scalar(0).compare("texdiff", Qt::CaseInsensitive) == 0)
                         ? 1
                         : 0;
+        if (sh >= 0 && sh < int(shaders.size()))
+            mat.pbr = MstsMaterials::shader(shaders[sh]->scalar(0));
         mat.alphaTest = integer(*p, 4) == 1;
         auto tex = indices(child(*p, "tex_idxs"));
         if (!tex.empty()) {
@@ -463,6 +465,19 @@ bool SFileComplex::extract() {
             if (mat.image < 0 || mat.image >= int(d->images.size())) {
                 mat.image = -1;
                 d->diagnostics << "Invalid texture reference; using fallback";
+            }
+            // A PBR material's ORM and normal map (task shapes 13).
+            auto image = [&](size_t k) {
+                const int t = k < tex.size() ? tex[k] : -1;
+                const int i = t >= 0 && t < int(textures.size()) ? integer(*textures[t], 0, -1) : -1;
+                if (i < 0 || i >= int(d->images.size()))
+                    return -1;
+                d->images[i].data = true;
+                return i;
+            };
+            if (MstsMaterials::pbr(mat.pbr)) {
+                mat.ormImage = image(1);
+                mat.normalImage = image(2);
             }
         }
         d->materials.push_back(mat);
@@ -621,13 +636,21 @@ bool SFileComplex::extract() {
             s.lod = 0;
     }
     clearSharedPackets();
+    resolvePbrFactors();
     return d->health != Health::Broken;
+}
+void SFileComplex::resolvePbrFactors() {
+    for (auto &mat : d->materials)
+        mat.factors = MstsMaterials::pbr(mat.pbr) && mat.image >= 0
+                ? d->pbrFactors.value(MstsMaterials::key(d->images[mat.image].name))
+                : MstsMaterials::Factors();
 }
 void SFileComplex::loadMetadata(bool readFile) {
     d->detail = -1;
     d->alternative = 0;
     d->snap = false;
     d->boxes.clear();
+    d->pbrFactors.clear();
     d->texturePath = d->textureRoot;
     if (readFile) {
         QString path = ContentPath::withExtension(d->path, "sd");
@@ -658,6 +681,9 @@ void SFileComplex::loadMetadata(bool readFile) {
         box(*b, 0);
     for (auto b : child(root, "esd_complex").children("esd_complex_box"))
         box(*b, 6);
+    // PBR material factors (task shapes 13).
+    readPbrFactors();
+    resolvePbrFactors();
     d->texturePath += TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
     if (!readFile)
         releaseTextures();

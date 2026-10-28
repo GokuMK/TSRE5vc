@@ -588,6 +588,8 @@ private:
     // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),
     // kept from the settings as they change: frames read no settings.
     int lampsByDay = 0;
+    // core.rendering.warmth, the view's white balance, kept as lampsByDay.
+    float warmth = 0.0f;
     // Auto exposure (task 29): this frame's control, set by applyTimeOfDay
     // and handed over once camera jumps are known.
     Renderer::ExposureControl exposure;
@@ -809,6 +811,8 @@ private:
     // Owned; draws this widget's frames.
     Renderer *renderer = NULL;
     EnvironmentMap *environmentMap = NULL;
+    // The scene's light level each cube face was drawn under (renderEnvironmentMap).
+    float environmentFaceLight[6] = {};
     RenderSurface *surface = NULL;
     PlanarReflection *waterReflection = NULL;
     // Mirror plane of the last reflection (n . p + d = 0).

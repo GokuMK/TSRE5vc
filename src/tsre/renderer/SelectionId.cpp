@@ -21,6 +21,8 @@ constexpr quint32 TerrainSelector = 10;
 constexpr quint32 ActivityObjectSelector = 11;
 constexpr quint32 DatabaseItemSelector = 12;
 constexpr quint32 ActivityServiceSelector = 13;
+constexpr quint32 ShapePartSelector = 14;
+constexpr quint32 ShapeInstanceShift = 16;
 
 bool validTileOffset(int value) {
     return value >= -1 && value <= 1;
@@ -108,6 +110,17 @@ bool tryActivityService(int serviceId, int part, quint32 &id) {
     return true;
 }
 
+bool tryShapePart(int instance, int part, quint32 &id) {
+    id = 0;
+    if (instance < 0 || static_cast<quint32>(instance) > MaximumShapeInstance
+            || part < 0 || static_cast<quint32>(part) > MaximumShapePart)
+        return false;
+    id = (ShapePartSelector << SelectorShift)
+            | (static_cast<quint32>(instance) << ShapeInstanceShift)
+            | static_cast<quint32>(part);
+    return true;
+}
+
 DecodedSelection decode(quint32 id) {
     DecodedSelection decoded;
     decoded.selector = static_cast<quint8>((id >> SelectorShift)
@@ -166,6 +179,14 @@ DecodedSelection decode(quint32 id) {
         return decoded;
     }
 
+    if (decoded.selector == ShapePartSelector) {
+        decoded.valid = true;
+        decoded.kind = Kind::ShapePart;
+        decoded.primaryId = (id >> ShapeInstanceShift) & MaximumShapeInstance;
+        decoded.part = static_cast<quint16>(id & MaximumShapePart);
+        return decoded;
+    }
+
     return decoded;
 }
 
@@ -173,9 +194,11 @@ bool tryWithPart(quint32 baseId, int part, quint32 &id) {
     id = 0;
     if (baseId == 0)
         return true;
+    const DecodedSelection decoded = decode(baseId);
+    if (decoded.valid && decoded.kind == Kind::ShapePart)
+        return tryShapePart(static_cast<int>(decoded.primaryId), part, id);
     if (!validPart(part))
         return false;
-    const DecodedSelection decoded = decode(baseId);
     if (!decoded.valid
             || (decoded.kind != Kind::WorldObject
                 && decoded.kind != Kind::ActivityObject
@@ -237,6 +260,19 @@ quint32 withPart(quint32 baseId, int part) {
     const bool valid = tryWithPart(baseId, part, id);
     return checkedResult(valid, id,
                          "SelectionIdCodec::withPart");
+}
+
+quint32 shapePart(int instance, int part) {
+    quint32 id = 0;
+    const bool valid = tryShapePart(instance, part, id);
+    return checkedResult(valid, id, "SelectionIdCodec::shapePart");
+}
+
+quint32 forShapePart(quint32 baseId, int part) {
+    if (baseId == 0 || part < 0 || static_cast<quint32>(part) > MaximumShapePart
+            || (baseId >> SelectorShift) != ShapePartSelector)
+        return baseId;
+    return (baseId & ~MaximumShapePart) | static_cast<quint32>(part);
 }
 
 quint32 withTerrainPatch(quint32 baseId, int patchId, int feature) {

@@ -44,6 +44,7 @@ const char *const FogDensity = "core.rendering.fogDensity";
 const char *const LocalLights = "core.rendering.localLights.enabled";
 const char *const Bloom = "core.rendering.bloom";
 const char *const Exposure = "core.rendering.exposure";
+const char *const Warmth = "core.rendering.warmth";
 const char *const Sun = "core.rendering.sky.sun";
 const char *const Moon = "core.rendering.sky.moon";
 const char *const SunSize = "core.rendering.sky.sunSize";
@@ -120,7 +121,7 @@ QTime timeOfHours(double hours) {
 QStringList EnvironmentWindow::keys() {
     QStringList list;
     for (const char *key : {TimeEnabled, Time, Date, Running, Sun, Moon, SunSize, FogColor, FogDensity,
-                            LocalLights, Bloom, Exposure})
+                            LocalLights, Bloom, Exposure, Warmth})
         list << QString::fromLatin1(key);
     return list;
 }
@@ -341,6 +342,9 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     exposure = number(Exposure,
         //% "Exposure:"
         qtTrId("route.editor.environment.window.exposure"), -4.0, 4.0, 0.25, 2, QStringLiteral(" EV"));
+    number(Warmth,
+        //% "Warmth:"
+        qtTrId("route.editor.environment.window.warmth"), -1.0, 1.0, 0.05, 2, QString());
 
     resetButton = new QPushButton(
         //% "Reset all"

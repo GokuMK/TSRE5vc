@@ -246,6 +246,7 @@ void GLUU::initShader() {
         currentShader->shaderBrightness = currentShader->uniformLocation("colorBrightness");
         currentShader->shaderFogDensity = currentShader->uniformLocation("fogDensity");
         currentShader->shaderTransparency = currentShader->uniformLocation("materialTransparency");
+        currentShader->materialSpecular = currentShader->uniformLocation("materialSpecular");
         currentShader->blendedTexels = currentShader->uniformLocation("blendedTexels");
         currentShader->shadow1Res = currentShader->uniformLocation("shadow1Res");
         currentShader->shadow2Res = currentShader->uniformLocation("shadow2Res");
@@ -404,7 +405,8 @@ void GLUU::setMatrixUniforms() {
             diffuseColor[2], diffuseColor[3]);
     currentShader->setUniformValue(currentShader->shaderAmbientColor, ambientColor[0], ambientColor[1],
             ambientColor[2], ambientColor[3]);
-    currentShader->setUniformValue(currentShader->shaderSpecularColor, 1.0,1.0,1.0,1.0);
+    currentShader->setUniformValue(currentShader->shaderSpecularColor, specularColor[0], specularColor[1],
+            specularColor[2], specularColor[3]);
     currentShader->setUniformValue(currentShader->shaderLightDirection, Game::sunLightDirection[0], Game::sunLightDirection[1], Game::sunLightDirection[2]);
     currentShader->setUniformValue(currentShader->shaderAlpha, alpha);
     currentShader->setUniformValue(currentShader->shaderAlphaTest, alphaTest);

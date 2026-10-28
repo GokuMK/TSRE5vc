@@ -14,12 +14,23 @@
 #include <QVector>
 #include <array>
 #include <tsre/procedural/ProceduralPath.h>
+#include <tsre/shape/MstsMaterials.h>
 #include <tsre/tdb/TSection.h>
 
 class OglObj;
 class TrackShape;
 class ComplexLine;
 struct OrtsTrackProfile;
+
+// A PBR LODItem's material (task shapes 13; OrtsProfileLodItem::shader):
+// shader Other for none.
+struct OrtsGeneratedProfilePbr {
+    MstsMaterials::Shader shader = MstsMaterials::Shader::Other;
+    QString ormTextureName;
+    QString normalTextureName;
+    MstsMaterials::Factors factors;
+    bool alphaTest = false;
+};
 
 struct OrtsGeneratedProfileMesh {
     enum class MaterialPass {
@@ -30,6 +41,9 @@ struct OrtsGeneratedProfileMesh {
 
     QString textureName;
     MaterialPass materialPass = MaterialPass::Opaque;
+    // The LODItem's MSTS light material (OrtsProfileLodItem::lightMaterial).
+    int lightMaterial = -5;
+    OrtsGeneratedProfilePbr pbr;
     float minimumDistance = -1;
     float maximumDistance = 999999;
     QVector<float> vertices;
@@ -41,6 +55,8 @@ struct OrtsGeneratedProfileSharedMesh {
     QString textureName;
     OrtsGeneratedProfileMesh::MaterialPass materialPass =
             OrtsGeneratedProfileMesh::MaterialPass::Opaque;
+    int lightMaterial = -5;
+    OrtsGeneratedProfilePbr pbr;
     float minimumDistance = -1;
     float maximumDistance = 999999;
     QVector<float> vertices;
@@ -71,6 +87,11 @@ public:
     // Drop cached route-local OBJ sources after an author edits a profile or
     // mesh on disk. Generated render objects remain owned by their consumers.
     static void clearTemplateMeshCache();
+
+    // Profile vertices (RenderItem::VNTA, triangles) in the PBR layout, as
+    // S files' PBR meshes: tangents from the texture coordinates, the
+    // second coordinates the first, white vertex colour.
+    static QVector<float> pbrVertices(const QVector<float> &vertices);
 
     static float generatedPartLod(OglObj *object,
             const float *objectRotation, float objectX, float objectZ);

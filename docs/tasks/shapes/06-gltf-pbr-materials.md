@@ -22,8 +22,10 @@ simplification.
 - Vertices use the `RenderItem::PBR` layout (19 floats): position, normal,
   texture coordinates, alpha, tangent with handedness, second texture
   coordinates and colour (`COLOR_0`). Missing tangents are generated per
-  source vertex from the texture coordinate gradients; missing normals were
-  already generated.
+  source vertex from the texture coordinate gradients, the bitangent up the
+  image (fixed 2026-10-27, shapes task 13: it pointed down, and Khronos
+  NormalTangentTest's maps read as dents); missing normals were already
+  generated.
 - Packets carry a `RenderItem::Pbr` block. The renderer draws them with the
   `StandardFogPbr` program (`TSRE_PBR`, `PbrShading.glsl`) and binds the
   metallic-roughness, normal, occlusion and emissive maps on units 11-14,
@@ -55,6 +57,18 @@ simplification.
   cube (Route Editor cube off), the sky over dark ground stands in, with a
   horizon as sharp as the roughness allows: smooth surfaces show the horizon
   line, rough ones a soft gradient.
+- Occlusion (the map, times its strength) darkens the environment's diffuse
+  light; reflections take specular occlusion from it (Lagarde and de
+  Rousiers 2014, as Filament: the occlusion on rough surfaces, less of it on
+  smooth ones seen head-on, more at grazing angles) and horizon occlusion
+  (Filament: a reflection a normal map turns below the geometric surface
+  fades, it would see the inside of the body). Added 2026-10-27 (shapes
+  task 13); before, the occlusion darkened reflections as the diffuse
+  light. The view's ambient occlusion (task renderer 23) multiplies on top
+  of all of it. In the Khronos samples only materials with an occlusion or
+  normal map change; NormalTangentMirrorTest's normal-mapped hemispheres
+  now have darker rims than the geometric ones (their rim reflections point
+  below the flat panel, which would catch them), as Filament draws them.
 - Clearcoat: a dielectric GGX layer (F0 0.04) over the base, which receives
   the light the layer transmits.
 - Specular and IOR: the dielectric F0 is ((ior - 1) / (ior + 1))^2 times

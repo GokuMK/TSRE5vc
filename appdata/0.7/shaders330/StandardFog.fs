@@ -11,8 +11,8 @@ in float vTerrainGap;
 in vec2 vTerrainMapCoord;
 #ifdef TSRE_RHI
 in float vClipDistance;
-in vec3 vLightPosition;
 #endif
+in vec3 vLightPosition;
 out vec4 fragColor;
 #ifdef TSRE_RHI
 // The share of fragColor that ambient and environment light make, for
@@ -37,6 +37,8 @@ uniform float alphaTest;
 uniform vec4 skyColor;
 uniform vec4 diffuseColor;
 uniform vec4 ambientColor;
+// The highlights' light where brighter than diffuseColor's (a low sun
+// through the air; linear, 0 without one): MstsSpecular.glsl.
 uniform vec4 specularColor;
 uniform vec3 lightDirection;
 uniform sampler2D uSampler;
@@ -128,6 +130,40 @@ uniform int terrainMapPass;
 #ifdef TSRE_WATER
 #include "WaterShading.glsl"
 #endif
+#if !defined(TSRE_PBR) && !defined(TSRE_WATER) && !defined(TSRE_TERRAIN)
+#include "MstsSpecular.glsl"
+#endif
+#if !defined(TSRE_PBR) && !defined(TSRE_WATER)
+#include "EnvironmentLighting.glsl"
+// The shade's light (display colour): the ambient's brightness in the
+// colour of the sky's light from above, the light PBR's shade takes (the
+// environment cube's roughest level straight up, PbrShading.glsl): a clear
+// sky's blue, a cloud's grey, a sunset's glow. In plain grey, shadows here
+// were grey beside PBR's blue ones (the user, 2026-10-27). In the scene's
+// scale, as PBR's (a thirtieth at night with auto exposure): no floor but
+// zero's.
+vec3 ambientLight() {
+    vec3 sky = skyLight(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0));
+    float skyLuminance = luminance(sky);
+    if (skyLuminance < 1e-12)
+        return ambientColor.rgb;
+    return pow(sky * (luminance(toLinear(ambientColor.rgb)) / skyLuminance), vec3(1.0 / 2.2));
+}
+
+// The sun's and the sky's light on a surface (display colour): as bright as
+// MSTS sums them (display colours added), in the colour they make together
+// (linear light, as PBR's). Summed as display colours, the sky's blue
+// outweighed the sun's warmth on sunlit ground (Prudnik at noon cold, the
+// user, 2026-10-27); in the shade the sky's alone, grey light as before.
+vec3 mixedLight(vec3 sun, vec3 sky) {
+    vec3 summed = sun + sky;
+    vec3 mixed = toLinear(sun) + toLinear(sky);
+    float mixedLuminance = luminance(mixed);
+    if (mixedLuminance < 1e-8)
+        return summed;
+    return pow(mixed * (luminance(toLinear(summed)) / mixedLuminance), vec3(1.0 / 2.2));
+}
+#endif
 
 void main() {
 #ifdef TSRE_RHI
@@ -210,27 +246,33 @@ void main() {
             vec3 lights = normalize(lightDirection);
             float cosTheta = clamp(dot( normal, lights ), 0, 1);
             float visibility = shadowedVisibility(cosTheta);
+            // What the shadows leave of the sun, without the N.L the visibility
+            // starts from (the MSTS specular has its own).
+            float sunVisible = clamp(1.0 - cosTheta + visibility, 0.0, 1.0);
 #ifdef TSRE_RHI
-            visibility *= cloudShadow(vLightPosition);
+            float sunPassing = cloudShadow(vLightPosition);
             float shade;
             float enclosed = skyEnclosed(vLightPosition, normal, shade);
-            visibility *= enclosureSun(vLightPosition, shade, lights);
+            sunPassing *= enclosureSun(vLightPosition, shade, lights);
+            visibility *= sunPassing;
+            sunVisible *= sunPassing;
 #endif
 
             // calculate light color
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
+            vec3 ambient = ambientLight();
 #ifdef TSRE_RHI
-            color += ambientColor.xyz * skyAmbient(shade);
+            color = mixedLight(color, ambient * skyAmbient(shade));
 #else
-            color += ambientColor.xyz;
+            color = mixedLight(color, ambient);
 #endif
 #ifdef TSRE_RHI
             // Lamps and glowing surfaces add their light in linear terms.
             vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(shade);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
-            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * skyAmbient(shade) * colorBrightness
+            ambientOut = vec4(fragColor.rgb * ambient * skyAmbient(shade) * colorBrightness
                               * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor)),
                               fragColor.a);
 #endif
@@ -262,6 +304,18 @@ void main() {
                 fragColor.rgb = pow(pow(fragColor.rgb, vec3(2.2)) + glow, vec3(1.0 / 2.2));
                 glowOut.rgb += glow * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor));
 #endif
+            }
+            // MSTS specular light materials (task shapes 13), over the lit
+            // texture in linear terms.
+            if (materialSpecular > 0.0 && enableNormals != 0.0) {
+#ifdef TSRE_RHI
+                vec3 skyLight = ambient * skyAmbient(shade);
+#else
+                vec3 skyLight = ambient;
+#endif
+                vec3 shine = mstsSpecular(normal, lights, sunVisible, skyLight)
+                        * colorBrightness;
+                fragColor.rgb = pow(pow(max(fragColor.rgb, vec3(0.0)), vec3(2.2)) + shine, vec3(1.0 / 2.2));
             }
 #endif
 

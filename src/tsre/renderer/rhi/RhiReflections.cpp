@@ -17,6 +17,7 @@
 #include "RhiShaderSource.h"
 #include "RhiTextures.h"
 #include <QDebug>
+#include <QFloat16>
 
 namespace {
 
@@ -100,10 +101,18 @@ bool RhiRenderer::createEnvironment(int faceSize, int levels) {
         return false;
     const QSize size(faceSize, faceSize);
     Environment &e = environment;
-    e.cube = rhi->newTexture(QRhiTexture::RGBA8, size, 1,
-                             QRhiTexture::CubeMap | QRhiTexture::MipMapped
-                             | QRhiTexture::UsedWithGenerateMips | QRhiTexture::RenderTarget);
-    e.prefiltered = rhi->newTexture(QRhiTexture::RGBA8, size, 1,
+    // Half floats where the GPU has them. With auto exposure the cube holds
+    // the scene's light, a thirtieth at night: in 8 bits the sky from above
+    // was a few steps a channel, and the shade's colour (its hue) jumped
+    // from minute to minute between red, green and blue (CMK before
+    // sunrise, the user, 2026-10-28). The prefilter clamps what it reads to
+    // 1, as 8 bits did: the sun and lamps reflect as before.
+    const QRhiTexture::Flags cubeFlags = QRhiTexture::CubeMap | QRhiTexture::MipMapped
+            | QRhiTexture::UsedWithGenerateMips | QRhiTexture::RenderTarget;
+    e.format = rhi->isTextureFormatSupported(QRhiTexture::RGBA16F, cubeFlags) ? QRhiTexture::RGBA16F
+                                                                               : QRhiTexture::RGBA8;
+    e.cube = rhi->newTexture(e.format, size, 1, cubeFlags);
+    e.prefiltered = rhi->newTexture(e.format, size, 1,
                                     QRhiTexture::CubeMap | QRhiTexture::MipMapped
                                     | QRhiTexture::RenderTarget);
     e.depth = rhi->newTexture(QRhiTexture::D32F, size, 1, QRhiTexture::RenderTarget);
@@ -242,7 +251,16 @@ void RhiRenderer::uploadEnvironment(const QByteArray *faces) {
     for (int face = 0; face < EnvironmentMap::FaceCount; ++face) {
         if (faces[face].size() != qsizetype(environment.size) * environment.size * 4)
             return;
-        QRhiTextureSubresourceUploadDescription description(faces[face]);
+        // 8-bit faces into a half-float cube: each channel 0 to 1.
+        QByteArray data = faces[face];
+        if (environment.format == QRhiTexture::RGBA16F) {
+            data.resize(faces[face].size() * qsizetype(sizeof(qfloat16)));
+            const auto *in = reinterpret_cast<const unsigned char *>(faces[face].constData());
+            auto *out = reinterpret_cast<qfloat16 *>(data.data());
+            for (qsizetype i = 0; i < faces[face].size(); ++i)
+                out[i] = qfloat16(in[i] / 255.0f);
+        }
+        QRhiTextureSubresourceUploadDescription description(data);
         description.setSourceSize(QSize(environment.size, environment.size));
         entries.append(QRhiTextureUploadEntry(face, 0, description));
     }

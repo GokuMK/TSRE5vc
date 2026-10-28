@@ -331,6 +331,15 @@ QJsonObject toJson(const FrameStats &stats) {
     json["bindingCreateMs"] = stats.bindingCreateMs;
     json["pipelineCreateMs"] = stats.pipelineCreateMs;
     json["uploadsDeferred"] = double(stats.uploadsDeferred);
+    if (stats.exposureActive) {
+        QJsonObject exposure;
+        if (stats.exposureMeasured)
+            exposure["measuredLog2"] = stats.exposureMeasuredLog2;
+        exposure["referenceLog2"] = stats.exposureReferenceLog2;
+        exposure["correction"] = stats.exposureCorrection;
+        exposure["bias"] = stats.exposureBias;
+        json["exposure"] = exposure;
+    }
     static_assert(Renderer::PASS_COUNT <= FrameStats::PassSlots, "pass slots");
     // Shadow cascades follow the render passes.
     static const char *passNames[FrameStats::PassSlots] = {

@@ -28,7 +28,9 @@ uniform float emissiveScale;
 // Bit per map present: 1 metallic-roughness, 2 normal, 4 occlusion, 8 emissive,
 // 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal, 128 specular,
 // 256 specular colour, 512 transmission, 1024 thickness, 2048 diffuse
-// transmission, 4096 diffuse transmission colour.
+// transmission, 4096 diffuse transmission colour. MSTS PBR materials (task
+// shapes 13): 8192 the clearcoat also times the metallic-roughness map's
+// alpha, 16384 glass (blended: alpha covers the diffuse light only).
 uniform int pbrTextures;
 // Bit per map (RenderItem::Pbr::Map order) read with the second texture coordinates.
 uniform int pbrTexCoords;
@@ -143,6 +145,18 @@ vec3 transmittedDiffuse(vec3 n, vec3 v, vec3 l, vec3 albedo, vec3 f0, vec3 f90) 
     return (1.0 - fresnel) * albedo / PbrPi * backNDotL;
 }
 
+// How much of its surroundings a reflection keeps in a crease: specular
+// occlusion (Lagarde and de Rousiers 2014, as Filament has it), the
+// diffuse occlusion on rough surfaces, less of it on smooth ones seen
+// head-on and more at grazing angles; and none of what a reflection below
+// the surface itself would see (horizon occlusion: a normal map's slopes
+// turned away from the view reflect the inside of the body).
+float reflectionOcclusion(float occlusion, float nDotV, float roughness, vec3 r, vec3 surface) {
+    float specular = clamp(pow(nDotV + occlusion, exp2(-16.0 * roughness - 1.0)) - 1.0 + occlusion, 0.0, 1.0);
+    float horizon = min(1.0 + dot(r, surface), 1.0);
+    return specular * horizon * horizon;
+}
+
 vec4 pbrShade() {
     vec4 base = textureEnabled != 0.0 ? texture(uSampler, pbrUv(0)) : shapeColor;
     base.rgb = toLinear(base.rgb);
@@ -165,11 +179,17 @@ vec4 pbrShade() {
 
     float metallic = pbrMetallicRoughness.x;
     float roughness = pbrMetallicRoughness.y;
+    float coatMask = 1.0;
     if ((pbrTextures & 1) != 0) {
         vec4 metallicRoughness = texture(pbrMetallicRoughnessMap, pbrUv(1));
         roughness *= metallicRoughness.g;
         metallic *= metallicRoughness.b;
+        if ((pbrTextures & 8192) != 0)
+            coatMask = metallicRoughness.a;
     }
+    // Glass: its paint and dirt cover as alpha says; its reflection is added
+    // whole, and the coverage made up at the end.
+    bool glass = (pbrTextures & 16384) != 0 && pbrBlend != 0;
     metallic = clamp(metallic, 0.0, 1.0);
     roughness = clamp(roughness, 0.03, 1.0);
 
@@ -194,6 +214,8 @@ vec4 pbrShade() {
     vec3 f0 = mix(dielectricF0, base.rgb, metallic);
     vec3 f90 = vec3(mix(specularWeight, 1.0, metallic));
     vec3 diffuseAlbedo = base.rgb * (1.0 - metallic);
+    if (glass)
+        diffuseAlbedo *= alpha;
     // Diffuse transmission (KHR_materials_diffuse_transmission): thin
     // surfaces such as leaves pass that share of the diffuse light through,
     // in their own colour, lighting them from behind.
@@ -221,7 +243,7 @@ vec4 pbrShade() {
     // matte surface facing it is as bright as in the legacy shading.
     // Clearcoat: a smooth dielectric layer (F0 0.04) over the base, with
     // its own roughness and normal. The base receives what it transmits.
-    float coat = pbrClearcoat.x;
+    float coat = pbrClearcoat.x * coatMask;
     float coatRoughness = pbrClearcoat.y;
     vec3 coatNormal = geometricNormal;
     if (coat > 0.0) {
@@ -239,7 +261,15 @@ vec4 pbrShade() {
     vec3 color = vec3(0.0);
     vec3 l = normalize(lightDirection);
     float nDotL = max(dot(n, l), 0.0);
-    float shadow = clamp(shadowedVisibility(1.0), 0.0, 1.0);
+    // Shadowed as the rest of the content: the legacy visibility is N.L less
+    // 1.6 times the shadowed share (ShadowSampling.glsl), so a partly shadowed
+    // surface a low sun grazes is dark through. The sun's light here takes
+    // N.L itself, so the shadow is that visibility over N.L (the geometric
+    // normal's, from either side for thin foliage lit through). From 1 less
+    // the share, rails' shadows on PBR ballast at 8:30 were faint patches
+    // beside the legacy track's dark ones (the user, 2026-10-27).
+    float geometricNDotL = max(abs(dot(geometricNormal, l)), 1e-3);
+    float shadow = clamp(shadowedVisibility(geometricNDotL) / geometricNDotL, 0.0, 1.0);
 #ifdef TSRE_RHI
     shadow *= cloudShadow(vLightPosition);
     float shade;
@@ -294,30 +324,45 @@ vec4 pbrShade() {
 
     // Image-based light from the prefiltered cube: level i holds reflections
     // for roughness i / (levels - 1); diffuse light uses the roughest level,
-    // scaled so open sky gives the legacy ambient light.
+    // scaled so open sky gives the legacy ambient light: the cube's light
+    // from straight up (the sky colour without a cube) stands for it. The
+    // cube's own level cancels, so its dark zenith at dawn and dusk (the sky
+    // colour, the fog's, glows there: PBR came out several times darker than
+    // the rest) and a cube some frames behind a time change (a face a frame:
+    // a jump lit PBR up, then darkened it) light as the rest does. Both are
+    // in the scene's scale: with auto exposure a thirtieth at night, so the
+    // sky's light from above came under the division's former floor of 1e-4
+    // and the night's ambient fell to a tenth (Prudnik 21:00, 2026-10-27).
     float occlusion = 1.0;
     if ((pbrTextures & 4) != 0)
         occlusion = 1.0 + pbrOcclusionStrength * (texture(pbrOcclusionMap, pbrUv(3)).r - 1.0);
-    vec3 irradiance = environmentRadiance(n, 1.0);
+    vec3 irradiance = skyLight(environmentRadiance(n, 1.0));
     float ambientScale = luminance(toLinear(ambientColor.rgb))
-            / max(luminance(toLinear(skyColor.rgb)), 0.05);
-    vec3 reflected = environmentRadiance(reflect(-v, n), roughness);
-    vec3 environment = diffuseAlbedo * irradiance * ambientScale
-            + reflected * environmentBrdf(f0, f90, roughness, nDotV);
+            / max(luminance(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0)), 1e-12);
+    vec3 r = reflect(-v, n);
+    vec3 reflected = environmentRadiance(r, roughness);
+    vec3 diffuseEnvironment = diffuseAlbedo * irradiance * ambientScale;
     // The sky and surroundings behind a thin surface shine through it.
     if (diffuseTransmission > 0.0)
-        environment += transmittedAlbedo * environmentRadiance(-n, 1.0) * ambientScale;
+        diffuseEnvironment += transmittedAlbedo * skyLight(environmentRadiance(-n, 1.0)) * ambientScale;
+    // The occlusion darkens the diffuse light; reflections their own share
+    // of it (reflectionOcclusion).
+    vec3 environment = diffuseEnvironment * occlusion
+            + reflected * environmentBrdf(f0, f90, roughness, nDotV)
+            * reflectionOcclusion(occlusion, nDotV, roughness, r, geometricNormal);
     if (coat > 0.0) {
-        vec3 coatReflected = environmentRadiance(reflect(-v, coatNormal), coatRoughness);
+        vec3 coatR = reflect(-v, coatNormal);
+        vec3 coatReflected = environmentRadiance(coatR, coatRoughness);
         environment = environment * (1.0 - coatFresnel)
-                + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
+                + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV)
+                * reflectionOcclusion(occlusion, coatNDotV, coatRoughness, coatR, geometricNormal);
     }
 #ifdef TSRE_RHI
     environment *= skyAmbient(shade);
 #endif
-    color += environment * occlusion;
+    color += environment;
 #ifdef TSRE_RHI
-    vec3 ambientLight = environment * occlusion * colorBrightness;
+    vec3 ambientLight = environment * colorBrightness;
 #endif
     color *= colorBrightness;
 
@@ -339,6 +384,15 @@ vec4 pbrShade() {
 #else
     color += emissive;
 #endif
+    // Glass: what it reflects hides what lies behind as much as it reflects
+    // (Fresnel), and a highlight brighter than that as much as it shines.
+    if (glass) {
+        float reflectance = clamp(luminance(environmentBrdf(f0, f90, roughness, nDotV)) + coatFresnel,
+                                  0.0, 1.0);
+        float covered = clamp(max(alpha + (1.0 - alpha) * reflectance, luminance(color)), alpha, 1.0);
+        color /= max(covered, 1e-3);
+        alpha = covered;
+    }
 
 #ifdef TSRE_RHI
     // Shrinking below 32 pixels, the surface hands its glow to its emitters'

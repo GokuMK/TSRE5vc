@@ -16,6 +16,16 @@ the OpenGL cube map order and orientation (+X, -X, +Y, -Y, +Z, -Z); the
 `environment-map-gl` suite checks both by drawing a coloured marker in every
 direction. The cube is bound on texture unit 10 for the scene shaders.
 
+QRhi keeps both cubes in half floats where the GPU has them (RGBA16F, else
+RGBA8; OpenGL RGBA8). With auto exposure the cube holds the scene's light,
+a thirtieth at night: in 8 bits the sky from above was a few steps a
+channel, and the shade, which takes its colour, changed hue from minute to
+minute before sunrise (CMK 3:00-3:45: fields violet, red, olive in turn,
+chromaticity up to 0.25 a minute; 0.025 in half floats, the dawn's own
+drift; the user, 2026-10-28). The prefilter clamps what it reads to 0-1, as
+8 bits held it, so the sun and lamps reflect as before; the Shape Viewer's
+8-bit warehouse faces are converted on upload (its images unchanged).
+
 ### Route Editor
 
 One cube, rendered from the camera position after the shadow maps, from the

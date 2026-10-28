@@ -33,10 +33,15 @@ World axes: x east, y up, z south (MSTS z points north; TSRE flips it).
 
 `Daylight` maps the sun's elevation to the light the shaders take:
 
-- the sun (diffuse light): the usual 0.7 above 20 degrees, warmer and weaker
-  towards the horizon, none 1 degree under it;
+- the sun (diffuse light): the usual 0.7 above 20 degrees, weaker towards
+  the horizon, none 1 degree under it; in the colour of the sun through the
+  air towards it (`Atmosphere::Model::sunLight` from the camera's height, at
+  Daylight's brightness: a little warm at noon, red at sunset; 2026-10-27,
+  before white by day and a fixed warm colour low);
 - ambient light: the usual 0.3 by day, a dark blue night light below civil
-  twilight;
+  twilight; the shaders take its brightness in the colour of the sky's
+  light from above, the environment cube's (a clear sky's blue, a cloud's
+  grey, a sunset's glow), as PBR does (shapes task 13, 2026-10-27);
 - sky and fog colours: the configured colours by day, a warm band around
   sunset, twilight blue to -6 degrees, night below -18.
 

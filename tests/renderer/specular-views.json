@@ -1,0 +1,174 @@
+{
+ "notes": "MSTS specular light materials (docs/tasks/shapes/13-msts-pbr-materials-and-editor.md) on EUROPE1's track (A1t shapes: rail heads -6), 3 m above it near the route start, looking south-west along it towards the afternoon sun (heading = 540 - yaw degrees). Run with --game-root \"C:/MagiPacks/Microsoft Train Simulator\" --route EUROPE1 --set core.rendering.timeOfDay.running=false.",
+ "output": "build/renderer-specular",
+ "width": 960,
+ "height": 540,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 1,
+ "diffTolerance": 16,
+ "shadows": true,
+ "settle": {
+  "minFrames": 6,
+  "stableFrames": 2,
+  "maxFrames": 60,
+  "maxSeconds": 600
+ },
+ "views": [
+  {
+   "name": "t15-y305-p12",
+   "tile": [
+    -6113,
+    -15054
+   ],
+   "pos": [
+    -604.5,
+    0.0,
+    931.65
+   ],
+   "aboveGround": 3.0,
+   "rot": [
+    5.3233,
+    -0.12
+   ],
+   "weatherPreset": "clear",
+   "time": 15
+  },
+  {
+   "name": "t15-y305-p04",
+   "tile": [
+    -6113,
+    -15054
+   ],
+   "pos": [
+    -604.5,
+    0.0,
+    931.65
+   ],
+   "aboveGround": 3.0,
+   "rot": [
+    5.3233,
+    -0.04
+   ],
+   "weatherPreset": "clear",
+   "time": 15
+  },
+  {
+   "name": "t15-y320-p12",
+   "tile": [
+    -6113,
+    -15054
+   ],
+   "pos": [
+    -604.5,
+    0.0,
+    931.65
+   ],
+   "aboveGround": 3.0,
+   "rot": [
+    5.5851,
+    -0.12
+   ],
+   "weatherPreset": "clear",
+   "time": 15
+  },
+  {
+   "name": "t15-y320-p04",
+   "tile": [
+    -6113,
+    -15054
+   ],
+   "pos": [
+    -604.5,
+    0.0,
+    931.65
+   ],
+   "aboveGround": 3.0,
+   "rot": [
+    5.5851,
+    -0.04
+   ],
+   "weatherPreset": "clear",
+   "time": 15
+  },
+  {
+   "name": "t16-y305-p12",
+   "tile": [
+    -6113,
+    -15054
+   ],
+   "pos": [
+    -604.5,
+    0.0,
+    931.65
+   ],
+   "aboveGround": 3.0,
+   "rot": [
+    5.3233,
+    -0.12
+   ],
+   "weatherPreset": "clear",
+   "time": 16
+  },
+  {
+   "name": "t16-y305-p04",
+   "tile": [
+    -6113,
+    -15054
+   ],
+   "pos": [
+    -604.5,
+    0.0,
+    931.65
+   ],
+   "aboveGround": 3.0,
+   "rot": [
+    5.3233,
+    -0.04
+   ],
+   "weatherPreset": "clear",
+   "time": 16
+  },
+  {
+   "name": "t16-y320-p12",
+   "tile": [
+    -6113,
+    -15054
+   ],
+   "pos": [
+    -604.5,
+    0.0,
+    931.65
+   ],
+   "aboveGround": 3.0,
+   "rot": [
+    5.5851,
+    -0.12
+   ],
+   "weatherPreset": "clear",
+   "time": 16
+  },
+  {
+   "name": "t16-y320-p04",
+   "tile": [
+    -6113,
+    -15054
+   ],
+   "pos": [
+    -604.5,
+    0.0,
+    931.65
+   ],
+   "aboveGround": 3.0,
+   "rot": [
+    5.5851,
+    -0.04
+   ],
+   "weatherPreset": "clear",
+   "time": 16
+  }
+ ]
+}

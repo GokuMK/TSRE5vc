@@ -91,6 +91,27 @@ struct OrtsProfileLodItem {
     QString textureName;
     QString shaderName;
     QString lightModelName;
+    // The MSTS light material (vtx_state) LightModelName stands for, as Open
+    // Rails reads it (Viewer3D/Common/Helpers.cs): OptSpecular0 -5,
+    // OptSpecular25 -6, OptSpecular750 -7, OptFullBright -8, Cruciform -9,
+    // OptHalfBright -11, DarkShade -12 (any case). None or another name: -5,
+    // with known false for another name.
+    int lightMaterial(bool *known = nullptr) const;
+    // TSRE PBR materials (task shapes 13), as S files have them: beside
+    // TexName (the base colour) the ORM(C) map (TSREOrmTexName: occlusion,
+    // roughness, metalness, a clearcoat mask in alpha) and the normal map
+    // (TSRENormalTexName), and the factors (ESD_TSREMaterial, the .sd's
+    // token: its values; a texture key in front, as a copied .sd line has
+    // it, is skipped).
+    QString ormTextureName;
+    QString normalTextureName;
+    QVector<float> materialFactors;
+    bool hasMaterialFactors = false;
+    // The shader the item draws with: ShaderName, but TexDiff and
+    // BlendATexDiff with all three TSRE tokens are PbrTexDiff and
+    // BlendAPbrTexDiff (upgraded true), so Open Rails can still draw such a
+    // profile with its own shaders.
+    QString shader(bool *upgraded = nullptr) const;
     int alphaTestMode = 0;
     QString textureAddressMode;
     int alternativeTexture = 0;

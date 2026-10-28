@@ -161,6 +161,37 @@ int TsreTests::runSelectionIdSuite(bool verbose) {
                           1, replacedPart),
           "part-replacement-rejects-overflow-and-incompatible-kinds");
 
+    bool shapeRoundTrips = true;
+    for (int instance : {0, 1, 2047}) {
+        for (int part : {0, 2047, 2048, 65535}) {
+            quint32 id = 0;
+            const bool packed = tryShapePart(instance, part, id);
+            const DecodedSelection decoded = decode(id);
+            shapeRoundTrips = shapeRoundTrips && packed && id != 0
+                    && decoded.valid && decoded.kind == Kind::ShapePart
+                    && decoded.primaryId == static_cast<quint32>(instance)
+                    && decoded.part == part;
+        }
+    }
+    check(shapeRoundTrips, "shape-part-boundaries-round-trip");
+    check(!tryShapePart(-1, 0, rejectedId)
+          && !tryShapePart(2048, 0, rejectedId)
+          && !tryShapePart(0, -1, rejectedId)
+          && !tryShapePart(0, 65536, rejectedId),
+          "shape-part-overflow-is-rejected-without-truncation");
+    // Shapes number their parts on a ShapePart id; any other id stays, as a
+    // part beyond the 16 bits.
+    const quint32 carBase = shapePart(12, 0);
+    check(decode(forShapePart(carBase, 40000)).primaryId == 12
+          && decode(forShapePart(carBase, 40000)).part == 40000
+          && forShapePart(carBase, 65536) == carBase
+          && forShapePart(worldBase, 7) == worldBase
+          && forShapePart(0, 7) == 0
+          && tryWithPart(carBase, 65535, replacedPart)
+          && decode(replacedPart).primaryId == 12
+          && decode(replacedPart).part == 65535,
+          "shape-parts-are-numbered-only-on-shape-part-ids");
+
     quint32 replacedPatch = 0;
     const quint32 terrainBase = terrain(-1, 1, 3, 7);
     check(tryWithTerrainPatch(terrainBase, 4095, 2047, replacedPatch)
@@ -172,7 +203,7 @@ int TsreTests::runSelectionIdSuite(bool verbose) {
 
     check(decode(0).valid && decode(0).kind == Kind::None
           && !decode(1).valid
-          && !decode(14u << SelectorShift).valid
+          && !decode(15u << SelectorShift).valid
           && !decode(31u << SelectorShift).valid,
           "zero-and-reserved-selectors-decode-safely");
     check(!decode((10u << SelectorShift) | (3u << 25)).valid
@@ -183,7 +214,8 @@ int TsreTests::runSelectionIdSuite(bool verbose) {
           && decode(terrain(0, 0, 0, 0)).selector == 10
           && decode(activityObject(0, 0)).selector == 11
           && decode(databaseItem(DatabaseKind::Track, 0)).selector == 12
-          && decode(activityService(0, 0)).selector == 13,
+          && decode(activityService(0, 0)).selector == 13
+          && decode(shapePart(0, 0)).selector == 14,
           "defined-selector-values-remain-stable");
     check(worldObject(1, -1, 0xabcd, 0x456)
               == ((7u << 27) | (0xabcdu << 11) | 0x456u)
@@ -195,7 +227,9 @@ int TsreTests::runSelectionIdSuite(bool verbose) {
           && databaseItem(DatabaseKind::Road, 0xabcdef)
               == ((12u << 27) | (1u << 24) | 0xabcdefu)
           && activityService(0xabcd, 0x456)
-              == ((13u << 27) | (0xabcdu << 11) | 0x456u),
+              == ((13u << 27) | (0xabcdu << 11) | 0x456u)
+          && shapePart(0x5ab, 0xcdef)
+              == ((14u << 27) | (0x5abu << 16) | 0xcdefu),
           "encoded-bit-fields-match-the-documented-layout");
 
     qInfo() << "[tests:selection-id] cases=" << (passed + failed)

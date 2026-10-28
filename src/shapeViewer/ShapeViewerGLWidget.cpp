@@ -24,6 +24,8 @@
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/renderer/RenderQueue.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
@@ -263,7 +265,7 @@ void ShapeViewerGLWidget::fillCurrentContentHierarchyInfo(QVector<ContentHierarc
 void ShapeViewerGLWidget::surfacePaint() {
     if(selection){
         selection = false;
-        if(renderItem == 3 && con != nullptr)
+        if((renderItem == 3 && con != nullptr) || (pickPrimitives && shownShape() != nullptr))
             renderFrame(true);
     }
     // Always finish a pick with a visible frame in the widget framebuffer.
@@ -283,21 +285,25 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
         renderer->clear(true, true, backgroundGlColor);
     }
     renderer->useProgram(selectionPass ? Renderer::PROGRAM_SELECTION : Renderer::PROGRAM_MAIN);
-    // Zero is the background; wagon indices start at one.
-    const quint32 selectionId = selectionPass ? 1 : 0;
+    // Zero is the background; cars and primitives are ShapePart ids (task
+    // shapes 13): the car is the instance.
+    const quint32 selectionId = selectionPass ? SelectionIdCodec::shapePart(0, 0) : 0;
 
     // disable shadows temporaily
     int shadowsState = Game::shadowsEnabled;
     Game::shadowsEnabled = 0;
     // Its own light for this frame: the route's sun and light stay for the
     // route editor's views.
-    float routeSun[3], routeSunColor[4], routeAmbient[4];
+    float routeSun[3], routeSunColor[4], routeAmbient[4], routeSpecular[4];
     std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, routeSun);
     std::copy(gluu->diffuseColor, gluu->diffuseColor + 4, routeSunColor);
     std::copy(gluu->ambientColor, gluu->ambientColor + 4, routeAmbient);
     std::copy(light.sun, light.sun + 3, Game::sunLightDirection);
     std::fill(gluu->diffuseColor, gluu->diffuseColor + 3, light.sunColor);
     std::fill(gluu->ambientColor, gluu->ambientColor + 3, light.ambient);
+    // Highlights reflect its own light only.
+    std::copy(gluu->specularColor, gluu->specularColor + 4, routeSpecular);
+    std::fill(gluu->specularColor, gluu->specularColor + 4, 0.0f);
     
     renderer->clear(false, false, backgroundGlColor);
     
@@ -376,10 +382,16 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
             qFloor(selectionPosition.x() * pixelRatio),
             selectionHeight - qFloor(selectionPosition.y() * pixelRatio) - 1);
         renderer->endSelection();
-        if(id > 0 && id <= static_cast<quint32>(con->engItems.size())){
-            const int index = static_cast<int>(id - 1);
-            con->select(index);
-            emit selected(index);
+        const SelectionIdCodec::DecodedSelection pick = SelectionIdCodec::decode(id);
+        const bool shapePart = pick.valid && pick.kind == SelectionIdCodec::Kind::ShapePart;
+        if(renderItem == 3 && con != nullptr){
+            if(shapePart && pick.primaryId < static_cast<quint32>(con->engItems.size())){
+                const int index = static_cast<int>(pick.primaryId);
+                con->select(index);
+                emit selected(index);
+            }
+        } else if(pickPrimitives && shownShape() != nullptr){
+            emit primitivePicked(shapePart ? int(pick.part) : -1, pickAdd);
         }
     }
     
@@ -403,6 +415,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     std::copy(routeSun, routeSun + 3, Game::sunLightDirection);
     std::copy(routeSunColor, routeSunColor + 4, gluu->diffuseColor);
     std::copy(routeAmbient, routeAmbient + 4, gluu->ambientColor);
+    std::copy(routeSpecular, routeSpecular + 4, gluu->specularColor);
 }
 
 void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
@@ -427,9 +440,27 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
         Mat4::translate(mv, mv, 0, 0, -con->conLength/2);
         con->pushRenderItems(queue, selectionId);
     }
-    if(renderItem == 4 && complexShape != NULL)
-        complexShape->pushRenderItem(queue);
+    if(renderItem == 4 && complexShape != NULL){
+        complexShape->pushRenderItem(queue, selectionId, 0);
+        // Picked primitives over it (task shapes 13).
+        if(selectionId == 0 && pickPrimitives && !picked.isEmpty()){
+            static const float PickedColor[4] = {1.0f, 0.55f, 0.1f, 0.45f};
+            queue.setLayer(RenderQueue::LAYER_OVERLAY);
+            complexShape->pushPrimitiveHighlight(queue, 0, picked, PickedColor);
+            queue.setLayer(RenderQueue::LAYER_SCENE);
+        }
+    }
     renderer->renderFrame();
+}
+
+void ShapeViewerGLWidget::setPrimitivePicking(bool on) {
+    pickPrimitives = on;
+    update();
+}
+
+void ShapeViewerGLWidget::setPickedPrimitives(const QVector<int> &primitives) {
+    picked = primitives;
+    update();
 }
 
 void ShapeViewerGLWidget::getImg() {
@@ -488,6 +519,7 @@ void ShapeViewerGLWidget::mousePressEvent(QMouseEvent *event) {
     m_lastPos *= Game::PixelRatio;
     mousePressed = true;
     selectionPosition = event->position();
+    pressPosition = event->position();
     selection = renderItem == 3 && con != nullptr;
     update();
     if(event->button() == Qt::RightButton)
@@ -503,7 +535,15 @@ void ShapeViewerGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     mousePressed = false;
     mouseRPressed = false;
     mouseLPressed = false;
-    
+    // A click, not a drag turning the view, picks a primitive.
+    if(event->button() == Qt::LeftButton && pickPrimitives && shownShape() != nullptr
+            && (event->position() - pressPosition).manhattanLength() < 5.0){
+        selectionPosition = event->position();
+        pickAdd = (event->modifiers() & Qt::ControlModifier) != 0;
+        selection = true;
+        update();
+    }
+
     if ((event->button()) == Qt::RightButton) {
         showContextMenu(event->pos());
     }

@@ -37,6 +37,7 @@
 #include <shapeViewer/ContentHierarchyInfo.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <vector>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <limits>
@@ -101,6 +102,8 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     std::swap(esdAlternativeTexture, o.esdAlternativeTexture);
     std::swap(esdBoundingBox, o.esdBoundingBox);
     std::swap(snapable, o.snapable);
+    std::swap(pbrFactors, o.pbrFactors);
+    std::swap(primFactors, o.primFactors);
     std::swap(tpoints, o.tpoints);
     std::swap(iloscd, o.iloscd);
     std::swap(distancelevel, o.distancelevel);
@@ -381,6 +384,8 @@ bool SFileLegacy::loadData() {
             for(ShapeAnimation::Channel &c : a.node)
                 ShapeAnimation::sortKeys(c);
     loadSd();
+    if (loaded == 1)
+        resolvePbrFactors();
     //qDebug() <<this->pathid << QDateTime::currentMSecsSinceEpoch() - timeNow;
     return loaded == 1;
 }
@@ -579,6 +584,22 @@ void SFileLegacy::loadSd() {
                 }
                 if (sh == ("esd_snapable")) {
                     snapable = true;
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                // PBR material factors (task shapes 13).
+                if (sh == ("esd_tsrematerial")) {
+                    const QString key = MstsMaterials::key(ParserX::GetString(data));
+                    QVector<float> values;
+                    bool ok = true;
+                    while (values.size() < MstsMaterials::Factors::Count) {
+                        const float value = ParserX::GetNumberInside(data, &ok);
+                        if (!ok)
+                            break;
+                        values.push_back(value);
+                    }
+                    if (!key.isEmpty())
+                        pbrFactors.insert(key, MstsMaterials::Factors::read(values));
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -1053,6 +1074,49 @@ void SFileLegacy::setGatherTexture(RenderItem *item, int primState, bool texEnab
     }
 }
 
+// PBR materials (task shapes 13): PbrTexDiff or BlendAPbrTexDiff.
+bool SFileLegacy::pbrPrimState(int primState) const {
+    if (primState < 0 || primState >= iloscps)
+        return false;
+    const int s = primstate[primState].arg2;
+    return s >= 0 && s < ishaders && MstsMaterials::pbr(shader[s].pbr);
+}
+
+// Each PBR primitive state's factors: the .sd's line for its base colour
+// texture.
+void SFileLegacy::resolvePbrFactors() {
+    primFactors = QVector<MstsMaterials::Factors>(std::max(iloscps, 0));
+    for (int i = 0; i < iloscps; ++i) {
+        const int t = primstate[i].arg4;
+        if (!pbrPrimState(i) || t < 0 || t >= ilosct || texture[t].image < 0 || texture[t].image >= ilosci)
+            continue;
+        primFactors[i] = pbrFactors.value(MstsMaterials::key(image[texture[t].image].name));
+    }
+}
+
+// A PBR map's TexLib texture (its texels are data), -1 for none.
+int SFileLegacy::dataTexture(int textureIndex) {
+    if (textureIndex < 0 || textureIndex >= ilosct || texture[textureIndex].image < 0
+            || texture[textureIndex].image >= ilosci)
+        return -1;
+    auto &img = image[texture[textureIndex].image];
+    if (img.tex == -1)
+        img.tex = TexLib::addTex(texPath, img.name, false, TexLib::Data);
+    return img.tex;
+}
+
+// A PBR primitive's packet: its PBR mesh range and material.
+void SFileLegacy::usePbr(RenderItem *item, int primState, const sub &object, const czes &part) {
+    if (!object.pbrMesh.valid() || part.pbrOffset < 0)
+        return;
+    const primst &material = primstate[primState];
+    item->mesh.handle = object.pbrMesh;
+    item->mesh.first = part.pbrOffset;
+    item->mesh.layout = RenderItem::PBR;
+    MstsMaterials::fill(*item, primFactors.value(primState), dataTexture(material.ormTexture),
+                        dataTexture(material.normalTexture), shader[material.arg2].pbr, material.arg6 == 1);
+}
+
 void SFileLegacy::releaseNightTextures() {
     for (int i = 0; image != nullptr && i < ilosci; ++i)
         if (image[i].nightTex >= 0) {
@@ -1107,8 +1171,93 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
     QVector<RenderItem *> &shared = staticPackets(stateId);
     if (movesParts(stateId))
         pushPosed(queue, selectionId, stateId, shared);
-    else if (shared.size() > 0)
+    else if (SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart)) {
+        // Picking primitives (task shapes 13): each with its number.
+        const std::vector<int> numbers = primitiveNumbers(stateId);
+        for (int k = 0; k < shared.size() && k < int(numbers.size()); ++k)
+            queue.submit(shared[k], SelectionIdCodec::forShapePart(selectionId, numbers[k]));
+    } else if (shared.size() > 0)
         queue.submit(shared, selectionId);
+}
+
+std::vector<int> SFileLegacy::primitiveNumbers(unsigned int stateId) const {
+    std::vector<int> numbers;
+    const State &st = state[stateId];
+    const dist &level = distancelevel[st.distanceLevel];
+    int number = 0;
+    for (int i = 0; i < level.iloscs; i++) {
+        const int first = number;
+        number += level.subobiekty[i].iloscc;
+        if (((st.enabledSubObjs >> i) & 1) == 0)
+            continue;
+        for (int j = 0; j < level.subobiekty[i].iloscc; j++)
+            numbers.push_back(first + j);
+    }
+    return numbers;
+}
+
+int SFileLegacy::drawnPrimitiveCount(unsigned int stateId) const {
+    if (loaded != 1 || stateId >= unsigned(state.size()) || distancelevel == nullptr)
+        return 0;
+    const dist &level = distancelevel[state[stateId].distanceLevel];
+    int count = 0;
+    for (int i = 0; i < level.iloscs; i++)
+        count += level.subobiekty[i].iloscc;
+    return count;
+}
+
+int SFileLegacy::drawnPrimitiveMaterial(unsigned int stateId, int primitive) const {
+    if (loaded != 1 || stateId >= unsigned(state.size()) || distancelevel == nullptr || primitive < 0)
+        return -1;
+    const dist &level = distancelevel[state[stateId].distanceLevel];
+    for (int i = 0; i < level.iloscs; i++) {
+        if (primitive < level.subobiekty[i].iloscc)
+            return level.subobiekty[i].czesci[primitive].prim_state_idx;
+        primitive -= level.subobiekty[i].iloscc;
+    }
+    return -1;
+}
+
+void SFileLegacy::pushPrimitiveHighlight(RenderQueue &queue, unsigned int stateId,
+                                         const QVector<int> &primitives, const float *color) {
+    if (primitives.isEmpty() || !isGLReady() || stateId >= unsigned(state.size()))
+        return;
+    const State &st = state[stateId];
+    const int currentDlevel = st.distanceLevel;
+    const bool posed = movesParts(stateId);
+    if (posed)
+        posedMatrices(stateId, currentDlevel, posedScratch);
+    int number = 0;
+    for (int i = 0; i < distancelevel[currentDlevel].iloscs; i++) {
+        const sub &object = distancelevel[currentDlevel].subobiekty[i];
+        for (int j = 0; j < object.iloscc; j++, number++) {
+            if (!primitives.contains(number) || object.czesci[j].iloscv <= 0)
+                continue;
+            const int matrix = vtxstate[primstate[object.czesci[j].prim_state_idx].vtx_state].matrix;
+            float m[16];
+            const float *transform;
+            if (posed) {
+                transform = posedScratch[matrix].data();
+            } else {
+                Mat4::identity(m);
+                transform = getPmatrix(currentDlevel, m, matrix);
+            }
+            auto *item = new RenderItem();
+            item->mesh.handle = object.mesh;
+            item->mesh.first = object.czesci[j].offset;
+            item->mesh.count = object.czesci[j].iloscv;
+            item->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+            item->mesh.layout = RenderItem::VNTA;
+            item->msMatrix = queue.frameMatrix(transform);
+            item->material.lit = false;
+            item->disableTextures(color[0], color[1], color[2], 1.0f);
+            item->material.opacity = color[3];
+            item->material.surface = RenderItem::SURFACE_BLENDED;
+            item->material.decal = true;
+            item->material.doubleSided = true;
+            queue.submitFrameItem(item);
+        }
+    }
 }
 
 QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
@@ -1143,17 +1292,7 @@ QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
                 }
                 r->msMatrix = (float*)&macierz[matrix].fixed;
 
-                if( vtxstate[vtx_state].arg2 < -7 )
-                    r->material.lit = 0;
-                else
-                    r->material.lit = 1;
-
-                if( vtxstate[vtx_state].arg2 == -12 )
-                    r->material.brightness = 0.5;
-                else
-                    r->material.brightness = 1.0;
-                // Cruciform light materials: trees, bushes, hedges (task renderer 37).
-                r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
+                MstsMaterials::applyLight(*r, vtxstate[vtx_state].arg2);
 
                 r->material.surface = gatherSurface(prim_state);
                 r->material.doubleSided = doubleSided;
@@ -1165,6 +1304,10 @@ QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
                 r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
                 r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                 r->mesh.layout = RenderItem::VNTA;
+                // PBR materials (task shapes 13).
+                if (pbrPrimState(prim_state))
+                    usePbr(r, prim_state, distancelevel[currentDlevel].subobiekty[i],
+                           distancelevel[currentDlevel].subobiekty[i].czesci[j]);
                 r->shared = true;
                 // Static packets keep their part matrix, so their bounds hold.
                 const auto &part = distancelevel[currentDlevel].subobiekty[i].czesci[j];
@@ -1205,10 +1348,18 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
     const quint64 key = packetKey(stateId);
     const bool built = reusePool && pool.key == key && pool.selectionId == selectionId
             && pool.invalidation == invalidations && pool.count >= 0;
+    // Picking primitives (task shapes 13): each with its number.
+    std::vector<int> numbers;
+    if (SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart))
+        numbers = primitiveNumbers(stateId);
+    auto numbered = [&](int index) {
+        return index < int(numbers.size()) ? SelectionIdCodec::forShapePart(selectionId, numbers[index])
+                                           : selectionId;
+    };
     auto submitBuilt = [&]() {
         for (int k : pool.sharedIndices)
             if (k < shared.size())
-                queue.submit(shared[k], selectionId);
+                queue.submit(shared[k], numbered(k));
         for (int k = 0; k < pool.count; ++k)
             queue.submit(pool.items[k], 0, RenderQueue::SUBMIT_ORDERED);
     };
@@ -1245,7 +1396,7 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
             if (matrix >= 0 && matrix < int(posedAffected.size()) && !posedAffected[matrix] && index < shared.size()) {
                 if (reusePool)
                     pool.sharedIndices.push_back(index);
-                queue.submit(shared[index], selectionId);
+                queue.submit(shared[index], numbered(index));
                 continue;
             }
             const float *m = posedScratch[matrix].data();
@@ -1266,19 +1417,9 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
                 r->msMatrix = queue.frameMatrix(m);
             }
 
-            if( vtxstate[vtx_state].arg2 < -7 )
-                r->material.lit = 0;
-            else
-                r->material.lit = 1;
+            MstsMaterials::applyLight(*r, vtxstate[vtx_state].arg2);
 
-            if( vtxstate[vtx_state].arg2 == -12 )
-                r->material.brightness = 0.5;
-            else
-                r->material.brightness = 1.0;
-            // Cruciform light materials: trees, bushes, hedges (task renderer 37).
-            r->material.vegetation = vtxstate[vtx_state].arg2 == -9 || vtxstate[vtx_state].arg2 == -10;
-
-            r->setSelectionId(selectionId);
+            r->setSelectionId(numbered(index));
             r->material.surface = gatherSurface(prim_state);
             r->material.doubleSided = doubleSided;
             if (selectionId == 0)
@@ -1289,6 +1430,10 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
             r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
             r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
             r->mesh.layout = RenderItem::VNTA;
+            // PBR materials (task shapes 13).
+            if (pbrPrimState(prim_state))
+                usePbr(r, prim_state, distancelevel[currentDlevel].subobiekty[i],
+                       distancelevel[currentDlevel].subobiekty[i].czesci[j]);
             if(reusePool){
                 r->shared = true;
                 queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
@@ -1616,6 +1761,7 @@ void SFileLegacy::odczytajshadersc(FileBuffer* data, SFileLegacy* shape) {
         Simis::Block item(data, TS::named_shader);
         shape->shader[i].name = data->readString().toLower();
         shape->shader[i].alpha = shape->shader[i].name == "texdiff" ? 1 : 0;
+        shape->shader[i].pbr = MstsMaterials::shader(shape->shader[i].name);
     }
 }
 
@@ -1720,6 +1866,8 @@ void SFileLegacy::odczytajprim_statesc(FileBuffer* data, SFileLegacy* shape) {
             for (int j = 0; j < shape->primstate[i].arg3; ++j) {
                 const int index = data->getInt();
                 if (j == 0) shape->primstate[i].arg4 = index;
+                if (j == 1) shape->primstate[i].ormTexture = index;
+                if (j == 2) shape->primstate[i].normalTexture = index;
             }
         }
         shape->primstate[i].arg5 = data->getInt();
@@ -1870,6 +2018,7 @@ void SFileLegacy::odczytajshaders(FileBuffer* bufor, SFileLegacy* pliks) {
             pliks->shader[i].alpha = 1;
         else
             pliks->shader[i].alpha = 0;
+        pliks->shader[i].pbr = MstsMaterials::shader(pliks->shader[i].name);
     }
     ParserX::SkipToken(bufor);
 }
@@ -2031,8 +2180,10 @@ void SFileLegacy::odczytajprim_states(FileBuffer* bufor, SFileLegacy* pliks) {
         pliks->primstate[i].arg3 = ParserX::GetNumber(bufor);
         pliks->primstate[i].arg4 = -1;
         for (int j = 0; j < pliks->primstate[i].arg3; j++) {
-            if (j == 0) pliks->primstate[i].arg4 = ParserX::GetNumber(bufor);
-            else ParserX::GetNumber(bufor);
+            const int index = ParserX::GetNumber(bufor);
+            if (j == 0) pliks->primstate[i].arg4 = index;
+            if (j == 1) pliks->primstate[i].ormTexture = index;
+            if (j == 2) pliks->primstate[i].normalTexture = index;
         }
         pliks->primstate[i].arg5 = ParserX::GetNumber(bufor);
         pliks->primstate[i].vtx_state = ParserX::GetNumber(bufor);
@@ -2265,6 +2416,70 @@ static void partBounds(SFileLegacy::czes &part, const float *vertices) {
     part.boundRadius = std::sqrt(radius);
 }
 
+// The sub-object's PBR parts in the PBR layout (task shapes 13): position,
+// normal, texture coordinates, alpha, tangent with handedness (from the
+// texture coordinates of their triangles, per source vertex), the texture
+// coordinates again and a white colour; in the VNTA mesh's vertex order.
+void SFileLegacy::buildPbrMesh(sub &object) {
+    std::vector<int> triangles;
+    int count = 0;
+    for (int k = 0; k < object.iloscc; ++k) {
+        czes &part = object.czesci[k];
+        part.pbrOffset = -1;
+        if (!pbrPrimState(part.prim_state_idx) || part.iloscv <= 0 || part.idx == nullptr)
+            continue;
+        triangles.insert(triangles.end(), part.idx, part.idx + part.iloscv);
+        count += part.iloscv;
+    }
+    if (count == 0) {
+        Meshes::release(object.pbrMesh);
+        return;
+    }
+    const auto &vert = object.vertices;
+    auto source = [&](int v, float *position, float *normal, float *uv) {
+        if (v < 0 || v >= int(vert.size()))
+            return false;
+        const int p = vert[v].point, n = vert[v].normal, t = vert[v].uvpoint;
+        if (p < 0 || p >= tpoints.ipoints || n < 0 || n >= tpoints.inormals || t < 0 || t >= tpoints.iuv_points)
+            return false;
+        position[0] = tpoints.points[p].x;
+        position[1] = tpoints.points[p].y;
+        position[2] = tpoints.points[p].z;
+        normal[0] = tpoints.normals[n].x;
+        normal[1] = tpoints.normals[n].y;
+        normal[2] = tpoints.normals[n].z;
+        uv[0] = tpoints.uv_points[t].x;
+        uv[1] = tpoints.uv_points[t].y;
+        return true;
+    };
+    std::vector<float> tangents;
+    MstsMaterials::tangents(int(vert.size()), source, triangles, tangents);
+    const int stride = RenderItem::PBR;
+    MeshData data;
+    data.layout = RenderItem::PBR;
+    data.vertices.assign(size_t(count) * stride, 0.0f);
+    int offset = 0;
+    for (int k = 0; k < object.iloscc; ++k) {
+        czes &part = object.czesci[k];
+        if (!pbrPrimState(part.prim_state_idx) || part.iloscv <= 0 || part.idx == nullptr)
+            continue;
+        part.pbrOffset = offset;
+        for (int i = 0; i < part.iloscv; ++i) {
+            float *vertex = &data.vertices[size_t(offset + i) * stride];
+            const int v = part.idx[i];
+            if (!source(v, vertex, vertex + 3, vertex + 6))
+                continue;
+            vertex[8] = 1.0f;
+            std::copy_n(&tangents[size_t(v) * 4], 4, vertex + 9);
+            vertex[13] = vertex[6];
+            vertex[14] = vertex[7];
+            std::fill(vertex + 15, vertex + 19, 1.0f);
+        }
+        offset += part.iloscv;
+    }
+    Meshes::update(object.pbrMesh, std::move(data));
+}
+
 bool SFileLegacy::initGL() {
     // Builds renderer-owned meshes; no GL context is needed. The indexed
     // source is released afterwards, so only reload() rebuilds them.
@@ -2360,6 +2575,7 @@ bool SFileLegacy::initGL() {
 
                 }
                 Meshes::update(object.mesh, std::move(meshData));
+                buildPbrMesh(object);
             }
         }
     } catch (const FileBuffer::ParseError &error) {
@@ -2394,7 +2610,10 @@ void SFileLegacy::clearAnimatedPackets() {
 void SFileLegacy::releaseMeshes() {
     for (int j = 0; distancelevel && j < iloscd; ++j)
         for (int i = 0; distancelevel[j].subobiekty && i < distancelevel[j].iloscs; ++i)
+        {
             Meshes::release(distancelevel[j].subobiekty[i].mesh);
+            Meshes::release(distancelevel[j].subobiekty[i].pbrMesh);
+        }
 }
 
 void SFileLegacy::clearData() {
@@ -2422,6 +2641,7 @@ void SFileLegacy::clearData() {
     delete[] texture; texture = nullptr; ilosct = 0;
     delete[] vtxstate; vtxstate = nullptr; iloscv = 0;
     delete[] primstate; primstate = nullptr; iloscps = 0;
+    primFactors.clear();
     delete[] shader; shader = nullptr; ishaders = 0;
     animations.clear();
     glReady = false;

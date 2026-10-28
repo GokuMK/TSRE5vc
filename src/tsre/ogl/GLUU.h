@@ -71,6 +71,10 @@ public:
     // The sun's (diffuse) and the ambient light; time of day changes them.
     float diffuseColor[4] = {0.7f, 0.7f, 0.7f, 0.7f};
     float ambientColor[4] = {0.3f, 0.3f, 0.3f, 0.3f};
+    // The light highlights reflect (MSTS specular) where it is brighter than
+    // the diffuse light: the sun through the air towards it, linear; 0
+    // without time of day, under the moon and in the Shape Viewer.
+    float specularColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     // Scale of local lights from the time of day (Daylight::localLights).
     float localLightAdaptation = 1.0f;
     // Scale of signal lights' glow from the time of day (Daylight::signalLights).

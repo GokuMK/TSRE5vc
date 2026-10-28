@@ -44,6 +44,17 @@ struct Node {
     int integer(int index, int fallback = 0) const;
     bool setScalar(int index, const QString &value, QString *error = nullptr);
     void appendCopy(Node source); // Explicit subtree copy, primarily for fixtures/editing.
+    // Editing (task shapes 13, the materials editor). All its values
+    // replaced (a node without children, such as tex_idxs: its count
+    // first), each typed as the value it replaces or, past them, as its
+    // last; its label; a copy of a subtree (of any document) linked before
+    // one of its children (null: after the last), returned; a child taken
+    // out.
+    bool setScalars(const QStringList &values, QString *error = nullptr);
+    void setLabel(const QString &label);
+    Node insertCopy(Node source);
+    Node insertCopy(Node source, Node before);
+    bool removeChild(Node child);
 };
 struct Children {
     Node parent;

@@ -55,6 +55,8 @@
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
+#include <tsre/renderer/RenderItem.h>
+#include <tsre/shape/MstsMaterials.h>
 #include <tsre/shape/ObjFile.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
@@ -63,6 +65,7 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SelectionIdTestSuite.h>
+#include <tsre/tests/ShapeMaterialsTestSuite.h>
 #include <tsre/tests/MeshStoreTestSuite.h>
 #include <tsre/tests/EditorToolsTestSuite.h>
 #include <tsre/tests/MapViewTestSuite.h>
@@ -2068,6 +2071,134 @@ static int runOrtsProfileSuite(bool verbose) {
           && stfProfile->lods[0].items[0].polylines[0].vertices.size()
              == xmlProfile->lods[0].items[0].polylines[0].vertices.size(),
           "stf-xml-equivalence");
+
+    // LightModelName as Open Rails reads it: the MSTS light materials of S
+    // files, specular included (task shapes 13).
+    if(stfProfile != nullptr && stfProfile->valid){
+        OrtsProfileLodItem named = stfProfile->lods[0].items[0];
+        bool known = false;
+        const int normal = named.lightMaterial(&known);
+        const bool normalKnown = known;
+        named.lightModelName = "optspecular750 ";
+        const int glint = named.lightMaterial();
+        named.lightModelName = "DarkShade";
+        const int dark = named.lightMaterial();
+        named.lightModelName = "Shiny";
+        const int unknown = named.lightMaterial(&known);
+        check(normal == -5 && normalKnown && glint == -7 && dark == -12
+              && unknown == -5 && !known,
+              "light-model-names");
+
+        OrtsTrackProfile sheen = *stfProfile;
+        sheen.lods[0].items[0].lightModelName = "OptSpecular25";
+        QVector<TSection> straight;
+        straight.append(TSection(0, 0, 10.0f, 0));
+        QVector<OrtsGeneratedProfileMesh> sheenMeshes;
+        bool sheenLight = OrtsTrackProfileRenderer::buildMeshes(sheen, straight, sheenMeshes)
+                && !sheenMeshes.isEmpty();
+        for(const OrtsGeneratedProfileMesh &mesh : sheenMeshes)
+            sheenLight = sheenLight && mesh.lightMaterial == -6;
+        check(sheenLight, "light-model-reaches-meshes");
+
+        RenderItem item;
+        item.setVertexAttributes(RenderItem::VNTA);
+        MstsMaterials::applyLight(item, -6);
+        const bool sheenItem = item.material.lit && item.material.specularPower == 25.0f;
+        MstsMaterials::applyLight(item, -12);
+        check(sheenItem && !item.material.lit && item.material.brightness == 0.5f
+              && item.material.specularPower == 0.0f,
+              "light-model-packet-material");
+    }
+
+    // TSRE PBR materials on profiles (task shapes 13): the ORM and normal
+    // maps and the factors; TexDiff or BlendATexDiff with all three tokens
+    // draw as PbrTexDiff or BlendAPbrTexDiff.
+    {
+        const QString tokens = "ShaderName ( TexDiff ) TSREOrmTexName ( test_orm.png ) "
+                               "TSRENormalTexName ( test_normal.png ) "
+                               "ESD_TSREMaterial ( 1 1 1 1 0 0.4 0.7 1 1 0.05 )";
+        QString pbrStf = stf;
+        pbrStf.replace("ShaderName ( TexDiff )", tokens);
+        const QSharedPointer<OrtsTrackProfile> pbrProfile =
+                OrtsTrackProfileParser::parseStf(pbrStf, "TrProfilePbr");
+        QString pbrXml = xml;
+        pbrXml.replace("ShaderName=\"TexDiff\"",
+                       "ShaderName=\"TexDiff\" TSREOrmTexName=\"test_orm.png\" "
+                       "TSRENormalTexName=\"test_normal.png\" "
+                       "ESD_TSREMaterial=\"1 1 1 1 0 0.4 0.7 1 1 0.05\"");
+        const QSharedPointer<OrtsTrackProfile> pbrXmlProfile =
+                OrtsTrackProfileParser::parseXml(pbrXml, "TrProfilePbrXml");
+        bool upgraded = false;
+        const bool stfRead = pbrProfile != nullptr && pbrProfile->valid
+                && pbrProfile->lods[0].items[0].ormTextureName == "test_orm.png"
+                && pbrProfile->lods[0].items[0].normalTextureName == "test_normal.png"
+                && pbrProfile->lods[0].items[0].materialFactors.size() == 10
+                && pbrProfile->lods[0].items[0].shader(&upgraded) == "PbrTexDiff" && upgraded;
+        const bool xmlRead = pbrXmlProfile != nullptr && pbrXmlProfile->valid
+                && pbrXmlProfile->lods[0].items[0].ormTextureName == "test_orm.png"
+                && pbrXmlProfile->lods[0].items[0].materialFactors
+                   == pbrProfile->lods[0].items[0].materialFactors
+                && pbrXmlProfile->lods[0].items[0].shader() == "PbrTexDiff";
+        check(stfRead && xmlRead, "pbr-tokens-stf-xml");
+        // A line copied from an .sd keeps its texture key: skipped.
+        QString keyedStf = pbrStf;
+        keyedStf.replace("ESD_TSREMaterial ( 1 ", "ESD_TSREMaterial ( test.png 1 ");
+        const QSharedPointer<OrtsTrackProfile> keyedProfile =
+                OrtsTrackProfileParser::parseStf(keyedStf, "TrProfilePbrKeyed");
+        check(keyedProfile != nullptr && keyedProfile->valid && pbrProfile != nullptr
+              && keyedProfile->lods[0].items[0].materialFactors
+                 == pbrProfile->lods[0].items[0].materialFactors,
+              "pbr-material-skips-sd-key");
+
+        if(pbrProfile != nullptr && pbrProfile->valid){
+            OrtsProfileLodItem partial = pbrProfile->lods[0].items[0];
+            partial.hasMaterialFactors = false;
+            partial.materialFactors.clear();
+            OrtsProfileLodItem named = partial;
+            named.shaderName = "PbrTexDiff";
+            check(partial.shader(&upgraded) == "TexDiff" && !upgraded
+                  && named.shader(&upgraded) == "PbrTexDiff" && !upgraded,
+                  "pbr-upgrade-needs-all-three-tokens");
+
+            OrtsTrackProfile glass = *pbrProfile;
+            glass.lods[0].items[0].shaderName = "BlendATexDiff";
+            QVector<TSection> straight;
+            straight.append(TSection(0, 0, 10.0f, 0));
+            QVector<OrtsGeneratedProfileMesh> glassMeshes;
+            bool glassMaterial = OrtsTrackProfileRenderer::buildMeshes(glass, straight, glassMeshes)
+                    && !glassMeshes.isEmpty();
+            for(const OrtsGeneratedProfileMesh &mesh : glassMeshes)
+                glassMaterial = glassMaterial
+                        && mesh.materialPass == OrtsGeneratedProfileMesh::MaterialPass::Blended
+                        && mesh.pbr.shader == MstsMaterials::Shader::PbrBlended
+                        && mesh.pbr.ormTextureName == "test_orm.png"
+                        && std::abs(mesh.pbr.factors.roughness - 0.4f) < 1e-6f
+                        && std::abs(mesh.pbr.factors.clearcoatRoughness - 0.05f) < 1e-6f;
+            check(glassMaterial, "pbr-material-reaches-meshes");
+
+            // The PBR layout: positions, normals and texture coordinates kept,
+            // unit tangents across the normals, the second coordinates the first.
+            QVector<OrtsGeneratedProfileMesh> pbrMeshes;
+            OrtsTrackProfileRenderer::buildMeshes(*pbrProfile, straight, pbrMeshes);
+            bool layout = !pbrMeshes.isEmpty();
+            for(const OrtsGeneratedProfileMesh &mesh : pbrMeshes){
+                const QVector<float> pbr = OrtsTrackProfileRenderer::pbrVertices(mesh.vertices);
+                const int count = mesh.vertices.size() / RenderItem::VNTA;
+                layout = layout && pbr.size() == count * RenderItem::PBR;
+                for(int v = 0; layout && v < count; ++v){
+                    const float *s = mesh.vertices.constData() + v * RenderItem::VNTA;
+                    const float *d = pbr.constData() + v * RenderItem::PBR;
+                    const float t[3] = {d[9], d[10], d[11]};
+                    const float length = std::sqrt(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]);
+                    const float across = t[0] * s[3] + t[1] * s[4] + t[2] * s[5];
+                    layout = std::equal(s, s + 8, d) && d[13] == s[6] && d[14] == s[7]
+                            && std::abs(length - 1.0f) < 1e-3f && std::abs(across) < 1e-3f
+                            && std::abs(std::abs(d[12]) - 1.0f) < 1e-6f;
+                }
+            }
+            check(layout, "pbr-vertex-layout");
+        }
+    }
     check(stfProfile != nullptr
           && stfProfile->objectType == OrtsTrackProfile::ObjectType::Track
           && stfProfile->objectRole == OrtsTrackProfile::ObjectRole::Main
@@ -2774,8 +2905,10 @@ static int runOrtsProfileSuite(bool verbose) {
         }
         check(counterClockwiseTopFace,
               "profile-basis-keeps-opengl-front-face");
+        // Known light models (OptSpecular0 here) are drawn as S files draw
+        // them: no diagnostic.
         check(renderDiagnostics.join(' ').contains("PositionControl")
-              && renderDiagnostics.join(' ').contains("LightModelName"),
+              && !renderDiagnostics.join(' ').contains("LightModelName"),
               "compatibility-diagnostics");
 
         OrtsTrackProfile blendedProfile = *xmlProfile;
@@ -4127,6 +4260,7 @@ QStringList TsreTests::listSuites() {
         "procedural-policy",
         "route-load",
         "selection-id",
+        "shape-materials",
         "mesh-store",
         "editor-tools",
         "map-view",
@@ -4242,6 +4376,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "selection-id")
         return runSelectionIdSuite(opts.verbose);
+    if (suite == "shape-materials")
+        return runShapeMaterialsSuite(opts.casesFile, opts.verbose);
     if (suite == "mesh-store")
         return runMeshStoreSuite(opts.verbose);
     if (suite == "editor-tools")
@@ -4480,6 +4616,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         rc = std::max(rc, runSelectionIdSuite(opts.verbose));
+        rc = std::max(rc, runShapeMaterialsSuite(QString(), opts.verbose));
         rc = std::max(rc, runTokenIdSuite(opts.verbose));
         rc = std::max(rc, runTerrainFileSuite(opts.verbose));
         rc = std::max(rc, runTokenWorldSuite(opts.verbose));

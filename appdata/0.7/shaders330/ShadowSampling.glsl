@@ -311,17 +311,14 @@ float lampScale(float enclosed) {
 
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
-#ifdef TSRE_PBR
-    // PBR asks for sun visibility, not the legacy shadow contrast below.
-    // Average the comparison samples: a 50% occluded filter must retain
-    // 50% of the sun. The legacy near/mid sum reaches 1.6 and clips partial
-    // foliage shadows to black; its far sum only reaches 0.8.
-    float shadowIntensity = 1.0/16.0;
-    float farShadowIntensity = 1.0/2.0;
-#else
+    // The shadow's contrast: the near and mid maps' sum reaches 1.6, the far
+    // one's 0.8, so a filter partly in shadow is dark through: the shadow
+    // maps stand in for occlusion. PBR too (it averaged the samples, a 50%
+    // occluded filter keeping 50% of the sun: thin casters such as rails
+    // threw half the shadow of the rest; the user, 2026-10-27); vegetation
+    // has its own share below (task 37).
     float shadowIntensity = 0.1;
     float farShadowIntensity = 0.4;
-#endif
     // Constant bias of surfaces without normals, scaled per map below.
     float bias = 0.0025;
 

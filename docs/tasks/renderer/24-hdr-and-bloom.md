@@ -66,6 +66,13 @@ glow.
 - `core.rendering.exposure`: stops, -4 to 4 (0).
 - `core.rendering.bloom`: strength, 0 (off) to 4; default 3 for 0.7.8 (user,
   2026-10-09; 4 from 2026-10-08).
+- `core.rendering.warmth`: the route view's white balance, -1 to 1 (0.2),
+  in the final pass before the tone curve: red up 15 % and blue down 25 %
+  at 1, as bright; the 2D interface and overlays come after it, the map's
+  plain image and the Shape Viewer take none. With the shade in the sky's
+  colour the whole view came out cooler (the user, 2026-10-27). 0.5 gives
+  Prudnik's noon about its colour from before; the default 0.2 (the user:
+  noon a little less warm, evenings warm; to see in practice).
 
 ## Verification
 

@@ -8,6 +8,7 @@
 #include <tsre/Game.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <tsre/shape/NightTextures.h>
 #include <tsre/texture/TexLib.h>
@@ -18,8 +19,10 @@ void SFileComplex::releaseGL() {
         s.packets.clear();
     clearSharedPackets();
     for (auto &l : d->lods)
-        for (auto &m : l.meshes)
+        for (auto &m : l.meshes) {
             m.gpu.reset();
+            m.pbrGpu.reset();
+        }
     d->gpuState = GpuState::NotInitialized;
 }
 bool SFileComplex::initGL() {
@@ -123,6 +126,7 @@ bool SFileComplex::initGL() {
             data.vertices = std::move(packed);
             gpu->mesh = Meshes::create(std::move(data));
             mesh.gpu = std::move(gpu);
+            buildPbrBuffer(size_t(&lod - d->lods.data()), size_t(&mesh - lod.meshes.data()));
         }
     d->gpuState = GpuState::Ready;
     for (auto &s : d->states)
@@ -134,7 +138,8 @@ bool SFileComplex::initGL() {
 void SFileComplex::syncTextures() {
     for (auto &image : d->images) {
         if (image.id == -1)
-            image.id = TexLib::addTex(d->texturePath, image.name);
+            image.id = TexLib::addTex(d->texturePath, image.name, false,
+                                      image.data ? TexLib::Data : TexLib::Display);
         auto it = TexLib::mtex.find(image.id);
         image.address = -1;
         if (it == TexLib::mtex.end() || !it->second)
@@ -230,12 +235,13 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
     if (!animated) {
         shared = &d->sharedPackets[packetKey(id)];
         if (shared->frame == Renderer::frameNumber()) {
-            for (RenderItem *item : shared->active)
-                queue.submit(item, selection);
+            for (size_t k = 0; k < shared->active.size(); ++k)
+                queue.submit(shared->active[k], SelectionIdCodec::forShapePart(selection, shared->activeNumbers[k]));
             return;
         }
         shared->frame = Renderer::frameNumber();
         shared->active.clear();
+        shared->activeNumbers.clear();
     }
     auto &packets = shared ? shared->packets : s.packets;
     const std::vector<QMatrix4x4> &matrices = shared ? staticMatrices(s.lod) : s.matrices;
@@ -247,6 +253,7 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
     size_t at = 0;
     for (auto &m : lod.meshes)
         for (auto &p : m.parts) {
+            const int number = int(at);
             auto *item = packets[at++].get();
             if ((m.subobject < 32 && !(s.enabled & (quint32(1) << m.subobject))) ||
                 s.disabledSubs.contains(m.subobject))
@@ -257,13 +264,11 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             item->mesh.handle = m.gpu->mesh;
             item->msMatrix = const_cast<float *>(matrices[mat.matrix].constData());
             item->mesh.first = p.offset;
+            const bool pbr = MstsMaterials::pbr(mat.pbr) && m.pbrGpu && p.pbrOffset >= 0;
             item->mesh.count = p.count;
             item->mesh.primitive = RenderItem::primitiveFromGl(p.mode);
             item->material.wireframe = false;
-            item->material.lit = mat.light >= -7;
-            item->material.brightness = mat.light == -12 ? 0.5f : 1.0f;
-            // Cruciform light materials: trees, bushes, hedges (task renderer 37).
-            item->material.vegetation = mat.light == -9 || mat.light == -10;
+            MstsMaterials::applyLight(*item, mat.light);
             // Same classes as the alpha written into the vertices.
             item->material.surface = mat.alpha == 1 ? RenderItem::SURFACE_OPAQUE
                     : mat.alphaTest ? RenderItem::SURFACE_ALPHA_TEST
@@ -280,15 +285,139 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             } else {
                 item->disableTextures(1, 0, 1, 1);
             }
+            // PBR materials (task shapes 13): their PBR buffer and shading.
+            if (pbr) {
+                item->setVertexAttributes(RenderItem::PBR);
+                item->mesh.handle = m.pbrGpu->mesh;
+                item->mesh.first = p.pbrOffset;
+                auto imageId = [&](int image) { return image >= 0 ? d->images[image].id : -1; };
+                MstsMaterials::fill(*item, mat.factors, imageId(mat.ormImage), imageId(mat.normalImage), mat.pbr,
+                                    mat.alphaTest);
+            } else if (item->pbr.enabled) {
+                item->pbr = RenderItem::Pbr();
+            }
             // Persistent packet: selection goes on the queued instance.
             item->setSelectionId(0);
             if (shared) {
                 // The static pose is fixed, so the bounds hold.
                 item->setBounds(p.boundCenter, p.boundRadius, item->msMatrix);
                 shared->active.push_back(item);
+                shared->activeNumbers.push_back(number);
             } else
                 item->setBounds(nullptr, -1.0f);
-            queue.submit(item, selection);
+            queue.submit(item, SelectionIdCodec::forShapePart(selection, number));
+        }
+}
+// The mesh's PBR parts in the PBR layout (task shapes 13): position, normal,
+// texture coordinates, alpha, tangent with handedness (from the texture
+// coordinates of their triangles, per source vertex), the texture
+// coordinates again and a white colour; in the VNTA buffer's order.
+void SFileComplex::buildPbrBuffer(size_t lod, size_t index) {
+    Data::Mesh &mesh = d->lods[lod].meshes[index];
+    mesh.pbrGpu.reset();
+    std::vector<int> triangles;
+    size_t count = 0;
+    for (auto &part : mesh.parts) {
+        part.pbrOffset = -1;
+        if (!MstsMaterials::pbr(d->materials[part.material].pbr))
+            continue;
+        if (part.mode == 0x0004)
+            triangles.insert(triangles.end(), part.indices.begin(), part.indices.end());
+        count += part.indices.size();
+    }
+    if (count == 0)
+        return;
+    auto source = [&](int v, float *position, float *normal, float *uv) {
+        if (v < 0 || v >= int(mesh.vertices.size()))
+            return false;
+        const auto &vertex = mesh.vertices[v];
+        if (vertex.point < 0 || vertex.point >= int(d->points.size()) || vertex.normal < 0
+                || vertex.normal >= int(d->normals.size()))
+            return false;
+        const QVector3D p = d->points[vertex.point], n = d->normals[vertex.normal];
+        const QVector2D t = vertex.uv >= 0 && vertex.uv < int(d->uvs.size()) ? d->uvs[vertex.uv] : QVector2D();
+        position[0] = p.x(); position[1] = p.y(); position[2] = p.z();
+        normal[0] = n.x(); normal[1] = n.y(); normal[2] = n.z();
+        uv[0] = t.x(); uv[1] = t.y();
+        return true;
+    };
+    std::vector<float> tangents;
+    MstsMaterials::tangents(int(mesh.vertices.size()), source, triangles, tangents);
+    const int stride = RenderItem::PBR;
+    std::vector<float> packed(count * stride, 0.0f);
+    size_t at = 0;
+    for (auto &part : mesh.parts) {
+        if (!MstsMaterials::pbr(d->materials[part.material].pbr))
+            continue;
+        part.pbrOffset = int(at);
+        // Reversed, as the VNTA buffer is.
+        for (auto it = part.indices.rbegin(); it != part.indices.rend(); ++it, ++at) {
+            float *vertex = &packed[at * stride];
+            if (!source(*it, vertex, vertex + 3, vertex + 6))
+                continue;
+            vertex[8] = 1.0f;
+            std::copy_n(&tangents[size_t(*it) * 4], 4, vertex + 9);
+            vertex[13] = vertex[6];
+            vertex[14] = vertex[7];
+            std::fill(vertex + 15, vertex + 19, 1.0f);
+        }
+    }
+    auto gpu = std::make_unique<Data::Gpu>();
+    gpu->bytes = int(packed.size() * sizeof(float));
+    MeshData data;
+    data.layout = RenderItem::PBR;
+    data.vertices = std::move(packed);
+    gpu->mesh = Meshes::create(std::move(data));
+    mesh.pbrGpu = std::move(gpu);
+}
+int SFileComplex::drawnPrimitiveCount(unsigned int id) const {
+    if (!d->loaded || id >= d->states.size() || d->lods.empty())
+        return 0;
+    int count = 0;
+    for (const auto &m : d->lods[d->states[id].lod].meshes)
+        count += int(m.parts.size());
+    return count;
+}
+int SFileComplex::drawnPrimitiveMaterial(unsigned int id, int primitive) const {
+    if (!d->loaded || id >= d->states.size() || d->lods.empty() || primitive < 0)
+        return -1;
+    for (const auto &m : d->lods[d->states[id].lod].meshes) {
+        if (primitive < int(m.parts.size()))
+            return m.parts[primitive].material;
+        primitive -= int(m.parts.size());
+    }
+    return -1;
+}
+void SFileComplex::pushPrimitiveHighlight(RenderQueue &queue, unsigned int id, const QVector<int> &primitives,
+                                          const float *color) {
+    if (primitives.isEmpty() || d->gpuState != GpuState::Ready || id >= d->states.size() || d->lods.empty())
+        return;
+    auto &s = d->states[id];
+    const bool animated = (s.animated && !d->animations.empty()) || s.pose.posed;
+    const std::vector<QMatrix4x4> &matrices = animated ? s.matrices : staticMatrices(s.lod);
+    int number = 0;
+    for (auto &m : d->lods[s.lod].meshes)
+        for (auto &p : m.parts) {
+            const bool picked = primitives.contains(number++);
+            if (!picked || !m.gpu || p.count <= 0)
+                continue;
+            const auto &mat = d->materials[p.material];
+            if (mat.matrix < 0 || mat.matrix >= int(matrices.size()))
+                continue;
+            auto *item = new RenderItem();
+            item->setVertexAttributes(RenderItem::VNTA);
+            item->mesh.handle = m.gpu->mesh;
+            item->mesh.first = p.offset;
+            item->mesh.count = p.count;
+            item->mesh.primitive = RenderItem::primitiveFromGl(p.mode);
+            item->msMatrix = queue.frameMatrix(matrices[mat.matrix].constData());
+            item->material.lit = false;
+            item->disableTextures(color[0], color[1], color[2], 1.0f);
+            item->material.opacity = color[3];
+            item->material.surface = RenderItem::SURFACE_BLENDED;
+            item->material.decal = true;
+            item->material.doubleSided = true;
+            queue.submitFrameItem(item);
         }
 }
 void SFileComplex::fillShapeTextureInfo(QHash<int, ShapeTextureInfo *> &out, unsigned int id) {

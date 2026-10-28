@@ -11,6 +11,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <shapeViewer/ShapeViewerWindow.h>
 #include <shapeViewer/ShapeTexturesWindow.h>
+#include <shapeViewer/ShapeMaterialsWindow.h>
 #include <shapeViewer/ShapeHierarchyWindow.h>
 #include <shapeViewer/ShapeViewerNavigatorWidget.h>
 #include <shapeViewer/EngInfoWidget.h>
@@ -168,6 +169,9 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
 
     hierarchyWindow = new ShapeHierarchyWindow(this);
     texturesWindow = new ShapeTexturesWindow(this);
+    // Materials (task shapes 13): edited, picked in the view.
+    materialsWindow = new ShapeMaterialsWindow(this, glShapeWidget);
+    connect(materialsWindow, &ShapeMaterialsWindow::edited, this, [this]() { updateTextureInfo(false); });
     engInfo = new EngInfoWidget(this);
     conInfo = new ConInfoWidget(this);
     shapeInfo = new ShapeInfoWidget(this);
@@ -249,6 +253,11 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
         qtTrId("shape.viewer.shape.viewer.window.action.v.textures.view"), this, false);
     viewMenu->addAction(vTexturesView);
     QObject::connect(vTexturesView, SIGNAL(triggered(bool)), this, SLOT(viewTexturesSelected(bool)));
+    vMaterialsView = GuiFunct::newMenuCheckAction(
+        //% "Shape &Materials"
+        qtTrId("shape.viewer.shape.viewer.window.action.v.materials.view"), this, false);
+    viewMenu->addAction(vMaterialsView);
+    QObject::connect(vMaterialsView, SIGNAL(triggered(bool)), this, SLOT(viewMaterialsSelected(bool)));
     
     view3dMenu = menuBar()->addMenu(
         //% "&3D View"
@@ -332,14 +341,24 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     //hierarchyWindow->show();
 }
 
+// Opened, the windows show the shape as it is now.
 void ShapeViewerWindow::viewHierarchySelected(bool show){
-    if(show) hierarchyWindow->show();
-    else hierarchyWindow->hide();
+    if(show){
+        hierarchyWindow->show();
+        updateTextureInfo(false);
+    } else hierarchyWindow->hide();
 }
 
 void ShapeViewerWindow::viewTexturesSelected(bool show){
-    if(show) texturesWindow->show();
-    else texturesWindow->hide();
+    if(show){
+        texturesWindow->show();
+        updateTextureInfo(false);
+    } else texturesWindow->hide();
+}
+
+void ShapeViewerWindow::viewMaterialsSelected(bool show){
+    if(show) materialsWindow->show();
+    else materialsWindow->hide();
 }
 
 void ShapeViewerWindow::vSetColorShapeViewSelected(){
@@ -435,6 +454,23 @@ void ShapeViewerWindow::updateShapeSaveActions() {
                           dynamic_cast<SFileComplex *>(currentShape) != nullptr;
     fSave->setEnabled(editable);
     fSaveAs->setEnabled(editable);
+    ComplexShape *shown = currentItemType == "shape" ? currentShape : nullptr;
+    if (shown != materialsShape) {
+        materialsShape = shown;
+        materialsWindow->setShape(shown, shown ? ShapeViewerGLWidget::textureDirectory(shown->getPathId())
+                                               : QString());
+    }
+}
+
+bool ShapeViewerWindow::saveShapeMetadata(SFileComplex *shape, const QString &path, const QString &title) {
+    if (!shape->metadataEdited())
+        return true;
+    QString error;
+    if (!shape->saveMetadataFor(path, &error)) {
+        QMessageBox::critical(this, title, error);
+        return false;
+    }
+    return true;
 }
 
 void ShapeViewerWindow::saveFileEnabled() {
@@ -464,6 +500,8 @@ void ShapeViewerWindow::saveFileEnabled() {
         QMessageBox::critical(this, qtTrId("shape.viewer.save.save.shape"), error);
         return;
     }
+    if (!saveShapeMetadata(shape, shape->getPathId(), qtTrId("shape.viewer.save.save.shape")))
+        return;
     //% "Saved %1"
     statusBar()->showMessage(qtTrId("shape.viewer.save.saved").arg(QDir::toNativeSeparators(shape->getPathId())),
                              5000);
@@ -505,6 +543,8 @@ void ShapeViewerWindow::saveFileAsEnabled() {
         QMessageBox::critical(this, qtTrId("shape.viewer.save.save.shape.as"), error);
         return;
     }
+    if (!saveShapeMetadata(shape, selection.path, qtTrId("shape.viewer.save.save.shape.as")))
+        return;
 
     // Rebind the viewer to the saved document. If the target was already in
     // this viewer's cache, reload it so the cache observes the replacement.
@@ -654,7 +694,12 @@ void ShapeViewerWindow::updateTextureInfo(){
 }
 
 void ShapeViewerWindow::updateTextureInfo(bool refreshContentList){
-    
+    // A shape loads on a worker and lists no textures or parts until it has:
+    // the timer waits for it (it stopped at its first tick, and the windows
+    // stayed empty; the user, 2026-10-28).
+    if(currentItemType == "shape" && currentShape != NULL
+            && !currentShape->isLoaded() && !currentShape->hasLoadFailed())
+        return;
     QHash<int, ShapeTextureInfo*> textureInfo;
     glShapeWidget->fillCurrentShapeTextureInfo(textureInfo);
     foreach(ShapeTextureInfo* i, textureInfo){

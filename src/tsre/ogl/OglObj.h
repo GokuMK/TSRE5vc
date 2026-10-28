@@ -15,6 +15,7 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/shape/MstsMaterials.h>
 
 class RenderQueue;
 
@@ -45,6 +46,15 @@ public:
     void setOpacity(float value);
     // Trees, bushes and hedges (RenderItem::Material::vegetation).
     void setVegetation(bool value) { vegetation = value; }
+    // An MSTS light material (vtx_state; procedural profiles' LightModelName):
+    // lit, brightness and specular as S files draw it (MstsMaterials::applyLight).
+    // 0, the default, keeps the vertex layout's lighting.
+    void setLightMaterial(int value) { lightMaterial = value; }
+    // A PBR material (S files' PbrTexDiff, task shapes 13), its mesh in the
+    // PBR layout: the factors, the ORM and normal map (TexLib ids, -1 none),
+    // the shader and the alpha test, filled in as MstsMaterials::fill does.
+    void setPbr(const MstsMaterials::Factors &factors, int ormTexture, int normalTexture,
+                MstsMaterials::Shader shader, bool alphaTest);
     // Draws as a shaded water surface (water program variant) over the
     // bottom and middle water layer textures, or as a plain surface when off.
     void setWater(bool enabled, QString *bottomPath = NULL, QString *middlePath = NULL);
@@ -63,6 +73,12 @@ private:
     int lineWidth = 0;
     float opacity = 1.0f;
     bool vegetation = false;
+    int lightMaterial = 0;
+    MstsMaterials::Shader pbrShader = MstsMaterials::Shader::Other;
+    MstsMaterials::Factors pbrFactors;
+    int pbrOrm = -1;
+    int pbrNormal = -1;
+    bool pbrAlphaTest = false;
     float bound[6];
     float minDistance = -1;
     float maxDistance = 999999;

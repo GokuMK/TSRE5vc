@@ -151,6 +151,7 @@ tools(std::make_unique<ToolRegistry>()) {
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
+    warmth = float(Settings::floating("core.rendering.warmth"));
     // Undo replaces activity data: a selected loose consist, speed zone or
     // failed signal is gone.
     connect(ActivityNotifier::instance(), &ActivityNotifier::restoring, this, [this] {
@@ -186,6 +187,8 @@ tools(std::make_unique<ToolRegistry>()) {
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
             if (key == "core.rendering.mist")
                 mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
+            if (key == "core.rendering.warmth")
+                warmth = float(Settings::floating("core.rendering.warmth"));
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 timer.start(renderTimerStep(), this);
@@ -873,6 +876,7 @@ void RouteEditorGLWidget::paintScene(){
         lastSceneLight = exposure.sceneLight;
         lastExposureHours = Game::timeOfDayHours;
         renderer->setExposureControl(exposure);
+        renderer->setWarmth(warmth);
         if (wholeViewPending)
             loadWholeView("first view", -1);
         else if (jumped)
@@ -1270,6 +1274,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
             std::copy(state.fog, state.fog + 4, gluu->fogColor);
             std::copy(state.diffuse, state.diffuse + 4, gluu->diffuseColor);
             std::copy(state.ambient, state.ambient + 4, gluu->ambientColor);
+            std::fill(gluu->specularColor, gluu->specularColor + 4, 0.0f);
             // Lamps at full strength under the fixed daytime light, by design:
             // time of day off is an editing mode that keeps every lamp's light
             // visible (tasks 21 and 22). Only time of day scales them down.
@@ -1330,7 +1335,15 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     SunPosition::Result shadowSun = sun;
     shadowSun.elevation = std::max(sun.elevation, Daylight::MinShadowElevation);
     SunPosition::direction(shadowSun, shadowSunDirection);
-    const Daylight::Light light = Daylight::forElevation(sun.elevation, state.sky, state.fog);
+    // The sun's light through the air towards it (Atmosphere), from the
+    // camera's height: its colour lights the shading, its strength the
+    // highlights.
+    const double airHeight = std::max(0.001, double(camera->getPos()[1]) / 1000.0);
+    const Atmosphere::Rgb sunThrough = Atmosphere::model().sunLight(airHeight,
+                                                                    std::sin(sun.elevation * M_PI / 180.0));
+    const Atmosphere::Rgb sunOverhead = Atmosphere::model().sunLight(airHeight, 1.0);
+    const float sunColour[3] = {sunThrough[0], sunThrough[1], sunThrough[2]};
+    const Daylight::Light light = Daylight::forElevation(sun.elevation, state.sky, state.fog, sunColour);
     std::copy(light.sky, light.sky + 4, gluu->skyColor);
     std::copy(light.fog, light.fog + 4, gluu->fogColor);
     std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
@@ -1346,6 +1359,21 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         shadowMoon.elevation = std::max(moon.elevation, Daylight::MinShadowElevation);
         MoonPosition::direction(shadowMoon, shadowSunDirection);
         std::copy(moonLight.diffuse, moonLight.diffuse + 4, gluu->diffuseColor);
+    }
+    // Highlights (MSTS specular) mirror the sun's disc: the day's sun through
+    // the air towards it (Atmosphere), as bright overhead as the lit shaders'
+    // noon sun, where that is brighter than the lit shaders' sun, which fades
+    // by the horizon as a look (Daylight), as the fog's light does
+    // (RhiFog.cpp). An evening sun on the rails ahead glinted with nearly
+    // nothing (the user, aaa, 2026-10-27). Under the moon, the shading's
+    // light alone.
+    std::fill(gluu->specularColor, gluu->specularColor + 4, 0.0f);
+    if (!moonLit && light.sunUp) {
+        const float noon = std::pow(Daylight::SunLight, 2.2f);
+        const float overhead = 0.2126f * sunOverhead[0] + 0.7152f * sunOverhead[1] + 0.0722f * sunOverhead[2];
+        for (int c = 0; c < 3; ++c)
+            gluu->specularColor[c] = noon * sunThrough[c] / std::max(overhead, 1e-6f);
+        gluu->specularColor[3] = 1.0f;
     }
     for (int c = 0; c < 3; ++c)
         gluu->ambientColor[c] += moonLight.ambient[c];
@@ -2008,8 +2036,24 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
     renderer->useProgram(Renderer::PROGRAM_MAIN);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
-    const QVector<int> faces = environmentMap->nextFaces(environmentMap->complete()
-            ? Game::environmentMapFacesPerFrame : EnvironmentMap::FaceCount);
+    // The scene's light (the sun's and the sky's, linear). Faces drawn under a
+    // light far from this one mix two lightings in the cube: after a time of
+    // day jump PBR surfaces reflected the old sky and took a tilted light
+    // from half-updated faces, lit up, then darkened a face a frame (the user,
+    // 2026-10-27). Such a jump draws every face at once; a running clock or a
+    // slow slider keeps a face a frame.
+    auto linearLuminance = [](const float *c) {
+        auto linear = [](float v) { return std::pow(std::max(v, 0.0f), 2.2f); };
+        return 0.2126f * linear(c[0]) + 0.7152f * linear(c[1]) + 0.0722f * linear(c[2]);
+    };
+    const float light = linearLuminance(gluu->ambientColor) + linearLuminance(gluu->diffuseColor);
+    bool stale = !environmentMap->complete();
+    for (int face = 0; face < EnvironmentMap::FaceCount && !stale; ++face) {
+        const float drawn = environmentFaceLight[face];
+        stale = std::fabs(light - drawn) > 0.25f * std::max({light, drawn, 1e-4f});
+    }
+    const QVector<int> faces = environmentMap->nextFaces(stale ? EnvironmentMap::FaceCount
+            : Game::environmentMapFacesPerFrame);
     Renderer::ViewLimits limits;
     limits.maxDistance = Game::environmentMapObjectDistance;
     // A face spans 90 degrees over its texels: skip objects under one texel.
@@ -2026,6 +2070,7 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
         environmentMap->beginFace(face, gluu->skyColor);
         EnvironmentMap::faceView(face, eye, view);
         renderer->renderLayeredView(faceView);
+        environmentFaceLight[face] = light;
     }
     environmentMap->endFaces();
 }

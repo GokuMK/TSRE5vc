@@ -820,9 +820,9 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Threaded texture loading"
                 QT_TRID_NOOP("settings.core.rendering.threaded.texture.loading.name")).withDescriptionId(
-                //% "Allow ACE and DDS libraries to load textures on worker threads."
+                //% "Load textures (ACE, DDS and images such as PNG and JPEG) on worker threads."
                 QT_TRID_NOOP("settings.core.rendering.threaded.texture.loading.description")).inGroup("rendering").inSubgroup("textures"),
-        "textureLoaderThreaded", "Game::textureLoaderThreaded", "AceLib/DdsLib", true, "startup-cache");
+        "textureLoaderThreaded", "Game::textureLoaderThreaded", "AceLib/DdsLib/ImageLib", true, "startup-cache");
     ADD(SettingsDefinition::enumeration("core.rendering.textureDownscaleFactor", 1)
             .withNameId(
                 //% "Texture downscale factor"
@@ -1068,6 +1068,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer."
                 QT_TRID_NOOP("settings.core.rendering.exposure.description")).withRange(-4, 4, 0.25).withUnit("EV").inGroup("rendering").inSubgroup("image"),
         "exposure", "Game::exposure", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.warmth", 0.2)
+            .withNameId(
+                //% "Warmth"
+                QT_TRID_NOOP("settings.core.rendering.warmth.name")).withDescriptionId(
+                //% "White balance of the route view, as a camera's: positive values make the image warmer (more red, less blue), negative cooler, at the same brightness; 0 leaves the colours as lit. QRhi renderer with tone mapping, exposure or bloom."
+                QT_TRID_NOOP("settings.core.rendering.warmth.description")).withRange(-1, 1, 0.05).inGroup("rendering").inSubgroup("image"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::floating("core.rendering.bloom", 3.0)
             .withNameId(
                 //% "Glow (bloom)"
