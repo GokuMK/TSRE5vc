@@ -6,6 +6,7 @@
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
+#include <tsre/trains/VehicleDefinition.h>
 
 class Activity;
 class TDB;
@@ -16,34 +17,43 @@ namespace Sim {
 // A car the activity's wagon lists cannot name (an AI train's).
 constexpr unsigned int NoCar = 0xFFFFFFFFu;
 
-// A car or engine of a train: its length and how it is drawn.
+// A car or engine of a train: its file as read and how it is drawn.
 struct Vehicle {
-    float length = 0.0f;
+    Vehicle() = default;
+    // A vehicle `length` metres long of that kind (as Eng's wagonTypeId), as
+    // tests make them: with a definition of its own.
+    Vehicle(float length, bool flip, int type);
+    // Its file as read (task driving 01): shared with the editor's cars,
+    // read by the simulation thread, never changed; never null.
+    std::shared_ptr<const VehicleDefinition> definition = VehicleDefinition::empty();
     bool flip = false;
-    // Eng's wagonTypeId: 1 carriage, 2 freight, 3 tender, 4 to 6 engines.
-    int type = 0;
     // Its Eng in the editor's EngLib, which draws it (the core does not
     // read it); -1 for one not found.
     int eng = -1;
-    // It carries passengers (a carriage, or a power car with a passenger
-    // capacity: an EMU's).
-    bool passengerCapacity = false;
     // As the activity's wagon lists name it (Open Rails' car id): its
     // consist's number × 65536 + its UiD in the consist, the player's train
     // being consist 0 and a loose consist its object's id; NoCar for an AI
     // train's.
     unsigned int id = NoCar;
+
+    // From its definition: its length with its coupler (as the editor lines
+    // cars up), its kind (1 carriage, 2 freight, 3 tender, 4 to 6 engines),
+    // whether it carries passengers (a carriage, or a power car with a
+    // passenger capacity: an EMU's).
+    float length() const { return definition->length(); }
+    int type() const { return definition->wagonTypeId; }
+    bool passengerCapacity() const { return definition->passengerCapacity; }
     // Its share of its train's performance (task 03), summed again when a
     // train's cars change (task 07): its mass (kg; 0 not known), an
-    // engine's force (N) and power (W), its Davis coefficients (the third
-    // as any vehicle but the leading one, and as the leading one), an
-    // engine's top speed (m/s; 0 none).
-    double mass = 0.0;
-    double force = 0.0;
-    double power = 0.0;
-    double davis[3] = {0.0, 0.0, 0.0};
-    double davisLeading = 0.0;
-    float maxSpeed = 0.0f;
+    // engine's force (N), power (W) and top speed (m/s; 0 none), its Davis
+    // coefficients (the third as any vehicle but the leading one, and as the
+    // leading one; 0 without a known mass).
+    double mass() const { return definition->massKg; }
+    double force() const { return type() >= 4 ? definition->forceN : 0.0; }
+    double power() const { return type() >= 4 ? definition->powerW : 0.0; }
+    float maxSpeed() const { return type() >= 4 ? float(definition->maxSpeedMps) : 0.0f; }
+    double davis(int k) const { return definition->massKg > 0.0 ? definition->resistance[k] : 0.0; }
+    double davisLeading() const { return definition->massKg > 0.0 ? definition->resistanceLeading : 0.0; }
 };
 
 // How a train is driven (task simulation 03): Simple, task 01's constant

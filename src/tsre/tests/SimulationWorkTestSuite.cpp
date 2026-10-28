@@ -133,7 +133,7 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
         p.service = "Player";
         p.vehicles = std::move(vehicles);
         for (const Sim::Vehicle &v : p.vehicles)
-            p.length += v.length;
+            p.length += v.length();
         p.route = route;
         p.startFront = std::min(route.pathStart + p.length, route.parts.front().length());
         p.maxSpeed = 10.0f;

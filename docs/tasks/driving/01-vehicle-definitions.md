@@ -325,7 +325,8 @@ couplings add.
      differed, or a bug fixed.
 3. **`Eng`, `EngLib`, `Consist` and the editors on the definition;**
    `Eng::load`'s `ParserX` code removed (done 2026-10-28, below).
-4. **The simulation on the definition.** `Sim::Vehicle` shrinks. The checks:
+4. **The simulation on the definition** (done 2026-10-28, below).
+   `Sim::Vehicle` shrinks. The checks:
    - the seven MSTS routes give identical stops and events;
    - all 266 PRUDNIK trains finish as before;
    - the simulation, timetable and activity suites pass;
@@ -502,6 +503,43 @@ includes, they took 0.56 s in step 1.
   - `simulation-trains.json` on EUROPE1: its 4 views;
   - `shape-viewer-views.json` on MSTS: 2 shapes, 2 engines, the 310 tender
     with its freight animation, and a consist.
+
+## Step 4 done (2026-10-28)
+
+**`Sim::Vehicle`** holds:
+- the definition, shared with the editor's cars and read by the simulation
+  thread;
+- its flip, its car id and its `EngLib` id for drawing.
+
+**What it reads from the definition,** through accessors:
+- `length()`, the length with the coupler (it was `Eng::getFullWidth`, now
+  `VehicleDefinition::length`);
+- `type()`, `passengerCapacity()`, `mass()`;
+- `force()`, `power()` and `maxSpeed()`, which keep the old rule: engines
+  only;
+- `davis(k)` and `davisLeading()`, which also keep the old rule: zero
+  without a known mass.
+
+**Also changed:**
+- `MakeInput`'s copy of the resistance rule is gone; the definition works
+  it out once.
+- Tests build vehicles as before with `{length, flip, type}`, now a
+  constructor that gives the vehicle a definition of its own.
+
+**Checks** (main's binary and the branch's, with one settings file):
+- **Seven routes** (EUROPE1, EUROPE2, JAPAN1, JAPAN2, USA1, USA2,
+  BNSF_SCENIC): `simulation-route` with `TSRE_SIM_TRACE` and
+  `TSRE_SIM_EVENTS` gives the same stops, waits, events and twice-simulated
+  timetables. Only the timings differ, and the old reader's "converting to
+  UTF16" lines are gone.
+- **PRUDNIK** (`PSK_2026.timetable_or`, 266 trains): its 1,867 lines of
+  stops and events are the same. Its three failing checks fail on main too:
+  two static trains with broken paths, and no MSTS activities on the route.
+  The input is smaller, 3,853 KiB against 4,046 KiB, since vehicles share
+  definitions.
+- **The suites:** all of `simulation-*`, `timetable-*`, `activity-check`,
+  `activity-ui`, `map-view`, `consist-preview-gl` and `vehicle-file` pass.
+- **The `simulation-trains.json` capture** is still identical to main's.
 
 ## Decisions (user, 2026-10-28)
 

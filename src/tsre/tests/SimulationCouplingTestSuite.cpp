@@ -79,7 +79,7 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
         p.service = player ? "Player" : "Goods";
         p.vehicles = std::move(vehicles);
         for (const Sim::Vehicle &v : p.vehicles)
-            p.length += v.length;
+            p.length += v.length();
         p.maxSpeed = 10.0f;
         Sim::SetRates(p);
         p.startTime = t0;

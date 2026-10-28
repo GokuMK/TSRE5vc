@@ -160,7 +160,7 @@ void SimulationCore::refreshConsist(int train) {
     ++rt.carsVersion;
     rt.length = 0.0;
     for (const Vehicle &vehicle : rt.vehicles)
-        rt.length += vehicle.length;
+        rt.length += vehicle.length();
     rt.performance = PerformanceOf(rt.vehicles);
     const Rates rates = RatesOf(rt.vehicles, std::min(in->routeSpeedLimit, plan.maxSpeed * plan.efficiency));
     rt.passenger = rates.passenger;
@@ -2767,10 +2767,10 @@ bool SimulationCore::standingEnds(int standingTrain, std::vector<TrackPose> &fro
     for (const Vehicle &vehicle : st.vehicles) {
         TrackPose front, rear;
         at(before, front);
-        at(before + vehicle.length, rear);
+        at(before + vehicle.length(), rear);
         fronts.push_back(front);
         rears.push_back(rear);
-        before += vehicle.length;
+        before += vehicle.length();
     }
     return true;
 }
@@ -2793,7 +2793,7 @@ bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std:
         // front. Reversed: the consist runs backwards, its first vehicle at
         // the train's rear.
         const double frontAt = state.reversed ? trainFront - runtime[size_t(train)].length + before : trainFront - before;
-        const double rearAt = state.reversed ? frontAt + vehicle.length : frontAt - vehicle.length;
+        const double rearAt = state.reversed ? frontAt + vehicle.length() : frontAt - vehicle.length();
         TrackPose front, rear;
         pose(train, frontAt, front);
         pose(train, rearAt, rear);
@@ -2803,7 +2803,7 @@ bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std:
         }
         fronts.push_back(front);
         rears.push_back(rear);
-        before += vehicle.length;
+        before += vehicle.length();
     }
     return true;
 }
@@ -3571,14 +3571,14 @@ bool SimulationCore::cut(int train, int keep, bool keepFront, double time) {
         const size_t fromFront = s.reversed ? count - 1 - c : c;
         const bool keepIt = keepFront ? fromFront < size_t(keep) : fromFront >= count - size_t(keep);
         (keepIt ? kept : off).push_back(rt.vehicles[c]);
-        engine = engine || (keepIt && rt.vehicles[c].type >= 4);
+        engine = engine || (keepIt && rt.vehicles[c].type() >= 4);
     }
     // Open Rails: no cut leaving the moving part without an engine.
     if (!engine)
         return false;
     double offLength = 0.0;
     for (const Vehicle &vehicle : off)
-        offLength += vehicle.length;
+        offLength += vehicle.length();
     const double rear = s.front - rt.length;
     const double from = keepFront ? rear : s.front - offLength;
     const double to = keepFront ? rear + offLength : s.front;
@@ -3732,7 +3732,7 @@ void SimulationCore::coupleTrain(int train, double time) {
     const std::vector<Vehicle> mine = fromFront(train);
     const std::vector<Vehicle> theirs = metFront ? fromFront(other) : turned(fromFront(other));
     const std::vector<RouteInterval> beyond = metFront ? backwards(otherTrack) : otherTrack;
-    const auto engine = [](const Vehicle &vehicle) { return vehicle.type >= 4; };
+    const auto engine = [](const Vehicle &vehicle) { return vehicle.type() >= 4; };
     const double contact = s.front;
     const double otherFront = os.front;
     // The other train's vehicles from the end met, and its front where it
@@ -3756,7 +3756,7 @@ void SimulationCore::coupleTrain(int train, double time) {
         double length = 0.0;
         if (engine(mine.front())) {
             while (count + 1 < theirs.size() && !engine(theirs[count]))
-                length += theirs[count++].length;
+                length += theirs[count++].length();
             if (count > 0) {
                 std::vector<Vehicle> grown = turned(std::vector<Vehicle>(theirs.begin(), theirs.begin() + long(count)));
                 grown.insert(grown.end(), mine.begin(), mine.end());
@@ -3770,7 +3770,7 @@ void SimulationCore::coupleTrain(int train, double time) {
             }
         } else {
             while (count + 1 < mine.size() && !engine(mine[count]))
-                length += mine[count++].length;
+                length += mine[count++].length();
             if (count > 0) {
                 give(std::vector<Vehicle>(mine.begin(), mine.begin() + long(count)), length);
                 setFromFront(train, std::vector<Vehicle>(mine.begin() + long(count), mine.end()));
@@ -3828,7 +3828,7 @@ bool SimulationCore::revive(int train, int from, const std::vector<RouteInterval
     Runtime &rt = runtime[size_t(train)];
     double length = 0.0;
     for (const Vehicle &vehicle : vehicles)
-        length += vehicle.length;
+        length += vehicle.length();
     // Its first part from where it joined on with the cars on it, end to
     // end.
     for (size_t p = size_t(std::max(0, s.part)); p < rt.parts.size(); ++p) {

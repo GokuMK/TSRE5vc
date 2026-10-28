@@ -314,10 +314,7 @@ QString Eng::getCouplingsName(){
 }
 
 float Eng::getFullWidth(){
-    if(this->definition->couplings.size() > 0)
-        return this->definition->couplings[0].r0[0] + this->definition->size[2];
-    else
-        return this->definition->size[2] + 0.0;
+    return definition->length();
 }
 
 void Eng::select(){

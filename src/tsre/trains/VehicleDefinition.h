@@ -82,6 +82,9 @@ struct VehicleDefinition {
     QString shape;
     QString shapePath;
     QVector<FreightAnim> freightAnims;
+    // Its length with its coupler (the first's r0), as the editor lines
+    // cars up and the simulation measures trains.
+    float length() const { return (couplings.isEmpty() ? 0.0f : couplings[0].r0[0]) + size[2]; }
     // Metres: width, height, length; kg; the wheels' radii (the Engine
     // section's are the driving wheels).
     float size[3] = {0.0f, 0.0f, 0.0f};

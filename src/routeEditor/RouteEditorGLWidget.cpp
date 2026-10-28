@@ -4159,7 +4159,7 @@ bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
     const bool front = view != RideView::Back;
     const int last = consist->engItems.size() - 1;
     const int vehicle = front != reversed ? 0 : last;
-    const float length = size_t(vehicle) < plan.vehicles.size() ? plan.vehicles[size_t(vehicle)].length : 0.0f;
+    const float length = size_t(vehicle) < plan.vehicles.size() ? plan.vehicles[size_t(vehicle)].length() : 0.0f;
     consist->cameraVehicle = vehicle;
     // In the 3D cab at its leading end, where it has one: the shape's front
     // leads unless it is flipped or the train runs reversed.

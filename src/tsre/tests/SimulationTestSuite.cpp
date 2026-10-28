@@ -2350,9 +2350,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                           << "stub sidings within 1.5 km";
         if (yard.size() >= 5 && !through.empty()) {
             const auto car = [](unsigned int consist, unsigned int uid, bool engine) {
-                Sim::Vehicle v;
-                v.length = engine ? 20.0f : 15.0f;
-                v.type = engine ? 5 : 2;
+                Sim::Vehicle v(engine ? 20.0f : 15.0f, false, engine ? 5 : 2);
                 v.id = consist * 65536u + uid;
                 return v;
             };
@@ -2552,7 +2550,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
             for (const Sim::StaticConsist &c : input->staticConsists) {
                 QStringList ids, track;
                 for (const Sim::Vehicle &v : c.vehicles)
-                    ids << car(v.id) + (v.type >= 4 ? "E" : "");
+                    ids << car(v.id) + (v.type() >= 4 ? "E" : "");
                 for (const Sim::RouteInterval &iv : c.track) {
                     track << QString("%1:%2-%3").arg(iv.node).arg(iv.from, 0, 'f', 0).arg(iv.to, 0, 'f', 0);
                     nodes.insert(iv.node);
@@ -2564,7 +2562,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 if (t.player) {
                     QStringList ids;
                     for (const Sim::Vehicle &v : t.vehicles)
-                        ids << car(v.id) + (v.type >= 4 ? "E" : "");
+                        ids << car(v.id) + (v.type() >= 4 ? "E" : "");
                     QStringList track;
                     for (const Sim::RouteInterval &iv : t.route.parts.front().intervals()) {
                         track << QString("%1:%2-%3").arg(iv.node).arg(iv.from, 0, 'f', 0).arg(iv.to, 0, 'f', 0);

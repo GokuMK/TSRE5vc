@@ -1544,7 +1544,7 @@ int TsreTests::runTimetableMoreCommandsSuite(bool verbose) {
     const std::vector<Sim::Vehicle> &fb = core.vehiclesOf(t["FB"]->id);
     const std::vector<Sim::Vehicle> &fa = t["FA"]->vehicles;
     check(when("FB", Sim::TrainEvent::Started) >= when("FA", Sim::TrainEvent::Finished) - 1e-6 && fb.size() == 2
-              && fa.size() == 2 && fb[0].type == fa[1].type && fb[0].flip != fa[1].flip && fb[1].type == fa[0].type,
+              && fa.size() == 2 && fb[0].type() == fa[1].type() && fb[0].flip != fa[1].flip && fb[1].type() == fa[0].type(),
           "$forms=FB: FB formed when FA's run ends, of FA's vehicles turned (it starts back the other way)");
     check(std::fabs(frontAt0801WA - t["WA"]->startFront) > 1.0 && waitedFor("WA", Sim::WaitFor::Follow)
               && when("WA", Sim::TrainEvent::Finished) > when("WB", Sim::TrainEvent::Finished),

@@ -648,7 +648,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     play->click();
     check(simulation->exists() && simulation->shows(activity) && simulation->input()->trains.size() == 2,
           "Play: a simulation of the activity, the player's train and the AI train");
-    check(simulation->input()->trains[0].length > 39.0f && simulation->input()->trains[0].vehicles[0].type >= 4,
+    check(simulation->input()->trains[0].length > 39.0f && simulation->input()->trains[0].vehicles[0].type() >= 4,
           "the trains have their vehicles: an engine and a carriage, 40 m");
     check(runToTime->time() == QTime(8, 0, 0), "a new run: Run to: from 00:00:00 up to the run's start, 08:00:00");
     check(std::fabs(Game::timeOfDayHours - 8.0f) < 1e-4f, "the world's time is set to the activity's start");
