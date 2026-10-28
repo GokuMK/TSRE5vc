@@ -251,8 +251,9 @@ local function stepEngineBrake(s, dt, pipeVolume)
 end
 
 -- The compressor, running on `powered` (auxiliary power) between its
--- restart pressure and the main reservoir's maximum.
-function M.compress(s, dt, powered)
+-- restart pressure and the main reservoir's maximum; a mechanical one at
+-- `share` of its rate (a diesel's RPM against its maximum).
+function M.compress(s, dt, powered, share)
     local c = s.config
     if not s.compressor and s.mainReservoir < c.restart and powered then
         s.compressor = true
@@ -261,7 +262,7 @@ function M.compress(s, dt, powered)
         s.compressor = false
         sound(13)
     end
-    if s.compressor then s.mainReservoir = s.mainReservoir + c.compressorRate * dt end
+    if s.compressor then s.mainReservoir = s.mainReservoir + c.compressorRate * (share or 1) * dt end
 end
 
 -- A twin pipe loco: the main reservoir and its length of the main

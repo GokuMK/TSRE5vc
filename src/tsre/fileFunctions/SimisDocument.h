@@ -70,6 +70,8 @@ class SimisDocument {
     // (a key given again replaces the earlier), invalid when none.
     QVector<Item> all(QAnyStringView path) const;
     Item last(QAnyStringView path) const;
+    // The same, the path starting in `block`.
+    QVector<Item> all(QAnyStringView path, Item block) const;
 
     bool isBlock(Item item) const;
     QStringView text(Item item) const;

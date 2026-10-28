@@ -10,6 +10,7 @@
 #include <QTemporaryDir>
 #include <QString>
 #include <cmath>
+#include <functional>
 #include <tsre/Game.h>
 #include <tsre/sim/AirBrake.h>
 #include <tsre/sim/LocoScript.h>
@@ -190,6 +191,76 @@ QString electricFile() {
 		Brake_Dynamic ( 0 1 0.1 0 NumNotches ( 0 ) )
 	))");
 }
+
+// A legacy diesel as MSTS's Dash 9 (the diesel spec's §3 example): no
+// ORTSDieselEngines; idle 315 rpm, 900 at full power, 40 rpm/s; 3263 kW,
+// 650.65 kN, 550 kN continuous, RunUpTimeToMaxForce 30 s; 10 and 60 gal/h;
+// a mechanical compressor; `extra` keys after these.
+QString dieselFile(const QString &extra = QString()) {
+    return engineFile(AirBrakes)
+            .replace("\tType ( Electric )\n\tMaxPower ( 5000kW )\n\tMaxForce ( 300kN )\n",
+                     "\tType ( Diesel )\n\tMaxPower ( 3263kW )\n\tMaxForce ( 650.65kN )\n"
+                     "\tMaxContinuousForce ( 550kN )\n\tDieselEngineIdleRPM ( 315 )\n\tDieselEngineMaxRPM ( 900 )\n"
+                     "\tDieselEngineMaxRPMChangeRate ( 40 )\n\tRunUpTimeToMaxForce ( 30 )\n"
+                     "\tDieselUsedPerHourAtMaxPower ( 60gal )\n\tDieselUsedPerHourAtIdle ( 10gal )\n"
+                     "\tAirBrakesIsCompressorElectricOrMechanical ( 1 )\n"
+                     + extra);
+}
+
+// A diesel model stepped on its own: its sounds ("n@seconds"), values and
+// script error.
+struct DieselRun {
+    std::unique_ptr<Sim::VehicleModel> model;
+    Sim::VehicleInputs in;
+    Sim::VehicleOutputs out;
+    double t = 0.0;
+    QStringList sounds, events;
+    QString problem;
+
+    DieselRun(Sim::LocoScripts &scripts, const Sim::Vehicle &vehicle) : model(scripts.make(vehicle.definition)) {
+        in.dt = 0.01;
+        in.cab = true;
+        in.brakePipe = 90.0 * 6894.757293168;
+        in.brakePipeVolume = 0.0169;
+    }
+    void step(int steps = 1) {
+        for (int i = 0; i < steps; ++i) {
+            out.events.clear();
+            model->step(in, out);
+            t += in.dt;
+            for (const Sim::Message &e : out.events) {
+                if (e.name == "sound")
+                    sounds << QString("%1@%2").arg(e.text()).arg(t, 0, 'f', 2);
+                else if (e.name == "scriptError" && problem.isEmpty())
+                    problem = e.text();
+                else
+                    events << e.name;
+            }
+        }
+    }
+    void command(const QString &name, const Sim::MessageValue &value) { model->command({name, value}); }
+    double number(const char *name) const { return Sim::Message{QString(), out.values.value(name, 0.0)}.number(); }
+    QString text(const char *name) const { return Sim::Message{QString(), out.values.value(name, QString())}.text(); }
+    // Stepped until `done`, at most `limit` s: the seconds it took, -1 for
+    // never.
+    double until(const std::function<bool()> &done, double limit) {
+        const double start = t;
+        while (t - start < limit) {
+            step();
+            if (done())
+                return t - start;
+        }
+        return -1.0;
+    }
+    // The sounds from `from` on, numbers only.
+    QStringList soundsSince(double from) const {
+        QStringList numbers;
+        for (const QString &s : sounds)
+            if (s.section('@', 1).toDouble() >= from - 1e-9)
+                numbers << s.section('@', 0, 0);
+        return numbers;
+    }
+};
 
 // A loco script for the host's checks: its file's values, commands, sends,
 // the control line, an error and a loop on demand.
@@ -1109,10 +1180,234 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            .arg(valueOf(core, 0, 1, "direction")).arg(valueOf(core, 0, 1, "throttle"))
                            .arg(valueOf(core, 0, 1, "force")).arg(speed));
     }
-    // The cost of a scripted loco a step.
-    if (scriptThere) {
+    // The diesel loco script (appdata/<version>/scripts/loco/diesel.lua,
+    // task driving 03) against the diesel spec
+    // (docs/tasks/driving/reports/or-diesel-loco-spec.md) and its formulas.
+    const bool dieselThere = QFileInfo::exists(locoFolder + "/diesel.lua");
+    test.check(dieselThere, "diesel.lua is in " + locoFolder);
+    if (dieselThere) {
         Sim::LocoScripts lua(locoFolder);
-        std::unique_ptr<Sim::VehicleModel> m = lua.make(electric.definition);
+        writeUtf16(files.path() + "/diesel.eng", dieselFile());
+        const Sim::Vehicle legacy = vehicle("diesel.eng");
+        const auto state = [](DieselRun &d, const char *wanted) {
+            return [&d, wanted] { return d.text("engineState") == wanted; };
+        };
+        // Its engine built as Open Rails builds a legacy one (spec §3): at
+        // idle 282 kW from the standard curve, (0.2 / 0.81) × 3263 kW ×
+        // 315 / 900; fuel at idle as DieselUsedPerHourAtIdle, 37.85 l/h.
+        {
+            DieselRun d(lua, legacy);
+            d.step(300);
+            const double idle = d.number("engineRpm"), available = d.number("availablePower");
+            const double before = d.number("fuel");
+            d.step(60000);
+            const double litres = (before - d.number("fuel")) * 1000.0 / 600.0 * 3600.0;
+            test.check(d.problem.isEmpty() && idle == 315.0 && std::fabs(available - 281987.654) < 1.0
+                               && std::fabs(litres - 37.854) < 0.7,
+                       QString("diesel.lua, a legacy engine: idle %1 rpm (315), %2 W there (281988), %3 l/h (37.85) %4")
+                               .arg(idle).arg(available, 0, 'f', 1).arg(litres, 0, 'f', 2).arg(d.problem));
+        }
+        // Starting and stopping (spec §4's timings, at 60 steps a second):
+        // running 9.2 s after a start, idle to full RPM 15.6 s, back 15.6 s,
+        // stopped 8.8 s. 23 at the start and again at main power; 24 twice
+        // at the stop. With the throttle open it does not stop.
+        {
+            DieselRun d(lua, legacy);
+            d.step(10);
+            d.command("power", false);
+            d.until(state(d, "stopped"), 60.0);
+            const double from = d.t;
+            d.command("engine", true);
+            const double running = d.until(state(d, "running"), 60.0);
+            d.until([&] { return d.text("mainPower") == "true"; }, 10.0);
+            d.step(2000);
+            d.command("throttle", 1.0);
+            const double up = d.until([&] { return d.number("engineRpm") >= 900.0; }, 60.0);
+            d.command("engine", false);
+            d.step();
+            const bool locked = d.events.contains("engineLocked") && d.text("engineState") == "running";
+            d.command("throttle", 0.0);
+            const double down = d.until([&] { return d.number("engineRpm") <= 315.0; }, 60.0);
+            d.step(200);
+            const double stopFrom = d.t;
+            d.command("engine", false);
+            const double stopped = d.until(state(d, "stopped"), 60.0);
+            const QStringList started = d.soundsSince(from), stopping = d.soundsSince(stopFrom);
+            test.check(std::fabs(running - 9.2) < 0.3 && std::fabs(up - 15.6) < 0.3 && std::fabs(down - 15.6) < 0.3
+                               && std::fabs(stopped - 8.8) < 0.3 && locked && started.count("23") == 2
+                               && stopping.count("24") == 2,
+                       QString("diesel.lua, starting: running %1 s (9.2), idle to full %2 s (15.6), back %3 s (15.6), "
+                               "stopped %4 s (8.8)%5; sounds %6, at the stop %7")
+                               .arg(running).arg(up).arg(down).arg(stopped).arg(locked ? "; locked with the throttle open" : "")
+                               .arg(started.join(' '), stopping.join(' ')));
+        }
+        // A restart while it stops, between the starter's RPM and the
+        // confirm RPM: running again (Open Rails leaves it starting for
+        // ever; task 03, choice 3).
+        {
+            DieselRun d(lua, legacy);
+            d.step(10);
+            d.command("engine", false);
+            d.step(20);
+            const double rpm = d.number("engineRpm");
+            d.command("engine", true);
+            const double back = d.until(state(d, "running"), 30.0);
+            test.check(rpm > 210.0 && rpm < 346.5 && back > 0.0,
+                       QString("diesel.lua: restarted at %1 rpm while stopping, running again in %2 s").arg(rpm).arg(back));
+        }
+        // A Manual relay closing in 6 s, main power 5 s after it, auxiliary
+        // power 10 s after the start (OR_PSK's SP42): from its hot start the
+        // relay's order (217), closing (151), closed (152) at 6.03 s, 227 at
+        // 10.01 s, 23 at 11.04 s (a step later where the timer's sum of steps
+        // falls short); the RPM at idle until main power though the throttle
+        // is open.
+        writeUtf16(files.path() + "/manual.eng",
+                   dieselFile("\tORTSTractionCutOffRelay ( Manual )\n\tORTSTractionCutOffRelayClosingDelay ( 6s )\n"
+                              "\tORTSPowerOnDelay ( 5s )\n\tORTSAuxPowerOnDelay ( 10s )\n"));
+        {
+            DieselRun d(lua, vehicle("manual.eng"));
+            d.command("direction", 1.0);
+            d.command("throttle", 1.0);
+            double closedAt = -1, auxAt = -1, powerAt = -1, idleRpm = -1;
+            while (d.t < 13.0) {
+                d.step();
+                if (closedAt < 0 && d.text("tractionCutOffRelay") == "closed")
+                    closedAt = d.t;
+                if (auxAt < 0 && d.text("auxPower") == "true")
+                    auxAt = d.t;
+                if (powerAt < 0 && d.text("mainPower") == "true") {
+                    powerAt = d.t;
+                    idleRpm = d.number("engineRpm");
+                }
+            }
+            QStringList power = d.soundsSince(0);
+            for (const char *lever : {"103", "15", "16"})
+                power.removeAll(lever);
+            test.check(std::fabs(closedAt - 6.03) < 0.025 && std::fabs(auxAt - 10.01) < 0.025
+                               && std::fabs(powerAt - 11.04) < 0.025 && idleRpm == 315.0 && d.number("engineRpm") > 330.0
+                               && power.join(' ') == "217 151 152 227 23",
+                       QString("diesel.lua, a Manual relay: closed %1 s (6.03), auxiliary power %2 (10.01), main power %3 "
+                               "(11.04) at %4 rpm (315); its sounds %5")
+                               .arg(closedAt).arg(auxAt).arg(powerAt).arg(idleRpm).arg(power.join(' ')));
+        }
+        // Its force: Open Rails' diesel law, MaxPower × t / v (163.15 kN at
+        // t = 0.5 and 10 m/s; an electric's t² would give 81.6); the
+        // engines' power capping force × speed while the RPM rises.
+        {
+            DieselRun d(lua, legacy);
+            d.in.speed = 20.0;
+            d.step(10);
+            d.command("direction", 1.0);
+            d.command("throttle", 1.0);
+            double worst = -1e9;
+            int capped = 0;
+            for (int i = 0; i < 2000; ++i) {
+                d.step();
+                const double over = d.number("tractionForce") * 20.0 - d.number("availablePower");
+                worst = std::max(worst, over);
+                capped += std::fabs(over) < 1.0 ? 1 : 0;
+            }
+            d.in.speed = 10.0;
+            d.command("throttle", 0.5);
+            d.step(6000);
+            const double force = d.number("tractionForce");
+            test.check(worst < 1e-3 && capped > 100 && std::fabs(force - 163150.0) < 1.0,
+                       QString("diesel.lua force: %1 N at t 0.5 and 10 m/s (163150); force × speed above the engine's "
+                               "power by %2 W at most, held to it %3 steps of 2000")
+                               .arg(force, 0, 'f', 1).arg(worst).arg(capped));
+        }
+        // Two engines (ORTSDieselEngines, each read on its own): idle 400 and
+        // 600 rpm; the helper stopped (spinning down from 1200 rpm at 40
+        // rpm/s), half the power, so half the force at 20 m/s (163.15 kN,
+        // then 81.575).
+        writeUtf16(files.path() + "/twin.eng",
+                   dieselFile("\tORTSDieselEngines ( 2\n"
+                              "\t\tDiesel ( IdleRPM ( 400 ) MaxRPM ( 1000 ) MaximalPower ( 1631.5kW ) )\n"
+                              "\t\tDiesel ( IdleRPM ( 600 ) MaxRPM ( 1200 ) MaximalPower ( 1631.5kW ) )\n\t)\n"));
+        {
+            DieselRun d(lua, vehicle("twin.eng"));
+            d.in.speed = 20.0;
+            d.step(10);
+            const double first = d.number("engineRpm"), second = d.number("engineRpm2");
+            d.command("direction", 1.0);
+            d.command("throttle", 1.0);
+            d.step(6000);
+            const double both = d.number("tractionForce");
+            d.command("helperEngines", false);
+            d.step(5000);
+            const double one = d.number("tractionForce");
+            test.check(first == 400.0 && second == 600.0 && std::fabs(both - 163150.0) < 1.0
+                               && std::fabs(one - 81575.0) < 1.0 && d.text("helperEngines") == "stopped",
+                       QString("diesel.lua, two engines: idle %1 and %2 rpm; %3 N, the helper stopped %4 N")
+                               .arg(first).arg(second).arg(both, 0, 'f', 1).arg(one, 0, 'f', 1));
+        }
+        // The dynamic brake needs main power on a diesel.
+        writeUtf16(files.path() + "/dynamic.eng",
+                   dieselFile("\tDynamicBrakesMaximumForce ( 100kN )\n\tDynamicBrakesMinUsableSpeed ( 5 )\n"
+                              "\tDynamicBrakesMaximumEffectiveSpeed ( 25 )\n"
+                              "\tEngineControllers ( Brake_Dynamic ( 0 1 0.1 0 NumNotches ( 0 ) ) )\n"));
+        {
+            DieselRun d(lua, vehicle("dynamic.eng"));
+            d.in.speed = 15.0;
+            d.step(10);
+            d.command("power", false);
+            d.command("direction", 1.0);
+            d.command("dynamicBrake", 1.0);
+            d.step(500);
+            const double unpowered = d.number("dynamicBrakeForce");
+            d.command("power", true);
+            d.until([&] { return d.text("mainPower") == "true"; }, 30.0);
+            d.step(1000);
+            const double powered = d.number("dynamicBrakeForce");
+            test.check(unpowered == 0.0 && powered > 0.0,
+                       QString("diesel.lua dynamic brake: %1 N without main power, %2 N 10 s after it")
+                               .arg(unpowered).arg(powered));
+        }
+        // Fuel: 0.2 l at 37.85 l/h empty after 19.0 s; the engine stops, 24
+        // once for the tank; it does not start empty; refuelled, it does.
+        writeUtf16(files.path() + "/tank.eng", dieselFile("\tMaxDieselLevel ( 0.2l )\n"));
+        {
+            DieselRun d(lua, vehicle("tank.eng"));
+            const double empty = d.until([&] { return d.number("fuel") <= 0.0; }, 60.0);
+            d.step(1000);
+            const int offs = int(d.soundsSince(0).count("24"));
+            d.command("engine", true);
+            d.step(1500);
+            const QString emptyStart = d.text("engineState");
+            d.command("refuel", true);
+            d.command("engine", true);
+            const double refuelled = d.until(state(d, "running"), 30.0);
+            test.check(std::fabs(empty - 19.02) < 0.1 && offs == 3 && emptyStart != "running" && refuelled > 0.0,
+                       QString("diesel.lua fuel: empty after %1 s (19.02), 24 %2 times (the tank, main power, the "
+                               "engine), started empty %3, refuelled running in %4 s")
+                               .arg(empty).arg(offs).arg(emptyStart).arg(refuelled));
+        }
+        // Saved and restored: the same steps after.
+        {
+            DieselRun a(lua, legacy);
+            a.in.speed = 10.0;
+            a.step(10);
+            a.command("direction", 1.0);
+            a.command("throttle", 0.5);
+            a.step(500);
+            QByteArray saved;
+            const bool savedOk = a.model->save(saved);
+            DieselRun b(lua, legacy);
+            b.in = a.in;
+            const bool restored = savedOk && b.model->restore(saved);
+            a.step(300);
+            b.step(300);
+            test.check(restored && a.number("engineRpm") == b.number("engineRpm")
+                               && a.number("tractionForce") == b.number("tractionForce") && a.number("fuel") == b.number("fuel"),
+                       QString("diesel.lua: its state saved (%1 bytes) and restored, the same steps after").arg(saved.size()));
+        }
+    }
+    // The cost of a scripted loco a step: the electric, the diesel.
+    for (const auto &[script, loco] : {std::pair{"electric.lua", electric}, std::pair{"diesel.lua", vehicle("diesel.eng")}}) {
+        if (!QFileInfo::exists(locoFolder + "/" + script))
+            continue;
+        Sim::LocoScripts lua(locoFolder);
+        std::unique_ptr<Sim::VehicleModel> m = lua.make(loco.definition);
         Sim::VehicleInputs in;
         in.dt = 0.01;
         in.speed = 10.0;
@@ -1128,7 +1423,7 @@ int TsreTests::runDrivingSuite(bool verbose) {
         for (int i = 0; i < 20000; ++i)
             m->step(in, out);
         const double us = timer.nsecsElapsed() / 1000.0 / 20000.0;
-        test.check(us < 1000.0, QString("electric.lua: %1 µs a step").arg(us, 0, 'f', 1));
+        test.check(us < 1000.0, QString("%1: %2 µs a step").arg(script).arg(us, 0, 'f', 1));
     }
     return test.finish();
 }
@@ -1146,17 +1441,30 @@ int TsreTests::runDrivingCorpusSuite(bool verbose) {
     }
     files.sort();
     Sim::LocoScripts lua(locoFolder);
-    int electrics = 0, failed = 0, unpowered = 0, forceless = 0;
+    // Each kind of engine through its script.
+    struct Kind {
+        int id;
+        const char *name, *script;
+        int count = 0, failed = 0, unpowered = 0, forceless = 0;
+        qint64 ms = 0;
+    };
+    Kind kinds[] = {{4, "electric", "electric.lua"}, {5, "diesel", "diesel.lua"}};
     QStringList listed;
-    QElapsedTimer timer;
-    timer.start();
     for (const QString &path : files) {
         const QFileInfo info(path);
         const std::shared_ptr<const VehicleDefinition> def =
                 VehicleDefinition::read(info.path(), info.fileName(), root, true);
-        if (!def || !def->ok() || def->wagonTypeId != 4)
+        if (!def || !def->ok())
             continue;
-        ++electrics;
+        Kind *kind = nullptr;
+        for (Kind &k : kinds)
+            if (def->wagonTypeId == k.id)
+                kind = &k;
+        if (!kind)
+            continue;
+        ++kind->count;
+        QElapsedTimer timer;
+        timer.start();
         std::unique_ptr<Sim::VehicleModel> model = lua.make(def);
         Sim::VehicleInputs in;
         in.dt = 0.01;
@@ -1186,6 +1494,7 @@ int TsreTests::runDrivingCorpusSuite(bool verbose) {
         run(100);
         in.speed = def->maxSpeedMps > 0.0 ? std::min(5.0, 0.5 * def->maxSpeedMps) : 5.0;
         run(10);
+        kind->ms += timer.elapsed();
         const bool powered = out.values.value("mainPower") == Sim::MessageValue(true);
         const QString name = QDir(root).relativeFilePath(path);
         // TSRE_VEHICLE_FILE=<part of a path>: that loco's values.
@@ -1198,13 +1507,14 @@ int TsreTests::runDrivingCorpusSuite(bool verbose) {
             qInfo().noquote() << name << "\n  " + values.join("\n  ");
         }
         if (!problem.isEmpty()) {
-            ++failed;
+            ++kind->failed;
             listed << name + ": " + problem;
-        } else if (!powered) {
-            ++unpowered;
+        } else if (!powered && def->forceN > 0.0) {
+            // (OR_PSK's dead locos, "nieczynna", have no force and no RPM.)
+            ++kind->unpowered;
             listed << name + ": no power after 2 minutes";
         } else if (out.motiveForce <= 0.0 && def->forceN > 0.0) {
-            ++forceless;
+            ++kind->forceless;
             listed << QString("%1: no force at %2 m/s (MaxForce %3 N, MaxPower %4 W)")
                               .arg(name).arg(in.speed).arg(def->forceN).arg(def->powerW);
         }
@@ -1212,10 +1522,11 @@ int TsreTests::runDrivingCorpusSuite(bool verbose) {
     if (verbose)
         for (const QString &line : listed)
             qInfo().noquote() << "  " << line;
-    test.check(failed == 0,
-               QString("%1 electric engines of %2 run electric.lua in %3 s: %4 script errors, %5 without power, "
-                       "%6 without force (with a MaxForce)")
-                       .arg(electrics).arg(files.size()).arg(timer.elapsed() / 1000.0).arg(failed).arg(unpowered)
-                       .arg(forceless));
+    for (const Kind &k : kinds)
+        test.check(k.failed == 0,
+                   QString("%1 %2 engines of %3 run %4 in %5 s: %6 script errors; of those with a MaxForce, "
+                           "%7 without power, %8 without force")
+                           .arg(k.count).arg(k.name).arg(files.size()).arg(k.script).arg(k.ms / 1000.0)
+                           .arg(k.failed).arg(k.unpowered).arg(k.forceless));
     return test.finish();
 }

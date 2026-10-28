@@ -208,6 +208,6 @@ local MULTIPLE_UNIT = { throttle = true, direction = true, dynamicBrake = true, 
 function command(name, value, state, from)
     local handler = COMMANDS[name]
     if not handler then return end
-    local sent = handler(state, value)
+    local sent = handler(state, value, from)
     if sent ~= nil and from ~= "line" and state.cab ~= false and MULTIPLE_UNIT[name] then line(name, sent) end
 end

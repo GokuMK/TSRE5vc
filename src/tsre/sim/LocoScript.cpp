@@ -106,68 +106,98 @@ QString pathArgument(lua_State *L, int index) {
     return QString::fromUtf8(luaL_checkstring(L, index)).toLower();
 }
 
-// vehicle.number(path [, index [, default]])
+// Where a reader's paths start: the file (`vehicle`), or a block of it
+// (a reader of vehicle.each), its path kept for the key catalogue.
+struct Scope {
+    const VehicleDefinition *d = nullptr;
+    Item block;
+    QString path;
+
+    QString full(const QString &relative) const { return path.isEmpty() ? relative : path + u'(' + relative; }
+    QVector<Item> all(const QString &relative) const { return d->document->all(relative, block); }
+    Item last(const QString &relative) const {
+        const QVector<Item> list = all(relative);
+        return list.isEmpty() ? Item() : list.last();
+    }
+};
+
+// A reader's function: the definition its first upvalue; a scoped one's
+// block (its tree and node) and path the next three.
+Scope scopeOf(lua_State *L) {
+    Scope scope;
+    scope.d = definitionOf(L);
+    if (lua_islightuserdata(L, lua_upvalueindex(2))) {
+        scope.block.tree = static_cast<const SimisTree *>(lua_touserdata(L, lua_upvalueindex(2)));
+        scope.block.node = int(lua_tointeger(L, lua_upvalueindex(3)));
+        scope.path = QString::fromUtf8(lua_tostring(L, lua_upvalueindex(4)));
+    }
+    return scope;
+}
+
+// reader.number(path [, index [, default]])
 int vehicleNumber(lua_State *L) {
-    const VehicleDefinition *d = definitionOf(L);
+    const Scope scope = scopeOf(L);
     const QString path = pathArgument(L, 1);
     const int index = int(luaL_optinteger(L, 2, 1)) - 1;
-    const double value = d->number(path, index, std::numeric_limits<double>::quiet_NaN());
-    if (std::isnan(value)) {
-        if (lua_isnoneornil(L, 3))
-            lua_pushnil(L);
-        else
-            lua_pushvalue(L, 3);
-    } else {
-        lua_pushnumber(L, value);
-    }
+    const QString full = scope.full(path);
+    const Item value = scope.d->document->values(scope.last(path)).value(index);
+    const VehicleKeys::Value key = VehicleKeys::value(full, index);
+    const Units::Quantity quantity = key.kind == VehicleKeys::Value::Kind::Number ? key.quantity : Units::Quantity::Any;
+    double si = 0.0;
+    if (value.tree && scope.d->document->number(value, quantity, si, key.defaultUnit))
+        lua_pushnumber(L, si);
+    else if (lua_isnoneornil(L, 3))
+        lua_pushnil(L);
+    else
+        lua_pushvalue(L, 3);
     return 1;
 }
 
-// vehicle.text(path [, index])
+// reader.text(path [, index])
 int vehicleText(lua_State *L) {
-    const VehicleDefinition *d = definitionOf(L);
+    const Scope scope = scopeOf(L);
     const QString path = pathArgument(L, 1);
-    const Item value = d->document->values(d->document->last(path)).value(int(luaL_optinteger(L, 2, 1)) - 1);
+    const Item value = scope.d->document->values(scope.last(path)).value(int(luaL_optinteger(L, 2, 1)) - 1);
     if (value.tree)
-        pushText(L, d->document->text(value));
+        pushText(L, scope.d->document->text(value));
     else
         lua_pushnil(L);
     return 1;
 }
 
-// vehicle.values(path): the last such block's values.
+// reader.values(path): the last such block's values.
 int vehicleValues(lua_State *L) {
-    const VehicleDefinition *d = definitionOf(L);
+    const Scope scope = scopeOf(L);
     const QString path = pathArgument(L, 1);
-    const Item block = d->document->last(path);
+    const Item block = scope.last(path);
     if (!block.tree)
         lua_pushnil(L);
     else
-        pushBlockValues(L, *d, path, block);
+        pushBlockValues(L, *scope.d, scope.full(path), block);
     return 1;
 }
 
-// vehicle.all(path): every such block's values.
+// reader.all(path): every such block's values.
 int vehicleAll(lua_State *L) {
-    const VehicleDefinition *d = definitionOf(L);
+    const Scope scope = scopeOf(L);
     const QString path = pathArgument(L, 1);
-    const QVector<Item> blocks = d->document->all(path);
+    const QVector<Item> blocks = scope.all(path);
     lua_createtable(L, int(blocks.size()), 0);
     for (int i = 0; i < blocks.size(); ++i) {
-        pushBlockValues(L, *d, path, blocks[i]);
+        pushBlockValues(L, *scope.d, scope.full(path), blocks[i]);
         lua_rawseti(L, -2, i + 1);
     }
     return 1;
 }
 
-// vehicle.blocks(path): the blocks in the last such block, in order, each
+// reader.blocks(path): the blocks in the last such block, in order, each
 // {name = its name (a number where it reads as one), values = {...}}; the
 // curves' form (ORTSMaxTractiveForceCurves ( 0 ( v F ... ) 0.5 ( ... ) )).
 int vehicleBlocks(lua_State *L) {
-    const VehicleDefinition *d = definitionOf(L);
+    const Scope scope = scopeOf(L);
     const QString path = pathArgument(L, 1);
-    const SimisDocument &doc = *d->document;
-    const Item block = doc.last(path);
+    const SimisDocument &doc = *scope.d->document;
+    const Item block = scope.last(path);
     if (!block.tree) {
         lua_pushnil(L);
         return 1;
@@ -185,17 +215,46 @@ int vehicleBlocks(lua_State *L) {
         else
             pushText(L, name);
         lua_setfield(L, -2, "name");
-        pushBlockValues(L, *d, path + u'(' + name.toString().toLower(), item);
+        pushBlockValues(L, *scope.d, scope.full(path) + u'(' + name.toString().toLower(), item);
         lua_setfield(L, -2, "values");
         lua_rawseti(L, -2, ++n);
     }
     return 1;
 }
 
-// vehicle.has(path)
+// reader.has(path)
 int vehicleHas(lua_State *L) {
-    const VehicleDefinition *d = definitionOf(L);
-    lua_pushboolean(L, d->document->last(pathArgument(L, 1)).tree != nullptr);
+    const Scope scope = scopeOf(L);
+    lua_pushboolean(L, scope.last(pathArgument(L, 1)).tree != nullptr);
+    return 1;
+}
+
+int vehicleEach(lua_State *L);
+
+const std::pair<const char *, lua_CFunction> ReaderFunctions[] = {
+        {"number", vehicleNumber}, {"text", vehicleText}, {"values", vehicleValues}, {"all", vehicleAll},
+        {"blocks", vehicleBlocks}, {"has", vehicleHas}, {"each", vehicleEach}};
+
+// reader.each(path): a reader for each such block, its paths starting
+// there (a loco's engines: vehicle.each("engine(ortsdieselengines(diesel")).
+int vehicleEach(lua_State *L) {
+    const Scope scope = scopeOf(L);
+    const QString path = pathArgument(L, 1);
+    const QVector<Item> blocks = scope.all(path);
+    const QByteArray full = scope.full(path).toUtf8();
+    lua_createtable(L, int(blocks.size()), 0);
+    for (int i = 0; i < blocks.size(); ++i) {
+        lua_createtable(L, 0, int(std::size(ReaderFunctions)));
+        for (const auto &[name, function] : ReaderFunctions) {
+            lua_pushlightuserdata(L, const_cast<VehicleDefinition *>(scope.d));
+            lua_pushlightuserdata(L, const_cast<SimisTree *>(blocks[i].tree));
+            lua_pushinteger(L, blocks[i].node);
+            lua_pushlstring(L, full.constData(), size_t(full.size()));
+            lua_pushcclosure(L, function, 4);
+            lua_setfield(L, -2, name);
+        }
+        lua_rawseti(L, -2, i + 1);
+    }
     return 1;
 }
 
@@ -256,10 +315,7 @@ void pushProxy(lua_State *L, const VehicleDefinition *d, const QString &path) {
 // The `vehicle` table init() gets.
 void pushVehicle(lua_State *L, const VehicleDefinition *d) {
     pushProxy(L, d, QString());
-    const std::pair<const char *, lua_CFunction> functions[] = {
-            {"number", vehicleNumber}, {"text", vehicleText}, {"values", vehicleValues},
-            {"all", vehicleAll}, {"blocks", vehicleBlocks}, {"has", vehicleHas}};
-    for (const auto &[name, function] : functions) {
+    for (const auto &[name, function] : ReaderFunctions) {
         lua_pushlightuserdata(L, const_cast<VehicleDefinition *>(d));
         lua_pushcclosure(L, function, 1);
         lua_setfield(L, -2, name);
@@ -523,10 +579,14 @@ Script::State &LocoScripts::lua() {
 }
 
 QString LocoScripts::scriptFor(const VehicleDefinition &definition) const {
-    // An electric engine (the editors' kind 4).
-    if (folder.isEmpty() || definition.wagonTypeId != 4)
+    // An electric engine (the editors' kind 4) or a diesel (5).
+    if (folder.isEmpty())
         return QString();
-    return folder + "/electric.lua";
+    if (definition.wagonTypeId == 4)
+        return folder + "/electric.lua";
+    if (definition.wagonTypeId == 5)
+        return folder + "/diesel.lua";
+    return QString();
 }
 
 int LocoScripts::load(const QString &path) {

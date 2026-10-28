@@ -16,7 +16,8 @@ class LuaLoco;
 // kind for the run, made on first use in the thread that steps the run,
 // each script file loaded once; its functions are shared, each loco has a
 // state table of its own. For now every electric engine runs TSRE's
-// electric.lua (the user's, 2026-10-28); a vehicle's own script comes later.
+// electric.lua (the user's, 2026-10-28), every diesel diesel.lua (task
+// driving 03); a vehicle's own script comes later.
 //
 // A script's functions, all optional but update:
 //   init(state, vehicle)        once, `vehicle` its file's keys in SI;
@@ -39,7 +40,10 @@ class LuaLoco;
 //   vehicle.all(path)      every such block's values, a table each;
 //   vehicle.blocks(path)   the blocks in the last such block, each
 //       {name, values} (curves: their throttle values are block names);
-//   vehicle.has(path).
+//   vehicle.has(path);
+//   vehicle.each(path)     a reader for each such block, with these
+//       functions (no dot form), its paths starting in the block: a loco's
+//       engines, vehicle.each("engine(ortsdieselengines(diesel").
 // Don't keep `vehicle` in the state table: it isn't saved.
 class LocoScripts {
 public:

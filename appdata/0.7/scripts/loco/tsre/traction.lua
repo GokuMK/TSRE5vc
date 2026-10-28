@@ -4,9 +4,15 @@
 -- by the motors' heat; the dynamic brake's force from its curve after its
 -- delay; both within the wheels' adhesion.
 --
+-- Two force laws (c.forceLaw): "electric", power MaxPower × t² and the
+-- force fading over the last 0.05 m/s to MaxVelocity; "diesel" (task
+-- driving 03), power MaxPower × t and the unloading speed, scaled by the
+-- share of its engines running (s.runningShare). A diesel's dynamic brake
+-- needs main power (c.dynamicNeedsPower).
+--
 -- Reads the levers and direction (tsre.controls) and s.time, the loco's
 -- clock. In the state: s.tractionForce, s.averageForce (the heat's),
--- s.dynamicForce, s.dynamicEngaged, s.dynamicStart.
+-- s.dynamicForce, s.dynamicEngaged, s.dynamicStart, s.previousSpeed.
 
 local util = require "tsre.util"
 local curves = require "tsre.curves"
@@ -16,22 +22,31 @@ local KMH = util.KMH
 
 local M = {}
 
-function M.init(s, vehicle)
+-- `runUpDefault`: RunUpTimeToMaxForce where the ENG has none (a diesel's
+-- 10 s; none for an electric).
+function M.init(s, vehicle, runUpDefault)
     local c = s.config
+    c.forceLaw = "electric"
     c.maxForce = number(vehicle, "engine(maxforce", 0)
     c.maxPower = number(vehicle, "engine(maxpower", 0)
     c.maxContinuousForce = number(vehicle, "engine(maxcontinuousforce", 0)
     c.maxVelocity = positive(vehicle, "engine(maxvelocity", 1000)
     c.maxCurrent = number(vehicle, "engine(maxcurrent", 0)
     c.continuousTime = positive(vehicle, "engine(ortscontinuousforcetimefactor", 1800)
+    c.unloadingSpeed = number(vehicle, "engine(ortsunloadingspeed", 0)
     c.curves = curves.read(vehicle, "engine(ortsmaxtractiveforcecurves")
         or curves.readTable(vehicle, "engine(ortstractioncharacteristics")
     -- Ramps: Open Rails' own keys, else from RunUpTimeToMaxForce.
     c.rampUp = number(vehicle, "engine(ortstractiveforcerampuprate", 0)
     c.rampDown = number(vehicle, "engine(ortstractiveforcerampdownrate", 0)
     c.rampDownToZero = number(vehicle, "engine(ortstractiveforcerampdowntozerorate", c.rampDown)
+    c.powerRampUp = number(vehicle, "engine(ortstractivepowerrampuprate", 0)
+    c.powerRampDown = number(vehicle, "engine(ortstractivepowerrampdownrate", 0)
+    c.powerRampDownToZero = number(vehicle, "engine(ortstractivepowerrampdowntozerorate", c.powerRampDown)
     local runUp = number(vehicle, "engine(runuptimetomaxforce", -1)
-    if runUp > 0 and c.rampUp <= 0 and c.rampDown <= 0 and c.maxForce > 0 then
+    if runUp < 0 and runUpDefault then runUp = runUpDefault end
+    c.runUp = runUp
+    if runUp > 0 and c.rampUp <= 0 and c.rampDown <= 0 and c.rampDownToZero <= 0 and c.maxForce > 0 then
         c.rampUp = c.maxForce / runUp
         c.rampDown = 2 * c.rampUp
         c.rampDownToZero = 10 * c.rampUp
@@ -50,15 +65,42 @@ function M.init(s, vehicle)
     if c.dynamicFading > c.dynamicTop then c.dynamicFading, c.dynamicTop = c.dynamicTop, c.dynamicFading end
     c.dynamicDelay = number(vehicle, "engine(dynamicbrakesdelaytimebeforeengaging", 0)
     c.dynamicCurves = curves.read(vehicle, "engine(ortsdynamicbrakeforcecurves")
+    c.dynamicNeedsPower = false
+    -- Its own ramps, as the traction's.
+    c.dynamicRampUp = number(vehicle, "engine(ortsdynamicbrakeforcerampuprate", 0)
+    c.dynamicRampDown = number(vehicle, "engine(ortsdynamicbrakeforcerampdownrate", 0)
+    c.dynamicRampDownToZero = number(vehicle, "engine(ortsdynamicbrakeforcerampdowntozerorate", c.dynamicRampDown)
+    c.dynamicPowerRampUp = number(vehicle, "engine(ortsdynamicbrakepowerrampuprate", 0)
+    c.dynamicPowerRampDown = number(vehicle, "engine(ortsdynamicbrakepowerrampdownrate", 0)
+    c.dynamicPowerRampDownToZero = number(vehicle, "engine(ortsdynamicbrakepowerrampdowntozerorate",
+        c.dynamicPowerRampDown)
+    if runUp > 0 and c.dynamicRampUp <= 0 and c.dynamicRampDown <= 0 and c.dynamicRampDownToZero <= 0
+            and c.dynamicMaxForce > 0 then
+        c.dynamicRampUp = c.dynamicMaxForce / runUp
+        c.dynamicRampDown = 2 * c.dynamicRampUp
+        c.dynamicRampDownToZero = 10 * c.dynamicRampUp
+    end
     s.tractionForce = 0
     s.averageForce = 0
     s.dynamicForce = 0
     s.dynamicEngaged = false
     s.dynamicStart = nil
+    s.previousSpeed = 0
 end
 
--- The force at throttle t and speed v (Open Rails' available traction).
-local function availableForce(c, s, t, v)
+-- The motors' heat: no more than the continuous force kept up long.
+local function heatLimited(c, s, force)
+    if c.maxForce > 0 and c.maxContinuousForce > 0 and c.maxContinuousForce ~= c.maxForce then
+        local fc = c.maxContinuousForce
+        local h = clamp((s.averageForce - 0.75 * fc) / (0.25 * fc), 0, 1)
+        force = math.min(force, c.maxForce - (c.maxForce - fc) * h)
+    end
+    return force
+end
+
+-- The force at throttle t and speed v, an electric's (Open Rails' available
+-- traction).
+local function electricForce(c, s, t, v)
     if t <= 0 then return 0 end
     local force
     local power = math.huge
@@ -77,22 +119,63 @@ local function availableForce(c, s, t, v)
         force = force * t
     end
     if force * v > power then force = power / v end
-    -- The motors' heat: no more than the continuous force kept up long.
-    if c.maxForce > 0 and c.maxContinuousForce > 0 and c.maxContinuousForce ~= c.maxForce then
-        local fc = c.maxContinuousForce
-        local h = clamp((s.averageForce - 0.75 * fc) / (0.25 * fc), 0, 1)
-        force = math.min(force, c.maxForce - (c.maxForce - fc) * h)
-    end
-    return force
+    return heatLimited(c, s, force)
 end
 
-local function ramp(force, target, up, down, downToZero, dt)
+-- A diesel's: linear in t, no MaxVelocity band, the power falling off
+-- above the unloading speed to none at twice it.
+local function dieselForce(c, s, t, v)
+    if t <= 0 then return 0 end
+    local share = clamp(s.runningShare or 1, 0, 1)
+    local force
+    local power = math.huge
+    if c.curves then
+        force = curves.at(c.curves, t, v) * share
+        if force < 0 and not c.curves.negative then force = 0 end
+    else
+        force = c.maxForce * t
+        power = c.maxPower * share * t
+        local u = c.unloadingSpeed
+        if u ~= 0 and v > u and v < c.maxVelocity then
+            power = power * clamp(1 - (v - u) / u, 0, 1)
+        end
+    end
+    if force * v > power then force = power / v end
+    return heatLimited(c, s, force)
+end
+
+local FORCE = { electric = electricForce, diesel = dieselForce }
+
+-- The force its law gives at throttle t and speed v.
+function M.force(s, t, v)
+    return FORCE[s.config.forceLaw](s.config, s, t, v)
+end
+
+-- Toward a target, capped by `limit`, at most at the power ramps' rates
+-- (W/s, while moving; speed `v`, `before` the step before's) and the force
+-- ramps' (N/s); a rate of 0 does not hold it back (Open Rails' ramp).
+local function ramp(force, target, limit, v, before, dt, up, down, downToZero, powerUp, powerDown, powerDownToZero)
+    if target > limit then target = limit end
+    if force > limit then force = limit end
+    local toZero = target == 0
+    if v > 0 then
+        local power = force * before
+        local targetPower = target * v
+        if targetPower > power and powerUp > 0 and power + powerUp * dt < targetPower then
+            target = math.min(target, (power + powerUp * dt) / v)
+            targetPower = power + powerUp * dt
+        end
+        local rate = toZero and powerDownToZero or powerDown
+        if targetPower < power and rate > 0 and power - rate * dt > targetPower then
+            target = math.max(target, math.min(force, (power - rate * dt) / v))
+        end
+    end
     if target > force then
         if up > 0 then return math.min(force + up * dt, target) end
         return target
     end
-    local rate = target == 0 and downToZero or down
-    if rate > 0 then return math.max(force - rate * dt, target) end
+    local rate = toZero and downToZero or down
+    if target < force and rate > 0 then return math.max(force - rate * dt, target) end
     return target
 end
 
@@ -116,19 +199,26 @@ local function dynamicCurve(c, d, v)
     return d * force
 end
 
--- The loco's motive force this step (N, + toward its front), traction with
--- `powered` (its supply gives power), the dynamic brake without power.
-function M.step(s, dt, inputs, powered)
+-- The loco's motive force this step (N, + toward its front): traction with
+-- `powered` (its supply gives main power), at most `powerCap` (W, the
+-- engines' power for traction; nil for none); the dynamic brake without
+-- power, or with it where it needs it.
+function M.step(s, dt, inputs, powered, powerCap)
     local c = s.config
     local v = math.abs(inputs.speed)
+    local force = FORCE[c.forceLaw]
     local dynamicLever = s.dynamicBrake and s.dynamicBrake.value or 0
     local t = clamp(s.throttle.value, 0, 1)
     local allowed = 1
     if s.dynamicEngaged then allowed = 0 end
     if c.brakeCutsPower and inputs.brakeCylinder >= c.brakeCutPressure then allowed = 0 end
     if allowed > 0 and s.direction ~= 0 and powered then
-        local target = availableForce(c, s, math.min(t, allowed), v)
-        s.tractionForce = ramp(s.tractionForce, target, c.rampUp, c.rampDown, c.rampDownToZero, dt)
+        local target = force(c, s, math.min(t, allowed), v)
+        local full = force(c, s, allowed, v)
+        local limit = full >= target and full or math.huge
+        if powerCap and limit * v > powerCap then limit = powerCap / v end
+        s.tractionForce = ramp(s.tractionForce, target, limit, v, s.previousSpeed, dt, c.rampUp, c.rampDown,
+            c.rampDownToZero, c.powerRampUp, c.powerRampDown, c.powerRampDownToZero)
     else
         s.tractionForce = 0
     end
@@ -137,20 +227,25 @@ function M.step(s, dt, inputs, powered)
 
     -- The dynamic brake: engaged after its delay with the throttle off.
     if s.dynamicBrake then
-        if s.throttle.value <= 0 and s.tractionForce == 0 and s.direction ~= 0 and dynamicLever > 0 then
+        local available = powered or not c.dynamicNeedsPower
+        if s.throttle.value <= 0 and s.tractionForce == 0 and available and s.direction ~= 0 and dynamicLever > 0 then
             if s.dynamicStart == nil then s.dynamicStart = s.time end
             if not s.dynamicEngaged and s.dynamicStart + c.dynamicDelay < s.time then s.dynamicEngaged = true end
-        elseif s.dynamicForce == 0 or s.direction == 0 then
+        elseif s.dynamicForce == 0 or not available or s.direction == 0 then
             s.dynamicEngaged = false
             s.dynamicStart = nil
         end
-        local d = s.dynamicEngaged and clamp(dynamicLever, 0, 1) or 0
         if s.dynamicEngaged and v > 0 then
-            s.dynamicForce = ramp(s.dynamicForce, dynamicCurve(c, d, v), c.rampUp, c.rampDown, c.rampDownToZero, dt)
+            local target = dynamicCurve(c, clamp(dynamicLever, 0, 1), v)
+            local full = dynamicCurve(c, 1, v)
+            s.dynamicForce = ramp(s.dynamicForce, target, full >= target and full or math.huge, v, s.previousSpeed,
+                dt, c.dynamicRampUp, c.dynamicRampDown, c.dynamicRampDownToZero, c.dynamicPowerRampUp,
+                c.dynamicPowerRampDown, c.dynamicPowerRampDownToZero)
         else
             s.dynamicForce = 0
         end
     end
+    s.previousSpeed = v
 
     local traction = math.min(s.tractionForce, inputs.adhesionLimit > 0 and inputs.adhesionLimit or math.huge)
     local motive = traction * s.direction

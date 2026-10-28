@@ -1,6 +1,6 @@
 # Task 03 - The diesel loco
 
-Status: designed 2026-10-29; built on `feature/driving` after task 02.
+Status: designed 2026-10-29; built on `feature/driving` after task 02 (steps 1, 2 and 4 done).
 
 The user's request (2026-10-29), after task 02 split `electric.lua` into
 modules the loco scripts share: "if we have those modules, can we try
@@ -154,6 +154,108 @@ RPM, fuel, oil pressure and temperature.
 
 Each step is built (`all`) and checked with ctest and the suites before its
 commit. AI-only runs must stay as they are.
+
+## Step 2 done (2026-10-29)
+
+**Built:**
+- **`vehicle.each(path)`:** a reader for each block at a path, its paths
+  starting there; `SimisDocument::all(path, block)` beneath it.
+- **`tsre/dieselengine`:**
+  - reads each `Diesel ( … )` block, or builds one engine from the legacy
+    keys, with Open Rails' fallbacks;
+  - builds the standard power curve, the rail power by RPM, the auxiliary
+    power, the friction, the shaft's inertia and the fuel table where they
+    are missing (spec §3);
+  - steps the states, the RPM law, power, fuel flow, temperature and oil
+    (spec §4, §5);
+  - Open Rails' table interpolation, its rounding modes included.
+- **`tsre/relay`:** the three kinds, their orders and buttons, sounds 214
+  to 218 (the Manual's 150 to 152).
+- **`tsre/traction`:**
+  - the force laws (`c.forceLaw`);
+  - the engine-power cap (`powerCap`);
+  - Open Rails' ramp, with power ramps and the limit at full throttle;
+  - the dynamic brake's own force and power ramps, and its need for main
+    power (`c.dynamicNeedsPower`);
+  - `RunUpTimeToMaxForce` defaults to 10 s for a diesel.
+- **`tsre/brakes`:** the compressor's rate share.
+- **`diesel.lua`** (335 lines, comments included):
+  - what Open Rails derives at load (spec §3): efficiency, rail power,
+    MaxForce from the driving wheels' weight, the continuous force, the
+    power ramps, the automatic power limit;
+  - the power supply (spec §9), quick power, start in motion, the tank;
+  - the commands and values of the design.
+- **`LocoScripts`:** `Type ( Diesel )` engines run `diesel.lua`.
+- **Zero RPM ranges** guarded. OR_PSK's dead locos ("nieczynna", idle and
+  maximum 0 rpm, no power) gave NaN; they now stand stopped, as in Open
+  Rails.
+
+**Checks (`driving`, 47):**
+
+| Check | Expected | Got |
+| --- | --- | --- |
+| Legacy engine (spec §3's Dash 9), power at idle | 281,988 W | 281,987.7 W |
+| Fuel at idle | 37.85 l/h | 37.84 l/h |
+| Start to running | 9.2 s | 9.16 s |
+| Idle to full RPM | 15.6 s | 15.6 s |
+| Full RPM back to idle | 15.6 s | 15.6 s |
+| Stop | 8.8 s | 8.85 s |
+
+The spec's timings came from a model of the RPM law at 60 steps a second.
+
+- **Starting:**
+  - 23 fires at the start and again at main power;
+  - the relay closes (215, 216) and auxiliary power comes on (227);
+  - the stop fires 214, 24, 228 and 24;
+  - stopping with the throttle open is refused (`engineLocked`).
+- **A restart while stopping,** at 314 rpm, is running again in 1.55 s.
+- **A Manual relay (the SP42's):**
+  - closed at 6.04 s, auxiliary power at 10.02 s, main power at 11.05 s;
+  - sounds 217 151 152 227 23;
+  - the RPM stays at idle until main power, though the throttle is open.
+- **Force:**
+  - 163,150 N at t 0.5 and 10 m/s, `MaxPower × t / v`;
+  - force × speed never above the engines' power, and held to it 542
+    steps of 2,000 while the RPM rose.
+- **Two engines:**
+  - idle 400 and 600 rpm, each read from its own block;
+  - 163,150 N, and 81,575 N with the helper stopped.
+- **Dynamic brake:** none without main power; 33.3 kN 10 s after it (its
+  own ramp, 3.33 kN/s).
+- **Fuel:**
+  - 0.2 l empty after 19.04 s (19.02);
+  - 24 three times: the tank, main power, the engine;
+  - it does not start empty; refuelled, it runs again.
+- **Saved and restored:** the same steps after.
+- **The cost:** 14.8 µs a step (the electric 11.7 µs; it now also works
+  out its force at full throttle, Open Rails' limit). Release.
+
+**The corpus (step 4, done with it):** `driving-corpus` runs every diesel
+as well as every electric.
+
+| Content | Diesels | Script errors | Without power or force |
+| --- | --- | --- | --- |
+| OR_PSK | 435 | 0 | 0 (of those with a MaxForce) |
+| MSTS | 8 | 0 | 0 |
+| TS_STARTER_ROUTE | 14 | 0 | 0 |
+
+OR_PSK's 81 dead locos have no MaxForce and stay without power, as meant.
+Its 817 electrics give the same results as before.
+
+**What Open Rails' rules give on real locos:**
+- **ES44AC:** its curves give 2,805.9 kW against its engine's 2,803.8 kW,
+  so the automatic power limit is off. As in Open Rails, its RPM does not
+  limit its force.
+- **Dash 9:** limited. Its ramps are as spec §3 gives them (21.7 kN/s,
+  223 kW/s).
+
+**The electric unchanged:**
+- the 36 earlier checks print the same numbers (its saved state is larger);
+- USA1's two drive runs give the same CSVs byte for byte.
+
+Its dynamic brake now has its own ramps and is held to its full-lever force.
+That differs only for an ENG with `RunUpTimeToMaxForce` or ramp keys,
+where it is now as Open Rails has it.
 
 ## Not in this task
 
