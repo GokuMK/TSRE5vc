@@ -52,7 +52,7 @@ public:
     void releaseProgram() override {}
     void applyFrameUniforms() override;
     void setFogLod(float lod) override;
-    void createShadowMaps(int nearSize, int farSize) override;
+    void createShadowMaps(int nearSize, int middleSize, int farSize) override;
     void bindTarget(Target target) override;
     void resetState() override {}
     bool setBlending(bool enabled) override;

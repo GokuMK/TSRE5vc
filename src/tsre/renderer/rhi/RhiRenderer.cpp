@@ -1236,9 +1236,9 @@ void RhiRenderer::endSelection() {
                 selectionViewport[3]);
 }
 
-void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
+void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
     beginFrameIfNeeded();
-    const int sizes[3] = {nearSize, nearSize, farSize};
+    const int sizes[3] = {nearSize, middleSize, farSize};
     for (int map = 0; map < 3; ++map) {
         const QSize size(std::max(1, sizes[map]), std::max(1, sizes[map]));
         if (!shadowMaps[map].valid() || shadowMaps[map].size != size)

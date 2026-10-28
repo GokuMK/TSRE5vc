@@ -1286,12 +1286,12 @@ void OpenGL3Renderer::setFogLod(float lod){
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, lod);
 }
 
-void OpenGL3Renderer::createShadowMaps(int nearSize, int farSize){
+void OpenGL3Renderer::createShadowMaps(int nearSize, int middleSize, int farSize){
     // The main program reads the near map on unit 9, the middle on unit 2
     // and the far map on unit 3.
     GLUU *gluu = GLUU::get();
     gluu->makeShadowFramebuffer(shadowFramebuffers[0], shadowTextures[0], nearSize, GL_TEXTURE9);
-    gluu->makeShadowFramebuffer(shadowFramebuffers[1], shadowTextures[1], nearSize, GL_TEXTURE2);
+    gluu->makeShadowFramebuffer(shadowFramebuffers[1], shadowTextures[1], middleSize, GL_TEXTURE2);
     gluu->makeShadowFramebuffer(shadowFramebuffers[2], shadowTextures[2], farSize, GL_TEXTURE3);
 }
 

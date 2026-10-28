@@ -627,9 +627,16 @@ void RouteEditorGLWidget::surfaceInitialize() {
 
     shadowMapSize = Settings::variant(
                 "core.rendering.shadow.primaryMapSize", SettingType::Enum).toInt();
+    // The middle map: its own size, or 0 the near map's (as before it had a
+    // setting of its own: users wanted a sharper near map, 4096, with the
+    // middle one at 2048).
+    middleShadowMapSize = Settings::variant(
+                "core.rendering.shadow.middleMapSize", SettingType::Enum).toInt();
+    if (middleShadowMapSize <= 0)
+        middleShadowMapSize = shadowMapSize;
     distantShadowMapSize = Settings::variant(
                 "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
-    renderer->createShadowMaps(shadowMapSize, distantShadowMapSize);
+    renderer->createShadowMaps(shadowMapSize, middleShadowMapSize, distantShadowMapSize);
     renderer->bindTarget(Renderer::TARGET_VIEW);
         
     
@@ -1694,7 +1701,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // its constant bias.
     const float tapSpread = 2.0f * ShadowBlurReference / gluu->shadow1Res;
     for (int map = 0; map < 2; map++) {
-        const float texel = 2.0f * ShadowHalfExtent[map] / shadowMapSize;
+        const float texel = 2.0f * ShadowHalfExtent[map] / (map == 0 ? shadowMapSize : middleShadowMapSize);
         const float filter = std::max(texel, tapSpread);
         gluu->shadowNormalOffset[map] = ShadowNormalOffsetTexels[map] * filter;
         gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
@@ -1702,7 +1709,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     gluu->shadowNormalOffset[2] = 0.0f;
     std::copy(sun, sun + 3, gluu->shadowLightDirection);
     for (int map = 0; map < 3; map++) {
-        const int size = map < 2 ? shadowMapSize : distantShadowMapSize;
+        const int size = map == 0 ? shadowMapSize : map == 1 ? middleShadowMapSize : distantShadowMapSize;
         const float cell = ShadowSnapTexels * 2.0f * ShadowHalfExtent[map] / float(std::max(size, 1));
         const float ahead[3] = {position[0] + forward[0] * ShadowLead[map], position[1],
                                 position[2] + forward[1] * ShadowLead[map]};
@@ -1757,7 +1764,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
     constexpr qint64 RefreshMs = 4000;
     constexpr qint64 ArrivalMs = 500;
     const float ranges[3] = {250.0f, 600.0f, 1000.0f};
-    const int sizes[3] = {shadowMapSize, shadowMapSize, distantShadowMapSize};
+    const int sizes[3] = {shadowMapSize, middleShadowMapSize, distantShadowMapSize};
     const int statsSlots[3] = {RenderStats::FrameStats::PassSlots - 3, RenderStats::FrameStats::PassSlots - 2,
                                RenderStats::FrameStats::PassSlots - 1};
     const Renderer::Target targets[3] = {Renderer::TARGET_SHADOW_NEAR, Renderer::TARGET_SHADOW_MID,

@@ -389,7 +389,7 @@ public:
     void setSurface(RenderSurface *surface) { viewSurface = surface; }
     // Creates the shadow maps the main program samples: near and middle at
     // nearSize texels, far at farSize.
-    virtual void createShadowMaps(int nearSize, int farSize) = 0;
+    virtual void createShadowMaps(int nearSize, int middleSize, int farSize) = 0;
     // Draws from now on go to this target.
     virtual void bindTarget(Target target) = 0;
     // The integer selection target of width x height pixels: beginSelection
