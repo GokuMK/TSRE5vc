@@ -130,6 +130,9 @@ struct VehicleDefinition {
     // `index` of the last such block, in SI by the key catalogue (its
     // quantity and default unit); `otherwise` where the file has none.
     double number(QAnyStringView path, int index = 0, double otherwise = 0.0) const;
+    // A text of its file at a path ("wagon(brakeequipmenttype"), the value
+    // at `index` of the last such block; empty where it has none.
+    QString text(QAnyStringView path, int index = 0) const;
     // Problems found in its fields (the document has the file's own).
     QVector<SimisDocument::Problem> problems;
 

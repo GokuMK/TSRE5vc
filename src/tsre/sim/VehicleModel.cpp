@@ -1,4 +1,5 @@
 #include <tsre/sim/VehicleModel.h>
+#include <tsre/sim/AirBrake.h>
 #include <QStringList>
 #include <algorithm>
 #include <cmath>
@@ -66,7 +67,7 @@ double controlValue(const Message &message, double now, double step, double lowe
     return std::clamp(message.number(now), lowest, highest);
 }
 
-// A wagon: no force of its own yet (its brakes come with the brake pipe).
+// A wagon: no force of its own yet (its brakes are the host's).
 class Wagon : public VehicleModel {
 public:
     void step(const VehicleInputs &, VehicleOutputs &out) override {
@@ -78,21 +79,27 @@ public:
 // An engine until its kind has a script (task driving 02): its throttle
 // gives throttle × MaxForce, at most MaxPower × throttle / v and nothing
 // above MaxVelocity (Open Rails' fade over its last 0.05 m/s), the way its
-// direction sets, within the rail's adhesion; its train brake a share of its
-// MaxBrakeForce.
+// direction sets, within the rail's adhesion. Its train brake works its
+// brake valve (no notches) and its emergency vents the pipe. Driving the
+// train (its cab driven), it sends its throttle and direction to the other
+// units on the control line, and the EP wire's demand where its brake is EP.
 class StandInEngine : public VehicleModel {
 public:
     explicit StandInEngine(const VehicleDefinition &d)
-        : maxForce(d.forceN), maxPower(d.powerW), maxSpeed(d.maxSpeedMps),
-          maxBrake(d.number("wagon(maxbrakeforce", 0, 0.1 * d.massKg * 9.81)) {}
+        : maxForce(d.forceN), maxPower(d.powerW), maxSpeed(d.maxSpeedMps), valve(d), ep(EpBrakes(d)) {}
     bool drives() const override { return true; }
     void command(const Message &m) override {
-        if (m.name == "throttle")
+        if (m.name == "throttle") {
             throttle = controlValue(m, throttle, 0.1, 0.0, 1.0);
-        else if (m.name == "trainBrake")
-            brake = controlValue(m, brake, 0.1, 0.0, 1.0);
-        else if (m.name == "direction")
+            pending.push_back({"throttle", throttle});
+        } else if (m.name == "direction") {
             direction = int(std::lround(controlValue(m, direction, 1.0, -1.0, 1.0)));
+            pending.push_back({"direction", double(direction)});
+        } else if (m.name == "trainBrake") {
+            brake = controlValue(m, brake, 0.1, 0.0, 1.0);
+        } else if (m.name == "emergency") {
+            emergency = m.flag();
+        }
     }
     void step(const VehicleInputs &in, VehicleOutputs &out) override {
         double force = 0.0;
@@ -113,17 +120,37 @@ public:
                 force = std::min(force, in.adhesionLimit);
         }
         out.motiveForce = direction * force;
-        out.brakeForce = brake * maxBrake;
+        out.brakeForce = 0.0;
+        out.brakePipeAir = 0.0;
+        if (in.cab) {
+            out.brakePipeAir = valve.step(in.dt, brake, emergency, in.brakePipe, in.brakePipeVolume);
+            out.line = std::move(pending);
+            const double demand = emergency ? 1.0 : brake;
+            if (ep && demand != sentEp) {
+                out.line.push_back({"epBrake", demand});
+                sentEp = demand;
+            }
+        }
+        pending.clear();
         out.values.insert("throttle", throttle);
         out.values.insert("trainBrake", brake);
+        out.values.insert("emergency", emergency);
         out.values.insert("direction", double(direction));
         out.values.insert("force", out.motiveForce);
+        out.values.insert("equalisingReservoir", valve.equalising);
+        out.values.insert("lineVoltage", in.lineVoltage);
     }
 
 private:
-    double maxForce, maxPower, maxSpeed, maxBrake;
+    double maxForce, maxPower, maxSpeed;
+    BrakeValve valve;
+    bool ep;
     double throttle = 0.0, brake = 0.0;
     int direction = 0;
+    bool emergency = false;
+    // Commands for the control line, sent at its next step if it drives.
+    std::vector<Message> pending;
+    double sentEp = -1.0;
 };
 
 } // namespace

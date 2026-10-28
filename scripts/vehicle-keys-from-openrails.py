@@ -107,6 +107,11 @@ def main():
                 parser = next((g for g in sub.groups() if g), '') if sub else ''
                 for key in group:
                     entry = keys.setdefault(key, {'files': [], 'kind': kind, 'values': values, 'parser': parser})
+                    # A block handed to a parser of its own (the brake
+                    # controllers): that parser's reads are the key's, unless
+                    # it loops over named blocks inside (ORTSBattery).
+                    if entry['kind'] == 'block' and kind == 'values' and 'EndOfBlock' not in body:
+                        entry.update(kind=kind, values=values)
                     entry['files'].append(os.path.relpath(path, folder))
     try:
         commit = subprocess.run(['git', '-C', source, 'log', '-1', '--format=%h %cs'], capture_output=True,

@@ -6,6 +6,7 @@
 #include <QtGlobal>
 #include <algorithm>
 #include <cmath>
+#include <tsre/sim/AirBrake.h>
 #include <tsre/sim/TrainPhysics.h>
 #include <tsre/sim/VehicleModel.h>
 #include <tsre/trains/VehicleDefinition.h>
@@ -47,6 +48,11 @@ struct Driven {
     // Its vehicles' models and their last outputs, in the consist's order.
     std::vector<std::unique_ptr<VehicleModel>> models;
     std::vector<VehicleOutputs> outputs;
+    // The buses: each vehicle's air brake (consist order), the brake pipe
+    // (running order) and the EP wire's demand (-1 none).
+    std::vector<AirBrake> brakes;
+    BrakePipe pipe;
+    double ep = -1.0;
     // The vehicle (consist order) whose cab is driven.
     int cab = -1;
     // Messages sent, not yet taken.
@@ -84,6 +90,7 @@ void SimulationCore::takeOver(int train) {
     for (size_t v = 0; v < n; ++v) {
         const Vehicle &vehicle = rt.vehicles[v];
         d->models.push_back(MakeVehicleModel(*vehicle.definition));
+        d->brakes.emplace_back(*vehicle.definition);
         const int run = int(s.reversed ? n - 1 - v : v);
         if (d->models.back()->drives() && (cabRun < 0 || run < cabRun)) {
             cabRun = run;
@@ -119,6 +126,16 @@ void SimulationCore::takeOver(int train) {
         }
     }
     d->physics.placeFrom(s.front);
+    // The brake pipe charged to its cab's full pressure, the brakes off.
+    const VehicleDefinition *cabDef = d->cab >= 0 ? rt.vehicles[size_t(d->cab)].definition.get() : nullptr;
+    const double full = cabDef ? BrakeSystemPressure(*cabDef) : BrakeSystemPressure(*VehicleDefinition::empty());
+    d->pipe.timeFactor = cabDef ? BrakePipeTimeFactor(*cabDef) : BrakePipeTimeFactor(*VehicleDefinition::empty());
+    for (size_t r = 0; r < n; ++r) {
+        AirBrake &brake = d->brakes[s.reversed ? n - 1 - r : r];
+        brake.charge(full);
+        d->pipe.volume.push_back(brake.pipeVolume());
+        d->pipe.pressure.push_back(full);
+    }
     rt.drivenState = d;
     // Its cab set to run the way the train runs; throttle and brakes off: a
     // running train coasts.
@@ -228,6 +245,7 @@ void SimulationCore::advanceDriven(int train, double from, double to) {
     extendAuthority(train);
     const size_t n = rt.vehicles.size();
     std::vector<TrainPhysics::Forces> forces(n);
+    // Its vehicles' models, with the brake pipe at each.
     for (size_t r = 0; r < n; ++r) {
         const size_t v = s.reversed ? n - 1 - r : r;
         const Vehicle &vehicle = rt.vehicles[v];
@@ -245,12 +263,17 @@ void SimulationCore::advanceDriven(int train, double from, double to) {
         input.gradient = slope * face;
         input.adhesionLimit = car.mass * Gravity * Adhesion;
         input.lineVoltage = in->lineVoltage;
+        input.brakePipe = d.pipe.pressure[r];
+        input.brakePipeVolume = d.pipe.volume[r];
+        input.brakeCylinder = d.brakes[v].cylinder();
         input.cab = int(v) == d.cab;
         VehicleOutputs &out = d.outputs[v];
         out.events.clear();
+        out.line.clear();
         d.models[v]->step(input, out);
         for (const Message &m : out.events)
             d.messages.push_back({int(v), m});
+        d.pipe.pressure[r] = std::max(0.0, d.pipe.pressure[r] + out.brakePipeAir / d.pipe.volume[r]);
         forces[r].drive = out.motiveForce * face - car.mass * Gravity * slope;
         // Its resistance as its file gives it (Davis), the leading car's air
         // drag the larger.
@@ -258,6 +281,31 @@ void SimulationCore::advanceDriven(int train, double from, double to) {
         const double drag = r == 0 ? vehicle.davisLeading() : vehicle.davis(2);
         const double resistance = vehicle.davis(0) + vehicle.davis(1) * speed + drag * speed * speed;
         forces[r].friction = std::max(0.0, out.brakeForce) + std::max(0.0, resistance);
+    }
+    // The control line: each unit's messages to the others, the EP wire's
+    // demand kept.
+    for (size_t v = 0; v < n; ++v)
+        for (const Message &m : d.outputs[v].line) {
+            if (m.name == "epBrake")
+                d.ep = m.number(-1.0);
+            for (size_t w = 0; w < n; ++w)
+                if (w != v)
+                    d.models[w]->command(m);
+        }
+    // The air brakes on the pipe (the EP wire only with an EP cab, as Open
+    // Rails has it), then the air along the pipe.
+    const double ep = d.cab >= 0 && d.brakes[size_t(d.cab)].ep() ? d.ep : -1.0;
+    for (size_t r = 0; r < n; ++r) {
+        const size_t v = s.reversed ? n - 1 - r : r;
+        AirBrake &brake = d.brakes[v];
+        brake.step(dt, d.pipe.pressure[r], ep);
+        forces[r].friction += brake.force(d.physics.cars[r].speed);
+    }
+    d.pipe.step(dt);
+    for (size_t r = 0; r < n; ++r) {
+        const size_t v = s.reversed ? n - 1 - r : r;
+        d.outputs[v].values.insert("brakePipe", d.pipe.pressure[r]);
+        d.outputs[v].values.insert("brakeCylinder", d.brakes[v].cylinder());
     }
     d.physics.step(dt, forces);
     std::vector<TrainPhysics::Car> &cars = d.physics.cars;
@@ -362,6 +410,7 @@ void SimulationCore::drivenReversal(int train, double t) {
     occupy(train);
     std::reverse(d.physics.cars.begin(), d.physics.cars.end());
     std::reverse(d.physics.couplers.begin(), d.physics.couplers.end());
+    d.pipe.reverse();
     for (TrainPhysics::Car &car : d.physics.cars)
         car.speed = 0.0;
     d.physics.placeFrom(s.front);

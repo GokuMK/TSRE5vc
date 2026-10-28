@@ -1,6 +1,6 @@
 # Task 02 - The driving harness: a first whole stack
 
-Status: the user's answers of 2026-10-28 in (decisions at the end); being built on `feature/driving` (step 1 done).
+Status: the user's answers of 2026-10-28 in (decisions at the end); being built on `feature/driving` (steps 1 and 2 done).
 
 The user's request (2026-10-28), after the ENG refactor (task 01) was
 merged:
@@ -500,8 +500,8 @@ engine passes it on.
      - a collision;
      - determinism.
    - The cost of 0.01 s for all trains, measured on the routes.
-2. **The buses:** the brake pipe, wagon brakes, the control line, the line
-   voltage. Checks: braking distances against the formula; a pipe charging
+2. **The buses** (done 2026-10-28, below): the brake pipe, wagon brakes,
+   the control line, the line voltage. Checks: braking distances against the formula; a pipe charging
    and applying along 50 cars.
 3. **The vehicle model interface and the Lua host,** then the electric loco
    script. Checks:
@@ -641,6 +641,99 @@ traces as main. All the simulation, timetable and activity suites pass.
 - coupling a driven train;
 - collisions behind a train backing up (only ahead is checked);
 - a reversal only near a part's end.
+
+## Step 2 done (2026-10-28)
+
+**Code:**
+- **`src/tsre/sim/AirBrake`:** Open Rails' single pipe air brake, simplified
+  (its formulas written afresh, its defaults kept):
+  - **`AirBrake`,** one per vehicle: its valve from `BrakeEquipmentType`, a
+    plain triple valve or a distributor (graduated release, with its control
+    reservoir), its auxiliary reservoir and its cylinder. Without a valve
+    there's no brake from the pipe, as in Open Rails.
+    - The force is `MaxBrakeForce` × (cylinder − spring) / (reference −
+      spring), with Open Rails' brake shoe friction for older stock (the full
+      force below about 20 km/h, two thirds at 100 km/h).
+    - An EP brake (`BrakeSystemType ( EP )`) also fills its cylinder to the
+      demand on the train's EP wire, which works only with an EP cab, as in
+      Open Rails.
+    - Vacuum brakes get the triple valve until they have a model of their
+      own.
+  - **`BrakePipe`:** a length of pipe per vehicle, the air between
+    neighbours solved implicitly each step. It is stable at any step and
+    keeps the air exactly. The rate is Open Rails' pipe time factor.
+  - **`BrakeValve`:** a loco's train brake controller (no notches yet):
+    - the equalising reservoir set from its position;
+    - the pipe at the loco charged toward it at the charging rate, or vented
+      toward it;
+    - vented to nothing in an emergency.
+- **The model interface:**
+  - in: the pipe's pressure and volume at the vehicle, its cylinder;
+  - out: the air its valve lets into the pipe, and the control line's
+    messages.
+
+  The host adds `brakePipe` and `brakeCylinder` to every vehicle's values.
+- **The air brake is the host's, on every vehicle.** A model gives only the
+  air of its brake valve and any brake of its own, so scripts don't write
+  triple valves again. The loco's own cylinder is its air brake, like a
+  wagon's.
+- **Each step, in this order:**
+  1. the models, with the pipe at each, their valves' air into the pipe;
+  2. the control line;
+  3. the air brakes;
+  4. the air along the pipe;
+  5. the forces.
+- **The control line:**
+  - each unit's messages reach every other unit's model;
+  - the host reads one name itself: `epBrake`, the EP wire's demand.
+- **The stand-in engine:**
+  - its train brake works its brake valve, and `emergency` vents the pipe;
+  - with the cab, it sends its throttle, direction and EP demand on the line;
+  - it shows the line voltage.
+- **The line voltage:** the route's `MaxLineVoltage` (TRK) in the run's
+  input.
+- **The key catalogue:** keys Open Rails hands to a parser of their own (the
+  brake controllers, `ORTSPowerOnDelay`, `ORTSCircuitBreaker`, the master
+  key) now carry their units from that parser.
+- **`VehicleDefinition::text`,** a text value by path.
+
+**Suite `driving`,** 5 more checks (18):
+- **the pipe alone:** the air kept to 1e-9, a vented end pulling it down in
+  order, stable at a 1 s step, even at rest;
+- **50 cars standing, at half service:**
+  - every cylinder at 32.1 to 32.4 psi (13 psi × 2.5 = 32.5 expected);
+  - the first car applying at 0.11 s, the last at 2.89 s;
+  - released, the last car empty at 190 s;
+  - its pipe back to full at 674 s. Open Rails' loco charges only its own
+    length of pipe at 21 psi/s, and the MSTS-like files' 14 ft³ emergency
+    reservoirs make 10 ft³ auxiliary ones. To compare in step 5.
+- **an emergency stop from 20 m/s:** 247.6 m, against the brake forces
+  integrated alone (247.6 m);
+- **two engines:** the second at the cab's throttle and direction, pulling;
+  the line's voltage reaching the engines;
+- **EP:** half the brake fills the last car to 35 psi within 2 s, and it
+  releases.
+
+The trains in the core checks are now read from ENG and WAG files written by
+the suite, through `VehicleDefinition::read`.
+
+**Unchanged:**
+- AI-only runs of the seven routes and PRUDNIK give the same traces as main.
+- The simulation, timetable, activity and vehicle file suites pass; so do
+  build `all` and ctest.
+
+**Left out of Open Rails' brake, for later:**
+- emergency reservoirs and valves, quick service, retainers, two-stage
+  braking, relay valves, accelerated application;
+- the advanced cylinder;
+- brake shoe types and friction curves (the older stock's curve for all);
+- handbrakes;
+- the twin pipe's main reservoir pipe.
+
+Coming in step 3 with the electric loco:
+- the controller's notches;
+- the main reservoir limiting the charge;
+- the engine brake.
 
 ## Decisions (user, 2026-10-28)
 

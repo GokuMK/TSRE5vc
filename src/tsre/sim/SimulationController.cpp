@@ -153,6 +153,9 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
     const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;
     std::shared_ptr<SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted, false);
+    // The line's voltage, as Open Rails reads it: every track electrified.
+    if (route != nullptr && route->trk != nullptr)
+        input->lineVoltage = route->trk->maxLineVoltage;
     if (input->trains.empty()) {
         if (error != nullptr) {
             *error =

@@ -42,6 +42,11 @@ struct VehicleInputs {
     double adhesionLimit = 0.0;
     // The line's voltage (V), the route's.
     double lineVoltage = 0.0;
+    // The brake pipe at it: its pressure (Pa) and its volume there (m³);
+    // its brake cylinder's pressure (Pa).
+    double brakePipe = 0.0;
+    double brakePipeVolume = 0.0;
+    double brakeCylinder = 0.0;
     // Its cab is the one driven (commands without a vehicle go to it).
     bool cab = false;
 };
@@ -50,10 +55,17 @@ struct VehicleInputs {
 struct VehicleOutputs {
     // N, + toward its front.
     double motiveForce = 0.0;
-    // N >= 0, against its motion (its brakes).
+    // N >= 0, against its motion: brakes of its own beside its air brake
+    // (the host's, on the brake pipe).
     double brakeForce = 0.0;
+    // Air its brake valve lets into the brake pipe this step (Pa·m³; - out).
+    double brakePipeAir = 0.0;
+    // Messages to the train's other units this step (the control line): a
+    // driving cab's commands. The host passes each to every other vehicle's
+    // model; it reads one name itself, "epBrake" (the EP wire's demand).
+    std::vector<Message> line;
     // Values that hold, by name: what its cab and the UI show, sent on when
-    // they change.
+    // they change. The host adds its own parts' (brakePipe, brakeCylinder).
     QHash<QString, MessageValue> values;
     // Messages it sends this step, in order (sound triggers as "sound").
     std::vector<Message> events;
@@ -72,8 +84,8 @@ public:
 
 // The model of a vehicle without a script (task driving 02): an engine gets
 // a stand-in force (throttle × MaxForce up to MaxPower / v, below
-// MaxVelocity) until its kind has a script; any other vehicle, a wagon (no
-// force; its brakes come with the brake pipe).
+// MaxVelocity) and brake valve until its kind has a script; any other
+// vehicle, a wagon (no force; its brakes are the host's air brake).
 std::unique_ptr<VehicleModel> MakeVehicleModel(const VehicleDefinition &definition);
 
 }

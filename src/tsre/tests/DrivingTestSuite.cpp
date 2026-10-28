@@ -7,6 +7,7 @@
 #include <QString>
 #include <cmath>
 #include <tsre/Game.h>
+#include <tsre/sim/AirBrake.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TrackGeometry.h>
@@ -85,21 +86,40 @@ bool writeUtf16(const QString &path, const QString &text) {
     return file.write("\xff\xfe" + QByteArray(encoder(text))) > 0;
 }
 
-// A vehicle with a definition of its own: kg, m, kind (an engine: N, W,
-// m/s).
-Sim::Vehicle vehicleOf(double mass, float length, int type, double force = 0.0, double power = 0.0,
-                       double maxSpeed = 0.0) {
-    auto def = std::make_shared<VehicleDefinition>();
-    def->massKg = mass;
-    def->size[2] = length;
-    def->wagonTypeId = type;
-    def->forceN = force;
-    def->powerW = power;
-    def->maxSpeedMps = maxSpeed;
-    Sim::Vehicle v;
-    v.definition = def;
-    return v;
+// Brakes as most MSTS stock has them (psi a second, ft³).
+const char *AirBrakes = R"(
+	BrakeSystemType ( "Air_single_pipe" )
+	BrakeEquipmentType ( "Handbrake, Triple_valve, Auxilary_reservoir" )
+	MaxApplicationRate ( 20 )
+	MaxReleaseRate ( 20 )
+	MaxAuxilaryChargingRate ( 25 )
+	TripleValveRatio ( 2.5 )
+	BrakeCylinderPressureForMaxBrakeBrakeForce ( 50 )
+	EmergencyResCapacity ( 14 ))";
+const char *EpBrakes = R"(
+	BrakeSystemType ( "EP" )
+	BrakeEquipmentType ( "EP_brake" )
+	MaxApplicationRate ( 20 )
+	MaxReleaseRate ( 20 )
+	BrakeCylinderPressureForMaxBrakeBrakeForce ( 70 ))";
+
+// An engine of 80 t, 300 kN, 5 MW, 40 m/s, and a 40 t wagon, without
+// resistance.
+QString engineFile(const char *brakes) {
+    return QString("SIMISA@@@@@@@@@@JINX0D0t______\n\nWagon ( TestEngine\n\tType ( Engine )\n\tSize ( 3m 4m 20m )\n"
+                   "\tMass ( 80t )\n\tORTSDavis_A ( 0 ) ORTSDavis_B ( 0 ) ORTSDavis_C ( 0 )\n\tMaxBrakeForce ( 80kN )%1\n)\n"
+                   "Engine ( TestEngine\n\tType ( Electric )\n\tMaxPower ( 5000kW )\n\tMaxForce ( 300kN )\n"
+                   "\tMaxVelocity ( 144kmh )\n\tTrainBrakesControllerMaxSystemPressure ( 90 )\n"
+                   "\tTrainBrakesControllerFullServicePressureDrop ( 26 )\n)\n")
+            .arg(brakes);
 }
+QString wagonFile(const char *brakes) {
+    return QString("SIMISA@@@@@@@@@@JINX0D0t______\n\nWagon ( TestWagon\n\tType ( Freight )\n\tSize ( 3m 4m 15m )\n"
+                   "\tMass ( 40t )\n\tORTSDavis_A ( 0 ) ORTSDavis_B ( 0 ) ORTSDavis_C ( 0 )\n\tMaxBrakeForce ( 40kN )%1\n)\n")
+            .arg(brakes);
+}
+
+constexpr double Psi = 6894.757293168;
 
 } // namespace
 
@@ -234,8 +254,20 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            && Sim::Message{"pantograph1", QString("up")}.flag(),
                    "messages: any name and value, as text and back");
     }
-    // The core driving a train on a straight 2 km track: an engine of
-    // 80 t (300 kN, 5 MW) and two 40 t wagons, driven from its start.
+    // Vehicles read from files, as the simulation reads them.
+    QTemporaryDir files;
+    writeUtf16(files.path() + "/engine.eng", engineFile(AirBrakes));
+    writeUtf16(files.path() + "/wagon.wag", wagonFile(AirBrakes));
+    writeUtf16(files.path() + "/ep.eng", engineFile(EpBrakes));
+    writeUtf16(files.path() + "/ep.wag", wagonFile(EpBrakes));
+    const auto vehicle = [&](const QString &name) {
+        Sim::Vehicle v;
+        v.definition = VehicleDefinition::read(files.path(), name, files.path(), false);
+        return v;
+    };
+    const Sim::Vehicle engine = vehicle("engine.eng"), wagon = vehicle("wagon.wag");
+    // The core driving a train on a straight 2 km track: the engine and two
+    // wagons, driven from its start.
     QScopedValueRollback<TDB *> restoreTrack(Game::trackDB);
     TestTrack::Layout straight;
     straight.end(1, 10);
@@ -247,16 +279,17 @@ int TsreTests::runDrivingSuite(bool verbose) {
     const Sim::TrainRoute route = Sim::BuildRoute(line, run.nodes, PathTrack::legs(line, run.nodes), 31.0);
     const int t0 = 8 * 3600;
     const auto geometry = std::make_shared<const Sim::TrackGeometry>(line);
-    const auto planOf = [&] {
+    const auto planOf = [&](std::vector<Sim::Vehicle> vehicles = {}) {
         Sim::TrainPlan p;
-        p.vehicles = {vehicleOf(80000.0, 20.0f, 4, 300000.0, 5e6, 40.0), vehicleOf(40000.0, 15.0f, 2),
-                      vehicleOf(40000.0, 15.0f, 2)};
-        p.length = 50.0f;
+        p.vehicles = vehicles.empty() ? std::vector<Sim::Vehicle>{engine, wagon, wagon} : vehicles;
+        p.length = 0.0f;
+        for (const Sim::Vehicle &v : p.vehicles)
+            p.length += float(v.length());
         p.maxSpeed = 30.0f;
         Sim::SetRates(p);
         p.startTime = t0;
         p.route = route;
-        p.startFront = route.pathStart + 51.0;
+        p.startFront = route.pathStart + p.length + 1.0;
         return p;
     };
     const auto inputOf = [&](int drivenTrain) {
@@ -444,6 +477,166 @@ int TsreTests::runDrivingSuite(bool verbose) {
             return std::make_pair(core.trains()[0].front, core.trains()[0].speed);
         };
         test.check(runOnce() == runOnce(), "a driven run repeats exactly");
+    }
+
+    // The brake pipe alone: air moves along it and none is lost; a vented
+    // end pulls the rest down in order; any step is stable; at rest it
+    // evens out.
+    {
+        Sim::BrakePipe pipe;
+        for (int i = 0; i < 50; ++i) {
+            pipe.volume.push_back(i % 2 ? 0.012 : 0.016);
+            pipe.pressure.push_back(90.0 * Psi);
+        }
+        pipe.pressure[0] = 0.0;
+        const auto air = [&] {
+            double sum = 0.0;
+            for (size_t i = 0; i < pipe.volume.size(); ++i)
+                sum += pipe.volume[i] * pipe.pressure[i];
+            return sum;
+        };
+        const double before = air();
+        for (int i = 0; i < 20; ++i)
+            pipe.step(0.01);
+        bool ordered = pipe.pressure[1] > pipe.pressure[0];
+        for (size_t i = 1; i < pipe.pressure.size(); ++i)
+            ordered = ordered && pipe.pressure[i] >= pipe.pressure[i - 1];
+        const double spreadAt = pipe.pressure[49] - pipe.pressure[0];
+        Sim::BrakePipe coarse = pipe;
+        for (int i = 0; i < 10; ++i)
+            coarse.step(1.0);
+        bool bounded = true;
+        for (double p : coarse.pressure)
+            bounded = bounded && p >= 0.0 && p <= 90.0 * Psi;
+        for (int i = 0; i < 12000; ++i)
+            pipe.step(0.01);
+        const double even = (pipe.pressure[49] - pipe.pressure[0]) / Psi;
+        test.check(equal(air(), before, 1e-9) && ordered && spreadAt > 0.0 && bounded && std::fabs(even) < 1e-6
+                           && equal(pipe.pressure[25], before / (25 * 0.028), 1e-6),
+                   QString("brake pipe: air kept, a vented end pulls it down in order, stable at 1 s, even at rest "
+                           "(%1 psi apart)").arg(even));
+    }
+    const auto valueOf = [](Sim::SimulationCore &core, int train, int v, const char *name) {
+        const Sim::VehicleOutputs *out = core.outputsOf(train, v);
+        return out ? Sim::Message{QString(), out->values.value(name, -1.0)}.number() : -1.0;
+    };
+    // Fifty cars on the pipe, standing: half the full service drop applies
+    // every cylinder to the drop × the triple valve ratio, the last car
+    // after the first; released, the pipe charges again and every cylinder
+    // empties.
+    {
+        std::vector<Sim::Vehicle> cars{engine};
+        for (int i = 0; i < 49; ++i)
+            cars.push_back(wagon);
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        made->trains.push_back(planOf(cars));
+        made->step = 0.01;
+        made->driven = 0;
+        Sim::SimulationCore core(made);
+        core.step(0.05);
+        const bool charged = equal(valueOf(core, 0, 49, "brakePipe"), 90.0 * Psi, 1e-9)
+                && valueOf(core, 0, 49, "brakeCylinder") == 0.0;
+        core.command(0, -1, {"trainBrake", 0.5});
+        double firstAt = -1.0, lastAt = -1.0;
+        for (int i = 0; i < 6000; ++i) {
+            core.step(0.01);
+            if (firstAt < 0.0 && valueOf(core, 0, 1, "brakeCylinder") > Psi)
+                firstAt = i * 0.01;
+            if (lastAt < 0.0 && valueOf(core, 0, 49, "brakeCylinder") > Psi)
+                lastAt = i * 0.01;
+        }
+        // 90 - 13 psi: the reservoir follows the pipe down, its air into a
+        // cylinder 1 / 2.5 of its volume.
+        double lowest = 1e9, highest = 0.0;
+        for (int v = 0; v < 50; ++v) {
+            const double c = valueOf(core, 0, v, "brakeCylinder") / Psi;
+            lowest = std::min(lowest, c);
+            highest = std::max(highest, c);
+        }
+        core.command(0, -1, {"trainBrake", 0.0});
+        double releasedAt = -1.0, chargedAt = -1.0;
+        for (int i = 0; i < 150000 && chargedAt < 0.0; ++i) {
+            core.step(0.01);
+            if (releasedAt < 0.0 && valueOf(core, 0, 49, "brakeCylinder") == 0.0)
+                releasedAt = i * 0.01;
+            if (chargedAt < 0.0 && valueOf(core, 0, 49, "brakePipe") > 89.5 * Psi)
+                chargedAt = i * 0.01;
+        }
+        test.check(charged && firstAt >= 0.0 && lastAt > firstAt && lowest > 30.5 && highest < 34.5 && releasedAt > 0.0
+                           && chargedAt > releasedAt,
+                   QString("fifty cars: half service, cylinders %1 to %2 psi (32.5 expected), the first applying at "
+                           "%3 s, the last at %4 s; released, the last empty at %5 s, its pipe charged at %6 s")
+                           .arg(lowest, 0, 'f', 1).arg(highest, 0, 'f', 1).arg(firstAt).arg(lastAt).arg(releasedAt)
+                           .arg(chargedAt));
+    }
+    // Stopping from 20 m/s in an emergency against the brake force's sum
+    // integrated alone: each cylinder filling at 20 psi/s to 50 psi (the
+    // full force), Open Rails' brake shoe friction from the speed.
+    {
+        Sim::SimulationCore core(inputOf(0));
+        core.step(0.05);
+        core.command(0, -1, {"throttle", 1.0});
+        while (core.trains()[0].speed < 20.0f)
+            core.step(0.01);
+        core.command(0, -1, {"throttle", 0.0});
+        core.command(0, -1, {"emergency", true});
+        const double from = core.trains()[0].front, speed = core.trains()[0].speed;
+        for (int i = 0; i < 10000 && core.trains()[0].speed > 0.0f; ++i)
+            core.step(0.01);
+        const double stopped = core.trains()[0].front - from;
+        double v = speed, x = 0.0, t = 0.0;
+        while (v > 0.0) {
+            const double share = std::min(t * 20.0 / 50.0, 1.0);
+            const double friction = std::clamp((7.6 / (v * 3.6 + 17.5) + 0.07) / 0.2, 0.01, 1.0);
+            v -= 0.001 * 160000.0 * share * friction / 160000.0;
+            x += 0.001 * std::max(v, 0.0);
+            t += 0.001;
+        }
+        test.check(equal(stopped, x, 0.03),
+                   QString("emergency stop from %1 m/s: %2 m (expected %3 m)").arg(speed).arg(stopped).arg(x));
+    }
+    // The control line: the cab's throttle and direction reach a second
+    // engine, which pulls too; the line's voltage reaches the engines.
+    {
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        made->trains.push_back(planOf({engine, engine, wagon}));
+        made->step = 0.01;
+        made->driven = 0;
+        made->lineVoltage = 15000.0;
+        Sim::SimulationCore core(made);
+        core.step(0.05);
+        core.command(0, -1, {"throttle", 0.6});
+        core.step(1.0);
+        test.check(core.cabOf(0) == 0 && valueOf(core, 0, 1, "throttle") == 0.6 && valueOf(core, 0, 1, "direction") == 1.0
+                           && valueOf(core, 0, 1, "force") > 0.0 && valueOf(core, 0, 0, "lineVoltage") == 15000.0,
+                   QString("control line: the second engine at throttle %1, direction %2, %3 N; line %4 V")
+                           .arg(valueOf(core, 0, 1, "throttle")).arg(valueOf(core, 0, 1, "direction"))
+                           .arg(valueOf(core, 0, 1, "force")).arg(valueOf(core, 0, 0, "lineVoltage")));
+    }
+    // EP brakes: the cab's brake on the EP wire fills every cylinder to its
+    // share of the full pressure at once along the train.
+    {
+        const Sim::Vehicle epEngine = vehicle("ep.eng"), epWagon = vehicle("ep.wag");
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        made->trains.push_back(planOf({epEngine, epWagon, epWagon}));
+        made->step = 0.01;
+        made->driven = 0;
+        Sim::SimulationCore core(made);
+        core.step(0.05);
+        core.command(0, -1, {"trainBrake", 0.5});
+        core.step(2.0);
+        const double last = valueOf(core, 0, 2, "brakeCylinder") / Psi;
+        core.command(0, -1, {"trainBrake", 0.0});
+        core.step(5.0);
+        test.check(equal(last, 35.0, 0.01) && valueOf(core, 0, 2, "brakeCylinder") == 0.0,
+                   QString("EP: half the brake, the last car at %1 psi in 2 s (35 expected), released after")
+                           .arg(last));
     }
     return test.finish();
 }

@@ -362,3 +362,9 @@ double VehicleDefinition::number(QAnyStringView path, int index, double otherwis
     const Units::Quantity quantity = key.kind == VehicleKeys::Value::Kind::Number ? key.quantity : Units::Quantity::Any;
     return value.tree && document->number(value, quantity, si, key.defaultUnit) ? si : otherwise;
 }
+
+QString VehicleDefinition::text(QAnyStringView path, int index) const {
+    if (!document)
+        return QString();
+    return document->text(document->values(document->last(path)).value(index)).toString();
+}
