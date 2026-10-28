@@ -314,7 +314,8 @@ couplings add.
      - last-wins and couplings that add;
      - units.
 2. **The key catalogue** (generated from Open Rails, checked by hand) **and
-   `VehicleDefinition`'s typed fields**, with a comparison tool.
+   `VehicleDefinition`'s typed fields**, with a comparison tool (done
+   2026-10-28, below).
    - Fixtures: the roots in shape, sound and cab paths and the default
      lookups without them; the `OPENRAILS` override.
    - Every ENG/WAG file on MSTS, TS_STARTER_ROUTE and OR_PSK is read by both
@@ -387,6 +388,78 @@ stray `)` in `US2BNSFCar.wag`):
 | Neither UTF-16 nor UTF-8: read as Latin-1 (Windows-1250 Polish in comments) | 28 |
 | Content on the header line (`<SIMISA…`, junk before `comment`) | 8 |
 | An unterminated quoted string (`\"` at a string's end, as Open Rails reads it too) | 2 |
+
+## Step 2 done (2026-10-28)
+
+**The key catalogue** (`src/tsre/trains/VehicleKeys`):
+- `scripts/vehicle-keys-from-openrails.py` reads Open Rails' `case` labels
+  and the reads in their bodies, and writes `VehicleKeysTable.inc`. It took
+  463 paths from upstream `8aafb3147`:
+  - 342 with values, in order;
+  - 116 blocks that their own parsers read (curves, controllers, brake and
+    power subsystems);
+  - 5 that count only by being there.
+- `VehicleKeys.cpp` maps Open Rails' 23 unit names to TSRE's quantities and
+  the unit a bare number is in (`psi`, `psi/s`, `ft^3`, `l`, `mph`, `inhg`,
+  `lb/h`, `kj/kg`, `min`, `h`; SI for the rest). No unit name is left
+  unmapped (checked).
+- The insides of the 116 blocks reach Lua as written until a physics task
+  catalogues them.
+
+**`VehicleDefinition`** (`src/tsre/trains/`) holds:
+- today's typed fields, unchanged in meaning;
+- the resistance, worked out once (`MakeInput`'s rule moved here), with
+  where it came from;
+- the file paths: shape, freight animations, sounds, cab view (newly read)
+  and 3D cab shape. With a root they come from the root; without one, from
+  Open Rails' places: the vehicle's folder, its `SOUND` then the game's
+  `SOUND`, `CABVIEW`, `CABVIEW3D`.
+- the lights block, written back as text by `SimisDocument::write` for
+  `EngLightsBlock`.
+
+**Also fixed in the tree:** a quote ends an unquoted item and is dropped
+(`x.sms"`), as Open Rails reads it.
+
+**Suites:**
+- `vehicle-file`: 33 checks. New ones cover the definition (SI fields,
+  roots and Open Rails' places, the `OPENRAILS` copy, the resistance, the
+  lights) and the catalogue.
+- `vehicle-definitions-compare`: reads every ENG/WAG with both readers and
+  compares the fields.
+
+**Comparison of the old `Eng::load` with the new reader:**
+
+| | Files | Alike |
+| --- | --- | --- |
+| MSTS | 108 | 108 |
+| TS_STARTER_ROUTE | 100 | 100 (sound paths alike once `\\` is `/`) |
+| OR_PSK | 3,826 | 3,748 |
+
+All 78 OR_PSK differences come from the old reader. In each case the new
+reader does what Open Rails does:
+1. **The old reader stopped at a `)` that closes no block at the top
+   level**, losing the `Engine` block after it: ED78, ET41, EN57-857rb.
+   Open Rails skips such a `)`.
+2. **A `#` comment** such as `WagonEmptyWeight ( 26.8t ) #prazdny vagon`
+   threw the old reader off. Its brakes, couplings and Davis values were
+   lost: CDvagFalls, ZSSKCvagFalls.
+3. **Junk on the first line of light includes** (SM42, SU42). Open Rails
+   never reads that line, so their lights now load.
+4. **Broken quotes, tokenised as Open Rails does:**
+   - PCC_Fals's unclosed `BrakeEquipmentType( "…` swallows its
+     `BrakeSystemType`, in Open Rails too;
+   - the PPS name;
+   - CD130's sounds;
+   - the EP05/EU05 freight shapes ending in `"`.
+5. **Includes in blocks nobody reads** are still listed among the files.
+   For example, EN57A's `Engine` sits inside its unclosed `Wagon`; all
+   three readers lose that engine.
+6. **BLG Laaers' nested `Sound ( Sound ( … ) )`** gives no usable sound in
+   any reader.
+
+**Time:** each definition read on its own, nothing shared, takes 3.4 s for
+OR_PSK against `Eng::load`'s 1.5 s (Release). Held together, sharing their
+includes, they took 0.56 s in step 1.
 
 ## Decisions (user, 2026-10-28)
 

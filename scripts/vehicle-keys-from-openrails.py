@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""Make TSRE's key catalogue of ENG/WAG files from Open Rails' parse code.
+
+Task driving 01 (docs/tasks/driving/01-vehicle-definitions.md): every key of
+a vehicle file reaches Lua through the tree; the catalogue tells which
+quantity and default unit each of its values has, so Lua gets SI values.
+Open Rails dispatches each item on its path ("engine(maxforce") in `case`
+labels of its rolling stock classes and subsystems; this script reads those
+labels and the reads in their bodies (ReadFloatBlock(STFReader.UNITS.Force,
+...) and so on) and writes them, in order, as a C++ table. Open Rails is
+read as a reference only: key names and units, no code.
+
+Usage: vehicle-keys-from-openrails.py <openrails/Source> <out.inc>
+"""
+import os
+import re
+import subprocess
+import sys
+
+CASE = re.compile(r'case\s+"((?:wagon|engine)\([^"]*)"\s*:')
+READ = re.compile(r'stf\.(Read(?:Float|Double|Int|UInt|Bool|String|Vector3|Vector4|Color|Item|Hex)(?:Block)?)\s*\(')
+UNIT = re.compile(r'UNITS\.(\w+)')
+# A body handing the block to a parser of its own: a new object made from
+# the reader, an object's Parse, or a method taking the reader.
+SUBPARSER = re.compile(r'new\s+(\w+)\s*\(\s*stf\b|(\w+)\??\.\s*Parse\w*\s*\(|\b(\w+)\s*\(\s*(?:lowercasetoken\s*,\s*)?stf\b')
+COMMENT = re.compile(r'//[^\n]*|/\*.*?\*/', re.S)
+
+
+def body_end(text, start):
+    """The end of a case body: its break/return at the same level, the next
+    case label, or the switch's closing brace."""
+    depth = 0
+    i = start
+    while i < len(text):
+        c = text[i]
+        if c == '{':
+            depth += 1
+        elif c == '}':
+            if depth == 0:
+                return i
+            depth -= 1
+        elif depth == 0:
+            if text.startswith('break;', i) or text.startswith('return', i):
+                return i
+            if text.startswith('case ', i) or text.startswith('default:', i):
+                return i
+        i += 1
+    return i
+
+
+def reads(body):
+    """The reads of a body in order: (kind, unit) per value."""
+    out = []
+    for m in READ.finditer(body):
+        # The call's own arguments (a read may sit in another call's).
+        depth, i = 1, m.end()
+        while i < len(body) and depth:
+            depth += {'(': 1, ')': -1}.get(body[i], 0)
+            i += 1
+        args = body[m.end():i - 1]
+        units = [u for u in UNIT.findall(args) if u != 'Compulsory']
+        unit = units[0] if units else 'None'
+        kind = m.group(1).replace('Read', '').replace('Block', '')
+        if kind in ('Float', 'Double'):
+            out.append(('number', unit))
+        elif kind in ('Int', 'UInt', 'Hex'):
+            out.append(('integer', 'None'))
+        elif kind == 'Bool':
+            out.append(('bool', 'None'))
+        elif kind in ('String', 'Item'):
+            out.append(('text', 'None'))
+        elif kind == 'Vector3':
+            out += [('number', unit)] * 3
+        elif kind == 'Vector4':
+            out += [('number', unit)] * 4
+        elif kind == 'Color':
+            out.append(('text', 'None'))
+    return out
+
+
+def main():
+    source, target = sys.argv[1], sys.argv[2]
+    folder = os.path.join(source, 'Orts.Simulation', 'Simulation', 'RollingStocks')
+    keys = {}
+    for root, _, files in sorted(os.walk(folder)):
+        for name in sorted(files):
+            if not name.endswith('.cs'):
+                continue
+            path = os.path.join(root, name)
+            text = COMMENT.sub('', open(path, encoding='utf-8-sig', errors='replace').read())
+            labels = list(CASE.finditer(text))
+            for n, m in enumerate(labels):
+                # Labels written one after another share the next body.
+                after = text[m.end():]
+                if re.match(r'\s*case\s', after):
+                    continue
+                end = body_end(text, m.end())
+                body = text[m.end():end]
+                group = [m.group(1)]
+                k = n - 1
+                while k >= 0 and re.fullmatch(r'\s*', text[labels[k].end():labels[k + 1].start()]):
+                    group.append(labels[k].group(1))
+                    k -= 1
+                sub = SUBPARSER.search(body)
+                values = reads(body)
+                kind = 'block' if sub and not values else ('values' if values else 'present')
+                parser = next((g for g in sub.groups() if g), '') if sub else ''
+                for key in group:
+                    entry = keys.setdefault(key, {'files': [], 'kind': kind, 'values': values, 'parser': parser})
+                    entry['files'].append(os.path.relpath(path, folder))
+    try:
+        commit = subprocess.run(['git', '-C', source, 'log', '-1', '--format=%h %cs'], capture_output=True,
+                                text=True).stdout.strip()
+    except OSError:
+        commit = 'unknown'
+    with open(target, 'w', encoding='utf-8', newline='\n') as out:
+        out.write('// Generated by scripts/vehicle-keys-from-openrails.py from Open Rails %s;\n' % commit)
+        out.write('// do not edit: change VehicleKeys.cpp\'s corrections instead. Each entry:\n')
+        out.write('// the path, how Open Rails reads it (values; a block its own parser reads;\n')
+        out.write('// present: only being there counts, or read in another way), its\n')
+        out.write('// values in order ("number:Force integer bool text"), the class reading it.\n')
+        for key in sorted(keys):
+            e = keys[key]
+            values = ' '.join('%s:%s' % v if v[0] == 'number' else v[0] for v in e['values'])
+            out.write('{"%s", "%s", "%s", "%s"},\n' % (key, e['kind'], values, e['files'][0].replace('\\', '/')))
+    print('%d keys written to %s' % (len(keys), target))
+
+
+if __name__ == '__main__':
+    main()

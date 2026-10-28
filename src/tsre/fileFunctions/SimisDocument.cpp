@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QMutex>
 #include <QSet>
+#include <algorithm>
 #include <tsre/units/UnitConversion.h>
 
 namespace {
@@ -295,6 +296,24 @@ bool SimisDocument::is(Item item, QAnyStringView name) const {
 
 bool SimisDocument::number(Item value, Units::Quantity quantity, double &si, QStringView defaultUnit) const {
     return value.tree && value.node >= 0 && Units::fromFileToken(text(value), quantity, si, defaultUnit);
+}
+
+QString SimisDocument::write(Item item) const {
+    if (!item.tree || item.node < 0)
+        return {};
+    const SimisTree::Node &node = item.tree->node(item.node);
+    const QString text = item.tree->text(item.node).toString();
+    if (node.kind != SimisTree::Kind::Block) {
+        const bool plain = !(node.flags & SimisTree::Quoted) && !text.isEmpty()
+                           && std::none_of(text.begin(), text.end(), [](QChar c) {
+                                  return c.isSpace() || c == u'(' || c == u')' || c == u'"';
+                              });
+        return plain ? text : SimisTextReader::quote(text);
+    }
+    QString out = text.isEmpty() ? QString("(") : text + " (";
+    for (const Item &inner : items(item))
+        out += " " + write(inner);
+    return out + " )";
 }
 
 QString SimisDocument::file(Item item) const {

@@ -7,4 +7,7 @@ int runVehicleFileSuite(bool verbose);
 // Every ENG/WAG file under the game folder read so: problems counted by
 // kind, includes, memory, time.
 int runVehicleFileCorpusSuite(bool verbose);
+// Every ENG/WAG file under the game folder read by Eng::load and as a
+// VehicleDefinition: the fields compared, the differences listed by field.
+int runVehicleDefinitionCompareSuite(bool verbose);
 }

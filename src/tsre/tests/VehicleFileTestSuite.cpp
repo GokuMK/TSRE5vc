@@ -16,6 +16,11 @@
 #include <tsre/fileFunctions/SimisDocument.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
 #include <tsre/tests/TokenTestSupport.h>
+#include <settings/SettingsAccess.h>
+#include <tsre/trains/Eng.h>
+#include <tsre/trains/EngLights.h>
+#include <tsre/trains/VehicleDefinition.h>
+#include <tsre/trains/VehicleKeys.h>
 
 using Item = SimisDocument::Item;
 using Units::Quantity;
@@ -165,6 +170,7 @@ int TsreTests::runVehicleFileSuite(bool verbose) {
                              "  Name ( \"A \" + \"B\" )\n"
                              "  Description ( \"say \\\"hi\\\"\" )\n"
                              "  Plain ( \"abc\" )\n"
+                             "  Half ( x.sms\" y\"z )\n"
                              "  ( anonymous )\n"
                              ")\n");
         auto doc = SimisDocument::read(path, roots);
@@ -182,6 +188,8 @@ int TsreTests::runVehicleFileSuite(bool verbose) {
                            && !(plain.tree->node(plain.node).flags & SimisTree::Decoded)
                            && doc->text(plain) == u"abc",
                    "quoted strings: joined with '+', escapes; a plain one read in place");
+        test.check(lastValues(*doc, "wagon(half") == QStringList({"x.sms", "y", "z"}),
+                   "a quote ends an unquoted item: " + lastValues(*doc, "wagon(half").join("|"));
         const auto top = doc->items(doc->last("wagon"));
         test.check(doc->text(top.value(0)) == u"W" && doc->isBlock(top.last()) && doc->text(top.last()).isEmpty()
                            && doc->problems().isEmpty() && doc->line(doc->last("wagon(size")) == 11,
@@ -301,6 +309,91 @@ int TsreTests::runVehicleFileSuite(bool verbose) {
                    "a block left open at the end: read, told");
     }
 
+    // A vehicle definition: typed fields in SI, the file names found with
+    // and without roots, the OPENRAILS copy over the original.
+    {
+        const QString folder = trainset + "/DEF";
+        write(trainset + "/common.s/body.s", Header);
+        write(folder + "/load.s", Header);
+        write(folder + "/SOUND/def.sms", Header);
+        write(game + "/SOUND/cab.sms", Header);
+        write(folder + "/CABVIEW/def.cvf", Header);
+        write(folder + "/CABVIEW3D/cab.s", Header);
+        write(folder + "/def.eng",
+              Header + "Wagon ( DEF\n"
+                       "  Type ( Engine )\n"
+                       "  WagonShape ( [[Trainset]]/common.s/body.s )\n"
+                       "  FreightAnim ( load.s 1 0 )\n"
+                       "  Size ( 3m 4m 20m )\n"
+                       "  Mass ( 80t )\n"
+                       "  Sound ( def.sms )\n"
+                       "  Friction ( 100N/m/s 1 5mph 2N/m/s 1 )\n"
+                       "  Coupling ( Type ( Automatic ) Spring ( r0 ( 1cm 5cm ) ) Velocity ( 0.1 ) )\n"
+                       "  ORTS3DCab ( ORTS3DCabFile ( cab.s ) ORTS3DCabHeadPos ( 1 2 3 ) StartDirection ( 0 180 0 ) )\n"
+                       "  Lights ( 1 Light ( Type ( 0 ) Conditions ( Headlight ( 0 ) ) Cycle ( 0 ) FadeIn ( 0 ) FadeOut ( 0 )\n"
+                       "    States ( 1 State ( Duration ( 0 ) LightColour ( ffffffff ) Position ( 0 1 2 ) Radius ( 0.5 ) ) ) ) )\n"
+                       ")\n"
+                       "Engine ( DEF\n"
+                       "  Type ( Electric )\n"
+                       "  MaxForce ( 300kN )\n"
+                       "  MaxPower ( 5600kW )\n"
+                       "  MaxVelocity ( 100mph )\n"
+                       "  Sound ( [[Sound]]/cab.sms )\n"
+                       "  CabView ( def.cvf )\n"
+                       "  Name ( \"The DEF\" )\n"
+                       ")\n");
+        write(folder + "/OPENRAILS/def.eng", Header + "include ( ../[[SameName]] )\n"
+                                                      "Wagon ( DEF ORTSDavis_A ( 600N ) ORTSDavis_B ( 10N/m/s ) ORTSDavis_C ( 1 )\n"
+                                                      "  Mass ( 82t ) Sound ( [[Nowhere]]/x.sms ) )\n");
+        const auto msts = VehicleDefinition::read(folder, "def.eng", game, false);
+        const auto copy = VehicleDefinition::read(folder, "def.eng", game, true);
+        test.check(msts->ok() && msts->path == folder + "/def.eng" && copy->path == folder + "/OPENRAILS/def.eng"
+                           && equal(msts->massKg, 80000) && equal(copy->massKg, 82000),
+                   "the OPENRAILS copy read over the original when asked");
+        test.check(msts->wagonTypeId == 4 && msts->typeHash == "Engine-Electric" && msts->engName == "DEF"
+                           && msts->displayName == "The DEF" && equal(msts->forceN, 300000)
+                           && equal(msts->powerW, 5600000) && equal(msts->maxSpeedMps, 100 * 0.44704)
+                           && equal(msts->size[2], 20) && msts->couplings.size() == 1
+                           && equal(msts->couplings[0].r0[1], 0.05),
+                   "typed fields in SI");
+        test.check(msts->shapePath == trainset + "/common.s/body.s" && msts->freightAnims.value(0).path == folder + "/load.s"
+                           && msts->soundPath == folder + "/SOUND/def.sms" && msts->cabSoundPath == game + "/SOUND/cab.sms"
+                           && msts->cabViewPath == folder + "/CABVIEW/def.cvf"
+                           && msts->cab3DShapePath == folder + "/CABVIEW3D/cab.s" && msts->problems.isEmpty(),
+                   "files with roots and in Open Rails' places: " + msts->shapePath + " " + msts->soundPath);
+        test.check(msts->resistanceFrom == VehicleDefinition::Resistance::Friction
+                           && copy->resistanceFrom == VehicleDefinition::Resistance::Davis
+                           && equal(copy->resistance[0], 600) && equal(copy->resistance[1], 10)
+                           && copy->soundPath.isEmpty() && !copy->problems.isEmpty(),
+                   "the resistance and where it came from; an unknown root told");
+        const EngLights *lights = msts->lights ? msts->lights->lights() : nullptr;
+        test.check(lights && lights->lights.size() == 1 && lights->lights[0].states.size() == 1
+                           && equal(lights->lights[0].states[0].position[2], 2),
+                   "the Lights block read from its text");
+    }
+
+    // The key catalogue: Open Rails' paths, any case, each value's quantity
+    // and the unit of a number written without one.
+    {
+        using V = VehicleKeys::Value;
+        const auto *force = VehicleKeys::find("Engine(MaxForce");
+        const auto *r0 = VehicleKeys::find("wagon(coupling(spring(r0");
+        const auto *friction = VehicleKeys::find("wagon(friction");
+        const V speed = VehicleKeys::value("engine(maxvelocity", 0);
+        const V pressure = VehicleKeys::value("wagon(maxreleaserate", 0);
+        test.check(VehicleKeys::all().size() > 400 && force && force->values.size() == 1
+                           && force->values[0].quantity == Quantity::Force && r0 && r0->values.size() == 2
+                           && r0->values[1].quantity == Quantity::Length && friction && friction->values.size() == 5
+                           && friction->values[2].quantity == Quantity::Speed && speed.quantity == Quantity::Speed
+                           && speed.defaultUnit.isEmpty() && pressure.quantity == Quantity::PressureRate
+                           && pressure.defaultUnit == "psi/s" && !VehicleKeys::find("wagon(nosuchkey")
+                           && VehicleKeys::find("wagon(lights")->read == VehicleKeys::Read::Block
+                           && VehicleKeys::find("wagon(passengercapacity")->read == VehicleKeys::Read::Present,
+                   QString("the key catalogue: %1 keys").arg(VehicleKeys::all().size()));
+        test.check(VehicleKeys::unmappedUnits().isEmpty(),
+                   "every Open Rails unit has a quantity: " + VehicleKeys::unmappedUnits().join(","));
+    }
+
     // The cache: a file read once while held; a changed file read again,
     // documents made before keep theirs.
     {
@@ -391,6 +484,205 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
     for (auto k = kinds.cbegin(); k != kinds.cend(); ++k)
         qInfo().noquote() << QString("  %1 x %2  e.g. %3").arg(k.value(), 5).arg(k.key(), examples[k.key()]);
     test.check(read == files.size(), QString("every file read: %1 of %2").arg(read).arg(files.size()));
+    Q_UNUSED(verbose);
+    return test.finish();
+}
+
+namespace {
+
+// Two numbers the same: the old reader keeps floats.
+bool same(double a, double b) { return std::fabs(a - b) <= 1e-5 * std::max(1.0, std::max(std::fabs(a), std::fabs(b))); }
+
+QString floats(const float *v, int n) {
+    QStringList list;
+    for (int k = 0; k < n; ++k)
+        list << QString::number(v[k], 'g', 7);
+    return list.join(" ");
+}
+
+QString doubles(const double *v, int n) {
+    QStringList list;
+    for (int k = 0; k < n; ++k)
+        list << QString::number(v[k], 'g', 9);
+    return list.join(" ");
+}
+
+bool sameFloats(const float *a, const float *b, int n) {
+    for (int k = 0; k < n; ++k)
+        if (!same(a[k], b[k]))
+            return false;
+    return true;
+}
+
+bool sameDoubles(const double *a, const double *b, int n) {
+    for (int k = 0; k < n; ++k)
+        if (!same(a[k], b[k]))
+            return false;
+    return true;
+}
+
+// A vehicle's lights as text for comparing: each light's states (place,
+// radius), conditions, shape part and graphic.
+QString lightsText(const EngLights *lights) {
+    if (lights == nullptr)
+        return "none";
+    QStringList out;
+    for (const auto &light : lights->lights) {
+        QString one = QString("%1:%2/%3/%4").arg(light.index).arg(light.states.size()).arg(light.conditions.size())
+                              .arg(light.shapeHierarchy + light.graphic);
+        if (!light.states.isEmpty())
+            one += " " + floats(light.states[0].position, 3) + " r" + QString::number(light.states[0].radius);
+        out << one;
+    }
+    return QString::number(lights->lights.size()) + " [" + out.join("; ") + "]";
+}
+
+} // namespace
+
+int TsreTests::runVehicleDefinitionCompareSuite(bool verbose) {
+    TokenTest::Suite test{"[tests:vehicle-definitions-compare]", verbose};
+    const QString root = QDir::cleanPath(Game::root);
+    QStringList files;
+    QDirIterator it(root + "/TRAINS/TRAINSET", QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString path = it.next();
+        const QString suffix = QFileInfo(path).suffix().toLower();
+        // The vehicles EngLib loads: in a TRAINSET folder's own folder, not
+        // its OPENRAILS copies.
+        if ((suffix == "eng" || suffix == "wag") && !QFileInfo(path).path().endsWith("/OPENRAILS"))
+            files << path;
+    }
+    files.sort();
+    const bool openRails = Settings::boolean("core.content.loading.preferOpenRailsEng");
+    QMap<QString, int> differences;
+    QMap<QString, QStringList> examples;
+    int read = 0, alike = 0;
+    qint64 oldMs = 0, newMs = 0;
+    QElapsedTimer timer;
+    for (const QString &path : files) {
+        const QString folder = QFileInfo(path).path(), name = QFileInfo(path).fileName();
+        timer.start();
+        Eng old(path, folder, name);
+        oldMs += timer.nsecsElapsed();
+        timer.start();
+        const auto def = VehicleDefinition::read(folder, name, root, openRails);
+        newMs += timer.nsecsElapsed();
+        if (old.loaded != 1 || !def->ok())
+            continue;
+        ++read;
+        QStringList fields;
+        const auto differ = [&](const QString &field, bool equal, const QString &was, const QString &is) {
+            if (equal)
+                return;
+            fields << field;
+            ++differences[field];
+            // Examples from different folders (a family of cars shares
+            // its cause).
+            const QString family = QFileInfo(path).path().remove(root);
+            if (examples[field].size() < 6
+                && std::none_of(examples[field].begin(), examples[field].end(),
+                                [&](const QString &e) { return e.startsWith(family + "/"); }))
+                examples[field] << QString("%1: \"%2\" -> \"%3\"").arg(QString(path).remove(root), was.left(160),
+                                                                       is.left(160));
+        };
+        differ("engName", old.engName == def->engName, old.engName, def->engName);
+        differ("displayName", old.displayName == def->displayName, old.displayName, def->displayName);
+        differ("searchKeywords", old.searchKeywords == def->searchKeywords, old.searchKeywords, def->searchKeywords);
+        differ("type", old.type == def->type && old.engType == def->engType && old.typeHash == def->typeHash
+                               && old.wagonTypeId == def->wagonTypeId,
+               QString("%1 %2 %3 %4").arg(old.type, old.engType, old.typeHash).arg(old.wagonTypeId),
+               QString("%1 %2 %3 %4").arg(def->type, def->engType, def->typeHash).arg(def->wagonTypeId));
+        differ("brakeSystemType", old.brakeSystemType == def->brakeSystemType, old.brakeSystemType,
+               def->brakeSystemType);
+        // Paths alike once '\\' (kept as written by the old reader) and
+        // '\' are '/'.
+        const auto slashes = [](QString p) {
+            p.replace("\\\\", "/").replace(u'\\', u'/');
+            while (p.contains("//"))
+                p.replace("//", "/");
+            return p;
+        };
+        differ("shape", old.shape.name == def->shape, old.shape.name, def->shape);
+        {
+            QStringList was, is;
+            for (const auto &f : old.freightanimShape)
+                was << QString("%1 %2 %3 %4").arg(slashes(f.name)).arg(f.x).arg(f.y).arg(f.z);
+            for (const auto &f : def->freightAnims)
+                is << QString("%1 %2 %3 %4").arg(slashes(f.shape)).arg(f.offset[0]).arg(f.offset[1]).arg(f.offset[2]);
+            differ("freightAnims", was == is, was.join(", "), is.join(", "));
+        }
+        const float oldSize[3] = {old.sizex, old.sizey, old.sizez};
+        differ("size", sameFloats(oldSize, def->size, 3), floats(oldSize, 3), floats(def->size, 3));
+        differ("massKg", same(old.massKg, def->massKg), QString::number(old.massKg), QString::number(def->massKg));
+        differ("wheelRadius", same(old.wheelRadius, def->wheelRadius) && same(old.driverWheelRadius, def->driverWheelRadius),
+               QString("%1 %2").arg(old.wheelRadius).arg(old.driverWheelRadius),
+               QString("%1 %2").arg(def->wheelRadius).arg(def->driverWheelRadius));
+        {
+            QStringList was, is;
+            for (const auto &c : old.coupling)
+                was << QString("%1 %2 %3").arg(c.type, floats(c.r0, 2)).arg(c.velocity);
+            for (const auto &c : def->couplings)
+                is << QString("%1 %2 %3").arg(c.type, floats(c.r0, 2)).arg(c.velocity);
+            differ("couplings", was == is, was.join(", "), is.join(", "));
+        }
+        differ("engine", same(old.forceN, def->forceN) && same(old.powerW, def->powerW)
+                                 && same(old.maxSpeedMps, def->maxSpeedMps) && same(old.maxCurrent, def->maxCurrent),
+               QString("%1 N %2 W %3 m/s %4 A").arg(old.forceN).arg(old.powerW).arg(old.maxSpeedMps).arg(old.maxCurrent),
+               QString("%1 N %2 W %3 m/s %4 A").arg(def->forceN).arg(def->powerW).arg(def->maxSpeedMps).arg(def->maxCurrent));
+        differ("davis", old.hasDavis == def->hasDavis && sameDoubles(old.davis, def->davis, 3),
+               QString("%1 %2").arg(old.hasDavis).arg(doubles(old.davis, 3)),
+               QString("%1 %2").arg(def->hasDavis).arg(doubles(def->davis, 3)));
+        differ("friction", old.hasFriction == def->hasFriction && sameDoubles(old.friction, def->friction, 5),
+               QString("%1 %2").arg(old.hasFriction).arg(doubles(old.friction, 5)),
+               QString("%1 %2").arg(def->hasFriction).arg(doubles(def->friction, 5)));
+        differ("passengerCapacity", old.passengerCapacity == def->passengerCapacity,
+               QString::number(old.passengerCapacity), QString::number(def->passengerCapacity));
+        differ("sounds", slashes(old.soundFile) == slashes(def->soundFile)
+                                 && slashes(old.souncCabFile) == slashes(def->cabSoundFile),
+               old.soundFile + " | " + old.souncCabFile, def->soundFile + " | " + def->cabSoundFile);
+        {
+            const auto cabText = [](const QStringList &shapes, int viewpoints, const float *first) {
+                return QString("%1 / %2 %3").arg(shapes.join(",")).arg(viewpoints).arg(first ? floats(first, 3) : "");
+            };
+            const QString was = old.cab3D ? cabText(old.cab3D->shapes, old.cab3D->viewpoints.size(),
+                                                    old.cab3D->viewpoints.isEmpty() ? nullptr : old.cab3D->viewpoints[0].position)
+                                          : "none";
+            const QString is = def->cab3D ? cabText(def->cab3D->shapes, def->cab3D->viewpoints.size(),
+                                                    def->cab3D->viewpoints.isEmpty() ? nullptr : def->cab3D->viewpoints[0].position)
+                                          : "none";
+            differ("cab3D", was == is, was, is);
+        }
+        {
+            const QString was = lightsText(old.getLights());
+            const QString is = lightsText(def->lights ? def->lights->lights() : nullptr);
+            differ("lights", was == is, was, is);
+        }
+        {
+            QStringList was = old.filePaths, is = def->document->files();
+            for (QString &f : was)
+                f = QDir::cleanPath(QFileInfo(f).absoluteFilePath());
+            QStringList onlyOld, onlyNew;
+            for (const QString &f : was)
+                if (!is.contains(f))
+                    onlyOld << QString(f).remove(root);
+            for (const QString &f : is)
+                if (!was.contains(f))
+                    onlyNew << QString(f).remove(root);
+            differ("files", onlyOld.isEmpty() && onlyNew.isEmpty(), onlyOld.join(","), onlyNew.join(","));
+        }
+        alike += fields.isEmpty() ? 1 : 0;
+        if (verbose && !fields.isEmpty())
+            qInfo().noquote() << "  differs" << QString(path).remove(root) << fields.join(",");
+    }
+    qInfo().noquote() << QString("[tests:vehicle-definitions-compare] %1 files, %2 read by both, %3 alike; "
+                                 "Eng::load %4 ms, VehicleDefinition %5 ms")
+                                 .arg(files.size()).arg(read).arg(alike).arg(oldMs / 1000000).arg(newMs / 1000000);
+    for (auto d = differences.cbegin(); d != differences.cend(); ++d) {
+        qInfo().noquote() << QString("  %1: %2 files").arg(d.key()).arg(d.value());
+        for (const QString &e : examples[d.key()])
+            qInfo().noquote() << "      " + e;
+    }
+    test.check(read > 0, QString("files read by both: %1").arg(read));
     Q_UNUSED(verbose);
     return test.finish();
 }

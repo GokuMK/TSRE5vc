@@ -77,6 +77,10 @@ class SimisDocument {
     // A value as a number with its unit, in SI (Units::fromFileToken: the
     // quantity's units, `defaultUnit` without one written).
     bool number(Item value, Units::Quantity quantity, double &si, QStringView defaultUnit = {}) const;
+    // An item as SIMIS text: a value (quoted where it was or must be), a
+    // block with its items, includes followed; for readers taking text
+    // (EngLightsBlock).
+    QString write(Item item) const;
     // Where an item was written.
     QString file(Item item) const;
     int line(Item item) const;

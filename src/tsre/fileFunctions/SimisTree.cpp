@@ -57,8 +57,18 @@ struct SimisTreeBuilder {
         SimisTree::Node node;
         node.begin = qint32(base + token.begin);
         if (token.kind == Kind::Atom) {
-            node.length = qint32(token.end - token.begin);
-            return push(node);
+            // A quote ends an unquoted item and is dropped (Open Rails: its
+            // leading quote missing, `x.sms"`); what follows is the next.
+            const qsizetype quote = token.text.indexOf(u'"');
+            node.length = qint32(quote < 0 ? token.end - token.begin : quote);
+            int index = node.length > 0 || quote < 0 ? push(node) : -1;
+            if (quote >= 0 && quote + 1 < token.text.size()) {
+                SimisTextReader::Token rest = token;
+                rest.begin = token.begin + quote + 1;
+                rest.text = token.text.mid(quote + 1);
+                index = value(rest, base);
+            }
+            return index;
         }
         node.flags = SimisTree::Quoted;
         const qsizetype inner = token.end - token.begin - 2;
