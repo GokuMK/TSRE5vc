@@ -1,6 +1,6 @@
 # Task 02 - The driving harness: a first whole stack
 
-Status: the user's answers of 2026-10-28 in (decisions at the end); being built on `feature/driving` (steps 1 and 2 done).
+Status: the user's answers of 2026-10-28 in (decisions at the end); being built on `feature/driving` (steps 1 to 3 done).
 
 The user's request (2026-10-28), after the ENG refactor (task 01) was
 merged:
@@ -504,7 +504,7 @@ engine passes it on.
    the control line, the line voltage. Checks: braking distances against the formula; a pipe charging
    and applying along 50 cars.
 3. **The vehicle model interface and the Lua host,** then the electric loco
-   script. Checks:
+   script (done 2026-10-28, below). Checks:
    - the script's force against the formulas;
    - pantograph and breaker timings;
    - a script error contained;
@@ -734,6 +734,188 @@ Coming in step 3 with the electric loco:
 - the controller's notches;
 - the main reservoir limiting the charge;
 - the engine brake.
+
+## Step 3 done (2026-10-28)
+
+**The Lua host** (`src/tsre/sim/LocoScript`):
+- **`LocoScripts`:** the run's Lua state (TSRE's simulation kind: seeded,
+  no clock, time and memory limits), made on the first takeover of a
+  scripted loco. It loads each script file once. Every engine of
+  `Type ( Electric )` runs `appdata/0.7/scripts/loco/electric.lua`; the
+  others keep the C++ stand-in.
+- **A script's functions,** all optional but `update`:
+  - `init(state, vehicle)`, once;
+  - `update(dt, inputs, state, out)`, every step;
+  - `command(name, value, state[, from])`, every message for it; `from` is
+    `"line"` for one from another unit on the control line;
+  - `save(state)`, what to save (else the state table).
+
+  While they run, `send(name, value)` sends an event and `line(name,
+  value)` a message to the train's other units.
+- **`vehicle`,** the loco's file through the key catalogue, in SI:
+  - `vehicle.engine.maxforce`, `vehicle.wagon.mass`: a key's first value;
+  - `vehicle.number(path, index, default)`, `text`, `values` (the last such
+    block's), `all` (every such block's), `blocks` (the blocks inside one,
+    each with its name and values: the curves), `has`.
+- **`inputs`:**
+  - `speed`, `gradient`, `adhesionLimit`, `lineVoltage`;
+  - `brakePipe`, `brakePipeVolume`, `brakeCylinder`;
+  - `cab`.
+- **`out`:**
+  - `motiveForce`, `brakeForce`;
+  - `brakePipeAir`;
+  - `independentBrake` (the loco's cylinder gets at least this; the host's
+    air brake takes the larger), `bailOff` (a rate);
+  - `values`.
+- **Each loco has its own state table,** saved and restored as text by
+  TSRE's Lua state.
+- **A script error stops every loco running that script:** they give no
+  force, and each tells it once (event `scriptError`). The run goes on. An
+  endless loop stops at the call's 100 ms limit.
+
+**Control-line directions are the sender's:** the host turns a `direction`
+message for a unit facing the other way.
+
+**`electric.lua`** (about 1,200 lines), Open Rails' electric locomotive
+from its behaviour: `reports/or-electric-loco-spec.md`, read from Open
+Rails 8aafb3147 with file and line references; no code was taken. In Open Rails' order each step:
+- **The battery and master key:** AlwaysOn, Switch and PushButtons (the
+  push buttons as a switch for now); Manual, with its delay off and its
+  headlight control.
+  - As in Open Rails' default electric supply, they give only cab and low
+    voltage power. Main power, the breaker and traction don't depend on
+    them.
+- **The circuit breaker:** Automatic, Manual, PushButtons and TwoStage,
+  with their driver orders and closing authorisation, the closing delay,
+  and one change of state a step.
+- **The power supply:**
+  - pantographs (two at least, with their delays, `ORTSPantographs` read
+    from the Wagon section as Open Rails does);
+  - the line voltage filtered as Open Rails does (0.7 Hz);
+  - main and auxiliary power after their delays;
+  - all off at once without a pantograph up or with the breaker open;
+  - a hot start, or everything on when taken over at speed.
+- **The levers:**
+  - Open Rails' notch controllers: notched and smooth notches, one notch or
+    one step a press, 5 steps a second while held;
+  - the train brake's equalising reservoir by every notch type, the
+    minimum reduction latch, the EP wire's demand;
+  - the engine brake's demand and line, from the main reservoir;
+  - bail off, with main power only;
+  - the dynamic brake after its delay, the interlocks with the throttle.
+- **Traction:**
+  - throttle × `MaxForce`, at most `MaxPower` × throttle² / v, the fade at
+    `MaxVelocity`;
+  - or `ORTSMaxTractiveForceCurves` / `ORTSTractionCharacteristics`,
+    interpolated and extrapolated as Open Rails;
+  - the `MaxContinuousForce` heat limit, the ramps from
+    `RunUpTimeToMaxForce`, `DoesBrakeCutPower`;
+  - the direction changed only with the throttle shut;
+  - the host's adhesion limit.
+- **The dynamic brake:** Open Rails' default curve (its speeds read in mph)
+  or `ORTSDynamicBrakeForceCurves`; no line power needed.
+- **The compressor and main reservoir.**
+- **Driving the train:** the brake pipe at the loco charged from the main
+  reservoir, vented, or vented in an emergency.
+- **Headlight, horn, emergency button.**
+- **Sounds:** Open Rails' trigger numbers, sent as `sound` events.
+- **Values:**
+  - the levers, direction, forces, ammeter;
+  - the line and filter voltages, the pantographs and their states, the
+    breaker, main and auxiliary power, battery, master key;
+  - the compressor and the pressures;
+  - emergency, headlight, horn.
+- **The cab's loco sends to the other units:** its throttle, direction,
+  dynamic brake, pantographs, breaker, battery, master key and quick power
+  commands.
+
+**Commands:**
+- TSRE's names (the table above);
+- `<lever>Increase` / `<lever>Decrease` true/false, for a lever held (the
+  keyboard, next task);
+- `power` on/off (Open Rails' quick power);
+- `circuitBreaker` close/open/released;
+- `circuitBreakerAuthorization`;
+- `bailOff`.
+
+**Open Rails' odd behaviour, kept:**
+- Running, SelfLap and Neutral leave the equalising reservoir alone;
+- the half bar slow-down band;
+- the engine brake's sounds swapped (21 on release, 22 on apply);
+- bail off only with main power;
+- the breaker seeing a raised pantograph a step late.
+
+**Open Rails' odd behaviour, not kept:**
+- **A missing `Throttle` block:** Open Rails' lever never moves; TSRE's is
+  continuous in steps of 0.1.
+- **No `MaxPower`:** Open Rails gives no force once moving; TSRE gives no
+  power limit.
+- **No `AirBrakesMainResVolume`:** Open Rails divides by zero, so the main
+  reservoir fills at once; TSRE takes its 0.3 m³ default.
+
+**Left for later:**
+- **For the keyboard and cab task:** `ORTSDelayTimeBeforeUpdating`, the
+  overcharge and quick release buttons, the sound variables.
+- the engine brake's line shared by a multiple unit;
+- the battery push buttons' own behaviour;
+- the train control system (always authorised);
+- wheel slip (the host's adhesion limit stands in).
+
+**Suite `driving`,** 16 more checks (34):
+- **The host:**
+  - a test script reading its file in SI and echoing a message of its own;
+  - two engines pulling at the cab's throttle over the control line;
+  - its state saved and restored into a new loco;
+  - an error stopping only its locos' force, told once each;
+  - an endless loop stopped at 100 ms.
+- **`electric.lua`, force:** against the formulas at four throttle and
+  speed points (exact), and 202 kN after an hour at full force (the 200 kN
+  continuous force).
+- **`electric.lua`, dynamic brake:**
+  - none in its first second;
+  - −150 kN at 20 m/s, −84.2 kN at 6 m/s (exact);
+  - no throttle while it is on.
+- **`electric.lua`, saved and restored:** the same steps after.
+- **`electric.lua`, the hot start's timings** (an ENG with 3 s pantographs,
+  a 2 s manual breaker, 1 s and 2 s power delays):
+  - pantograph up at 2.99 s;
+  - the breaker closing a step later, closed 2.01 s after that;
+  - power 1 s after that, auxiliary power 2 s after;
+  - moving with power;
+  - the line at 25 kV.
+- **`electric.lua`, train brake:** full service 64 psi, the pipe following;
+  the graduated notch at half, 74 psi; released, 90.
+- **`electric.lua`, the compressor:** the main reservoir drawn below its
+  restart pressure, filled to its maximum.
+- **`electric.lua`, emergency and engine brake:**
+  - emergency vents the pipe below 5 psi in 1 s;
+  - the engine brake brings the loco's cylinder to 25 psi in 2 s and 64 psi
+    after that, the wagons' staying at 0.
+- **`electric.lua`, a pantograph lowered:** the breaker opens and power is
+  off in the same step, sounds 46 47 150 24 228.
+- **`electric.lua`, a turned second loco:** at direction −1 and the cab's
+  throttle, both pulling.
+- **The cost:** 17 µs a step per scripted loco (Release).
+
+**Suite `driving-corpus`** (`--game-root`): every electric engine through
+`electric.lua`:
+- **MSTS:** 9 of 9.
+- **OR_PSK:** 817 electric engines in 14 s:
+  - no script error;
+  - every one powered (some breakers close in 40 s);
+  - every one with a `MaxForce` pulling at 5 m/s, or half its top speed.
+  - The Vectron's characteristics table gives 292.8 kN at 18 km/h, as the
+    table has it.
+
+`TSRE_VEHICLE_FILE=<part of a path>` prints a loco's values.
+
+**Unchanged:**
+- AI-only runs of the seven routes and PRUDNIK give the same traces as main.
+- The simulation, timetable, activity, vehicle file and RmlUi suites pass;
+  so do build `all` and ctest.
+
+**The appdata archive** (koniec.org's 0.7.tar) gets `scripts/loco/` when
+it is next rebuilt from a release.
 
 ## Decisions (user, 2026-10-28)
 

@@ -83,7 +83,9 @@ void AirBrake::step(double dt, double &pipe, double ep) {
         demanded = std::min(ep, 1.0) * (std::isfinite(serviceMaxCylinder) ? serviceMaxCylinder : reference);
     const double before = cylinder_;
     stepValve(dt, pipe);
-    if (demanded > 0.0 && cylinder_ < before && before <= demanded)
+    // Its holding wire (-2) keeps the cylinder as it is.
+    const bool holding = ep_ && (ep < -1.5 || (demanded > 0.0 && before <= demanded));
+    if (holding && cylinder_ < before)
         cylinder_ = before;
     if (demanded > cylinder_) {
         double dp = std::min(dt * serviceApplicationRate, demanded - cylinder_);
@@ -196,10 +198,19 @@ void AirBrake::stepValve(double dt, double &pipe) {
     pipe = std::max(pipe, 0.0);
 }
 
+void AirBrake::independent(double dt, double pressure, double bailOff) {
+    independent_ = std::max(0.0, pressure);
+    if (bailOff > 0.0) {
+        cylinder_ = std::max(0.0, cylinder_ - bailOff * dt);
+        if (valve_ == Valve::Distributor)
+            control = 0.0;
+    }
+}
+
 double AirBrake::force(double speed) const {
     if (maxBrakeForce <= 0.0 || reference <= spring)
         return 0.0;
-    const double share = std::max((cylinder_ - spring) / (reference - spring), 0.0);
+    const double share = std::max((cylinder() - spring) / (reference - spring), 0.0);
     // Open Rails' brake shoe friction for stock whose MaxBrakeForce assumed
     // a friction of 0.2 (Curtius-Kniffler): the full force at low speed,
     // less above 20 km/h.

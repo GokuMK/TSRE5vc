@@ -1,4 +1,5 @@
 #pragma once
+#include <QByteArray>
 #include <QHash>
 #include <QString>
 #include <memory>
@@ -60,6 +61,11 @@ struct VehicleOutputs {
     double brakeForce = 0.0;
     // Air its brake valve lets into the brake pipe this step (Pa·m³; - out).
     double brakePipeAir = 0.0;
+    // A loco's independent (engine) brake: the pressure its cylinder gets
+    // at least (Pa), and the rate its automatic brake bails off (Pa/s, 0
+    // none).
+    double independentBrake = 0.0;
+    double bailOff = 0.0;
     // Messages to the train's other units this step (the control line): a
     // driving cab's commands. The host passes each to every other vehicle's
     // model; it reads one name itself, "epBrake" (the EP wire's demand).
@@ -78,8 +84,15 @@ public:
     virtual void step(const VehicleInputs &in, VehicleOutputs &out) = 0;
     // A message for it (a control, a command, a name of a script's own).
     virtual void command(const Message &message) { (void)message; }
+    // A message from another unit on the control line (not to be sent on
+    // again).
+    virtual void fromLine(const Message &message) { command(message); }
     // It drives the train (an engine): commands without a vehicle go to it.
     virtual bool drives() const { return false; }
+    // Its state as text, and back (a script's state table); false where it
+    // has none to save or the text does not fit.
+    virtual bool save(QByteArray &text) { (void)text; return false; }
+    virtual bool restore(const QByteArray &text) { (void)text; return false; }
 };
 
 // The model of a vehicle without a script (task driving 02): an engine gets

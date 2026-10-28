@@ -1,6 +1,10 @@
 #include <tsre/tests/DrivingTestSuite.h>
 
+#include <QElapsedTimer>
+#include <QDir>
+#include <QDirIterator>
 #include <QFile>
+#include <QFileInfo>
 #include <QScopedValueRollback>
 #include <QStringEncoder>
 #include <QTemporaryDir>
@@ -8,6 +12,7 @@
 #include <cmath>
 #include <tsre/Game.h>
 #include <tsre/sim/AirBrake.h>
+#include <tsre/sim/LocoScript.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TrackGeometry.h>
@@ -120,6 +125,86 @@ QString wagonFile(const char *brakes) {
 }
 
 constexpr double Psi = 6894.757293168;
+
+// An electric loco with most of what Open Rails reads: two pantographs
+// raising in 3 s, a manual breaker closing in 2 s, power 1 s after it and
+// auxiliary power 2 s after it, a notched throttle, a train brake with
+// notches, engine and dynamic brakes, a main reservoir and compressor.
+QString electricFile() {
+    return engineFile(AirBrakes)
+            .replace("MaxBrakeForce ( 80kN )", "MaxBrakeForce ( 80kN )\n\tORTSPantographs (\n"
+                     "\t\tPantograph ( Delay ( 3s ) )\n\t\tPantograph ( Delay ( 3s ) )\n\t)")
+            .replace("\tMaxVelocity ( 144kmh )", R"(	MaxVelocity ( 144kmh )
+	MaxContinuousForce ( 200kN )
+	MaxCurrent ( 1000A )
+	ORTSCircuitBreaker ( Manual )
+	ORTSCircuitBreakerClosingDelay ( 2s )
+	ORTSPowerOnDelay ( 1s )
+	ORTSAuxPowerOnDelay ( 2s )
+	AirBrakesMainResVolume ( 20 )
+	AirBrakesMainMaxAirPressure ( 140 )
+	AirBrakesCompressorRestartPressure ( 125 )
+	TrainBrakesControllerMaxApplicationRate ( 5 )
+	TrainBrakesControllerMaxReleaseRate ( 10 )
+	DynamicBrakesMaximumForce ( 150kN )
+	DynamicBrakesMinUsableSpeed ( 5 )
+	DynamicBrakesFadingSpeed ( 20 )
+	DynamicBrakesMaximumEffectiveSpeed ( 80 )
+	DynamicBrakesDelayTimeBeforeEngaging ( 1 )
+	EngineControllers (
+		Throttle ( 0 1 0.125 0
+			NumNotches ( 9 Notch ( 0 0 Dummy ) Notch ( 0.125 0 Dummy ) Notch ( 0.25 0 Dummy )
+				Notch ( 0.375 0 Dummy ) Notch ( 0.5 0 Dummy ) Notch ( 0.625 0 Dummy ) Notch ( 0.75 0 Dummy )
+				Notch ( 0.875 0 Dummy ) Notch ( 1 0 Dummy ) )
+		)
+		Brake_Train ( 0 1 0.05 0
+			NumNotches ( 5
+				Notch ( 0 0 TrainBrakesControllerReleaseStart )
+				Notch ( 0.2 0 TrainBrakesControllerRunningStart )
+				Notch ( 0.4 1 TrainBrakesControllerGraduatedSelfLapLimitedStart )
+				Notch ( 0.9 0 TrainBrakesControllerFullServiceStart )
+				Notch ( 1 0 TrainBrakesControllerEmergencyStart )
+			)
+		)
+		Brake_Engine ( 0 1 0.1 0 NumNotches ( 0 ) )
+		Brake_Dynamic ( 0 1 0.1 0 NumNotches ( 0 ) )
+	))");
+}
+
+// A loco script for the host's checks: its file's values, commands, sends,
+// the control line, an error and a loop on demand.
+const char *HostScript = R"(
+function init(state, vehicle)
+    state.maxForce = vehicle.engine.maxforce
+    state.mass = vehicle.number("wagon(mass")
+    state.maxSpeed = vehicle.engine.maxvelocity
+    state.brakes = vehicle.text("wagon(brakesystemtype")
+    state.missing = vehicle.number("engine(nosuchkey", 1, -1)
+    state.throttle = 0
+    state.steps = 0
+end
+function command(name, value, state, from)
+    if name == "throttle" then
+        state.throttle = value
+        if from ~= "line" then line("throttle", value) end
+    elseif name == "fail" then state.fail = true
+    elseif name == "spin" then state.spin = true
+    else send("echo:" .. name, value) end
+end
+function update(dt, inputs, state, out)
+    if state.fail then error("asked to fail") end
+    if state.spin then while true do end end
+    state.steps = state.steps + 1
+    out.motiveForce = state.throttle * state.maxForce
+    out.values.maxForce = state.maxForce
+    out.values.mass = state.mass
+    out.values.maxSpeed = state.maxSpeed
+    out.values.brakes = state.brakes
+    out.values.missing = state.missing
+    out.values.steps = state.steps
+    out.values.lineVoltage = inputs.lineVoltage
+end
+)";
 
 } // namespace
 
@@ -638,5 +723,421 @@ int TsreTests::runDrivingSuite(bool verbose) {
                    QString("EP: half the brake, the last car at %1 psi in 2 s (35 expected), released after")
                            .arg(last));
     }
+    // Loco scripts, the host's side: a script reads its file in SI, takes
+    // commands, sends events and line messages, publishes values; an error
+    // or an endless loop stops only its locos' force, told once; its state
+    // saved and restored into a new loco steps the same.
+    {
+        QTemporaryDir scripts;
+        QFile file(scripts.path() + "/electric.lua");
+        const bool written = file.open(QIODevice::WriteOnly) && file.write(HostScript) > 0;
+        file.close();
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        made->trains.push_back(planOf({engine, engine, wagon}));
+        made->step = 0.01;
+        made->driven = 0;
+        made->lineVoltage = 3000.0;
+        made->locoScripts = scripts.path();
+        Sim::SimulationCore core(made);
+        core.step(0.05);
+        core.command(0, -1, {"throttle", 0.5});
+        core.command(0, -1, {"CAB_AMBIENT_LIGHT", QString("disable")});
+        core.step(0.02);
+        std::vector<std::pair<int, Sim::Message>> sent = core.takeMessages(0);
+        const bool echoed = std::any_of(sent.begin(), sent.end(), [](const auto &m) {
+            return m.first == 0 && m.second.name == "echo:CAB_AMBIENT_LIGHT" && m.second.text() == "disable";
+        });
+        const bool read = valueOf(core, 0, 0, "maxForce") == 300000.0 && valueOf(core, 0, 0, "mass") == 80000.0
+                && equal(valueOf(core, 0, 0, "maxSpeed"), 40.0, 1e-9) && valueOf(core, 0, 0, "missing") == -1.0
+                && core.outputsOf(0, 0)->values.value("brakes") == Sim::MessageValue(QString("Air_single_pipe"));
+        test.check(written && read && echoed && valueOf(core, 0, 1, "steps") > 0.0
+                           && valueOf(core, 0, 0, "lineVoltage") == 3000.0
+                           && core.outputsOf(0, 1) && valueOf(core, 0, 1, "maxForce") == 300000.0,
+                   QString("loco script: its file in SI (%1 N, %2 kg, %3 m/s), a message of its own echoed, the line "
+                           "voltage %4 V")
+                           .arg(valueOf(core, 0, 0, "maxForce")).arg(valueOf(core, 0, 0, "mass"))
+                           .arg(valueOf(core, 0, 0, "maxSpeed")).arg(valueOf(core, 0, 0, "lineVoltage")));
+        core.step(2.0);
+        // Both engines at half throttle (the second from the line, once).
+        const double speedBefore = core.trains()[0].speed;
+        test.check(valueOf(core, 0, 1, "steps") > 100.0 && speedBefore > 0.0
+                           && std::fabs(speedBefore - 2.0 * 2.0 * 150000.0 / 200000.0) < 0.2,
+                   QString("loco script: both engines pull at the cab's throttle: %1 m/s after 2 s").arg(speedBefore));
+        // Saved and restored into a new loco: the same state.
+        QByteArray saved;
+        Sim::LocoScripts other(scripts.path());
+        std::unique_ptr<Sim::VehicleModel> copy = other.make(engine.definition);
+        Sim::LocoScripts host(scripts.path());
+        std::unique_ptr<Sim::VehicleModel> original = host.make(engine.definition);
+        original->command({"throttle", 0.25});
+        Sim::VehicleInputs in;
+        in.dt = 0.01;
+        Sim::VehicleOutputs a, b;
+        for (int i = 0; i < 10; ++i)
+            original->step(in, a);
+        const bool savedOk = original->save(saved) && copy->restore(saved);
+        original->step(in, a);
+        copy->step(in, b);
+        test.check(savedOk && a.motiveForce == 75000.0 && b.motiveForce == a.motiveForce
+                           && a.values.value("steps") == b.values.value("steps")
+                           && a.values.value("steps") == Sim::MessageValue(11.0),
+                   QString("loco script: its state saved (%1 bytes) and restored, a new loco steps the same")
+                           .arg(saved.size()));
+        // An error stops its locos' force, told once; the run goes on.
+        core.command(0, -1, {"fail", true});
+        core.step(0.05);
+        sent = core.takeMessages(0);
+        const auto errors = std::count_if(sent.begin(), sent.end(),
+                                          [](const auto &m) { return m.second.name == "scriptError"; });
+        core.step(1.0);
+        test.check(errors >= 1 && core.outputsOf(0, 0)->motiveForce == 0.0 && core.outputsOf(0, 1)->motiveForce == 0.0
+                           && core.trains()[0].speed > 0.0f && !core.finished(),
+                   QString("loco script: an error stops its locos' force, told (%1 times, once each), the run going on")
+                           .arg(errors));
+        // An endless loop: stopped at its call's time limit.
+        Sim::LocoScripts spinning(scripts.path());
+        std::unique_ptr<Sim::VehicleModel> spinner = spinning.make(engine.definition);
+        spinner->command({"spin", true});
+        Sim::VehicleOutputs spun;
+        QElapsedTimer timer;
+        timer.start();
+        spinner->step(in, spun);
+        const qint64 took = timer.elapsed();
+        spinner->step(in, spun);
+        test.check(took < 2000 && spun.motiveForce == 0.0, QString("loco script: an endless loop stopped after %1 ms").arg(took));
+    }
+    // The electric loco script (appdata/<version>/scripts/loco/electric.lua,
+    // run from the checkout's folder).
+    const QString locoFolder = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+    writeUtf16(files.path() + "/electric.eng", electricFile());
+    const Sim::Vehicle electric = vehicle("electric.eng");
+    const bool scriptThere = QFileInfo::exists(locoFolder + "/electric.lua");
+    test.check(scriptThere, "electric.lua is in " + locoFolder);
+    // Its force against Open Rails' formulas: throttle × MaxForce, at most
+    // MaxPower × throttle² / v, fading over the last 0.05 m/s to
+    // MaxVelocity; the motors' heat holding it to MaxContinuousForce in the
+    // long run.
+    if (scriptThere) {
+        Sim::LocoScripts lua(locoFolder);
+        const auto forceAt = [&](double throttle, double speed, int steps = 2) {
+            std::unique_ptr<Sim::VehicleModel> m = lua.make(electric.definition);
+            Sim::VehicleInputs in;
+            in.dt = 0.01;
+            in.speed = speed;
+            in.cab = true;
+            in.brakePipe = 90.0 * Psi;
+            in.brakePipeVolume = 0.0169;
+            Sim::VehicleOutputs out;
+            m->step(in, out);
+            m->command({"direction", 1.0});
+            m->command({"throttle", throttle});
+            for (int i = 0; i < steps; ++i)
+                m->step(in, out);
+            return out.motiveForce;
+        };
+        const double a = forceAt(0.5, 10.0), b = forceAt(1.0, 30.0), c = forceAt(1.0, 39.98), d = forceAt(1.0, 41.0),
+                     e = forceAt(0.25, 1.0);
+        const double heat = forceAt(1.0, 1.0, 360000);
+        test.check(equal(a, 125000.0, 1e-9) && equal(b, 5e6 / 30.0, 1e-9) && equal(c, 120000.0, 1e-6) && d == 0.0
+                           && equal(e, 75000.0, 1e-9) && equal(heat, 200000.0, 0.01),
+                   QString("electric.lua force: %1 N (125000), %2 (166667), %3 (120000), %4 (0), %5 (75000); "
+                           "after an hour at full force %6 N (MaxContinuousForce 200000)")
+                           .arg(a).arg(b).arg(c).arg(d).arg(e).arg(heat));
+        // The dynamic brake: engaged after its delay, the force from its
+        // curve (flat 20 to 80 mph, rising from 5 to 20 mph).
+        std::unique_ptr<Sim::VehicleModel> m = lua.make(electric.definition);
+        Sim::VehicleInputs in;
+        in.dt = 0.01;
+        in.speed = 20.0;
+        in.cab = true;
+        in.brakePipe = 90.0 * Psi;
+        in.brakePipeVolume = 0.0169;
+        Sim::VehicleOutputs out;
+        m->step(in, out);
+        m->command({"direction", 1.0});
+        m->command({"dynamicBrake", 1.0});
+        double early = 0.0;
+        for (int i = 0; i < 150; ++i) {
+            m->step(in, out);
+            if (i == 50)
+                early = out.motiveForce;
+        }
+        const double flat = out.motiveForce;
+        m->command({"throttle", 0.5});
+        m->step(in, out);
+        const double throttleRefused = Sim::Message{QString(), out.values.value("throttle")}.number();
+        in.speed = 6.0;
+        m->step(in, out);
+        const double slow = out.motiveForce;
+        const double expectedSlow = -150000.0 * (6.0 - 5 * 0.44704) / (20 * 0.44704 - 5 * 0.44704);
+        test.check(early == 0.0 && equal(flat, -150000.0, 1e-9) && equal(slow, expectedSlow, 1e-6)
+                           && throttleRefused == 0.0,
+                   QString("electric.lua dynamic brake: none in its first second, %1 N at 20 m/s, %2 N at 6 m/s "
+                           "(%3); no throttle with it on").arg(flat).arg(slow).arg(expectedSlow));
+        // Saved and restored into a new loco: the same steps.
+        std::unique_ptr<Sim::VehicleModel> copy = lua.make(electric.definition);
+        QByteArray saved;
+        const bool savedOk = m->save(saved) && copy->restore(saved);
+        Sim::VehicleOutputs one, two;
+        for (int i = 0; i < 100; ++i) {
+            m->step(in, one);
+            copy->step(in, two);
+        }
+        test.check(savedOk && one.motiveForce == two.motiveForce && one.values == two.values,
+                   QString("electric.lua: its state saved (%1 bytes) and restored, the same steps after")
+                           .arg(saved.size()));
+    }
+    // Driven: the hot start's timings (a pantograph raising in 3 s, then
+    // the manual breaker closing in 2 s, power 1 s and auxiliary power 2 s
+    // later); the train brake's notches; the engine brake; the compressor;
+    // a pantograph lowered cutting the power at once.
+    if (scriptThere) {
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        made->trains.push_back(planOf({electric, wagon, wagon}));
+        made->step = 0.01;
+        made->driven = 0;
+        made->lineVoltage = 25000.0;
+        made->locoScripts = locoFolder;
+        Sim::SimulationCore core(made);
+        core.step(0.01);
+        core.command(0, -1, {"throttle", 1.0});
+        const auto text = [&](const char *name) {
+            const Sim::VehicleOutputs *o = core.outputsOf(0, 0);
+            return o ? Sim::Message{QString(), o->values.value(name, QString())}.text() : QString();
+        };
+        double upAt = -1, closingAt = -1, closedAt = -1, powerAt = -1, auxAt = -1, movedAt = -1;
+        for (int i = 1; i <= 1000; ++i) {
+            core.step(0.01);
+            const double at = i * 0.01;
+            if (upAt < 0 && text("pantograph1State") == "up")
+                upAt = at;
+            if (closingAt < 0 && text("circuitBreaker") == "closing")
+                closingAt = at;
+            if (closedAt < 0 && text("circuitBreaker") == "closed")
+                closedAt = at;
+            if (powerAt < 0 && text("mainPower") == "true")
+                powerAt = at;
+            if (auxAt < 0 && text("auxPower") == "true")
+                auxAt = at;
+            if (movedAt < 0 && core.trains()[0].speed > 0.0f)
+                movedAt = at;
+        }
+        const double volts = valueOf(core, 0, 0, "lineVoltage");
+        test.check(std::fabs(upAt - 3.0) < 0.025 && std::fabs(closingAt - upAt - 0.01) < 0.015
+                           && std::fabs(closedAt - closingAt - 2.01) < 0.015 && std::fabs(powerAt - closedAt - 1.0) < 0.015
+                           && std::fabs(auxAt - closedAt - 2.0) < 0.015 && std::fabs(movedAt - powerAt) < 0.025
+                           && std::fabs(volts - 25000.0) < 1.0,
+                   QString("electric.lua hot start: pantograph up at %1 s, breaker closing %2, closed %3, power %4, "
+                           "auxiliary %5, moving %6; line %7 V")
+                           .arg(upAt).arg(closingAt).arg(closedAt).arg(powerAt).arg(auxAt).arg(movedAt).arg(volts));
+        // The train brake: full service brings the equalising reservoir
+        // and the pipe 26 psi down; the graduated notch half way between
+        // its limits, 74 psi; release back to 90; the emergency notch vents
+        // the pipe.
+        core.command(0, -1, {"throttle", 0.0});
+        core.command(0, -1, {"trainBrake", 0.9});
+        core.step(15.0);
+        const double fullService = valueOf(core, 0, 0, "equalisingReservoir") / Psi;
+        const double pipeAtLoco = valueOf(core, 0, 0, "brakePipe") / Psi;
+        const QString notch = text("trainBrakeNotch");
+        core.command(0, -1, {"trainBrake", 0.0});
+        core.step(20.0);
+        core.command(0, -1, {"trainBrake", 0.65});
+        core.step(20.0);
+        const double graduated = valueOf(core, 0, 0, "equalisingReservoir") / Psi;
+        core.command(0, -1, {"trainBrake", 0.0});
+        core.step(20.0);
+        const double released = valueOf(core, 0, 0, "equalisingReservoir") / Psi;
+        test.check(notch == "FullServ" && std::fabs(fullService - 64.0) < 0.05 && std::fabs(pipeAtLoco - 64.0) < 0.5
+                           && std::fabs(graduated - 74.0) < 0.05 && std::fabs(released - 90.0) < 0.05,
+                   QString("electric.lua train brake: full service %1 psi (64), the pipe %2; graduated %3 (74); "
+                           "released %4 (90)").arg(fullService).arg(pipeAtLoco).arg(graduated).arg(released));
+        // The compressor: the main reservoir drawn below its restart
+        // pressure by the brakes' release, filled again to its maximum.
+        bool compressed = false;
+        double lowest = 1e9;
+        for (int i = 0; i < 30000; ++i) {
+            core.step(0.01);
+            lowest = std::min(lowest, valueOf(core, 0, 0, "mainReservoir") / Psi);
+            compressed = compressed || text("compressor") == "true";
+            if (compressed && text("compressor") == "false")
+                break;
+        }
+        const double filled = valueOf(core, 0, 0, "mainReservoir") / Psi;
+        test.check(lowest < 125.0 && compressed && filled >= 140.0 && filled < 140.1,
+                   QString("electric.lua compressor: the main reservoir down to %1 psi, filled again to %2 (140)")
+                           .arg(lowest).arg(filled));
+        core.command(0, -1, {"emergency", true});
+        core.step(1.0);
+        const double vented = valueOf(core, 0, 0, "brakePipe") / Psi;
+        core.command(0, -1, {"emergency", false});
+        // The engine brake: the loco's cylinder to 64 psi at 12.5 psi/s.
+        core.step(30.0);
+        core.command(0, -1, {"engineBrake", 1.0});
+        core.step(2.0);
+        const double rising = valueOf(core, 0, 0, "brakeCylinder") / Psi;
+        core.step(6.0);
+        const double engineFull = valueOf(core, 0, 0, "brakeCylinder") / Psi;
+        const double wagonCylinder = valueOf(core, 0, 1, "brakeCylinder") / Psi;
+        test.check(vented < 5.0 && std::fabs(rising - 25.0) < 1.0 && std::fabs(engineFull - 64.0) < 0.1
+                           && wagonCylinder < 0.1,
+                   QString("electric.lua: emergency vents the pipe to %1 psi in 1 s; the engine brake %2 psi after "
+                           "2 s, %3 (64) after 8, the wagons' %4")
+                           .arg(vented).arg(rising).arg(engineFull).arg(wagonCylinder));
+        // A pantograph lowered: the breaker opens, power off at once, told
+        // by its sounds.
+        core.command(0, -1, {"engineBrake", 0.0});
+        core.step(10.0);
+        core.takeMessages(0);
+        core.command(0, -1, {"pantograph1", QString("down")});
+        core.step(0.01);
+        const std::vector<std::pair<int, Sim::Message>> sent = core.takeMessages(0);
+        QStringList sounds;
+        for (const auto &[v, m] : sent)
+            if (m.name == "sound")
+                sounds << m.text();
+        test.check(text("mainPower") == "false" && text("circuitBreaker") == "open" && sounds.join(' ') == "46 47 150 24 228",
+                   QString("electric.lua: a pantograph lowered, power off at once; sounds %1").arg(sounds.join(' ')));
+    }
+    // Two electric locos, the second turned: the cab's throttle and
+    // direction reach it on the control line, the direction turned, and
+    // both pull the train forward.
+    if (scriptThere) {
+        Sim::Vehicle turned = vehicle("engine.eng");
+        turned.flip = true;
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        made->trains.push_back(planOf({engine, turned, wagon}));
+        made->step = 0.01;
+        made->driven = 0;
+        made->locoScripts = locoFolder;
+        Sim::SimulationCore core(made);
+        core.step(0.05);
+        core.command(0, -1, {"throttle", 0.5});
+        core.step(2.0);
+        const double speed = core.trains()[0].speed;
+        // 150 kN each on 200 t for about 1.95 s (power came on in a step or
+        // two).
+        test.check(valueOf(core, 0, 1, "direction") == -1.0 && valueOf(core, 0, 1, "throttle") == 0.5
+                           && valueOf(core, 0, 1, "force") == -150000.0 && speed > 2.9 && speed < 3.0,
+                   QString("electric.lua multiple unit: the turned loco at direction %1, throttle %2, pulling %3 N "
+                           "(in its own frame, toward its back); "
+                           "%4 m/s after 2 s")
+                           .arg(valueOf(core, 0, 1, "direction")).arg(valueOf(core, 0, 1, "throttle"))
+                           .arg(valueOf(core, 0, 1, "force")).arg(speed));
+    }
+    // The cost of a scripted loco a step.
+    if (scriptThere) {
+        Sim::LocoScripts lua(locoFolder);
+        std::unique_ptr<Sim::VehicleModel> m = lua.make(electric.definition);
+        Sim::VehicleInputs in;
+        in.dt = 0.01;
+        in.speed = 10.0;
+        in.cab = true;
+        in.brakePipe = 90.0 * Psi;
+        in.brakePipeVolume = 0.0169;
+        Sim::VehicleOutputs out;
+        m->step(in, out);
+        m->command({"direction", 1.0});
+        m->command({"throttle", 0.5});
+        QElapsedTimer timer;
+        timer.start();
+        for (int i = 0; i < 20000; ++i)
+            m->step(in, out);
+        const double us = timer.nsecsElapsed() / 1000.0 / 20000.0;
+        test.check(us < 1000.0, QString("electric.lua: %1 µs a step").arg(us, 0, 'f', 1));
+    }
+    return test.finish();
+}
+
+int TsreTests::runDrivingCorpusSuite(bool verbose) {
+    TokenTest::Suite test{"[tests:driving-corpus]", verbose};
+    const QString root = QDir::cleanPath(Game::root);
+    const QString locoFolder = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+    QStringList files;
+    QDirIterator it(root + "/TRAINS/TRAINSET", QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString path = it.next();
+        if (QFileInfo(path).suffix().compare("eng", Qt::CaseInsensitive) == 0 && !path.contains("/OPENRAILS/"))
+            files << path;
+    }
+    files.sort();
+    Sim::LocoScripts lua(locoFolder);
+    int electrics = 0, failed = 0, unpowered = 0, forceless = 0;
+    QStringList listed;
+    QElapsedTimer timer;
+    timer.start();
+    for (const QString &path : files) {
+        const QFileInfo info(path);
+        const std::shared_ptr<const VehicleDefinition> def =
+                VehicleDefinition::read(info.path(), info.fileName(), root, true);
+        if (!def || !def->ok() || def->wagonTypeId != 4)
+            continue;
+        ++electrics;
+        std::unique_ptr<Sim::VehicleModel> model = lua.make(def);
+        Sim::VehicleInputs in;
+        in.dt = 0.01;
+        in.cab = true;
+        in.lineVoltage = 25000.0;
+        in.brakePipe = 90.0 * 6894.757293168;
+        in.brakePipeVolume = 0.0169;
+        Sim::VehicleOutputs out;
+        QString problem;
+        const auto run = [&](int steps) {
+            for (int i = 0; i < steps; ++i) {
+                out.events.clear();
+                model->step(in, out);
+                for (const Sim::Message &m : out.events)
+                    if (m.name == "scriptError" && problem.isEmpty())
+                        problem = m.text();
+            }
+        };
+        // Standing: its hot start, full throttle; then at 5 m/s (half its
+        // top speed where lower).
+        run(1);
+        model->command({"direction", 1.0});
+        model->command({"throttle", 1.0});
+        // Powered within two minutes (some breakers close in 40 s).
+        for (int waited = 0; waited < 120 && out.values.value("mainPower") != Sim::MessageValue(true); ++waited)
+            run(100);
+        run(100);
+        in.speed = def->maxSpeedMps > 0.0 ? std::min(5.0, 0.5 * def->maxSpeedMps) : 5.0;
+        run(10);
+        const bool powered = out.values.value("mainPower") == Sim::MessageValue(true);
+        const QString name = QDir(root).relativeFilePath(path);
+        // TSRE_VEHICLE_FILE=<part of a path>: that loco's values.
+        const QString shown = qEnvironmentVariable("TSRE_VEHICLE_FILE");
+        if (!shown.isEmpty() && name.contains(shown, Qt::CaseInsensitive)) {
+            QStringList values;
+            for (auto i = out.values.cbegin(); i != out.values.cend(); ++i)
+                values << i.key() + " = " + Sim::Message{i.key(), i.value()}.text();
+            values.sort();
+            qInfo().noquote() << name << "\n  " + values.join("\n  ");
+        }
+        if (!problem.isEmpty()) {
+            ++failed;
+            listed << name + ": " + problem;
+        } else if (!powered) {
+            ++unpowered;
+            listed << name + ": no power after 2 minutes";
+        } else if (out.motiveForce <= 0.0 && def->forceN > 0.0) {
+            ++forceless;
+            listed << QString("%1: no force at %2 m/s (MaxForce %3 N, MaxPower %4 W)")
+                              .arg(name).arg(in.speed).arg(def->forceN).arg(def->powerW);
+        }
+    }
+    if (verbose)
+        for (const QString &line : listed)
+            qInfo().noquote() << "  " << line;
+    test.check(failed == 0,
+               QString("%1 electric engines of %2 run electric.lua in %3 s: %4 script errors, %5 without power, "
+                       "%6 without force (with a MaxForce)")
+                       .arg(electrics).arg(files.size()).arg(timer.elapsed() / 1000.0).arg(failed).arg(unpowered)
+                       .arg(forceless));
     return test.finish();
 }

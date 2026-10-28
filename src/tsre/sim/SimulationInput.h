@@ -375,6 +375,9 @@ struct SimulationInput {
     int driven = -1;
     // The route's line voltage (TRK MaxLineVoltage), V.
     double lineVoltage = 0.0;
+    // TSRE's loco scripts (appdata/<version>/scripts/loco); empty: driven
+    // locos get the C++ stand-in.
+    QString locoScripts;
     QString activity;
     // Seconds after midnight.
     int startTime = 0;

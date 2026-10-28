@@ -4294,6 +4294,7 @@ QStringList TsreTests::listSuites() {
         "eng-lights",
         "vehicle-file",
         "driving",
+        "driving-corpus",
         "vehicle-file-corpus",
         "vehicle-load",
         "shape-animation",
@@ -4450,6 +4451,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "driving")
         return runDrivingSuite(opts.verbose);
+    if (suite == "driving-corpus")
+        return runDrivingCorpusSuite(opts.verbose);
     if (suite == "vehicle-file")
         return runVehicleFileSuite(opts.verbose);
     if (suite == "vehicle-file-corpus")

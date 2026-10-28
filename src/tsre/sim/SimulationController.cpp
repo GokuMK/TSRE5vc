@@ -4,6 +4,7 @@
 #include <QElapsedTimer>
 #include <QThread>
 #include <QDate>
+#include <QDir>
 #include <QTime>
 #include <algorithm>
 #include <cmath>
@@ -156,6 +157,7 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     // The line's voltage, as Open Rails reads it: every track electrified.
     if (route != nullptr && route->trk != nullptr)
         input->lineVoltage = route->trk->maxLineVoltage;
+    input->locoScripts = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
     if (input->trains.empty()) {
         if (error != nullptr) {
             *error =

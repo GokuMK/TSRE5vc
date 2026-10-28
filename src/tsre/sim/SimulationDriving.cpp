@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/sim/AirBrake.h>
+#include <tsre/sim/LocoScript.h>
 #include <tsre/sim/TrainPhysics.h>
 #include <tsre/sim/VehicleModel.h>
 #include <tsre/trains/VehicleDefinition.h>
@@ -89,7 +90,11 @@ void SimulationCore::takeOver(int train) {
     int cabRun = -1;
     for (size_t v = 0; v < n; ++v) {
         const Vehicle &vehicle = rt.vehicles[v];
-        d->models.push_back(MakeVehicleModel(*vehicle.definition));
+        // Its script's model, else the C++ one.
+        if (!scripts && !in->locoScripts.isEmpty())
+            scripts = std::make_shared<LocoScripts>(in->locoScripts);
+        std::unique_ptr<VehicleModel> model = scripts ? scripts->make(vehicle.definition) : nullptr;
+        d->models.push_back(model ? std::move(model) : MakeVehicleModel(*vehicle.definition));
         d->brakes.emplace_back(*vehicle.definition);
         const int run = int(s.reversed ? n - 1 - v : v);
         if (d->models.back()->drives() && (cabRun < 0 || run < cabRun)) {
@@ -283,14 +288,20 @@ void SimulationCore::advanceDriven(int train, double from, double to) {
         forces[r].friction = std::max(0.0, out.brakeForce) + std::max(0.0, resistance);
     }
     // The control line: each unit's messages to the others, the EP wire's
-    // demand kept.
+    // demand kept. A direction is the sender's: a unit facing the other way
+    // gets it turned.
     for (size_t v = 0; v < n; ++v)
         for (const Message &m : d.outputs[v].line) {
             if (m.name == "epBrake")
                 d.ep = m.number(-1.0);
-            for (size_t w = 0; w < n; ++w)
-                if (w != v)
-                    d.models[w]->command(m);
+            for (size_t w = 0; w < n; ++w) {
+                if (w == v)
+                    continue;
+                if (m.name == "direction" && rt.vehicles[w].flip != rt.vehicles[v].flip)
+                    d.models[w]->fromLine({m.name, -m.number()});
+                else
+                    d.models[w]->fromLine(m);
+            }
         }
     // The air brakes on the pipe (the EP wire only with an EP cab, as Open
     // Rails has it), then the air along the pipe.
@@ -299,6 +310,7 @@ void SimulationCore::advanceDriven(int train, double from, double to) {
         const size_t v = s.reversed ? n - 1 - r : r;
         AirBrake &brake = d.brakes[v];
         brake.step(dt, d.pipe.pressure[r], ep);
+        brake.independent(dt, d.outputs[v].independentBrake, d.outputs[v].bailOff);
         forces[r].friction += brake.force(d.physics.cars[r].speed);
     }
     d.pipe.step(dt);

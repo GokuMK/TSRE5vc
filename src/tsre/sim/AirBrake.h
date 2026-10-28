@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <vector>
 
 struct VehicleDefinition;
@@ -29,14 +30,22 @@ public:
     // Charged and released at the pipe's pressure.
     void charge(double pipe);
     // One step on the pipe at it: its valve's air in and out of `pipe`.
-    // `ep`: the EP wire's demand, 0 to 1, or < 0 for none.
+    // `ep`: the EP wire's demand, 0 to 1; -2 its holding wire; -1 none.
     void step(double dt, double &pipe, double ep);
     // Its brake force (N) at a speed (m/s): MaxBrakeForce at the reference
     // pressure, with Open Rails' brake shoe friction for older stock.
     double force(double speed) const;
 
+    // A loco's independent (engine) brake: its cylinder at least
+    // `pressure` (Open Rails' loco without a relay valve); `bailOff` (Pa/s)
+    // lets the automatic brake's air out.
+    void independent(double dt, double pressure, double bailOff);
+
     double pipeVolume() const { return pipeVolume_; }
-    double cylinder() const { return cylinder_; }
+    // The cylinder: the automatic brake's, or the independent brake's where
+    // higher.
+    double cylinder() const { return std::max(cylinder_, independent_); }
+    double automatic() const { return cylinder_; }
     double auxiliary() const { return auxiliary_; }
     State state() const { return state_; }
     Valve valve() const { return valve_; }
@@ -55,7 +64,7 @@ private:
     double auxiliaryVolume = 0.0, pipeVolume_ = 0.0;
     double sensitivity = 0.0, initialThreshold = 0.0;
 
-    double cylinder_ = 0.0, auxiliary_ = 0.0, control = 0.0;
+    double cylinder_ = 0.0, auxiliary_ = 0.0, control = 0.0, independent_ = 0.0;
     State state_ = State::Release;
 };
 

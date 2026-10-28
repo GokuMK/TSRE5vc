@@ -9,6 +9,7 @@
 namespace Sim {
 
 struct Driven;
+class LocoScripts;
 
 enum class TrainStatus { Waiting, Running, Stopped, Finished };
 // Why a train stands. Blocked: at the end of its authority, the track ahead
@@ -615,6 +616,8 @@ private:
     double stepSeconds = MaxStep;
     int driven = -1;
     Collision crash;
+    // The run's loco scripts, made on the first takeover of a scripted loco.
+    std::shared_ptr<LocoScripts> scripts;
     void takeOver(int train);
     // The run's step changed from now on (a train driven: DrivenStep; left:
     // its input's), its whole steps counted from now.
