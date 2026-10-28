@@ -393,6 +393,17 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   stepped grey patch on Prudnik's sunlit platform past the roof's end
   (`-5373,14874,793.54,340.38,-924.84,-143.06,-36.80`). The platform floor
   under its roof: blue over red 24 -> 12, a sixth darker.
+- Fair cumulus left the shade strongly blue, broken clouds grey (the user,
+  2026-10-28, CMK `-5355,14853,-523.88,284.36,-568.41,329.57,-26.16`): the
+  light from above was greyed as the haze, from 30 % cover up, and fair
+  cumulus covers 29 %; the cube in main, drawn with its clouds, had it
+  greyer. Now from no cover up, as three layers of the cover (seen
+  slantwise the clouds' sides fill the gaps, and lit by the sun they are
+  brighter than the sky): 29 % cover goes 64 % of the way to grey (of the
+  80 % at most), 55 % 91 %. The road in a cloud's shadow, blue over red:
+  fair cumulus 1.20 -> 0.99, scattered 1.06 -> 0.92 (main's cube 0.89,
+  0.85); clear and broken unchanged. The saturation hold (0.75) does not
+  act here: the clear noon sky's light from above is 0.68.
 - The window, after the user's first look (2026-10-28): numbers and the
   alpha test narrow, their help beside them (room to scroll on), wide
   inputs with their help right below; rows 12 px apart, each a widget of
