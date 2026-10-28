@@ -486,15 +486,47 @@ enclosure maps: cached, a train or a car drawn into them kept its cover
 where it stood after it drove on. Objects being edited stay in, so the
 maps follow them.
 
-### Next: thin and blended roofs (2026-10-22)
+### Thin and blended roofs (2026-10-22, done 2026-10-28)
 
-The CMK hall's thin roofs (alpha-tested) still do not enclose from above.
+The CMK hall's thin roofs (alpha-tested) did not enclose from above.
 Alpha-tested parts were kept out of the downward map for tree canopies;
-vegetation is now flagged and left out of the enclosure (task 37), and
-blended MSTS parts draw their opaque texels with the alpha-tested pass
-([shapes task 07](../shapes/07-blended-msts-parts.md)). Next step: let both
-count as roofs from above, then check MSTS trees without the cruciform
-light materials.
+vegetation is flagged and left out of the enclosure (task 37), so both maps
+now take opaque, alpha-tested and blended surfaces, as the shadow maps do
+(`QueueRenderer::planShadowCasters`; the user, 2026-10-28). At the CMK hall
+view above nothing changes (its platforms counted already; open between its
+pillars). Still to check: MSTS trees without the cruciform light materials.
+
+### A roof half deep, half open (2026-10-28)
+
+The user: part of a Prudnik platform roof darkened the platform under it
+fully, with the sun kept out and a hard, stepped edge, the rest of the roof
+not at all (`core.startup.camera=-5373,14874,815.86,350.63,-890.78,-92.64,-34.93`).
+The same in builds back to 2026-10-23. Measured (the openness pass writes,
+besides the openness, the hollow, its cover's height and the share of rays
+finding an opening; the lit shaders read the first alone): under the open
+part the cover lay 4.8 m over the floor and 7 of 8 rays found an opening;
+under the dark part the cover lay 3.7 m over the platform but 17.8 m over
+the column's lowest surface, about 14 m under the platform (ground under a
+hollow station or embankment shape, or objects sunk under the terrain).
+Measured from there, the tracks beside the platform rose like walls: no
+opening, openness 0, the platform deep. Now:
+
+- A hollow deeper than 10 m under its cover is measured from 10 m under it
+  (`DeepestHollow`): light comes in under cover from the sides, and deeper
+  floors do not move them. Tunnels (6-8 m) are as before; beside a viaduct
+  or a bridge the ground still lies under that floor, an opening.
+- A ray takes a column whose top lies low as an opening before it asks
+  whether the column is a hollow: tracks over an underpass are a hollow too
+  (their top over the underpass floor), and a ray walked on over them as if
+  under the roof.
+
+The whole roof is now open as its sides are: no darkening but the roof's
+shadow. Checked against the earlier views (EUROPE1 noon: portal, tunnel,
+viaduct from both sides, river bridge; CMK hall): unchanged but the portal,
+whose first metres in the tunnel are a little lighter. The stepped edge was
+the dark region's edge on the 256 x 256 openness map (1.56 m texels); a
+finer map (512) would smooth what remains of such edges for a few
+milliseconds on frames that redraw the maps.
 
 ## Known Limitation (0.7.8)
 

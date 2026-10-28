@@ -941,7 +941,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     TerrainStateCache terrainState;
     DetailStateCache detailState;
     // Casters in range and inside the light view, grouped by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
+    planShadowCasters(range, viewProjection, false, 0.0f, casters, set);
     const bool instancing = !instanceUpload.empty() && uploadInstances();
     Shader *shader = gluu->currentShader;
     QOpenGLExtraFunctions *e = context->extraFunctions();

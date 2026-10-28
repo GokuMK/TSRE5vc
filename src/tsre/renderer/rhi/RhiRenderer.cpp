@@ -1381,10 +1381,9 @@ void RhiRenderer::renderEnclosureCasters(float range, int statsSlot, const float
     beginFrameIfNeeded();
     if (!enclosureTarget(currentTarget) || !targetReady())
         return;
-    // The views from below look for the lowest surfaces, which are often
-    // alpha-tested (tracks, tunnel tubes).
-    const bool below = currentTarget == TargetEnclosureBottom || currentTarget == TargetEnclosureFarBottom;
-    planShadowCasters(range, viewProjection, true, minRadius, below);
+    // Both views, from above and below, take alpha-tested and blended
+    // surfaces (thin roofs; track beds, tunnel tubes).
+    planShadowCasters(range, viewProjection, true, minRadius);
     recordCasters(statsSlot);
 }
 
@@ -1416,6 +1415,14 @@ const int Steps = 12;
 // the bridge rose like walls, user 2026-10-12.)
 const float OpeningHeight = 5.0;
 const float OpeningShare = 0.6;
+// A hollow deeper than this under its cover is measured from this deep: the
+// lowest surface the view from below finds can lie far under the floor one
+// stands on (ground under a hollow embankment or station shape, objects sunk
+// under the terrain). From 14 m under a platform roof at Prudnik the tracks
+// beside it rose like walls: no opening found, the platform deep and black
+// with the sun kept out, the rest of the roof open (the user, 2026-10-28).
+// Light comes in under cover from the sides; deeper floors do not move them.
+const float DeepestHollow = 10.0;
 
 bool opening(float surfaceOverFloor, float coverOverFloor) {
     return surfaceOverFloor < max(OpeningHeight, OpeningShare * coverOverFloor);
@@ -1449,35 +1456,50 @@ void main() {
     // Points in a hollow (cover over a floor) look for openings; in columns
     // without cover the floor is the top itself.
     float coverHere = (1.0 - topHere - floorDepth) * params.y;
+    if (coverHere > DeepestHollow) {
+        floorDepth = 1.0 - topHere - DeepestHollow / params.y;
+        coverHere = DeepestHollow;
+    }
     float hollow = smoothstep(2.0, 4.0, coverHere);
     // Steps of about 1.5 m (the rays' are 2.5 m).
     float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6) : 1.0;
+    // Besides the openness (r), for a look at it: the hollow (g), its cover's
+    // height over the floor (b, 20 m is 1) and the share of rays finding an
+    // opening (a). The lit shaders read r alone.
+    float coverShown = clamp(coverHere / 20.0, 0.0, 1.0);
     if (hollow <= 0.0) {
-        result = vec4(open, 0.0, 0.0, 1.0);
+        result = vec4(open, 0.0, coverShown, 0.0);
         return;
     }
-    float light = 0.0;
+    float light = 0.0, found = 0.0;
     for (int d = 0; d < 8; ++d) {
         float angle = float(d) * 0.785398 + 0.2;
         vec2 direction = vec2(cos(angle), sin(angle)) * (params.x / float(Steps));
         for (int s = 1; s <= Steps; ++s) {
             vec2 q = uv + direction * float(s);
             float top = topAt(q);
-            // Still under cover: on.
-            if ((1.0 - top - bottomAt(q)) * params.y > 3.0)
-                continue;
             // The views from above and below start the same distance from
             // the map's middle height: the top there over the floor here.
+            // A column whose top lies low is open above it, whatever lies
+            // under it: tracks over an underpass are a hollow too (their
+            // highest surface over the underpass floor), and a ray walked on
+            // over them as if still under the roof (2026-10-28).
             if (opening((1.0 - top - floorDepth) * params.y, coverHere)) {
                 // Falling off as an opening's view does with distance.
                 float near = 1.0 - float(s - 1) / float(Steps);
                 light += near * near;
+                found += 1.0;
+                break;
             }
+            // High and over a hollow: the cover goes on.
+            if ((1.0 - top - bottomAt(q)) * params.y > 3.0)
+                continue;
+            // High and solid: a wall.
             break;
         }
     }
     // Two open sides near by (a viaduct's arches) light it fully.
-    result = vec4(mix(open, clamp(light * 0.5, 0.0, 1.0), hollow), 0.0, 0.0, 1.0);
+    result = vec4(mix(open, clamp(light * 0.5, 0.0, 1.0), hollow), hollow, coverShown, found / 8.0);
 }
 )";
 
@@ -2619,7 +2641,7 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
     if (!targetReady())
         return;
     // Casters in range and inside the light view, instanced by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
+    planShadowCasters(range, viewProjection, false, 0.0f, casters, set);
     waitingDraws += quint64(plannedShapesWaiting);
     recordCasters(statsSlot);
 }
