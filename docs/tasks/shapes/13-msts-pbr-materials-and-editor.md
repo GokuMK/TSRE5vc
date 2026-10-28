@@ -378,8 +378,14 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
 
 ### Open
 
-- The user's review: the window by hand, their own maps, the specular's
-  strength (a lower sun, a sharper glint).
+Merged into main 2026-10-28; these after it (the user):
+- The Shape Textures and Shape Hierarchy windows filling once a slow shape
+  has loaded: not yet tried by hand.
+- PBR rail shadows a little narrower than the legacy track's.
+- The environment cube in half floats: its frame time on the Steam Deck
+  (3.8-4.7 ms a frame there before, at one face a frame).
+- The user's own maps, the specular's strength (a lower sun, a sharper
+  glint).
 - MSTS and Open Rails with `PbrTexDiff` shapes (expected: MSTS fails to
   load them, Open Rails draws texture 0), not tried.
 - Lamps' highlights on -6/-7 (the sun's only now).
