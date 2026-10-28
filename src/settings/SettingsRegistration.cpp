@@ -788,11 +788,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "OpenGL"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "rhiApi", "Game::rhiApi", "RouteEditorGLWidget", false, "renderer-restart");
-    ADD(SettingsDefinition::boolean("core.rendering.shapeTextures.mipmaps", false)
+    ADD(SettingsDefinition::boolean("core.rendering.shapeTextures.mipmaps", true)
             .withNameId(
                 //% "Mipmaps on shape textures"
                 QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmaps.name")).withDescriptionId(
-                //% "Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer. Off, as before: their full-size image only. Applies after a restart."
+                //% "Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer (anisotropic filtering keeps surfaces at a slant sharp). Off: their full-size image only. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmaps.description")).inGroup("rendering").inSubgroup("textures"),
         "", "", "Texture", false, "startup");
     ADD(SettingsDefinition::string("core.rendering.shapeTextures.mipmapSource", "improve", SettingType::Enum)

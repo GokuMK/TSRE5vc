@@ -10183,8 +10183,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmaps.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="796"/>
-        <source>Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer. Off, as before: their full-size image only. Applies after a restart.</source>
-        <translation>Próbkuj tekstury modeli 3D przez mipmapy: bez migotania w oddali, zwykle mniej czasu GPU, nieco łagodniej. Wyłączone, jak dotąd: tylko obraz w pełnym rozmiarze. Zmiana działa po ponownym uruchomieniu.</translation>
+        <source>Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer (anisotropic filtering keeps surfaces at a slant sharp). Off: their full-size image only. Applies after a restart.</source>
+        <translation>Próbkuj tekstury modeli 3D przez mipmapy: bez migotania w oddali, zwykle mniej czasu GPU, nieco łagodniej (filtrowanie anizotropowe utrzymuje ostrość powierzchni widzianych pod kątem). Wyłączone: tylko obraz w pełnym rozmiarze. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmap.source.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="801"/>
