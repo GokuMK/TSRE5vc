@@ -24,6 +24,8 @@ class SimisTextReader {
         QString message;
     };
     explicit SimisTextReader(QString source);
+    // Reads from `start` on (offsets still count from the text's start).
+    SimisTextReader(QString source, qsizetype start);
     Token next();
     Token peek(int ahead = 0);
     Kind peekKind(int ahead = 0); // Lookahead without copying token text.
@@ -38,7 +40,13 @@ class SimisTextReader {
     qsizetype position() const;
     QString slice(qsizetype begin, qsizetype end) const;
     const QVector<Diagnostic> &diagnostics() const { return errors; }
-    static bool decode(const QByteArray &bytes, QString &out, QString &error);
+    // A text file's bytes as every SIMIS text reader takes them (the
+    // encodings agreed for task driving 01): UTF-16 LE or BE with a byte
+    // order mark; UTF-8 with or without one (ASCII is UTF-8); UTF-16
+    // without a byte order mark, told by zero bytes among its first
+    // characters, and anything else as Latin-1, each with a `note` saying
+    // so. False only for broken UTF-16.
+    static bool decode(const QByteArray &bytes, QString &out, QString &error, QString *note = nullptr);
     static bool number(const Token &, double &value);
     static bool integer(const Token &, qint32 &value);
     static bool unsignedInteger(const Token &, quint32 &value, int base = 10);

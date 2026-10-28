@@ -298,7 +298,8 @@ couplings add.
 
 ## Steps
 
-1. **`SimisTree`, the vehicle file reader and the encoding policy.**
+1. **`SimisTree`, `SimisDocument` and the encoding policy** (done
+   2026-10-28, below).
    - The reader covers:
      - shared and inlined includes;
      - `[[SameName]]` and the roots;
@@ -308,15 +309,14 @@ couplings add.
      - every encoding;
      - nested, missing, cyclic and unbalanced includes;
      - each root, and a path that leaves the game folder;
-     - roots in shape, sound and cab paths, and the default lookups
-       without them;
      - a per-vehicle file through `[[Vehicle]]` in a shared include;
      - the first-line and comment rules;
      - last-wins and couplings that add;
-     - units;
-     - the `OPENRAILS` override.
+     - units.
 2. **The key catalogue** (generated from Open Rails, checked by hand) **and
    `VehicleDefinition`'s typed fields**, with a comparison tool.
+   - Fixtures: the roots in shape, sound and cab paths and the default
+     lookups without them; the `OPENRAILS` override.
    - Every ENG/WAG file on MSTS, TS_STARTER_ROUTE and OR_PSK is read by both
      the old `Eng::load` and the new reader, and the shared values
      compared.
@@ -335,6 +335,58 @@ couplings add.
 
 Each step is built (`all`) and checked with ctest before its commit, on
 `feature/vehicle-definitions` in its own worktree.
+
+## Step 1 done (2026-10-28)
+
+**Code** (`src/tsre/fileFunctions/`):
+- `SimisTree` holds one file's tree.
+- `SimisDocument` holds a file with its includes, the roots, the
+  game-folder check and the shared cache.
+- `SimisTextReader::decode` holds the encoding policy. It gives a note for
+  UTF-16 without a byte order mark and for Latin-1.
+- `SimisTextReader` can start at an offset; `SimisTree` uses that to skip
+  the header line.
+
+**Fixed in `SimisTextReader::skipBlock`:** a quote now starts a string only
+where an item starts, as `scan()` and Open Rails read it. MSTS's own
+`US2GrainCar.wag` has `comment( 22.805t empty, 106.747t full" )`; skipping
+that comment used to run to the end of the file.
+
+**Open Rails' includes, checked in its code.** `STFReader.ReadItem` passes an
+included file's items through the including file's tree, so an include's
+extra `)` closes the block holding the include. OR_PSK's
+`PR_E186-143_p1.eng` includes `Parametr_TRAXX_F140.inc`, which has one
+extra `)`, inside its `Engine` block. So its train control include,
+controllers, cab sound, cab view and engine name all fall outside the
+block, and Open Rails reads none of them. TSRE now reads them the same way
+and reports it.
+
+**Suites:**
+- `vehicle-file`: 25 checks on fixtures, content-free.
+- `vehicle-file-corpus`: every ENG/WAG file under the game folder. It
+  reports problems by kind, each counted once per file, plus time and
+  memory.
+
+**Measures (Release, this machine):**
+
+| | Files | Time | Trees | Nodes | Tree memory | Process peak |
+| --- | --- | --- | --- | --- | --- | --- |
+| MSTS | 108 | 5 ms | 108 | 28,040 | 1.4 MB | 45 MB |
+| TS_STARTER_ROUTE | 100 | 5 ms | 107 | 28,088 | 1.4 MB | 46 MB |
+| OR_PSK | 4,350 | 556 ms | 5,788 | 1.52 M | 67 MB | 125 MB |
+
+**Problems in OR_PSK** (each kind counted once per file; MSTS has one, a
+stray `)` in `US2BNSFCar.wag`):
+
+| Problem | Files |
+| --- | --- |
+| A `)` that closes no block | 109 |
+| A block not closed at the end of the file (`Wagon` 33, `Engine` 11) | 44 |
+| An include not found, mostly copies moved one folder deeper (`stare/`, `xhl/`) | 86 |
+| An include whose parentheses do not balance, read in place | 22 vehicles (5 files) |
+| Neither UTF-16 nor UTF-8: read as Latin-1 (Windows-1250 Polish in comments) | 28 |
+| Content on the header line (`<SIMISA…`, junk before `comment`) | 8 |
+| An unterminated quoted string (`\"` at a string's end, as Open Rails reads it too) | 2 |
 
 ## Decisions (user, 2026-10-28)
 
