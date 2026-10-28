@@ -1161,6 +1161,7 @@ dozen scripted trains. User scripts may use the modules too.
   - coroutines, since the handler cannot tell which of a state's threads
     runs;
   - Windows, which has no signal to stop a thread; there it stays as before.
+    **Open issue, not built or tested on Windows:** see open question 6.
 - **Checks (`script`, 31):**
   - loops in `coroutine.wrap` and in a sort's comparator stopped at 50 ms;
   - no hook between calls;
@@ -1247,6 +1248,39 @@ OR_PSK's 817 electric engines run in 10.9 s, down from 14 s.
      most important);
    - emergency reservoirs;
    - a service's `StartingSpeed`: done after step 5.
+6. **Open issue: Lua's watchdog on Windows** (2026-10-29; the user will test
+   it on a Windows machine).
+   - **Now:** on Windows, `Watchdog::get()` returns null
+     (`src/tsre/script/ScriptState.cpp`). Every Lua state there keeps the
+     count hook it had before the watchdog: the VM traps every instruction
+     and looks at the clock every thousand. Time limits work as before, but a
+     scripted loco step costs about 5 µs more than on Linux (16 against
+     11 µs here).
+   - **Not done on this Linux box:** the Windows build was neither compiled
+     nor run. The new code's Windows branches are under `Q_OS_WIN`:
+     - `Watchdog::get()`, `currentThread()` and `interrupt()` as stubs;
+     - `State::deadlineThread`, a `std::thread::native_handle_type`;
+     - the script suite's "no hook between calls" check, left out there.
+   - **To test on Windows first:**
+     1. the build (MSVC or MinGW, whichever the Windows build uses);
+     2. `--test --test-suite script` (31 checks, endless loops stopped at
+        50 ms, also when caught, in coroutines, in a sort's comparator, two
+        threads at once), `rmlui` (35) and `driving` (36);
+     3. the `driving` suite's line "electric.lua: … µs a step", to compare
+        with Linux.
+   - **To do, a Windows watchdog**, tested there:
+     - Past a deadline, the watchdog suspends the deadline's thread
+       (`SuspendThread`), makes the suspension take effect
+       (`GetThreadContext`), sets the hook (`lua_sethook`) and resumes it
+       (`ResumeThread`). This is the Windows form of the signal handler: Lua's
+       hook may be set while its thread is stopped, not while it runs.
+     - The thread's handle comes from `OpenThread` once per thread, kept, not
+       per call.
+     - The suite's "no hook between calls" check then applies on Windows
+       too.
+     - Risk to look at: a thread suspended while it holds a lock the
+       watchdog needs (the heap's). `lua_sethook` takes no lock and
+       allocates nothing.
 
 ## Decisions (user, 2026-10-28)
 
