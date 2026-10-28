@@ -610,16 +610,17 @@ void ConEditorWindow::eOpenInExternalEditor(){
     }
 }
 
+// The view as it is shown, drawn again into an image (as the Shape
+// Viewer's).
 void ConEditorWindow::copyImgShapeView(){
-    if(glShapeWidget->screenShot != NULL)
-        //QApplication::clipboard()->setImage((glShapeWidget->screenShot->mirrored(false, true)), QClipboard::Clipboard);
-        QApplication::clipboard()->setImage((glShapeWidget->screenShot->flipped(Qt::Vertical)), QClipboard::Clipboard);
+    const QImage img = glShapeWidget->grabFramebuffer().convertToFormat(QImage::Format_RGB32);
+    if(!img.isNull())
+        QApplication::clipboard()->setImage(img, QClipboard::Clipboard);
 }
 
 void ConEditorWindow::saveImgShapeView(){
-    if(glShapeWidget->screenShot != NULL){
-        //QImage img = glShapeWidget->screenShot->mirrored(false, true);
-        QImage img = glShapeWidget->screenShot->flipped(Qt::Vertical);
+    const QImage img = glShapeWidget->grabFramebuffer().convertToFormat(QImage::Format_RGB32);
+    if(!img.isNull()){
         QString path = QFileDialog::getSaveFileName(this,
             //% "Save File"
             qtTrId("con.editor.con.editor.window.dialog.title.path"), "./",
@@ -637,15 +638,13 @@ void ConEditorWindow::saveImgShapeView(){
 
 void ConEditorWindow::vGetImgShapeViewSelected(){
     if(currentEng == NULL) return;
-    glShapeWidget->getImg();
-    QTimer::singleShot(500, this, SLOT(copyImgShapeView()));
-}/**/
+    copyImgShapeView();
+}
 
 void ConEditorWindow::vSaveImgShapeViewSelected(){
     if(currentEng == NULL) return;
-    glShapeWidget->getImg();
-    QTimer::singleShot(500, this, SLOT(saveImgShapeView()));
-}/**/
+    saveImgShapeView();
+}
 
 void ConEditorWindow::vResetShapeViewSelected(){
     if(currentEng == NULL) return;

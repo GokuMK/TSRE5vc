@@ -369,15 +369,19 @@ void ShapeViewerWindow::vSetColorShapeViewSelected(){
 }
 
 
+// The view as it is shown (tone curve, exposure and bloom applied), drawn
+// again into an image, as the Route Editor's Save Scene To Image: the colour
+// the renderer was drawing into, read back raw, gave corrupted images with
+// QRhi's float view (the user, 2026-10-28).
 void ShapeViewerWindow::copyImgShapeView(){
-    if(glShapeWidget->screenShot != NULL)
-        //QApplication::clipboard()->setImage((glShapeWidget->screenShot->mirrored(false, true)), QClipboard::Clipboard);
-        QApplication::clipboard()->setImage((glShapeWidget->screenShot->flipped(Qt::Vertical)), QClipboard::Clipboard);
+    const QImage img = glShapeWidget->grabFramebuffer().convertToFormat(QImage::Format_RGB32);
+    if(!img.isNull())
+        QApplication::clipboard()->setImage(img, QClipboard::Clipboard);
 }
 
 void ShapeViewerWindow::saveImgShapeView(){
-    if(glShapeWidget->screenShot != NULL){
-        QImage img = glShapeWidget->screenShot->flipped(Qt::Vertical);
+    const QImage img = glShapeWidget->grabFramebuffer().convertToFormat(QImage::Format_RGB32);
+    if(!img.isNull()){
         QString path = QFileDialog::getSaveFileName(this,
             //% "Save File"
             qtTrId("shape.viewer.shape.viewer.window.dialog.title.path"), "./",
@@ -394,13 +398,11 @@ void ShapeViewerWindow::saveImgShapeView(){
 }
 
 void ShapeViewerWindow::vGetImgShapeViewSelected(){
-    glShapeWidget->getImg();
-    QTimer::singleShot(500, this, SLOT(copyImgShapeView()));
+    copyImgShapeView();
 }
 
 void ShapeViewerWindow::vSaveImgShapeViewSelected(){
-    glShapeWidget->getImg();
-    QTimer::singleShot(500, this, SLOT(saveImgShapeView()));
+    saveImgShapeView();
 }
 
 void ShapeViewerWindow::vResetShapeViewSelected(){
