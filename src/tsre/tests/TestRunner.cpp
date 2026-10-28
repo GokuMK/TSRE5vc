@@ -86,6 +86,7 @@
 #include <tsre/tests/SignalSelectionTestSuite.h>
 #include <tsre/tests/SigCfgTestSuite.h>
 #include <tsre/tests/VehicleFileTestSuite.h>
+#include <tsre/tests/VehicleLoadBench.h>
 #include <tsre/tests/UnitsTestSuite.h>
 #include <tsre/tests/UnitsContentTestSuite.h>
 #include <tsre/tests/EngLightsTestSuite.h>
@@ -4292,6 +4293,7 @@ QStringList TsreTests::listSuites() {
         "eng-lights",
         "vehicle-file",
         "vehicle-file-corpus",
+        "vehicle-load",
         "shape-animation",
         "car-animation",
         "script",
@@ -4448,6 +4450,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runVehicleFileSuite(opts.verbose);
     if (suite == "vehicle-file-corpus")
         return runVehicleFileCorpusSuite(opts.verbose);
+    if (suite == "vehicle-load")
+        return runVehicleLoadBench(opts.verbose);
     if (suite == "eng-lights")
         return runEngLightsSuite(opts.verbose);
     if (suite == "shape-animation")

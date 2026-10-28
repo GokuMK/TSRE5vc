@@ -1,7 +1,6 @@
 # Task 01 - Vehicle definitions (the ENG refactor)
 
-Status: design agreed with the user (2026-10-28); implementation on
-`feature/vehicle-definitions`.
+Status: done on `feature/vehicle-definitions` (2026-10-28), not merged.
 
 The roadmap's first driving task (decided 2026-10-17: before any driving
 task): one vehicle definition per ENG/WAG file, read once and not changed
@@ -331,7 +330,8 @@ couplings add.
    - all 266 PRUDNIK trains finish as before;
    - the simulation, timetable and activity suites pass;
    - the renderer captures with trains are unchanged.
-5. **Reload, problems in the error list, and measures in Release:**
+5. **Reload, problems in the error list, and measures in Release** (done
+   2026-10-28, below):
    - the Consist Editor loading all of OR_PSK, before and after;
    - memory with and without shared includes.
 
@@ -540,6 +540,55 @@ includes, they took 0.56 s in step 1.
 - **The suites:** all of `simulation-*`, `timetable-*`, `activity-check`,
   `activity-ui`, `map-view`, `consist-preview-gl` and `vehicle-file` pass.
 - **The `simulation-trains.json` capture** is still identical to main's.
+
+## Step 5 done (2026-10-28)
+
+**Reload** in the Consist Editor and the Shape Viewer (`Eng::reload`):
+- It reads the ENG file again into a new definition. Files that haven't
+  changed come from the cache.
+- It drops what the car made from the old definition: its lights, its
+  posed parts, its sounds.
+- It names its shapes again, then reloads their files.
+- Cars made before keep their definitions.
+- The old reload indexed a shape library it had no id for, which inserted
+  0; that is gone too.
+
+**Problems** go to the editor's error list (`ErrorMessagesLib`) as warnings,
+each once, giving the file and the line.
+
+**Lights shared:**
+- Vehicles whose `Lights` block is one node of a shared include file
+  share one `EngLightsBlock`, written, compressed and parsed once.
+- When something in the block is included through `[[Vehicle]]`, each
+  vehicle gets its own.
+- `SimisDocument::write` builds one string instead of a temporary for
+  every nested block. Its first form took 1.4 s of the load.
+
+**Measured** with `vehicle-load`: the Consist Editor's
+`EngLib::loadAll`. The same file was built into main `6c6d173` and the
+branch, both Release, on this machine.
+
+| | Vehicles | main | branch |
+| --- | --- | --- | --- |
+| OR_PSK | 3,717 | 1.47 s, +183 MB | 0.84–0.87 s, +96 MB |
+| MSTS | 108 | 15 ms, +1.1 MB | 17 ms, +2.5 MB |
+
+- **The trees with and without shared includes** (`vehicle-file-corpus`,
+  OR_PSK): 67 MB shared, against 259 MB if every vehicle held copies of
+  its own.
+
+**Checks:**
+- `vehicle-file` passes, 35 checks. New ones cover reload, cars made
+  before, problems told once, and the lights sharing.
+- `eng-lights` now expects a second load of an unchanged file to share its
+  lights.
+- Build `all` and ctest pass.
+- The simulation, timetable, map, sound, cab and consist suites pass.
+- The `simulation-trains.json` and Shape Viewer captures are identical to
+  main's.
+- `timetable-doors.json` is identical too, but its train 119 is not on the
+  track on main either: the case was made on Windows content whose numbering
+  differs from this machine's converted OR_PSK.
 
 ## Decisions (user, 2026-10-28)
 

@@ -17,6 +17,9 @@
 #include <tsre/fileFunctions/SimisTextReader.h>
 #include <tsre/tests/TokenTestSupport.h>
 #include <tsre/trains/EngLights.h>
+#include <QScopedValueRollback>
+#include <tsre/ErrorMessagesLib.h>
+#include <tsre/trains/Eng.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehicleKeys.h>
 
@@ -392,6 +395,53 @@ int TsreTests::runVehicleFileSuite(bool verbose) {
                    "every Open Rails unit has a quantity: " + VehicleKeys::unmappedUnits().join(","));
     }
 
+    // Lights from one include shared by the vehicles reading it; not where
+    // an include inside goes through [[Vehicle]].
+    {
+        const QString light = "Light ( Type ( 0 ) Conditions ( Headlight ( 0 ) ) Cycle ( 0 ) FadeIn ( 0 ) FadeOut ( 0 ) "
+                              "States ( 1 State ( Duration ( 0 ) LightColour ( ffffffff ) Position ( 0 1 %1 ) "
+                              "Radius ( 0.5 ) ) ) )\n";
+        write(trainset + "/common.inc/plainLights.inc", Header + "Lights ( 1 " + light.arg(7) + " )\n");
+        write(trainset + "/common.inc/ownLights.inc", Header + "Lights ( 1 include ( [[Vehicle]]/light.inc ) )\n");
+        for (const QString name : {"LA", "LB"}) {
+            write(QString("%1/%2/%2.wag").arg(trainset, name),
+                  Header + "Wagon ( " + name + " include ( ../common.inc/plainLights.inc ) )\n");
+            write(QString("%1/O%2/O%2.wag").arg(trainset, name),
+                  Header + "Wagon ( O" + name + " include ( ../common.inc/ownLights.inc ) )\n");
+            write(QString("%1/O%2/light.inc").arg(trainset, name), Header + light.arg(name == "LA" ? 1 : 2));
+        }
+        const auto a = VehicleDefinition::read(trainset + "/LA", "LA.wag", game, false);
+        const auto b = VehicleDefinition::read(trainset + "/LB", "LB.wag", game, false);
+        const auto oa = VehicleDefinition::read(trainset + "/OLA", "OLA.wag", game, false);
+        const auto ob = VehicleDefinition::read(trainset + "/OLB", "OLB.wag", game, false);
+        const EngLights *la = oa->lights ? oa->lights->lights() : nullptr;
+        const EngLights *lb = ob->lights ? ob->lights->lights() : nullptr;
+        test.check(a->lights && a->lights == b->lights && oa->lights != ob->lights && la && lb
+                           && la->lights.size() == 1 && lb->lights.size() == 1
+                           && equal(la->lights[0].states[0].position[2], 1) && equal(lb->lights[0].states[0].position[2], 2),
+                   "lights from one include shared; with a [[Vehicle]] include inside, each vehicle's own");
+    }
+
+    // An editor's car: Reload reads its file again into a new definition,
+    // cars made before keep theirs; problems go to the error list once.
+    {
+        QScopedValueRollback<QString> restoreRoot(Game::root, game);
+        const QString folder = trainset + "/RELOAD";
+        write(folder + "/r.wag", Header + "Wagon ( R Mass ( 10t ) include ( missing.inc ) )\n");
+        const int before = ErrorMessagesLib::ErrorMessages.size();
+        Eng eng(folder, "r.wag");
+        Eng sameFile(folder, "r.wag");
+        Eng car(&eng);
+        const int told = ErrorMessagesLib::ErrorMessages.size() - before;
+        QThread::msleep(20);
+        write(folder + "/r.wag", Header + "Wagon ( R Mass ( 25t ) )\n");
+        eng.reload();
+        test.check(eng.loaded == 1 && equal(eng.definition->massKg, 25000) && equal(car.definition->massKg, 10000)
+                           && car.definition != eng.definition && told == 1,
+                   QString("Reload reads the file again, a car made before keeps its definition, a problem told once (%1)")
+                           .arg(told));
+    }
+
     // The cache: a file read once while held; a changed file read again,
     // documents made before keep theirs.
     {
@@ -460,17 +510,21 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
         for (const QByteArray &line : status.readAll().split('\n'))
             if (line.startsWith("VmHWM:") || line.startsWith("VmRSS:"))
                 peak += QString::fromLatin1(line.simplified()) + " ";
+    // The trees' memory shared, and as it would be with every vehicle
+    // holding copies of its own (no shared includes).
     QSet<const SimisTree *> trees;
-    qint64 bytes = 0, nodes = 0;
+    qint64 bytes = 0, nodes = 0, unshared = 0;
     for (const auto &doc : docs)
-        for (const SimisTree *tree : doc->trees())
+        for (const SimisTree *tree : doc->trees()) {
+            unshared += tree->bytes();
             if (!trees.contains(tree)) {
                 trees.insert(tree);
                 bytes += tree->bytes();
                 nodes += tree->size();
             }
+        }
     qInfo().noquote() << QString("[tests:vehicle-file-corpus] %1 files read of %2 in %3 ms; %4 with problems; "
-                                 "%5 trees, %6 nodes, %7 MB; %8")
+                                 "%5 trees, %6 nodes, %7 MB (%9 MB unshared); %8")
                                  .arg(read)
                                  .arg(files.size())
                                  .arg(ms)
@@ -478,7 +532,8 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
                                  .arg(trees.size())
                                  .arg(nodes)
                                  .arg(bytes / 1048576.0, 0, 'f', 1)
-                                 .arg(peak.trimmed());
+                                 .arg(peak.trimmed())
+                                 .arg(unshared / 1048576.0, 0, 'f', 1);
     for (auto k = kinds.cbegin(); k != kinds.cend(); ++k)
         qInfo().noquote() << QString("  %1 x %2  e.g. %3").arg(k.value(), 5).arg(k.key(), examples[k.key()]);
     test.check(read == files.size(), QString("every file read: %1 of %2").arg(read).arg(files.size()));

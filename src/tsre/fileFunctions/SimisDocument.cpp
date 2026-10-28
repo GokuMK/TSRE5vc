@@ -299,21 +299,67 @@ bool SimisDocument::number(Item value, Units::Quantity quantity, double &si, QSt
 }
 
 QString SimisDocument::write(Item item) const {
-    if (!item.tree || item.node < 0)
-        return {};
-    const SimisTree::Node &node = item.tree->node(item.node);
-    const QString text = item.tree->text(item.node).toString();
-    if (node.kind != SimisTree::Kind::Block) {
+    QString out;
+    if (item.tree && item.node >= 0)
+        write(item.tree, item.node, out, 0);
+    return out;
+}
+
+void SimisDocument::write(const SimisTree *tree, int index, QString &out, int depth) const {
+    const SimisTree::Node &node = tree->node(index);
+    const QStringView text = tree->text(index);
+    if (node.kind == SimisTree::Kind::Include) {
+        // Its file's items in its place.
+        const SimisTree *included = links.value({tree, index});
+        if (included && depth < IncludeDepth)
+            for (int i = included->first(); i >= 0; i = included->node(i).next) {
+                if (i != included->first())
+                    out += u' ';
+                write(included, i, out, depth + 1);
+            }
+        return;
+    }
+    if (node.kind == SimisTree::Kind::Value) {
         const bool plain = !(node.flags & SimisTree::Quoted) && !text.isEmpty()
                            && std::none_of(text.begin(), text.end(), [](QChar c) {
                                   return c.isSpace() || c == u'(' || c == u')' || c == u'"';
                               });
-        return plain ? text : SimisTextReader::quote(text);
+        if (plain)
+            out += text;
+        else
+            out += SimisTextReader::quote(text.toString());
+        return;
     }
-    QString out = text.isEmpty() ? QString("(") : text + " (";
-    for (const Item &inner : items(item))
-        out += " " + write(inner);
-    return out + " )";
+    if (!text.isEmpty()) {
+        out += text;
+        out += u' ';
+    }
+    out += u'(';
+    for (int i = node.child; i >= 0; i = tree->node(i).next) {
+        out += u' ';
+        write(tree, i, out, depth);
+    }
+    out += QLatin1String(" )");
+}
+
+bool SimisDocument::readsVehicleRoot(Item block) const {
+    return isBlock(block) && readsVehicleRoot(block.tree, block.tree->node(block.node).child, 0);
+}
+
+bool SimisDocument::readsVehicleRoot(const SimisTree *tree, int first, int depth) const {
+    for (int i = first; i >= 0; i = tree->node(i).next) {
+        const SimisTree::Node &node = tree->node(i);
+        if (node.kind == SimisTree::Kind::Include) {
+            if (tree->text(i).trimmed().startsWith(u"[[Vehicle]]", Qt::CaseInsensitive))
+                return true;
+            const SimisTree *included = links.value({tree, i});
+            if (included && depth < IncludeDepth && readsVehicleRoot(included, included->first(), depth + 1))
+                return true;
+        } else if (node.kind == SimisTree::Kind::Block && readsVehicleRoot(tree, node.child, depth)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 QString SimisDocument::file(Item item) const {

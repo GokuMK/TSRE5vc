@@ -9,6 +9,9 @@
  */
 
 #include <QHash>
+#include <QSet>
+#include <tsre/ErrorMessagesLib.h>
+#include <tsre/ErrorMessage.h>
 #include <tsre/shape/ShapeLod.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
@@ -262,9 +265,24 @@ Eng::Eng(QString src, QString p, QString n) {
 
 void Eng::load(){
     // As Open Rails reads it, its OPENRAILS copy where the setting asks
-    // (task driving 01); the definition's problems tell what was wrong.
+    // (task driving 01).
     definition = VehicleDefinition::read(path, name, Game::root,
                                          Settings::boolean("core.content.loading.preferOpenRailsEng"));
+    // Its problems in the editor's error list, each once (a shared
+    // include's are found again by every vehicle including it).
+    static QSet<QString> reported;
+    const auto report = [](const SimisDocument::Problem &p) {
+        const QString where = p.line > 0 ? QString("%1:%2").arg(p.file).arg(p.line) : p.file;
+        const QString text = QString("Rolling stock %1: %2").arg(where, p.message);
+        if (reported.contains(text))
+            return;
+        reported.insert(text);
+        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_Other, text));
+    };
+    for (const SimisDocument::Problem &p : definition->document->problems())
+        report(p);
+    for (const SimisDocument::Problem &p : definition->problems)
+        report(p);
     if (!definition->ok()) {
         qDebug() << pathid << "not exist";
         return;
@@ -532,15 +550,34 @@ void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
 }
 
 void Eng::reload(){
-    long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
-    if(shapeIds[shapeLibId] >= 0) 
+    // Its file read again into a new definition (cars made from it before
+    // keep theirs; files not changed are not read again), and what this car
+    // made from the old one dropped: its lights, its posed parts, sounds.
+    load();
+    delete carLights;
+    carLights = NULL;
+    if (posedShape != nullptr)
+        posedShape->releaseState(posedState);
+    posedShape = nullptr;
+    delete carAnimation;
+    carAnimation = nullptr;
+    placedKnown = false;
+    silenceSounds();
+    if (Game::currentShapeLib == nullptr)
+        return;
+    // Its shapes named again (a file name may have changed), then read
+    // again from their files.
+    const long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
+    shapeIds.remove(shapeLibId);
+    for (auto &ids : freightShapeIds)
+        ids.remove(shapeLibId);
+    cab3DShapeIds.remove(shapeLibId);
+    resolveShapeIds();
+    if (shapeIds.value(shapeLibId, -1) >= 0)
         Game::currentShapeLib->shape[shapeIds[shapeLibId]]->reload();
-    
-    for(int i = 0; i < freightShapeIds.size(); i++){
-        if(freightShapeIds[i][shapeLibId] >= 0) {
-            Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]]->reload();
-        }
-    }
+    for (const auto &ids : freightShapeIds)
+        if (ids.value(shapeLibId, -1) >= 0)
+            Game::currentShapeLib->shape[ids[shapeLibId]]->reload();
 }
 
 bool Eng::isBroken(){

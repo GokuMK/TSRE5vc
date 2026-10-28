@@ -1,6 +1,7 @@
 #include <tsre/trains/VehicleDefinition.h>
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 #include <algorithm>
 #include <cmath>
 #include <tsre/trains/EngLights.h>
@@ -10,6 +11,26 @@ using Item = SimisDocument::Item;
 using Units::Quantity;
 
 namespace {
+
+// The lights blocks read (main thread only), by the tree and node of their
+// block, and the vehicle's folder where an include inside goes through
+// [[Vehicle]]: vehicles whose Lights come from one include share one,
+// written, compressed and parsed once. A block lives as long as a definition
+// holding it, and so its tree (whose address is then not reused); an expired
+// entry is made again.
+QHash<QString, std::weak_ptr<EngLightsBlock>> lightsBlocks;
+
+std::shared_ptr<EngLightsBlock> lightsOf(const SimisDocument &doc, SimisDocument::Item block, const QString &folder) {
+    const QString key = QString("%1:%2:%3")
+                                .arg(quintptr(block.tree))
+                                .arg(block.node)
+                                .arg(doc.readsVehicleRoot(block) ? folder : QString());
+    if (auto shared = lightsBlocks.value(key).lock())
+        return shared;
+    auto made = std::make_shared<EngLightsBlock>(doc.write(block));
+    lightsBlocks.insert(key, made);
+    return made;
+}
 
 constexpr double PoundForce = 4.44822162;
 constexpr double Mile = 0.44704;
@@ -175,7 +196,7 @@ struct Reader {
             } else if (doc.is(item, "lights")) {
                 // Kept as its text, read on first use; a later block
                 // replaces an earlier one.
-                def.lights = std::make_shared<EngLightsBlock>(doc.write(item));
+                def.lights = lightsOf(doc, item, def.folder);
             }
         }
         def.typeHash = def.type;

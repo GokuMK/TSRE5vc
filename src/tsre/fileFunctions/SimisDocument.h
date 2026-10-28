@@ -81,6 +81,10 @@ class SimisDocument {
     // block with its items, includes followed; for readers taking text
     // (EngLightsBlock).
     QString write(Item item) const;
+    // Something in a block is included through [[Vehicle]], the one root
+    // that differs between vehicles: two vehicles sharing the block's file
+    // can read different items in it.
+    bool readsVehicleRoot(Item block) const;
     // Where an item was written.
     QString file(Item item) const;
     int line(Item item) const;
@@ -100,4 +104,6 @@ class SimisDocument {
     QVector<Problem> found;
     friend struct SimisDocumentReader;
     void collect(const SimisTree *from, int first, QVector<Item> &out, int depth) const;
+    void write(const SimisTree *tree, int index, QString &out, int depth) const;
+    bool readsVehicleRoot(const SimisTree *tree, int first, int depth) const;
 };
