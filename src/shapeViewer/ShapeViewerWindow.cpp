@@ -341,14 +341,19 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     //hierarchyWindow->show();
 }
 
+// Opened, the windows show the shape as it is now.
 void ShapeViewerWindow::viewHierarchySelected(bool show){
-    if(show) hierarchyWindow->show();
-    else hierarchyWindow->hide();
+    if(show){
+        hierarchyWindow->show();
+        updateTextureInfo(false);
+    } else hierarchyWindow->hide();
 }
 
 void ShapeViewerWindow::viewTexturesSelected(bool show){
-    if(show) texturesWindow->show();
-    else texturesWindow->hide();
+    if(show){
+        texturesWindow->show();
+        updateTextureInfo(false);
+    } else texturesWindow->hide();
 }
 
 void ShapeViewerWindow::viewMaterialsSelected(bool show){
@@ -689,7 +694,12 @@ void ShapeViewerWindow::updateTextureInfo(){
 }
 
 void ShapeViewerWindow::updateTextureInfo(bool refreshContentList){
-    
+    // A shape loads on a worker and lists no textures or parts until it has:
+    // the timer waits for it (it stopped at its first tick, and the windows
+    // stayed empty; the user, 2026-10-28).
+    if(currentItemType == "shape" && currentShape != NULL
+            && !currentShape->isLoaded() && !currentShape->hasLoadFailed())
+        return;
     QHash<int, ShapeTextureInfo*> textureInfo;
     glShapeWidget->fillCurrentShapeTextureInfo(textureInfo);
     foreach(ShapeTextureInfo* i, textureInfo){
