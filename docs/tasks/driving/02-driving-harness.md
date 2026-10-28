@@ -917,6 +917,23 @@ Rails 8aafb3147 with file and line references; no code was taken. In Open Rails'
 **The appdata archive** (koniec.org's 0.7.tar) gets `scripts/loco/` when
 it is next rebuilt from a release.
 
+## Open questions (user, 2026-10-28: kept open until tested enough)
+
+1. **The battery and master key** give only cab and low voltage power, as
+   in Open Rails' default electric supply. Should they also cut main power,
+   the breaker and traction?
+2. **Open Rails' odd behaviour not kept** (step 3): a missing `Throttle`
+   block, no `MaxPower`, no `AirBrakesMainResVolume`. TSRE's choices stand
+   for now.
+3. **Open Rails' odd behaviour kept** (step 3):
+   - Running, SelfLap and Neutral leave the equalising reservoir alone;
+   - the half bar slow-down band;
+   - the swapped engine brake sounds;
+   - bail off only with main power;
+   - the breaker seeing a pantograph a step late.
+4. **The 50-car pipe recharging in 674 s** (step 2): Open Rails' rate,
+   compared in step 5.
+
 ## Decisions (user, 2026-10-28)
 
 1. **Drive beside Play** (the activity's player service; for an Open Rails
