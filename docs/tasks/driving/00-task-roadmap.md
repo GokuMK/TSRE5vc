@@ -174,6 +174,14 @@ player's, works another way.
   - Typed fields cover what C++ reads.
   - `Sim::Vehicle` is the definition's pointer, its flip and its ids.
   - The results are in the task doc.
+- [ ] [`02-driving-harness.md`](02-driving-harness.md) (designed 2026-10-28,
+  under the user's review): the first whole stack, as the user asked
+  2026-10-28.
+  - The player's train driven by its vehicle models at 0.01 s steps:
+    couplers, a brake pipe and a control line.
+  - A Lua electric loco after Open Rails' electric engine.
+  - A simple RmlUi widget with buttons commanding it; cab and keyboard come
+    in the next task.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab
