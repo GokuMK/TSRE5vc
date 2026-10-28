@@ -270,12 +270,15 @@ void main() {
 #ifdef TSRE_RHI
             // Under cover the shade's light comes from what is around it
             // (ground, walls) and the horizon rather than the sky overhead:
-            // towards the neutral ambient the farther in under cover, so a
-            // platform's floor under its roof no longer takes the open sky's
-            // blue (shade, the darkening, counts an open-sided roof as open).
-            if (enclosed > 0.0)
-                ambient = mix(ambient, ambientColor.rgb, underCover(vLightPosition));
-            color = mixedLight(color, ambient * skyAmbient(shade));
+            // part way to the neutral ambient and darker the farther in
+            // (underCover), so a platform's floor under its roof no longer
+            // takes the open sky's full blue and light. The enclosure's own
+            // darkening (shade) counts a roof open at its sides as open;
+            // where it darkens more (a tunnel) it stays.
+            float under = enclosed > 0.0 ? underCover(vLightPosition) : 0.0;
+            ambient = mix(ambient, ambientColor.rgb, UnderCoverColour * under);
+            float skyShare = min(skyAmbient(shade), mix(1.0, UnderCoverLight, under));
+            color = mixedLight(color, ambient * skyShare);
 #else
             color = mixedLight(color, ambient);
 #endif
@@ -284,7 +287,7 @@ void main() {
             vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(shade);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
-            ambientOut = vec4(fragColor.rgb * ambient * skyAmbient(shade) * colorBrightness
+            ambientOut = vec4(fragColor.rgb * ambient * skyShare * colorBrightness
                               * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor)),
                               fragColor.a);
 #endif
@@ -321,7 +324,7 @@ void main() {
             // texture in linear terms.
             if (materialSpecular > 0.0 && enableNormals != 0.0) {
 #ifdef TSRE_RHI
-                vec3 skyLight = ambient * skyAmbient(shade);
+                vec3 skyLight = ambient * skyShare;
 #else
                 vec3 skyLight = ambient;
 #endif

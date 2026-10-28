@@ -383,9 +383,16 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   the cover's edge in (the user: not at once): how far in a point lies, 0 at
   the edge to 1 about 4.5 m in, from the sky enclosure's openness pass (the
   share of 24 points around a column with the same cover over them,
-  `underCover`, ShadowSampling.glsl). The darkening (shade) counts a roof
-  open at its sides as open, so it could not be used. The Prudnik platform
-  floor under its roof: blue over red 24 -> 1.7 (a neutral grey).
+  `underCover`, ShadowSampling.glsl), only with cover over the point itself.
+  The darkening (shade) counts a roof open at its sides as open, so it could
+  not be used. Then the user: less colour, some darkening; half way to the
+  neutral colour now (`UnderCoverColour`) and down to 70 % of the sky's
+  light (`UnderCoverLight`; where the enclosure darkens more, a tunnel, its
+  own stays). Without the cover over the point, open ground over a deep
+  floor (a hollow, its neighbours as high) read as deep under cover: a
+  stepped grey patch on Prudnik's sunlit platform past the roof's end
+  (`-5373,14874,793.54,340.38,-924.84,-143.06,-36.80`). The platform floor
+  under its roof: blue over red 24 -> 12, a sixth darker.
 - The window, after the user's first look (2026-10-28): numbers and the
   alpha test narrow, their help beside them (room to scroll on), wide
   inputs with their help right below; rows 12 px apart, each a widget of

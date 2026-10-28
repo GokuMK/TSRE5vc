@@ -525,7 +525,11 @@ shadow. The openness pass also writes how far in under cover each column
 lies (g: the share of 24 points in rings out to 4.5 m whose top lies no
 more than 2 m under its own, measured from the tops alone); the classic
 shade's colour turns neutral from it, gradually from a roof's edge in
-(shapes task 13). 8 points looked up in the shader moved it in steps. Checked against the earlier views (EUROPE1 noon: portal, tunnel,
+(shapes task 13), half way, and darkens to 70 % of the sky's light where
+the shade does not darken more, only with cover over the point itself. 8
+points looked up in the shader moved it in steps. Past the end of that
+roof the open platform still reads enclosed in the maps (as in main), now
+without any effect. Checked against the earlier views (EUROPE1 noon: portal, tunnel,
 viaduct from both sides, river bridge; CMK hall): unchanged but the portal,
 whose first metres in the tunnel are a little lighter. The stepped edge was
 the dark region's edge on the 256 x 256 openness map (1.56 m texels); a
