@@ -97,8 +97,16 @@ byte order mark.
     fits.
   - 139 files have unbalanced parentheses, 5 of them include files.
 - **First lines:** 936 include files start with a comment on their first
-  line, which Open Rails drops anyway. 6 start with a line of stars, dashes or
-  junk that only Open Rails' rule hides, for example `b  ß00 hbcomment (…`.
+  line, which Open Rails drops anyway. Others hide a mistake behind Open
+  Rails' rule:
+  - 12 start with a comment whose quote never closes, for example
+    `comment ("Size, InteriaTensor, … SM31)`; 8 of them are included;
+  - 6 start with a line of stars, dashes or junk, for example
+    `b  ß00 hbcomment (…`.
+
+  One, `SA134/Agregat_SA134_B.inc`, which no vehicle includes, opens a block
+  on its first line. Open Rails drops that line, so the block's `)` would
+  close the including `Engine` block.
 - **Size:** the median OR_PSK vehicle is 365 tokens; the largest is 124,000
   tokens with its includes.
 
@@ -140,13 +148,19 @@ byte order mark.
 - **An include that doesn't balance its parentheses can't be a subtree.** It
   is inlined into the including file instead, as Open Rails does, and
   reported. OR_PSK has 5 such files.
-- **Open Rails' rules, applied when the tree is built:**
-  - the first line of every file is skipped as its header;
-  - `comment` and `skip` blocks, and `#` or `_` tokens with the item after
-    them, are left out, so scripts never see them.
-
-  A first line that holds anything other than a SIMIS header, a blank or a
-  comment is reported, since Open Rails drops it.
+- **The first line** (the user's, 2026-10-28). Open Rails never reads a
+  file's first line, taking it for the SIMIS header; TSRE reads it unless it
+  is one:
+  - a SIMIS header is skipped, a stray character before it too
+    (`<SIMISA@@…`);
+  - a line that doesn't read alone is skipped and reported: one that leaves
+    a quote open or closes a block it didn't open. Content made for Open
+    Rails can hide such a line there, like the broken comments above.
+  - anything else is read. Data found there is reported, since Open Rails
+    reads that file differently.
+- **Open Rails' other rules, applied when the tree is built:** `comment`
+  and `skip` blocks, and `#` or `_` tokens with the item after them, are
+  left out, so scripts never see them.
 - **Lookup by path, as Open Rails dispatches.** For example,
   `last("wagon(mass")` gives the last such item through every include, and
   `all("wagon(coupling")` gives each one in order.
@@ -387,7 +401,8 @@ stray `)` in `US2BNSFCar.wag`):
 | An include not found, mostly copies moved one folder deeper (`stare/`, `xhl/`) | 86 |
 | An include whose parentheses do not balance, read in place | 22 vehicles (5 files) |
 | Neither UTF-16 nor UTF-8: read as Latin-1 (Windows-1250 Polish in comments) | 28 |
-| Content on the header line (`<SIMISA…`, junk before `comment`) | 8 |
+| A first line leaving a quote open: not read (first-line rule as changed after step 5) | 8 |
+| Data read on the first line: junk lines of stars, dashes, `b  ß00 hbcomment (…` (the same) | 6 |
 | An unterminated quoted string (`\"` at a string's end, as Open Rails reads it too) | 2 |
 
 ## Step 2 done (2026-10-28)
@@ -444,8 +459,11 @@ reader does what Open Rails does:
 2. **A `#` comment** such as `WagonEmptyWeight ( 26.8t ) #prazdny vagon`
    threw the old reader off. Its brakes, couplings and Davis values were
    lost: CDvagFalls, ZSSKCvagFalls.
-3. **Junk on the first line of light includes** (SM42, SU42). Open Rails
-   never reads that line, so their lights now load.
+3. **Junk on the first line of light includes** (SM42, SU42): `b  ß00
+   hbcomment ("…")`. Its unknown words made the old reader skip the next
+   block, the `Lights`. Open Rails never reads that line. TSRE now reads it
+   too (the first-line rule after step 5), but only as harmless values, so
+   the lights load: SM42-010 parses 22 lights either way.
 4. **Broken quotes, tokenised as Open Rails does:**
    - PCC_Fals's unclosed `BrakeEquipmentType( "…` swallows its
      `BrakeSystemType`, in Open Rails too;
@@ -486,8 +504,9 @@ includes, they took 0.56 s in step 1.
   patched where the compiler pointed.
 - **Tests that built an `Eng` by hand** now give it a definition of their
   own.
-- **The content-path fixture's include files** now start with a blank
-  line: Open Rails never reads an include's first line.
+- **The content-path fixture's include files** got a blank first line
+  here. After step 5 that was undone: TSRE reads a first line that isn't a
+  header.
 - **The comparison suite is gone** with the old reader. Its results are
   under step 2.
 
@@ -607,3 +626,10 @@ branch, both Release, on this machine.
 5. **Encodings:** as listed, with Latin-1 for the rest, as now.
 6. **No new folder:** the new code goes beside the code it replaces.
 7. **The play-mode code in `Eng`** stays for the driving tasks.
+8. **The first line is read unless it is a SIMIS header** (after step 5).
+   Open Rails' skipping of every first line works around include files that
+   start with a header. TSRE's lexer reads a header as one word, so it
+   recognises the header and needs no blind skip. A first line that leaves
+   a quote open or closes a block it didn't open is still not read, and is
+   reported; data read on a first line is reported as an Open Rails
+   difference.

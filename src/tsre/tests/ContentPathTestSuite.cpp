@@ -172,9 +172,7 @@ int TsreTests::runContentPathSuite(bool verbose) {
     test.check(ActLib::GetPathByName("LOCAL",a)==pa && ActLib::GetPathByName("local",b)==pb,"path logical names are route-scoped");
 
     const QString vehicle=root+"/TRAINS/TRAINSET/MixedLoco";
-    // An include file's first line is its header, never read (as in Open
-    // Rails): the fixtures' start blank.
-    put(vehicle+"/CabData.inc","\r\nWagonShape ( MixedBody.S )");
+    put(vehicle+"/CabData.inc","WagonShape ( MixedBody.S )");
     put(vehicle+"/Mixed.eng","SIMISA@@@@@@@@@@JINX0D0t______\r\nWagon ( Mixed Include ( CabData.inc ) )");
     EngLib engines;
     const int engId=engines.addEng(vehicle,"Mixed.eng");
@@ -189,7 +187,7 @@ int TsreTests::runContentPathSuite(bool verbose) {
     // them to the next include.
     put(vehicle+"/Power.inc",QByteArray("\xEF\xBB\xBF\r\nORTSDieselEngines ( 1\r\nDiesel ( MaxRPM ( 1000 ) )\r\n)\r\n"
                                         "MaxForce ( 245kN )\r\nMaxPower ( 692kW )\r\n"));
-    put(vehicle+"/Speed.inc","\r\nMaxVelocity ( 100kmh )");
+    put(vehicle+"/Speed.inc","MaxVelocity ( 100kmh )");
     put(vehicle+"/Named.inc",QByteArray("\xEF\xBB\xBF\r\nName ( \"Wroc\xC5\x82""aw\" )\r\n"));
     put(vehicle+"/Bom.eng","SIMISA@@@@@@@@@@JINX0D0t______\r\nWagon ( Bom WagonShape ( Bom.s ) Include ( Named.inc ) )\r\n"
                            "Engine ( Bom\r\nInclude ( Power.inc )\r\nInclude ( Speed.inc )\r\n)");

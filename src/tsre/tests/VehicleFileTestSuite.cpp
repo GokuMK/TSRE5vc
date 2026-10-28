@@ -136,23 +136,43 @@ int TsreTests::runVehicleFileSuite(bool verbose) {
                    "odd UTF-16 bytes refused");
     }
 
-    // The first line is the header and never read, as in Open Rails; told
-    // when it holds more than a header, a blank or a comment.
+    // The first line: MSTS's SIMIS header is not read, anything else is
+    // (the user's, 2026-10-28), data there told (Open Rails never reads a
+    // file's first line).
     {
         const QString a = trainset + "/FIRST/a.wag";
         write(a, "Mass ( 1t )\r\nMass ( 2t )\r\n");
         auto doc = SimisDocument::read(a, roots);
-        test.check(doc->all("mass").size() == 1 && lastValues(*doc, "mass") == QStringList{"2t"}
+        test.check(doc->all("mass").size() == 2 && lastValues(*doc, "mass") == QStringList{"2t"}
                            && hasProblem(*doc, "first line"),
-                   "the first line is not read and is told: " + problems(*doc));
+                   "data on the first line read and told: " + problems(*doc));
         const QString b = trainset + "/FIRST/b.wag";
         write(b, Header + "Mass ( 2t )\r\n");
         const QString c = trainset + "/FIRST/c.inc";
         write(c, "comment ( Mass ( 3t ) )\r\nMass ( 4t )\r\n");
         const auto header = SimisDocument::read(b, roots), comment = SimisDocument::read(c, roots);
-        test.check(header->problems().isEmpty() && comment->problems().isEmpty()
+        write(trainset + "/FIRST/stray.wag", "<" + Header + "Mass ( 6t )\r\n");
+        const auto stray = SimisDocument::read(trainset + "/FIRST/stray.wag", roots);
+        test.check(header->problems().isEmpty() && header->all("simisa@@@@@@@@@@jinx0d0t______").isEmpty()
+                           && header->items().size() == 1 && stray->problems().isEmpty() && stray->items().size() == 1
+                           && comment->problems().isEmpty()
                            && lastValues(*comment, "mass") == QStringList{"4t"},
-                   "a header or a comment on the first line is not told");
+                   "a header line not read, a comment on the first line left out, neither told");
+        // A first line that does not read alone (OR_PSK's comments with an
+        // open quote, made for Open Rails, which never reads it): not read.
+        write(trainset + "/FIRST/e.inc", "comment (\"Size, Mass etc. dla modelu SM31)\r\nMass ( 5t )\r\n");
+        auto open = SimisDocument::read(trainset + "/FIRST/e.inc", roots);
+        test.check(lastValues(*open, "mass") == QStringList{"5t"} && hasProblem(*open, "quote open"),
+                   "a first line leaving a quote open not read, told: " + problems(*open));
+        // An include opening a block on its first line (OR_PSK's
+        // Agregat_SA134_B.inc): read whole, so its ')' closes its own block.
+        write(trainset + "/FIRST/diesel.inc", "ORTSDieselEngines ( 1\r\nDiesel ( MaxRPM ( 1000 ) )\r\n)\r\n");
+        write(trainset + "/FIRST/d.eng", Header + "Engine ( D include ( diesel.inc ) MaxForce ( 300kN ) )\r\n");
+        auto engine = SimisDocument::read(trainset + "/FIRST/d.eng", roots);
+        test.check(lastValues(*engine, "engine(ortsdieselengines(diesel(maxrpm") == QStringList{"1000"}
+                           && lastValues(*engine, "engine(maxforce") == QStringList{"300kN"}
+                           && hasProblem(*engine, "first line") && !hasProblem(*engine, "balance"),
+                   "an include opening a block on its first line read whole: " + problems(*engine));
     }
 
     // Comments, skip blocks, '#' and '_' items with the item after them;
@@ -489,6 +509,8 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
         read += doc->ok() ? 1 : 0;
         withProblems += doc->problems().isEmpty() ? 0 : 1;
         for (const auto &p : doc->problems()) {
+            if (verbose && p.line == 1 && p.message.startsWith("Data on the first line"))
+                qInfo().noquote() << "  first line read:" << QString(p.file).remove(root) << p.message.mid(p.message.indexOf(": \"") + 2);
             // The kind: the message without paths, names and numbers.
             QString kind = p.message;
             kind.replace(QRegularExpression("(\"[^\"]*\"|\\S*[/\\\\]\\S*|\\d+(\\.\\d+)?)"), "…");
@@ -499,6 +521,23 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
             ++kinds[kind];
             if (!examples.contains(kind))
                 examples[kind] = QString("%1:%2 %3").arg(QString(p.file).remove(root)).arg(p.line).arg(p.message);
+        }
+        // TSRE_VEHICLE_FILE=<part of a path>: what a vehicle's lights read.
+        const QString show = qEnvironmentVariable("TSRE_VEHICLE_FILE");
+        if (!show.isEmpty() && path.contains(show))
+        {
+            qInfo().noquote() << "  " << QString(path).remove(root) << "lights:"
+                              << doc->all("wagon(lights(light").size() << "problems:" << doc->problems().size();
+            for (const auto &p : doc->problems())
+                qInfo().noquote() << "     " << QString(p.file).remove(root) << p.line << p.message;
+            for (const QString &f : doc->files())
+                qInfo().noquote() << "      file" << QString(f).remove(root);
+            const auto def = VehicleDefinition::read(QFileInfo(path).path(), QFileInfo(path).fileName(), root, false);
+            const EngLights *parsed = def->lights ? def->lights->lights() : nullptr;
+            qInfo().noquote() << "      parsed lights" << (parsed ? parsed->lights.size() : -1);
+            for (const Item &lights : doc->all("wagon(lights"))
+                qInfo().noquote() << "      Lights in" << QString(doc->file(lights)).remove(root) << doc->line(lights)
+                                  << "lights" << doc->items(lights).size();
         }
         docs.push_back(doc);
     }

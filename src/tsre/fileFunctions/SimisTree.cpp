@@ -9,6 +9,22 @@ namespace {
 bool same(QStringView a, const char *b) { return a.compare(QLatin1String(b), Qt::CaseInsensitive) == 0; }
 // Inlined includes nested deeper than this are kept as nodes (a loop).
 constexpr int InlineDepth = 16;
+// A line reads alone: no quote left open, no ')' closing a block it did
+// not open.
+bool standsAlone(QStringView line) {
+    bool quoted = false;
+    int depth = 0;
+    for (qsizetype i = 0; i < line.size(); ++i) {
+        const QChar c = line[i];
+        if (c == u'"' && (i == 0 || line[i - 1] != u'\\'))
+            quoted = !quoted;
+        else if (!quoted && c == u'(')
+            ++depth;
+        else if (!quoted && c == u')' && --depth < 0)
+            return false;
+    }
+    return !quoted;
+}
 } // namespace
 
 struct SimisTreeBuilder {
@@ -121,20 +137,29 @@ struct SimisTreeBuilder {
         tree.items[node].kind = SimisTree::Kind::Include;
     }
     void readText(int file, qsizetype base, const QString &text) {
-        // The first line is the file's header, never read (Open Rails reads
-        // it as the SIMIS signature, include files too). Told when it holds
-        // more than a header, a blank or a comment.
+        // The first line: MSTS's SIMIS header is not read, anything else is
+        // (the user's, 2026-10-28) where it reads alone. Open Rails takes any
+        // first line for the header and reads none of it, so content made for
+        // it may leave a broken line there (OR_PSK's comments with an open
+        // quote): such a line is not read either, and told; data read there
+        // is told too, as that file reads differently in Open Rails.
         const qsizetype end = text.indexOf(u'\n');
-        QStringView first = QStringView(text).left(end < 0 ? text.size() : end).trimmed();
+        const qsizetype firstEnd = end < 0 ? text.size() : end;
+        QStringView first = QStringView(text).left(firstEnd).trimmed();
         while (first.startsWith(QChar(0xfeff)))
             first = first.mid(1).trimmed();
-        if (!first.isEmpty() && !first.startsWith(QLatin1String("SIMISA"), Qt::CaseInsensitive)
-            && !first.startsWith(QLatin1String("comment"), Qt::CaseInsensitive)
-            && !first.startsWith(QLatin1String("skip"), Qt::CaseInsensitive) && !first.startsWith(u'#')
-            && !first.startsWith(u'_'))
-            tree.found.push_back({file, 1, QString("The first line is the file's header and is not read: \"%1\"")
+        // The header's word, a stray character before it too (OR_PSK has
+        // "<SIMISA@@@@@@@@@@JINX0D0t______").
+        const QStringView word = first.left(first.indexOf(u' ') < 0 ? first.size() : first.indexOf(u' '));
+        bool header = word.contains(QLatin1String("SIMISA@"), Qt::CaseInsensitive);
+        if (!header && !standsAlone(first)) {
+            header = true;
+            tree.found.push_back({file, 1, QString("The first line leaves a quote open or closes a block it did not "
+                                                   "open: not read, as Open Rails never reads it: \"%1\"")
                                                    .arg(first.left(60).toString())});
-        SimisTextReader reader(text, end < 0 ? text.size() : end + 1);
+        }
+        SimisTextReader reader(text, header ? firstEnd : 0);
+        const int itemsBefore = int(tree.items.size());
         int previous = -1;
         for (;;) {
             if (reader.peekKind() == Kind::End)
@@ -182,6 +207,14 @@ struct SimisTreeBuilder {
             }
             previous = value(token, base);
         }
+        if (!header)
+            for (int i = itemsBefore; i < int(tree.items.size()); ++i)
+                if (tree.items[i].begin >= base && tree.items[i].begin < base + firstEnd) {
+                    tree.found.push_back({file, 1, QString("Data on the first line, which Open Rails does not read "
+                                                           "(it takes it for the file's header): \"%1\"")
+                                                           .arg(first.left(60).toString())});
+                    break;
+                }
     }
 };
 
