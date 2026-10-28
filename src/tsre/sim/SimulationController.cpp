@@ -746,6 +746,24 @@ QString SimulationController::eventText(const TrainEvent &event) const {
                            : skipped->name.isEmpty() ? QString::number(skipped->id) : skipped->name;
         return WorkSkippedText(*in, event.index, name);
     }
+    case TrainEvent::DrivingStarted:
+        //% "driven from here"
+        return qtTrId("simulation.event.driving.started");
+    case TrainEvent::DrivingLeft:
+        //% "given back to the AI"
+        return qtTrId("simulation.event.driving.left");
+    case TrainEvent::PassedAtDanger:
+        //% "passed a signal at danger"
+        return qtTrId("simulation.event.passed.danger");
+    case TrainEvent::PassedAuthority:
+        //% "ran past the end of the track given to it"
+        return qtTrId("simulation.event.passed.authority");
+    case TrainEvent::EndOfPath:
+        //% "stopped at the end of its path"
+        return qtTrId("simulation.event.path.end");
+    case TrainEvent::Collided:
+        //% "ran into another train: the run ends"
+        return qtTrId("simulation.event.collided");
     case TrainEvent::Restarted: {
         const ActivityEvent *by = activityEvent(event.index);
         //% "restarted by event %1"

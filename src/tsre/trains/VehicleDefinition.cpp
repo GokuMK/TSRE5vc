@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/trains/EngLights.h>
+#include <tsre/trains/VehicleKeys.h>
 #include <tsre/units/UnitConversion.h>
 
 using Item = SimisDocument::Item;
@@ -349,4 +350,15 @@ QString VehicleDefinition::file(const QString &written, const QString &holder, c
             return path;
     }
     return first;
+}
+
+double VehicleDefinition::number(QAnyStringView path, int index, double otherwise) const {
+    if (!document)
+        return otherwise;
+    const SimisDocument::Item block = document->last(path);
+    const SimisDocument::Item value = document->values(block).value(index);
+    const VehicleKeys::Value key = VehicleKeys::value(path, index);
+    double si = 0.0;
+    const Units::Quantity quantity = key.kind == VehicleKeys::Value::Kind::Number ? key.quantity : Units::Quantity::Any;
+    return value.tree && document->number(value, quantity, si, key.defaultUnit) ? si : otherwise;
 }

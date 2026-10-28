@@ -1,6 +1,6 @@
 # Task 02 - The driving harness: a first whole stack
 
-Status: design, the user's answers of 2026-10-28 in (decisions at the end). No code yet.
+Status: the user's answers of 2026-10-28 in (decisions at the end); being built on `feature/driving` (step 1 done).
 
 The user's request (2026-10-28), after the ENG refactor (task 01) was
 merged:
@@ -487,7 +487,8 @@ engine passes it on.
 
 ## Steps
 
-1. **The driven train, the run's step and motion.**
+1. **The driven train, the run's step and motion** (done 2026-10-28,
+   below).
    - Couplers and per-vehicle forces, with a C++ stand-in loco (force from a
      throttle) and C++ wagons.
    - Taking over from the AI and giving back; collisions end the run.
@@ -540,6 +541,106 @@ must stay identical to main: the seven routes and PRUDNIK, as in task 01.
   - the external full-train link;
   - saving runs;
   - multiplayer.
+
+## Step 1 done (2026-10-28)
+
+**Code** (`src/tsre/sim/`):
+- **`TrainPhysics`:** the cars in running order, couplers with free play,
+  a spring and a damper.
+  - Each step solves one tridiagonal system along the train (backward
+    Euler). It repeats the solve while couplers come in or out of their
+    free play, or cars stop or start, at most 12 times.
+  - Brakes and resistance are friction: a standing car stays held until
+    its other forces beat it, and a moving car stops without turning
+    round.
+  - Where a file gives no damping, the default is a damping ratio of 1.
+- **`VehicleModel`:**
+  - messages: a free name; a number, text or flag; written as text
+    `name = value`;
+  - per step, in the vehicle's own frame, a model takes the inputs (speed,
+    gradient, adhesion limit, line voltage) and gives its motive force,
+    its brake force, open values and events;
+  - `MakeVehicleModel`: a stand-in engine (throttle × `MaxForce`, at most
+    `MaxPower` × throttle / v, fading above `MaxVelocity`, signed by the
+    direction, within adhesion), and a wagon (no force yet).
+- **`SimulationDriving.cpp`,** the core's driving:
+  - `drive` takes over a placed train, or sets one up once it's placed;
+    `leave` gives it back;
+  - `command` sends a message to a vehicle; `outputsOf`, `cabOf` and
+    `takeMessages` read back.
+  - Each step, for every vehicle: its model's outputs; gravity from the
+    heights at its two ends; Davis resistance, with the leading car's air
+    drag; adhesion of 0.33 × its weight. Then the motion.
+  - The core's bookkeeping goes on as for every train: track reserved
+    ahead, signals passed, track released behind (keeping 100 m behind for
+    backing up).
+  - **Events:**
+    - a signal passed showing STOP (`PassedAtDanger`);
+    - the reserved track's end passed (`PassedAuthority`);
+    - the path's end, where the train stops, since the track beyond comes
+      later (`EndOfPath`);
+    - arrival and departure at a stop's platform;
+    - a reversal: at rest within 100 m of its part's end, the cab's
+      direction set the other way;
+    - running into another train faster than coupling speed, which ends
+      the run (`Collided`, `collision()`), from the trains and standing cars
+      in the sections at its front.
+- **The run's step:**
+  - `SimulationInput::step` (0.1 s; 0.01 s with a train driven) and
+    `driven`, the train driven from the start;
+  - taking over a running train switches the run to 0.01 s, and leaving
+    switches it back;
+  - `TSRE_SIM_STEP` holds every run at a step, for measuring.
+- **The editor's event texts** cover the new events; their Polish
+  translations come with step 4.
+
+**Fixed on the way:** the pre-run counted its steps as 0.1 s each. At
+0.01 s it ran only a tenth of the time, and AI trains started late; the
+measure below found it. One AI rule used 0.1 s as "within a step" and now
+uses the run's step.
+
+**Suite `driving`:** 13 checks:
+- one car at F/m;
+- two cars sharing the pull, the slack taken up first;
+- 50 cars stable at 0.01 s, the slack run-in dying out (the peak coupler
+  force 1.18 × the pull);
+- friction holding, beaten and stopping;
+- determinism;
+- messages;
+- the core:
+  - driving from the start, full throttle 20 s against an independent
+    integration of adhesion and power (29.621 m/s, the same to four
+    digits);
+  - braking to a stand without rolling back;
+  - the path's end;
+  - taking over from the AI at 15 m/s with the speed kept, and handing
+    back;
+  - the step switching;
+  - a collision after passing at danger, on a signalled line;
+  - a driven run repeating exactly.
+
+**Measures** (Release; `simulation-route`, AI trains only):
+
+| | 0.1 s step | 0.01 s step |
+| --- | --- | --- |
+| EUROPE1, 15 h | 0.37 s | 3.85 s |
+| JAPAN1, 9.7 h | 0.44 s | 4.1 s |
+| USA2, 54 h | 0.69 s | 6.7 s |
+| PRUDNIK, 266 trains, 20 h | 4.6 s | 40 s |
+
+At 0.01 s the AI's results are the same as at 0.1 s: the same waits and
+stops, arrivals within 1 s. The cost is ten times, still about 1,800 times
+real time on PRUDNIK. Whether AI trains go back to 0.1 s is the user's
+choice (decision 3).
+
+**Unchanged:** AI-only runs of the seven routes and PRUDNIK give the same
+traces as main. All the simulation, timetable and activity suites pass.
+
+**Limits, for later steps or tasks:**
+- the track beyond a path's end;
+- coupling a driven train;
+- collisions behind a train backing up (only ahead is checked);
+- a reversal only near a part's end.
 
 ## Decisions (user, 2026-10-28)
 

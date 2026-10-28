@@ -4,8 +4,11 @@
 #include <memory>
 #include <vector>
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/VehicleModel.h>
 
 namespace Sim {
+
+struct Driven;
 
 enum class TrainStatus { Waiting, Running, Stopped, Finished };
 // Why a train stands. Blocked: at the end of its authority, the track ahead
@@ -94,7 +97,12 @@ struct TrainEvent {
     // Rails removes such a train (the player's train stands there).
     enum Kind { Started, Arrived, Departed, Waiting, Reversed, Horn, Finished, Blocked, Deadlock,
                 EventFired, ActivityEnded, Restarted, Coupled, Joined, Uncoupled,
-                TookCars, LeftCars, JoinedTrain, Parted, WorkSkipped, Removed };
+                TookCars, LeftCars, JoinedTrain, Parted, WorkSkipped, Removed,
+                // A driven train (task driving 02): driving taken and left;
+                // a stop signal passed at danger (its `signal`), its
+                // authority's end passed, its path's end reached, run into
+                // another train.
+                DrivingStarted, DrivingLeft, PassedAtDanger, PassedAuthority, EndOfPath, Collided };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -150,6 +158,10 @@ public:
     // 20 m short and brakes fully from 15 m before that), but at a station
     // stop short of either.
     static constexpr double AuthorityMargin = 10.0;
+    // The step while a train is driven (task driving 02's decision).
+    static constexpr double DrivenStep = 0.01;
+    // A driven train keeps the track this far behind its rear (backing up).
+    static constexpr double DrivenKeepBehind = 100.0;
     static constexpr double SignalMargin = 30.0;
     // A train waiting for track tries again at least this often (seconds),
     // and whenever what it waits for changes.
@@ -354,6 +366,35 @@ public:
     static constexpr double EventStandLimit = 60.0;
     // Every train has finished its path.
     bool finished() const;
+
+    // Driving (task driving 02). The run's fixed step (its input's).
+    double stepLength() const { return stepSeconds; }
+    // The train driven from now on, its vehicles' models moving it (false
+    // without an engine): taken over from the AI where it is, set up once
+    // placed when it is not yet; given back to the AI, which drives on.
+    bool drive(int train);
+    void leave(int train);
+    int drivenTrain() const { return driven; }
+    // A message for a driven train's vehicle (-1: its cab's).
+    void command(int train, int vehicle, const Message &message);
+    // A driven train's vehicle's last outputs (-1: its cab's), null for
+    // none; its cab (consist order), -1 none.
+    const VehicleOutputs *outputsOf(int train, int vehicle) const;
+    int cabOf(int train) const;
+    // The messages a driven train's vehicles sent since last taken (vehicle,
+    // message).
+    std::vector<std::pair<int, Message>> takeMessages(int train);
+    // A driven train run into another: the run ends (time < 0: none).
+    struct Collision {
+        double time = -1.0;
+        int train = -1;
+        // The other train, or a standing one (standing).
+        int other = -1;
+        bool standing = false;
+        // m/s, together.
+        double speed = 0.0;
+    };
+    const Collision &collision() const { return crash; }
     // Nothing more will happen: every train has finished, stands at its
     // path's end, is in a deadlock or waits for track a standing consist
     // holds (those never move).
@@ -564,8 +605,25 @@ private:
         };
         std::vector<Covered> swept;
         std::vector<Covered> rests;
+        // Driven (task driving 02): its cars, models and outputs; null for
+        // a train the AI drives.
+        std::shared_ptr<Driven> drivenState;
     };
     std::vector<Runtime> runtime;
+    // Driving (task driving 02): the run's step, the driven train, a
+    // collision.
+    double stepSeconds = MaxStep;
+    int driven = -1;
+    Collision crash;
+    void takeOver(int train);
+    // The run's step changed from now on (a train driven: DrivenStep; left:
+    // its input's), its whole steps counted from now.
+    void setStepLength(double seconds);
+    void advanceDriven(int train, double from, double to);
+    void drivenStops(int train, double t);
+    void drivenReversal(int train, double t);
+    void drivenContact(int train, double t);
+    bool drivenEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const;
     // Trains another one's `$activate` starts (task 08, phase 8).
     std::vector<int> activated;
 

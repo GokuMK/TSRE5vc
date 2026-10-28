@@ -56,7 +56,7 @@ struct Vehicle {
     double davisLeading() const { return definition->massKg > 0.0 ? definition->resistanceLeading : 0.0; }
 };
 
-// How a train is driven (task simulation 03): Simple, task 01's constant
+// How a train is driven by the AI (task simulation 03): Simple, task 01's constant
 // acceleration and braking; Physics, as Open Rails' AI drives with its
 // force and mass.
 enum class Driving { Simple, Physics };
@@ -368,6 +368,13 @@ struct EventPlan {
 // Everything a simulation reads, copied from the editor's data when it
 // starts; immutable after.
 struct SimulationInput {
+    // The run's fixed step, seconds (task driving 02: 0.01 with a train
+    // driven, else 0.1, at most SimulationCore::MaxStep).
+    double step = 0.1;
+    // The train driven from the start (Drive beside Play), -1 none.
+    int driven = -1;
+    // The route's line voltage (TRK MaxLineVoltage), V.
+    double lineVoltage = 0.0;
     QString activity;
     // Seconds after midnight.
     int startTime = 0;

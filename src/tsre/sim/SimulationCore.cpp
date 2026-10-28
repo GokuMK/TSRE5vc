@@ -40,6 +40,14 @@ double waitUntil(const WaitPlan &wait, double time) {
 }
 
 SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : in(std::move(input)) {
+    stepSeconds = std::clamp(in->step, 0.001, MaxStep);
+    // TSRE_SIM_STEP=<seconds>: every run at that step (measuring a driven
+    // run's 0.01 s for AI trains, task driving 02).
+    bool stepSet = false;
+    const double stepAsked = qEnvironmentVariable("TSRE_SIM_STEP").toDouble(&stepSet);
+    if (stepSet)
+        stepSeconds = std::clamp(stepAsked, 0.001, MaxStep);
+    driven = in->driven >= 0 && size_t(in->driven) < in->trains.size() ? in->driven : -1;
     states.resize(in->trains.size());
     runtime.resize(in->trains.size());
     // Each train's own copy of its route: a part changes when it takes a
@@ -141,7 +149,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         ticks = 0;
         now = first;
         prerunning = true;
-        const long long count = std::llround((start - first) / MaxStep);
+        const long long count = std::llround((start - first) / stepSeconds);
         for (long long k = 0; k < count; ++k)
             stepOnce();
         prerunning = false;
@@ -171,20 +179,20 @@ void SimulationCore::refreshConsist(int train) {
 
 void SimulationCore::step(double seconds) {
     pending += std::max(0.0, seconds);
-    while (pending >= MaxStep - 1e-9) {
-        pending -= MaxStep;
+    while (pending >= stepSeconds - 1e-9) {
+        pending -= stepSeconds;
         stepOnce();
     }
     pending = std::max(0.0, pending);
 }
 
 double SimulationCore::onStep(double time) const {
-    return origin + std::ceil((time - origin) / MaxStep - 1e-6) * MaxStep;
+    return origin + std::ceil((time - origin) / stepSeconds - 1e-6) * stepSeconds;
 }
 
 void SimulationCore::stepOnce() {
     // Time is the origin plus whole steps: no drift over a long run.
-    const double next = origin + double(ticks + 1) * MaxStep;
+    const double next = origin + double(ticks + 1) * stepSeconds;
     for (Runtime &rt : runtime)
         if (rt.watched) {
             rt.swept.clear();
@@ -215,8 +223,16 @@ void SimulationCore::stepOnce() {
     }
     for (int i : free)
         start(i, now, next);
-    for (size_t i = 0; i < states.size(); ++i)
-        advance(int(i), now, next);
+    // The driven train (task driving 02) set up once on the track.
+    if (driven >= 0 && !runtime[size_t(driven)].drivenState && states[size_t(driven)].status != TrainStatus::Waiting
+            && states[size_t(driven)].status != TrainStatus::Finished)
+        takeOver(driven);
+    for (size_t i = 0; i < states.size(); ++i) {
+        if (int(i) == driven && runtime[i].drivenState)
+            advanceDriven(int(i), now, next);
+        else
+            advance(int(i), now, next);
+    }
     now = next;
     ++ticks;
     ++stepCount;
@@ -247,6 +263,8 @@ void SimulationCore::record(double time, int train, TrainEvent::Kind kind, int i
 }
 
 bool SimulationCore::finished() const {
+    if (crash.time >= 0.0)
+        return true;
     for (const TrainState &state : states)
         if (state.status != TrainStatus::Finished && state.stoppedAt != StopKind::End)
             return false;
@@ -2429,7 +2447,7 @@ bool SimulationCore::heldAtStop(int train, size_t signal) const {
             ahead = ahead || int(k) >= at;
         }
     if (standing && rt.exits[size_t(at)] == int(signal))
-        listed -= (now >= s.until - HoldRelease - MaxStep ? 1 : 0) + (now >= s.until - MaxStep ? 1 : 0);
+        listed -= (now >= s.until - HoldRelease - stepSeconds ? 1 : 0) + (now >= s.until - stepSeconds ? 1 : 0);
     return ahead && listed > 0;
 }
 
@@ -2610,6 +2628,23 @@ void SimulationCore::releaseBehind(int train) {
             // It takes the signal's speed until the next one.
             TrainState &passing = states[size_t(train)];
             passing.signalSpeed = signalSpeedOf(stopSignals[rt.passed].signal);
+            // A driven train past a signal showing STOP: at danger (task
+            // driving 02; it is not stopped). Its aspect as the train sees it:
+            // its normal heads' clearest (nextSignalAhead's).
+            int shown = 0;
+            if (rt.drivenState && in->network != nullptr)
+                for (int head : in->network->signalGroups()[size_t(stopSignals[rt.passed].signal)].heads)
+                    if (in->network->isNormal(in->network->heads()[size_t(head)]))
+                        shown = std::max(shown, headAspect[size_t(head)]);
+            if (rt.drivenState && shown == 0) {
+                TrainEvent passedAtDanger;
+                passedAtDanger.time = now;
+                passedAtDanger.train = train;
+                passedAtDanger.kind = TrainEvent::PassedAtDanger;
+                passedAtDanger.signal = stopSignals[rt.passed].signal;
+                passedAtDanger.travelled = s.travelled;
+                events.push_back(passedAtDanger);
+            }
             if (clearedFor[size_t(stopSignals[rt.passed].signal)] == train)
                 unclear(stopSignals[rt.passed].signal);
             if (rt.permission == stopSignals[rt.passed].signal)
@@ -2617,7 +2652,9 @@ void SimulationCore::releaseBehind(int train) {
             ++rt.passed;
         }
     }
-    const double rear = s.front - runtime[size_t(train)].length;
+    // A driven train keeps some track behind it, to back up on.
+    const double rear = s.front - runtime[size_t(train)].length
+            - (rt.drivenState ? DrivenKeepBehind : 0.0);
     // Stretches its rear has left are no longer its own.
     if (size_t(train) < stretchesOf.size() && size_t(s.part) < stretchesOf[size_t(train)].size())
         for (const auto &[stretch, side] : stretchesOf[size_t(train)][size_t(s.part)])
@@ -2785,6 +2822,8 @@ bool SimulationCore::vehicleEnds(int train, std::vector<TrackPose> &fronts, std:
     const TrainState &state = states[size_t(train)];
     if (state.status == TrainStatus::Waiting || state.status == TrainStatus::Finished)
         return false;
+    if (runtime[size_t(train)].drivenState)
+        return drivenEnds(train, fronts, rears);
     const double trainFront = ahead > 0.0 ? std::min(state.front + ahead, std::max(state.front, state.authority))
                                           : state.front;
     double before = 0.0;

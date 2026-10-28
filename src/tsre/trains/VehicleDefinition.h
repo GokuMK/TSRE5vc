@@ -126,6 +126,10 @@ struct VehicleDefinition {
     // Its Lights block (task renderer 34) as its text, read on first use
     // (on the main thread); null without one.
     std::shared_ptr<EngLightsBlock> lights;
+    // A number of its file at a path ("wagon(maxbrakeforce"), the value at
+    // `index` of the last such block, in SI by the key catalogue (its
+    // quantity and default unit); `otherwise` where the file has none.
+    double number(QAnyStringView path, int index = 0, double otherwise = 0.0) const;
     // Problems found in its fields (the document has the file's own).
     QVector<SimisDocument::Problem> problems;
 
