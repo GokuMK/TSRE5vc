@@ -106,7 +106,7 @@ QVector<RenderItem *> pbrPackets(const Recorder &recorder) {
 
 } // namespace
 
-int TsreTests::runShapeMaterialsSuite(bool verbose) {
+int TsreTests::runShapeMaterialsSuite(const QString &imagePath, bool verbose) {
     int passed = 0;
     int failed = 0;
     auto check = [&](bool condition, const char *name) {
@@ -364,6 +364,11 @@ int TsreTests::runShapeMaterialsSuite(bool verbose) {
         if (found) {
             materials->setCurrentItem(materials->topLevelItem(1));
             shader->setCurrentText("PbrTexDiff");
+            // The window with a PBR material, for a look at its layout.
+            if (!imagePath.isEmpty()) {
+                window.resize(1180, 1000);
+                check(window.grab().save(imagePath), "materials-window-image-saved");
+            }
             applyButton->click();
             applied = edited.materialInfo(1, info) && info.shader == "PbrTexDiff"
                     && materials->topLevelItem(1)->text(2) == "PbrTexDiff" && undoButton->isEnabled()

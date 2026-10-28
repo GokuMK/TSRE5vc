@@ -101,6 +101,10 @@ QString lightDescription(int light) {
 QLabel *help(const QString &text) {
     auto *label = new QLabel(text);
     label->setWordWrap(true);
+    // Wrapped to the room it has: its own minimum width made the panel wider
+    // than its window, scrolled sideways.
+    label->setMinimumWidth(60);
+    label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse);
     QPalette palette = label->palette();
     palette.setColor(QPalette::WindowText, palette.color(QPalette::Disabled, QPalette::WindowText));
@@ -108,12 +112,50 @@ QLabel *help(const QString &text) {
     return label;
 }
 
+// A number: narrow, all alike, its help beside it.
 QDoubleSpinBox *spin(double low, double high, double step) {
     auto *box = new QDoubleSpinBox;
     box->setRange(low, high);
     box->setSingleStep(step);
     box->setDecimals(3);
+    box->setFixedWidth(80);
     return box;
+}
+
+// Each input with its help (the user, 2026-10-28): a narrow one (a number, a
+// check box) with its help beside it, so the panel has room to scroll on; a
+// wide one with its help right below it. Rows stand apart, so each help
+// reads as its input's.
+constexpr int RowGap = 12;
+
+QHBoxLayout *beside(QLayout *input, QLabel *text) {
+    auto *row = new QHBoxLayout;
+    row->setSpacing(10);
+    // Level with its label, however many lines the help takes.
+    input->setAlignment(Qt::AlignTop);
+    row->addLayout(input);
+    row->addWidget(text, 1);
+    return row;
+}
+
+QHBoxLayout *beside(QWidget *input, QLabel *text) {
+    auto *row = new QHBoxLayout;
+    row->addWidget(input, 0, Qt::AlignTop);
+    return beside(row, text);
+}
+
+QVBoxLayout *below(QLayout *input, QLabel *text) {
+    auto *column = new QVBoxLayout;
+    column->setSpacing(2);
+    column->addLayout(input);
+    column->addWidget(text);
+    return column;
+}
+
+QVBoxLayout *below(QWidget *input, QLabel *text) {
+    auto *row = new QHBoxLayout;
+    row->addWidget(input);
+    return below(row, text);
 }
 
 // A material made PBR starts with its baked occlusion at this strength: the
@@ -225,12 +267,12 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
     form = new QWidget;
     auto *fields = new QFormLayout(form);
     fields->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    fields->setVerticalSpacing(RowGap);
     nameEdit = new QLineEdit;
     //% "Name"
-    fields->addRow(qtTrId("shape.materials.field.name"), nameEdit);
-    fields->addRow(QString(), help(
+    fields->addRow(qtTrId("shape.materials.field.name"), below(nameEdit, help(
         //% "The primitive state's name; exporters name them after their matrix and look."
-        qtTrId("shape.materials.field.name.help")));
+        qtTrId("shape.materials.field.name.help"))));
     shaderCombo = new QComboBox;
     shaderCombo->setObjectName("materialsShader");
     shaderCombo->setEditable(true);
@@ -241,10 +283,9 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
             occlusionSpin->setValue(NewPbrOcclusion);
         updateShaderHelp();
     });
-    //% "Shader"
-    fields->addRow(qtTrId("shape.materials.field.shader"), shaderCombo);
     shaderHelp = help(QString());
-    fields->addRow(QString(), shaderHelp);
+    //% "Shader"
+    fields->addRow(qtTrId("shape.materials.field.shader"), below(shaderCombo, shaderHelp));
     const QString slotNames[3] = {
         //% "Texture 1"
         qtTrId("shape.materials.field.texture1"),
@@ -274,35 +315,34 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
             row->addWidget(pack);
         }
         textureLabels[slot] = new QLabel(slotNames[slot]);
-        fields->addRow(textureLabels[slot], row);
         textureHelps[slot] = help(slotHelp[slot]);
-        fields->addRow(QString(), textureHelps[slot]);
+        fields->addRow(textureLabels[slot], below(row, textureHelps[slot]));
     }
     lightCombo = new QComboBox;
     for (int light = -5; light >= -12; --light)
         lightCombo->addItem(lightName(light), light);
     connect(lightCombo, &QComboBox::currentIndexChanged, this, [this]() { updateLightHelp(); });
-    //% "Lighting"
-    fields->addRow(qtTrId("shape.materials.field.light"), lightCombo);
     lightHelp = help(QString());
-    fields->addRow(QString(), lightHelp);
+    //% "Lighting"
+    fields->addRow(qtTrId("shape.materials.field.light"), below(lightCombo, lightHelp));
+    // Named in the label column, as the numbers: a row without a label kept
+    // room for its help wrapped narrow, a gap under it.
+    alphaTestCheck = new QCheckBox;
     //% "Alpha test"
-    alphaTestCheck = new QCheckBox(qtTrId("shape.materials.field.alpha.test"));
-    fields->addRow(QString(), alphaTestCheck);
-    fields->addRow(QString(), help(
+    fields->addRow(qtTrId("shape.materials.field.alpha.test"), beside(alphaTestCheck, help(
         //% "Texels with alpha below half are cut out (leaves, fences); the rest drawn opaque."
-        qtTrId("shape.materials.field.alpha.test.help")));
+        qtTrId("shape.materials.field.alpha.test.help"))));
     zBiasSpin = spin(-10.0, 10.0, 0.001);
     //% "Z-bias"
-    fields->addRow(qtTrId("shape.materials.field.zbias"), zBiasSpin);
-    fields->addRow(QString(), help(
+    fields->addRow(qtTrId("shape.materials.field.zbias"), beside(zBiasSpin, help(
         //% "Draws the part a little nearer, over others at the same depth (decals, markings)."
-        qtTrId("shape.materials.field.zbias.help")));
+        qtTrId("shape.materials.field.zbias.help"))));
 
     //% "PBR factors (in the shape's .sd, by texture 1)"
     pbrGroup = new QGroupBox(qtTrId("shape.materials.pbr"));
     auto *pbr = new QFormLayout(pbrGroup);
     pbr->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    pbr->setVerticalSpacing(RowGap);
     tintButton = new QPushButton;
     tintButton->setFixedWidth(60);
     connect(tintButton, &QPushButton::clicked, this, [this]() {
@@ -316,16 +356,13 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
     //% "alpha"
     tintRow->addWidget(new QLabel(qtTrId("shape.materials.pbr.alpha")));
     tintRow->addWidget(tintAlpha);
-    tintRow->addStretch();
     //% "Tint"
-    pbr->addRow(qtTrId("shape.materials.pbr.tint"), tintRow);
-    pbr->addRow(QString(), help(
+    pbr->addRow(qtTrId("shape.materials.pbr.tint"), beside(tintRow, help(
         //% "Multiplies the base colour and its alpha."
-        qtTrId("shape.materials.pbr.tint.help")));
+        qtTrId("shape.materials.pbr.tint.help"))));
     auto addFactor = [&](QDoubleSpinBox *&box, double high, const QString &name, const QString &text) {
         box = spin(0.0, high, 0.05);
-        pbr->addRow(name, box);
-        pbr->addRow(QString(), help(text));
+        pbr->addRow(name, beside(box, help(text)));
     };
     addFactor(metalnessSpin, 1.0,
               //% "Metalness"

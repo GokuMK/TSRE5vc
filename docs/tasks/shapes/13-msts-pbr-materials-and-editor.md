@@ -364,6 +364,13 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   light alike; reflections show the sky as it is. Gentle on purpose (the
   user, 2026-10-28): Prudnik from noon to 21:00 not a pixel changed, 22:00
   ground 6.6, 6.3, 8.3 -> 7.3, 6.3, 6.9, the sky still deep blue.
+- The window, after the user's first look (2026-10-28): numbers and the
+  alpha test narrow, their help beside them (room to scroll on), wide
+  inputs with their help right below; rows 12 px apart. Spin boxes, in all
+  of TSRE, leave the wheel to the panel behind them as combo boxes did
+  (`TsreStyle`). The Shape Textures and Shape Hierarchy windows wait for a
+  shape loading on a worker and fill when opened. `shape-materials` saves
+  an image of the window given a path (`--test-cases`).
 
 ### Open
 

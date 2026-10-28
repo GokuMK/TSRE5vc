@@ -4377,7 +4377,7 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "selection-id")
         return runSelectionIdSuite(opts.verbose);
     if (suite == "shape-materials")
-        return runShapeMaterialsSuite(opts.verbose);
+        return runShapeMaterialsSuite(opts.casesFile, opts.verbose);
     if (suite == "mesh-store")
         return runMeshStoreSuite(opts.verbose);
     if (suite == "editor-tools")
@@ -4616,7 +4616,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         rc = std::max(rc, runSelectionIdSuite(opts.verbose));
-        rc = std::max(rc, runShapeMaterialsSuite(opts.verbose));
+        rc = std::max(rc, runShapeMaterialsSuite(QString(), opts.verbose));
         rc = std::max(rc, runTokenIdSuite(opts.verbose));
         rc = std::max(rc, runTerrainFileSuite(opts.verbose));
         rc = std::max(rc, runTokenWorldSuite(opts.verbose));
