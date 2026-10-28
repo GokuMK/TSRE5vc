@@ -386,6 +386,10 @@ int TsreTests::runDrivingSuite(bool verbose) {
         made->driven = drivenTrain;
         return std::shared_ptr<const Sim::SimulationInput>(made);
     };
+    const auto valueOf2 = [](Sim::SimulationCore &core) {
+        const Sim::VehicleOutputs *out = core.outputsOf(0, -1);
+        return out ? Sim::Message{QString(), out->values.value("throttle", -1.0)}.number() : -1.0;
+    };
     const auto eventsOf = [](Sim::SimulationCore &core, std::vector<Sim::TrainEvent> &all) {
         for (const Sim::TrainEvent &e : core.takeEvents())
             all.push_back(e);
@@ -440,6 +444,15 @@ int TsreTests::runDrivingSuite(bool verbose) {
         test.check(has(all, Sim::TrainEvent::EndOfPath) && core.trains()[0].speed == 0.0f
                            && core.trains()[0].front >= route.parts[0].length() - 0.01,
                    QString("at its path's end it stops, told: %1 of %2 m").arg(core.trains()[0].front).arg(route.parts[0].length()));
+    }
+    // A command before the train is taken over (the run not yet stepped):
+    // given to it then.
+    {
+        Sim::SimulationCore core(inputOf(0));
+        core.command(0, -1, {"throttle", 1.0});
+        core.step(1.0);
+        test.check(core.trains()[0].speed > 0.5f && valueOf2(core) == 1.0,
+                   QString("a command before the takeover kept for it: %1 m/s after 1 s").arg(core.trains()[0].speed));
     }
     // Taken over from the AI at speed, its speed kept; given back, the AI
     // drives on to the end.

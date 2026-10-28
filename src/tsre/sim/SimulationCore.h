@@ -618,6 +618,9 @@ private:
     Collision crash;
     // The run's loco scripts, made on the first takeover of a scripted loco.
     std::shared_ptr<LocoScripts> scripts;
+    // Commands for the train to be driven before it is taken over (it is
+    // not on the track yet, or the run has not stepped): given to it then.
+    std::vector<std::pair<int, Message>> drivenPending;
     void takeOver(int train);
     // The run's step changed from now on (a train driven: DrivenStep; left:
     // its input's), its whole steps counted from now.

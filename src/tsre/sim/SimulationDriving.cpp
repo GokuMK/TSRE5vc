@@ -147,6 +147,13 @@ void SimulationCore::takeOver(int train) {
     if (d->cab >= 0)
         d->models[size_t(d->cab)]->command(
                 {"direction", double(facing(rt.vehicles[size_t(d->cab)], s.reversed))});
+    // The commands sent before.
+    for (const auto &[vehicle, message] : drivenPending) {
+        const int to = vehicle >= 0 ? vehicle : d->cab;
+        if (to >= 0 && size_t(to) < d->models.size())
+            d->models[size_t(to)]->command(message);
+    }
+    drivenPending.clear();
     s.status = TrainStatus::Running;
     s.stoppedAt = StopKind::None;
     s.blockedBy = NoHolder;
@@ -167,6 +174,7 @@ void SimulationCore::leave(int train) {
     if (train < 0 || train != driven)
         return;
     driven = -1;
+    drivenPending.clear();
     setStepLength(in->step);
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
@@ -183,7 +191,14 @@ void SimulationCore::leave(int train) {
 }
 
 void SimulationCore::command(int train, int vehicle, const Message &message) {
-    if (train < 0 || size_t(train) >= runtime.size() || !runtime[size_t(train)].drivenState)
+    if (train < 0 || size_t(train) >= runtime.size())
+        return;
+    // To be driven, not yet taken over: kept for then.
+    if (train == driven && !runtime[size_t(train)].drivenState) {
+        drivenPending.push_back({vehicle, message});
+        return;
+    }
+    if (!runtime[size_t(train)].drivenState)
         return;
     Driven &d = *runtime[size_t(train)].drivenState;
     const int to = vehicle >= 0 ? vehicle : d.cab;

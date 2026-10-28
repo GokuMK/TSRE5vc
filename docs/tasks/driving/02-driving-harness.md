@@ -1,6 +1,6 @@
 # Task 02 - The driving harness: a first whole stack
 
-Status: the user's answers of 2026-10-28 in (decisions at the end); being built on `feature/driving` (steps 1 to 4 done).
+Status: the user's answers of 2026-10-28 in (decisions at the end); built on `feature/driving` (steps 1 to 5 done).
 
 The user's request (2026-10-28), after the ENG refactor (task 01) was
 merged:
@@ -519,7 +519,7 @@ engine passes it on.
 
    Checks: the UI suite pressing the buttons; a capture of a driven train
    with its pantograph down and up and its lights.
-5. **Against Open Rails:** the same electric loco and train accelerating and
+5. **Against Open Rails** (done 2026-10-28, below): the same electric loco and train accelerating and
    braking on the same track in both. Speed over time compared, from Open
    Rails' web API, driven with its own controls.
 
@@ -1026,6 +1026,66 @@ every new text, the driving events' included.
 The Acela's is GSelfLapH, with the brakes applied, as in Open Rails. The
 driver releases them first.
 
+## Step 5 done (2026-10-28)
+
+**The tools:**
+- **`simulation-route` with `TSRE_SIM_DRIVE=<activity>:<commands>`:**
+  - the activity's player's train driven from its start by TSRE's loco
+    scripts;
+  - its commands sent on time (`seconds name value` a line);
+  - the train sampled every half second to `TSRE_SIM_DRIVE_LOG` (CSV:
+    speed, distance, the levers, the loco's and the last car's pipe and
+    cylinder).
+- **`scripts/orts-drive-run.sh`:**
+  - the same commands posted to Open Rails' web API (`/API/CABCONTROLS`)
+    at its game times;
+  - its driving display read every half second.
+  - Open Rails takes a posted value only when it changes, starting from 0,
+    so the script nudges a repeated value.
+- **`scripts/drive-compare.py`:** the two side by side.
+- **The runs:** `reports/or-driving-comparison.md`.
+
+**Fixed:** a command sent before the train is taken over (the run not yet
+stepped, or the train not on the track) was dropped. The core now keeps it
+for the takeover. One more check in `driving` (35).
+
+**Where they agree:**
+- **Traction within adhesion:**
+  - USA1's HHP-8 and 8 cars at throttle 0.6: 10 m/s at 59.5 / 60.2 s, top
+    speed 29.35 / 28.7 m/s after 90 s;
+  - distance within 2.5%.
+- **Braking within adhesion:** a light application stops it in 569 / 582
+  m.
+- **The single pipe** (USA2, 3 Dash 9s and 38 freight cars):
+  - a 13 psi reduction gives 77 / 78 psi and cylinders of 32 / 31 psi;
+  - after release both are back to full at 570 to 600 s.
+
+**Where they differ:** what TSRE leaves out of Open Rails' models.
+- **Wheel slip:** at full throttle Open Rails' HHP-8 slips the whole time.
+  It has 310 kN on 101 t and no slip control, so its force is a third of
+  TSRE's, which has only the 0.33 adhesion limit (49 / 24.6 m/s after 90
+  s).
+- **Wheel slide:** at full service Open Rails' cars slide (70 kN on 30 t),
+  so its stop is half as hard (351 / 528 m from 29 m/s).
+- **The main reservoir pipe** (`Air_twin_pipe`):
+  - Open Rails recharges the distributors' reservoirs from it, and releases
+    in about 10 s;
+  - TSRE recharges them from the brake pipe, and takes minutes;
+  - under a light application the loco's cylinder stops at 23 psi against
+    Open Rails' 27.
+- **Emergency reservoirs:** Open Rails' freight cars recharge from them on
+  release, so its pipe is at 86 psi 30 s after the release against TSRE's
+  81, and its cylinders empty sooner.
+- **A service's `StartingSpeed`:** Open Rails starts USA2's freight at
+  15 mph with its throttle at 25%; TSRE starts it standing.
+- **Small:** the HHP-8's suppression notch, set over the web API, gives 84
+  psi in Open Rails and 82 in TSRE (FullServicePressureDrop 28).
+
+**Unchanged:**
+- AI-only runs of the seven routes and PRUDNIK give the same traces as main.
+- The simulation, timetable, activity, vehicle file, RmlUi and driving
+  suites pass; so do build `all` and ctest.
+
 ## Open questions (user, 2026-10-28: kept open until tested enough)
 
 1. **The battery and master key** give only cab and low voltage power, as
@@ -1040,8 +1100,17 @@ driver releases them first.
    - the swapped engine brake sounds;
    - bail off only with main power;
    - the breaker seeing a pantograph a step late.
-4. **The 50-car pipe recharging in 674 s** (step 2): Open Rails' rate,
-   compared in step 5.
+4. **The 50-car pipe recharging in 674 s** (step 2): answered in step 5.
+   On a single pipe train Open Rails recharges at the same rate: both are
+   back to full at 570 to 600 s on a 41-vehicle freight after a 13 psi
+   reduction.
+5. **What step 5 found TSRE leaves out of Open Rails' models**, to put in
+   order:
+   - wheel slip, traction beyond adhesion;
+   - wheel slide, braking beyond adhesion;
+   - the twin pipe's main reservoir pipe;
+   - emergency reservoirs;
+   - a service's `StartingSpeed`.
 
 ## Decisions (user, 2026-10-28)
 
