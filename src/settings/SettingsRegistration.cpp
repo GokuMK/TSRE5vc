@@ -935,19 +935,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Environment map face size"
                 QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.name")).withDescriptionId(
-                //% "Width and height of each of the six cube faces."
+                //% "Width and height of each of the six cube faces. 512 px gives sharper reflections, for screenshots: each face costs about four times as much to render and the cube four times the memory."
                 QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.description"))
             .withOptions(numericChoices({{128,
                 //% "128 px"
                 QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.128")}, {256,
                 //% "256 px"
-                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.256")}})).withUnit("px").inGroup("rendering").inSubgroup("reflections"),
+                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.256")}, {512,
+                //% "512 px"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.512")}})).withUnit("px").inGroup("rendering").inSubgroup("reflections"),
         "environmentMapSize", "Game::environmentMapSize", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::enumeration("core.rendering.environmentMap.facesPerFrame", 1)
             .withNameId(
                 //% "Environment map faces per frame"
                 QT_TRID_NOOP("settings.core.rendering.environment.map.faces.per.frame.name")).withDescriptionId(
-                //% "Cube faces rendered each frame, in turn; six refreshes the whole cube every frame."
+                //% "Cube faces rendered each frame, in turn. At 1 the whole cube is new every six frames, five times a second at 30 frames per second; 2 or 3 suit a stronger graphics card; six refreshes the whole cube every frame."
                 QT_TRID_NOOP("settings.core.rendering.environment.map.faces.per.frame.description"))
             .withOptions(numericChoices({{1,
                 //% "1"
