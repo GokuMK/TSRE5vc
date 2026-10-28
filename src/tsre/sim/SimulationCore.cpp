@@ -464,6 +464,23 @@ void SimulationCore::beginRun(int train, double t) {
         s.nextStop = 1;
         record(t, train, TrainEvent::Arrived, 0);
         activate(train, TrainPlan::Activation::Arrival, 0, t);
+        return;
+    }
+    // Its service's starting speed (Open Rails' InitialSpeed): it runs on
+    // from it. Driven, its throttle at Open Rails' start: 25 %, 40 % up a
+    // grade over 2 %, none down one over 1 %.
+    const TrainPlan &plan = in->trains[size_t(train)];
+    if (plan.startSpeed > 0.0f) {
+        s.speed = plan.startSpeed;
+        if (train == driven) {
+            double grade = 0.0;
+            TrackPose ahead, behind;
+            const double span = std::min(20.0, double(runtime[size_t(train)].length));
+            if (span > 1.0 && pose(train, s.front, ahead) && pose(train, s.front - span, behind))
+                grade = double(ahead.y - behind.y) / span;
+            const double throttle = grade > 0.02 ? 0.4 : grade < -0.01 ? 0.0 : 0.25;
+            drivenPending.push_back({-1, Message{"throttle", throttle}});
+        }
     }
 }
 

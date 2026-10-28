@@ -86,7 +86,8 @@ public:
 class StandInEngine : public VehicleModel {
 public:
     explicit StandInEngine(const VehicleDefinition &d)
-        : maxForce(d.forceN), maxPower(d.powerW), maxSpeed(d.maxSpeedMps), valve(d), ep(EpBrakes(d)) {}
+        : maxForce(d.forceN), maxPower(d.powerW), maxSpeed(d.maxSpeedMps), valve(d), ep(EpBrakes(d)),
+          twin(TwinPipe(d)), mainPipe(MainPipePressure(d)) {}
     bool drives() const override { return true; }
     void command(const Message &m) override {
         if (m.name == "throttle") {
@@ -122,6 +123,10 @@ public:
         out.motiveForce = direction * force;
         out.brakeForce = 0.0;
         out.brakePipeAir = 0.0;
+        // A twin pipe engine keeps the main reservoir pipe at its pressure
+        // (its main reservoir endless).
+        if (twin && in.mainPipe < mainPipe)
+            out.mainPipeAir = (mainPipe - in.mainPipe) * in.brakePipeVolume;
         if (in.cab) {
             out.brakePipeAir = valve.step(in.dt, brake, emergency, in.brakePipe, in.brakePipeVolume);
             out.line = std::move(pending);
@@ -145,6 +150,8 @@ private:
     double maxForce, maxPower, maxSpeed;
     BrakeValve valve;
     bool ep;
+    bool twin;
+    double mainPipe;
     double throttle = 0.0, brake = 0.0;
     int direction = 0;
     bool emergency = false;

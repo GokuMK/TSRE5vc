@@ -2750,7 +2750,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
             const bool logging = log.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text);
             if (logging)
                 log.write("seconds,speed,travelled,throttle,trainBrake,equalising,brakePipe,brakeCylinder,force,"
-                          "lastBrakePipe,lastBrakeCylinder\n");
+                          "lastBrakePipe,lastBrakeCylinder,auxiliary,control,mainPipe\n");
             Sim::SimulationCore driven(input);
             const double end = commands.empty() ? 0.0 : commands.back().at;
             size_t next = 0;
@@ -2769,10 +2769,12 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                     return last ? Sim::Message{QString(), last->values.value(name, 0.0)}.number() : 0.0;
                 };
                 if (logging)
-                    log.write(QString("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11\n").arg(t).arg(state.speed).arg(state.travelled)
-                                      .arg(value("throttle")).arg(value("trainBrake")).arg(value("equalisingReservoir"))
-                                      .arg(value("brakePipe")).arg(value("brakeCylinder")).arg(value("force"))
-                                      .arg(lastValue("brakePipe")).arg(lastValue("brakeCylinder")).toUtf8());
+                    log.write(QString("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11,%12,%13,%14\n").arg(t).arg(state.speed)
+                                      .arg(state.travelled).arg(value("throttle")).arg(value("trainBrake"))
+                                      .arg(value("equalisingReservoir")).arg(value("brakePipe")).arg(value("brakeCylinder"))
+                                      .arg(value("force")).arg(lastValue("brakePipe")).arg(lastValue("brakeCylinder"))
+                                      .arg(value("auxiliaryReservoir")).arg(value("controlReservoir"))
+                                      .arg(value("mainPipe")).toUtf8());
                 driven.step(0.5);
             }
             for (const Sim::TrainEvent &event : driven.takeEvents())

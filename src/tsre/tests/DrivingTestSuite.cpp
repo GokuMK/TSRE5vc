@@ -101,6 +101,26 @@ const char *AirBrakes = R"(
 	TripleValveRatio ( 2.5 )
 	BrakeCylinderPressureForMaxBrakeBrakeForce ( 50 )
 	EmergencyResCapacity ( 14 ))";
+// Twin pipe distributors (the Acela family's).
+const char *TwinPipeBrakes = R"(
+	BrakeSystemType ( "Air_twin_pipe" )
+	BrakeEquipmentType ( "Air_twin_pipe, Distributor" )
+	MaxApplicationRate ( 20 )
+	MaxReleaseRate ( 20 )
+	MaxAuxilaryChargingRate ( 25 )
+	TripleValveRatio ( 2.5 )
+	BrakeCylinderPressureForMaxBrakeBrakeForce ( 50 )
+	EmergencyResCapacity ( 14 ))";
+// The same on a single pipe.
+const char *SinglePipeDistributors = R"(
+	BrakeSystemType ( "Air_single_pipe" )
+	BrakeEquipmentType ( "Distributor" )
+	MaxApplicationRate ( 20 )
+	MaxReleaseRate ( 20 )
+	MaxAuxilaryChargingRate ( 25 )
+	TripleValveRatio ( 2.5 )
+	BrakeCylinderPressureForMaxBrakeBrakeForce ( 50 )
+	EmergencyResCapacity ( 14 ))";
 const char *EpBrakes = R"(
 	BrakeSystemType ( "EP" )
 	BrakeEquipmentType ( "EP_brake" )
@@ -820,6 +840,51 @@ int TsreTests::runDrivingSuite(bool verbose) {
         const qint64 took = timer.elapsed();
         spinner->step(in, spun);
         test.check(took < 2000 && spun.motiveForce == 0.0, QString("loco script: an endless loop stopped after %1 ms").arg(took));
+    }
+    // The main reservoir pipe: twin pipe distributors keep their reservoirs
+    // full from it, so after a reduction the brake pipe refills only itself
+    // and the train releases in seconds; on a single pipe, the reservoirs
+    // refilled through the brake pipe, in minutes.
+    {
+        writeUtf16(files.path() + "/twin.eng", engineFile(TwinPipeBrakes));
+        writeUtf16(files.path() + "/twin.wag", wagonFile(TwinPipeBrakes));
+        writeUtf16(files.path() + "/single.eng", engineFile(SinglePipeDistributors));
+        writeUtf16(files.path() + "/single.wag", wagonFile(SinglePipeDistributors));
+        const auto releaseOf = [&](const char *engineName, const char *wagonName, double *mainPipe) {
+            std::vector<Sim::Vehicle> cars{vehicle(engineName)};
+            for (int i = 0; i < 10; ++i)
+                cars.push_back(vehicle(wagonName));
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->trains.push_back(planOf(cars));
+            made->step = 0.01;
+            made->driven = 0;
+            Sim::SimulationCore core(made);
+            core.step(0.05);
+            core.command(0, -1, {"trainBrake", 0.5});
+            core.step(40.0);
+            const double applied = valueOf(core, 0, 10, "brakeCylinder");
+            core.command(0, -1, {"trainBrake", 0.0});
+            double released = -1.0;
+            for (int i = 0; i < 60000 && released < 0.0; ++i) {
+                core.step(0.01);
+                if (valueOf(core, 0, 10, "brakeCylinder") <= 0.0)
+                    released = i * 0.01;
+            }
+            if (mainPipe != nullptr)
+                *mainPipe = valueOf(core, 0, 10, "mainPipe");
+            return std::make_pair(applied, released);
+        };
+        double mainPipe = 0.0;
+        const auto [twinApplied, twinReleased] = releaseOf("twin.eng", "twin.wag", &mainPipe);
+        const auto [singleApplied, singleReleased] = releaseOf("single.eng", "single.wag", nullptr);
+        test.check(std::fabs(twinApplied / Psi - 32.5) < 1.0 && twinReleased > 0.0 && twinReleased < 20.0
+                           && singleReleased > 3.0 * twinReleased && mainPipe > 120.0 * Psi,
+                   QString("main reservoir pipe: twin pipe distributors at %1 psi release in %2 s (single pipe: "
+                           "%3 psi, %4 s); the pipe at %5 psi")
+                           .arg(twinApplied / Psi, 0, 'f', 1).arg(twinReleased).arg(singleApplied / Psi, 0, 'f', 1)
+                           .arg(singleReleased).arg(mainPipe / Psi, 0, 'f', 1));
     }
     // The electric loco script (appdata/<version>/scripts/loco/electric.lua,
     // run from the checkout's folder).

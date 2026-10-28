@@ -1564,6 +1564,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
         if (definition != nullptr && !definition->efficiency.isEmpty() && definition->efficiency.last() > 0.0f)
             plan.efficiency = definition->efficiency.last();
         plan.startTime = player ? input->startTime : train.time;
+        plan.startSpeed = std::max(0.0f, service->startingSpeed);
 
         if (!routeOf(*input, tdb, plan, path, name))
             continue;

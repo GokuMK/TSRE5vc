@@ -40,6 +40,9 @@ AirBrake::AirBrake(const VehicleDefinition &d) {
     if (system == "vacuum_piped" || system == "air_piped" || system == "manual_braking")
         valve_ = Valve::None;
     ep_ = EpBrakes(d);
+    twin_ = TwinPipe(d);
+    const QString charging = d.text("wagon(ortsmainrespipeauxrescharging").trimmed().toLower();
+    mainPipeCharging = twin_ && charging != "0" && charging != "false";
 
     maxBrakeForce = d.number("wagon(maxbrakeforce", 0, 89e3);
     // The cylinder's pressure for MaxBrakeForce, and its limits: none
@@ -75,14 +78,14 @@ void AirBrake::charge(double pipe) {
     state_ = State::Release;
 }
 
-void AirBrake::step(double dt, double &pipe, double ep) {
+void AirBrake::step(double dt, double &pipe, double ep, double *mainPipe) {
     // The EP wire: its demand holds the cylinder from releasing below it
     // and fills it up to it from the reservoir.
     double demanded = 0.0;
     if (ep_ && ep > 0.0)
         demanded = std::min(ep, 1.0) * (std::isfinite(serviceMaxCylinder) ? serviceMaxCylinder : reference);
     const double before = cylinder_;
-    stepValve(dt, pipe);
+    stepValve(dt, pipe, twin_ ? mainPipe : nullptr);
     // Its holding wire (-2) keeps the cylinder as it is.
     const bool holding = ep_ && (ep < -1.5 || (demanded > 0.0 && before <= demanded));
     if (holding && cylinder_ < before)
@@ -97,7 +100,7 @@ void AirBrake::step(double dt, double &pipe, double ep) {
     }
 }
 
-void AirBrake::stepValve(double dt, double &pipe) {
+void AirBrake::stepValve(double dt, double &pipe, double *mainPipe) {
     // Its state from the pipe.
     const double applied = control - pipe;
     switch (valve_) {
@@ -178,8 +181,17 @@ void AirBrake::stepValve(double dt, double &pipe) {
             dp *= 0.1 + 0.9 * (cylinder_ - threshold) / Psi;
         cylinder_ -= std::clamp(dp, 0.0, cylinder_ - threshold);
     }
-    // The reservoir charged from the pipe.
-    if (auxiliary_ < pipe && (valve_ == Valve::Distributor || state_ == State::Release)) {
+    // The reservoir charged: a twin pipe distributor's from the main
+    // reservoir pipe up to its control reservoir, else from the brake pipe.
+    if (mainPipe != nullptr && mainPipeCharging && valve_ == Valve::Distributor && *mainPipe > pipe) {
+        if (auxiliary_ < *mainPipe && auxiliary_ < control) {
+            double dp = dt * chargingRate;
+            if (auxiliary_ + dp > *mainPipe - dp * reservoirToPipe)
+                dp = (*mainPipe - auxiliary_) / (1.0 + reservoirToPipe);
+            auxiliary_ += dp;
+            *mainPipe -= dp * reservoirToPipe;
+        }
+    } else if (auxiliary_ < pipe && (valve_ == Valve::Distributor || state_ == State::Release)) {
         double dp = dt * chargingRate;
         if (auxiliary_ > pipe - Psi)
             dp *= 0.1 + 0.9 * (pipe - auxiliary_) / Psi;
@@ -227,7 +239,7 @@ void BrakePipe::step(double dt) {
     // g_i the flow between i and i + 1: V_i V_(i+1) / (V_i + V_(i+1)) / T.
     std::vector<double> g(n - 1), upper(n), rhs(n);
     for (size_t i = 0; i + 1 < n; ++i)
-        g[i] = volume[i] * volume[i + 1] / (volume[i] + volume[i + 1]) / timeFactor;
+        g[i] = joined.empty() || joined[i] ? volume[i] * volume[i + 1] / (volume[i] + volume[i + 1]) / timeFactor : 0.0;
     // Thomas: forward elimination, then back.
     double previousUpper = 0.0, previousRhs = 0.0;
     for (size_t i = 0; i < n; ++i) {
@@ -247,11 +259,22 @@ void BrakePipe::step(double dt) {
 void BrakePipe::reverse() {
     std::reverse(volume.begin(), volume.end());
     std::reverse(pressure.begin(), pressure.end());
+    std::reverse(joined.begin(), joined.end());
 }
 
 bool EpBrakes(const VehicleDefinition &d) {
     const QString system = d.brakeSystemType.toLower();
     return system == "ep" || system == "ecp" || system == "ep_single_pipe";
+}
+
+bool TwinPipe(const VehicleDefinition &d) {
+    const QString system = d.brakeSystemType.toLower();
+    return system == "air_twin_pipe" || system == "ep" || system == "ecp";
+}
+
+double MainPipePressure(const VehicleDefinition &d) {
+    const double reservoir = positive(d.number("engine(airbrakesmainmaxairpressure"), 130.0 * Psi);
+    return std::min(reservoir, positive(d.number("engine(airbrakemaxmainrespipepressure"), reservoir + 5.0 * Psi));
 }
 
 double BrakeSystemPressure(const VehicleDefinition &d) {

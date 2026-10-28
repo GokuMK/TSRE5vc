@@ -322,7 +322,8 @@ public:
         const std::pair<const char *, double> numbers[] = {
                 {"speed", in.speed}, {"gradient", in.gradient}, {"adhesionLimit", in.adhesionLimit},
                 {"lineVoltage", in.lineVoltage}, {"brakePipe", in.brakePipe},
-                {"brakePipeVolume", in.brakePipeVolume}, {"brakeCylinder", in.brakeCylinder}};
+                {"brakePipeVolume", in.brakePipeVolume}, {"brakeCylinder", in.brakeCylinder},
+                {"mainPipe", in.mainPipe}};
         for (const auto &[name, value] : numbers) {
             lua_pushnumber(L, value);
             lua_setfield(L, -2, name);
@@ -331,7 +332,7 @@ public:
         lua_setfield(L, -2, "cab");
         lua->push(stateRef);
         lua->push(outRef);
-        for (const char *name : {"motiveForce", "brakeForce", "brakePipeAir", "independentBrake", "bailOff"}) {
+        for (const char *name : {"motiveForce", "brakeForce", "brakePipeAir", "mainPipeAir", "independentBrake", "bailOff"}) {
             lua_pushnumber(L, 0.0);
             lua_setfield(L, -2, name);
         }
@@ -346,6 +347,7 @@ public:
         out.motiveForce = numberField(L, "motiveForce");
         out.brakeForce = std::max(0.0, numberField(L, "brakeForce"));
         out.brakePipeAir = numberField(L, "brakePipeAir");
+        out.mainPipeAir = numberField(L, "mainPipeAir");
         out.independentBrake = std::max(0.0, numberField(L, "independentBrake"));
         out.bailOff = std::max(0.0, numberField(L, "bailOff"));
         lua_getfield(L, -1, "values");

@@ -233,6 +233,9 @@ struct TrainPlan {
     Performance performance;
     // Seconds after midnight (more for the next day).
     int startTime = 0;
+    // Its service's StartingSpeed (m/s; task driving 02): it is put on its
+    // track moving, unless at its first station (Open Rails' InitialSpeed).
+    float startSpeed = 0.0f;
     // Open Rails timetables (task 08): put on its track at this time,
     // standing until its start holding only the track it stands on
     // (`$create`), -1 at its start; or when the run of the train it is

@@ -18,8 +18,11 @@ namespace Sim {
 // (graduated: the cylinder follows the pipe's fall from the control
 // reservoir), or none (no brake from the pipe, as Open Rails has it). An EP
 // brake (BrakeSystemType EP) also fills its cylinder to the demand on the
-// train's EP wire. Vacuum brakes have the triple valve until they have a
-// model of their own.
+// train's EP wire. A twin pipe vehicle (Air_twin_pipe, EP) has the main
+// reservoir pipe too: a distributor's reservoir recharges from it up to its
+// control reservoir (Open Rails' ORTSMainResPipeAuxResCharging, on by
+// default), so the brake pipe refills only itself on release. Vacuum brakes
+// have the triple valve until they have a model of their own.
 class AirBrake {
 public:
     enum class Valve { None, TripleValve, Distributor };
@@ -29,9 +32,10 @@ public:
 
     // Charged and released at the pipe's pressure.
     void charge(double pipe);
-    // One step on the pipe at it: its valve's air in and out of `pipe`.
+    // One step on the pipe at it: its valve's air in and out of `pipe`, and
+    // of the main reservoir pipe at it (`mainPipe`, null without one).
     // `ep`: the EP wire's demand, 0 to 1; -2 its holding wire; -1 none.
-    void step(double dt, double &pipe, double ep);
+    void step(double dt, double &pipe, double ep, double *mainPipe = nullptr);
     // Its brake force (N) at a speed (m/s): MaxBrakeForce at the reference
     // pressure, with Open Rails' brake shoe friction for older stock.
     double force(double speed) const;
@@ -47,15 +51,18 @@ public:
     double cylinder() const { return std::max(cylinder_, independent_); }
     double automatic() const { return cylinder_; }
     double auxiliary() const { return auxiliary_; }
+    double controlReservoir() const { return control; }
     State state() const { return state_; }
     Valve valve() const { return valve_; }
     bool ep() const { return ep_; }
+    bool twinPipe() const { return twin_; }
 
 private:
-    void stepValve(double dt, double &pipe);
+    void stepValve(double dt, double &pipe, double *mainPipe);
 
     Valve valve_ = Valve::None;
     bool ep_ = false;
+    bool twin_ = false, mainPipeCharging = false;
     double maxBrakeForce = 0.0;
     double reference = 0.0, spring = 0.0;
     double maxCylinder = 0.0, serviceMaxCylinder = 0.0;
@@ -77,6 +84,9 @@ class BrakePipe {
 public:
     std::vector<double> volume;
     std::vector<double> pressure;
+    // Whether each length joins the next (empty: all do): the main
+    // reservoir pipe only between two twin pipe vehicles.
+    std::vector<char> joined;
     // s: Open Rails' ORTSBrakePipeTimeFactor (0.0015 s for air).
     double timeFactor = 0.0015;
     void step(double dt);
@@ -105,6 +115,12 @@ public:
 
 // Its brake is EP (BrakeSystemType EP, ECP, EP_single_pipe).
 bool EpBrakes(const VehicleDefinition &definition);
+// It has the main reservoir pipe (BrakeSystemType Air_twin_pipe, EP, ECP).
+bool TwinPipe(const VehicleDefinition &definition);
+// The main reservoir pipe's pressure a loco keeps (Open Rails' for a twin
+// pipe: its main reservoir's maximum, 130 psi by default, at most
+// AirBrakeMaxMainResPipePressure, by default that and 5 psi).
+double MainPipePressure(const VehicleDefinition &definition);
 // The pipe's full pressure a loco's train brake controller gives
 // (TrainBrakesControllerMaxSystemPressure; Open Rails' 90 psi).
 double BrakeSystemPressure(const VehicleDefinition &definition);

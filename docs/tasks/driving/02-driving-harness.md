@@ -1086,6 +1086,57 @@ for the takeover. One more check in `driving` (35).
 - The simulation, timetable, activity, vehicle file, RmlUi and driving
   suites pass; so do build `all` and ctest.
 
+## After step 5 (2026-10-28): the main reservoir pipe, the starting speed
+
+The user's: the main reservoir pipe is the most important of the gaps; the
+starting speed is to be done if there is a clear way; wheel slip and slide
+are not decided.
+
+**The main reservoir pipe:**
+- A second `BrakePipe` along the train, joined only between twin pipe
+  vehicles (`Air_twin_pipe`, EP, ECP); `BrakePipe::joined`.
+- **Its feed:** each twin pipe loco's model:
+  - `electric.lua` equalises its main reservoir with its length of the pipe,
+    at most `AirBrakeMaxMainResPipePressure` (by default the reservoir's
+    maximum and 5 psi), as Open Rails;
+  - the C++ stand-in keeps the pipe at its pressure.
+  - The interface: `inputs.mainPipe` in, `out.mainPipeAir` out.
+- **Its use:** a twin pipe distributor recharges its auxiliary reservoir
+  from it, up to its control reservoir, whenever it is above the brake
+  pipe. This is Open Rails' `ORTSMainResPipeAuxResCharging`, on by default.
+- **Values:** `mainPipe`, `auxiliaryReservoir`, `controlReservoir` for
+  every vehicle.
+- **Against Open Rails:** the HHP-8's light application released at 200 s.
+  Both are at 107 psi in the pipe and 6.6 to 8.6 psi in the cylinders
+  after 5 s, and fully released within 10 s; before, TSRE took minutes.
+- **The loco's own cylinder** stays at 23.3 psi under that application. The
+  HHP-8's file gives its loco `TripleValveRatio ( 2.03 )`: 11.5 psi × 2.03.
+  Open Rails' driving display shows 27; whether that line is the loco's
+  own cylinder is to look into.
+- **Check (`driving`, 36):** twin pipe distributors release in 3.4 s, the
+  same on a single pipe in 105 s; the main reservoir pipe at 129 psi.
+
+**A service's starting speed:**
+- **The plan's `startSpeed`:** the service's `StartingSpeed` (`.srv`
+  TimeTable, m/s), for the player's train and AI trains alike, as Open
+  Rails takes it.
+- **The core's `beginRun`:** the train goes on moving at it, unless it
+  starts at its first station (Open Rails' InitializeMoving).
+- **Driven from the start,** its throttle is set as Open Rails sets it: 25%,
+  40% up a grade over 2%, none down one over 1%.
+- **Against Open Rails:** USA2's freight now starts at 6.7 m/s with its
+  throttle at 25% in both and climbs to a stand (189 / 208 s; the Dash 9s
+  are TSRE's C++ stand-in, not a diesel model).
+- **AI-only runs change where services start moving:**
+  - **Unchanged:** JAPAN1, USA1 and PRUDNIK traces are still identical to
+    main's.
+  - **Changed:** EUROPE1, EUROPE2, JAPAN2, USA2 and BNSF_SCENIC have 4, 3,
+    1, 13 and 7 such services. Their trains reach their stops and signals
+    seconds to tens of seconds earlier, with the same events. USA2: still 46
+    of 48 finished, 2 waiting for track, 26 stops, no deadlock.
+
+**The runs:** `reports/or-driving-comparison.md`, its last two sections.
+
 ## Open questions (user, 2026-10-28: kept open until tested enough)
 
 1. **The battery and master key** give only cab and low voltage power, as
@@ -1106,11 +1157,12 @@ for the takeover. One more check in `driving` (35).
    reduction.
 5. **What step 5 found TSRE leaves out of Open Rails' models**, to put in
    order:
-   - wheel slip, traction beyond adhesion;
-   - wheel slide, braking beyond adhesion;
-   - the twin pipe's main reservoir pipe;
+   - wheel slip, traction beyond adhesion: not decided;
+   - wheel slide, braking beyond adhesion: not decided;
+   - the twin pipe's main reservoir pipe: done after step 5 (the user's
+     most important);
    - emergency reservoirs;
-   - a service's `StartingSpeed`.
+   - a service's `StartingSpeed`: done after step 5.
 
 ## Decisions (user, 2026-10-28)
 

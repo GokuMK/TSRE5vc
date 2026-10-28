@@ -48,6 +48,9 @@ struct VehicleInputs {
     double brakePipe = 0.0;
     double brakePipeVolume = 0.0;
     double brakeCylinder = 0.0;
+    // The main reservoir pipe at it (Pa; its volume there is the brake
+    // pipe's), 0 for a vehicle without one (single pipe).
+    double mainPipe = 0.0;
     // Its cab is the one driven (commands without a vehicle go to it).
     bool cab = false;
 };
@@ -59,8 +62,10 @@ struct VehicleOutputs {
     // N >= 0, against its motion: brakes of its own beside its air brake
     // (the host's, on the brake pipe).
     double brakeForce = 0.0;
-    // Air its brake valve lets into the brake pipe this step (Pa·m³; - out).
+    // Air its brake valve lets into the brake pipe this step (Pa·m³; - out),
+    // and its main reservoir into the main reservoir pipe.
     double brakePipeAir = 0.0;
+    double mainPipeAir = 0.0;
     // A loco's independent (engine) brake: the pressure its cylinder gets
     // at least (Pa), and the rate its automatic brake bails off (Pa/s, 0
     // none).

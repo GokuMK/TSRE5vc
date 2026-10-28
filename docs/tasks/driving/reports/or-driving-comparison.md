@@ -201,3 +201,77 @@ Open Rails starts the train at its service's StartingSpeed (15 mph, throttle 25 
 - reached 40 m/s: TSRE never, Open Rails never
 - top speed: TSRE 0.00 m/s, Open Rails 7.11 m/s
 - stopped: TSRE at 237.0 s after 0 m braking, Open Rails at 189.3 s after 710 m braking
+
+## After: the main reservoir pipe (the light application released at 200 s again)
+
+Commands:
+
+```
+# USA1 morningmaryland, the player's HHP-8: brakes released, throttle 0.6 for 90 s, then a light graduated application (0.4), released at 200 s.
+0 direction 1
+0 trainBrake 0
+40 throttle 0.6
+130 throttle 0
+131 trainBrake 0.4
+200 trainBrake 0
+320 trainBrake 0
+```
+
+TSRE with the main reservoir pipe: released as Open Rails, within 10 s. (The loco's own cylinder: 23.3 psi in TSRE from its file's TripleValveRatio 2.03; Open Rails' display shows 27.)
+
+| s | TSRE m/s | OR m/s | TSRE m | OR m | TSRE pipe psi | OR pipe psi | TSRE cyl psi | OR cyl psi | TSRE last pipe | OR last pipe | TSRE last cyl | OR last cyl |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 195 | 0.0 | 0.0 | 2190 | 2176 | 98.5 | 99.0 | 23.3 | 27.0 | 98.5 | 99.0 | 29.2 | 27.0 |
+| 200 | 0.0 | 0.0 | 2190 | 2176 | 98.5 | 99.0 | 23.3 | 27.0 | 98.5 | 99.0 | 29.2 | 27.0 |
+| 205 | -0.0 | 0.0 | 2190 | 2176 | 107.0 | 106.9 | 6.6 | 8.2 | 106.9 | 106.9 | 8.6 | 8.2 |
+| 210 | 0.0 | 0.0 | 2190 | 2176 | 109.9 | 110.0 | 0.0 | 0.0 | 110.0 | 110.0 | 0.0 | 0.0 |
+| 215 | 0.0 | 0.0 | 2190 | 2176 | 110.1 | 110.0 | 0.0 | 0.0 | 110.2 | 110.0 | 0.0 | 0.0 |
+| 220 | 0.0 | 0.0 | 2190 | 2176 | 110.1 | 110.0 | 0.0 | 0.0 | 110.2 | 110.0 | 0.0 | 0.0 |
+
+- reached 10 m/s: TSRE 59.5 s, Open Rails 59.7 s
+- reached 20 m/s: TSRE 85.5 s, Open Rails 86.7 s
+- reached 30 m/s: TSRE never, Open Rails never
+- reached 40 m/s: TSRE never, Open Rails never
+- top speed: TSRE 29.35 m/s, Open Rails 28.66 m/s
+- stopped: TSRE at 164.0 s after 563 m braking, Open Rails at 166.4 s after 577 m braking
+
+## After: the service's StartingSpeed (the freight again)
+
+Commands:
+
+```
+# USA2 nnmxdgds, three Dash 9s and 38 cars standing: released and charged, a 13 psi reduction at 300 s, released at 360 s, the recharge watched.
+0 trainBrake 0
+300 trainBrake 0.5
+360 trainBrake 0
+1200 trainBrake 0
+```
+
+Both start at 6.7 m/s with the throttle at 25 % and climb to a stand; the Dash 9s are TSRE's C++ stand-in, not a diesel model.
+
+| s | TSRE m/s | OR m/s | TSRE m | OR m | TSRE pipe psi | OR pipe psi | TSRE cyl psi | OR cyl psi | TSRE last pipe | OR last pipe | TSRE last cyl | OR last cyl |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 | 6.7 | - | 0 | - | 90.0 | - | 0.0 | - | 90.0 | - | 0.0 | - |
+| 15 | 7.1 | 7.1 | 111 | 104 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 30 | 7.3 | 7.0 | 217 | 210 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 45 | 7.0 | 6.5 | 325 | 312 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 60 | 6.5 | 5.9 | 426 | 405 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 75 | 5.9 | 5.3 | 519 | 489 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 90 | 5.3 | 4.7 | 602 | 565 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 105 | 4.8 | 4.1 | 678 | 632 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 120 | 4.2 | 3.5 | 746 | 689 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 135 | 3.6 | 2.8 | 804 | 736 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 150 | 2.9 | 2.0 | 853 | 772 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 165 | 2.2 | 1.3 | 892 | 797 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 180 | 1.5 | 0.5 | 920 | 811 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 195 | 0.7 | 0.0 | 936 | 814 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 210 | -0.0 | -0.0 | 941 | 813 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 225 | -0.4 | -0.1 | 944 | 812 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+| 240 | -0.8 | -0.3 | 954 | 809 | 90.0 | 90.0 | 0.0 | 0.0 | 90.0 | 90.0 | 0.0 | 0.0 |
+
+- reached 10 m/s: TSRE never, Open Rails never
+- reached 20 m/s: TSRE never, Open Rails never
+- reached 30 m/s: TSRE never, Open Rails never
+- reached 40 m/s: TSRE never, Open Rails never
+- top speed: TSRE 7.76 m/s, Open Rails 7.11 m/s
+- stopped: TSRE at 208.5 s after 911 m braking, Open Rails at 189.3 s after 710 m braking

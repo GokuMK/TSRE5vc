@@ -7,7 +7,8 @@
 -- master key, the circuit breaker, the power supply (pantographs, line
 -- voltage, main and auxiliary power), the levers, traction and the dynamic
 -- brake, the compressor; and, driving the train, the train brake's
--- equalising reservoir, the brake pipe at the loco and the engine brake.
+-- equalising reservoir, the brake pipe at the loco and the engine brake; a
+-- twin pipe loco also feeds the main reservoir pipe.
 -- Values are SI (Pa, m/s, N, W, s, m³). Sounds are Open Rails' trigger
 -- numbers, sent as send("sound", n).
 --
@@ -410,6 +411,9 @@ function init(state, vehicle)
         positive(vehicle, "wagon(brakedistributorreleaserate", 1.86 * PSI))
     local system = tostring(vehicle.text("wagon(brakesystemtype") or ""):lower()
     c.ep = system == "ep" or system == "ecp" or system == "ep_single_pipe"
+    -- A twin pipe loco feeds the main reservoir pipe from its main reservoir.
+    c.twinPipe = system == "air_twin_pipe" or system == "ep" or system == "ecp"
+    c.mainPipeMax = positive(vehicle, "engine(airbrakemaxmainrespipepressure", c.mainMax + 5 * PSI)
     c.trainBrake = brakeLeverConfig(vehicle, "trainbrakes")
     c.engineBrake = brakeLeverConfig(vehicle, "enginebrakes")
 
@@ -1014,6 +1018,15 @@ function update(dt, inputs, state, out)
 
     stepCompressor(s, dt)
     stepPantographs(s, dt)
+
+    -- The main reservoir and its length of the main reservoir pipe
+    -- equalised, the pipe at most at its maximum (Open Rails').
+    if c.twinPipe and inputs.brakePipeVolume > 0 then
+        local share = inputs.brakePipeVolume / c.mainVolume
+        local dp = math.min((s.mainReservoir - inputs.mainPipe) / (1 + share), c.mainPipeMax - inputs.mainPipe)
+        s.mainReservoir = math.max(0, s.mainReservoir - dp * share)
+        out.mainPipeAir = dp * inputs.brakePipeVolume
+    end
 
     -- Driving the train: the train brake, the pipe at the loco, the engine
     -- brake, bail off, the EP wire.

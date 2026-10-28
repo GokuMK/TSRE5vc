@@ -53,6 +53,9 @@ struct Driven {
     // (running order) and the EP wire's demand (-1 none).
     std::vector<AirBrake> brakes;
     BrakePipe pipe;
+    // The main reservoir pipe (running order): joined between twin pipe
+    // vehicles only.
+    BrakePipe mainPipe;
     double ep = -1.0;
     // The vehicle (consist order) whose cab is driven.
     int cab = -1;
@@ -135,11 +138,24 @@ void SimulationCore::takeOver(int train) {
     const VehicleDefinition *cabDef = d->cab >= 0 ? rt.vehicles[size_t(d->cab)].definition.get() : nullptr;
     const double full = cabDef ? BrakeSystemPressure(*cabDef) : BrakeSystemPressure(*VehicleDefinition::empty());
     d->pipe.timeFactor = cabDef ? BrakePipeTimeFactor(*cabDef) : BrakePipeTimeFactor(*VehicleDefinition::empty());
+    // The main reservoir pipe at its locos' pressure along the twin pipe
+    // vehicles (the first twin pipe loco's; Open Rails' 130 psi without one).
+    double mainFull = 0.0;
+    for (size_t v = 0; v < n && mainFull <= 0.0; ++v)
+        if (rt.vehicles[v].type() >= 4 && d->brakes[v].twinPipe())
+            mainFull = MainPipePressure(*rt.vehicles[v].definition);
+    if (mainFull <= 0.0)
+        mainFull = MainPipePressure(*VehicleDefinition::empty());
+    d->mainPipe.timeFactor = d->pipe.timeFactor;
     for (size_t r = 0; r < n; ++r) {
         AirBrake &brake = d->brakes[s.reversed ? n - 1 - r : r];
         brake.charge(full);
         d->pipe.volume.push_back(brake.pipeVolume());
         d->pipe.pressure.push_back(full);
+        d->mainPipe.volume.push_back(brake.pipeVolume());
+        d->mainPipe.pressure.push_back(brake.twinPipe() ? mainFull : 0.0);
+        if (r + 1 < n)
+            d->mainPipe.joined.push_back(brake.twinPipe() && d->brakes[s.reversed ? n - 2 - r : r + 1].twinPipe());
     }
     rt.drivenState = d;
     // Its cab set to run the way the train runs; throttle and brakes off: a
@@ -285,15 +301,20 @@ void SimulationCore::advanceDriven(int train, double from, double to) {
         input.lineVoltage = in->lineVoltage;
         input.brakePipe = d.pipe.pressure[r];
         input.brakePipeVolume = d.pipe.volume[r];
+        const bool twin = d.brakes[v].twinPipe();
+        input.mainPipe = twin ? d.mainPipe.pressure[r] : 0.0;
         input.brakeCylinder = d.brakes[v].cylinder();
         input.cab = int(v) == d.cab;
         VehicleOutputs &out = d.outputs[v];
         out.events.clear();
         out.line.clear();
+        out.mainPipeAir = 0.0;
         d.models[v]->step(input, out);
         for (const Message &m : out.events)
             d.messages.push_back({int(v), m});
         d.pipe.pressure[r] = std::max(0.0, d.pipe.pressure[r] + out.brakePipeAir / d.pipe.volume[r]);
+        if (twin)
+            d.mainPipe.pressure[r] = std::max(0.0, d.mainPipe.pressure[r] + out.mainPipeAir / d.mainPipe.volume[r]);
         forces[r].drive = out.motiveForce * face - car.mass * Gravity * slope;
         // Its resistance as its file gives it (Davis), the leading car's air
         // drag the larger.
@@ -324,15 +345,21 @@ void SimulationCore::advanceDriven(int train, double from, double to) {
     for (size_t r = 0; r < n; ++r) {
         const size_t v = s.reversed ? n - 1 - r : r;
         AirBrake &brake = d.brakes[v];
-        brake.step(dt, d.pipe.pressure[r], ep);
+        brake.step(dt, d.pipe.pressure[r], ep, brake.twinPipe() ? &d.mainPipe.pressure[r] : nullptr);
         brake.independent(dt, d.outputs[v].independentBrake, d.outputs[v].bailOff);
         forces[r].friction += brake.force(d.physics.cars[r].speed);
     }
     d.pipe.step(dt);
+    d.mainPipe.step(dt);
     for (size_t r = 0; r < n; ++r) {
         const size_t v = s.reversed ? n - 1 - r : r;
         d.outputs[v].values.insert("brakePipe", d.pipe.pressure[r]);
+        if (d.brakes[v].twinPipe())
+            d.outputs[v].values.insert("mainPipe", d.mainPipe.pressure[r]);
         d.outputs[v].values.insert("brakeCylinder", d.brakes[v].cylinder());
+        d.outputs[v].values.insert("auxiliaryReservoir", d.brakes[v].auxiliary());
+        if (d.brakes[v].valve() == AirBrake::Valve::Distributor)
+            d.outputs[v].values.insert("controlReservoir", d.brakes[v].controlReservoir());
     }
     d.physics.step(dt, forces);
     std::vector<TrainPhysics::Car> &cars = d.physics.cars;
@@ -438,6 +465,7 @@ void SimulationCore::drivenReversal(int train, double t) {
     std::reverse(d.physics.cars.begin(), d.physics.cars.end());
     std::reverse(d.physics.couplers.begin(), d.physics.couplers.end());
     d.pipe.reverse();
+    d.mainPipe.reverse();
     for (TrainPhysics::Car &car : d.physics.cars)
         car.speed = 0.0;
     d.physics.placeFrom(s.front);
