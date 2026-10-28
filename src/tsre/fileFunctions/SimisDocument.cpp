@@ -111,14 +111,21 @@ struct SimisDocumentReader {
                             || holders.contains(target, PathCase) || !unbalanced(target))
                             return false;
                         QString unused;
-                        out.text = fileTree(target, unused)->whole();
+                        const auto included = fileTree(target, unused);
+                        out.text = included->whole();
                         out.path = target;
                         holders << target;
-                        doc.found.push_back(
-                                {holder, 0,
-                                 QString("Includes %1, whose parentheses do not balance: read in its place, as Open "
-                                         "Rails reads it")
-                                         .arg(target)});
+                        // Told at the include file, where the fix is: the line
+                        // its parentheses first go wrong.
+                        int line = 0;
+                        for (const auto &p : included->problems())
+                            if (p.line > 0) {
+                                line = p.line;
+                                break;
+                            }
+                        doc.found.push_back({target, line,
+                                             "Its parentheses do not balance: read where it is included, as Open Rails "
+                                             "reads it, closing or leaving open the block around it"});
                         return true;
                     },
                     note);

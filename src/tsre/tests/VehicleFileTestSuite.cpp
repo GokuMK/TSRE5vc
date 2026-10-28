@@ -1,5 +1,6 @@
 #include <tsre/tests/VehicleFileTestSuite.h>
 
+#include <QDate>
 #include <QDir>
 #include <QDirIterator>
 #include <QElapsedTimer>
@@ -501,6 +502,40 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
     QMap<QString, int> kinds;
     QMap<QString, QString> examples;
     QSet<QString> seen;
+    // Each problem once, with the vehicles meeting it, for the report
+    // (TSRE_VEHICLE_REPORT).
+    struct Listed {
+        QString file;
+        int line = 0;
+        QString message;
+        QString kind;
+        int vehicles = 0;
+        bool unused = false;
+    };
+    QMap<QString, Listed> listed;
+    const auto kindOf = [](const QString &message) {
+        // The kind: the message without its details (a quoted line, a path,
+        // a block's name, numbers).
+        QString kind = message;
+        const qsizetype quoted = kind.indexOf(QLatin1String(": \""));
+        if (quoted >= 0)
+            kind.truncate(quoted);
+        if (kind.startsWith(QLatin1String("Include ")) && kind.contains(QLatin1String(": ")))
+            kind = "Include …" + kind.mid(kind.lastIndexOf(QLatin1String(": ")));
+        kind.replace(QRegularExpression("The block \\S+ is"), "The block … is");
+        kind.replace(QRegularExpression("\\S*[/\\\\]\\S*|\\d+(\\.\\d+)?"), "…");
+        return kind;
+    };
+    const auto list = [&](const SimisDocument::Problem &p, bool unused, QSet<QString> &counted) {
+        const QString key = p.file + "\x1f" + QString::number(p.line) + "\x1f" + p.message;
+        Listed &entry = listed[key];
+        if (entry.file.isEmpty())
+            entry = {p.file, p.line, p.message, kindOf(p.message), 0, unused};
+        if (!unused && !counted.contains(key)) {
+            counted.insert(key);
+            ++entry.vehicles;
+        }
+    };
     int read = 0, withProblems = 0;
     for (const QString &path : files) {
         const QString folder = QFileInfo(path).path();
@@ -508,12 +543,13 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
         auto doc = SimisDocument::read(path, {root, vehicle});
         read += doc->ok() ? 1 : 0;
         withProblems += doc->problems().isEmpty() ? 0 : 1;
+        QSet<QString> counted;
+        for (const auto &p : doc->problems())
+            list(p, false, counted);
         for (const auto &p : doc->problems()) {
             if (verbose && p.line == 1 && p.message.startsWith("Data on the first line"))
                 qInfo().noquote() << "  first line read:" << QString(p.file).remove(root) << p.message.mid(p.message.indexOf(": \"") + 2);
-            // The kind: the message without paths, names and numbers.
-            QString kind = p.message;
-            kind.replace(QRegularExpression("(\"[^\"]*\"|\\S*[/\\\\]\\S*|\\d+(\\.\\d+)?)"), "…");
+            const QString kind = kindOf(p.message);
             const QString key = kind + "\x1f" + p.file;
             if (seen.contains(key))
                 continue;
@@ -576,6 +612,88 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
     for (auto k = kinds.cbegin(); k != kinds.cend(); ++k)
         qInfo().noquote() << QString("  %1 x %2  e.g. %3").arg(k.value(), 5).arg(k.key(), examples[k.key()]);
     test.check(read == files.size(), QString("every file read: %1 of %2").arg(read).arg(files.size()));
+
+    // TSRE_VEHICLE_REPORT=<file.md>: every problem, by file and line, for
+    // fixing the content; include files no vehicle reads too.
+    const QString reportPath = qEnvironmentVariable("TSRE_VEHICLE_REPORT");
+    if (!reportPath.isEmpty()) {
+        QSet<QString> reached;
+        for (const auto &doc : docs)
+            for (const QString &f : doc->files())
+                reached.insert(f);
+        int unusedFiles = 0;
+        QDirIterator includes(root + "/TRAINS/TRAINSET", QDir::Files, QDirIterator::Subdirectories);
+        while (includes.hasNext()) {
+            const QString path = QDir::cleanPath(includes.next());
+            if (QFileInfo(path).suffix().toLower() != "inc" || reached.contains(path))
+                continue;
+            ++unusedFiles;
+            // Read alone: no vehicle, so [[Vehicle]] paths are not known.
+            const auto doc = SimisDocument::read(path, {root, QString()});
+            QSet<QString> counted;
+            for (const auto &p : doc->problems())
+                if (!p.message.contains("no vehicle's folder"))
+                    list(p, true, counted);
+        }
+        // Content to fix; differences from Open Rails and encodings to look at.
+        const auto note = [](const QString &message) {
+            return message.startsWith("Data on the first line") || message.contains("read as Latin-1")
+                   || message.contains("without a byte order mark");
+        };
+        QMap<QString, QVector<Listed>> fix, look;
+        for (const Listed &entry : listed)
+            (note(entry.message) ? look : fix)[entry.kind] << entry;
+        const auto cell = [](QString text) { return text.replace('|', "\\|").replace('\n', ' '); };
+        QString out;
+        out += "# Vehicle file problems: " + QFileInfo(root).fileName() + "\n\n";
+        out += QString("Every ENG/WAG file under `TRAINS/TRAINSET` (%1) as TSRE reads it (task driving 01), and "
+                       "the %2 include files no vehicle reads. Made %3 by `TSRE_VEHICLE_REPORT=<file> TSRE5vc --test "
+                       "--test-suite vehicle-file-corpus --game-root <game folder>`: run it again after fixing.\n\n"
+                       "Paths are from the game folder; a line 0 is the file as a whole. *Vehicles* counts the "
+                       "vehicles reading the file (*none*: an include file no vehicle reads).\n\n")
+                       .arg(files.size())
+                       .arg(unusedFiles)
+                       .arg(QDate::currentDate().toString(Qt::ISODate));
+        const auto section = [&](const QString &title, const QString &about, const QMap<QString, QVector<Listed>> &groups) {
+            int count = 0;
+            for (const auto &group : groups)
+                count += group.size();
+            out += QString("## %1 (%2)\n\n%3\n\n").arg(title).arg(count).arg(about);
+            for (auto g = groups.cbegin(); g != groups.cend(); ++g) {
+                QVector<Listed> entries = g.value();
+                std::sort(entries.begin(), entries.end(), [](const Listed &a, const Listed &b) {
+                    return a.file != b.file ? a.file < b.file : a.line < b.line;
+                });
+                out += QString("### %1 (%2)\n\n| File | Line | Detail | Vehicles |\n| --- | --- | --- | --- |\n")
+                               .arg(cell(g.key()))
+                               .arg(entries.size());
+                for (const Listed &e : entries) {
+                    // What the section's title does not say: a quoted line,
+                    // an include's path.
+                    QString detail;
+                    const qsizetype quoted = e.message.indexOf(QLatin1String(": \""));
+                    if (quoted >= 0)
+                        detail = e.message.mid(quoted + 2);
+                    else if (e.message.startsWith(QLatin1String("Include ")))
+                        detail = e.message.mid(8, e.message.lastIndexOf(QLatin1String(": ")) - 8);
+                    detail.remove(root + "/");
+                    out += QString("| `%1` | %2 | %3 | %4 |\n")
+                                   .arg(QString(e.file).remove(root + "/"))
+                                   .arg(e.line)
+                                   .arg(detail.isEmpty() ? QString() : "`" + cell(detail) + "`")
+                                   .arg(e.unused ? QString("none") : QString::number(e.vehicles));
+                }
+                out += "\n";
+            }
+        };
+        section("To fix", "Data is lost or misread here, in TSRE and mostly in Open Rails too.", fix);
+        section("To look at",
+                "Read here, but Open Rails reads it differently (a first line), or the text's encoding is a guess.",
+                look);
+        QFile report(reportPath);
+        test.check(report.open(QIODevice::WriteOnly) && report.write(out.toUtf8()) > 0,
+                   "the report written: " + reportPath);
+    }
     Q_UNUSED(verbose);
     return test.finish();
 }

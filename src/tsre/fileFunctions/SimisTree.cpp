@@ -156,7 +156,7 @@ struct SimisTreeBuilder {
             header = true;
             tree.found.push_back({file, 1, QString("The first line leaves a quote open or closes a block it did not "
                                                    "open: not read, as Open Rails never reads it: \"%1\"")
-                                                   .arg(first.left(60).toString())});
+                                                   .arg(first.left(100).toString())});
         }
         SimisTextReader reader(text, header ? firstEnd : 0);
         const int itemsBefore = int(tree.items.size());
@@ -212,7 +212,7 @@ struct SimisTreeBuilder {
                 if (tree.items[i].begin >= base && tree.items[i].begin < base + firstEnd) {
                     tree.found.push_back({file, 1, QString("Data on the first line, which Open Rails does not read "
                                                            "(it takes it for the file's header): \"%1\"")
-                                                           .arg(first.left(60).toString())});
+                                                           .arg(first.left(100).toString())});
                     break;
                 }
     }

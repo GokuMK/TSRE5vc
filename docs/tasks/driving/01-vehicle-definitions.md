@@ -609,6 +609,30 @@ branch, both Release, on this machine.
   track on main either: the case was made on Windows content whose numbering
   differs from this machine's converted OR_PSK.
 
+## Content to fix
+
+[`reports/or-psk-vehicle-file-problems.md`](reports/or-psk-vehicle-file-problems.md)
+lists every OR_PSK file with a reading problem, by file and line, with the
+number of vehicles reading it. It is made by
+`TSRE_VEHICLE_REPORT=<file> TSRE5vc --test --test-suite vehicle-file-corpus --game-root <game folder>`
+and can be made again after fixing.
+
+**To fix** (608 file lines, as of 2026-10-28):
+- a `)` closing no block (125);
+- an include not found (418). Most are copies moved one folder deeper
+  (`stare/`, `xhl/`), where `[[Trainset]]` would help.
+- 5 include files whose parentheses don't balance;
+- 46 blocks not closed;
+- 12 first lines with a comment whose quote never closes;
+- 2 unterminated strings.
+
+The include files no vehicle reads are listed too (*none* vehicles).
+
+**To look at:**
+- 12 files with data on the first line, which Open Rails doesn't read;
+- 44 files in a Windows code page (read as Latin-1; Polish letters, mostly
+  in comments).
+
 ## Decisions (user, 2026-10-28)
 
 1. **Shared includes:** yes.
