@@ -304,6 +304,27 @@ float skyAmbient(float enclosed) {
     return mix(1.0, skyEnclosureParams.w, enclosed);
 }
 
+// How far in under cover a point lies: 0 at the cover's edge to 1 about
+// 4.5 m in, from the openness maps' share of the same cover around it (g, 24
+// points; half of them at an edge), filtered between their texels. The
+// shade's colour turns neutral under a roof gradually from its edge, not at
+// once (the user, 2026-10-28); a narrow platform roof, open at its sides,
+// only part way. (8 points looked up here moved it in steps.)
+float underCover(vec3 position) {
+    vec3 m;
+    float near = enclosureShare(skyEnclosureMatrix, position, 0.35, 0.48, m);
+    float around = 0.0;
+    if (near > 0.0 && skyEnclosureOpen.x > 0.0)
+        around = textureLod(skyEnclosureOpenMap, m.xy, 0.0).g * near;
+    if (near < 1.0 && skyEnclosureFar.x > 0.0 && skyEnclosureOpen.y > 0.0) {
+        vec3 f;
+        float far = enclosureShare(skyEnclosureFarMatrix, position, 0.4, 0.49, f);
+        if (far > 0.0)
+            around += textureLod(skyEnclosureFarOpenMap, f.xy, 0.0).g * far * (1.0 - near);
+    }
+    return smoothstep(0.5, 1.0, around);
+}
+
 float lampScale(float enclosed) {
     return mix(localLightDay, 1.0, enclosed);
 }

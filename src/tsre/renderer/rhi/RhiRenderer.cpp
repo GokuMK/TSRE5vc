@@ -1429,6 +1429,9 @@ const float OpeningShare = 0.6;
 // with the sun kept out, the rest of the roof open (the user, 2026-10-28).
 // Light comes in under cover from the sides; deeper floors do not move them.
 const float DeepestHollow = 10.0;
+// params.x, the rays' reach, is this many metres (RouteEditorGLWidget's
+// OpenRadius).
+const float RadiusMetres = 30.0;
 
 bool opening(float surfaceOverFloor, float coverOverFloor) {
     return surfaceOverFloor < max(OpeningHeight, OpeningShare * coverOverFloor);
@@ -1469,9 +1472,24 @@ void main() {
     float hollow = smoothstep(2.0, 4.0, coverHere);
     // Steps of about 1.5 m (the rays' are 2.5 m).
     float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6) : 1.0;
-    // Besides the openness (r), for a look at it: the hollow (g), its cover's
-    // height over the floor (b, 20 m is 1) and the share of rays finding an
-    // opening (a). The lit shaders read r alone.
+    // How far in under cover (g, read by the lit shaders): the share of 24
+    // points in three rings out to 4.5 m whose top lies no more than 2 m
+    // under this column's, the same roof over them. Measured from the tops
+    // alone, so floors far under a platform do not count; the shade's colour
+    // turns neutral from it, gradually from a roof's edge in (the user,
+    // 2026-10-28). Besides, for a look at it: the cover's height over the
+    // floor (b, 20 m is 1) and the share of rays finding an opening (a).
+    float around = 0.0;
+    if (hollow > 0.0) {
+        float metre = params.x / RadiusMetres;
+        for (int r = 1; r <= 3; ++r)
+            for (int d = 0; d < 8; ++d) {
+                float angle = float(d) * 0.785398 + float(r) * 0.26;
+                vec2 q = uv + vec2(cos(angle), sin(angle)) * (metre * 1.5 * float(r));
+                around += (topHere - topAt(q)) * params.y > -2.0 ? 1.0 : 0.0;
+            }
+        around *= hollow / 24.0;
+    }
     float coverShown = clamp(coverHere / 20.0, 0.0, 1.0);
     if (hollow <= 0.0) {
         result = vec4(open, 0.0, coverShown, 0.0);
@@ -1505,7 +1523,7 @@ void main() {
         }
     }
     // Two open sides near by (a viaduct's arches) light it fully.
-    result = vec4(mix(open, clamp(light * 0.5, 0.0, 1.0), hollow), hollow, coverShown, found / 8.0);
+    result = vec4(mix(open, clamp(light * 0.5, 0.0, 1.0), hollow), around, coverShown, found / 8.0);
 }
 )";
 

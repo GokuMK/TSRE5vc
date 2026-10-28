@@ -378,10 +378,14 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   is drawn with, clouds through the overcast, the night through the sky
   shader's floor; without a physical sky (the classic sky, OpenGL) the cube
   still. In the open it matches the cube's within a level (Prudnik ground
-  noon 89, 80, 67 against 90, 80, 67; 21:00 a little more violet). Covered
-  surfaces (the sky enclosure's shade) take the neutral ambient's colour as
-  the cover closes; the platform's own roof is alpha-tested, outside the
-  enclosure, so the floor under it has the open shade's blue.
+  noon 89, 80, 67 against 90, 80, 67; 21:00 a little more violet). Under
+  cover the shade's colour turns to the neutral ambient's, gradually from
+  the cover's edge in (the user: not at once): how far in a point lies, 0 at
+  the edge to 1 about 4.5 m in, from the sky enclosure's openness pass (the
+  share of 24 points around a column with the same cover over them,
+  `underCover`, ShadowSampling.glsl). The darkening (shade) counts a roof
+  open at its sides as open, so it could not be used. The Prudnik platform
+  floor under its roof: blue over red 24 -> 1.7 (a neutral grey).
 - The window, after the user's first look (2026-10-28): numbers and the
   alpha test narrow, their help beside them (room to scroll on), wide
   inputs with their help right below; rows 12 px apart, each a widget of

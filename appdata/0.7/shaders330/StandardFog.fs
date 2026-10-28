@@ -269,10 +269,12 @@ void main() {
             vec3 ambient = ambientLight();
 #ifdef TSRE_RHI
             // Under cover the shade's light comes from what is around it
-            // (ground, walls) rather than the sky: towards the neutral
-            // ambient as the cover closes (a platform's floor under its
-            // roof took the open sky's blue).
-            ambient = mix(ambient, ambientColor.rgb, shade);
+            // (ground, walls) and the horizon rather than the sky overhead:
+            // towards the neutral ambient the farther in under cover, so a
+            // platform's floor under its roof no longer takes the open sky's
+            // blue (shade, the darkening, counts an open-sided roof as open).
+            if (enclosed > 0.0)
+                ambient = mix(ambient, ambientColor.rgb, underCover(vLightPosition));
             color = mixedLight(color, ambient * skyAmbient(shade));
 #else
             color = mixedLight(color, ambient);
