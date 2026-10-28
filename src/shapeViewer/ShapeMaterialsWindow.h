@@ -60,6 +60,7 @@ private:
     QLabel *pickedLabel;
     QPushButton *selectPartsButton, *assignButton, *clearPickButton;
     QWidget *form;
+    QFormLayout *fields;
     QLineEdit *nameEdit;
     QComboBox *shaderCombo;
     QLabel *shaderHelp;
@@ -70,7 +71,9 @@ private:
     QLabel *lightHelp;
     QCheckBox *alphaTestCheck;
     QDoubleSpinBox *zBiasSpin;
-    QGroupBox *pbrGroup;
+    // The PBR factors' heading and rows, shown for a PBR shader only.
+    QLabel *pbrHeading;
+    QList<QWidget *> pbrRows;
     QPushButton *tintButton;
     QColor tint;
     // The shown material's shader as stored (a switch to PBR from it sets

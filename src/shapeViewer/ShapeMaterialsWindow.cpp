@@ -10,6 +10,7 @@
 
 #include <shapeViewer/ShapeMaterialsWindow.h>
 #include <shapeViewer/ShapeViewerGLWidget.h>
+#include <tsre/Game.h>
 #include <tsre/shape/MstsMaterials.h>
 #include <cmath>
 
@@ -112,6 +113,14 @@ QLabel *help(const QString &text) {
     return label;
 }
 
+// A section's heading, as TSRE's panels have them: in the accent colour.
+QLabel *mainLabel(const QString &text) {
+    auto *label = new QLabel(text);
+    label->setStyleSheet(QString("QLabel { color : ") + Game::StyleMainLabel + "; }");
+    label->setContentsMargins(3, 0, 0, 0);
+    return label;
+}
+
 // A number: narrow, all alike, its help beside it.
 QDoubleSpinBox *spin(double low, double high, double step) {
     auto *box = new QDoubleSpinBox;
@@ -128,31 +137,41 @@ QDoubleSpinBox *spin(double low, double high, double step) {
 // reads as its input's.
 constexpr int RowGap = 12;
 
-QHBoxLayout *beside(QLayout *input, QLabel *text) {
+// A row's input and help in a widget of their own: the form gives a widget
+// the height its wrapped help needs at its width, a layout it did not (the
+// help cut short, or room left under it).
+QWidget *rowWidget(QLayout *layout) {
+    auto *widget = new QWidget;
+    layout->setContentsMargins(0, 0, 0, 0);
+    widget->setLayout(layout);
+    return widget;
+}
+
+QWidget *beside(QLayout *input, QLabel *text) {
     auto *row = new QHBoxLayout;
     row->setSpacing(10);
     // Level with its label, however many lines the help takes.
     input->setAlignment(Qt::AlignTop);
     row->addLayout(input);
     row->addWidget(text, 1);
-    return row;
+    return rowWidget(row);
 }
 
-QHBoxLayout *beside(QWidget *input, QLabel *text) {
+QWidget *beside(QWidget *input, QLabel *text) {
     auto *row = new QHBoxLayout;
     row->addWidget(input, 0, Qt::AlignTop);
     return beside(row, text);
 }
 
-QVBoxLayout *below(QLayout *input, QLabel *text) {
+QWidget *below(QLayout *input, QLabel *text) {
     auto *column = new QVBoxLayout;
     column->setSpacing(2);
     column->addLayout(input);
     column->addWidget(text);
-    return column;
+    return rowWidget(column);
 }
 
-QVBoxLayout *below(QWidget *input, QLabel *text) {
+QWidget *below(QWidget *input, QLabel *text) {
     auto *row = new QHBoxLayout;
     row->addWidget(input);
     return below(row, text);
@@ -265,7 +284,7 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
 
     // The selected material.
     form = new QWidget;
-    auto *fields = new QFormLayout(form);
+    fields = new QFormLayout(form);
     fields->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     fields->setVerticalSpacing(RowGap);
     nameEdit = new QLineEdit;
@@ -338,11 +357,15 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
         //% "Draws the part a little nearer, over others at the same depth (decals, markings)."
         qtTrId("shape.materials.field.zbias.help"))));
 
+    // The PBR factors under a heading, their labels in the same column as
+    // the fields above (a group box of their own before).
     //% "PBR factors (in the shape's .sd, by texture 1)"
-    pbrGroup = new QGroupBox(qtTrId("shape.materials.pbr"));
-    auto *pbr = new QFormLayout(pbrGroup);
-    pbr->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    pbr->setVerticalSpacing(RowGap);
+    pbrHeading = mainLabel(qtTrId("shape.materials.pbr"));
+    fields->addRow(pbrHeading);
+    auto addPbrRow = [&](const QString &name, QWidget *row) {
+        fields->addRow(name, row);
+        pbrRows << row;
+    };
     tintButton = new QPushButton;
     tintButton->setFixedWidth(60);
     connect(tintButton, &QPushButton::clicked, this, [this]() {
@@ -357,12 +380,12 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
     tintRow->addWidget(new QLabel(qtTrId("shape.materials.pbr.alpha")));
     tintRow->addWidget(tintAlpha);
     //% "Tint"
-    pbr->addRow(qtTrId("shape.materials.pbr.tint"), beside(tintRow, help(
+    addPbrRow(qtTrId("shape.materials.pbr.tint"), beside(tintRow, help(
         //% "Multiplies the base colour and its alpha."
         qtTrId("shape.materials.pbr.tint.help"))));
     auto addFactor = [&](QDoubleSpinBox *&box, double high, const QString &name, const QString &text) {
         box = spin(0.0, high, 0.05);
-        pbr->addRow(name, beside(box, help(text)));
+        addPbrRow(name, beside(box, help(text)));
     };
     addFactor(metalnessSpin, 1.0,
               //% "Metalness"
@@ -399,7 +422,6 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
               qtTrId("shape.materials.pbr.transmission"),
               //% "Light passing through: glass that tints and blurs what lies behind it."
               qtTrId("shape.materials.pbr.transmission.help"));
-    fields->addRow(pbrGroup);
 
     //% "Apply"
     applyButton = new QPushButton(qtTrId("shape.materials.apply"));
@@ -424,12 +446,15 @@ ShapeMaterialsWindow::ShapeMaterialsWindow(QWidget *parent, ShapeViewerGLWidget 
     auto *splitter = new QSplitter;
     splitter->addWidget(leftWidget);
     splitter->addWidget(scroll);
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 1);
+    // Nearly the Shape Viewer's width, the list and the material 60:40 (the
+    // user, 2026-10-28).
+    splitter->setStretchFactor(0, 3);
+    splitter->setStretchFactor(1, 2);
+    splitter->setSizes({720, 480});
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(4, 4, 4, 4);
     layout->addWidget(splitter);
-    resize(1100, 640);
+    resize(1200, 640);
 
     if (view)
         connect(view, &ShapeViewerGLWidget::primitivePicked, this, &ShapeMaterialsWindow::primitivePicked);
@@ -548,7 +573,9 @@ void ShapeMaterialsWindow::updateShaderHelp() {
     const QString name = shaderCombo->currentText().trimmed();
     shaderHelp->setText(shaderDescription(name));
     const bool pbr = MstsMaterials::pbr(MstsMaterials::shader(name));
-    pbrGroup->setVisible(pbr);
+    fields->setRowVisible(pbrHeading, pbr);
+    for (QWidget *row : std::as_const(pbrRows))
+        fields->setRowVisible(row, pbr);
     for (int slot = 1; slot < 3; ++slot)
         textureHelps[slot]->setVisible(pbr);
 }

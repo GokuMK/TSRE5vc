@@ -366,7 +366,7 @@ int TsreTests::runShapeMaterialsSuite(const QString &imagePath, bool verbose) {
             shader->setCurrentText("PbrTexDiff");
             // The window with a PBR material, for a look at its layout.
             if (!imagePath.isEmpty()) {
-                window.resize(1180, 1000);
+                window.resize(1200, 960);
                 check(window.grab().save(imagePath), "materials-window-image-saved");
             }
             applyButton->click();
