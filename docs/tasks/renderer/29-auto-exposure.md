@@ -78,6 +78,10 @@ s(h) = `DayLocalLights` / A(h): 1 by day, 0.03 at night. An exposure of
     surface's ambient without the points: every pixel there is covered.
     EUROPE1 tunnel, viaducts and bridge, the CMK hall and Prudnik unchanged;
     rhi-shaders 93/93.
+  - It was not the light (the user: inside the hall the fog much stronger):
+    the fog itself filled the hall, a dark smoke there. The fog is left out
+    under cover now (task 33, None under cover) and its own light no longer
+    scaled; the share of the ray in the open scales the air's haze alone.
 
 ### Exposure
 

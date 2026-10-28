@@ -855,7 +855,7 @@ private:
         // The maps the injection's bindings hold (shadow maps, the cloud
         // shadow map, the terrain's shade, the lamps' and the signals' grids
         // come and go).
-        const QRhiTexture *boundMaps[16] = {};
+        const QRhiTexture *boundMaps[20] = {};
         int current = 0;
         bool historyValid = false;
         float previousForward[16] = {};

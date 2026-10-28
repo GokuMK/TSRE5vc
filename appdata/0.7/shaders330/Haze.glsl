@@ -227,12 +227,14 @@ float hazeLightScale(vec3 position, float shade) {
 
 // A surface's display colour seen through the air, its share of the haze
 // (water over a bed already hazed takes less), the air's light scaled
-// (hazeLightScale). Mixed in linear light, as the final pass reads the view.
+// (hazeLightScale). The fog's own light is not: there is none under cover
+// (RhiFog.cpp), and the open fog before a covered place is lit as the open
+// sky. Mixed in linear light, as the final pass reads the view.
 vec3 applyHaze(vec3 display, vec3 position, float amount, float lightScale) {
     // The fog lies low, in front of what the air reaches: the fog first, then
     // the air over both (far fog banks turn blue with the distance).
     vec4 fog = fogAt(position);
-    vec3 surface = pow(max(display, vec3(0.0)), vec3(2.2)) * mix(1.0, fog.a, amount) + fog.rgb * (amount * lightScale);
+    vec3 surface = pow(max(display, vec3(0.0)), vec3(2.2)) * mix(1.0, fog.a, amount) + fog.rgb * amount;
     vec3 through = mix(vec3(1.0), airThrough(position), amount);
     vec3 air = pow(max(hazeLight(position) * lightScale, vec3(0.0)), vec3(2.2));
     return pow(surface * through + air * (vec3(1.0) - through), vec3(1.0 / 2.2));
