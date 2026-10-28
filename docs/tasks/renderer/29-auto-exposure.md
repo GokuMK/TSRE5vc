@@ -64,6 +64,24 @@ s(h) = `DayLocalLights` / A(h): 1 by day, 0.03 at night. An exposure of
 - Fog under cover is lit as the ambient is (`skyAmbient(shade)`): the full
   sky colour as haze deep in a tunnel was invisible at today's exposure
   and a bright fog at a tunnel's.
+  - Only the part of the ray under cover (2026-10-28, `hazeLightScale`,
+    Haze.glsl): the surface's ambient for all of it left a covered place
+    seen through the fog from the open black, its fog dark all the way to
+    the camera (the user: CMK, valley fog at 4:00,
+    `-5355,14852,-624.66,223.61,895.02,-178.34,-4.67`). Now the fog's and
+    the air's light goes from the surface's ambient to the open sky's by
+    the share of 8 points along the ray without cover over them (the sky
+    enclosure maps, stepped linearly in their coordinates). The camera's
+    end open for all of it lit the haze along a tunnel looked into from
+    outside: a blue veil; by the share it is a faint one (12 levels at most,
+    in the dark tunnel). A camera deep under cover (in a tunnel) takes the
+    surface's ambient without the points: every pixel there is covered.
+    EUROPE1 tunnel, viaducts and bridge, the CMK hall and Prudnik unchanged;
+    rhi-shaders 93/93.
+  - It was not the light (the user: inside the hall the fog much stronger):
+    the fog itself filled the hall, a dark smoke there. The fog is left out
+    under cover now (task 33, None under cover) and its own light no longer
+    scaled; the share of the ray in the open scales the air's haze alone.
 
 ### Exposure
 

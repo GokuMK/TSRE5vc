@@ -252,6 +252,27 @@ void RhiRenderer::setSky(const Sky &next) {
             for (int k = 0; k < 3; ++k)
                 h.clear[i][k] = std::max(c[k], sky.night[k]);
         }
+        // The sky's light from above: three bands from the zenith, each a
+        // half circle from the sun's side (the sky is the same on both),
+        // weighted by the light they give a level surface, in the sky
+        // shader's colour (display, the night's at least) taken to linear
+        // light, as the cube holds it.
+        double sum[3] = {0.0, 0.0, 0.0};
+        for (const double zenith : {15.0, 45.0, 75.0}) {
+            const double t = zenith * M_PI / 180.0;
+            for (int i = 0; i <= 4; ++i) {
+                const double a = M_PI * i / 4.0;
+                const double weight = std::cos(t) * std::sin(t) * (i == 0 || i == 4 ? 0.5 : 1.0);
+                const double x = std::cos(a) * h.sun[0] - std::sin(a) * h.sun[1];
+                const double z = std::cos(a) * h.sun[1] + std::sin(a) * h.sun[0];
+                const float d[3] = {float(std::sin(t) * x), float(std::cos(t)), float(std::sin(t) * z)};
+                const Atmosphere::Rgb c = Atmosphere::toDisplay(Atmosphere::model().skyRadiance(height, d, sky.sun));
+                for (int k = 0; k < 3; ++k)
+                    sum[k] += weight * std::pow(double(std::max(c[k], sky.night[k])), 2.2);
+            }
+        }
+        for (int k = 0; k < 3; ++k)
+            h.aboveClear[k] = float(sum[k]);
     }
     // Under a covered sky the haze turns grey, as the fog colour does
     // (RouteEditorGLWidget::applyClouds).
@@ -262,6 +283,22 @@ void RhiRenderer::setSky(const Sky &next) {
         for (int k = 0; k < 3; ++k)
             h.ring[i][k] = c[k] + (grey - c[k]) * 0.8f * o;
     }
+    // From above as grey as the clouds make it (its brightness kept: its
+    // colour is what the shading takes), from no cover up. Clouds give more
+    // of the light than their cover from straight above: seen slantwise
+    // their sides fill the gaps between them (cumulus stand as tall as they
+    // are wide), and lit by the sun they are brighter than the sky; taken
+    // together as three layers of the cover, a sky a third covered gives
+    // two thirds of its light from clouds. Greyed as the haze (from 30 %),
+    // fair cumulus left the shade the clear sky's blue, where the cube, drawn
+    // with its clouds, had it greyer (the user, 2026-10-28, CMK: about half
+    // cloud, half sky).
+    const float *a = h.aboveClear;
+    const float luminance = 0.2126f * a[0] + 0.7152f * a[1] + 0.0722f * a[2];
+    const float cover = std::clamp(sky.overcast, 0.0f, 1.0f);
+    const float clouds = 1.0f - (1.0f - cover) * (1.0f - cover) * (1.0f - cover);
+    for (int k = 0; k < 3; ++k)
+        h.above[k] = a[k] + (luminance - a[k]) * 0.8f * clouds;
 }
 
 void RhiRenderer::hazeParameters(float *out) const {

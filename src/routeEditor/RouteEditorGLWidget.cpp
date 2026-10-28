@@ -627,9 +627,16 @@ void RouteEditorGLWidget::surfaceInitialize() {
 
     shadowMapSize = Settings::variant(
                 "core.rendering.shadow.primaryMapSize", SettingType::Enum).toInt();
+    // The middle map: its own size, or 0 the near map's (as before it had a
+    // setting of its own: users wanted a sharper near map, 4096, with the
+    // middle one at 2048).
+    middleShadowMapSize = Settings::variant(
+                "core.rendering.shadow.middleMapSize", SettingType::Enum).toInt();
+    if (middleShadowMapSize <= 0)
+        middleShadowMapSize = shadowMapSize;
     distantShadowMapSize = Settings::variant(
                 "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
-    renderer->createShadowMaps(shadowMapSize, distantShadowMapSize);
+    renderer->createShadowMaps(shadowMapSize, middleShadowMapSize, distantShadowMapSize);
     renderer->bindTarget(Renderer::TARGET_VIEW);
         
     
@@ -1694,7 +1701,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // its constant bias.
     const float tapSpread = 2.0f * ShadowBlurReference / gluu->shadow1Res;
     for (int map = 0; map < 2; map++) {
-        const float texel = 2.0f * ShadowHalfExtent[map] / shadowMapSize;
+        const float texel = 2.0f * ShadowHalfExtent[map] / (map == 0 ? shadowMapSize : middleShadowMapSize);
         const float filter = std::max(texel, tapSpread);
         gluu->shadowNormalOffset[map] = ShadowNormalOffsetTexels[map] * filter;
         gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
@@ -1702,7 +1709,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     gluu->shadowNormalOffset[2] = 0.0f;
     std::copy(sun, sun + 3, gluu->shadowLightDirection);
     for (int map = 0; map < 3; map++) {
-        const int size = map < 2 ? shadowMapSize : distantShadowMapSize;
+        const int size = map == 0 ? shadowMapSize : map == 1 ? middleShadowMapSize : distantShadowMapSize;
         const float cell = ShadowSnapTexels * 2.0f * ShadowHalfExtent[map] / float(std::max(size, 1));
         const float ahead[3] = {position[0] + forward[0] * ShadowLead[map], position[1],
                                 position[2] + forward[1] * ShadowLead[map]};
@@ -1757,7 +1764,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
     constexpr qint64 RefreshMs = 4000;
     constexpr qint64 ArrivalMs = 500;
     const float ranges[3] = {250.0f, 600.0f, 1000.0f};
-    const int sizes[3] = {shadowMapSize, shadowMapSize, distantShadowMapSize};
+    const int sizes[3] = {shadowMapSize, middleShadowMapSize, distantShadowMapSize};
     const int statsSlots[3] = {RenderStats::FrameStats::PassSlots - 3, RenderStats::FrameStats::PassSlots - 2,
                                RenderStats::FrameStats::PassSlots - 1};
     const Renderer::Target targets[3] = {Renderer::TARGET_SHADOW_NEAR, Renderer::TARGET_SHADOW_MID,
@@ -1890,6 +1897,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
 // Each map is drawn again from below (the lowest surfaces); where the two
 // lie apart there is cover, and the renderer finds from both how open the sky
 // is around each point (OpenRadius), so the light fades from the open sky in.
+// The terrain's heights under each map go with them: under cover over the
+// ground, what lies under the terrain is buried, not a floor.
 void RouteEditorGLWidget::renderSkyEnclosure() {
     Renderer::SkyEnclosure enclosure;
     enclosure.enabled = Game::skyEnclosure;
@@ -1916,6 +1925,9 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     // How far around a point open sky counts for the gradual darkening
     // under cover (a tunnel from its portals in).
     constexpr float OpenRadius = 30.0f;
+    // The terrain's heights under a map: texels across (6.25 m on the near
+    // map, about the terrain's own 8 m; 18.75 m on the far one).
+    constexpr int GroundSize = 64;
     const float *position = camera->getPos();
     auto snap = [position](float cell, float *eye) {
         eye[0] = std::floor(position[0] / cell + 0.5f) * cell;
@@ -1953,6 +1965,30 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
         renderer->releaseProgram();
         return true;
     };
+    // The terrain's heights under a map, in its coordinates (the map's x and
+    // y from the world's x and z: a view from straight above), over its
+    // middle height (the eye less Above).
+    std::vector<float> ground;
+    auto groundUnder = [this, &ground](const float *viewProjection, const float *eye) {
+        ground.assign(size_t(GroundSize) * GroundSize, Renderer::EnclosureNoGround);
+        const float *m = viewProjection;
+        const float determinant = m[0] * m[9] - m[8] * m[1];
+        if (Game::terrainLib == nullptr || std::abs(determinant) < 1e-12f)
+            return ground.data();
+        const int tileX = int(camera->pozT[0]), tileZ = int(camera->pozT[1]);
+        const float middle = eye[1] - Above;
+        for (int j = 0; j < GroundSize; ++j)
+            for (int i = 0; i < GroundSize; ++i) {
+                const float u = (i + 0.5f) / GroundSize * 2.0f - 1.0f - m[12];
+                const float v = (j + 0.5f) / GroundSize * 2.0f - 1.0f - m[13];
+                const float x = (m[9] * u - m[8] * v) / determinant;
+                const float z = (m[0] * v - m[1] * u) / determinant;
+                float height;
+                if (Game::terrainLib->tryGetHeight(tileX, tileZ, x, z, height))
+                    ground[size_t(j) * GroundSize + i] = height - middle;
+            }
+        return ground.data();
+    };
     float eye[3], farEye[3];
     snap(Cell, eye);
     snap(FarCell, farEye);
@@ -1989,7 +2025,8 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
         float below[16];
         look(Half, eye, below, true);
         if (draw(2, below, Half * 1.5f, 0.0f))
-            renderer->finishSkyEnclosure(false, OpenRadius / (2.0f * Half), Depth);
+            renderer->finishSkyEnclosure(false, OpenRadius / (2.0f * Half), Depth,
+                                         groundUnder(enclosure.viewProjection, eye), GroundSize);
         std::copy(eye, eye + 3, enclosureEye);
         enclosureAge = 0;
         enclosureScene = scene;
@@ -2003,7 +2040,8 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
             float below[16];
             look(FarHalf, farEye, below, true);
             if (draw(3, below, FarHalf * 1.5f, FarMinRadius))
-                renderer->finishSkyEnclosure(true, OpenRadius / (2.0f * FarHalf), Depth);
+                renderer->finishSkyEnclosure(true, OpenRadius / (2.0f * FarHalf), Depth,
+                                             groundUnder(farViewProjection, farEye), GroundSize);
             std::copy(farEye, farEye + 3, farEnclosureEye);
             farEnclosureAge = 0;
             farEnclosureScene = scene;

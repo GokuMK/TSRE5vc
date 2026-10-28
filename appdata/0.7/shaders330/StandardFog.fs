@@ -141,9 +141,14 @@ uniform int terrainMapPass;
 // sky's blue, a cloud's grey, a sunset's glow. In plain grey, shadows here
 // were grey beside PBR's blue ones (the user, 2026-10-27). In the scene's
 // scale, as PBR's (a thirtieth at night with auto exposure): no floor but
-// zero's.
+// zero's. The sky's light from above comes from the atmosphere (skyAbove,
+// QRhi with a physical sky), the same wherever the camera stands: the cube,
+// drawn from the camera, saw a platform roof over it and gave the whole view
+// the roof's colour (the user, 2026-10-28). The cube's without it.
+uniform vec4 skyAbove;
+
 vec3 ambientLight() {
-    vec3 sky = skyLight(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0));
+    vec3 sky = skyLight(skyAbove.w > 0.0 ? skyAbove.rgb : environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0));
     float skyLuminance = luminance(sky);
     if (skyLuminance < 1e-12)
         return ambientColor.rgb;
@@ -263,7 +268,17 @@ void main() {
             color *= clamp(visibility, 0.0, 1.0);
             vec3 ambient = ambientLight();
 #ifdef TSRE_RHI
-            color = mixedLight(color, ambient * skyAmbient(shade));
+            // Under cover the shade's light comes from what is around it
+            // (ground, walls) and the horizon rather than the sky overhead:
+            // part way to the neutral ambient and darker the farther in
+            // (underCover), so a platform's floor under its roof no longer
+            // takes the open sky's full blue and light. The enclosure's own
+            // darkening (shade) counts a roof open at its sides as open;
+            // where it darkens more (a tunnel) it stays.
+            float under = enclosed > 0.0 ? underCover(vLightPosition) : 0.0;
+            ambient = mix(ambient, ambientColor.rgb, UnderCoverColour * under);
+            float skyShare = min(skyAmbient(shade), mix(1.0, UnderCoverLight, under));
+            color = mixedLight(color, ambient * skyShare);
 #else
             color = mixedLight(color, ambient);
 #endif
@@ -272,7 +287,7 @@ void main() {
             vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(shade);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
-            ambientOut = vec4(fragColor.rgb * ambient * skyAmbient(shade) * colorBrightness
+            ambientOut = vec4(fragColor.rgb * ambient * skyShare * colorBrightness
                               * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor)),
                               fragColor.a);
 #endif
@@ -309,7 +324,7 @@ void main() {
             // texture in linear terms.
             if (materialSpecular > 0.0 && enableNormals != 0.0) {
 #ifdef TSRE_RHI
-                vec3 skyLight = ambient * skyAmbient(shade);
+                vec3 skyLight = ambient * skyShare;
 #else
                 vec3 skyLight = ambient;
 #endif
@@ -322,12 +337,12 @@ void main() {
             // Fog tints the colour only; mixing alpha towards the sky's 1 made
             // translucent surfaces turn opaque with distance.
 #ifdef TSRE_RHI
-            // Under cover the haze is lit as the ambient is: no bright fog
-            // deep in a tunnel.
+            // Under cover the haze is lit as the ambient is (no bright fog
+            // deep in a tunnel), as the open sky where the ray lies open.
             if (hazeOn())
-                fragColor.rgb = applyHaze(fragColor.rgb, vLightPosition, 1.0, skyAmbient(shade));
+                fragColor.rgb = applyHaze(fragColor.rgb, vLightPosition, 1.0, hazeLightScale(vLightPosition, shade));
             else
-                fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * skyAmbient(shade), fogFactor);
+                fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * hazeLightScale(vLightPosition, shade), fogFactor);
 #else
             fragColor.rgb = mix(fragColor.rgb, skyColor.rgb, fogFactor);
 #endif

@@ -411,10 +411,11 @@ vec4 pbrShade() {
     // The display-space share of the environment light, after fog.
     pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
                          * notFog, alpha);
-    // Under cover the haze is lit as the ambient is.
+    // Under cover the haze is lit as the ambient is, as the open sky where
+    // the ray lies open (hazeLightScale).
     if (hazeOn())
-        return vec4(applyHaze(toDisplay(color), vLightPosition, 1.0, skyAmbient(shade)), alpha);
-    return vec4(mix(toDisplay(color), skyColor.rgb * skyAmbient(shade), fogFactor), alpha);
+        return vec4(applyHaze(toDisplay(color), vLightPosition, 1.0, hazeLightScale(vLightPosition, shade)), alpha);
+    return vec4(mix(toDisplay(color), skyColor.rgb * hazeLightScale(vLightPosition, shade), fogFactor), alpha);
 #else
     return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor), alpha);
 #endif

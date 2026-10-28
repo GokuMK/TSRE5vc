@@ -40,6 +40,13 @@ Noted in their tasks:
   day (task 29, "Later").
 - Moonlight: the full moon's strength (0.15) and the moonlit clouds (0.18 of
   it); the user is not fully satisfied with either yet (task 31).
+- The near shadow map's edge at 2048 (the default): large shadows' edges
+  show the map's 7.8 cm texels as steps (Prudnik's platform roof); the
+  filter (6.4 cm, tuned for 4096) is under a texel. A wider filter blurs
+  the steps without hiding them and weakens the rails' shadows; for now a
+  4096 near map with the middle one at 2048 (its own setting since
+  2026-10-29) is the answer for those who mind (task 10, "The middle map's
+  own size").
 
 ## Bug fixes
 
@@ -75,6 +82,20 @@ Noted in their tasks:
   other text could take a pixel size the same way.
 
 ## Done
+
+- Anisotropic filtering (2026-10-29; an NVIDIA user: forcing it in the
+  driver changed nothing): QRhi's samplers have no setting for it (Qt
+  6.10), so mipmapped textures on surfaces at a slant (roofs, track,
+  ground) blurred to flat colour. `core.rendering.anisotropicFiltering`
+  (Off, 2x to 16x; 16x by default, capped by the device): on Vulkan each
+  mipmapped sampler `RhiRenderer::wrapSampler` makes gets its `VkSampler`
+  made again with anisotropy (`RhiAnisotropy`, through Qt's private
+  `QVkSampler`; to check when Qt is updated). The log says the level taken.
+  Prudnik's platform roof (`-5373,14874,789.06,338.62,-925.42,-167.34,-6.92`,
+  shape mipmaps on) keeps its corrugation and ridges sharp to the far end;
+  40 frames there cost the same off, at 8x and at 16x (median 68-72 ms,
+  noise 2 ms; Steam Deck, 1280x720). No validation messages (Qt enables the
+  device's `samplerAnisotropy`). OpenGL and D3D: none yet.
 
 - Static terrain texture painting under QRhi (user, 2026-10-26): only the
   first stroke showed. `Texture::update` sent the edited pixels to OpenGL

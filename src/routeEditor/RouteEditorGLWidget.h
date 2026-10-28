@@ -789,6 +789,7 @@ private:
     bool keyAltEnabled = false;
     // Near, mid and far shadow maps.
     int shadowMapSize = 2048;
+    int middleShadowMapSize = 2048;
     int distantShadowMapSize = 1024;
     Brush* defaultPaintBrush;
     ImageryWindow* imageryWindow;

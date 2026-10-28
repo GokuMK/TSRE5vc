@@ -96,6 +96,7 @@ limits discovered in the old parser.
 | `AASamples` | `core.rendering.antiAliasingSamples` | Shadows and anti-aliasing | Enum MSAA request (off/2/4/8/16) set before QApplication/OpenGL contexts | Graphics bootstrap; Move/startup-only |
 | `shadowsEnabled` | `core.rendering.shadows.enabled` | Shadows and anti-aliasing | Route Editor shadow pass is active when legacy value is greater than zero | RouteEditorGLWidget; modern type is bool; Keep hot cache |
 | `shadowMapSize` | `core.rendering.shadow.primaryMapSize` | Shadows and anti-aliasing | Power-of-two enum for near shadow framebuffer dimensions and legacy preset input | RouteEditorGLWidget; Move at renderer construction |
+| — | `core.rendering.shadow.middleMapSize` | Shadows and anti-aliasing | Power-of-two enum for the middle shadow framebuffer dimensions; 0 (default) takes the near map's size (2026-10-29) | RouteEditorGLWidget; Move at renderer construction |
 | `shadowLowMapSize` | `core.rendering.shadow.distantMapSize` | Shadows and anti-aliasing | Power-of-two enum for distant shadow framebuffer dimensions and preset input | RouteEditorGLWidget; Move at renderer construction |
 | `oglDefaultLineWidth` | `core.rendering.defaultLineWidth` | Editor overlays | Default OpenGL line width for render items | Renderer; Keep hot cache |
 | `fogDensity` | `core.rendering.fogDensity` | Environment | Copied into GLUU construction; other editors force zero | GLUU/scene; Keep renderer cache |

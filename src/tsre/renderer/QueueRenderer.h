@@ -131,11 +131,11 @@ protected:
     // bounds) and inside the light view, grouped by packet: shadowCasters,
     // groupPlans and instanceUpload.
     // Shadow casters in range and inside the light's view, shadow-only
-    // submissions included; with enclosure, terrain and every opaque surface
-    // but vegetation instead (the sky enclosure, task 27).
+    // submissions included; with enclosure, terrain and every opaque,
+    // alpha-tested or blended surface but vegetation instead (the sky
+    // enclosure, task 27).
     void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
-                           float minRadius = 0.0f, bool alphaTested = false,
-                           ShadowCasters casters = CASTERS_ALL, ShadowSet set = SET_ALL);
+                           float minRadius = 0.0f, ShadowCasters casters = CASTERS_ALL, ShadowSet set = SET_ALL);
     // The lights of every queued instance in submission space, punctual
     // lights scaled by exposure and emissive ones by emissiveGain, with
     // ranges derived where missing (task 21). emittersOnly keeps only the

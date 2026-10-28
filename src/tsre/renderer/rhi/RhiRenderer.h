@@ -52,7 +52,7 @@ public:
     void releaseProgram() override {}
     void applyFrameUniforms() override;
     void setFogLod(float lod) override;
-    void createShadowMaps(int nearSize, int farSize) override;
+    void createShadowMaps(int nearSize, int middleSize, int farSize) override;
     void bindTarget(Target target) override;
     void resetState() override {}
     bool setBlending(bool enabled) override;
@@ -84,7 +84,8 @@ public:
     bool copyShadowCache(int map) override;
     bool vegetationShadows() const override { return true; }
     bool beginSkyEnclosure(int size, int map = 0) override;
-    void finishSkyEnclosure(bool far, float radius, float metresPerDepth) override;
+    void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
+                            const float *ground = nullptr, int groundSize = 0) override;
     void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
                                 float minRadius = 0.0f) override;
     void setSkyEnclosure(const SkyEnclosure &enclosure) override;
@@ -352,6 +353,12 @@ private:
     struct Haze {
         float clear[8][3] = {};
         float ring[8][3] = {};
+        // The sky's light from above (linear, cosine-weighted over the sky,
+        // as the environment cube's roughest level straight up), clear and
+        // greyed under an overcast: the shade's colour wherever the camera
+        // stands (the cube's from under a platform roof was the roof's).
+        float aboveClear[3] = {};
+        float above[3] = {};
         float sun[2] = {1.0f, 0.0f};
         float drawnSun[3] = {};
         float drawnHeight = -1e9f;
@@ -717,6 +724,9 @@ private:
         QRhiShaderResourceBindings *bindings = nullptr;
         const QRhiTexture *boundTop = nullptr;
         const QRhiTexture *boundBottom = nullptr;
+        // The terrain's heights under the map (finishSkyEnclosure).
+        QRhiTexture *ground = nullptr;
+        const QRhiTexture *boundGround = nullptr;
         bool valid = false;
     } enclosureOpen[2];
     QRhiGraphicsPipeline *opennessPipeline = nullptr;
@@ -845,7 +855,7 @@ private:
         // The maps the injection's bindings hold (shadow maps, the cloud
         // shadow map, the terrain's shade, the lamps' and the signals' grids
         // come and go).
-        const QRhiTexture *boundMaps[16] = {};
+        const QRhiTexture *boundMaps[20] = {};
         int current = 0;
         bool historyValid = false;
         float previousForward[16] = {};
@@ -1060,6 +1070,9 @@ private:
     std::vector<QRhiShaderResourceBindings *> retiredLayouts;
     // By wrapSampler's 6-bit key; looked up for every texture of every draw.
     std::array<QRhiSampler *, 64> samplers{};
+    // The anisotropic filtering asked for, mipmapped samplers' (1: off).
+    float anisotropy = 1.0f;
+    bool anisotropyLogged = false;
     // Stand-ins for textures a program declares but a draw does not use.
     QRhiTexture *dummy2D = nullptr;
     QRhiTexture *dummyArray = nullptr;

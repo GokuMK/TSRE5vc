@@ -431,8 +431,7 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
 }
 
 void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
-                                      float minRadius, bool alphaTested, ShadowCasters casters,
-                                      ShadowSet set){
+                                      float minRadius, ShadowCasters casters, ShadowSet set){
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Static casters still loading in reach, by their place (a shape's size
     // is not known before it loads): what a cached map misses.
@@ -479,9 +478,13 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
         shadowCasters.push_back(&instance);
     };
     for(int pass = 0; pass < PASS_COUNT; ++pass){
-        // The enclosure maps: opaque surfaces; the views from below (the
-        // lowest surfaces: track beds, tunnel floors) alpha-tested ones too.
-        if(enclosure && pass != PASS_TERRAIN && pass != PASS_OPAQUE && !(alphaTested && pass == PASS_ALPHA_TEST))
+        // The enclosure maps: opaque, alpha-tested and blended surfaces, as
+        // the shadow maps take them (thin roofs: CMK's hall); vegetation has
+        // its own flag and stays out (above). Alpha-tested and blended roofs
+        // were kept out for tree canopies before that flag (the user,
+        // 2026-10-28).
+        if(enclosure && pass != PASS_TERRAIN && pass != PASS_OPAQUE && pass != PASS_ALPHA_TEST
+                && pass != PASS_BLENDED)
             continue;
         PassQueue &queue = passes[pass];
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped})

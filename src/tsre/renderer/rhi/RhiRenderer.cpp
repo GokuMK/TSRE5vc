@@ -25,6 +25,7 @@
 #include <rhi/qshaderdescription.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
+#include "RhiAnisotropy.h"
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Mesh.h>
@@ -170,6 +171,7 @@ size_t RhiRenderer::BindingKeyHash::operator()(const BindingKey &k) const {
 RhiRenderer::RhiRenderer(RhiContext *context)
     : context(context), rhi(context->rhi()), gluu(GLUU::get()) {
     uploadBudgetNs = qint64(std::max(0, Settings::integer("core.rendering.objectLoading.uploadBudgetMs"))) * 1000000;
+    anisotropy = float(std::max(1, Settings::variant("core.rendering.anisotropicFiltering", SettingType::Enum).toInt()));
     if (context != nullptr)
         TexLib::setGpuMemory(context->deviceMemory(), context->discreteGpu());
     // Texture loaders prepare for the formats it takes (Texture::prepareForRhi),
@@ -440,6 +442,12 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
         }
         program->set("hazeRing", ring, int(sizeof(ring)));
     }
+    // The sky's light from above for the classic shade (StandardFog.fs
+    // ambientLight); w 0: the environment cube's.
+    if (hazeValues[2] > 0.0f)
+        program->setVec("skyAbove", haze.above[0], haze.above[1], haze.above[2], 1.0f);
+    else
+        program->setVec("skyAbove", 0.0f, 0.0f, 0.0f, 0.0f);
     program->setVec("diffuseColor", gluu->diffuseColor[0] * scene, gluu->diffuseColor[1] * scene,
                     gluu->diffuseColor[2] * scene, gluu->diffuseColor[3]);
     // The sky's light through the clouds overhead (display colour).
@@ -776,6 +784,18 @@ QRhiSampler *RhiRenderer::wrapSampler(bool mipmaps, int addressU, int addressV, 
                                            mipmaps ? QRhiSampler::Linear : QRhiSampler::None,
                                            mode(addressU), mode(addressV));
     created->create();
+    // Textures' mipmaps blur surfaces seen at a slant: anisotropic filtering
+    // (core.rendering.anisotropicFiltering), which QRhi has no setting for.
+    if (mipmaps && !nearest) {
+        const float level = RhiAnisotropy::apply(rhi, created, anisotropy);
+        if (!anisotropyLogged) {
+            anisotropyLogged = true;
+            qInfo().noquote() << "QRhi: anisotropic filtering"
+                              << (level > 1.0f ? QStringLiteral("%1x").arg(double(level))
+                                               : anisotropy > 1.0f ? QStringLiteral("not available")
+                                                                   : QStringLiteral("off"));
+        }
+    }
     samplers[key] = created;
     return created;
 }
@@ -1230,9 +1250,9 @@ void RhiRenderer::endSelection() {
                 selectionViewport[3]);
 }
 
-void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
+void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
     beginFrameIfNeeded();
-    const int sizes[3] = {nearSize, nearSize, farSize};
+    const int sizes[3] = {nearSize, middleSize, farSize};
     for (int map = 0; map < 3; ++map) {
         const QSize size(std::max(1, sizes[map]), std::max(1, sizes[map]));
         if (!shadowMaps[map].valid() || shadowMaps[map].size != size)
@@ -1381,10 +1401,9 @@ void RhiRenderer::renderEnclosureCasters(float range, int statsSlot, const float
     beginFrameIfNeeded();
     if (!enclosureTarget(currentTarget) || !targetReady())
         return;
-    // The views from below look for the lowest surfaces, which are often
-    // alpha-tested (tracks, tunnel tubes).
-    const bool below = currentTarget == TargetEnclosureBottom || currentTarget == TargetEnclosureFarBottom;
-    planShadowCasters(range, viewProjection, true, minRadius, below);
+    // Both views, from above and below, take alpha-tested and blended
+    // surfaces (thin roofs; track beds, tunnel tubes).
+    planShadowCasters(range, viewProjection, true, minRadius);
     recordCasters(statsSlot);
 }
 
@@ -1397,16 +1416,23 @@ namespace {
 // the ground beside a viaduct or a bridge), and is blocked if it rises
 // nearly to the cover (the rock beside a tunnel). An opening adds the more
 // light the nearer it is. A column has cover where its highest surface (the
-// map from above) lies more than 3 m over its lowest (the view from below,
-// its rows the other way round).
+// map from above) lies more than 3 m over its floor: its lowest surface (the
+// view from below, its rows the other way round), or for points on and over
+// the ground no deeper than just under the ground (the terrain's heights).
+// Both are kept: the openness from the floor on the ground for points over
+// it, from the lowest for points under it (a tunnel, under a hill or a house
+// on it).
 const char *OpennessFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
 layout(std140, binding = 0) uniform Openness {
-    vec4 params; // radius (map coordinates), metres per depth unit
+    vec4 params; // radius (map coordinates), metres per depth unit, 1 with the ground
 };
 layout(binding = 1) uniform sampler2D topMap;
 layout(binding = 2) uniform sampler2D bottomMap;
+// The terrain's heights under the map, metres over its middle height; below
+// -10000 where none is loaded.
+layout(binding = 3) uniform sampler2D groundMap;
 
 const int Steps = 12;
 // An opening's surface lies within 5 m of the floor, or in the lower 60 %
@@ -1416,6 +1442,22 @@ const int Steps = 12;
 // the bridge rose like walls, user 2026-10-12.)
 const float OpeningHeight = 5.0;
 const float OpeningShare = 0.6;
+// A hollow deeper than this under its cover is measured from this deep: the
+// lowest surface the view from below finds can lie far under the floor one
+// stands on (ground under a hollow embankment or station shape, objects sunk
+// under the terrain). From 14 m under a platform roof at Prudnik the tracks
+// beside it rose like walls: no opening found, the platform deep and black
+// with the sun kept out, the rest of the roof open (the user, 2026-10-28).
+// Light comes in under cover from the sides; deeper floors do not move them.
+// (The floor on the ground keeps buried objects out now; this stays for the
+// lowest floor's openness.)
+const float DeepestHollow = 10.0;
+// The floor on the ground lies no deeper than this under it (track beds and
+// ballast sunk a little into the terrain).
+const float GroundMargin = 1.0;
+// params.x, the rays' reach, is this many metres (RouteEditorGLWidget's
+// OpenRadius).
+const float RadiusMetres = 30.0;
 
 bool opening(float surfaceOverFloor, float coverOverFloor) {
     return surfaceOverFloor < max(OpeningHeight, OpeningShare * coverOverFloor);
@@ -1424,17 +1466,40 @@ bool opening(float surfaceOverFloor, float coverOverFloor) {
 float topAt(vec2 p) { return textureLod(topMap, p, 0.0).r; }
 float bottomAt(vec2 p) { return textureLod(bottomMap, vec2(p.x, 1.0 - p.y), 0.0).r; }
 
+// The ground's height under a column as the view from below has it (both
+// views start the same distance from the map's middle height: a top's is 1
+// less its depth from above), or -1 without the ground's heights.
+float groundAt(vec2 p) {
+    if (params.z <= 0.0)
+        return -1.0;
+    float height = textureLod(groundMap, p, 0.0).r;
+    return height < -10000.0 ? -1.0 : 0.5 + height / params.y;
+}
+
+// A column's floor: its lowest surface (the view from below); on the ground
+// (ground true) no deeper than GroundMargin under it: for what stands on
+// and over the ground, what lies under the terrain is buried. An embankment
+// shape sunk under a Prudnik platform was the floor of the open platform
+// beside a roof: a hollow there, dark (no opening found from that deep),
+// and the roof's edge over it darkened the sunlit platform under its eave
+// in a block of the embankment's outline (the user, 2026-10-28).
+float floorAt(vec2 p, bool ground) {
+    float lowest = bottomAt(p);
+    float g = ground ? groundAt(p) : -1.0;
+    return g < 0.0 ? lowest : max(lowest, g - GroundMargin / params.y);
+}
+
 // A column without cover: open sky (1), unless it is solid ground rising
 // nearly to the cover of a hollow beside it (the rock beside a tunnel, where
 // points moved off the walls land): 0. (All of them 0 darkened the ground
 // along a viaduct's footprint: filtered against the hollow's value under
 // the deck, user 2026-10-12.)
-float uncovered(vec2 p, float top, float step) {
+float uncovered(vec2 p, float top, float step, bool ground) {
     for (int d = 0; d < 8; ++d) {
         float angle = float(d) * 0.785398;
         for (int s = 1; s <= 2; ++s) {
             vec2 q = p + vec2(cos(angle), sin(angle)) * step * float(s);
-            float floorThere = bottomAt(q);
+            float floorThere = floorAt(q, ground);
             float coverThere = (1.0 - topAt(q) - floorThere) * params.y;
             if (coverThere > 3.0 && !opening((1.0 - top - floorThere) * params.y, coverThere))
                 return 0.0;
@@ -1443,19 +1508,23 @@ float uncovered(vec2 p, float top, float step) {
     return 1.0;
 }
 
-void main() {
-    float floorDepth = bottomAt(uv);
-    float topHere = topAt(uv);
+// How open the sky is over this column, from its floor (floorAt, its depth
+// in the view from below: floorHere).
+float openness(float topHere, bool ground, out float floorHere) {
+    float floorDepth = floorAt(uv, ground);
+    floorHere = floorDepth;
     // Points in a hollow (cover over a floor) look for openings; in columns
     // without cover the floor is the top itself.
     float coverHere = (1.0 - topHere - floorDepth) * params.y;
+    if (coverHere > DeepestHollow) {
+        floorDepth = 1.0 - topHere - DeepestHollow / params.y;
+        coverHere = DeepestHollow;
+    }
     float hollow = smoothstep(2.0, 4.0, coverHere);
     // Steps of about 1.5 m (the rays' are 2.5 m).
-    float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6) : 1.0;
-    if (hollow <= 0.0) {
-        result = vec4(open, 0.0, 0.0, 1.0);
-        return;
-    }
+    float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6, ground) : 1.0;
+    if (hollow <= 0.0)
+        return open;
     float light = 0.0;
     for (int d = 0; d < 8; ++d) {
         float angle = float(d) * 0.785398 + 0.2;
@@ -1463,28 +1532,86 @@ void main() {
         for (int s = 1; s <= Steps; ++s) {
             vec2 q = uv + direction * float(s);
             float top = topAt(q);
-            // Still under cover: on.
-            if ((1.0 - top - bottomAt(q)) * params.y > 3.0)
-                continue;
             // The views from above and below start the same distance from
             // the map's middle height: the top there over the floor here.
+            // A column whose top lies low is open above it, whatever lies
+            // under it: tracks over an underpass are a hollow too (their
+            // highest surface over the underpass floor), and a ray walked on
+            // over them as if still under the roof (2026-10-28).
             if (opening((1.0 - top - floorDepth) * params.y, coverHere)) {
                 // Falling off as an opening's view does with distance.
                 float near = 1.0 - float(s - 1) / float(Steps);
                 light += near * near;
+                break;
             }
+            // High and over a hollow: the cover goes on.
+            if ((1.0 - top - floorAt(q, ground)) * params.y > 3.0)
+                continue;
+            // High and solid: a wall.
             break;
         }
     }
     // Two open sides near by (a viaduct's arches) light it fully.
-    result = vec4(mix(open, clamp(light * 0.5, 0.0, 1.0), hollow), 0.0, 0.0, 1.0);
+    return mix(open, clamp(light * 0.5, 0.0, 1.0), hollow);
+}
+
+void main() {
+    float topHere = topAt(uv);
+    // How far in under cover (g, read by the lit shaders): the distance to
+    // the nearest column whose top lies more than 2 m under this column's
+    // (the cover's edge), out to 4.5 m (1), from 16 directions in 0.5 m
+    // steps. From the tops alone, for every column: the view from below plays
+    // no part, so what lies under the ground (an embankment shape sunk under
+    // the terrain at Prudnik) does not count; the lit shaders take it only
+    // where cover lies over the point itself. The shade's colour and light
+    // change from it, gradually from a roof's edge in (the user,
+    // 2026-10-28). (A share of the points around stayed near 1 at an edge: a
+    // hard, stepped change there under the eave of a roof.)
+    // Ground at the foot of a higher cover (open ground beside a roof or a
+    // wall: a top more than 2 m higher within 2.5 m, a map texel and more)
+    // is not under it: 0. With no lower edge around it, it read 1, and the
+    // texture's filter carried that into the roof's edge beside it, in the
+    // map's blocks (a sunlit strip under an eave at Prudnik).
+    float around;
+    {
+        float step = params.x / RadiusMetres * 0.5;
+        float nearest = 4.5;
+        bool foot = false;
+        for (int d = 0; d < 16 && !foot; ++d) {
+            vec2 direction = vec2(cos(float(d) * 0.392699), sin(float(d) * 0.392699)) * step;
+            for (int s = 1; s <= 9; ++s) {
+                float metres = float(s) * 0.5;
+                float rise = (topHere - topAt(uv + direction * float(s))) * params.y;
+                if (metres <= 2.5 && rise > 2.0) {
+                    foot = true;
+                    break;
+                }
+                if (metres - 0.25 < nearest && rise < -2.0)
+                    nearest = metres - 0.25;
+                if (metres > 2.5 && metres - 0.25 >= nearest)
+                    break;
+            }
+        }
+        around = foot ? 0.0 : nearest / 4.5;
+    }
+    // The openness from the floor on the ground (r), for points over it, and
+    // from the lowest floor (a), for points under it: a tunnel under a hill
+    // or a house on it, an underpass under a platform. b: the floor on the
+    // ground's height over the map's middle height (m), for the lit shaders
+    // to tell which (ShadowSampling.glsl, pointOpenness): smooth as the
+    // ground, also across a roof's edge.
+    float floorOnGround, unused;
+    float onGround = openness(topHere, true, floorOnGround);
+    float lowest = params.z > 0.0 ? openness(topHere, false, unused) : onGround;
+    result = vec4(onGround, around, (floorOnGround - 0.5) * params.y, lowest);
 }
 )";
 
 
 }
 
-void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDepth) {
+void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDepth, const float *ground,
+                                      int groundSize) {
     beginFrameIfNeeded();
     // The view from below.
     flushTarget();
@@ -1498,7 +1625,8 @@ void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDept
     EnclosureOpenness &o = enclosureOpen[far ? 1 : 0];
     constexpr int Size = 256;
     if (o.texture == nullptr) {
-        o.texture = rhi->newTexture(QRhiTexture::RGBA8, QSize(Size, Size), 1, QRhiTexture::RenderTarget);
+        // Half floats: b holds a height in metres.
+        o.texture = rhi->newTexture(QRhiTexture::RGBA16F, QSize(Size, Size), 1, QRhiTexture::RenderTarget);
         o.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
         if (!o.texture->create() || !o.uniforms->create()) {
             releaseEnclosureOpenness();
@@ -1512,7 +1640,25 @@ void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDept
             return;
         }
     }
-    if (o.bindings == nullptr || o.boundTop != top.depth || o.boundBottom != bottom.depth) {
+    // The ground's heights: half floats (a decimetre or two near the map's
+    // middle height); a texel bound without them.
+    const bool hasGround = ground != nullptr && groundSize > 0;
+    const QSize groundPixels = hasGround ? QSize(groundSize, groundSize) : QSize(1, 1);
+    if (o.ground == nullptr || (hasGround && o.ground->pixelSize() != groundPixels)) {
+        // The bindings go with it (a new texture may take the old one's place).
+        delete o.bindings;
+        o.bindings = nullptr;
+        delete o.ground;
+        const auto format = rhi->isTextureFormatSupported(QRhiTexture::R16F) ? QRhiTexture::R16F
+                                                                               : QRhiTexture::R32F;
+        o.ground = rhi->newTexture(format, groundPixels);
+        if (!o.ground->create()) {
+            releaseEnclosureOpenness();
+            return;
+        }
+    }
+    if (o.bindings == nullptr || o.boundTop != top.depth || o.boundBottom != bottom.depth
+            || o.boundGround != o.ground) {
         delete o.bindings;
         const auto fragment = QRhiShaderResourceBinding::FragmentStage;
         o.bindings = rhi->newShaderResourceBindings();
@@ -1520,10 +1666,13 @@ void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDept
                                  QRhiShaderResourceBinding::sampledTexture(1, fragment, top.depth,
                                                                            sampler(false, true, true)),
                                  QRhiShaderResourceBinding::sampledTexture(2, fragment, bottom.depth,
-                                                                           sampler(false, true, true))});
+                                                                           sampler(false, true, true)),
+                                 QRhiShaderResourceBinding::sampledTexture(3, fragment, o.ground,
+                                                                           sampler(false, true))});
         o.bindings->create();
         o.boundTop = top.depth;
         o.boundBottom = bottom.depth;
+        o.boundGround = o.ground;
     }
     if (opennessPipeline == nullptr) {
         static QShader vertex, fragment;
@@ -1541,8 +1690,21 @@ void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDept
             return;
         }
     }
-    const float params[4] = {radius, metresPerDepth, 0.0f, 0.0f};
+    const float params[4] = {radius, metresPerDepth, hasGround ? 1.0f : 0.0f, 0.0f};
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    if (hasGround) {
+        const size_t count = size_t(groundSize) * groundSize;
+        QByteArray bytes;
+        if (o.ground->format() == QRhiTexture::R16F) {
+            bytes.resize(int(count * sizeof(qfloat16)));
+            qfloat16 *out = reinterpret_cast<qfloat16 *>(bytes.data());
+            for (size_t i = 0; i < count; ++i)
+                out[i] = qfloat16(std::clamp(ground[i], EnclosureNoGround, 60000.0f));
+        } else {
+            bytes = QByteArray(reinterpret_cast<const char *>(ground), int(count * sizeof(float)));
+        }
+        batch->uploadTexture(o.ground, QRhiTextureUploadEntry(0, 0, QRhiTextureSubresourceUploadDescription(bytes)));
+    }
     batch->updateDynamicBuffer(o.uniforms, 0, sizeof(params), params);
     QRhiCommandBuffer *cb = s->frame().commandBuffer;
     cb->beginPass(o.target, Qt::black, {1.0f, 0}, batch);
@@ -1561,6 +1723,7 @@ void RhiRenderer::releaseEnclosureOpenness() {
         delete o.pass;
         delete o.uniforms;
         delete o.texture;
+        delete o.ground;
         o = EnclosureOpenness();
     }
     delete opennessPipeline;
@@ -2619,7 +2782,7 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
     if (!targetReady())
         return;
     // Casters in range and inside the light view, instanced by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
+    planShadowCasters(range, viewProjection, false, 0.0f, casters, set);
     waitingDraws += quint64(plannedShapesWaiting);
     recordCasters(statsSlot);
 }

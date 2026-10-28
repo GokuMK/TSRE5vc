@@ -788,11 +788,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "OpenGL"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "rhiApi", "Game::rhiApi", "RouteEditorGLWidget", false, "renderer-restart");
-    ADD(SettingsDefinition::boolean("core.rendering.shapeTextures.mipmaps", false)
+    ADD(SettingsDefinition::boolean("core.rendering.shapeTextures.mipmaps", true)
             .withNameId(
                 //% "Mipmaps on shape textures"
                 QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmaps.name")).withDescriptionId(
-                //% "Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer. Off, as before: their full-size image only. Applies after a restart."
+                //% "Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer (anisotropic filtering keeps surfaces at a slant sharp). Off: their full-size image only. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmaps.description")).inGroup("rendering").inSubgroup("textures"),
         "", "", "Texture", false, "startup");
     ADD(SettingsDefinition::string("core.rendering.shapeTextures.mipmapSource", "improve", SettingType::Enum)
@@ -816,6 +816,24 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shifts which mipmap level textures use: below 0 sharper at a distance (some shimmer), above 0 softer. QRhi renderer. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.texture.lod.bias.description")).withRange(-2, 2, 0.25).inGroup("rendering").inSubgroup("textures"),
         "", "", "Texture", false, "startup");
+    ADD(SettingsDefinition::enumeration("core.rendering.anisotropicFiltering", 16)
+            .withNameId(
+                //% "Anisotropic filtering"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.name")).withDescriptionId(
+                //% "Keeps textures sharp on surfaces seen at a slant (track, ground, platforms), which mipmaps blur. QRhi with Vulkan, the default; a graphics driver's forced setting does not reach it. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.description"))
+            .withOptions(numericChoices({{1,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.1")}, {2,
+                //% "2x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.2")}, {4,
+                //% "4x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.4")}, {8,
+                //% "8x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.8")}, {16,
+                //% "16x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.16")}})).inGroup("rendering").inSubgroup("textures"),
+        "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withNameId(
                 //% "Threaded texture loading"
@@ -870,7 +888,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Near shadow-map size"
                 QT_TRID_NOOP("settings.core.rendering.shadow.primary.map.size.name")).withDescriptionId(
-                //% "Width and height of the near shadow depth texture created when the Route Editor renderer initializes."
+                //% "Width and height of the near shadow depth texture (about 160 m around the camera) created when the Route Editor renderer initializes; the middle one's too unless it has its own size."
                 QT_TRID_NOOP("settings.core.rendering.shadow.primary.map.size.description"))
             .withOptions(numericChoices({{256,
                 //% "256 px"
@@ -888,6 +906,30 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "16384 px"
                 QT_TRID_NOOP("settings.core.rendering.shadow.primary.map.size.option.16384")}})).withUnit("px").inGroup("rendering").inSubgroup("shadows"),
         "shadowMapSize", "Game::shadowMapSize", "RouteEditorGLWidget", false, "renderer-restart");
+    ADD(SettingsDefinition::enumeration("core.rendering.shadow.middleMapSize", 0)
+            .withNameId(
+                //% "Middle shadow-map size"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.name")).withDescriptionId(
+                //% "Width and height of the middle shadow depth texture (about 600 m around the camera, beyond the near one) created when the Route Editor renderer initializes. Same as near: the near map's size."
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.description"))
+            .withOptions(numericChoices({{0,
+                //% "Same as near"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.0")}, {256,
+                //% "256 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.256")}, {512,
+                //% "512 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.512")}, {1024,
+                //% "1024 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.1024")}, {2048,
+                //% "2048 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.2048")}, {4096,
+                //% "4096 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.4096")}, {8192,
+                //% "8192 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.8192")}, {16384,
+                //% "16384 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.16384")}})).withUnit("px").inGroup("rendering").inSubgroup("shadows"),
+        "", "", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::enumeration("core.rendering.shadow.distantMapSize", 1024)
             .withNameId(
                 //% "Distant shadow-map size"

@@ -941,7 +941,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     TerrainStateCache terrainState;
     DetailStateCache detailState;
     // Casters in range and inside the light view, grouped by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
+    planShadowCasters(range, viewProjection, false, 0.0f, casters, set);
     const bool instancing = !instanceUpload.empty() && uploadInstances();
     Shader *shader = gluu->currentShader;
     QOpenGLExtraFunctions *e = context->extraFunctions();
@@ -1286,12 +1286,12 @@ void OpenGL3Renderer::setFogLod(float lod){
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, lod);
 }
 
-void OpenGL3Renderer::createShadowMaps(int nearSize, int farSize){
+void OpenGL3Renderer::createShadowMaps(int nearSize, int middleSize, int farSize){
     // The main program reads the near map on unit 9, the middle on unit 2
     // and the far map on unit 3.
     GLUU *gluu = GLUU::get();
     gluu->makeShadowFramebuffer(shadowFramebuffers[0], shadowTextures[0], nearSize, GL_TEXTURE9);
-    gluu->makeShadowFramebuffer(shadowFramebuffers[1], shadowTextures[1], nearSize, GL_TEXTURE2);
+    gluu->makeShadowFramebuffer(shadowFramebuffers[1], shadowTextures[1], middleSize, GL_TEXTURE2);
     gluu->makeShadowFramebuffer(shadowFramebuffers[2], shadowTextures[2], farSize, GL_TEXTURE3);
 }
 
