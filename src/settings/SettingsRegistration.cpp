@@ -816,6 +816,24 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shifts which mipmap level textures use: below 0 sharper at a distance (some shimmer), above 0 softer. QRhi renderer. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.texture.lod.bias.description")).withRange(-2, 2, 0.25).inGroup("rendering").inSubgroup("textures"),
         "", "", "Texture", false, "startup");
+    ADD(SettingsDefinition::enumeration("core.rendering.anisotropicFiltering", 16)
+            .withNameId(
+                //% "Anisotropic filtering"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.name")).withDescriptionId(
+                //% "Keeps textures sharp on surfaces seen at a slant (track, ground, platforms), which mipmaps blur. QRhi with Vulkan, the default; a graphics driver's forced setting does not reach it. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.description"))
+            .withOptions(numericChoices({{1,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.1")}, {2,
+                //% "2x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.2")}, {4,
+                //% "4x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.4")}, {8,
+                //% "8x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.8")}, {16,
+                //% "16x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.16")}})).inGroup("rendering").inSubgroup("textures"),
+        "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withNameId(
                 //% "Threaded texture loading"

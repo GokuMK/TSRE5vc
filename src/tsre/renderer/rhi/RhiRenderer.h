@@ -1070,6 +1070,9 @@ private:
     std::vector<QRhiShaderResourceBindings *> retiredLayouts;
     // By wrapSampler's 6-bit key; looked up for every texture of every draw.
     std::array<QRhiSampler *, 64> samplers{};
+    // The anisotropic filtering asked for, mipmapped samplers' (1: off).
+    float anisotropy = 1.0f;
+    bool anisotropyLogged = false;
     // Stand-ins for textures a program declares but a draw does not use.
     QRhiTexture *dummy2D = nullptr;
     QRhiTexture *dummyArray = nullptr;

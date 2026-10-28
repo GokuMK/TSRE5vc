@@ -416,6 +416,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.shapeTextures.mipmaps", SettingType::Bool);
     claim("core.rendering.shapeTextures.mipmapSource", SettingType::Enum);
     claim("core.rendering.textureLodBias", SettingType::Float);
+    // Read by RhiRenderer when it starts.
+    claim("core.rendering.anisotropicFiltering", SettingType::Enum);
     // Read by SkySatellites each frame (task editor 05).
     claim("core.rendering.sky.sun", SettingType::Bool);
     claim("core.rendering.sky.moon", SettingType::Bool);

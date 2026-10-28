@@ -25,6 +25,7 @@
 #include <rhi/qshaderdescription.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
+#include "RhiAnisotropy.h"
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Mesh.h>
@@ -170,6 +171,7 @@ size_t RhiRenderer::BindingKeyHash::operator()(const BindingKey &k) const {
 RhiRenderer::RhiRenderer(RhiContext *context)
     : context(context), rhi(context->rhi()), gluu(GLUU::get()) {
     uploadBudgetNs = qint64(std::max(0, Settings::integer("core.rendering.objectLoading.uploadBudgetMs"))) * 1000000;
+    anisotropy = float(std::max(1, Settings::variant("core.rendering.anisotropicFiltering", SettingType::Enum).toInt()));
     if (context != nullptr)
         TexLib::setGpuMemory(context->deviceMemory(), context->discreteGpu());
     // Texture loaders prepare for the formats it takes (Texture::prepareForRhi),
@@ -782,6 +784,18 @@ QRhiSampler *RhiRenderer::wrapSampler(bool mipmaps, int addressU, int addressV, 
                                            mipmaps ? QRhiSampler::Linear : QRhiSampler::None,
                                            mode(addressU), mode(addressV));
     created->create();
+    // Textures' mipmaps blur surfaces seen at a slant: anisotropic filtering
+    // (core.rendering.anisotropicFiltering), which QRhi has no setting for.
+    if (mipmaps && !nearest) {
+        const float level = RhiAnisotropy::apply(rhi, created, anisotropy);
+        if (!anisotropyLogged) {
+            anisotropyLogged = true;
+            qInfo().noquote() << "QRhi: anisotropic filtering"
+                              << (level > 1.0f ? QStringLiteral("%1x").arg(double(level))
+                                               : anisotropy > 1.0f ? QStringLiteral("not available")
+                                                                   : QStringLiteral("off"));
+        }
+    }
     samplers[key] = created;
     return created;
 }
