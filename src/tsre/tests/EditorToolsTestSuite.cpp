@@ -4,6 +4,7 @@
 #include <memory>
 #include <QApplication>
 #include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QStyleFactory>
 #include <QWheelEvent>
 #include <tsre/gui/TsreStyle.h>
@@ -403,6 +404,28 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                   && style.styleHint(QStyle::SH_ComboBox_Popup, &option, &popup) == 0
                   && fusion->styleHint(QStyle::SH_ComboBox_Popup, &option, &popup) != 0,
               "TSRE's style: combo boxes list below, the mouse wheel passes them by");
+        // Spin boxes too, and the wheel gives them no focus.
+        const auto spun = [](QStyle *with, bool *accepted, Qt::FocusPolicy *focus) {
+            QDoubleSpinBox spin;
+            spin.setStyle(with);
+            // Polished as a shown box is (the style watches it from then).
+            spin.ensurePolished();
+            spin.setRange(0.0, 10.0);
+            spin.setValue(5.0);
+            QWheelEvent wheel(QPointF(5, 5), QPointF(5, 5), QPoint(), QPoint(0, 120), Qt::NoButton, Qt::NoModifier,
+                              Qt::NoScrollPhase, false);
+            wheel.setAccepted(true);
+            QApplication::sendEvent(&spin, &wheel);
+            *accepted = wheel.isAccepted();
+            *focus = spin.focusPolicy();
+            return spin.value();
+        };
+        bool spinTsreAccepted = true, spinFusionAccepted = false;
+        Qt::FocusPolicy tsreFocus = Qt::NoFocus, fusionFocus = Qt::NoFocus;
+        const double tsreSpin = spun(&style, &spinTsreAccepted, &tsreFocus);
+        const double fusionSpin = spun(fusion.get(), &spinFusionAccepted, &fusionFocus);
+        check(tsreSpin == 5.0 && !spinTsreAccepted && tsreFocus == Qt::StrongFocus && fusionSpin != 5.0,
+              "TSRE's style: the mouse wheel passes spin boxes by, gives them no focus");
         // As the application's style, under a box's own style sheet too.
         QApplication::setStyle(new TsreStyle);
         QComboBox sheeted;

@@ -14,13 +14,21 @@
 #include <QProxyStyle>
 
 // TSRE's application style: Fusion, its combo boxes listing their items
-// below them (what `combobox-popup: 0` set per box before) and not changed
-// by the mouse wheel, which scrolls what is behind them.
+// below them (what `combobox-popup: 0` set per box before), and combo and
+// spin boxes not changed by the mouse wheel, which scrolls what is behind
+// them: panels scroll, and passing over a box changed its value.
 class TsreStyle : public QProxyStyle {
 public:
     TsreStyle();
     int styleHint(StyleHint hint, const QStyleOption *option = nullptr, const QWidget *widget = nullptr,
                   QStyleHintReturn *returnData = nullptr) const override;
+    void polish(QWidget *widget) override;
+    void unpolish(QWidget *widget) override;
+    using QProxyStyle::polish;
+    using QProxyStyle::unpolish;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 };
 
 #endif
