@@ -707,6 +707,11 @@ void Consist::setSimulated(float speed, float distance, float throttle, float br
     simulatedBrake = brake;
 }
 
+void Consist::soundEvent(int vehicle, int trigger){
+    if(vehicle >= 0 && vehicle < engItems.size() && engItems[vehicle].engPointer != NULL)
+        engItems[vehicle].engPointer->soundEvent(trigger);
+}
+
 void Consist::updateSimulatedSounds(float seconds){
     if(!simulated || !isOnTrack || engItems.isEmpty() || engItems[0].engPointer == NULL)
         return;
@@ -922,6 +927,8 @@ EngLights::Train Consist::lightsTrain(int vehicle) const {
         if (locomotive(i))
             lead = i;
     train.mu = locomotive(vehicle) ? (vehicle == lead ? -1 : 1) : 0;
+    if (simulatedHeadlight >= 0)
+        train.headlight = simulatedHeadlight;
     train.day = EngLights::environmentDay();
     train.weather = EngLights::environmentWeather();
     return train;

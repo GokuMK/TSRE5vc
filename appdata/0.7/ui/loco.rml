@@ -1,0 +1,101 @@
+<rml>
+<head>
+    <title>Loco controls</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="loco.rcss"/>
+    <script src="loco.lua"></script>
+</head>
+<!-- The driven loco's controls (task driving 02). TSRE sets the global
+     `train`: train.command(name, value) sends a message to the cab (any
+     name: the script takes what it knows), train.leave() gives the train
+     back to the AI; train.values (SI) and train.texts (as shown) hold the
+     cab's values. `trainupdate` comes each frame, `trainmessage` for each
+     message the train's models send. Texts that are translation ids show
+     translated. -->
+<body ontrainupdate="locoUpdate(document)" ontrainmessage="locoMessage(event, document)">
+    <div id="panel">
+        <div id="title">
+            <handle id="drag" move_target="#panel"></handle>
+            <span class="name">ui.loco.title</span>
+            <button id="leave" onclick="train.leave()">ui.loco.leave</button>
+        </div>
+        <div class="row">
+            <span class="label">ui.loco.battery</span>
+            <button id="batteryOn" onclick="train.command('battery', 'on')">ui.loco.on</button>
+            <button id="batteryOff" onclick="train.command('battery', 'off')">ui.loco.off</button>
+            <span class="label">ui.loco.master.key</span>
+            <button id="keyOn" onclick="train.command('masterKey', 'on')">ui.loco.on</button>
+            <button id="keyOff" onclick="train.command('masterKey', 'off')">ui.loco.off</button>
+        </div>
+        <div class="row">
+            <span class="label">ui.loco.pantograph1</span>
+            <button id="pantograph1Up" onclick="train.command('pantograph1', 'up')">ui.loco.up</button>
+            <button id="pantograph1Down" onclick="train.command('pantograph1', 'down')">ui.loco.down</button>
+            <span class="label">ui.loco.pantograph2</span>
+            <button id="pantograph2Up" onclick="train.command('pantograph2', 'up')">ui.loco.up</button>
+            <button id="pantograph2Down" onclick="train.command('pantograph2', 'down')">ui.loco.down</button>
+        </div>
+        <div class="row">
+            <span class="label">ui.loco.breaker</span>
+            <!-- Held for push buttons. -->
+            <button id="breakerClose" onmousedown="train.command('circuitBreaker', 'close')"
+                    onmouseup="train.command('circuitBreaker', 'released')"
+                    onmouseout="locoReleased('circuitBreaker')">ui.loco.close</button>
+            <button id="breakerOpen" onmousedown="train.command('circuitBreaker', 'open')"
+                    onmouseup="train.command('circuitBreaker', 'released')"
+                    onmouseout="locoReleased('circuitBreaker')">ui.loco.open</button>
+            <span class="state" id="breakerState"></span>
+        </div>
+        <div class="row">
+            <span class="label">ui.loco.direction</span>
+            <button id="reverse" onclick="train.command('direction', -1)">ui.loco.reverse</button>
+            <button id="neutral" onclick="train.command('direction', 0)">ui.loco.neutral</button>
+            <button id="forward" onclick="train.command('direction', 1)">ui.loco.forward</button>
+            <span class="state" id="directionState"></span>
+        </div>
+        <div class="lever">
+            <span class="label">ui.loco.throttle</span>
+            <button id="throttleDown" onclick="train.command('throttle', '-')">-</button>
+            <button id="throttleUp" onclick="train.command('throttle', '+')">+</button>
+            <div class="bar"><div class="fill throttle" id="throttleBar"></div></div>
+            <span class="state" id="throttleText"></span>
+        </div>
+        <div class="lever">
+            <span class="label">ui.loco.train.brake</span>
+            <button id="trainBrakeDown" onclick="train.command('trainBrake', '-')">-</button>
+            <button id="trainBrakeUp" onclick="train.command('trainBrake', '+')">+</button>
+            <div class="bar"><div class="fill brake" id="trainBrakeBar"></div></div>
+            <span class="state" id="trainBrakeText"></span>
+        </div>
+        <div class="lever">
+            <span class="label">ui.loco.engine.brake</span>
+            <button id="engineBrakeDown" onclick="train.command('engineBrake', '-')">-</button>
+            <button id="engineBrakeUp" onclick="train.command('engineBrake', '+')">+</button>
+            <div class="bar"><div class="fill brake" id="engineBrakeBar"></div></div>
+            <span class="state" id="engineBrakeText"></span>
+        </div>
+        <div class="lever">
+            <span class="label">ui.loco.dynamic.brake</span>
+            <button id="dynamicBrakeDown" onclick="train.command('dynamicBrake', '-')">-</button>
+            <button id="dynamicBrakeUp" onclick="train.command('dynamicBrake', '+')">+</button>
+            <div class="bar"><div class="fill dynamic" id="dynamicBrakeBar"></div></div>
+            <span class="state" id="dynamicBrakeText"></span>
+        </div>
+        <div class="row">
+            <button id="emergency" onclick="locoToggle('emergency')">ui.loco.emergency</button>
+            <button id="horn" onmousedown="train.command('horn', 'on')" onmouseup="train.command('horn', 'off')"
+                    onmouseout="locoReleased('horn')">ui.loco.horn</button>
+            <span class="label">ui.loco.headlight</span>
+            <button id="headlightOff" onclick="train.command('headlight', 0)">0</button>
+            <button id="headlightDim" onclick="train.command('headlight', 1)">1</button>
+            <button id="headlightBright" onclick="train.command('headlight', 2)">2</button>
+        </div>
+        <div class="readouts" id="readouts"></div>
+        <div class="row">
+            <button id="allValues" onclick="locoToggleAll(document)">ui.loco.all.values</button>
+        </div>
+        <div class="readouts" id="all"></div>
+        <div class="messages" id="messages"></div>
+    </div>
+</body>
+</rml>

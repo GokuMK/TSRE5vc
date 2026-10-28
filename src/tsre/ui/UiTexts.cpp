@@ -24,5 +24,74 @@ namespace {
     QT_TRID_NOOP("ui.hud.throttle"),
     //% "Brake"
     QT_TRID_NOOP("ui.hud.brake"),
+    // The driven loco's controls (loco.rml, loco.lua; task driving 02).
+    //% "Driving"
+    QT_TRID_NOOP("ui.loco.title"),
+    //% "Leave"
+    QT_TRID_NOOP("ui.loco.leave"),
+    //% "Battery"
+    QT_TRID_NOOP("ui.loco.battery"),
+    //% "Key"
+    QT_TRID_NOOP("ui.loco.master.key"),
+    //% "On"
+    QT_TRID_NOOP("ui.loco.on"),
+    //% "Off"
+    QT_TRID_NOOP("ui.loco.off"),
+    //% "Pantograph 1"
+    QT_TRID_NOOP("ui.loco.pantograph1"),
+    //% "2"
+    QT_TRID_NOOP("ui.loco.pantograph2"),
+    //% "Up"
+    QT_TRID_NOOP("ui.loco.up"),
+    //% "Down"
+    QT_TRID_NOOP("ui.loco.down"),
+    //% "Breaker"
+    QT_TRID_NOOP("ui.loco.breaker"),
+    //% "Close"
+    QT_TRID_NOOP("ui.loco.close"),
+    //% "Open"
+    QT_TRID_NOOP("ui.loco.open"),
+    //% "Direction"
+    QT_TRID_NOOP("ui.loco.direction"),
+    //% "R"
+    QT_TRID_NOOP("ui.loco.reverse"),
+    //% "N"
+    QT_TRID_NOOP("ui.loco.neutral"),
+    //% "F"
+    QT_TRID_NOOP("ui.loco.forward"),
+    //% "Throttle"
+    QT_TRID_NOOP("ui.loco.throttle"),
+    //% "Train brake"
+    QT_TRID_NOOP("ui.loco.train.brake"),
+    //% "Engine brake"
+    QT_TRID_NOOP("ui.loco.engine.brake"),
+    //% "Dynamic brake"
+    QT_TRID_NOOP("ui.loco.dynamic.brake"),
+    //% "Emergency"
+    QT_TRID_NOOP("ui.loco.emergency"),
+    //% "Horn"
+    QT_TRID_NOOP("ui.loco.horn"),
+    //% "Lights"
+    QT_TRID_NOOP("ui.loco.headlight"),
+    //% "All values"
+    QT_TRID_NOOP("ui.loco.all.values"),
+    //% "Speed"
+    QT_TRID_NOOP("ui.loco.speed"),
+    //% "Line voltage"
+    QT_TRID_NOOP("ui.loco.line.voltage"),
+    //% "Current"
+    QT_TRID_NOOP("ui.loco.ammeter"),
+    //% "Force"
+    QT_TRID_NOOP("ui.loco.force"),
+    //% "Brake pipe"
+    QT_TRID_NOOP("ui.loco.brake.pipe"),
+    //% "Main reservoir"
+    QT_TRID_NOOP("ui.loco.main.reservoir"),
+    //% "Brake cylinder"
+    QT_TRID_NOOP("ui.loco.brake.cylinder"),
+    //% "Pantographs"
+    QT_TRID_NOOP("ui.loco.pantographs"),
+    //% "Power"
+    QT_TRID_NOOP("ui.loco.power"),
 };
 }

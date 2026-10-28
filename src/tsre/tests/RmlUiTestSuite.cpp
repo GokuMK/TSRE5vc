@@ -14,6 +14,8 @@
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/ui/UiRenderInterface.h>
 #include <tsre/ui/UiScreen.h>
+#include <tsre/ui/UiLocoControls.h>
+#include <tsre/units/Units.h>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -613,6 +615,56 @@ button { display: block; width: 100px; height: 30px; }
     recorder.draws.clear();
     context->Render();
     test.check(before > 0 && debugger && recorder.draws.size() > plain, "the debugger shows over the documents");
+
+    // The driven loco's controls (task driving 02): its buttons send the
+    // cab's commands (held ones pressed and released), Leave gives the train
+    // back; its readouts in the user's units, its bars, every value on
+    // demand, the messages its models send.
+    {
+        Ui::Screen screen;
+        const bool ready = screen.ready(1280, 1080, 1.0f, 1.0f);
+        Ui::LocoControls controls(screen);
+        QStringList sent;
+        bool left = false;
+        controls.setSink({[&](const QString &name, const Sim::MessageValue &value) {
+                              sent << Sim::Message{name, value}.toText();
+                          },
+                          [&] { left = true; }});
+        QHash<QString, Sim::MessageValue> values{{"throttle", 0.5}, {"trainBrake", 0.0},
+                                                 {"brakePipe", 500000.0}, {"circuitBreaker", QString("closed")},
+                                                 {"BATTERY_CHARGE", 44.0}, {"direction", 1.0}};
+        const bool shown = ready && controls.update(values, 10.0, {{0, {"CAB_AMBIENT_LIGHT", QString("disable")}}});
+        screen.update();
+        Rml::ElementDocument *loco = nullptr;
+        for (int i = 0; ready && i < screen.context()->GetNumDocuments(); ++i)
+            if (screen.context()->GetDocument(i)->GetTitle() == "Loco controls")
+                loco = screen.context()->GetDocument(i);
+        if (loco != nullptr) {
+            for (const char *id : {"pantograph1Down", "throttleUp", "breakerClose", "forward", "leave", "allValues"})
+                click(screen.context(), loco, id, 1000);
+            controls.update(values, 10.0, {});
+            screen.update();
+        }
+        const QString pipe = loco ? innerOf(loco, "readout_brakePipe") : QString();
+        const QString all = loco ? innerOf(loco, "all") : QString();
+        const QString bar = loco && loco->GetElementById("throttleBar")
+                ? QString::fromStdString(loco->GetElementById("throttleBar")->GetProperty("width")->ToString())
+                : QString();
+        test.check(shown && loco != nullptr && controls.visible()
+                           // Released once more as the mouse leaves it for the next button.
+                           && sent == QStringList{"pantograph1 = down", "throttle = +", "circuitBreaker = close",
+                                                  "circuitBreaker = released", "circuitBreaker = released",
+                                                  "direction = 1"}
+                           && left,
+                   "loco controls: its buttons send " + sent.join(", ") + (left ? ", Leave" : ""));
+        test.check(pipe == Units::format(500000.0, Units::Quantity::Pressure) && all.contains("BATTERY_CHARGE")
+                           && all.contains("44") && bar.startsWith("50")
+                           && (loco ? innerOf(loco, "messages") : QString()).contains("CAB_AMBIENT_LIGHT = disable"),
+                   QString("loco controls: the brake pipe %1, the throttle's bar %2, every value and the messages "
+                           "listed").arg(pipe, bar));
+        controls.hide();
+        test.check(!controls.visible(), "loco controls: hidden");
+    }
 
     Rml::RemoveContext("tests");
     Ui::Runtime::stop();

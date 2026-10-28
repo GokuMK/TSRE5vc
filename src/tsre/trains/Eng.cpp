@@ -797,6 +797,13 @@ void Eng::setPantograph(int n, bool up) {
         carAnimation->setPantograph(n, up, flip != 0);
 }
 
+void Eng::soundEvent(int trigger) {
+    if (cabSound != NULL)
+        cabSound->event(trigger);
+    if (outsideSound != NULL)
+        outsideSound->event(trigger);
+}
+
 void Eng::setTravelled(double metres, bool reversed) {
     if (trainTravelledKnown) {
         // Along the train's way: toward this car's front (as its consist

@@ -1,6 +1,6 @@
 # Task 02 - The driving harness: a first whole stack
 
-Status: the user's answers of 2026-10-28 in (decisions at the end); being built on `feature/driving` (steps 1 to 3 done).
+Status: the user's answers of 2026-10-28 in (decisions at the end); being built on `feature/driving` (steps 1 to 4 done).
 
 The user's request (2026-10-28), after the ENG refactor (task 01) was
 merged:
@@ -509,7 +509,8 @@ engine passes it on.
    - pantograph and breaker timings;
    - a script error contained;
    - save and restore of the state table.
-4. **Messages, the widget, frames and the editor:**
+4. **Messages, the widget, frames and the editor** (done 2026-10-28,
+   below):
    - `train.command`, open messages both ways;
    - `loco.rml`;
    - pantographs, lights and sounds from the state;
@@ -916,6 +917,114 @@ Rails 8aafb3147 with file and line references; no code was taken. In Open Rails'
 
 **The appdata archive** (koniec.org's 0.7.tar) gets `scripts/loco/` when
 it is next rebuilt from a release.
+
+## Step 4 done (2026-10-28)
+
+**Driving in the editor:**
+- **Drive beside Play** (the Activity panel; a fifth button in Play's
+  row):
+  - it runs the activity with the player's train driven from its start: a
+    timetable set's chosen train, an MSTS activity's player service;
+  - in a run without a driven train, it takes the player's train over;
+  - while a train is driven it reads **Leave** and gives the train back to
+    the AI.
+- **Drive beside Follow** (the Timetable window, a toggle):
+  - it takes the chosen train over, starting a run first when there is
+    none;
+  - a train not yet on the track is taken over once it is there;
+  - the camera follows it;
+  - off, the AI drives it on.
+- **A timetable set's player's train:** the existing choice lists every
+  running train. Only those an engine drives can be chosen; the others show
+  why in a tooltip (`TimetableTrainDrivable`).
+
+**The controller** (`SimulationController`):
+- `playDriving`, `drive`, `leave`, `drivable`, `driven`, `drivenValues`,
+  `command`, `takeDrivenMessages`, the signal `drivenChanged`;
+- `start(…, driving)`, which a reset keeps.
+
+The host takes drive, leave and command in the commands' queue (their
+sequence numbers acknowledged as every command's).
+
+**Frames:**
+- the train driven;
+- each of its vehicles' values (`DrivenFrame`);
+- the collision.
+
+The models' messages go to a mailbox beside the events'; the views take
+them each tick.
+
+**The editor applies them:**
+- pantographs 1 and 2 from each vehicle's values (an AI electric keeps
+  pantograph 1 up);
+- the cab's `headlight` for the consist's lights (`Consist::setHeadlight`);
+- the sounds' throttle from the cab's lever, and their brake from its
+  cylinder;
+- each `sound` message played as its SMS discrete trigger on that car
+  (`Consist::soundEvent`, `Eng::soundEvent`, `SoundSource::event`).
+
+**The widget,** `appdata/0.7/ui/loco.rml`, `loco.lua`, `loco.rcss` and
+`Ui::LocoControls`:
+- a panel at the view's top right, dragged by its title, while a train is
+  driven;
+- **buttons for:**
+  - battery, master key, pantographs 1 and 2;
+  - the breaker (held, released on leaving the button);
+  - direction;
+  - the throttle and the train, engine and dynamic brakes;
+  - emergency, the horn (held), headlights;
+  - Leave;
+- each lever's bar and notch;
+- **readouts** in the user's units (speed, line voltage, current, force,
+  pipe, main reservoir, cylinder, pantographs, breaker, power), and every
+  value the loco publishes on demand;
+- the last messages its models send (`CAB_AMBIENT_LIGHT = disable`
+  included).
+- **The UI's Lua gets `train`:**
+  - `train.command(name, value)`, any name;
+  - `train.leave()`;
+  - `train.values` (SI) and `train.texts` (as shown);
+  - the events `trainupdate` and `trainmessage`.
+
+**Texts:** the buttons' and readouts' ids in `UiTexts.cpp`; Polish for
+every new text, the driving events' included.
+
+**Checks:**
+- **`rmlui` (35):**
+  - the panel's buttons send their commands (the breaker pressed and
+    released), Leave;
+  - the pipe's readout in the user's units, the throttle's bar, every value
+    and the messages listed;
+  - hidden.
+- **`simulation-ui` (80):**
+  - Drive beside Play drives the player's train from the start at 0.01 s,
+    the button then Leave, the Timetable window's Drive on;
+  - a command reaches its cab's script and its sound (66) comes back;
+  - Leave gives it back, told;
+  - the Timetable window's Drive takes the AI train over once on the track
+    and follows it; off gives it back.
+- **`timetable-ui`:** still 37.
+- **The capture `tests/renderer/driving-loco.json`** (USA1, brdgstrk, the
+  player's Acela driven, the panel over the view):
+  - pantograph up, then lowered (the breaker opening, power off, 0 V);
+  - at 19:30, in the dark, the headlights on (their beams on the track),
+    then off.
+  - The capture runner gets `simulationDriven` and each view's `commands`,
+    and places each view by the latest frame.
+
+**Unchanged:**
+- AI-only runs of the seven routes and PRUDNIK give the same traces as main.
+- The simulation, timetable, activity, vehicle file, RmlUi, sound and
+  driving suites pass; so do build `all` and ctest.
+
+**Left for later:**
+- the values sent only when they change (now each frame's in full);
+- a dialog when a collision ends the run (now its event in the list and the
+  run finished).
+
+**Noticed:** an ENG's train brake starts in its controller's default notch.
+The Acela's is GSelfLapH, with the brakes applied, as in Open Rails. The
+driver releases them first.
 
 ## Open questions (user, 2026-10-28: kept open until tested enough)
 

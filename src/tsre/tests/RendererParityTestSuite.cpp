@@ -183,6 +183,9 @@ struct ViewSpec {
     // after the file's "simulateTo"): what a train does a few seconds on,
     // such as doors opening at a stop.
     QString simulateTo;
+    // Messages to the driven train's cab before that (task driving 02):
+    // "commands": [["pantograph1", "down"], ["headlight", 2]].
+    QVector<QPair<QString, QVariant>> commands;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -345,6 +348,8 @@ struct Options {
     QString simulateTo;
     int simulationChosen = -1;
     int simulationFollowed = -1;
+    // The train driven from there (task driving 02), -1 none.
+    int simulationDriven = -1;
     QVector<ViewSpec> views;
 };
 
@@ -443,6 +448,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.simulateTo = root.value("simulateTo").toString();
     options.simulationChosen = root.value("simulationChosen").toInt(-1);
     options.simulationFollowed = root.value("simulationFollowed").toInt(-1);
+    options.simulationDriven = root.value("simulationDriven").toInt(-1);
 
     const QJsonArray objects = root.value("objects").toArray();
     for (const QJsonValue &value : objects) {
@@ -488,6 +494,11 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.trainView = object.value("trainView").toString();
         view.trainVehicle = object.value("trainVehicle").toInt(-1);
         view.simulateTo = object.value("simulateTo").toString();
+        for (const QJsonValue &command : object.value("commands").toArray()) {
+            const QJsonArray pair = command.toArray();
+            if (pair.size() == 2)
+                view.commands.push_back({pair.at(0).toString(), pair.at(1).toVariant()});
+        }
         readFloatArray(object.value("trainEye"), view.trainEye, 3);
         readFloatArray(object.value("trainAt"), view.trainAt, 3);
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
@@ -810,6 +821,23 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             }
             simulation->choose(options.simulationChosen);
             simulation->follow(options.simulationFollowed);
+            // A train taken over (task driving 02): driven once its model has
+            // stepped (its values there).
+            if (options.simulationDriven >= 0) {
+                QString driveError;
+                if (!simulation->drive(options.simulationDriven, &driveError))
+                    qWarning() << CaptureLog << "not driven:" << driveError;
+                QElapsedTimer driving;
+                driving.start();
+                while (driving.elapsed() < 10000) {
+                    QCoreApplication::processEvents();
+                    simulation->poll();
+                    if (simulation->frame()->driven == options.simulationDriven)
+                        break;
+                    QThread::msleep(2);
+                }
+                qInfo().noquote() << CaptureLog << "driven" << simulation->frame()->driven;
+            }
             qInfo().noquote() << CaptureLog << "simulated to" << simulation->frame()->time << "in" << waited.elapsed()
                               << "ms, input" << simulation->inputMilliseconds() << "ms:" << simulation->statusText();
             // The trains by number, as the views name them.
@@ -840,6 +868,15 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     for (const ViewSpec &spec : options.views) {
         QElapsedTimer viewTimer;
         viewTimer.start();
+        for (const auto &[name, value] : spec.commands) {
+            Sim::MessageValue sent = value.toString();
+            if (value.typeId() == QMetaType::Bool)
+                sent = value.toBool();
+            else if (value.typeId() == QMetaType::Double || value.typeId() == QMetaType::Int
+                     || value.typeId() == QMetaType::LongLong)
+                sent = value.toDouble();
+            Sim::SimulationController::instance()->command(name, sent);
+        }
         if (!spec.simulateTo.isEmpty()) {
             Sim::SimulationController *simulation = Sim::SimulationController::instance();
             const QTime time = QTime::fromString(spec.simulateTo, "HH:mm:ss");
@@ -862,6 +899,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                                   << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
             }
         }
+        // The view placed by the latest frame, not the one its last tick
+        // pinned before the run moved on.
+        if (Sim::SimulationController::instance()->exists())
+            Sim::SimulationController::instance()->pinViewFrame();
         if (spec.windowWidth > 0 && spec.windowHeight > 0) {
             widget.resize(spec.windowWidth, spec.windowHeight);
             QCoreApplication::processEvents();

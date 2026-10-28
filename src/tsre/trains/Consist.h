@@ -164,6 +164,11 @@ public:
     // it has travelled and its driver's throttle and brake (0 to 1) as the
     // frame has them; its sounds follow them (updateSimulatedSounds).
     void setSimulated(float speed, float distance, float throttle, float brake);
+    // The driven train's (task driving 02): its headlight (0 off, 1 dim,
+    // 2 bright; -1 Open Rails' default, bright), a sound trigger played on
+    // a vehicle (its SMS files' discrete triggers).
+    void setHeadlight(int headlight) { simulatedHeadlight = headlight; }
+    void soundEvent(int vehicle, int trigger);
     void updateSimulatedSounds(float seconds);
     // Its vehicles' sounds stopped (out of hearing), made again by the next
     // update.
@@ -196,6 +201,7 @@ private:
     int cab3DViewpoint = -1;
     float simulatedThrottle = 0.0f;
     float simulatedBrake = 1.0f;
+    int simulatedHeadlight = -1;
     float soundsHeardAt = -1.0f;
     SimpleHud *hud = NULL;
     // Track sounds: the type the leading car is in, from the sound regions

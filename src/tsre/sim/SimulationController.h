@@ -51,7 +51,9 @@ public:
     // A simulation of the activity, its input made from the editor's data
     // now, paused at its start; the world's time of day set to the start.
     // False, with why, when it has no train to run.
-    bool start(Activity *activity, QString *error = nullptr);
+    // With `driving`, the player's train driven from its start (task driving
+    // 02: Drive beside Play); false, with why, when no engine drives it.
+    bool start(Activity *activity, QString *error = nullptr, bool driving = false);
     // Runs at the speed (starting a simulation of `activity` when none
     // exists); false when one cannot start.
     bool play(Activity *activity, QString *error = nullptr);
@@ -68,6 +70,27 @@ public:
     // when it ran.
     void reset();
     void stop();
+
+    // Driving (task driving 02). Runs the activity with its player's train
+    // (a timetable's chosen one) driven from its start (Drive beside Play).
+    bool playDriving(Activity *activity, QString *error = nullptr);
+    // A train taken over from the AI (Drive beside Follow; one not yet on
+    // the track once it is): the run's step 0.01 s, the train coasting on
+    // as the AI left it. False, with why, when no engine drives it.
+    bool drive(int train, QString *error = nullptr);
+    // The driven train given back to the AI (Leave driving).
+    void leave();
+    // An engine of the train can drive it.
+    bool drivable(int train) const;
+    // The train driven (the latest frame's), -1 none; its vehicles' values,
+    // null before it is on the track.
+    int driven() const;
+    std::shared_ptr<const DrivenFrame> drivenValues() const;
+    // A message to the driven train: its cab's, or a vehicle's.
+    void command(const QString &name, const MessageValue &value, int vehicle = -1);
+    // The driven train's messages since the last call (by vehicle), its
+    // sound triggers played on its cars (the views take them each tick).
+    std::vector<std::pair<int, Sim::Message>> takeDrivenMessages();
 
     std::shared_ptr<const SimulationInput> input() const { return in; }
     // The latest frame, from the host's mailbox (the views draw it each
@@ -202,6 +225,8 @@ signals:
     void eventsAdded(int first);
     void choiceChanged(int train);
     void followChanged(int train);
+    // A train driven or given back (task driving 02); -1 none.
+    void drivenChanged(int train);
     // The trains' consists are about to go: the camera, selection and
     // properties let go of them.
     void trainsRemoving();
@@ -228,6 +253,10 @@ private:
     int chosenTrain = -1;
     int followedTrain = -1;
     qint64 inputMs = 0;
+    // The run drives its player's train from the start (start's
+    // `driving`, kept for a reset); the train driven as last told.
+    bool drivingRun = false;
+    int drivenTrain = -1;
     // Messages shown on the map: by train, its text and when it came (on
     // messageClock).
     struct Message {

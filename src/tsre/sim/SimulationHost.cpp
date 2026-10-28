@@ -71,6 +71,19 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         frame->sectionUses = before->sectionUses;
     else
         frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
+    frame->driven = core.drivenTrain();
+    frame->collision = core.collision();
+    if (frame->driven >= 0 && core.cabOf(frame->driven) >= 0) {
+        auto driven = std::make_shared<DrivenFrame>();
+        driven->train = frame->driven;
+        driven->cab = core.cabOf(frame->driven);
+        const size_t n = core.vehiclesOf(frame->driven).size();
+        driven->values.resize(n);
+        for (size_t v = 0; v < n; ++v)
+            if (const VehicleOutputs *out = core.outputsOf(frame->driven, int(v)))
+                driven->values[v] = out->values;
+        frame->drivenValues = std::move(driven);
+    }
     frame->eventSerial = core.eventSerial();
     frame->activityEnd = core.activityEnd();
     frame->activityEndedAt = core.activityEndedAt();
@@ -115,6 +128,34 @@ std::shared_ptr<const SimulationFrame> SimulationHost::take(std::vector<TrainEve
     return latest;
 }
 
+std::vector<std::pair<int, Message>> SimulationHost::takeMessages() {
+    std::lock_guard<std::mutex> lock(mailbox);
+    std::vector<std::pair<int, Message>> taken(messages.begin(), messages.end());
+    messages.clear();
+    return taken;
+}
+
+void SimulationHost::drive(int train, unsigned long long seq) {
+    acknowledged = seq;
+    if (core != nullptr)
+        core->drive(train);
+    publish();
+}
+
+void SimulationHost::leave(unsigned long long seq) {
+    acknowledged = seq;
+    if (core != nullptr)
+        core->leave(core->drivenTrain());
+    publish();
+}
+
+void SimulationHost::command(int vehicle, const Message &message, unsigned long long seq) {
+    acknowledged = seq;
+    if (core != nullptr)
+        core->command(core->drivenTrain(), vehicle, message);
+    publish();
+}
+
 void SimulationHost::start(std::shared_ptr<const SimulationInput> input, unsigned long long seq) {
     core = input != nullptr ? std::make_unique<SimulationCore>(std::move(input)) : nullptr;
     mode = RunMode::Paused;
@@ -124,6 +165,7 @@ void SimulationHost::start(std::shared_ptr<const SimulationInput> input, unsigne
         std::lock_guard<std::mutex> lock(mailbox);
         events.clear();
         droppedEvents = 0;
+        messages.clear();
     }
     if (core != nullptr)
         core->takeEvents();
@@ -256,8 +298,12 @@ void SimulationHost::publish() {
     frame->rate = mode == RunMode::Paused ? 0.0 : rate;
     frame->target = target;
     std::vector<TrainEvent> fresh;
-    if (core != nullptr)
+    std::vector<std::pair<int, Message>> sent;
+    if (core != nullptr) {
         fresh = core->takeEvents();
+        if (core->drivenTrain() >= 0)
+            sent = core->takeMessages(core->drivenTrain());
+    }
     std::lock_guard<std::mutex> lock(mailbox);
     latest = std::move(frame);
     for (const TrainEvent &event : fresh)
@@ -266,6 +312,10 @@ void SimulationHost::publish() {
         events.pop_front();
         ++droppedEvents;
     }
+    for (std::pair<int, Message> &m : sent)
+        messages.push_back(std::move(m));
+    while (messages.size() > MaxMessages)
+        messages.pop_front();
 }
 
 }

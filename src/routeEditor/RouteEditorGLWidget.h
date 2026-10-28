@@ -90,6 +90,7 @@ QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
 namespace Ui {
 class Hud;
+class LocoControls;
 class Screen;
 }
 
@@ -625,6 +626,8 @@ private:
     // screen made first, gone last.
     std::unique_ptr<Ui::Screen> uiScreen;
     std::unique_ptr<Ui::Hud> uiHud;
+    // The driven loco's controls (task driving 02).
+    std::unique_ptr<Ui::LocoControls> uiLocoControls;
     bool uiCursor = false;
     // The UI over the view, made on first use: false when it cannot start.
     bool uiScreenReady();

@@ -132,6 +132,9 @@ public:
     void setTravelled(double metres, bool reversed);
     // The simulator's pantograph n (1 or 2) up (CarAnimation::setPantograph).
     void setPantograph(int n, bool up);
+    // A discrete sound trigger (its SMS files', Open Rails' numbers) on
+    // its sounds (task driving 02).
+    void soundEvent(int trigger);
     // Its animation, once its shape has loaded and it has been drawn (null
     // before).
     const CarAnimation *animation() const { return carAnimation; }

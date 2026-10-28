@@ -66,6 +66,7 @@
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/ui/UiHud.h>
+#include <tsre/ui/UiLocoControls.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/ui/UiScreen.h>
 #include <tsre/world/Skydome.h>
@@ -1137,6 +1138,22 @@ void RouteEditorGLWidget::paintScene(){
             uiHud->update(values);
         } else if (uiHud) {
             uiHud->hide();
+        }
+        // The driven loco's controls while a train is driven (task driving
+        // 02); its messages taken each tick, their sounds played.
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        const std::vector<std::pair<int, Sim::Message>> drivenMessages = simulation->takeDrivenMessages();
+        const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
+        if (driven != nullptr && driven->cab >= 0 && size_t(driven->cab) < driven->values.size()
+                && uiScreenReady()) {
+            if (!uiLocoControls)
+                uiLocoControls = std::make_unique<Ui::LocoControls>(*uiScreen);
+            const std::shared_ptr<const Sim::SimulationFrame> shown = simulation->viewFrame();
+            const double speed = shown != nullptr && size_t(driven->train) < shown->trains.size()
+                    ? shown->trains[size_t(driven->train)].state.speed : 0.0;
+            uiLocoControls->update(driven->values[size_t(driven->cab)], speed, drivenMessages);
+        } else if (uiLocoControls) {
+            uiLocoControls->hide();
         }
         if (uiScreen && uiScreen->context() != nullptr) {
             uiScreen->update();

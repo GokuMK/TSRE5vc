@@ -1346,6 +1346,69 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     }
     Undo::Clear();
 
+    // Driving (task driving 02): Drive beside Play runs the activity with
+    // the player's train driven from its start, the button then Leave; a
+    // command reaches its cab's script, its sound comes back; Leave gives it
+    // to the AI. The Timetable window's Drive takes the chosen AI train
+    // over, the camera following it.
+    QPushButton *drive = tools.findChild<QPushButton *>("simulationDrive");
+    QPushButton *timetableDrive = timetable.findChild<QPushButton *>("timetableDrive");
+    check(drive != nullptr && timetableDrive != nullptr && drive->isEnabled(), "Drive beside Play and Follow");
+    if (drive != nullptr && timetableDrive != nullptr) {
+        const QString driveText = drive->text();
+        const int player = simulation->trainOf(true, -1);
+        drive->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.drivenValues != nullptr; }, 10000, pump);
+        pump();
+        const int playerNow = simulation->trainOf(true, -1);
+        check(f && playerNow >= 0 && simulation->input()->driven == playerNow
+                  && simulation->input()->step == Sim::SimulationCore::DrivenStep && f->driven == playerNow
+                  && drive->text() != driveText && timetableDrive->isChecked(),
+              QString("Drive: the player's train (%1) driven from its start, the button now %2, the Timetable "
+                      "window's Drive on").arg(playerNow).arg(drive->text()));
+        (void)player;
+        simulation->takeDrivenMessages();
+        simulation->command("pantograph2", QString("up"));
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.drivenValues != nullptr && x.drivenValues->cab >= 0
+                       && x.drivenValues->values[size_t(x.drivenValues->cab)].value("pantograph2")
+                                  == Sim::MessageValue(true); }, 5000, pump);
+        pump();
+        bool sounded = false;
+        for (const auto &[vehicle, m] : simulation->takeDrivenMessages())
+            sounded = sounded || (m.name == "sound" && m.number() == 66.0);
+        check(f && sounded, "a command reaches its cab's script: pantograph 2 raised, its sound (66) sent");
+        drive->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven == -1; }, 5000, pump);
+        pump();
+        bool left = false;
+        for (const Sim::TrainEvent &event : simulation->events())
+            left = left || (event.kind == Sim::TrainEvent::DrivingLeft && event.train == playerNow);
+        check(f && left && drive->text() == driveText && !timetableDrive->isChecked(),
+              "Leave: the train given back to the AI, told; Drive again");
+        stop->click();
+        pump();
+        // The Timetable window's Drive on the AI train, before any run.
+        rows->setCurrentItem(rows->topLevelItem(1));
+        rows->topLevelItem(1)->setSelected(true);
+        pump();
+        check(timetableDrive->isEnabled(), "the Timetable window's Drive offered for the AI train");
+        timetableDrive->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.driven >= 0 && x.drivenValues != nullptr; }, 20000, pump);
+        pump();
+        check(f && f->driven >= 0 && f->driven != simulation->trainOf(true, -1) && simulation->followed() == f->driven
+                  && timetableDrive->isChecked() && f->trains[size_t(f->driven)].fronts.size() > 0,
+              QString("the Timetable window's Drive: the AI train (%1) taken over once on the track, followed")
+                  .arg(f ? f->driven : -1));
+        timetableDrive->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven == -1; }, 5000, pump);
+        pump();
+        check(f && !timetableDrive->isChecked(), "off: given back to the AI");
+        stop->click();
+        pump();
+    }
+
     for (QWidget *window : QList<QWidget *>{&tools, &events, &timetable})
         window->hide();
     for (int id = firstAct; id < ActLib::jestact; ++id) ActLib::Act[id] = nullptr;

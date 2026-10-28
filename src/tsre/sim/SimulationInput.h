@@ -6,6 +6,7 @@
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
+#include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/VehicleDefinition.h>
 
 class Activity;
@@ -466,6 +467,10 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
 // times; static trains standing trains; the set's chosen train the
 // player's. MakeInput uses it for a set.
 void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb);
+// An engine can drive an Open Rails timetable train (task driving 02: the
+// player's train offered for Drive): one of its consists' vehicles is an
+// engine. Reads the consists as TimetableTrains does (ConLib keeps them).
+bool TimetableTrainDrivable(const OrTimetable::Train &train);
 
 // An Open Rails timetable train's stations along its path, as
 // TimetableTrains finds its stops (the Timetable window lists them, the
