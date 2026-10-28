@@ -285,7 +285,8 @@ kinds).
 
 `appdata/0.7/scripts/loco/electric.lua`, after Open Rails' electric loco
 (read 2026-10-28, upstream `8aafb3147`). Its formulas are written afresh,
-with no code taken. Open Rails' own part is small (`MSTSElectricLocomotive`,
+with no code taken. The parts other locos share are modules in `tsre/`
+beside it (after step 5). Open Rails' own part is small (`MSTSElectricLocomotive`,
 486 lines, mostly cab values). The behaviour sits in the power supply, the
 circuit breaker, the controllers and the traction force of
 `MSTSLocomotive`.
@@ -1136,6 +1137,89 @@ are not decided.
     of 48 finished, 2 waiting for track, 26 stops, no deadlock.
 
 **The runs:** `reports/or-driving-comparison.md`, its last two sections.
+
+## After step 5 (2026-10-28): Lua's cost, the shared modules
+
+The user's, after a look at Lua's cost and readability: stop Lua with a
+watchdog instead of a hook, copy the values for less, split `electric.lua`
+into modules the loco scripts share. Speed alone is no issue, even for a
+dozen scripted trains. User scripts may use the modules too.
+
+**The watchdog** (`Script::State`, every state, the UI's too):
+- **Before:** a count hook made Lua's VM trap every instruction and look
+  at the clock every thousand, about 5 µs of a loco's 16 µs step.
+- **Now:** Lua runs without a hook. One thread waits for the deadlines' ends.
+  It wakes at the earliest, and every 50 ms while calls keep starting, so a
+  call's start does not wake it.
+  - Past a deadline, it sends a signal (`SIGURG`) to the deadline's thread.
+  - The handler sets the hook that ends the script there. Lua allows a hook
+    to be set from a signal handler, as its own interpreter stops a script,
+    but not from another thread.
+- **Unchanged:** nested deadlines keep the earliest end, and a script cannot
+  catch the timeout or go past the memory limit.
+- **Still a clock-checking hook:**
+  - coroutines, since the handler cannot tell which of a state's threads
+    runs;
+  - Windows, which has no signal to stop a thread; there it stays as before.
+- **Checks (`script`, 31):**
+  - loops in `coroutine.wrap` and in a sort's comparator stopped at 50 ms;
+  - no hook between calls;
+  - an inner deadline ending while the outer one goes on to its own end
+    (400 ms);
+  - two states on two threads stopped at once.
+
+**The values' names:**
+- The 33 names a loco publishes are converted to Qt text once, and kept by
+  where Lua keeps the name. Each is checked against its bytes, as a
+  collected name's place may later hold another.
+- This saves 0.6 µs of the 3.5 µs copy, less than expected. The rest is
+  Lua's table walk (1.5 µs, five text values among it) and Qt's hash
+  (1.0 µs). Copying only when a frame is made would change the vehicle model
+  interface, for about 2 µs; not done.
+
+**The modules** (`appdata/0.7/scripts/loco/tsre/`, `require "tsre.brakes"`):
+
+| Module | Holds |
+| --- | --- |
+| `util` | units, `clamp`, `flag`, `sound`, a file's numbers with defaults |
+| `levers` | Open Rails' controllers and notches |
+| `curves` | force curves and tables |
+| `controls` | the cab's levers, direction, emergency button, headlights, horn, bail off: commands, sounds, interlocks |
+| `supply` | battery and master key |
+| `pantographs` | the pantographs |
+| `breaker` | the circuit breaker |
+| `traction` | traction and the dynamic brake |
+| `brakes` | the main reservoir and compressor, the equalising reservoir, the pipe at the loco, the engine brake, the main reservoir pipe's feed |
+
+- **A part's shape:** `init(s, vehicle)` reads its keys into `s.config` and
+  sets its state in `s`; its steps follow; `values(s, o)` publishes its
+  values; `commands` holds its handlers by name. A handler returns what goes
+  on to the train's other units.
+- **`electric.lua`,** now 213 lines, keeps the electric power supply (its
+  delays, the voltage filter, quick power) and puts the parts together, in
+  the same order as before.
+- **`send` and `line`** now sit beside the libraries in the run's state, so
+  modules can make sounds.
+- **The same results:**
+  - the 36 driving checks print the same numbers (but the timing);
+  - USA1's two drive runs give the same CSVs byte for byte;
+  - OR_PSK's corpus is the same.
+
+**A user's script** can `require` the same modules. Once an ENG can name its
+own script, the state's module roots will be the script's folder first, then
+TSRE's.
+
+**The cost a scripted loco step** (Release, the probe's loop):
+
+| | µs |
+| --- | --- |
+| Before | 16.4 |
+| The watchdog | 11.0 |
+| Cached names | 10.4 |
+| Split into modules | about the same |
+
+The `driving` suite's own check gives 11.0 to 11.4 µs, against 17 at step 3.
+OR_PSK's 817 electric engines run in 10.9 s, down from 14 s.
 
 ## Open questions (user, 2026-10-28: kept open until tested enough)
 

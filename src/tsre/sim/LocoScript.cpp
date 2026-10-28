@@ -1,6 +1,7 @@
 #include <tsre/sim/LocoScript.h>
 #include <QFileInfo>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
@@ -355,8 +356,11 @@ public:
             lua_pushnil(L);
             while (lua_next(L, -2)) {
                 MessageValue value;
-                if (lua_type(L, -2) == LUA_TSTRING && messageValue(L, -1, value))
-                    out.values.insert(QString::fromUtf8(lua_tostring(L, -2)), value);
+                if (lua_type(L, -2) == LUA_TSTRING && messageValue(L, -1, value)) {
+                    size_t size = 0;
+                    const char *name = lua_tolstring(L, -2, &size);
+                    out.values.insert(nameOf(name, size), std::move(value));
+                }
                 lua_pop(L, 1);
             }
         }
@@ -406,6 +410,26 @@ private:
     // Why its script stopped; told once.
     QString problem;
     bool told = false;
+    // Its values' names as Qt text, by where Lua keeps the name's bytes
+    // (the same while the script keeps the name; checked, as a collected
+    // name's place may hold another).
+    struct Name {
+        QByteArray utf8;
+        QString text;
+    };
+    QHash<const char *, Name> names;
+
+    const QString &nameOf(const char *bytes, size_t size) {
+        auto found = names.find(bytes);
+        if (found == names.end() || size_t(found->utf8.size()) != size
+            || std::memcmp(found->utf8.constData(), bytes, size) != 0) {
+            // Names made anew every step do not pile up.
+            if (names.size() >= 1024)
+                names.clear();
+            found = names.insert(bytes, {QByteArray(bytes, qsizetype(size)), QString::fromUtf8(bytes, qsizetype(size))});
+        }
+        return found->text;
+    }
 
     // command(name, value, state[, "line"]).
     void run(const Message &m, bool fromLine) {
@@ -482,6 +506,18 @@ Script::State &LocoScripts::lua() {
     if (!state) {
         state = std::make_shared<Script::State>(Script::State::Kind::Simulation, Script::Limits(), seed);
         state->setModuleRoots({folder});
+        // send() and line() beside the libraries: every script and module
+        // reads them.
+        lua_State *L = state->lua();
+        lua_pushglobaltable(L);
+        const std::pair<const char *, lua_CFunction> functions[] = {{"send", send}, {"line", line}};
+        for (const auto &[name, function] : functions) {
+            lua_pushstring(L, name);
+            lua_pushlightuserdata(L, this);
+            lua_pushcclosure(L, function, 1);
+            lua_rawset(L, -3);
+        }
+        lua_pop(L, 1);
     }
     return *state;
 }
@@ -499,18 +535,8 @@ int LocoScripts::load(const QString &path) {
         return *found;
     Script::State &L = lua();
     const int script = L.loadFile(path);
-    if (script >= 0) {
-        L.pushEnvironment(script);
-        lua_pushlightuserdata(L.lua(), this);
-        lua_pushcclosure(L.lua(), send, 1);
-        lua_setfield(L.lua(), -2, "send");
-        lua_pushlightuserdata(L.lua(), this);
-        lua_pushcclosure(L.lua(), line, 1);
-        lua_setfield(L.lua(), -2, "line");
-        lua_pop(L.lua(), 1);
-    } else {
+    if (script < 0)
         errors.insert(path, L.lastError());
-    }
     loaded.insert(path, script);
     return script;
 }

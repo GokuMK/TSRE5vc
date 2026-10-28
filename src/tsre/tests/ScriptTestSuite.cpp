@@ -124,10 +124,14 @@ function catch() while true do pcall(function() while true do end end) end end
 function resume()
   while true do coroutine.resume(coroutine.create(function() while true do end end)) end
 end
+function wrapped()
+  while true do pcall(coroutine.wrap(function() while true do end end)) end
+end
+function sorted() table.sort({3, 1, 2, 5, 4}, function(a, b) while true do end end) end
 )";
     bool stopped = true;
     qint64 longest = 0;
-    for (const char *function : {"spin", "catch", "resume"}) {
+    for (const char *function : {"spin", "catch", "resume", "wrapped", "sorted"}) {
         const int script = state.loadText(loops, "loops.lua");
         QElapsedTimer timer;
         timer.start();
@@ -154,6 +158,53 @@ end
     const QString message = QString::fromUtf8(lua_tostring(state.lua(), -1));
     lua_pop(state.lua(), 1);
     test.check(status != LUA_OK && message.contains("limit of 30 ms"), "a deadline around a library's own call");
+#ifndef Q_OS_WIN
+    test.check(lua_gethook(state.lua()) == nullptr, "between calls Lua runs without a hook (a watchdog stops it)");
+#endif
+
+    // An inner deadline past its end inside an outer one: the outer goes on
+    // to its own end.
+    lua_State *L = state.lua();
+    auto run = [L](const char *code, QString &error) {
+        luaL_loadstring(L, code);
+        const int result = lua_pcall(L, 0, 0, 0);
+        if (result != LUA_OK) {
+            error = QString::fromUtf8(lua_tostring(L, -1));
+            lua_pop(L, 1);
+        }
+        return result;
+    };
+    QElapsedTimer timer;
+    timer.start();
+    QString inner, between, outer;
+    bool unhooked = true;
+    int betweenStatus;
+    {
+        State::Deadline deadline(state, 400);
+        {
+            State::Deadline shorter(state, 30);
+            run("while true do end", inner);
+        }
+#ifndef Q_OS_WIN
+        unhooked = lua_gethook(L) == nullptr;
+#endif
+        betweenStatus = run("local start = os.clock() while os.clock() - start < 0.1 do end", between);
+        run("while true do end", outer);
+    }
+    test.check(inner.contains("limit of 30 ms") && unhooked && betweenStatus == LUA_OK
+                   && outer.contains("limit of 400 ms") && timer.elapsed() < 1500,
+               QString("an inner deadline ends, the outer goes on to its own end (%1 ms)").arg(timer.elapsed()));
+
+    // Two states past their time at once, on two threads.
+    QString elsewhere;
+    std::thread worker([&] {
+        State other(State::Kind::Simulation, limits);
+        elsewhere = callText(other, other.loadText(loops, "loops.lua"), "spin");
+    });
+    const QString here = callText(state, state.loadText(loops, "loops.lua"), "spin");
+    worker.join();
+    test.check(here.contains("limit of 50 ms") && elsewhere.contains("limit of 50 ms"),
+               "two states on two threads stopped at once");
 }
 
 void checkMemoryLimit(TokenTest::Suite &test) {

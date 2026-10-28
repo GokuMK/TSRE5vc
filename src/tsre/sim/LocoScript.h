@@ -25,7 +25,10 @@ class LuaLoco;
 //       "line" for one from another unit on the control line;
 //   save(state)                 what to save (else the state table).
 // While they run, `send(name, value)` sends an event (to the UI, the cab,
-// the sounds) and `line(name, value)` a message to the train's other units.
+// the sounds) and `line(name, value)` a message to the train's other units,
+// also from the modules they call. `require` finds modules in the scripts'
+// folder; the parts TSRE's locos share are there in tsre/ (require
+// "tsre.brakes"), for any loco script to use.
 //
 // `vehicle` reads its file through the key catalogue, in SI:
 //   vehicle.engine.maxforce, vehicle.wagon.mass  a key's first value (a

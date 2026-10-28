@@ -24,6 +24,8 @@ struct lua_Debug;
 
 namespace Script {
 
+class Watchdog;
+
 // How much a state may hold and how long one call may run.
 struct Limits {
     // Bytes the state may hold.
@@ -44,6 +46,9 @@ struct Limits {
 // (every call TSRE makes) it stops with an error past its time, and the
 // state holds no more memory than its limit; TSRE's own values pushed
 // between calls are not refused (Lua would abort on an error there).
+// Past its time, a watchdog thread stops it (ScriptState.cpp): Lua runs
+// without a hook until then. Coroutines, and every Lua on Windows, look at
+// the clock in a hook instead, every thousand instructions.
 class State {
 public:
     // The UI's state also has os.clock, os.date, os.time and os.difftime.
@@ -149,6 +154,13 @@ private:
     bool expired = false;
     std::chrono::steady_clock::time_point deadline;
     int deadlineMs = 0;
+    // The watchdog stopping Lua here, null where the hook looks at the
+    // clock. Under its lock, with the deadline above: the thread running
+    // under the deadline and whether the watchdog has set the hook there.
+    Watchdog *watchdog = nullptr;
+    std::thread::native_handle_type deadlineThread{};
+    bool interrupted = false;
+    friend class Watchdog;
 
     void checkThread() const;
     void openLibraries(unsigned seed);
@@ -169,6 +181,7 @@ private:
     static int load(lua_State *L);
     static int collectGarbage(lua_State *L);
     static int guardedCall(lua_State *L);
+    static int newCoroutine(lua_State *L);
     static int newGlobal(lua_State *L);
     static int traceback(lua_State *L);
 };
