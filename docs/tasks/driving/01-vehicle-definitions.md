@@ -1,7 +1,7 @@
 # Task 01 - Vehicle definitions (the ENG refactor)
 
-Status: design, second round after the user's answers (2026-10-28). No
-code yet.
+Status: design agreed with the user (2026-10-28); implementation on
+`feature/vehicle-definitions`.
 
 The roadmap's first driving task (decided 2026-10-17: before any driving
 task): one vehicle definition per ENG/WAG file, read once and not changed
@@ -152,7 +152,7 @@ byte order mark.
   `last("wagon(mass")` gives the last such item through every include, and
   `all("wagon(coupling")` gives each one in order.
 
-### Include paths
+### Include paths and file references
 
 **Open Rails' form stays as it is**: a path relative to the file that holds
 the include, with `[[SameName]]` replaced by that file's name.
@@ -161,8 +161,10 @@ TSRE's current fallback is dropped (user, 2026-10-28). Today, when an
 `OPENRAILS` copy's include isn't found, TSRE also tries the vehicle's
 folder. Names are exact, by the content-case rule.
 
-**Named roots (user's request, 2026-10-28)** let authors write where a
-file is instead of counting `../`:
+**Named roots (user's request; form and set agreed 2026-10-28)** let
+authors write where a file is instead of counting `../`. They use Open
+Rails' bracket form, as in `[[SameName]]`, and their names are matched
+without regard to case:
 
 | Root | Folder |
 | --- | --- |
@@ -171,6 +173,8 @@ file is instead of counting `../`:
 | `[[Vehicle]]` | the vehicle's own folder: where its ENG/WAG file is, the original's folder for an `OPENRAILS` copy, even inside a shared include |
 | `[[Here]]` | the folder of the file holding the include (the same as no root, for clarity) |
 | `[[Global]]` | `<game>/GLOBAL` |
+| `[[Sound]]` | `<game>/SOUND` |
+| `[[Game]]` | `<game>` |
 
 For example, `include ( "[[Trainset]]/common.inc/Standard_Coupler_PL.inc" )`
 reads the same from any folder depth, so copies moved deeper keep working.
@@ -182,9 +186,25 @@ reads the same from any folder depth, so copies moved deeper keep working.
   the local content does.
 - **Open Rails compatibility:** Open Rails doesn't know these roots. It
   would look for a folder literally named `[[Trainset]]`, warn, and go on
-  without the file. Content using roots would load in TSRE only, unless a
-  copy is written for Open Rails. The content-case tool could write that
-  copy, with the roots turned back into relative paths.
+  without the file. Roots are a TSRE feature (user, 2026-10-28): content
+  using them loads in TSRE only, and the feature could later be offered to
+  Open Rails as a pull request.
+
+**The same roots in the vehicle file's other paths (user, 2026-10-28).**
+Without a root, these are found as Open Rails and TSRE find them today;
+with a root, the root gives the folder and no other folder is searched:
+
+| Key | Found without a root in (Open Rails' rule) |
+| --- | --- |
+| `Wagon ( WagonShape )`, `FreightAnim`, `ORTSFreightAnims ( … Shape )` | the vehicle's folder |
+| `Wagon ( Sound )`, `Engine ( Sound )` | the vehicle's `SOUND` folder, then `<game>/SOUND` |
+| `Engine ( CabView )` | the vehicle's `CABVIEW` folder |
+| `ORTS3DCab ( ORTS3DCabFile )` | the vehicle's `CABVIEW3D` folder |
+
+For example, `Sound ( "[[Trainset]]/common.snd/EU07.sms" )`. The definition
+holds each of these as the full path it resolved to, so the editor, the
+sounds and the simulation all use one rule. The SMS and CVF files' own
+references (WAV files, cab images) are not part of this task.
 
 ### Encodings (agreed 2026-10-28)
 
@@ -288,6 +308,8 @@ couplings add.
      - every encoding;
      - nested, missing, cyclic and unbalanced includes;
      - each root, and a path that leaves the game folder;
+     - roots in shape, sound and cab paths, and the default lookups
+       without them;
      - a per-vehicle file through `[[Vehicle]]` in a shared include;
      - the first-line and comment rules;
      - last-wins and couplings that add;
@@ -319,22 +341,15 @@ Each step is built (`all`) and checked with ctest before its commit, on
 1. **Shared includes:** yes.
 2. **Open Rails' include rules** checked and followed; TSRE's fallback to
    the vehicle's folder dropped.
-3. **Include paths get named roots**, since `../../` is unclear and unsafe.
-   Open Rails has none.
+3. **Include paths get named roots**, since `../../` is unclear and unsafe;
+   Open Rails has none. They use Open Rails' bracket form. The set:
+   `[[Trains]]`, `[[Trainset]]`, `[[Vehicle]]`, `[[Here]]`, `[[Global]]`,
+   `[[Sound]]`, `[[Game]]`.
+   - Roots are a TSRE feature; they may later be offered to Open Rails as
+     a pull request.
+   - Shape, sound and cab paths in vehicle files take the same roots.
 4. **Everything is exposed to Lua.** This led to the key catalogue; typed
    C++ fields are kept for what C++ reads.
 5. **Encodings:** as listed, with Latin-1 for the rest, as now.
 6. **No new folder:** the new code goes beside the code it replaces.
 7. **The play-mode code in `Eng`** stays for the driving tasks.
-
-## Still to decide (user)
-
-1. **The roots' form.** You suggested `%TRAINS%` and `%ENG%`; this design
-   uses Open Rails' own bracket form from `[[SameName]]`
-   (`[[Trains]]`, `[[Vehicle]]`), so the two read alike. Which form? Are
-   the five roots the right set?
-2. **Open Rails compatibility** for content with roots: TSRE only, or a
-   relative-path copy written by the content-case tool?
-3. **Roots beyond includes:** shapes, sounds and cab files in vehicle files
-   are also found through relative paths. Should they take the same roots
-   later?
