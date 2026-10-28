@@ -1,6 +1,6 @@
 # Task 02 - The driving harness: a first whole stack
 
-Status: design, for the user's review (2026-10-28). No code yet.
+Status: design, the user's answers of 2026-10-28 in (decisions at the end). No code yet.
 
 The user's request (2026-10-28), after the ENG refactor (task 01) was
 merged:
@@ -105,32 +105,51 @@ widget (RmlUi + UI Lua) --command--> SimulationController --queued--> host threa
 
 ### The driven train
 
-- **One train of a run is driven,** the player's (`TrainPlan::player`). For
-  an Open Rails timetable it's the train chosen in the activity panel,
-  which Follow already uses.
-- **The driven train moves by its vehicle models' forces.** It gets a third
-  driving kind beside `Simple` and `Physics`. Every other train stays AI.
-- **The panel's Simulation section gets a *Drive* choice beside Play.** It
-  starts the run with the player's train driven, the camera riding it (as
-  Follow does) and the control widget shown.
+- **One train of a run is driven at a time.** It moves by its vehicle
+  models' forces, a third driving kind beside `Simple` and `Physics`. Every
+  other train stays AI.
+- **Driving starts in two ways, and stops in one** (the user's, 2026-10-28):
+  - **Drive beside Play** starts the run with the player's train driven.
+    - **An MSTS activity:** its player service.
+    - **An Open Rails timetable:** the panel gets back its player train
+      choice, offering only the trains that can be driven (with an engine).
+  - **Drive beside Follow** (the Timetable window, the trains list) takes
+    over a running or waiting AI train.
+  - **Leave driving** gives the train back to the AI, which drives on from
+    where it is.
+- **Moving between the two kinds of train:**
+  - **AI to driven:** the one-mass train becomes vehicles, each at the
+    train's speed, with its couplers at rest. The loco's script starts from
+    `init` with the train's state:
+    - pantograph up and breaker closed for a train already powered;
+    - direction set to the way it runs;
+    - throttle and brake at 0, so a running train coasts;
+    - the brake pipe charged.
+
+    A reset at the start of driving is accepted.
+  - **Driven to AI:** the train's speed and front are the lead vehicle's,
+    and the AI's own bookkeeping (next stop, next waiting point, the speed
+    limits behind it) is found again from where the train is.
 - **The core still reserves the track ahead** of the driven train, as for
   the player's AI train today, so signals clear for it and other trains
-  react to it. It no longer stops the train at stations or signals: that is
-  the driver's job.
-  - Passing a stop signal at danger, or the end of its authority, is
-    reported as an event (Open Rails' SPAD). The core doesn't stop the
-    train for it in this task.
-  - Station stops are the driver's: the task 06 events (arrival, departure)
-    work as they do for the player.
+  react to it. It never stops the driven train, at stations or at signals
+  (the user's, 2026-10-28):
+  - passing a stop signal at danger, or the end of its authority, is
+    reported as an event (Open Rails' SPAD);
+  - station stops are the driver's: the task 06 events (arrival, departure)
+    work as they do for the player;
+  - **running into another train** (a contact faster than coupling speed)
+    ends the simulation, saying which trains, where and how fast. Coupling a
+    driven train is a later task.
 
 ### The step
 
 - `MaxStep` becomes the run's step, set in the input: 0.01 s with a driven
   train, 0.1 s otherwise, as decided.
-- AI trains step at 0.01 s too in such a run. Today's measures put a
-  0.1 s step at 0.9 µs on EUROPE1 and 5 µs with PRUDNIK's 266 trains. Ten
-  times as many steps is well within real time, but it is measured in the
-  checks.
+- **For now the whole run steps at 0.01 s while a train is driven,** AI
+  trains included (the user's, 2026-10-28). It is measured, and whether AI
+  trains go back to 0.1 s is decided after. Today's measures put a 0.1 s
+  step at 0.9 µs on EUROPE1 and 5 µs with PRUDNIK's 266 trains.
 
 ### Motion and couplers (the driven train)
 
@@ -240,17 +259,29 @@ A C++ interface, the same for every kind of model:
   its state table per loco. `init(state, vehicle)` gives the definition's
   values through the key catalogue, in SI, e.g.
   `vehicle.engine.maxforce`.
-- **`update(dt, inputs, state, out)` every step.** `out` names the
-  outputs above, e.g. `out.motiveForce`, `out.pantographs[1]`,
-  `out.cab.lineVoltage`.
-- **`command(name, value, state)`** takes a control or command, e.g.
-  `pantograph`, `circuitBreaker`, `throttle`, `headlight`.
+- **`update(dt, inputs, state, out)` every step.**
+  - `out` takes the forces and flows (`out.motiveForce`, `out.brakeForce`)
+    and the open values (`out.values.lineVoltage`,
+    `out.values.BATTERY_CHARGE`).
+  - `send(name, value)` sends an event (Messages, below).
+- **`command(name, value, state)`** takes every message for the loco, a
+  standard control (`pantograph1`, `throttle`) or a name of its own.
 - **The deadline** is generous per step but bounded. A script error stops
   that loco's model: it gives no force and is reported.
 - **Cost:** one Lua call per loco per 0.01 s is about 100 calls a second
   per loco, which is cheap. Measured in the checks.
 
 ### The electric loco script
+
+**For now every electric engine** (Engine `Type ( Electric )`) **gets
+TSRE's `electric.lua`.** An ENG key naming a loco's own script comes later
+(the user's, 2026-10-28). Diesel and steam engines get a C++ stand-in force,
+throttle × `MaxForce` capped by `MaxPower` / v, until their scripts exist.
+
+**The complete Open Rails electric loco** (the user's, 2026-10-28: "you
+will see in practice"): everything below, and the parts first left out
+(dynamic brake, engine brake, battery and master key, all four breaker
+kinds).
 
 `appdata/0.7/scripts/loco/electric.lua`, after Open Rails' electric loco
 (read 2026-10-28, upstream `8aafb3147`). Its formulas are written afresh,
@@ -344,51 +375,100 @@ removed):
 **Size:** a few hundred lines of Lua, about the size of Open Rails' own
 pieces without their cab plumbing.
 
-**Left out of the first script,** each a later addition:
-- the dynamic brake (Open Rails needs a `Brake_Dynamic` controller for it);
-- the engine brake;
-- the TCS and its authorisations;
-- the battery and master key;
-- the Two-stage and PushButtons breakers;
-- voltage selectors and dual mode.
+**Also in it** (the complete loco):
+- **The dynamic brake:** a `Brake_Dynamic` controller, the engaging delay,
+  the force from `DynamicBrakeForceCurves` or the default curve made from
+  `DynamicBrakesMaximumForce` and its speeds (Open Rails' defaults, mph
+  where it reads mph). It is available without line power, as in Open
+  Rails.
+- **The engine brake:** `Brake_Engine`, a line of its own on the loco, its
+  cylinder the larger of the train brake's and its own.
+- **The battery and master key:** battery power, cab power and the
+  low-voltage supply, as Open Rails' default power script has them.
+- **All four breaker kinds:**
+  - Automatic and Manual;
+  - PushButtons, where the order lasts while the button is held;
+  - TwoStage, which needs the driver's closing authorisation.
 
-### Commands and values (names)
+**Left out** (the TCS is a system of its own): the train control system's
+authorisations are always granted. Voltage selectors and dual mode don't
+apply to a plain electric.
 
-- **One catalogue of TSRE's own names,** first in this task:
+### Messages (open, the user's 2026-10-28)
+
+Messages are elastic and future-proof. A script can send what the engine
+knows nothing about: a train with extra buttons sends
+`CAB_AMBIENT_LIGHT = disable` or `BATTERY_CHARGE = 44` to its cab, and the
+engine passes it on.
+
+- **A message** is a name, a value (number, text or true/false) and where
+  it goes:
+  - a vehicle (the active cab's by default);
+  - the train;
+  - the cab and UI.
+
+  Names are free text. TSRE keeps no list a message must be on; the names
+  below are only the ones TSRE itself sends or reads. Each message serialises
+  as text (`name = value`), the same in Lua, in frames, and later over
+  websockets and in saved runs.
+- **To a vehicle's model, commands:** from the widget, later from the
+  keyboard, the cab and external apps, and from other vehicles through the
+  control line. The script gets every name in
+  `command(name, value, state)` and handles those it knows. The others are
+  ignored, and logged once each with `TSRE_DRIVING_LOG`.
+- **From a vehicle's model,** two kinds:
+  - **values that hold** (`out.values.BATTERY_CHARGE = 44`), published in
+    the frame as an open map of the loco's names, sent only when they
+    change;
+  - **events, in order** (`send("CAB_AMBIENT_LIGHT", "disable")`), passed to
+    the editor once each.
+- **The few names the engine itself reads,** for its own parts:
+  - visual state: `pantograph1`, `pantograph2`, `headlight`, doors;
+  - sounds: the event `sound` with an SMS trigger number;
+  - forces and bus flows, which are outputs, not messages.
+
+  Everything else goes untouched to the UI, the cab and later the
+  websockets.
+- **TSRE's names for the standard controls,** so the widget, the keyboard
+  and the cab use the same ones:
 
   | Name | Values |
   | --- | --- |
-  | `throttle` | 0 to 1 |
-  | `trainBrake` | 0 release … 1 full; emergency separate |
+  | `throttle` | 0 to 1, or `+`/`-` steps |
+  | `trainBrake` | 0 to 1, or `+`/`-` |
+  | `engineBrake` | 0 to 1, or `+`/`-` |
+  | `dynamicBrake` | 0 to 1, or `+`/`-` |
+  | `emergency` | true/false |
   | `direction` | -1, 0, 1 |
-  | `pantograph` | n, up/down |
-  | `circuitBreaker` | close/open |
-  | `headlight` | off/dim/bright |
+  | `pantograph1`, `pantograph2` | up/down |
+  | `circuitBreaker` | close/open, and pressed/released for push buttons |
+  | `battery` | on/off |
+  | `masterKey` | on/off |
+  | `headlight` | 0 off, 1 dim, 2 bright |
   | `horn` | on/off |
-
-  Each is a name, a value and the vehicle (the active cab by default). They
-  serialise to text, so websockets and saved runs can use them later.
-- **Cab values** are named numbers the loco gives each step (speed, line
-  voltage, current, force, pantograph and breaker states, brake pipe
-  pressure). The widget shows them, and cab displays and sounds use them
-  later.
 
 ### The control widget
 
 - **`appdata/0.7/ui/loco.rml`** and `loco.lua`, a draggable panel like the
   HUD:
-  - Pantograph ↑ ↓;
-  - Breaker close/open;
+  - Battery, Master key;
+  - Pantograph 1 and 2 ↑ ↓;
+  - Breaker close/open (held for push buttons);
   - Direction F/N/R;
   - Throttle − / + (and a bar);
-  - Brake release/apply (and a bar);
+  - Train brake, Engine brake, Dynamic brake − / + (and bars);
+  - Emergency;
   - Headlights off/dim/bright;
   - Horn;
-  - readouts: speed, line voltage, current, force, brake pipe, and the
-    pantograph and breaker states.
+  - readouts: speed, line voltage, the ammeter, force, pressures (brake
+    pipe, main reservoir, cylinder), and the pantograph, breaker and power
+    states;
+  - **every other value the script publishes,** in a list by name. A
+    script's own messages show without the widget knowing them.
 - **The UI's Lua gets a small TSRE API,** its first:
-  - `train.command(name, value)`, queued to the simulation;
-  - `train` values in the data model, filled from each frame's cab values.
+  - `train.command(name, value)`, any name, queued to the simulation;
+  - `train.values`, the data model, filled from each frame's values;
+  - `trainmessage`, an event per message the script sends.
 - **It shows while a driven train exists.** The keyboard and the cab
   controls come in the next task, through the same commands.
 
@@ -397,7 +477,8 @@ pieces without their cab plumbing.
 - **The driven train's frame gives more:**
   - each vehicle's place, with slack;
   - each vehicle's visual state (pantographs, headlight);
-  - the loco's cab values;
+  - the loco's values, the changed ones, and its messages since the last
+    frame;
   - the controls (throttle, brake) for the sounds.
 - **The editor applies them:**
   - pantographs from the state, not "always up";
@@ -409,9 +490,15 @@ pieces without their cab plumbing.
 1. **The driven train, the run's step and motion.**
    - Couplers and per-vehicle forces, with a C++ stand-in loco (force from a
      throttle) and C++ wagons.
-   - A content-free suite, `driving`: acceleration as F/m on the level and
-     on a grade, couplers stable at 0.01 s from 2 to 50 cars, slack taken
-     up on starting, determinism.
+   - Taking over from the AI and giving back; collisions end the run.
+   - A content-free suite, `driving`:
+     - acceleration as F/m on the level and on a grade;
+     - couplers stable at 0.01 s from 2 to 50 cars;
+     - slack taken up on starting;
+     - takeover and handing back at speed;
+     - a collision;
+     - determinism.
+   - The cost of 0.01 s for all trains, measured on the routes.
 2. **The buses:** the brake pipe, wagon brakes, the control line, the line
    voltage. Checks: braking distances against the formula; a pipe charging
    and applying along 50 cars.
@@ -421,11 +508,12 @@ pieces without their cab plumbing.
    - pantograph and breaker timings;
    - a script error contained;
    - save and restore of the state table.
-4. **Commands, the widget, frames and the editor:**
-   - `train.command`;
+4. **Messages, the widget, frames and the editor:**
+   - `train.command`, open messages both ways;
    - `loco.rml`;
    - pantographs, lights and sounds from the state;
-   - *Drive* in the panel.
+   - *Drive* beside Play and Follow, *Leave driving*;
+   - the timetable's player train choice.
 
    Checks: the UI suite pressing the buttons; a capture of a driven train
    with its pantograph down and up and its lights.
@@ -453,32 +541,26 @@ must stay identical to main: the seven routes and PRUDNIK, as in task 01.
   - saving runs;
   - multiplayer.
 
-## Questions for the user
+## Decisions (user, 2026-10-28)
 
-1. **Starting it:** a *Drive* choice in the activity panel's Simulation
-   section, with the camera riding the train and the widget shown? Or
-   something else?
-2. **What the core still does for a driven train:**
-   - it reserves the track ahead, as for the player's AI train today;
-   - it reports passing a stop signal at danger, or the end of the
-     authority, without stopping the train.
-
-   Enough for this task, with the stops left to the driver?
-3. **The whole run at 0.01 s while a train is driven,** AI trains included,
-   as decided? Or AI trains at 0.1 s and the driven train in ten sub-steps?
-   I'd keep the decision and measure.
-4. **Which script a loco gets:**
-   - every electric engine (Engine `Type ( Electric )`) gets the shipped
-     `electric.lua`;
-   - a TSRE key in the ENG, such as `ORTSLocoScript`/`TSRELocoScript`
-     `( name.lua )`, chooses another, found by the roots (`[[Vehicle]]`,
-     `[[Trainset]]`).
-
-   Is that the way? Diesel and steam engines would get a C++ stand-in force
-   until their scripts exist.
-5. **The dynamic brake:** in the first script, or after it?
-6. **The widget's controls:** pantograph, breaker, direction, throttle,
-   train brake, headlight, horn, plus readouts. Anything to add or drop for
-   the first stack?
-7. **Where scripts live:** shipped ones in `appdata/0.7/scripts/` and a
-   vehicle's own in its folder?
+1. **Drive beside Play** (the activity's player service; for an Open Rails
+   timetable the panel's player train choice comes back, offering the
+   trains that can be driven). **Drive beside Follow** takes over an AI
+   train. **Leave driving** gives it back to the AI. Moving between the
+   AI's one-mass train and the driven vehicles is handled, with a reset of
+   the driving state at the start where needed.
+2. **No forced stops** at red signals or stations. A collision with another
+   train may end the simulation, with what happened.
+3. **The whole run at 0.01 s** while a train is driven, measured; decided
+   later.
+4. **For now every electric engine uses TSRE's `electric.lua`.** A custom
+   script named in the ENG comes later.
+5. **The complete Open Rails electric loco,** dynamic brake included.
+6. **The widget:** the controls of the complete loco (above), and every
+   value a script publishes listed by name. The user asked what "add or
+   drop" meant; this list is the answer, open to change.
+7. **Scripts:** TSRE's in `appdata/0.7/scripts/`, a vehicle's own in its
+   folder.
+8. **Messages are elastic and future-proof:** scripts send and take any
+   name, and the engine passes on what it doesn't know (`CAB_AMBIENT_LIGHT
+   = disable`, `BATTERY_CHARGE = 44`).

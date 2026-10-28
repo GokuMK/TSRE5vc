@@ -175,7 +175,7 @@ player's, works another way.
   - `Sim::Vehicle` is the definition's pointer, its flip and its ids.
   - The results are in the task doc.
 - [ ] [`02-driving-harness.md`](02-driving-harness.md) (designed 2026-10-28,
-  under the user's review): the first whole stack, as the user asked
+  the user's answers in): the first whole stack, as the user asked
   2026-10-28.
   - The player's train driven by its vehicle models at 0.01 s steps:
     couplers, a brake pipe and a control line.
