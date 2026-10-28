@@ -352,6 +352,12 @@ private:
     struct Haze {
         float clear[8][3] = {};
         float ring[8][3] = {};
+        // The sky's light from above (linear, cosine-weighted over the sky,
+        // as the environment cube's roughest level straight up), clear and
+        // greyed under an overcast: the shade's colour wherever the camera
+        // stands (the cube's from under a platform roof was the roof's).
+        float aboveClear[3] = {};
+        float above[3] = {};
         float sun[2] = {1.0f, 0.0f};
         float drawnSun[3] = {};
         float drawnHeight = -1e9f;

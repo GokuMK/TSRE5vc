@@ -364,6 +364,24 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   light alike; reflections show the sky as it is. Gentle on purpose (the
   user, 2026-10-28): Prudnik from noon to 21:00 not a pixel changed, 22:00
   ground 6.6, 6.3, 8.3 -> 7.3, 6.3, 6.9, the sky still deep blue.
+- The white balance changed going under a platform roof (the user,
+  2026-10-28, Prudnik `-5373,14874,786.74,334.40,-821.61,178.13,-3.18`):
+  the cube is drawn from the camera, and from under the roof its light
+  from above was the roof's, so the whole view took the roof's colour
+  (lower third 66, 67, 66 in the open, 62, 65, 61 under it). The legacy
+  shade's colour now comes from the atmosphere (`skyAbove`, RhiSky.cpp, as
+  the haze's ring is made): the sky's light from above, cosine-weighted
+  over three bands of the sky, in the sky shader's colour (display, the
+  night's floor at least) taken to linear light, greyed under an overcast as
+  the haze is, again when the sun or the camera's height moves. The first
+  try's gaps are covered so: sunsets come from the same atmosphere the sky
+  is drawn with, clouds through the overcast, the night through the sky
+  shader's floor; without a physical sky (the classic sky, OpenGL) the cube
+  still. In the open it matches the cube's within a level (Prudnik ground
+  noon 89, 80, 67 against 90, 80, 67; 21:00 a little more violet). Covered
+  surfaces (the sky enclosure's shade) take the neutral ambient's colour as
+  the cover closes; the platform's own roof is alpha-tested, outside the
+  enclosure, so the floor under it has the open shade's blue.
 - The window, after the user's first look (2026-10-28): numbers and the
   alpha test narrow, their help beside them (room to scroll on), wide
   inputs with their help right below; rows 12 px apart, each a widget of

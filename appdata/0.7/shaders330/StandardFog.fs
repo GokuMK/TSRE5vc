@@ -141,9 +141,14 @@ uniform int terrainMapPass;
 // sky's blue, a cloud's grey, a sunset's glow. In plain grey, shadows here
 // were grey beside PBR's blue ones (the user, 2026-10-27). In the scene's
 // scale, as PBR's (a thirtieth at night with auto exposure): no floor but
-// zero's.
+// zero's. The sky's light from above comes from the atmosphere (skyAbove,
+// QRhi with a physical sky), the same wherever the camera stands: the cube,
+// drawn from the camera, saw a platform roof over it and gave the whole view
+// the roof's colour (the user, 2026-10-28). The cube's without it.
+uniform vec4 skyAbove;
+
 vec3 ambientLight() {
-    vec3 sky = skyLight(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0));
+    vec3 sky = skyLight(skyAbove.w > 0.0 ? skyAbove.rgb : environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0));
     float skyLuminance = luminance(sky);
     if (skyLuminance < 1e-12)
         return ambientColor.rgb;
@@ -263,6 +268,11 @@ void main() {
             color *= clamp(visibility, 0.0, 1.0);
             vec3 ambient = ambientLight();
 #ifdef TSRE_RHI
+            // Under cover the shade's light comes from what is around it
+            // (ground, walls) rather than the sky: towards the neutral
+            // ambient as the cover closes (a platform's floor under its
+            // roof took the open sky's blue).
+            ambient = mix(ambient, ambientColor.rgb, shade);
             color = mixedLight(color, ambient * skyAmbient(shade));
 #else
             color = mixedLight(color, ambient);

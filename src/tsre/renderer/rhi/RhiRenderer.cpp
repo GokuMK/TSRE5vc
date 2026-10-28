@@ -440,6 +440,12 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
         }
         program->set("hazeRing", ring, int(sizeof(ring)));
     }
+    // The sky's light from above for the classic shade (StandardFog.fs
+    // ambientLight); w 0: the environment cube's.
+    if (hazeValues[2] > 0.0f)
+        program->setVec("skyAbove", haze.above[0], haze.above[1], haze.above[2], 1.0f);
+    else
+        program->setVec("skyAbove", 0.0f, 0.0f, 0.0f, 0.0f);
     program->setVec("diffuseColor", gluu->diffuseColor[0] * scene, gluu->diffuseColor[1] * scene,
                     gluu->diffuseColor[2] * scene, gluu->diffuseColor[3]);
     // The sky's light through the clouds overhead (display colour).
