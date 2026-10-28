@@ -182,6 +182,9 @@ player's, works another way.
   - A Lua electric loco after Open Rails' electric engine.
   - A simple RmlUi widget with buttons commanding it; cab and keyboard come
     in the next task.
+- [ ] [`03-diesel-loco.md`](03-diesel-loco.md) (the user's, 2026-10-29): a
+  Lua diesel loco after Open Rails' diesel-electric, on task 02's shared
+  modules; the gearbox later.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab
