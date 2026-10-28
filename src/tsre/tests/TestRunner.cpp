@@ -4292,7 +4292,6 @@ QStringList TsreTests::listSuites() {
         "eng-lights",
         "vehicle-file",
         "vehicle-file-corpus",
-        "vehicle-definitions-compare",
         "shape-animation",
         "car-animation",
         "script",
@@ -4449,8 +4448,6 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runVehicleFileSuite(opts.verbose);
     if (suite == "vehicle-file-corpus")
         return runVehicleFileCorpusSuite(opts.verbose);
-    if (suite == "vehicle-definitions-compare")
-        return runVehicleDefinitionCompareSuite(opts.verbose);
     if (suite == "eng-lights")
         return runEngLightsSuite(opts.verbose);
     if (suite == "shape-animation")

@@ -283,6 +283,11 @@ VehicleDefinition::Resistance resistanceOf(const VehicleDefinition &def, bool le
 
 } // namespace
 
+const std::shared_ptr<const VehicleDefinition> &VehicleDefinition::empty() {
+    static const std::shared_ptr<const VehicleDefinition> none = std::make_shared<VehicleDefinition>();
+    return none;
+}
+
 std::shared_ptr<const VehicleDefinition> VehicleDefinition::read(const QString &folder, const QString &name,
                                                                  const QString &game, bool openRails) {
     auto def = std::make_shared<VehicleDefinition>();

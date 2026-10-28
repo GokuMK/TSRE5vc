@@ -324,7 +324,7 @@ couplings add.
    - Each difference is explained: either Open Rails' rules where `ParserX`
      differed, or a bug fixed.
 3. **`Eng`, `EngLib`, `Consist` and the editors on the definition;**
-   `Eng::load`'s `ParserX` code removed.
+   `Eng::load`'s `ParserX` code removed (done 2026-10-28, below).
 4. **The simulation on the definition.** `Sim::Vehicle` shrinks. The checks:
    - the seven MSTS routes give identical stops and events;
    - all 266 PRUDNIK trains finish as before;
@@ -460,6 +460,48 @@ reader does what Open Rails does:
 **Time:** each definition read on its own, nothing shared, takes 3.4 s for
 OR_PSK against `Eng::load`'s 1.5 s (Release). Held together, sharing their
 includes, they took 0.56 s in step 1.
+
+## Step 3 done (2026-10-28)
+
+**What `Eng` keeps:**
+- `definition`, a `std::shared_ptr<const VehicleDefinition>`, never null:
+  an empty definition stands in for a car whose file isn't read yet.
+- Its identity: `name`, `path`, `pathid` and `hashid`.
+- Its per-car state.
+- Its shape ids in each shape library (`shapeIds`, `freightShapeIds`,
+  `cab3DShapeIds`).
+
+**What changed:**
+- **`Eng::load`** is `VehicleDefinition::read`; the 350 lines of `ParserX`
+  reading are gone, and with them the `OPENRAILS` path fields.
+- **The copy constructor** shares the definition instead of copying some
+  35 fields.
+- **Shapes, freight animations, sounds and the 3D cab** use the
+  definition's resolved paths.
+- **`Coupling` and `Cab3D`** are now the definition's types, so
+  `Eng::Cab3D` still names them.
+- **Readers in the editors** (Consist Editor, Shape Viewer, `Consist`) and
+  the simulation's `MakeInput` read `definition->…`. That was 23 files,
+  patched where the compiler pointed.
+- **Tests that built an `Eng` by hand** now give it a definition of their
+  own.
+- **The content-path fixture's include files** now start with a blank
+  line: Open Rails never reads an include's first line.
+- **The comparison suite is gone** with the old reader. Its results are
+  under step 2.
+
+**Checks:**
+- Build `all` and ctest (11 of 11) pass.
+- These suites pass: `vehicle-file`, `eng-lights`, `cab3d`, `car-animation`,
+  `content-path`, `units`, `units-content` (all of OR_PSK through
+  `EngLib`), `consist-preview-gl`, `map-view`, `sound`, `rmlui`, `script`.
+- So do all of these: `simulation-*`, `timetable-*`, `activity-check`,
+  `activity-edit`, `activity-roundtrip`, `activity-ui`.
+- Captures made with one settings file are identical to main's (rmse 0,
+  no picking differences):
+  - `simulation-trains.json` on EUROPE1: its 4 views;
+  - `shape-viewer-views.json` on MSTS: 2 shapes, 2 engines, the 310 tender
+    with its freight animation, and a consist.
 
 ## Decisions (user, 2026-10-28)
 

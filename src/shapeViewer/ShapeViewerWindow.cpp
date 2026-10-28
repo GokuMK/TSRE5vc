@@ -412,7 +412,7 @@ void ShapeViewerWindow::vResetShapeViewSelected(){
     if(currentItemType == "eng"){
         if(currentEng == NULL)
             return;
-        float pos = -currentEng->sizez-1;
+        float pos = -currentEng->definition->size[2]-1;
         if(pos > -15) pos = -15;
         engCamera->setPos(pos,2.5,0);
         engCamera->setPlayerRot(M_PI/2.0,0);
@@ -600,7 +600,7 @@ void ShapeViewerWindow::loadFile(QString path){
         int idx = Game::currentEngLib->addEng(dir, filename);
         qDebug() << "eng id "<< idx;
         Eng *eng = Game::currentEngLib->eng[idx];
-        float pos = -eng->sizez-1;
+        float pos = -eng->definition->size[2]-1;
         if(pos > -15) pos = -15;
         engCamera->setPos(pos,2.5,0);
         engCamera->setPlayerRot(M_PI/2.0,0);
@@ -662,7 +662,7 @@ void ShapeViewerWindow::contentHierarchySelected(int id){
     if(currentItemType == "eng"){
         currentShape = NULL;
         Eng *eng = currentContent[id]->eng;
-        float pos = -eng->sizez-1;
+        float pos = -eng->definition->size[2]-1;
         if(pos > -15) pos = -15;
         engCamera->setPos(pos,2.5,0);
         engCamera->setPlayerRot(M_PI/2.0,0);

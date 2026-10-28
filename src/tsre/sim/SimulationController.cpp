@@ -95,7 +95,7 @@ void refit(Consist &consist, const std::vector<Vehicle> &vehicles) {
                 eng = found->second;
         }
         if (eng != nullptr) {
-            item.type = eng->wagonTypeId;
+            item.type = eng->definition->wagonTypeId;
             item.ename = eng->name;
             item.engPointer = new Eng(eng);
             item.engPointer->flip = vehicle.flip;
@@ -977,7 +977,7 @@ void SimulationController::placeTrains() const {
             // pantograph 1 up, as Open Rails raises an AI train's (task
             // shapes 12).
             eng->setTravelled(train->drawnTravelled, reversed);
-            if (eng->wagonTypeId == 4)
+            if (eng->definition->wagonTypeId == 4)
                 eng->setPantograph(1, true);
         }
         applyDoors(t, *train, now->time);

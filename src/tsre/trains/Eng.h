@@ -18,6 +18,7 @@
 #include <tsre/trains/CarAnimation.h>
 #include <vector>
 #include <tsre/camera/CameraMount.h>
+#include <tsre/trains/VehicleDefinition.h>
 #include <QStringList>
 
 class RenderQueue;
@@ -40,55 +41,27 @@ class Eng {
 public:
     // The vehicle's footprint on the track for the map mode.
     void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
-    struct Coupling {
-        QString type;
-	float r0[2];
-	float velocity;
-    };
-    
-    struct EngShape {
-        QString name;
-        float x = 0;
-        float y = 0;
-        float z = 0;
-        QHash<long long int, int> id;// = -2;
-    };
-    
-    QVector<Coupling> coupling;
+    // Its file as read (task driving 01): made once, shared by every car
+    // made from it, the editors and the simulation; never null (an empty
+    // one for a file not read).
+    std::shared_ptr<const VehicleDefinition> definition = VehicleDefinition::empty();
+    using Coupling = VehicleDefinition::Coupling;
+    using Cab3D = VehicleDefinition::Cab3D;
     QString name;
     QString path;
     QString pathid;
     QString hashid; // Cached logical key; pathid preserves the filename used for I/O.
-    QString orpathid;
-    QString orpath;
-    QVector<QString> filePaths;
-    
-    EngShape shape;
-    QVector<EngShape> freightanimShape;
+    // Its shapes in each shape library (by the library's address): its own
+    // and its freight animations' (as definition->freightAnims); -1 none.
+    QHash<long long int, int> shapeIds;
+    QVector<QHash<long long int, int>> freightShapeIds;
     // Its Lights block (task renderer 34), kept as its text by load() and
     // read on first use (the Consist Editor loads every car and needs no
     // lights), shared by its copies; null without one.
     const EngLights *getLights();
     // The state its lights show, set by its consist.
     EngLights::Train lightsTrain;
-    // Its Open Rails 3D cab (ORTS3DCab, ORTSAlternate3DCabViewPoints in the
-    // Wagon section; the user's 2026-10-23): the shape files named, in
-    // order, and the viewpoints: the head's place in the car's shape
-    // (metres), where it looks at the start (degrees: down, round from
-    // ahead) and how far it may turn from there (degrees; 0 free). Null
-    // without one; shared by its copies.
-    struct Cab3D {
-        struct Viewpoint {
-            float position[3] = {0.0f, 0.0f, 0.0f};
-            float start[3] = {0.0f, 0.0f, 0.0f};
-            float limit[3] = {0.0f, 0.0f, 0.0f};
-        };
-        QStringList shapes;
-        QVector<Viewpoint> viewpoints;
-    };
-    std::shared_ptr<Cab3D> cab3D;
-    // The cab's shape: the last one named that is in its CABVIEW3D (Open
-    // Rails keeps one shape for its cabs), empty for none.
+    // The cab's shape (definition->cab3DShapePath), empty for none.
     QString cab3DShapePath() const;
     // The viewpoint in the cab at the end its shape faces (rear false) or
     // the other: the first looking that way (a start direction beyond 90
@@ -104,40 +77,6 @@ public:
     // drawn in place of its body (set by its consist).
     int cabViewpoint = -1;
 
-    QString engName;
-    QString displayName;
-    QString searchKeywords;
-    QString engType;
-    QString typeHash;
-    QString type;
-    QString brakeSystemType;
-    int wagonTypeId = 0;
-    float sizex;
-    float sizey;
-    float sizez;
-    // Amperes.
-    float maxCurrent = 0;
-    // In SI units, as read (task core si-units; the simulation's driving,
-    // task simulation 03, the consist editor): the mass (kg), the engine's
-    // force (N), power (W) and top speed (m/s);
-    // the resistance as Open Rails' Davis A, B, C (N, N/(m/s), N/(m/s)²)
-    // where given, else MSTS's Friction (C1, E1, V2, C2, E2); a passenger
-    // capacity (an EMU's power car).
-    double massKg = 0.0;
-    double forceN = 0.0;
-    double powerW = 0.0;
-    double maxSpeedMps = 0.0;
-    double davis[3] = {0.0, 0.0, 0.0};
-    bool hasDavis = false;
-    double friction[5] = {0.0, 0.0, -1.0, 0.0, 0.0};
-    bool hasFriction = false;
-    bool passengerCapacity = false;
-    QString souncCabFile;
-    // The outside .sms ("Sound" of the Wagon section) and the wheels' radii
-    // (the Engine section's are the driving wheels), in metres.
-    QString soundFile;
-    float wheelRadius = 0;
-    float driverWheelRadius = 0;
     int flip = flip;
     int loaded = -1;
     bool kierunek = false;
@@ -218,10 +157,9 @@ public:
     // gone out of hearing).
     void silenceSounds();
 private:
-    std::shared_ptr<EngLightsBlock> lightsBlock;
-    // The 3D cab's shape (cab3DShapePath), in each shape library, double
+    // The 3D cab's shape (cab3DShapePath) in each shape library, double
     // sided: added when first drawn from inside.
-    EngShape cab3DShape;
+    QHash<long long int, int> cab3DShapeIds;
     // The cab's shape in the current shape library, null without one.
     ComplexShape *cab3DShapeOf(long long int shapeLibId);
     CarLights *carLights = NULL;
@@ -270,7 +208,6 @@ private:
     OglObj *borderObj3d = NULL;
     Ruch *ruch1 = NULL;
     Ruch *ruch2 = NULL;
-    void addToFileList(QString val);
     
     // The cab .sms ("Sound" of the Engine section), heard riding it.
     SoundSource *cabSound = NULL;

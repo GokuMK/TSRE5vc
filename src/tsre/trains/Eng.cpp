@@ -15,7 +15,6 @@
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/CarLights.h>
 #include <tsre/map/MapFeatures.h>
-#include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/shape/ShapeLib.h>
@@ -47,31 +46,6 @@
 #include <cmath>
 
 namespace {
-
-// A 3D cab's ORTS3DCab or ORTSAlternate3DCabViewPoint block: its shape
-// file and a viewpoint (as Open Rails' MSTSWagon.Parse3DCab).
-void readCab3D(FileBuffer *data, Eng::Cab3D &cab) {
-    Eng::Cab3D::Viewpoint viewpoint;
-    QString file;
-    QString sh;
-    while (!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
-        if (sh == "orts3dcabfile")
-            file = ParserX::GetStringInside(data);
-        else if (sh == "orts3dcabheadpos")
-            for (float &c : viewpoint.position)
-                c = ParserX::GetNumberInside(data, nullptr, Units::Quantity::Length);
-        else if (sh == "rotationlimit")
-            for (float &c : viewpoint.limit)
-                c = ParserX::GetNumberInside(data);
-        else if (sh == "startdirection")
-            for (float &c : viewpoint.start)
-                c = ParserX::GetNumberInside(data);
-        ParserX::SkipToken(data);
-    }
-    if (!file.trimmed().isEmpty())
-        cab.shapes << file.trimmed();
-    cab.viewpoints << viewpoint;
-}
 
 // The way along the track from an end of a car toward its rear (as its
 // consist lists it), relative to `at` (the end's place, getCurrentPosition)
@@ -114,50 +88,16 @@ Eng::Eng() {
 }
 
 Eng::Eng(Eng *o) {
-    
-    coupling.append(o->coupling);
-    filePaths.append(o->filePaths);
-    shape = o->shape;
-    freightanimShape.append(o->freightanimShape);
-    lightsBlock = o->lightsBlock;
-    cab3D = o->cab3D;
-    
+    // Its file's data shared, not copied (task driving 01).
+    definition = o->definition;
     name = o->name;
     path = o->path;
     pathid = o->pathid;
     hashid = o->hashid;
-    orpathid = o->orpathid;
-    orpath = o->orpath;
-
-    engName = o->engName;
-    displayName = o->displayName;
-    engType = o->engType;
-    typeHash = o->typeHash;
-    type = o->type;
-    brakeSystemType = o->brakeSystemType;
-    wagonTypeId = o->wagonTypeId;
-    sizex = o->sizex;
-    sizey = o->sizey;
-    sizez = o->sizez;
-    maxCurrent = o->maxCurrent;
-    massKg = o->massKg;
-    forceN = o->forceN;
-    powerW = o->powerW;
-    maxSpeedMps = o->maxSpeedMps;
-    std::copy(o->davis, o->davis + 3, davis);
-    hasDavis = o->hasDavis;
-    std::copy(o->friction, o->friction + 5, friction);
-    hasFriction = o->hasFriction;
-    passengerCapacity = o->passengerCapacity;
     flip = o->flip;
     loaded = o->loaded;
     kierunek = o->kierunek;
     ref = o->ref;
-    
-    souncCabFile = o->souncCabFile;
-    soundFile = o->soundFile;
-    wheelRadius = o->wheelRadius;
-    driverWheelRadius = o->driverWheelRadius;
 }
 
 Eng::~Eng() {
@@ -206,12 +146,12 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
     const float absSpeed = fabs(speed);
     values.set(Sms::Control::Speed, absSpeed);
     values.distanceTravelled += fabs(move);
-    values.set(Sms::Control::WheelRpm, TrainMotion::wheelRpm(absSpeed, wheelRadius > 0 ? wheelRadius : 0.45f));
+    values.set(Sms::Control::WheelRpm, TrainMotion::wheelRpm(absSpeed, definition->wheelRadius > 0 ? definition->wheelRadius : 0.45f));
     // Full brake as a full service application, 50 psi.
     values.set(Sms::Control::BrakeCyl, brake * 50.0f);
     // Curve squeal: smoothed over a second, as the wheels settle.
     const float radius = ruch1->curveRadius();
-    const float kilograms = std::isfinite(massKg) && massKg > 0 ? float(massKg) : 50000.0f;
+    const float kilograms = std::isfinite(definition->massKg) && definition->massKg > 0 ? float(definition->massKg) : 50000.0f;
     const float k = std::min(seconds, 1.0f);
     curveForceHeard += (TrainMotion::curveForce(kilograms, absSpeed, radius) - curveForceHeard) * k;
     angleOfAttackHeard += (TrainMotion::angleOfAttack(radius) - angleOfAttackHeard) * k;
@@ -219,8 +159,8 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
     values.set(Sms::Control::AngleOfAttack, angleOfAttackHeard);
     // Engines: Variable1-3 as Open Rails fills them for the engine type,
     // from the stand-in driver's throttle.
-    if (type.toLower() == "engine") {
-        const QString kind = engType.toLower();
+    if (definition->type.toLower() == "engine") {
+        const QString kind = definition->engType.toLower();
         float variable1 = 0;
         float variable2Target = 0;
         float variable2Rate = 1;
@@ -233,7 +173,7 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
             variable2Target = throttle * 100;
             variable2Rate = 100;
         } else if (kind.contains("steam")) {
-            const float driving = driverWheelRadius > 0 ? driverWheelRadius : 0.9f;
+            const float driving = definition->driverWheelRadius > 0 ? definition->driverWheelRadius : 0.9f;
             variable1 = absSpeed / driving / float(M_PI) * 5;
             // Cylinder cocks open while starting.
             variable2Target = throttle > 0 && absSpeed < 3 ? 70 : 0;
@@ -258,13 +198,13 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
 
     if (!outsideSoundTried) {
         outsideSoundTried = true;
-        const QString sms = SoundBank::find(soundFile, {path + "/SOUND", Game::root + "/SOUND"});
+        const QString sms = definition->soundPath;
         if (!sms.isEmpty())
             outsideSound = new SoundSource(sms, SoundSource::Kind::Car, this);
     }
     if (lead && !cabSoundTried) {
         cabSoundTried = true;
-        const QString sms = SoundBank::find(souncCabFile, {path + "/SOUND", Game::root + "/SOUND"});
+        const QString sms = definition->cabSoundPath;
         if (!sms.isEmpty())
             cabSound = new SoundSource(sms, SoundSource::Kind::Car, this);
     }
@@ -302,28 +242,10 @@ Eng::Eng(QString p, QString n) {
     hashid = ContentPath::key(pathid);
     path = p;
     name = n;
-    if(Settings::boolean("core.content.loading.preferOpenRailsEng")){
-        orpathid = p+"/OPENRAILS/"+n;
-        orpathid = ContentPath::normalize(orpathid);
-        orpath = path+"/OPENRAILS/";
-    } else {
-        orpathid = pathid;
-        orpath = path;
-    }
-    //shape.id = -1;
-    sizex = 0;
-    sizey = 0;
-    sizez = 0;
     flip = 0;
     loaded = -1;
     kierunek = false;
     load();
-}
-
-void Eng::addToFileList(QString val){
-    val.replace("\\","/");
-    val = ContentPath::normalize(val);
-    filePaths.push_back(val);
 }
 
 Eng::Eng(QString src, QString p, QString n) {
@@ -332,18 +254,6 @@ Eng::Eng(QString src, QString p, QString n) {
     hashid = ContentPath::key(pathid);
     path = p;
     name = n;
-    if(Settings::boolean("core.content.loading.preferOpenRailsEng")){
-        orpathid = p+"/OPENRAILS/"+n;
-        orpathid = ContentPath::normalize(orpathid);
-        orpath = path+"/OPENRAILS/";
-    } else {
-        orpathid = pathid;
-        orpath = path;
-    }
-    //shape.id = -1;
-    sizex = 0;
-    sizey = 0;
-    sizez = 0;
     flip = 0;
     loaded = -1;
     kierunek = false;
@@ -351,408 +261,63 @@ Eng::Eng(QString src, QString p, QString n) {
 }
 
 void Eng::load(){
-    filePaths.clear();
-    lightsBlock.reset();
-    QString mstsincpath = path;
-    QString incpath = orpath;
-    QString sh;
-    QFile *file = new QFile(orpathid);
-    if (!file->open(QIODevice::ReadOnly)){
-        incpath = path;
-        file = new QFile(pathid);
-        if (!file->open(QIODevice::ReadOnly)){
-            qDebug() << pathid << "not exist";
-            return;
-        } else {
-            qDebug() << pathid;
-            addToFileList(pathid);
-        }
-    } else {
-        qDebug() << orpathid;
-        addToFileList(orpathid);
+    // As Open Rails reads it, its OPENRAILS copy where the setting asks
+    // (task driving 01); the definition's problems tell what was wrong.
+    definition = VehicleDefinition::read(path, name, Game::root,
+                                         Settings::boolean("core.content.loading.preferOpenRailsEng"));
+    if (!definition->ok()) {
+        qDebug() << pathid << "not exist";
+        return;
     }
-
-    FileBuffer* data = ReadFile::read(file);
-    file->close();
-    data->toUtf16();
-    data->skipBOM();
-    QString loadedPath;
-    
-    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        //qDebug() << sh;
-        if (sh == ("simisa@@@@@@@@@@jinx0d0t______")) {
-            continue;
-        }
-        if (sh == ("include")) {
-            QString incPath = ParserX::GetStringInside(data);
-            ParserX::SkipToken(data);
-            if(data->insertFile(incpath + "/" + incPath, mstsincpath + "/" + incPath, &loadedPath))
-                addToFileList(loadedPath);
-            continue;
-        }
-        if (sh == ("wagon")) {
-            if(engName.length() == 0){
-                engName = ParserX::GetString(data).trimmed();
-                displayName = engName;
-            }
-            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                //qDebug() << sh;
-                if (sh == ("include")) {
-                    QString incPath = ParserX::GetStringInside(data);
-                    ParserX::SkipToken(data);
-                    if(data->insertFile(incpath + "/" + incPath, mstsincpath + "/" + incPath, &loadedPath))
-                        addToFileList(loadedPath);
-                    continue;
-                }
-                if (sh == ("name")) {
-                    displayName = ParserX::GetString(data);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("tsrekeywords")) {
-                    searchKeywords = ParserX::GetString(data);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("freightanim")) {
-                    freightanimShape.push_back(EngShape());
-                    freightanimShape.back().name = ParserX::GetString(data);
-                    //freightanimShape.back().id = -2;
-                    //qDebug() << "=====znaleziono s2 " << path << sNames[1];
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("size")) {
-                    sizex = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
-                    sizey = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
-                    sizez = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
-                    //qDebug() << "wymiary taboru: " << sizex << " " << sizey << " " << sizez;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("wagonshape")) {
-                    shape.name = ParserX::GetString(data);
-                    //shape.id = -2;
-                    //qDebug() << "=====znaleziono s1 " << path << sNames[0];
-                    //sfile[0] = ShapeLib::addShape(path, tname, path);//new Sfile(this.path, tname);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("mass")) {
-                    massKg = ParserX::GetNumberInside(data, NULL, Units::Quantity::Mass);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("ortsdavis_a") || sh == ("ortsdavis_b") || sh == ("ortsdavis_c")) {
-                    const int k = sh.back().toLatin1() - 'a';
-                    const Units::Quantity kinds[3] = {Units::Quantity::Force, Units::Quantity::Resistance,
-                                                      Units::Quantity::ResistanceSquared};
-                    bool ok = false;
-                    davis[k] = ParserX::GetNumberInside(data, &ok, kinds[k]);
-                    hasDavis = hasDavis || ok;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("friction")) {
-                    const Units::Quantity kinds[5] = {Units::Quantity::Resistance, Units::Quantity::Any,
-                                                      Units::Quantity::Speed, Units::Quantity::Resistance,
-                                                      Units::Quantity::Any};
-                    bool all = true;
-                    for (int k = 0; k < 5; ++k) {
-                        bool ok = false;
-                        friction[k] = ParserX::GetNumberInside(data, &ok, kinds[k]);
-                        all = all && ok;
-                    }
-                    hasFriction = all;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("passengercapacity")) {
-                    passengerCapacity = true;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("sound")) {
-                    soundFile = ParserX::GetStringInside(data);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("wheelradius")) {
-                    wheelRadius = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("coupling")) {
-                    coupling.push_back(Coupling());
-                    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                        if (sh == ("type")) {
-                            coupling.back().type = ParserX::GetString(data);
-                            //qDebug() << "c: "<< coupling.back().type;
-                            ParserX::SkipToken(data);
-                            continue;
-                        }
-                        if (sh == ("velocity")) {
-                            coupling.back().velocity = ParserX::GetNumber(data);
-                            ParserX::SkipToken(data);
-                            continue;
-                        }
-                        if (sh == ("spring")) {
-                            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                                if (sh == ("r0")) {
-                                    coupling.back().r0[0] = ParserX::GetNumberInside(data);
-                                    coupling.back().r0[1] = ParserX::GetNumberInside(data);
-                                    //qDebug() <<"r0 " << coupling.back().r0[0] << coupling.back().r0[1];
-                                    ParserX::SkipToken(data);
-                                    continue;
-                                }
-                                ParserX::SkipToken(data);
-                            }
-                            ParserX::SkipToken(data);
-                            continue;
-                        }
-
-                        ParserX::SkipToken(data);
-                    }
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("ortsfreightanims")) {
-                    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                        //qDebug() << "orts " << sh;
-                        if (sh == ("mstsfreightanimenabled")) {
-                            int val = ParserX::GetNumber(data);
-                            if(val == 0){
-                                freightanimShape.clear();
-                            }
-                            ParserX::SkipToken(data);
-                            continue;
-                        }
-                        if (sh == ("freightanimstatic")) {
-                            freightanimShape.push_back(EngShape());
-                            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                                //qDebug() << "orts " << sh;
-                                if (sh == ("subtype")) {
-                                    ParserX::SkipToken(data);
-                                    continue;
-                                }
-                                if (sh == ("freightweight")) {
-                                    ParserX::SkipToken(data);
-                                    continue;
-                                }
-                                if (sh == ("shape")) {
-                                    freightanimShape.back().name = ParserX::GetString(data);
-                                    //qDebug() << QString::fromStdString(freightanimShapeName.back();
-                                    //freightanimShape.back().id = -2;
-                                    ParserX::SkipToken(data);
-                                    continue;
-                                }
-                                if (sh == ("offset")) {
-                                    freightanimShape.back().x = ParserX::GetNumber(data);
-                                    freightanimShape.back().y = ParserX::GetNumber(data);
-                                    freightanimShape.back().z = ParserX::GetNumber(data);
-                                    ParserX::SkipToken(data);
-                                    continue;
-                                }
-                                ParserX::SkipToken(data);
-                            }
-                            ParserX::SkipToken(data);
-                            continue;
-                        }
-                        ParserX::SkipToken(data);
-                    }
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("type")) {
-                    type = ParserX::GetString(data);
-                    //qDebug() << "type "<< type;
-                    if(type.toLower() == "engine")
-                        wagonTypeId = 4;
-                    if(type.toLower() == "carriage")
-                        wagonTypeId = 1;
-                    if(type.toLower() == "freight")
-                        wagonTypeId = 2;
-                    if(type.toLower() == "tender")
-                        wagonTypeId = 3;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("brakesystemtype")) {
-                    brakeSystemType = ParserX::GetString(data);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                // Open Rails' 3D cab (the user's 2026-10-23), its alternate
-                // viewpoints only after one (as Open Rails reads them).
-                if (sh == ("orts3dcab")) {
-                    if (cab3D == nullptr)
-                        cab3D = std::make_shared<Cab3D>();
-                    readCab3D(data, *cab3D);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("ortsalternate3dcabviewpoints")) {
-                    QString viewpoint;
-                    while (cab3D != nullptr && !(viewpoint = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
-                        if (viewpoint == "ortsalternate3dcabviewpoint")
-                            readCab3D(data, *cab3D);
-                        ParserX::SkipToken(data);
-                    }
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("lights")) {
-                    // Kept as it is, read on first use (getLights); a
-                    // later block replaces an earlier one.
-                    lightsBlock = std::make_shared<EngLightsBlock>(ParserX::KeepBlock(data, sh));
-                    continue;
-                }
-                ParserX::SkipToken(data);
-            }
-            typeHash = type;
-            ParserX::SkipToken(data);
-            continue;
-        }
-        if(sh == "engine"){
-            ParserX::GetString(data);
-            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                //qDebug() << sh;
-                if (sh == ("include")) {
-                    QString incPath = ParserX::GetStringInside(data);
-                    ParserX::SkipToken(data);
-                    if(data->insertFile(incpath + "/" + incPath, mstsincpath + "/" + incPath, &loadedPath))
-                        addToFileList(loadedPath);
-                    continue;
-                }
-                if (sh == ("type")) {
-                    engType = ParserX::GetString(data);
-                    typeHash+="-"+engType;
-                    //qDebug() << engType;
-                    if(wagonTypeId == 4){
-                        if(engType.toLower() == "electric")
-                            wagonTypeId = wagonTypeId + 0;
-                        if(engType.toLower() == "diesel")
-                            wagonTypeId = wagonTypeId + 1;
-                        if(engType.toLower() == "steam")
-                            wagonTypeId = wagonTypeId + 2;
-                    }
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("name")) {
-                    displayName = ParserX::GetString(data);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("maxvelocity")) {
-                    maxSpeedMps = ParserX::GetNumberInside(data, NULL, Units::Quantity::Speed);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("maxpower")) {
-                    powerW = ParserX::GetNumberInside(data, NULL, Units::Quantity::Power);
-                    //qDebug() << "maxPower "<<maxPower;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("maxcurrent")) {
-                    maxCurrent = ParserX::GetNumberInside(data, NULL, Units::Quantity::Current);
-                    //qDebug() << "maxCurrent "<<maxCurrent;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("maxforce")) {
-                    forceN = ParserX::GetNumberInside(data, NULL, Units::Quantity::Force);
-                    //qDebug() << "maxForce "<<maxForce / 1000;
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("description")) {
-                    ParserX::GetStringInside(data);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("sound")) {
-                    souncCabFile = ParserX::GetStringInside(data);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                if (sh == ("wheelradius")) {
-                    driverWheelRadius = ParserX::GetNumberInside(data, NULL, Units::Quantity::Length);
-                    ParserX::SkipToken(data);
-                    continue;
-                }
-                ParserX::SkipToken(data);
-            }
-            ParserX::SkipToken(data);
-            continue;
-        }
-        if (sh == ("name")) {
-            displayName = ParserX::GetString(data);
-            ParserX::SkipToken(data);
-            continue;
-        }
-        if (sh == ("brakesystemtype")) {
-            brakeSystemType = ParserX::GetString(data);
-            ParserX::SkipToken(data);
-            continue;
-        }
-        ParserX::SkipToken(data);
-        continue;
-    }
-    //qDebug() << typeHash;
-    delete data;
     loaded = 1;
-    //qDebug() << loaded;
-    return;
 }
 
 bool Eng::engFilter(QString q){
     if(q == "") return true;
-    if(q == "electric" && wagonTypeId == 4)
+    if(q == "electric" && definition->wagonTypeId == 4)
         return true;
-    if(q == "diesel" && wagonTypeId == 5)
+    if(q == "diesel" && definition->wagonTypeId == 5)
         return true;
-    if(q == "steam" && wagonTypeId == 6)
+    if(q == "steam" && definition->wagonTypeId == 6)
         return true;    
-    if(q == "carriage" && wagonTypeId == 1)
+    if(q == "carriage" && definition->wagonTypeId == 1)
         return true;
-    if(q == "freight" && wagonTypeId == 2)
+    if(q == "freight" && definition->wagonTypeId == 2)
         return true;
-    if(q == "tender" && wagonTypeId == 3)
+    if(q == "tender" && definition->wagonTypeId == 3)
         return true;   
     return false;
 }
 
 bool Eng::couplingFilter(QString q){
     if(q == "") return true;
-    for(int i = 0; i < coupling.size(); i++){
-       if(q.toLower() == coupling[i].type.toLower()) return true; 
+    for(int i = 0; i < definition->couplings.size(); i++){
+       if(q.toLower() == definition->couplings[i].type.toLower()) return true; 
     }
     return false;
 }
 bool Eng::searchFilter(QString q){
     if(q == "") return true;
-    if(this->displayName.contains(q, Qt::CaseInsensitive)) return true;
-    if(this->engName.contains(q, Qt::CaseInsensitive)) return true;
-    if(this->searchKeywords.contains(q, Qt::CaseInsensitive)) return true;
+    if(definition->displayName.contains(q, Qt::CaseInsensitive)) return true;
+    if(definition->engName.contains(q, Qt::CaseInsensitive)) return true;
+    if(definition->searchKeywords.contains(q, Qt::CaseInsensitive)) return true;
     return false;
 }
 
 QString Eng::getCouplingsName(){
     QString name;
-    for(int i = 0; i < coupling.size(); i++){
+    for(int i = 0; i < definition->couplings.size(); i++){
        if(i != 0) name += " , ";
-       name += coupling[i].type; 
+       name += definition->couplings[i].type; 
     }
     return name;
 }
 
 float Eng::getFullWidth(){
-    if(this->coupling.size() > 0)
-        return this->coupling[0].r0[0] + this->sizez;
+    if(this->definition->couplings.size() > 0)
+        return this->definition->couplings[0].r0[0] + this->definition->size[2];
     else
-        return this->sizez + 0.0;
+        return this->definition->size[2] + 0.0;
 }
 
 void Eng::select(){
@@ -823,23 +388,23 @@ void Eng::pushDrawBorder3d(RenderQueue &queue) {
         float* punkty = new float[96];
         float* ptr = punkty;
 
-        float sizexx = sizex / 2.0;
+        float sizexx = definition->size[0] / 2.0;
         for (int j = 0; j <= 1; j++)
             for (int i = -1; i <= 1; i += 2) {
                 *ptr++ = sizexx*i;
-                *ptr++ = sizey*j;
+                *ptr++ = definition->size[1]*j;
                 *ptr++ = -width;
                 *ptr++ = sizexx*i;
-                *ptr++ = sizey*j;
+                *ptr++ = definition->size[1]*j;
                 *ptr++ = width;
             }
         for (int j = 0; j <= 1; j++)
             for (int i = -1; i <= 1; i += 2) {
                 *ptr++ = sizexx;
-                *ptr++ = sizey*j;
+                *ptr++ = definition->size[1]*j;
                 *ptr++ = width*i;
                 *ptr++ = -sizexx;
-                *ptr++ = sizey*j;
+                *ptr++ = definition->size[1]*j;
                 *ptr++ = width*i;
             }
         for (int j = -1; j <= 1; j += 2)
@@ -848,7 +413,7 @@ void Eng::pushDrawBorder3d(RenderQueue &queue) {
                 *ptr++ = 0;
                 *ptr++ = width*i;
                 *ptr++ = sizexx*j;
-                *ptr++ = sizey;
+                *ptr++ = definition->size[1];
                 *ptr++ = width*i;
             }
         borderObj3d->setMaterial(1.0, 0.0, 0.0);
@@ -919,7 +484,7 @@ void Eng::updateSim(float deltaTime){
 }
 
 const EngLights *Eng::getLights() {
-    return lightsBlock != nullptr ? lightsBlock->lights() : nullptr;
+    return definition->lights != nullptr ? definition->lights->lights() : nullptr;
 }
 
 float Eng::getCurrentSpeed(){
@@ -930,19 +495,20 @@ float Eng::getCurrentSpeed(){
 // the library key of the shape ids.
 long long int Eng::resolveShapeIds() {
     long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
-    if (!shape.id.keys().contains(shapeLibId)) {
-        if (shape.name.length() > 1)
-            shape.id[shapeLibId] = Game::currentShapeLib->addShape(path + "/" + shape.name, path);
+    if (!shapeIds.contains(shapeLibId)) {
+        if (definition->shape.length() > 1)
+            shapeIds[shapeLibId] = Game::currentShapeLib->addShape(definition->shapePath, path);
         else
-            shape.id[shapeLibId] = -1;
+            shapeIds[shapeLibId] = -1;
     }
 
-    for (int i = 0; i < freightanimShape.size(); i++) {
-        if (!freightanimShape[i].id.keys().contains(shapeLibId)) {
-            if (freightanimShape[i].name.length() > 1)
-                freightanimShape[i].id[shapeLibId] = Game::currentShapeLib->addShape(path + "/" + freightanimShape[i].name, path);
+    freightShapeIds.resize(definition->freightAnims.size());
+    for (int i = 0; i < freightShapeIds.size(); i++) {
+        if (!freightShapeIds[i].contains(shapeLibId)) {
+            if (definition->freightAnims[i].shape.length() > 1)
+                freightShapeIds[i][shapeLibId] = Game::currentShapeLib->addShape(definition->freightAnims[i].path, path);
             else
-                freightanimShape[i].id[shapeLibId] = -1;
+                freightShapeIds[i][shapeLibId] = -1;
         }
     }
     return shapeLibId;
@@ -952,30 +518,30 @@ long long int Eng::resolveShapeIds() {
 void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
     if (loaded != 1) return;
     const long long int shapeLibId = resolveShapeIds();
-    if (shape.id[shapeLibId] >= 0) {
-        ComplexShape *carShape = Game::currentShapeLib->shape[shape.id[shapeLibId]];
+    if (shapeIds[shapeLibId] >= 0) {
+        ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
         carShape->pushRenderItem(queue, selectionId, poseShape(carShape, nullptr));
     }
 
     float *mv = queue.transform();
-    for (int i = 0; i < freightanimShape.size(); i++) {
-        if (freightanimShape[i].id[shapeLibId] < 0)
+    for (int i = 0; i < freightShapeIds.size(); i++) {
+        if (freightShapeIds[i][shapeLibId] < 0)
             continue;
         queue.pushTransform();
-        Mat4::translate(mv, mv, -freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
-        Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
+        Mat4::translate(mv, mv, -definition->freightAnims[i].offset[0], definition->freightAnims[i].offset[1], -definition->freightAnims[i].offset[2]);
+        Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]]->pushRenderItem(queue, selectionId, 0);
         queue.popTransform();
     }
 }
 
 void Eng::reload(){
     long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
-    if(shape.id[shapeLibId] >= 0) 
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->reload();
+    if(shapeIds[shapeLibId] >= 0) 
+        Game::currentShapeLib->shape[shapeIds[shapeLibId]]->reload();
     
-    for(int i = 0; i < freightanimShape.size(); i++){
-        if(freightanimShape[i].id[shapeLibId] >= 0) {
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->reload();
+    for(int i = 0; i < freightShapeIds.size(); i++){
+        if(freightShapeIds[i][shapeLibId] >= 0) {
+            Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]]->reload();
         }
     }
 }
@@ -994,21 +560,14 @@ float *Eng::getCurrentPositionOnTrack(){
 }
 
 QString Eng::cab3DShapePath() const {
-    if (cab3D == nullptr)
-        return QString();
-    for (int i = cab3D->shapes.size() - 1; i >= 0; --i) {
-        const QString file = path + "/CABVIEW3D/" + cab3D->shapes[i];
-        if (QFileInfo::exists(file))
-            return file;
-    }
-    return QString();
+    return definition->cab3DShapePath;
 }
 
 int Eng::cab3DViewpoint(bool rear) const {
-    if (cab3D == nullptr)
+    if (definition->cab3D == nullptr)
         return -1;
-    for (int i = 0; i < cab3D->viewpoints.size(); ++i) {
-        const float yaw = std::fabs(std::remainder(cab3D->viewpoints[i].start[1], 360.0f));
+    for (int i = 0; i < definition->cab3D->viewpoints.size(); ++i) {
+        const float yaw = std::fabs(std::remainder(definition->cab3D->viewpoints[i].start[1], 360.0f));
         if ((yaw > 90.0f) == rear)
             return i;
     }
@@ -1017,8 +576,8 @@ int Eng::cab3DViewpoint(bool rear) const {
 
 void Eng::cab3DCameraPosition(int viewpoint, float *out) {
     getCameraPosition(out);
-    if (out == NULL || loaded != 1 || ruch1 == NULL || ruch2 == NULL || cab3D == nullptr
-            || viewpoint < 0 || viewpoint >= cab3D->viewpoints.size())
+    if (out == NULL || loaded != 1 || ruch1 == NULL || ruch2 == NULL || definition->cab3D == nullptr
+            || viewpoint < 0 || viewpoint >= definition->cab3D->viewpoints.size())
         return;
     float selev1, selev2;
     float front[7], rear[7];
@@ -1050,7 +609,7 @@ void Eng::cab3DCameraPosition(int viewpoint, float *out) {
     Mat4::identity(car);
     CarPlacement::placeCar(car, tile, front, rear, roll, flip);
     // As a point of its shape, whose root mirrors x.
-    const float *head = cab3D->viewpoints[viewpoint].position;
+    const float *head = definition->cab3D->viewpoints[viewpoint].position;
     float at[3] = {-head[0], head[1], head[2]};
     Vec3::transformMat4(at, at, car);
     std::copy(at, at + 3, out + 2);
@@ -1060,9 +619,9 @@ void Eng::cab3DCameraPosition(int viewpoint, float *out) {
 // ahead towards the shape's +x) in the riding frame, which has the car's
 // shape facing ahead (-z) unless it is flipped.
 bool Eng::cab3DMount(int viewpoint, CameraMount &mount) const {
-    if (cab3D == nullptr || viewpoint < 0 || viewpoint >= cab3D->viewpoints.size())
+    if (definition->cab3D == nullptr || viewpoint < 0 || viewpoint >= definition->cab3D->viewpoints.size())
         return false;
-    const Cab3D::Viewpoint &v = cab3D->viewpoints[viewpoint];
+    const Cab3D::Viewpoint &v = definition->cab3D->viewpoints[viewpoint];
     const float degree = float(M_PI / 180.0);
     mount = CameraMount();
     std::fill(mount.position, mount.position + 3, 0.0f);
@@ -1077,14 +636,14 @@ bool Eng::cab3DMount(int viewpoint, CameraMount &mount) const {
 }
 
 ComplexShape *Eng::cab3DShapeOf(long long int shapeLibId) {
-    if (!cab3DShape.id.contains(shapeLibId)) {
+    if (!cab3DShapeIds.contains(shapeLibId)) {
         const QString file = cab3DShapePath();
         ShapeLoadOptions options;
         options.insert(QString::fromLatin1(ShapeLoadOption::DoubleSided), true);
-        cab3DShape.id[shapeLibId] = file.isEmpty() ? -1
+        cab3DShapeIds[shapeLibId] = file.isEmpty() ? -1
                 : Game::currentShapeLib->addShape(file, QFileInfo(file).path(), options);
     }
-    const int id = cab3DShape.id[shapeLibId];
+    const int id = cab3DShapeIds[shapeLibId];
     return id >= 0 ? Game::currentShapeLib->shape[id] : nullptr;
 }
 
@@ -1162,7 +721,7 @@ void Eng::getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, con
     }
     const float vehicle[MapFeatures::VehicleFloats] = {
         (ends[0][0] + ends[1][0]) * 0.5f, (ends[0][1] + ends[1][1]) * 0.5f, dx, dz,
-        sizez > 0 ? sizez : span, sizex > 0 ? sizex : 3.0f, wagonTypeId >= 4 ? 1.0f : 0.0f};
+        definition->size[2] > 0 ? definition->size[2] : span, definition->size[0] > 0 ? definition->size[0] : 3.0f, definition->wagonTypeId >= 4 ? 1.0f : 0.0f};
     features.vehicles.insert(features.vehicles.end(), vehicle, vehicle + MapFeatures::VehicleFloats);
 }
 
@@ -1225,7 +784,7 @@ unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bo
         delete carAnimation;
         posedShape = carShape;
         posedState = carShape->newState();
-        carAnimation = new CarAnimation(*carShape, wagonTypeId >= 4, wagonTypeId == 6, wheelRadius, driverWheelRadius);
+        carAnimation = new CarAnimation(*carShape, definition->wagonTypeId >= 4, definition->wagonTypeId == 6, definition->wheelRadius, definition->driverWheelRadius);
         for (int g = 0; g < CarAnimation::GroupCount; ++g)
             carAnimation->set(CarAnimation::Group(g), animationWanted[g]);
         for (int n = 1; n <= 2; ++n)
@@ -1318,7 +877,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     if (staticOnTrack) {
         const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
                                   rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
-                                  float(shape.id[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
+                                  float(shapeIds[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
                                   float(cabViewpoint), 0.0f};
         const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
         queue.addShadowSignature(hash);
@@ -1346,23 +905,23 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     if (cab != nullptr) {
         if (ShapeLod::apply(*cab, 0, place))
             cab->pushRenderItem(queue, selectionId, 0);
-    } else if (shape.id[shapeLibId] >= 0) {
+    } else if (shapeIds[shapeLibId] >= 0) {
         // Its parts posed in its own state (task shapes 12).
-        ComplexShape *carShape = Game::currentShapeLib->shape[shape.id[shapeLibId]];
+        ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
         const unsigned int state = poseShape(carShape, bogieTurns);
         if (ShapeLod::apply(*carShape, state, place))
             carShape->pushRenderItem(queue, selectionId, state);
     }
 
-    for (int i = 0; i < freightanimShape.size() && cab == nullptr; i++) {
-        if (freightanimShape[i].id[shapeLibId] >= 0) {
+    for (int i = 0; i < freightShapeIds.size() && cab == nullptr; i++) {
+        if (freightShapeIds[i][shapeLibId] >= 0) {
             queue.pushTransform();
             // Its offset as Open Rails adds it (z mirrored from MSTS's), in
             // the car's shape space (x mirrored: the shapes' mirrored root),
             // as the Shape Viewer has it: x was not mirrored here, and a
             // driver sat outside the cab (the user, 2026-10-28, SA103-013).
-            Mat4::translate(queue.transform(), queue.transform(), -freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
-            ComplexShape *freight = Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]];
+            Mat4::translate(queue.transform(), queue.transform(), -definition->freightAnims[i].offset[0], definition->freightAnims[i].offset[1], -definition->freightAnims[i].offset[2]);
+            ComplexShape *freight = Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]];
             if (ShapeLod::apply(*freight, 0, place))
                 freight->pushRenderItem(queue, selectionId, 0);
             queue.popTransform();
@@ -1371,11 +930,11 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     // Its lamps (task renderer 34), once its shape shows; from its cab their
     // beams alone.
     const EngLights *carLightsData = getLights();
-    if (carLightsData != nullptr && shape.id[shapeLibId] >= 0
-            && Game::currentShapeLib->shape[shape.id[shapeLibId]]->isLoaded()) {
+    if (carLightsData != nullptr && shapeIds[shapeLibId] >= 0
+            && Game::currentShapeLib->shape[shapeIds[shapeLibId]]->isLoaded()) {
         if (carLights == nullptr)
             carLights = new CarLights();
-        carLights->push(queue, *carLightsData, lightsTrain, sizez * 0.5f, selectionId, cab == nullptr);
+        carLights->push(queue, *carLightsData, lightsTrain, definition->size[2] * 0.5f, selectionId, cab == nullptr);
     }
     queue.setLayer(layer);
     queue.setAnimated(animated);
@@ -1459,15 +1018,15 @@ void Eng::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int par
     parent = list.size()-1;
 
     long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
-    if(shape.id[shapeLibId] >= 0) 
-        if(Game::currentShapeLib->shape[shape.id[shapeLibId]] != NULL){
-            Game::currentShapeLib->shape[shape.id[shapeLibId]]->fillContentHierarchyInfo(list, list.size()-1);
+    if(shapeIds[shapeLibId] >= 0) 
+        if(Game::currentShapeLib->shape[shapeIds[shapeLibId]] != NULL){
+            Game::currentShapeLib->shape[shapeIds[shapeLibId]]->fillContentHierarchyInfo(list, list.size()-1);
         }
 
-    for(int i = 0; i < freightanimShape.size(); i++){
-        if(freightanimShape[i].id[shapeLibId] >= 0) {
-            if(Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]] != NULL){
-                Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->fillContentHierarchyInfo(list, parent);
+    for(int i = 0; i < freightShapeIds.size(); i++){
+        if(freightShapeIds[i][shapeLibId] >= 0) {
+            if(Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]] != NULL){
+                Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]]->fillContentHierarchyInfo(list, parent);
             }
         }
     }

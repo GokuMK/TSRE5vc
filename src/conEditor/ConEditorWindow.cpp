@@ -586,10 +586,10 @@ void ConEditorWindow::eReloadEnabled(){
 
 void ConEditorWindow::eOpenInExternalEditor(){
     if(currentEng == NULL) return;
-    if(currentEng->filePaths.size() == 1){
-        QFileInfo fileInfo(currentEng->filePaths[0]);
+    if(currentEng->definition->files().size() == 1){
+        QFileInfo fileInfo(currentEng->definition->files()[0]);
         if(fileInfo.exists())
-            QDesktopServices::openUrl(QUrl::fromLocalFile(currentEng->filePaths[0]));
+            QDesktopServices::openUrl(QUrl::fromLocalFile(currentEng->definition->files()[0]));
     } else {
         ChooseFileDialog chooseFileDialog;
         chooseFileDialog.setMsg(
@@ -598,14 +598,14 @@ void ConEditorWindow::eOpenInExternalEditor(){
         chooseFileDialog.setWindowTitle(
             //% "Choose file:"
             qtTrId("con.editor.con.editor.window.title.choose.file"));
-        for(int i = 0; i < currentEng->filePaths.size(); i++){
-            chooseFileDialog.items.addItem(""+currentEng->filePaths[i]);
+        for(int i = 0; i < currentEng->definition->files().size(); i++){
+            chooseFileDialog.items.addItem(""+currentEng->definition->files()[i]);
         }
         chooseFileDialog.exec();
         if(chooseFileDialog.changed == 1){
-            QFileInfo fileInfo(currentEng->filePaths[chooseFileDialog.items.currentRow()]);
+            QFileInfo fileInfo(currentEng->definition->files()[chooseFileDialog.items.currentRow()]);
             if(fileInfo.exists())
-                QDesktopServices::openUrl(QUrl::fromLocalFile(currentEng->filePaths[chooseFileDialog.items.currentRow()]));
+                QDesktopServices::openUrl(QUrl::fromLocalFile(currentEng->definition->files()[chooseFileDialog.items.currentRow()]));
         }
     }
 }
@@ -648,7 +648,7 @@ void ConEditorWindow::vSaveImgShapeViewSelected(){
 
 void ConEditorWindow::vResetShapeViewSelected(){
     if(currentEng == NULL) return;
-    float pos = -currentEng->sizez-1;
+    float pos = -currentEng->definition->size[2]-1;
     if(pos > -15) pos = -15;
     engCamera->setPos(pos,2.5,0);
     engCamera->setPlayerRot(M_PI/2.0,0);
@@ -790,7 +790,7 @@ void ConEditorWindow::viewConView(bool show){
 
 void ConEditorWindow::setCurrentEng(int id, int engSetId){
     currentEng = englib->eng[id];
-    qDebug() << currentEng->engName;
+    qDebug() << currentEng->definition->engName;
 
     engSets.clear();
     con1->getEngSets(currentEng, engSets);
@@ -820,7 +820,7 @@ void ConEditorWindow::fillCurrentEng(int engSetId){
         if(pos > -15) pos = -15;
         emit showEngSet(engSets[engSetId]);
     } else {
-        pos = -currentEng->sizez-1;
+        pos = -currentEng->definition->size[2]-1;
         if(pos > -15) pos = -15;
         emit showEng(currentEng);
     }
@@ -828,38 +828,38 @@ void ConEditorWindow::fillCurrentEng(int engSetId){
     //engCamera->setPos(-30,2.5,0);
     engCamera->setPlayerRot(M_PI/2.0,0);
     
-    eName.setText(currentEng->displayName);
+    eName.setText(currentEng->definition->displayName);
     eFileName.setText(currentEng->name);
     eDirName.setText(currentEng->path.split("/").last());
-    QString ttype = currentEng->type;
-    if(currentEng->engType.length() > 1)
-        ttype += " ( "+currentEng->engType+" )";
+    QString ttype = currentEng->definition->type;
+    if(currentEng->definition->engType.length() > 1)
+        ttype += " ( "+currentEng->definition->engType+" )";
     eType.setText(ttype);
     //eBrakes;
     //eCouplings;
     showEngValues();
-    eShape.setText(currentEng->shape.name);
+    eShape.setText(currentEng->definition->shape);
     eCouplings.setText(currentEng->getCouplingsName());
-    eBrakes.setText(currentEng->brakeSystemType);
+    eBrakes.setText(currentEng->definition->brakeSystemType);
 }
 
 void ConEditorWindow::showEngValues(){
     if(currentEng == NULL)
         return;
     using Units::Quantity;
-    eMass.setText(Units::format(currentEng->massKg, Quantity::Mass));
-    if(currentEng->wagonTypeId >= 4){
-        eMaxSpeed.setText(Units::format(currentEng->maxSpeedMps, Quantity::Speed, 0));
-        eMaxForce.setText(Units::format(currentEng->forceN, Quantity::Force));
-        eMaxPower.setText(Units::format(currentEng->powerW, Quantity::Power));
+    eMass.setText(Units::format(currentEng->definition->massKg, Quantity::Mass));
+    if(currentEng->definition->wagonTypeId >= 4){
+        eMaxSpeed.setText(Units::format(currentEng->definition->maxSpeedMps, Quantity::Speed, 0));
+        eMaxForce.setText(Units::format(currentEng->definition->forceN, Quantity::Force));
+        eMaxPower.setText(Units::format(currentEng->definition->powerW, Quantity::Power));
     } else {
         eMaxSpeed.setText("--");
         eMaxForce.setText("--");
         eMaxPower.setText("--");
     }
-    eSize.setText(Units::formatNumber(currentEng->sizex, Quantity::Length) + " "
-                  + Units::formatNumber(currentEng->sizey, Quantity::Length) + " "
-                  + Units::format(currentEng->sizez, Quantity::Length));
+    eSize.setText(Units::formatNumber(currentEng->definition->size[0], Quantity::Length) + " "
+                  + Units::formatNumber(currentEng->definition->size[1], Quantity::Length) + " "
+                  + Units::format(currentEng->definition->size[2], Quantity::Length));
 }
 
 void ConEditorWindow::engSetAddSelected(){
@@ -971,7 +971,7 @@ void ConEditorWindow::engListSelected(int id){
     else
         setCurrentEng(id, -1);
     //currentEng = englib->eng[id];
-    qDebug() << currentEng->engName;
+    qDebug() << currentEng->definition->engName;
     //float pos = -currentEng->sizez-1;
     //if(pos > -15) pos = -15;
     //engCamera->setPos(pos,2.5,0);
@@ -1046,7 +1046,7 @@ void ConEditorWindow::conSliderValueChanged(int val){
 void ConEditorWindow::addToRandomConsist(int id){
     if(englib->eng[id] == NULL) return;
     randomConsist->show();
-    new QListWidgetItem ( englib->eng[id]->displayName, &randomConsist->items, id);
+    new QListWidgetItem ( englib->eng[id]->definition->displayName, &randomConsist->items, id);
 }
 
 void ConEditorWindow::replaceOneEnabled(){

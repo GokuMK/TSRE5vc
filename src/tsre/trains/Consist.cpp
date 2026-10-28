@@ -314,12 +314,12 @@ void Consist::initPos(){
         engItems[i].pos = length;
         length += size / 2.0;
         conLength += size;
-        massKg += Game::currentEngLib->eng[engItems[i].eng]->massKg;
-        if(Game::currentEngLib->eng[engItems[i].eng]->wagonTypeId >= 4){
-            if(Game::currentEngLib->eng[engItems[i].eng]->maxSpeedMps > tmaxspeed)
-                tmaxspeed = Game::currentEngLib->eng[engItems[i].eng]->maxSpeedMps;
-            engineMassKg += Game::currentEngLib->eng[engItems[i].eng]->massKg;
-            maxForce += Game::currentEngLib->eng[engItems[i].eng]->forceN;
+        massKg += Game::currentEngLib->eng[engItems[i].eng]->definition->massKg;
+        if(Game::currentEngLib->eng[engItems[i].eng]->definition->wagonTypeId >= 4){
+            if(Game::currentEngLib->eng[engItems[i].eng]->definition->maxSpeedMps > tmaxspeed)
+                tmaxspeed = Game::currentEngLib->eng[engItems[i].eng]->definition->maxSpeedMps;
+            engineMassKg += Game::currentEngLib->eng[engItems[i].eng]->definition->massKg;
+            maxForce += Game::currentEngLib->eng[engItems[i].eng]->definition->forceN;
         }
     }
 
@@ -401,7 +401,7 @@ void Consist::appendEngItem(int id, int pos, bool flip){
         return;
     }
 
-    newE->type = eng->wagonTypeId / 4;
+    newE->type = eng->definition->wagonTypeId / 4;
     newE->eng = id;
     newE->ename = eng->name.section(".", 0, -2);
     newE->epath = eng->path.split("/").last();
@@ -449,7 +449,7 @@ void Consist::replaceEngItem(int id, int pos){
     
     EngItem* newE = &engItems[pos];
 
-    newE->type = eng->wagonTypeId / 4;
+    newE->type = eng->definition->wagonTypeId / 4;
     newE->eng = id;
     newE->ename = eng->name.section(".", 0, -2);
     newE->epath = eng->path.split("/").last();
@@ -570,7 +570,7 @@ QString Consist::getFirstEngName(){
 // Lazily created labels, shared by render() and pushRenderItems().
 TextObj *Consist::nameLabel(int i) {
     if(engItems[i].txt == NULL){
-        engItems[i].txt = new TextObj(Game::currentEngLib->eng[engItems[i].eng]->displayName, 16, 1.0);
+        engItems[i].txt = new TextObj(Game::currentEngLib->eng[engItems[i].eng]->definition->displayName, 16, 1.0);
         engItems[i].txt->setColor(textColor[0],textColor[1],textColor[2]);
     }
     return engItems[i].txt;
@@ -797,7 +797,7 @@ void Consist::pushRenderItems(RenderQueue &queue, quint32 selectionId, bool rend
         Mat4::translate(mv, mv, 0, 5, engItems[i].pos);
         numberLabel(i)->pushRenderItem(queue, M_PI/2);
         Mat4::translate(mv, mv, 0, 0, -1);
-        TextObj *type = typeLabel(eng->wagonTypeId);
+        TextObj *type = typeLabel(eng->definition->wagonTypeId);
         if(type != NULL)
             type->pushRenderItem(queue, M_PI/2);
         queue.popTransform();
@@ -915,7 +915,7 @@ EngLights::Train Consist::lightsTrain(int vehicle) const {
     // The first locomotive leads, the others run with it.
     auto locomotive = [this](int i) {
         const Eng *eng = engItems[i].engPointer;
-        return eng != NULL && eng->wagonTypeId >= 4;
+        return eng != NULL && eng->definition->wagonTypeId >= 4;
     };
     int lead = -1;
     for (int i = 0; i < count && lead < 0; i++)

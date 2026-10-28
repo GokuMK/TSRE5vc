@@ -43,12 +43,12 @@ constexpr double Mile = 0.44704;
 // (four axles, a frontal area of 10 m², the leading vehicle's air drag
 // higher).
 void resistanceOf(const Eng &eng, bool leading, double davis[3]) {
-    if (eng.hasDavis) {
-        std::copy(eng.davis, eng.davis + 3, davis);
+    if (eng.definition->hasDavis) {
+        std::copy(eng.definition->davis, eng.definition->davis + 3, davis);
         return;
     }
-    const double *f = eng.friction;
-    if (eng.hasFriction && f[2] >= 0.0 && f[2] <= 10.0 * Mile) {
+    const double *f = eng.definition->friction;
+    if (eng.definition->hasFriction && f[2] >= 0.0 && f[2] <= 10.0 * Mile) {
         // Its force above the second speed.
         const auto force = [f](double v) {
             return f[0] * std::pow(f[2], f[1]) + f[3] * f[2] + f[3] * (std::pow(v, f[4] + 1.0) - std::pow(f[2], f[4] + 1.0));
@@ -79,7 +79,7 @@ void resistanceOf(const Eng &eng, bool leading, double davis[3]) {
         }
         return;
     }
-    const double tons = eng.massKg / 907.18474;
+    const double tons = eng.definition->massKg / 907.18474;
     const double areaFt2 = 10.0 / 0.09290304;
     davis[0] = (1.3 * tons + 29.0 * 4.0) * PoundForce;
     davis[1] = 0.045 * tons * PoundForce / Mile;
@@ -126,15 +126,15 @@ Vehicle VehicleOf(const Consist::EngItem &item) {
     if (eng == nullptr)
         return vehicle;
     vehicle.length = const_cast<Eng *>(eng)->getFullWidth();
-    vehicle.type = eng->wagonTypeId;
-    vehicle.passengerCapacity = eng->passengerCapacity;
-    if (eng->wagonTypeId >= 4) {
-        vehicle.maxSpeed = float(eng->maxSpeedMps);
-        vehicle.force = eng->forceN;
-        vehicle.power = eng->powerW;
+    vehicle.type = eng->definition->wagonTypeId;
+    vehicle.passengerCapacity = eng->definition->passengerCapacity;
+    if (eng->definition->wagonTypeId >= 4) {
+        vehicle.maxSpeed = float(eng->definition->maxSpeedMps);
+        vehicle.force = eng->definition->forceN;
+        vehicle.power = eng->definition->powerW;
     }
-    if (eng->massKg > 0.0) {
-        vehicle.mass = eng->massKg;
+    if (eng->definition->massKg > 0.0) {
+        vehicle.mass = eng->definition->massKg;
         double davis[3] = {0.0, 0.0, 0.0}, lead[3] = {0.0, 0.0, 0.0};
         resistanceOf(*eng, false, davis);
         resistanceOf(*eng, true, lead);

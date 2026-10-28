@@ -359,13 +359,13 @@ Engine ( Test
 )
 )");
         Eng eng(folder.path(), "Test.eng");
-        check(std::fabs(eng.massKg - 117570.0) < 0.01 && std::fabs(eng.forceN - 230000.0) < 0.01
-                  && std::fabs(eng.powerW - 1400000.0) < 0.01 && std::fabs(eng.maxSpeedMps - 74.56 * 0.44704) < 1e-4
-                  && eng.hasDavis && eng.davis[0] == 1000.0 && eng.davis[1] == 20.0 && eng.davis[2] == 0.0
-                  && eng.hasFriction && eng.friction[0] == 150.0 && std::fabs(eng.friction[2] + 0.44704) < 1e-6
-                  && eng.passengerCapacity,
+        check(std::fabs(eng.definition->massKg - 117570.0) < 0.01 && std::fabs(eng.definition->forceN - 230000.0) < 0.01
+                  && std::fabs(eng.definition->powerW - 1400000.0) < 0.01 && std::fabs(eng.definition->maxSpeedMps - 74.56 * 0.44704) < 1e-4
+                  && eng.definition->hasDavis && eng.definition->davis[0] == 1000.0 && eng.definition->davis[1] == 20.0 && eng.definition->davis[2] == 0.0
+                  && eng.definition->hasFriction && eng.definition->friction[0] == 150.0 && std::fabs(eng.definition->friction[2] + 0.44704) < 1e-6
+                  && eng.definition->passengerCapacity,
               QString("an engine's file in SI: %1 kg, %2 N, %3 W, %4 m/s, Davis and Friction read")
-                  .arg(eng.massKg).arg(eng.forceN).arg(eng.powerW).arg(eng.maxSpeedMps));
+                  .arg(eng.definition->massKg).arg(eng.definition->forceN).arg(eng.definition->powerW).arg(eng.definition->maxSpeedMps));
     }
 
     // The geometry copy: straight and curved sections, turned every way,

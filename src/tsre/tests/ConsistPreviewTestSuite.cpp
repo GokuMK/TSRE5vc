@@ -66,8 +66,10 @@ int TsreTests::runConsistPreviewSuite(bool verbose) {
     Consist consist;
     Eng wagon;
     wagon.loaded = 1;
-    wagon.sizex = 2; wagon.sizey = 2; wagon.sizez = 2;
-    wagon.displayName = "Test wagon";
+    auto definition = std::make_shared<VehicleDefinition>();
+    definition->size[0] = 2; definition->size[1] = 2; definition->size[2] = 2;
+    definition->displayName = "Test wagon";
+    wagon.definition = definition;
     engines.eng[0] = &wagon;
     for(int i = 0; i < 2; ++i){
         Consist::EngItem item;
@@ -84,7 +86,7 @@ int TsreTests::runConsistPreviewSuite(bool verbose) {
     widget.setBackgroundGlColor(0.1f, 0.1f, 0.1f);
     WagonShape shape;
     widget.currentShapeLib->shape[0] = &shape;
-    wagon.shape.id[reinterpret_cast<long long>(widget.currentShapeLib)] = 0;
+    wagon.shapeIds[reinterpret_cast<long long>(widget.currentShapeLib)] = 0;
     widget.showCon(0);
     widget.show();
     QApplication::processEvents();

@@ -99,7 +99,7 @@ void RandomConsist::listSelected(QString val){
     if(c == NULL)
         return;
     for(int i = 0; i < c->engItems.size(); i++)
-        new QListWidgetItem ( Game::currentEngLib->eng[c->engItems[i].eng]->displayName, &items, c->engItems[i].eng);
+        new QListWidgetItem ( Game::currentEngLib->eng[c->engItems[i].eng]->definition->displayName, &items, c->engItems[i].eng);
 }
 
 void RandomConsist::cancel(){

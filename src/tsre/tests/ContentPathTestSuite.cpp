@@ -172,12 +172,14 @@ int TsreTests::runContentPathSuite(bool verbose) {
     test.check(ActLib::GetPathByName("LOCAL",a)==pa && ActLib::GetPathByName("local",b)==pb,"path logical names are route-scoped");
 
     const QString vehicle=root+"/TRAINS/TRAINSET/MixedLoco";
-    put(vehicle+"/CabData.inc","WagonShape ( MixedBody.S )");
+    // An include file's first line is its header, never read (as in Open
+    // Rails): the fixtures' start blank.
+    put(vehicle+"/CabData.inc","\r\nWagonShape ( MixedBody.S )");
     put(vehicle+"/Mixed.eng","SIMISA@@@@@@@@@@JINX0D0t______\r\nWagon ( Mixed Include ( CabData.inc ) )");
     EngLib engines;
     const int engId=engines.addEng(vehicle,"Mixed.eng");
     test.check(engines.eng[engId]->loaded==1 && engines.eng[engId]->pathid==vehicle+"/Mixed.eng","vehicle directory and engine spelling survive loading");
-    test.check(engines.eng[engId]->shape.name=="MixedBody.S","engine include retains authored filename and shape spelling");
+    test.check(engines.eng[engId]->definition->shape=="MixedBody.S","engine include retains authored filename and shape spelling");
     test.check(engines.addEng(vehicle,"Mixed.eng")==engId,"engine cache reuses a valid source");
     test.check(engines.addEng(vehicle.toLower(),"MIXED.ENG")==engId &&
             engines.getEngByPathid((vehicle+"/MIXED.eng").toUpper())==engId,
@@ -187,14 +189,14 @@ int TsreTests::runContentPathSuite(bool verbose) {
     // them to the next include.
     put(vehicle+"/Power.inc",QByteArray("\xEF\xBB\xBF\r\nORTSDieselEngines ( 1\r\nDiesel ( MaxRPM ( 1000 ) )\r\n)\r\n"
                                         "MaxForce ( 245kN )\r\nMaxPower ( 692kW )\r\n"));
-    put(vehicle+"/Speed.inc","MaxVelocity ( 100kmh )");
+    put(vehicle+"/Speed.inc","\r\nMaxVelocity ( 100kmh )");
     put(vehicle+"/Named.inc",QByteArray("\xEF\xBB\xBF\r\nName ( \"Wroc\xC5\x82""aw\" )\r\n"));
     put(vehicle+"/Bom.eng","SIMISA@@@@@@@@@@JINX0D0t______\r\nWagon ( Bom WagonShape ( Bom.s ) Include ( Named.inc ) )\r\n"
                            "Engine ( Bom\r\nInclude ( Power.inc )\r\nInclude ( Speed.inc )\r\n)");
     const int bomId=engines.addEng(vehicle,"Bom.eng");
     const Eng *bom=engines.eng[bomId];
-    test.check(bom->loaded==1 && std::abs(bom->forceN-245000.0)<1.0 && std::abs(bom->powerW-692000.0)<1.0
-            && std::abs(bom->maxSpeedMps-100.0/3.6)<0.01 && bom->displayName==QString::fromUtf8("Wroc\xC5\x82""aw"),
+    test.check(bom->loaded==1 && std::abs(bom->definition->forceN-245000.0)<1.0 && std::abs(bom->definition->powerW-692000.0)<1.0
+            && std::abs(bom->definition->maxSpeedMps-100.0/3.6)<0.01 && bom->definition->displayName==QString::fromUtf8("Wroc\xC5\x82""aw"),
             "UTF-8 include files with a byte order mark read whole, the engine block read on after them");
     Eng engineCopy(engines.eng[engId]);
     test.check(engineCopy.hashid==engines.eng[engId]->hashid,"engine copies retain logical identity");
@@ -204,7 +206,7 @@ int TsreTests::runContentPathSuite(bool verbose) {
                 "engine cache keeps its selected source until reload");
         engines.removeAll();
         const int overrideId=engines.addEng(vehicle,"Mixed.eng");
-        test.check(engines.eng[overrideId]->shape.name=="OverrideBody.S",
+        test.check(engines.eng[overrideId]->definition->shape=="OverrideBody.S",
                 "explicit engine reload selects newly available Open Rails override");
     }
     const int mixedId=engines.getEngByPathid(vehicle+"/Mixed.eng");
