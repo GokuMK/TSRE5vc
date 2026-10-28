@@ -337,12 +337,12 @@ void main() {
             // Fog tints the colour only; mixing alpha towards the sky's 1 made
             // translucent surfaces turn opaque with distance.
 #ifdef TSRE_RHI
-            // Under cover the haze is lit as the ambient is: no bright fog
-            // deep in a tunnel.
+            // Under cover the haze is lit as the ambient is (no bright fog
+            // deep in a tunnel), as the open sky where the ray lies open.
             if (hazeOn())
-                fragColor.rgb = applyHaze(fragColor.rgb, vLightPosition, 1.0, skyAmbient(shade));
+                fragColor.rgb = applyHaze(fragColor.rgb, vLightPosition, 1.0, hazeLightScale(vLightPosition, shade));
             else
-                fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * skyAmbient(shade), fogFactor);
+                fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * hazeLightScale(vLightPosition, shade), fogFactor);
 #else
             fragColor.rgb = mix(fragColor.rgb, skyColor.rgb, fogFactor);
 #endif

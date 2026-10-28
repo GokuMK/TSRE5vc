@@ -184,10 +184,50 @@ vec3 hazeLight(vec3 position) {
     return mix(hazeRing[i].rgb, hazeRing[i + 1].rgb, t - float(i));
 }
 
+// How the fog and the air before a covered surface are lit (shade: the
+// surface's, skyEnclosed): as the ambient is under cover, no bright fog deep
+// in a tunnel (task 29), as the open sky where the ray lies in the open: the
+// share of 8 points along it without cover over them (as coverOver). The
+// surface's ambient for all of it left a covered place seen through the fog
+// from the open (a hall far off) black, its fog dark all the way to the
+// camera (the user, 2026-10-28, CMK, valley fog at 4:00); the camera's end
+// open for all of it lit the haze along a tunnel looked into from outside.
+// A camera deep under cover (in a tunnel) looks along it in the dark: no
+// points (every pixel there is covered).
+float hazeLightScale(vec3 position, float shade) {
+    float scale = skyAmbient(shade);
+    if (scale >= 1.0 || skyEnclosureParams.x <= 0.0)
+        return scale;
+    // The maps are orthographic: map coordinates run linearly along the ray.
+    vec3 m0 = (skyEnclosureMatrix * vec4(cameraPosition, 1.0)).xyz * 0.5 + 0.5;
+    vec3 m1 = (skyEnclosureMatrix * vec4(position, 1.0)).xyz * 0.5 + 0.5;
+    float over = smoothstep(2.0, 4.0, (m0.z - textureLod(skyEnclosureMap, m0.xy, 0.0).r) * skyEnclosureParams.y);
+    float deep = skyEnclosureOpen.x > 0.0 ? over * (1.0 - pointOpenness(skyEnclosureOpenMap, m0)) : over;
+    if (deep > 0.5)
+        return scale;
+    bool far = skyEnclosureFar.x > 0.0;
+    vec3 f0 = far ? (skyEnclosureFarMatrix * vec4(cameraPosition, 1.0)).xyz * 0.5 + 0.5 : vec3(0.0);
+    vec3 f1 = far ? (skyEnclosureFarMatrix * vec4(position, 1.0)).xyz * 0.5 + 0.5 : vec3(0.0);
+    float open = 0.0;
+    for (int k = 0; k < 8; ++k) {
+        float t = (float(k) + 0.5) / 8.0;
+        vec3 m = mix(m0, m1, t);
+        float covered = 0.0;
+        if (max(abs(m.x - 0.5), abs(m.y - 0.5)) < 0.465 && m.z > 0.0 && m.z < 1.0) {
+            covered = smoothstep(0.5, 2.0, (m.z - textureLod(skyEnclosureMap, m.xy, 0.0).r) * skyEnclosureParams.y);
+        } else if (far) {
+            vec3 f = mix(f0, f1, t);
+            if (max(abs(f.x - 0.5), abs(f.y - 0.5)) < 0.47 && f.z > 0.0 && f.z < 1.0)
+                covered = smoothstep(0.5, 2.0, (f.z - textureLod(skyEnclosureFarMap, f.xy, 0.0).r) * skyEnclosureParams.y);
+        }
+        open += 1.0 - covered;
+    }
+    return mix(scale, 1.0, open / 8.0);
+}
+
 // A surface's display colour seen through the air, its share of the haze
-// (water over a bed already hazed takes less), the air's light scaled (under
-// cover it is lit as the ambient is). Mixed in linear light, as the final
-// pass reads the view.
+// (water over a bed already hazed takes less), the air's light scaled
+// (hazeLightScale). Mixed in linear light, as the final pass reads the view.
 vec3 applyHaze(vec3 display, vec3 position, float amount, float lightScale) {
     // The fog lies low, in front of what the air reaches: the fog first, then
     // the air over both (far fog banks turn blue with the distance).
