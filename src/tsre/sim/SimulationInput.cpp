@@ -29,62 +29,16 @@
 
 namespace Sim {
 
+Vehicle::Vehicle(float length, bool flip, int type) : flip(flip) {
+    auto own = std::make_shared<VehicleDefinition>();
+    own->size[2] = length;
+    own->wagonTypeId = type;
+    definition = own;
+}
+
 namespace {
 
 std::atomic<unsigned int> nextRun{1};
-
-constexpr double PoundForce = 4.44822162;
-constexpr double Mile = 0.44704;
-
-// A vehicle's resistance as Davis coefficients (N, N/(m/s), N/(m/s)²):
-// Open Rails' ORTSDavis values where the file has them; else MSTS's
-// Friction, where its second speed is a low one (FCalc's), fitted by least
-// squares from there to 80 mph; else the Davis equation for plain bearings
-// (four axles, a frontal area of 10 m², the leading vehicle's air drag
-// higher).
-void resistanceOf(const Eng &eng, bool leading, double davis[3]) {
-    if (eng.hasDavis) {
-        std::copy(eng.davis, eng.davis + 3, davis);
-        return;
-    }
-    const double *f = eng.friction;
-    if (eng.hasFriction && f[2] >= 0.0 && f[2] <= 10.0 * Mile) {
-        // Its force above the second speed.
-        const auto force = [f](double v) {
-            return f[0] * std::pow(f[2], f[1]) + f[3] * f[2] + f[3] * (std::pow(v, f[4] + 1.0) - std::pow(f[2], f[4] + 1.0));
-        };
-        // Normal equations of a + b v + c v².
-        double m[3][4] = {};
-        for (double v = std::max(f[2], 0.5); v <= 80.0 * Mile; v += 0.5) {
-            const double row[3] = {1.0, v, v * v};
-            const double y = force(v);
-            for (int r = 0; r < 3; ++r) {
-                for (int c = 0; c < 3; ++c)
-                    m[r][c] += row[r] * row[c];
-                m[r][3] += row[r] * y;
-            }
-        }
-        for (int k = 0; k < 3; ++k) {
-            for (int r = k + 1; r < 3; ++r) {
-                const double scale = m[r][k] / m[k][k];
-                for (int c = k; c < 4; ++c)
-                    m[r][c] -= scale * m[k][c];
-            }
-        }
-        for (int k = 2; k >= 0; --k) {
-            double sum = m[k][3];
-            for (int c = k + 1; c < 3; ++c)
-                sum -= m[k][c] * davis[c];
-            davis[k] = sum / m[k][k];
-        }
-        return;
-    }
-    const double tons = eng.massKg / 907.18474;
-    const double areaFt2 = 10.0 / 0.09290304;
-    davis[0] = (1.3 * tons + 29.0 * 4.0) * PoundForce;
-    davis[1] = 0.045 * tons * PoundForce / Mile;
-    davis[2] = (leading ? 0.0005 : 0.00035) * areaFt2 * PoundForce / (Mile * Mile);
-}
 
 const TRitem *platformItem(TDB *tdb, int id) {
     auto it = tdb->trackItems.find(id);
@@ -115,32 +69,13 @@ Eng *engOf(int engId) {
     return e != Game::currentEngLib->eng.end() ? e->second : nullptr;
 }
 
-// A consist's vehicle as the core sees it: its length, kind and its share
-// of the train's performance (task 03; a vehicle without a known mass has
-// mass 0).
+// A consist's vehicle as the core sees it: its file's definition, shared.
 Vehicle VehicleOf(const Consist::EngItem &item) {
     Vehicle vehicle;
     vehicle.flip = item.flip;
     vehicle.eng = item.eng;
-    const Eng *eng = engOf(item.eng);
-    if (eng == nullptr)
-        return vehicle;
-    vehicle.length = const_cast<Eng *>(eng)->getFullWidth();
-    vehicle.type = eng->wagonTypeId;
-    vehicle.passengerCapacity = eng->passengerCapacity;
-    if (eng->wagonTypeId >= 4) {
-        vehicle.maxSpeed = float(eng->maxSpeedMps);
-        vehicle.force = eng->forceN;
-        vehicle.power = eng->powerW;
-    }
-    if (eng->massKg > 0.0) {
-        vehicle.mass = eng->massKg;
-        double davis[3] = {0.0, 0.0, 0.0}, lead[3] = {0.0, 0.0, 0.0};
-        resistanceOf(*eng, false, davis);
-        resistanceOf(*eng, true, lead);
-        std::copy(davis, davis + 3, vehicle.davis);
-        vehicle.davisLeading = lead[2];
-    }
+    if (const Eng *eng = engOf(item.eng))
+        vehicle.definition = eng->definition;
     return vehicle;
 }
 
@@ -176,8 +111,8 @@ std::vector<StaticConsist> StaticConsists(Activity *activity, TDB *tdb) {
             Vehicle vehicle = VehicleOf(item);
             vehicle.id = unsigned(object->id) * 65536u + unsigned(item.uid);
             if (v == 0)
-                first = vehicle.length;
-            consist.length += vehicle.length;
+                first = vehicle.length();
+            consist.length += vehicle.length();
             consist.vehicles.push_back(vehicle);
         }
         int node = -1;
@@ -455,7 +390,7 @@ Rates RatesOf(const std::vector<Vehicle> &vehicles, float top) {
     // A freight wagon makes it a freight train (Open Rails).
     bool freight = false;
     for (const Vehicle &vehicle : vehicles)
-        freight = freight || vehicle.type == 2;
+        freight = freight || vehicle.type() == 2;
     rates.passenger = !freight;
     if (freight) {
         rates.acceleration = 0.5f;
@@ -465,7 +400,7 @@ Rates RatesOf(const std::vector<Vehicle> &vehicles, float top) {
     rates.acceleration = 1.0f;
     rates.deceleration = top > 55.0f ? 2.5f : top > 40.0f ? 1.5f : 1.0f;
     // An EMU: electric power cars with passengers at both ends.
-    const auto powerCar = [](const Vehicle &vehicle) { return vehicle.type == 4 && vehicle.passengerCapacity; };
+    const auto powerCar = [](const Vehicle &vehicle) { return vehicle.type() == 4 && vehicle.passengerCapacity(); };
     if (rates.deceleration == 1.0f && !vehicles.empty() && powerCar(vehicles.front()) && powerCar(vehicles.back())) {
         rates.acceleration = 1.5f;
         rates.deceleration = 2.0f;
@@ -484,12 +419,12 @@ Performance PerformanceOf(const std::vector<Vehicle> &vehicles) {
     Performance p;
     for (size_t i = 0; i < vehicles.size(); ++i) {
         const Vehicle &vehicle = vehicles[i];
-        p.mass += vehicle.mass;
-        p.force += vehicle.force;
-        p.power += vehicle.power;
-        p.davisA += vehicle.davis[0];
-        p.davisB += vehicle.davis[1];
-        p.davisC += i == 0 ? vehicle.davisLeading : vehicle.davis[2];
+        p.mass += vehicle.mass();
+        p.force += vehicle.force();
+        p.power += vehicle.power();
+        p.davisA += vehicle.davis(0);
+        p.davisB += vehicle.davis(1);
+        p.davisC += i == 0 ? vehicle.davisLeading() : vehicle.davis(2);
     }
     return p;
 }
@@ -498,9 +433,9 @@ Driving DrivingOf(const std::vector<Vehicle> &vehicles) {
     bool known = !vehicles.empty();
     double force = 0.0, power = 0.0;
     for (const Vehicle &vehicle : vehicles) {
-        known = known && vehicle.mass > 0.0;
-        force += vehicle.force;
-        power += vehicle.power;
+        known = known && vehicle.mass() > 0.0;
+        force += vehicle.force();
+        power += vehicle.power();
     }
     return known && (force > 0.0 || power > 0.0) ? Driving::Physics : Driving::Simple;
 }
@@ -544,9 +479,9 @@ void vehiclesOf(SimulationInput &input, TrainPlan &plan, const std::vector<Consi
             Vehicle vehicle = VehicleOf(item);
             if (player)
                 vehicle.id = unsigned(item.uid);
-            if (vehicle.maxSpeed > 0.0f)
-                engineSpeed = engineSpeed > 0.0f ? std::min(engineSpeed, vehicle.maxSpeed) : vehicle.maxSpeed;
-            if (vehicle.mass <= 0.0) {
+            if (vehicle.maxSpeed() > 0.0f)
+                engineSpeed = engineSpeed > 0.0f ? std::min(engineSpeed, vehicle.maxSpeed()) : vehicle.maxSpeed();
+            if (vehicle.mass() <= 0.0) {
                 const Eng *eng = engOf(item.eng);
                 const QString what = eng != nullptr ? eng->name : QString::number(item.eng);
                 if (!missing.contains(what))
@@ -560,7 +495,7 @@ void vehiclesOf(SimulationInput &input, TrainPlan &plan, const std::vector<Consi
                 vehicle.flip = !vehicle.flip;
         }
         for (const Vehicle &vehicle : vehicles) {
-            plan.length += vehicle.length;
+            plan.length += vehicle.length();
             plan.vehicles.push_back(vehicle);
         }
         if (part.consist->fileMaxVelocity > 0.1f)
@@ -1638,7 +1573,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
             const QVector<int> passOf = ServiceStops::Passes(stops, passes);
             int passengerCars = 0;
             for (const Vehicle &vehicle : plan.vehicles)
-                passengerCars += vehicle.type == 1 ? 1 : 0;
+                passengerCars += vehicle.type() == 1 ? 1 : 0;
             for (int i = 0; i < count; ++i) {
                 const TRitem *item = platformItem(tdb, stops[i].platformStartID);
                 const QString platform = item != nullptr ? item->stationName : QString::number(stops[i].platformStartID);

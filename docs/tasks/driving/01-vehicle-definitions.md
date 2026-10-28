@@ -1,7 +1,6 @@
 # Task 01 - Vehicle definitions (the ENG refactor)
 
-Status: design agreed with the user (2026-10-28); implementation on
-`feature/vehicle-definitions`.
+Status: done on `feature/vehicle-definitions` (2026-10-28), not merged.
 
 The roadmap's first driving task (decided 2026-10-17: before any driving
 task): one vehicle definition per ENG/WAG file, read once and not changed
@@ -98,8 +97,16 @@ byte order mark.
     fits.
   - 139 files have unbalanced parentheses, 5 of them include files.
 - **First lines:** 936 include files start with a comment on their first
-  line, which Open Rails drops anyway. 6 start with a line of stars, dashes or
-  junk that only Open Rails' rule hides, for example `b  ß00 hbcomment (…`.
+  line, which Open Rails drops anyway. Others hide a mistake behind Open
+  Rails' rule:
+  - 12 start with a comment whose quote never closes, for example
+    `comment ("Size, InteriaTensor, … SM31)`; 8 of them are included;
+  - 6 start with a line of stars, dashes or junk, for example
+    `b  ß00 hbcomment (…`.
+
+  One, `SA134/Agregat_SA134_B.inc`, which no vehicle includes, opens a block
+  on its first line. Open Rails drops that line, so the block's `)` would
+  close the including `Engine` block.
 - **Size:** the median OR_PSK vehicle is 365 tokens; the largest is 124,000
   tokens with its includes.
 
@@ -141,13 +148,19 @@ byte order mark.
 - **An include that doesn't balance its parentheses can't be a subtree.** It
   is inlined into the including file instead, as Open Rails does, and
   reported. OR_PSK has 5 such files.
-- **Open Rails' rules, applied when the tree is built:**
-  - the first line of every file is skipped as its header;
-  - `comment` and `skip` blocks, and `#` or `_` tokens with the item after
-    them, are left out, so scripts never see them.
-
-  A first line that holds anything other than a SIMIS header, a blank or a
-  comment is reported, since Open Rails drops it.
+- **The first line** (the user's, 2026-10-28). Open Rails never reads a
+  file's first line, taking it for the SIMIS header; TSRE reads it unless it
+  is one:
+  - a SIMIS header is skipped, a stray character before it too
+    (`<SIMISA@@…`);
+  - a line that doesn't read alone is skipped and reported: one that leaves
+    a quote open or closes a block it didn't open. Content made for Open
+    Rails can hide such a line there, like the broken comments above.
+  - anything else is read. Data found there is reported, since Open Rails
+    reads that file differently.
+- **Open Rails' other rules, applied when the tree is built:** `comment`
+  and `skip` blocks, and `#` or `_` tokens with the item after them, are
+  left out, so scripts never see them.
 - **Lookup by path, as Open Rails dispatches.** For example,
   `last("wagon(mass")` gives the last such item through every include, and
   `all("wagon(coupling")` gives each one in order.
@@ -298,7 +311,8 @@ couplings add.
 
 ## Steps
 
-1. **`SimisTree`, the vehicle file reader and the encoding policy.**
+1. **`SimisTree`, `SimisDocument` and the encoding policy** (done
+   2026-10-28, below).
    - The reader covers:
      - shared and inlined includes;
      - `[[SameName]]` and the roots;
@@ -308,33 +322,316 @@ couplings add.
      - every encoding;
      - nested, missing, cyclic and unbalanced includes;
      - each root, and a path that leaves the game folder;
-     - roots in shape, sound and cab paths, and the default lookups
-       without them;
      - a per-vehicle file through `[[Vehicle]]` in a shared include;
      - the first-line and comment rules;
      - last-wins and couplings that add;
-     - units;
-     - the `OPENRAILS` override.
+     - units.
 2. **The key catalogue** (generated from Open Rails, checked by hand) **and
-   `VehicleDefinition`'s typed fields**, with a comparison tool.
+   `VehicleDefinition`'s typed fields**, with a comparison tool (done
+   2026-10-28, below).
+   - Fixtures: the roots in shape, sound and cab paths and the default
+     lookups without them; the `OPENRAILS` override.
    - Every ENG/WAG file on MSTS, TS_STARTER_ROUTE and OR_PSK is read by both
      the old `Eng::load` and the new reader, and the shared values
      compared.
    - Each difference is explained: either Open Rails' rules where `ParserX`
      differed, or a bug fixed.
 3. **`Eng`, `EngLib`, `Consist` and the editors on the definition;**
-   `Eng::load`'s `ParserX` code removed.
-4. **The simulation on the definition.** `Sim::Vehicle` shrinks. The checks:
+   `Eng::load`'s `ParserX` code removed (done 2026-10-28, below).
+4. **The simulation on the definition** (done 2026-10-28, below).
+   `Sim::Vehicle` shrinks. The checks:
    - the seven MSTS routes give identical stops and events;
    - all 266 PRUDNIK trains finish as before;
    - the simulation, timetable and activity suites pass;
    - the renderer captures with trains are unchanged.
-5. **Reload, problems in the error list, and measures in Release:**
+5. **Reload, problems in the error list, and measures in Release** (done
+   2026-10-28, below):
    - the Consist Editor loading all of OR_PSK, before and after;
    - memory with and without shared includes.
 
 Each step is built (`all`) and checked with ctest before its commit, on
 `feature/vehicle-definitions` in its own worktree.
+
+## Step 1 done (2026-10-28)
+
+**Code** (`src/tsre/fileFunctions/`):
+- `SimisTree` holds one file's tree.
+- `SimisDocument` holds a file with its includes, the roots, the
+  game-folder check and the shared cache.
+- `SimisTextReader::decode` holds the encoding policy. It gives a note for
+  UTF-16 without a byte order mark and for Latin-1.
+- `SimisTextReader` can start at an offset; `SimisTree` uses that to skip
+  the header line.
+
+**Fixed in `SimisTextReader::skipBlock`:** a quote now starts a string only
+where an item starts, as `scan()` and Open Rails read it. MSTS's own
+`US2GrainCar.wag` has `comment( 22.805t empty, 106.747t full" )`; skipping
+that comment used to run to the end of the file.
+
+**Open Rails' includes, checked in its code.** `STFReader.ReadItem` passes an
+included file's items through the including file's tree, so an include's
+extra `)` closes the block holding the include. OR_PSK's
+`PR_E186-143_p1.eng` includes `Parametr_TRAXX_F140.inc`, which has one
+extra `)`, inside its `Engine` block. So its train control include,
+controllers, cab sound, cab view and engine name all fall outside the
+block, and Open Rails reads none of them. TSRE now reads them the same way
+and reports it.
+
+**Suites:**
+- `vehicle-file`: 25 checks on fixtures, content-free.
+- `vehicle-file-corpus`: every ENG/WAG file under the game folder. It
+  reports problems by kind, each counted once per file, plus time and
+  memory.
+
+**Measures (Release, this machine):**
+
+| | Files | Time | Trees | Nodes | Tree memory | Process peak |
+| --- | --- | --- | --- | --- | --- | --- |
+| MSTS | 108 | 5 ms | 108 | 28,040 | 1.4 MB | 45 MB |
+| TS_STARTER_ROUTE | 100 | 5 ms | 107 | 28,088 | 1.4 MB | 46 MB |
+| OR_PSK | 4,350 | 556 ms | 5,788 | 1.52 M | 67 MB | 125 MB |
+
+**Problems in OR_PSK** (each kind counted once per file; MSTS has one, a
+stray `)` in `US2BNSFCar.wag`):
+
+| Problem | Files |
+| --- | --- |
+| A `)` that closes no block | 109 |
+| A block not closed at the end of the file (`Wagon` 33, `Engine` 11) | 44 |
+| An include not found, mostly copies moved one folder deeper (`stare/`, `xhl/`) | 86 |
+| An include whose parentheses do not balance, read in place | 22 vehicles (5 files) |
+| Neither UTF-16 nor UTF-8: read as Latin-1 (Windows-1250 Polish in comments) | 28 |
+| A first line leaving a quote open: not read (first-line rule as changed after step 5) | 8 |
+| Data read on the first line: junk lines of stars, dashes, `b  ß00 hbcomment (…` (the same) | 6 |
+| An unterminated quoted string (`\"` at a string's end, as Open Rails reads it too) | 2 |
+
+## Step 2 done (2026-10-28)
+
+**The key catalogue** (`src/tsre/trains/VehicleKeys`):
+- `scripts/vehicle-keys-from-openrails.py` reads Open Rails' `case` labels
+  and the reads in their bodies, and writes `VehicleKeysTable.inc`. It took
+  463 paths from upstream `8aafb3147`:
+  - 342 with values, in order;
+  - 116 blocks that their own parsers read (curves, controllers, brake and
+    power subsystems);
+  - 5 that count only by being there.
+- `VehicleKeys.cpp` maps Open Rails' 23 unit names to TSRE's quantities and
+  the unit a bare number is in (`psi`, `psi/s`, `ft^3`, `l`, `mph`, `inhg`,
+  `lb/h`, `kj/kg`, `min`, `h`; SI for the rest). No unit name is left
+  unmapped (checked).
+- The insides of the 116 blocks reach Lua as written until a physics task
+  catalogues them.
+
+**`VehicleDefinition`** (`src/tsre/trains/`) holds:
+- today's typed fields, unchanged in meaning;
+- the resistance, worked out once (`MakeInput`'s rule moved here), with
+  where it came from;
+- the file paths: shape, freight animations, sounds, cab view (newly read)
+  and 3D cab shape. With a root they come from the root; without one, from
+  Open Rails' places: the vehicle's folder, its `SOUND` then the game's
+  `SOUND`, `CABVIEW`, `CABVIEW3D`.
+- the lights block, written back as text by `SimisDocument::write` for
+  `EngLightsBlock`.
+
+**Also fixed in the tree:** a quote ends an unquoted item and is dropped
+(`x.sms"`), as Open Rails reads it.
+
+**Suites:**
+- `vehicle-file`: 33 checks. New ones cover the definition (SI fields,
+  roots and Open Rails' places, the `OPENRAILS` copy, the resistance, the
+  lights) and the catalogue.
+- `vehicle-definitions-compare`: reads every ENG/WAG with both readers and
+  compares the fields.
+
+**Comparison of the old `Eng::load` with the new reader:**
+
+| | Files | Alike |
+| --- | --- | --- |
+| MSTS | 108 | 108 |
+| TS_STARTER_ROUTE | 100 | 100 (sound paths alike once `\\` is `/`) |
+| OR_PSK | 3,826 | 3,748 |
+
+All 78 OR_PSK differences come from the old reader. In each case the new
+reader does what Open Rails does:
+1. **The old reader stopped at a `)` that closes no block at the top
+   level**, losing the `Engine` block after it: ED78, ET41, EN57-857rb.
+   Open Rails skips such a `)`.
+2. **A `#` comment** such as `WagonEmptyWeight ( 26.8t ) #prazdny vagon`
+   threw the old reader off. Its brakes, couplings and Davis values were
+   lost: CDvagFalls, ZSSKCvagFalls.
+3. **Junk on the first line of light includes** (SM42, SU42): `b  ß00
+   hbcomment ("…")`. Its unknown words made the old reader skip the next
+   block, the `Lights`. Open Rails never reads that line. TSRE now reads it
+   too (the first-line rule after step 5), but only as harmless values, so
+   the lights load: SM42-010 parses 22 lights either way.
+4. **Broken quotes, tokenised as Open Rails does:**
+   - PCC_Fals's unclosed `BrakeEquipmentType( "…` swallows its
+     `BrakeSystemType`, in Open Rails too;
+   - the PPS name;
+   - CD130's sounds;
+   - the EP05/EU05 freight shapes ending in `"`.
+5. **Includes in blocks nobody reads** are still listed among the files.
+   For example, EN57A's `Engine` sits inside its unclosed `Wagon`; all
+   three readers lose that engine.
+6. **BLG Laaers' nested `Sound ( Sound ( … ) )`** gives no usable sound in
+   any reader.
+
+**Time:** each definition read on its own, nothing shared, takes 3.4 s for
+OR_PSK against `Eng::load`'s 1.5 s (Release). Held together, sharing their
+includes, they took 0.56 s in step 1.
+
+## Step 3 done (2026-10-28)
+
+**What `Eng` keeps:**
+- `definition`, a `std::shared_ptr<const VehicleDefinition>`, never null:
+  an empty definition stands in for a car whose file isn't read yet.
+- Its identity: `name`, `path`, `pathid` and `hashid`.
+- Its per-car state.
+- Its shape ids in each shape library (`shapeIds`, `freightShapeIds`,
+  `cab3DShapeIds`).
+
+**What changed:**
+- **`Eng::load`** is `VehicleDefinition::read`; the 350 lines of `ParserX`
+  reading are gone, and with them the `OPENRAILS` path fields.
+- **The copy constructor** shares the definition instead of copying some
+  35 fields.
+- **Shapes, freight animations, sounds and the 3D cab** use the
+  definition's resolved paths.
+- **`Coupling` and `Cab3D`** are now the definition's types, so
+  `Eng::Cab3D` still names them.
+- **Readers in the editors** (Consist Editor, Shape Viewer, `Consist`) and
+  the simulation's `MakeInput` read `definition->…`. That was 23 files,
+  patched where the compiler pointed.
+- **Tests that built an `Eng` by hand** now give it a definition of their
+  own.
+- **The content-path fixture's include files** got a blank first line
+  here. After step 5 that was undone: TSRE reads a first line that isn't a
+  header.
+- **The comparison suite is gone** with the old reader. Its results are
+  under step 2.
+
+**Checks:**
+- Build `all` and ctest (11 of 11) pass.
+- These suites pass: `vehicle-file`, `eng-lights`, `cab3d`, `car-animation`,
+  `content-path`, `units`, `units-content` (all of OR_PSK through
+  `EngLib`), `consist-preview-gl`, `map-view`, `sound`, `rmlui`, `script`.
+- So do all of these: `simulation-*`, `timetable-*`, `activity-check`,
+  `activity-edit`, `activity-roundtrip`, `activity-ui`.
+- Captures made with one settings file are identical to main's (rmse 0,
+  no picking differences):
+  - `simulation-trains.json` on EUROPE1: its 4 views;
+  - `shape-viewer-views.json` on MSTS: 2 shapes, 2 engines, the 310 tender
+    with its freight animation, and a consist.
+
+## Step 4 done (2026-10-28)
+
+**`Sim::Vehicle`** holds:
+- the definition, shared with the editor's cars and read by the simulation
+  thread;
+- its flip, its car id and its `EngLib` id for drawing.
+
+**What it reads from the definition,** through accessors:
+- `length()`, the length with the coupler (it was `Eng::getFullWidth`, now
+  `VehicleDefinition::length`);
+- `type()`, `passengerCapacity()`, `mass()`;
+- `force()`, `power()` and `maxSpeed()`, which keep the old rule: engines
+  only;
+- `davis(k)` and `davisLeading()`, which also keep the old rule: zero
+  without a known mass.
+
+**Also changed:**
+- `MakeInput`'s copy of the resistance rule is gone; the definition works
+  it out once.
+- Tests build vehicles as before with `{length, flip, type}`, now a
+  constructor that gives the vehicle a definition of its own.
+
+**Checks** (main's binary and the branch's, with one settings file):
+- **Seven routes** (EUROPE1, EUROPE2, JAPAN1, JAPAN2, USA1, USA2,
+  BNSF_SCENIC): `simulation-route` with `TSRE_SIM_TRACE` and
+  `TSRE_SIM_EVENTS` gives the same stops, waits, events and twice-simulated
+  timetables. Only the timings differ, and the old reader's "converting to
+  UTF16" lines are gone.
+- **PRUDNIK** (`PSK_2026.timetable_or`, 266 trains): its 1,867 lines of
+  stops and events are the same. Its three failing checks fail on main too:
+  two static trains with broken paths, and no MSTS activities on the route.
+  The input is smaller, 3,853 KiB against 4,046 KiB, since vehicles share
+  definitions.
+- **The suites:** all of `simulation-*`, `timetable-*`, `activity-check`,
+  `activity-ui`, `map-view`, `consist-preview-gl` and `vehicle-file` pass.
+- **The `simulation-trains.json` capture** is still identical to main's.
+
+## Step 5 done (2026-10-28)
+
+**Reload** in the Consist Editor and the Shape Viewer (`Eng::reload`):
+- It reads the ENG file again into a new definition. Files that haven't
+  changed come from the cache.
+- It drops what the car made from the old definition: its lights, its
+  posed parts, its sounds.
+- It names its shapes again, then reloads their files.
+- Cars made before keep their definitions.
+- The old reload indexed a shape library it had no id for, which inserted
+  0; that is gone too.
+
+**Problems** go to the editor's error list (`ErrorMessagesLib`) as warnings,
+each once, giving the file and the line.
+
+**Lights shared:**
+- Vehicles whose `Lights` block is one node of a shared include file
+  share one `EngLightsBlock`, written, compressed and parsed once.
+- When something in the block is included through `[[Vehicle]]`, each
+  vehicle gets its own.
+- `SimisDocument::write` builds one string instead of a temporary for
+  every nested block. Its first form took 1.4 s of the load.
+
+**Measured** with `vehicle-load`: the Consist Editor's
+`EngLib::loadAll`. The same file was built into main `6c6d173` and the
+branch, both Release, on this machine.
+
+| | Vehicles | main | branch |
+| --- | --- | --- | --- |
+| OR_PSK | 3,717 | 1.47 s, +183 MB | 0.84–0.87 s, +96 MB |
+| MSTS | 108 | 15 ms, +1.1 MB | 17 ms, +2.5 MB |
+
+- **The trees with and without shared includes** (`vehicle-file-corpus`,
+  OR_PSK): 67 MB shared, against 259 MB if every vehicle held copies of
+  its own.
+
+**Checks:**
+- `vehicle-file` passes, 35 checks. New ones cover reload, cars made
+  before, problems told once, and the lights sharing.
+- `eng-lights` now expects a second load of an unchanged file to share its
+  lights.
+- Build `all` and ctest pass.
+- The simulation, timetable, map, sound, cab and consist suites pass.
+- The `simulation-trains.json` and Shape Viewer captures are identical to
+  main's.
+- `timetable-doors.json` is identical too, but its train 119 is not on the
+  track on main either: the case was made on Windows content whose numbering
+  differs from this machine's converted OR_PSK.
+
+## Content to fix
+
+[`reports/or-psk-vehicle-file-problems.md`](reports/or-psk-vehicle-file-problems.md)
+lists every OR_PSK file with a reading problem, by file and line, with the
+number of vehicles reading it. It is made by
+`TSRE_VEHICLE_REPORT=<file> TSRE5vc --test --test-suite vehicle-file-corpus --game-root <game folder>`
+and can be made again after fixing.
+
+**To fix** (608 file lines, as of 2026-10-28):
+- a `)` closing no block (125);
+- an include not found (418). Most are copies moved one folder deeper
+  (`stare/`, `xhl/`), where `[[Trainset]]` would help.
+- 5 include files whose parentheses don't balance;
+- 46 blocks not closed;
+- 12 first lines with a comment whose quote never closes;
+- 2 unterminated strings.
+
+The include files no vehicle reads are listed too (*none* vehicles).
+
+**To look at:**
+- 12 files with data on the first line, which Open Rails doesn't read;
+- 44 files in a Windows code page (read as Latin-1; Polish letters, mostly
+  in comments).
 
 ## Decisions (user, 2026-10-28)
 
@@ -353,3 +650,10 @@ Each step is built (`all`) and checked with ctest before its commit, on
 5. **Encodings:** as listed, with Latin-1 for the rest, as now.
 6. **No new folder:** the new code goes beside the code it replaces.
 7. **The play-mode code in `Eng`** stays for the driving tasks.
+8. **The first line is read unless it is a SIMIS header** (after step 5).
+   Open Rails' skipping of every first line works around include files that
+   start with a header. TSRE's lexer reads a header as one word, so it
+   recognises the header and needs no blind skip. A first line that leaves
+   a quote open or closes a block it didn't open is still not read, and is
+   reported; data read on a first line is reported as an Open Rails
+   difference.

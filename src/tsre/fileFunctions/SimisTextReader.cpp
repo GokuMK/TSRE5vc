@@ -12,6 +12,8 @@ inline bool space(QChar c) {
 }
 } // namespace
 SimisTextReader::SimisTextReader(QString text) : source(std::move(text)) {}
+SimisTextReader::SimisTextReader(QString text, qsizetype start)
+    : source(std::move(text)), cursor(qBound(qsizetype(0), start, source.size())) {}
 qsizetype SimisTextReader::position() const {
     return pendingCount == 0 ? cursor : pending[pendingHead].begin;
 }
@@ -158,10 +160,13 @@ bool SimisTextReader::skipBlock() {
     const auto *text = source.constData();
     // Skipping does not create tokens or decode quoted strings. It still respects
     // escaped quotes, nested delimiters, and the same bounded-input contract.
+    // A quote starts a string only where an item starts, as scan() reads it
+    // (and Open Rails): `full"` in a comment is one word.
+    bool itemStart = true;
     while (cursor < source.size()) {
         const auto start = cursor;
         const auto c = text[cursor++];
-        if (c == '"') {
+        if (c == '"' && itemStart) {
             bool closed = false;
             while (cursor < source.size()) {
                 const auto ch = text[cursor++];
@@ -183,27 +188,40 @@ bool SimisTextReader::skipBlock() {
             }
         } else if (c == ')' && --depth == 0)
             return true;
+        itemStart = c == '"' || c == '(' || c == ')' || space(c);
     }
     return false;
 }
-bool SimisTextReader::decode(const QByteArray &b, QString &out, QString &error) {
-    if (b.startsWith("\xff\xfe") || b.startsWith("\xfe\xff")) {
+bool SimisTextReader::decode(const QByteArray &b, QString &out, QString &error, QString *note) {
+    if (note)
+        note->clear();
+    // UTF-16 without a byte order mark: ASCII characters leave every other
+    // byte zero, which UTF-8 text never has.
+    const bool zeroOdd = b.size() >= 4 && b[0] != 0 && b[1] == 0 && b[3] == 0;
+    const bool zeroEven = b.size() >= 4 && b[0] == 0 && b[1] != 0 && b[2] == 0;
+    const bool bom = b.startsWith("\xff\xfe") || b.startsWith("\xfe\xff");
+    if (bom || zeroOdd || zeroEven) {
         if (b.size() % 2) {
             error = "Odd UTF-16 byte count";
             return false;
         }
-        QStringDecoder decoder(b.startsWith("\xff\xfe") ? QStringDecoder::Utf16LE
-                                                        : QStringDecoder::Utf16BE);
+        const bool little = bom ? b.startsWith("\xff\xfe") : zeroOdd;
+        QStringDecoder decoder(little ? QStringDecoder::Utf16LE : QStringDecoder::Utf16BE);
         out = decoder(b);
         if (decoder.hasError()) {
             error = "Invalid UTF-16";
             return false;
         }
+        if (!bom && note)
+            *note = "UTF-16 without a byte order mark";
     } else {
         QStringDecoder decoder(QStringDecoder::Utf8);
         out = decoder(b);
-        if (decoder.hasError())
+        if (decoder.hasError()) {
             out = QString::fromLatin1(b); // MSTS legacy byte text
+            if (note)
+                *note = "Neither UTF-16 nor UTF-8: read as Latin-1";
+        }
     }
     return true;
 }

@@ -149,7 +149,7 @@ std::vector<Vehicle> turned(const std::vector<Vehicle> &vehicles) {
 }
 
 bool engine(const Vehicle &vehicle) {
-    return vehicle.type >= 4;
+    return vehicle.type() >= 4;
 }
 
 bool anyEngine(const std::vector<Vehicle> &vehicles, size_t from, size_t to) {
@@ -162,7 +162,7 @@ bool anyEngine(const std::vector<Vehicle> &vehicles, size_t from, size_t to) {
 double carsLength(const std::vector<Vehicle> &vehicles, size_t from, size_t to) {
     double length = 0.0;
     for (size_t k = from; k < to && k < vehicles.size(); ++k)
-        length += vehicles[k].length;
+        length += vehicles[k].length();
     return length;
 }
 
@@ -1106,7 +1106,7 @@ double Planner::carsLengthOf(const std::vector<unsigned int> &cars) const {
     double length = 0.0;
     const auto add = [&](const std::vector<Vehicle> &vehicles) {
         for (const Vehicle &vehicle : vehicles)
-            length += listed(cars, vehicle.id) ? vehicle.length : 0.0;
+            length += listed(cars, vehicle.id) ? vehicle.length() : 0.0;
     };
     add(train.vehicles);
     for (const YardTrain &cut : cuts)

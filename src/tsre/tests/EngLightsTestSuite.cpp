@@ -254,9 +254,9 @@ int TsreTests::runEngLightsSuite(bool verbose) {
 
     Eng copy(&eng);
     Eng again(temp.path(), "test.eng");
-    test.check(copy.getLights() == eng.getLights() && again.getLights() != eng.getLights()
+    test.check(copy.getLights() == eng.getLights() && again.getLights() == eng.getLights()
                    && again.getLights() != nullptr && again.getLights()->lights.size() == 7,
-               "copies of a car share its kept block and its lights; another load keeps its own");
+               "copies of a car share its kept block and its lights; another load of the file unchanged shares them too (task driving 01)");
 
     // A consist gives each car its place: a locomotive, a wagon, a
     // locomotive turned round.
@@ -306,7 +306,7 @@ int TsreTests::runEngLightsSuite(bool verbose) {
     // end: the fixture's front lamp; not the white light at the middle);
     // without lamps from the cone, at the car's end at the latest (the
     // fixture's cone is 1 m beyond it).
-    const float halfLength = eng.sizez * 0.5f;
+    const float halfLength = eng.definition->size[2] * 0.5f;
     const float half = float(M_PI) / 12.0f, reach = 35.0f / std::sin(half);
     const float down = 5.0f * float(M_PI) / 180.0f;
     const float strength = 0.01f * float(M_PI) * reach * reach;
@@ -382,7 +382,7 @@ int TsreTests::runEngLightsSuite(bool verbose) {
                        "PKOR_Vectron flipped: the same the other way round");
             // Its 65 white dots are three lamps (7, 7 and 51 dots): a beam
             // out of each, a third of the long cone's strength.
-            const std::vector<RenderItem::Light> vectronBeams = CarLights::beams(*vectronLights, standard, loco.sizez * 0.5f);
+            const std::vector<RenderItem::Light> vectronBeams = CarLights::beams(*vectronLights, standard, loco.definition->size[2] * 0.5f);
             int low = 0, top = 0;
             for (const RenderItem::Light &b : vectronBeams) {
                 low += near(b.position[1], 1.88f, 0.02f) && near(std::fabs(b.position[0]), 1.15f, 0.02f);

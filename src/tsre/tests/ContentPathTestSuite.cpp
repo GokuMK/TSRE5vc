@@ -177,7 +177,7 @@ int TsreTests::runContentPathSuite(bool verbose) {
     EngLib engines;
     const int engId=engines.addEng(vehicle,"Mixed.eng");
     test.check(engines.eng[engId]->loaded==1 && engines.eng[engId]->pathid==vehicle+"/Mixed.eng","vehicle directory and engine spelling survive loading");
-    test.check(engines.eng[engId]->shape.name=="MixedBody.S","engine include retains authored filename and shape spelling");
+    test.check(engines.eng[engId]->definition->shape=="MixedBody.S","engine include retains authored filename and shape spelling");
     test.check(engines.addEng(vehicle,"Mixed.eng")==engId,"engine cache reuses a valid source");
     test.check(engines.addEng(vehicle.toLower(),"MIXED.ENG")==engId &&
             engines.getEngByPathid((vehicle+"/MIXED.eng").toUpper())==engId,
@@ -193,8 +193,8 @@ int TsreTests::runContentPathSuite(bool verbose) {
                            "Engine ( Bom\r\nInclude ( Power.inc )\r\nInclude ( Speed.inc )\r\n)");
     const int bomId=engines.addEng(vehicle,"Bom.eng");
     const Eng *bom=engines.eng[bomId];
-    test.check(bom->loaded==1 && std::abs(bom->forceN-245000.0)<1.0 && std::abs(bom->powerW-692000.0)<1.0
-            && std::abs(bom->maxSpeedMps-100.0/3.6)<0.01 && bom->displayName==QString::fromUtf8("Wroc\xC5\x82""aw"),
+    test.check(bom->loaded==1 && std::abs(bom->definition->forceN-245000.0)<1.0 && std::abs(bom->definition->powerW-692000.0)<1.0
+            && std::abs(bom->definition->maxSpeedMps-100.0/3.6)<0.01 && bom->definition->displayName==QString::fromUtf8("Wroc\xC5\x82""aw"),
             "UTF-8 include files with a byte order mark read whole, the engine block read on after them");
     Eng engineCopy(engines.eng[engId]);
     test.check(engineCopy.hashid==engines.eng[engId]->hashid,"engine copies retain logical identity");
@@ -204,7 +204,7 @@ int TsreTests::runContentPathSuite(bool verbose) {
                 "engine cache keeps its selected source until reload");
         engines.removeAll();
         const int overrideId=engines.addEng(vehicle,"Mixed.eng");
-        test.check(engines.eng[overrideId]->shape.name=="OverrideBody.S",
+        test.check(engines.eng[overrideId]->definition->shape=="OverrideBody.S",
                 "explicit engine reload selects newly available Open Rails override");
     }
     const int mixedId=engines.getEngByPathid(vehicle+"/Mixed.eng");

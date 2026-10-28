@@ -354,9 +354,9 @@ void ConListWidget::getEngSets(Eng *e, QVector<int>& sets){
         if(c == NULL) continue;
         if(c->loaded !=1) continue;
         //qDebug() << c->name.toLower() <<" "<< e->engName.toLower();
-        if(c->conName.split("#").first().toLower() == e->engName.toLower()){
+        if(c->conName.split("#").first().toLower() == e->definition->engName.toLower()){
             for (int j = 0; j < c->engItems.size(); j++){
-                if(c->engItems[j].ename.toLower() == e->engName.toLower()){
+                if(c->engItems[j].ename.toLower() == e->definition->engName.toLower()){
                     qDebug() << "set " << c->name;
                     sets.push_back(i);
                     break;

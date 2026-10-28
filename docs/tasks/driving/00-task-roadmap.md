@@ -162,22 +162,18 @@ player's, works another way.
 ## Execution Order (first steps)
 - [x] Core: `docs/tasks/core/si-units.md`, SI inside and the user's units
   in the editors' fields. Done, merged into main 2026-10-19.
-- [ ] [`01-vehicle-definitions.md`](01-vehicle-definitions.md) (design agreed
-  2026-10-28; the ENG refactor, before any
-  driving task): one vehicle definition per ENG/WAG file, read once and
-  not changed after loading. It holds typed fields in SI for what C++
-  uses (mass, force, brakes, adhesion data and the rest) and the whole
-  block tree, so scripts can read any parameter, Open Rails' additions
-  too. Read with `SimisTextReader` (the newer SIMIS reader the sound,
-  environment and shape files use), not by extending `ParserX`. The
-  editor's `Eng` (drawing, the consist editor, sounds) and the simulation
-  both read it by const pointer, so the simulation thread can read it
-  safely: `Sim::Vehicle` shrinks to that pointer and what belongs to the
-  vehicle in a train (its flip). A file reloaded makes a new definition;
-  a running simulation keeps the old one until it ends. Today `Eng` reads
-  about 40 keys (name, type, shape, size, mass, max force, power and
-  velocity, Davis, freight animations); brakes, engine controllers, the
-  diesel, electric and steam parameters and the cab are skipped.
+- [x] [`01-vehicle-definitions.md`](01-vehicle-definitions.md), the ENG
+  refactor: done 2026-10-28 on `feature/vehicle-definitions`.
+  - One read-only definition per ENG/WAG file, shared by the editor's cars
+    and the simulation thread.
+  - It is read as Open Rails reads it, from a compact tree. Include files
+    are read once and shared. Paths may start with TSRE's roots
+    (`[[Trainset]]`, `[[Vehicle]]` and the rest).
+  - Every key reaches scripts. The catalogue generated from Open Rails' 463
+    paths gives each value's unit, so scripts get SI values.
+  - Typed fields cover what C++ reads.
+  - `Sim::Vehicle` is the definition's pointer, its flip and its ids.
+  - The results are in the task doc.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab

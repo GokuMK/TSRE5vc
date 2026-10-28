@@ -82,7 +82,7 @@ void ConUnitsWidget::setCon(Consist* c){
             new QListWidgetItem ( prefix+" "+con->engItems[i].ename, &items, i);
         } else {
             if(con->engItems[i].flip) prefix+="[F]";
-            new QListWidgetItem ( prefix+" "+e->engName, &items, i);
+            new QListWidgetItem ( prefix+" "+e->definition->engName, &items, i);
         }
     }
 }

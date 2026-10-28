@@ -153,7 +153,7 @@ void EngListWidget::fillEngList(QString engFilter, QString couplingFilter, QStri
         if(!e->couplingFilter(couplingFilter)) continue;
         if(!e->searchFilter(searchFilter)) continue;
         
-        new QListWidgetItem ( e->displayName, &items, i);
+        new QListWidgetItem ( e->definition->displayName, &items, i);
     }
     items.sortItems(Qt::AscendingOrder);
     

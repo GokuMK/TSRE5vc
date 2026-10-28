@@ -85,29 +85,29 @@ void EngInfoWidget::setInfo(Eng* eng){
     shown = eng;
     using Units::Quantity;
 
-    eName.setText(eng->displayName);
+    eName.setText(eng->definition->displayName);
     eFileName.setText(eng->name);
     eDirName.setText(eng->path.split("/").last());
-    QString ttype = eng->type;
-    if(eng->engType.length() > 1)
-        ttype += " ( "+eng->engType+" )";
+    QString ttype = eng->definition->type;
+    if(eng->definition->engType.length() > 1)
+        ttype += " ( "+eng->definition->engType+" )";
     eType.setText(ttype);
     //eBrakes;
     //eCouplings;
-    eMass.setText(Units::format(eng->massKg, Quantity::Mass));
-    if(eng->wagonTypeId >= 4){
-        eMaxSpeed.setText(Units::format(eng->maxSpeedMps, Quantity::Speed, 0));
-        eMaxForce.setText(Units::format(eng->forceN, Quantity::Force));
-        eMaxPower.setText(Units::format(eng->powerW, Quantity::Power));
+    eMass.setText(Units::format(eng->definition->massKg, Quantity::Mass));
+    if(eng->definition->wagonTypeId >= 4){
+        eMaxSpeed.setText(Units::format(eng->definition->maxSpeedMps, Quantity::Speed, 0));
+        eMaxForce.setText(Units::format(eng->definition->forceN, Quantity::Force));
+        eMaxPower.setText(Units::format(eng->definition->powerW, Quantity::Power));
     } else {
         eMaxSpeed.setText("--");
         eMaxForce.setText("--");
         eMaxPower.setText("--");
     }
-    eShape.setText(eng->shape.name);
-    eSize.setText(Units::formatNumber(eng->sizex, Quantity::Length) + " "
-                  + Units::formatNumber(eng->sizey, Quantity::Length) + " "
-                  + Units::format(eng->sizez, Quantity::Length));
+    eShape.setText(eng->definition->shape);
+    eSize.setText(Units::formatNumber(eng->definition->size[0], Quantity::Length) + " "
+                  + Units::formatNumber(eng->definition->size[1], Quantity::Length) + " "
+                  + Units::format(eng->definition->size[2], Quantity::Length));
     eCouplings.setText(eng->getCouplingsName());
-    eBrakes.setText(eng->brakeSystemType);
+    eBrakes.setText(eng->definition->brakeSystemType);
 }

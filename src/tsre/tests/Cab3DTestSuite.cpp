@@ -113,10 +113,10 @@ int TsreTests::runCab3DSuite(bool verbose) {
 
     Eng eng(temp.path(), "cab.eng");
     eng.flip = 0;
-    test.check(eng.loaded == 1 && eng.cab3D != nullptr, "the fixture loads with a 3D cab");
-    if (eng.cab3D == nullptr)
+    test.check(eng.loaded == 1 && eng.definition->cab3D != nullptr, "the fixture loads with a 3D cab");
+    if (eng.definition->cab3D == nullptr)
         return test.finish();
-    const Eng::Cab3D &cab = *eng.cab3D;
+    const Eng::Cab3D &cab = *eng.definition->cab3D;
     test.check(cab.shapes == QStringList({"Cab.s", "Missing.s", "Cab.s", "Cab.s"}) && cab.viewpoints.size() == 4,
                "both cabs and the alternate viewpoints after them; the block before any cab left out");
     if (cab.viewpoints.size() != 4)
@@ -163,7 +163,7 @@ int TsreTests::runCab3DSuite(bool verbose) {
                "a cab at the front only: none looking back");
     Eng plain(temp.path(), "plain.eng");
     plain.flip = 0;
-    test.check(plain.cab3D == nullptr && plain.cab3DViewpoint(false) == -1 && plain.cab3DShapePath().isEmpty()
+    test.check(plain.definition->cab3D == nullptr && plain.cab3DViewpoint(false) == -1 && plain.cab3DShapePath().isEmpty()
                    && !plain.cab3DMount(0, mount),
                "no 3D cab");
 
