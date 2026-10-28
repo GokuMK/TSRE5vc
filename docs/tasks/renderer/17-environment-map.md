@@ -68,8 +68,8 @@ All under Rendering > Reflections, applied while running:
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `core.rendering.environmentMap.enabled` | on (since 0.7.8; off before) | Render the Route Editor cube |
-| `core.rendering.environmentMap.faceSize` | 256 | 128 or 256 px per face |
-| `core.rendering.environmentMap.facesPerFrame` | 1 | 1, 2, 3 or 6 faces per frame |
+| `core.rendering.environmentMap.faceSize` | 256 | 128, 256 or 512 px per face (512 since 2026-10-28, for screenshots: four times the cost a face) |
+| `core.rendering.environmentMap.facesPerFrame` | 1 | 1, 2, 3 or 6 faces per frame (at 1 and 30 fps the cube is new five times a second: 2 or 3 for a discrete GPU, the user 2026-10-28) |
 | `core.rendering.environmentMap.objectDistance` | 300 m | Object range in the cube |
 | `core.rendering.environmentMap.preview` | off | Draw the cube unfolded in the lower-left corner |
 

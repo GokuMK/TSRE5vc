@@ -179,6 +179,10 @@ they already do to their rear end.
       frame, pantographs 1 and 2, left and right doors, mirrors, windows,
       wipers); captures take "animation", "animationEnd" and "travelled", and
       renderer captures "trainVehicle", "trainEye", "trainAt" (close views).
+      Since 2026-10-28 a shape opened on its own (an .s, not its .eng) takes
+      the car items too, by a CarAnimation of its own (they moved engines
+      and consists only: the user, CZ-AWT_383-053.s); Play still runs all
+      its key frames, Last Frame shows them all at the end.
 - [x] Captures: the 183 (pantograph 2 up in a simulated train; both up in
       the viewer), the PSK EN76 (plug doors open), the Scotsman's rods a
       quarter turn on; the simulation-trains capture's CPU 4.5 -> 4.8 ms.
