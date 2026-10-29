@@ -1,7 +1,7 @@
 # Task 38 - Motion Blur
 
-Status: implemented on `feature/motion-blur` (2026-10-29); tuning on the
-Steam Deck with the user open (costs over the 2 ms aim, see Costs).
+Status: merged from `feature/motion-blur` (2026-10-29); head-turn blur
+as an option and tuning open (see Open).
 
 Related: [task 39](39-temporal-aa-and-upscaling.md) (TAA and upscalers,
 which share this task's velocity buffer), [task 24](24-hdr-and-bloom.md)
@@ -159,12 +159,24 @@ one is negative).
 ### Settings
 
 - `core.rendering.motionBlur`: Off, Light (1/250 s), Normal (1/120 s),
-  Strong (1/60 s), Very strong (1/30 s). Default Normal, 1/120 s (the
-  user, 2026-10-29; to be fine-tuned). Startup setting (the view's
-  targets).
+  Strong (1/60 s), Very strong (1/30 s). Default Off, as the other
+  Advanced Environment effects: a new profile is OpenRails Extended
+  (settings test); Normal 1/120 s with Advanced Environment (the user,
+  2026-10-29; to be fine-tuned). Startup setting (the view's targets).
+  Captures pass `--set core.rendering.motionBlur=120`.
 - `core.rendering.motionBlurQuality`: Normal (the longest blur 3 % of the
-  view's width, up to 12 samples), High (8 %, 32), Very high (15 %, 64).
-  Default Normal. GPU time only.
+  view's width, up to 12 samples), High (8 %, 32). Default Normal. GPU
+  time only.
+- Graphics presets: off in OpenRails Basic and Extended, Normal (1/120 s)
+  in Advanced Environment (the user, 2026-10-29).
+- **Very high, tried and dropped** (2026-10-29): the longest blur 15 % of
+  the width, up to 64 samples. At 1/30 s and 192 km/h it looked as High
+  (no streak passed High's 8 %; it differs only for nearer or faster
+  motion: a train passing a few metres away, longer exposures) and cost
+  about 2 ms more on the Steam Deck (USA1 cab, Very high 1/30 61.3 / 65.5
+  ms against High 1/30 59.4 / 63.9). Dropped so as not to confuse users
+  for so little (the user); to come back to with longer exposures or
+  TAA.
 - At 192 km/h the track bed moves 1.5 sleeper spacings in 1/60 s wherever
   it is on screen (both shrink with the distance alike): a box blur of 1.5
   periods leaves about a fifth of the sleepers' contrast, so they still
@@ -250,9 +262,6 @@ Over the 2 ms aim at Normal on the Steam Deck (an extra there, the user).
   2026-10-29): an addition on top of the exact blur, the reference with
   the head as last frame instead of as now: cab and world alike blur by
   the head's turn.
-- High and Very high look alike (the user, 2026-10-29): at 1/30 s and
-  192 km/h no streak passes High's 8 %; Very high only for nearer or
-  faster motion. Drop it, or another meaning for it.
 - What noise is left in long streaks: TAA (task 39) smooths it; a second
   gather pass (CryEngine 3) would square the samples.
 - Tuning on the Steam Deck with the user: exposure, samples, maximum

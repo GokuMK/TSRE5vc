@@ -40,6 +40,8 @@ QVector<PresetRow> presetRows() {
         {"core.rendering.lightShafts", 0, 0, 2},
         // Mist and fog: off, off, high.
         {"core.rendering.mist", 0, 0, 2},
+        // Motion blur: off, off, Normal (1/120 s).
+        {"core.rendering.motionBlur", 0, 0, 120},
     };
 }
 }
@@ -62,7 +64,7 @@ const QVector<GraphicsPreset> &GraphicsPresets::all() {
             {"advancedEnvironment",
              //% "Advanced Environment"
              QT_TRID_NOOP("settings.graphics.preset.advanced.environment.name"),
-             //% "The sky computed from the atmosphere, volumetric clouds and light shafts from the weather, ambient occlusion, AgX tone mapping and auto exposure, lamps that keep their strength in tunnels. QRhi renderer; costs the most time per frame."
+             //% "The sky computed from the atmosphere, volumetric clouds and light shafts from the weather, ambient occlusion, AgX tone mapping and auto exposure, lamps that keep their strength in tunnels, motion blur. QRhi renderer; costs the most time per frame."
              QT_TRID_NOOP("settings.graphics.preset.advanced.environment.description"),
              {}},
         };

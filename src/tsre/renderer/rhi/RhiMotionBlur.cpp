@@ -323,8 +323,8 @@ void RhiRenderer::applyMotionBlur() {
     MotionBlurResources &m = motionBlur;
     const QSize size = view.size;
     // The longest blur by the quality (Normal 3 % of the view's width, High
-    // 8 %, Very high 15 %); tiles of it, in blocks of 8.
-    const float longestShare = motionQuality >= 3 ? 0.15f : motionQuality == 2 ? 0.08f : 0.03f;
+    // 8 %); tiles of it, in blocks of 8.
+    const float longestShare = motionQuality >= 2 ? 0.08f : 0.03f;
     const float longest = std::max(8.0f, longestShare * float(size.width()));
     const int blocksPerTile = std::max(1, int(std::ceil(longest / 8.0f)));
     const int tile = 8 * blocksPerTile;
@@ -471,8 +471,8 @@ void RhiRenderer::applyMotionBlur() {
     p.sides[1] = float(blocksPerTile);
     static const int debug = qEnvironmentVariableIntValue("TSRE_MOTION_DEBUG");
     p.sides[2] = float(debug);
-    // The most samples a pixel takes: Normal 12, High 32, Very high 64.
-    p.sides[3] = motionQuality >= 3 ? 64.0f : motionQuality == 2 ? 32.0f : 12.0f;
+    // The most samples a pixel takes: Normal 12, High 32.
+    p.sides[3] = motionQuality >= 2 ? 32.0f : 12.0f;
     p.slice[0] = sceneDepthRange[0];
     p.slice[1] = sceneDepthRange[1];
 

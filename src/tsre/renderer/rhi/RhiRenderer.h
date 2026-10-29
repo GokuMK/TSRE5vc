@@ -1120,7 +1120,7 @@ private:
     // 1 / seconds, 0 off; the main view's motion; last frame's full matrices
     // of moving instances (MotionMatricesBinding), up to its capacity.
     int motionExposure = 0;
-    // 1 Normal, 2 High, 3 Very high: the longest blur and the samples.
+    // 1 Normal, 2 High: the longest blur and the samples.
     int motionQuality = 1;
     // Floats a draw instance's record takes: 20, 24 with the motion index.
     int instanceFloats = 20;

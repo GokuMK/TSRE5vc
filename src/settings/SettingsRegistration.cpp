@@ -1126,7 +1126,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer."
                 QT_TRID_NOOP("settings.core.rendering.bloom.description")).withRange(0, 4, 0.05).inGroup("rendering").inSubgroup("image"),
         "bloomStrength", "Game::bloomStrength", "RouteEditorGLWidget", true, "hot-cache");
-    ADD(SettingsDefinition::enumeration("core.rendering.motionBlur", 120)
+    ADD(SettingsDefinition::enumeration("core.rendering.motionBlur", 0)
             .withNameId(
                 //% "Motion blur"
                 QT_TRID_NOOP("settings.core.rendering.motion.blur.name")).withDescriptionId(
@@ -1148,15 +1148,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Motion blur quality"
                 QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.name")).withDescriptionId(
-                //% "How long a streak may be and how many samples draw it: Normal up to 3 % of the view's width with 12 samples, High 8 % with 32, Very high 15 % with 64. Longer exposures and faster trains need the longer streaks; the samples cost graphics card time, not processor time. QRhi renderer. Applies after a restart."
+                //% "How long a streak may be and how many samples draw it: Normal up to 3 % of the view's width with 12 samples, High 8 % with 32. Longer exposures and faster trains need the longer streaks; the samples cost graphics card time, not processor time. QRhi renderer. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.description"))
             .withOptions(numericChoices({{1,
                 //% "Normal"
                 QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.1")}, {2,
                 //% "High"
-                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.2")}, {3,
-                //% "Very high"
-                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.3")}})).inGroup("rendering").inSubgroup("image"),
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.2")}})).inGroup("rendering").inSubgroup("image"),
         "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::floating("core.rendering.localLights.exposure", 1.0)
             .withNameId(
