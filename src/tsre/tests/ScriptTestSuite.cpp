@@ -298,6 +298,20 @@ function boolKey() return {inner = {[true] = 1}} end
         state.release(copy);
 }
 
+// A native module for the checks: a table with add(a, b), its openings
+// counted.
+int nativeOpenings = 0;
+int openNative(lua_State *L) {
+    ++nativeOpenings;
+    lua_newtable(L);
+    lua_pushcfunction(L, [](lua_State *L) -> int {
+        lua_pushnumber(L, luaL_checknumber(L, 1) + luaL_checknumber(L, 2));
+        return 1;
+    });
+    lua_setfield(L, -2, "add");
+    return 1;
+}
+
 void checkRequire(TokenTest::Suite &test) {
     QTemporaryDir root;
     QDir(root.path()).mkpath("lib");
@@ -323,6 +337,17 @@ function failing(name) return select(2, pcall(require, name)) end
                    && callText(state, script, "failing", {"../lib/units"}).contains("is not a dotted name")
                    && callText(state, script, "failing", {"lib.loop"}).contains("requires itself"),
                "missing modules, paths and loops refused");
+
+    // TSRE's own native modules: opened once, before the folders, so a file
+    // of the same name there does not take their place.
+    write("lib/native.lua", "return { add = function() return 'the file' end }\n");
+    state.addNativeModule("lib.native", openNative);
+    const int native = state.loadText(R"(
+local native = require("lib.native")
+function add() return native.add(2, 3) .. " " .. tostring(require("lib.native") == native) end
+)", "native.lua");
+    test.check(callText(state, native, "add") == "5.0 true" && nativeOpenings == 1,
+               "a native module: " + callText(state, native, "add") + ", opened " + QString::number(nativeOpenings));
 }
 
 void checkPrint(TokenTest::Suite &test) {

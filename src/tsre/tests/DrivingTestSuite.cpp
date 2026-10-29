@@ -13,6 +13,8 @@
 #include <functional>
 #include <tsre/Game.h>
 #include <tsre/sim/AirBrake.h>
+#include <tsre/script/LuaApi.h>
+#include <tsre/script/ScriptState.h>
 #include <tsre/sim/LocoScript.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationInput.h>
@@ -826,6 +828,39 @@ int TsreTests::runDrivingSuite(bool verbose) {
         test.check(equal(last, 35.0, 0.01) && valueOf(core, 0, 2, "brakeCylinder") == 0.0,
                    QString("EP: half the brake, the last car at %1 psi in 2 s (35 expected), released after")
                            .arg(last));
+    }
+    // A native module (task driving 04): the loco's definition from
+    // inputs.vehicle, anything else refused.
+    {
+        QTemporaryDir scripts;
+        QFile file(scripts.path() + "/electric.lua");
+        const bool written = file.open(QIODevice::WriteOnly)
+                && file.write("local probe = require 'test.probe'\n"
+                              "function update(dt, inputs, state, out)\n"
+                              "    out.values.mass = probe.mass(inputs.vehicle)\n"
+                              "    out.values.refused = select(2, pcall(probe.mass, {}))\n"
+                              "end\n") > 0;
+        file.close();
+        Sim::LocoScripts lua(scripts.path());
+        lua.lua().addNativeModule("test.probe", [](lua_State *L) -> int {
+            lua_newtable(L);
+            lua_pushcfunction(L, [](lua_State *L) -> int {
+                lua_pushnumber(L, Sim::LocoScripts::definitionAt(L, 1).massKg);
+                return 1;
+            });
+            lua_setfield(L, -2, "mass");
+            return 1;
+        });
+        std::unique_ptr<Sim::VehicleModel> m = lua.make(engine.definition);
+        Sim::VehicleInputs in;
+        in.dt = 0.01;
+        Sim::VehicleOutputs out;
+        m->step(in, out);
+        const double mass = Sim::Message{QString(), out.values.value("mass", 0.0)}.number();
+        const QString refused = Sim::Message{QString(), out.values.value("refused", QString())}.text();
+        test.check(written && mass == 80000.0 && refused.contains("not a loco's inputs.vehicle"),
+                   QString("a native module: the loco's definition from inputs.vehicle (%1 kg), else refused (%2)")
+                           .arg(mass).arg(refused));
     }
     // Loco scripts, the host's side: a script reads its file in SI, takes
     // commands, sends events and line messages, publishes values; an error

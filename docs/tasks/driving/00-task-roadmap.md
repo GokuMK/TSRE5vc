@@ -191,6 +191,9 @@ player's, works another way.
 - [ ] [`03-diesel-loco.md`](03-diesel-loco.md) (the user's, 2026-10-29): a
   Lua diesel loco after Open Rails' diesel-electric, on task 02's shared
   modules; the gearbox later.
+- [ ] [`04-steam-loco.md`](04-steam-loco.md) (the user's, 2026-10-29): the
+  steam loco as `steam.lua` with its thermodynamics in a C++ native
+  module, after the steam review.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab

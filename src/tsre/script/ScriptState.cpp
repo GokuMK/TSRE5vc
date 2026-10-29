@@ -515,6 +515,10 @@ void State::setModuleRoots(const QStringList &roots) {
     moduleRoots = roots;
 }
 
+void State::addNativeModule(const QString &name, int (*open)(lua_State *L)) {
+    nativeModules.insert(name, open);
+}
+
 void State::setPrinter(std::function<void(const QString &)> function) {
     printer = std::move(function);
 }
@@ -759,6 +763,25 @@ int State::require(lua_State *L) {
     static const QRegularExpression dotted("^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$");
     if (!dotted.match(name).hasMatch())
         return luaL_error(L, "module name '%s' is not a dotted name", name.toUtf8().constData());
+    // TSRE's own, built in: opened once, kept beside the files'.
+    const auto native = state->nativeModules.constFind(name);
+    if (native != state->nativeModules.cend()) {
+        const QByteArray key = "native:" + name.toUtf8();
+        lua_getfield(L, LUA_REGISTRYINDEX, ModulesKey);
+        const int modules = lua_gettop(L);
+        if (lua_getfield(L, modules, key.constData()) != LUA_TNIL)
+            return 1;
+        lua_pop(L, 1);
+        lua_pushcfunction(L, *native);
+        lua_call(L, 0, 1);
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 1);
+            lua_pushboolean(L, 1);
+        }
+        lua_pushvalue(L, -1);
+        lua_setfield(L, modules, key.constData());
+        return 1;
+    }
     const QString relative = QString(name).replace('.', '/') + ".lua";
     QString path;
     for (const QString &root : state->moduleRoots) {

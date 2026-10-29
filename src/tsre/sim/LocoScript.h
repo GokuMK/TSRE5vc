@@ -4,6 +4,8 @@
 #include <memory>
 #include <tsre/sim/VehicleModel.h>
 
+struct lua_State;
+
 namespace Script {
 class State;
 }
@@ -21,7 +23,9 @@ class LuaLoco;
 //
 // A script's functions, all optional but update:
 //   init(state, vehicle)        once, `vehicle` its file's keys in SI;
-//   update(dt, inputs, state, out)   every step;
+//   update(dt, inputs, state, out)   every step; inputs.vehicle the loco's
+//       definition for TSRE's native modules (require "tsre.steam"), not
+//       for the state table;
 //   command(name, value, state[, from])  every message for it; `from`
 //       "line" for one from another unit on the control line;
 //   save(state)                 what to save (else the state table).
@@ -62,6 +66,9 @@ public:
     // send() and line(): a message from the loco whose script runs, an
     // event or one for the control line.
     void deliver(const Message &message, bool toLine);
+    // For a native module: the definition at `index` (an inputs.vehicle),
+    // one of this run's scripted locos'; else a Lua error.
+    static const VehicleDefinition &definitionAt(lua_State *L, int index);
 
 private:
     friend class LuaLoco;
@@ -74,6 +81,9 @@ private:
     QHash<QString, QString> errors;
     // The loco whose script runs (send() and line() write to it).
     LuaLoco *current = nullptr;
+    // Its scripted locos' definitions, kept for the run: the ones a native
+    // module takes.
+    QHash<const VehicleDefinition *, std::shared_ptr<const VehicleDefinition>> definitions;
 
     int load(const QString &path);
 };

@@ -14,6 +14,9 @@ namespace {
 
 using Item = SimisDocument::Item;
 
+// The run's LocoScripts in the Lua registry, for native modules.
+const char *HostKey = "tsre.locoscripts";
+
 void pushText(lua_State *L, QStringView text) {
     const QByteArray utf8 = text.toUtf8();
     lua_pushlstring(L, utf8.constData(), size_t(utf8.size()));
@@ -335,6 +338,8 @@ public:
         stateRef = lua->keep(-1);
         lua_pop(L, 1);
         lua_newtable(L);
+        lua_pushlightuserdata(L, const_cast<VehicleDefinition *>(this->definition.get()));
+        lua_setfield(L, -2, "vehicle");
         inputsRef = lua->keep(-1);
         lua_pop(L, 1);
         lua_newtable(L);
@@ -558,10 +563,22 @@ void LocoScripts::deliver(const Message &message, bool toLine) {
 
 LocoScripts::~LocoScripts() = default;
 
+const VehicleDefinition &LocoScripts::definitionAt(lua_State *L, int index) {
+    lua_getfield(L, LUA_REGISTRYINDEX, HostKey);
+    const auto *host = static_cast<const LocoScripts *>(lua_touserdata(L, -1));
+    lua_pop(L, 1);
+    const auto *d = static_cast<const VehicleDefinition *>(lua_touserdata(L, index));
+    if (!host || !lua_islightuserdata(L, index) || !host->definitions.contains(d))
+        luaL_argerror(L, index, "not a loco's inputs.vehicle");
+    return *d;
+}
+
 Script::State &LocoScripts::lua() {
     if (!state) {
         state = std::make_shared<Script::State>(Script::State::Kind::Simulation, Script::Limits(), seed);
         state->setModuleRoots({folder});
+        lua_pushlightuserdata(state->lua(), this);
+        lua_setfield(state->lua(), LUA_REGISTRYINDEX, HostKey);
         // send() and line() beside the libraries: every script and module
         // reads them.
         lua_State *L = state->lua();
@@ -605,6 +622,7 @@ std::unique_ptr<VehicleModel> LocoScripts::make(const std::shared_ptr<const Vehi
     const QString path = scriptFor(*definition);
     if (path.isEmpty())
         return nullptr;
+    definitions.insert(definition.get(), definition);
     const int script = load(path);
     return std::make_unique<LuaLoco>(*this, script, definition, script < 0 ? errors.value(path) : QString());
 }
