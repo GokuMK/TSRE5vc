@@ -88,8 +88,9 @@ public:
     std::shared_ptr<const DrivenFrame> drivenValues() const;
     // A message to the driven train: its cab's, or a vehicle's.
     void command(const QString &name, const MessageValue &value, int vehicle = -1);
-    // The driven train's messages since the last call (by vehicle), its
-    // sound triggers played on its cars (the views take them each tick).
+    // The driven train's messages since the last call (by vehicle); its
+    // and the heard trains' sound triggers played on their cars (the views
+    // take them each tick).
     std::vector<std::pair<int, Sim::Message>> takeDrivenMessages();
 
     std::shared_ptr<const SimulationInput> input() const { return in; }
@@ -326,6 +327,11 @@ private:
     mutable std::shared_ptr<const SimulationFrame> placedFrame;
     std::shared_ptr<const SimulationFrame> pinnedFrame;
     std::vector<bool> heard;
+    // The trains heard as the host was last told (task sound 02); each
+    // heard train's values' version its cars last took.
+    std::vector<int> heardSent;
+    mutable std::vector<unsigned long long> heardVersions;
+    void sendHeard(const std::vector<int> &trains);
     // The consists placed where the latest frame has them (once a frame).
     void placeTrains() const;
     // The consists gone (trainsRemoving first).

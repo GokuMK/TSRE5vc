@@ -63,9 +63,12 @@ public:
     void drive(int train, unsigned long long seq);
     void leave(unsigned long long seq);
     void command(int vehicle, const Message &message, unsigned long long seq);
-    // Any thread: the driven train's messages since the last call (its
-    // models' events, by vehicle).
-    std::vector<std::pair<int, Message>> takeMessages();
+    // The trains heard (task sound 02): their shadows run while the run
+    // runs or is paused, not while running to a time.
+    void hear(const std::vector<int> &trains, unsigned long long seq);
+    // Any thread: the messages since the last call: the driven train's
+    // models' events, the heard trains' sound triggers.
+    std::vector<TrainMessage> takeMessages();
     static constexpr size_t MaxMessages = 10000;
 
 private:
@@ -89,7 +92,10 @@ private:
     std::shared_ptr<const SimulationFrame> latest;
     std::deque<TrainEvent> events;
     size_t droppedEvents = 0;
-    std::deque<std::pair<int, Message>> messages;
+    std::deque<TrainMessage> messages;
+    std::vector<int> heardTrains;
+    // The core told the trains heard, as the mode wants.
+    void hearing();
 
     void tick();
     // Steps up to `seconds`, until the batch's time is out (or the train

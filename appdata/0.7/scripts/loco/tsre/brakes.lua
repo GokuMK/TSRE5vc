@@ -5,8 +5,8 @@
 -- also feeds the main reservoir pipe. The host steps the pipes and every
 -- vehicle's own brake.
 --
--- Reads the train and engine brake levers, the emergency button and bail
--- off (tsre.controls). In the state: s.mainReservoir, s.compressor,
+-- Reads the train and engine brake levers, the emergency button, bail off
+-- and an automatic driver's brake demand (tsre.controls). In the state: s.mainReservoir, s.compressor,
 -- s.equalising, s.enforceMinimum, s.previousKind, s.engineLine,
 -- s.engineDemand, s.engineLineState, s.sentEp.
 
@@ -99,6 +99,13 @@ local function stepTrainBrake(s, dt)
     if s.emergencyButton then
         er = er - cfg.emergency * dt
         ep = 1
+    elseif s.brakeDemand then
+        -- An automatic driver's demand: held there as a self-lapping valve
+        -- holds it.
+        local target = cfg.max - cfg.fullService * s.brakeDemand
+        er = rise(er, math.min(target, mr), cfg.release, dt)
+        er = fall(er, target, cfg.apply, dt)
+        ep = s.brakeDemand
     elseif #lever.notches == 0 then
         er = cfg.max - cfg.fullService * lever.value
         ep = lever.value

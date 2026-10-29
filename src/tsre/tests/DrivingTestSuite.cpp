@@ -1484,6 +1484,213 @@ int TsreTests::runDrivingSuite(bool verbose) {
                        QString("diesel.lua: its state saved (%1 bytes) and restored, the same steps after").arg(saved.size()));
         }
     }
+    // Heard trains (task sound 02): AI trains run their vehicles' models as
+    // shadows, their levers from the AI's motion, their forces unused. Two
+    // straight 2 km lines, an AI electric with wagons on each.
+    if (scriptThere) {
+        TestTrack::Layout two;
+        two.end(1, 10);
+        two.track(10, 1, 2, 200);
+        two.end(2, 10);
+        two.end(3, 11);
+        two.track(11, 3, 4, 200);
+        two.end(4, 11);
+        QScopedValueRollback<TDB *> restoreLines(Game::trackDB, &two.db);
+        const auto lines = std::make_shared<const Sim::TrackGeometry>(&two.db);
+        const auto planOn = [&](int id, int track, int wagons, std::vector<Sim::WaitPlan> waits = {},
+                                const Sim::Vehicle *loco = nullptr) {
+            const PathTrack::Result path = PathTrack::startAt(&two.db, {track, 100.0f});
+            Sim::TrainPlan p;
+            p.id = id;
+            p.vehicles = {loco != nullptr ? *loco : electric};
+            for (int i = 0; i < wagons; ++i)
+                p.vehicles.push_back(wagon);
+            for (const Sim::Vehicle &v : p.vehicles)
+                p.length += float(v.length());
+            p.maxSpeed = 30.0f;
+            Sim::SetRates(p);
+            p.performance = Sim::PerformanceOf(p.vehicles);
+            p.driving = Sim::DrivingOf(p.vehicles);
+            p.startTime = t0;
+            p.route = Sim::BuildRoute(&two.db, path.nodes, PathTrack::legs(&two.db, path.nodes), 31.0);
+            p.startFront = p.route.pathStart + p.length + 1.0;
+            for (Sim::WaitPlan &w : waits)
+                w.front += p.startFront;
+            p.waits = waits;
+            return p;
+        };
+        const auto inputWith = [&](std::vector<Sim::TrainPlan> plans, int drivenTrain) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = lines;
+            made->trains = std::move(plans);
+            made->step = drivenTrain >= 0 ? 0.01 : 0.1;
+            made->driven = drivenTrain;
+            made->lineVoltage = 25000.0;
+            made->locoScripts = locoFolder;
+            return std::shared_ptr<const Sim::SimulationInput>(made);
+        };
+        // One AI train run twice, heard the second time: the same motion
+        // to the metre's millionth; its throttle up while it starts, its
+        // brakes on as it stops at the end of its path; a new version each
+        // 0.1 s step.
+        {
+            struct Sample {
+                double front, speed;
+            };
+            std::vector<Sample> alone, heard;
+            double throttleMost = 0.0, brakeMost = 0.0, cylinderMost = 0.0;
+            bool shadowed = true, versions = true;
+            unsigned long long version = 0;
+            for (int pass = 0; pass < 2; ++pass) {
+                Sim::SimulationCore core(inputWith({planOn(0, 10, 10)}, -1));
+                if (pass == 1)
+                    core.hear({0});
+                for (int i = 0; i < 3000; ++i) {
+                    core.step(0.1);
+                    const Sim::TrainState &st = core.trains()[0];
+                    (pass == 0 ? alone : heard).push_back({st.front, st.speed});
+                    if (pass == 0 || st.status != Sim::TrainStatus::Running)
+                        continue;
+                    shadowed = shadowed && core.shadowed() == std::vector<int>{0};
+                    const unsigned long long now = core.shadowVersion(0);
+                    versions = versions && now > version;
+                    version = now;
+                    if (st.acceleration > 0.0f)
+                        throttleMost = std::max(throttleMost, valueOf(core, 0, -1, "throttle"));
+                    if (st.acceleration < 0.0f) {
+                        brakeMost = std::max(brakeMost, valueOf(core, 0, -1, "brakeDemand"));
+                        cylinderMost = std::max(cylinderMost, valueOf(core, 0, 5, "brakeCylinder"));
+                    }
+                }
+            }
+            double apart = 0.0;
+            for (size_t i = 0; i < alone.size() && i < heard.size(); ++i)
+                apart = std::max(apart, std::fabs(alone[i].front - heard[i].front) + std::fabs(alone[i].speed - heard[i].speed));
+            test.check(alone.size() == heard.size() && apart == 0.0 && shadowed && versions && throttleMost > 0.0
+                               && brakeMost > 0.0 && cylinderMost > 1.0 * Psi,
+                       QString("heard: the AI's motion the same (%1 apart), its shadow stepped each 0.1 s; starting, "
+                               "the throttle up to %2; stopping, the brake demand up to %3 of full service, a wagon's "
+                               "cylinder %4 psi")
+                               .arg(apart).arg(throttleMost).arg(brakeMost).arg(cylinderMost / Psi, 0, 'f', 1));
+        }
+        // Heard, not heard, heard again: its shadow made, gone, made anew
+        // (its version never the same twice).
+        {
+            Sim::SimulationCore core(inputWith({planOn(0, 10, 2)}, -1));
+            core.hear({0});
+            core.step(5.0);
+            const bool first = core.shadowed() == std::vector<int>{0};
+            const unsigned long long before = core.shadowVersion(0);
+            core.hear({});
+            core.step(0.1);
+            const bool gone = core.shadowed().empty() && core.outputsOf(0, -1) == nullptr;
+            core.hear({0});
+            core.step(0.1);
+            test.check(first && gone && core.shadowed() == std::vector<int>{0} && core.shadowVersion(0) > before,
+                       "heard: a shadow made, gone when not heard, made again");
+        }
+        // A horn waiting point (60013, 3 s) 300 m on: the horn on, off 3 s
+        // later.
+        {
+            Sim::WaitPlan horn;
+            horn.front = 300.0;
+            horn.value = 60013;
+            Sim::SimulationCore core(inputWith({planOn(0, 10, 2, {horn})}, -1));
+            core.hear({0});
+            double on = -1.0, off = -1.0;
+            for (int i = 0; i < 1200 && off < 0.0; ++i) {
+                core.step(0.1);
+                for (const auto &[vehicle, m] : core.takeMessages(0)) {
+                    if (m.name == "sound" && m.number() == 8.0 && on < 0.0)
+                        on = core.time();
+                    if (m.name == "sound" && m.number() == 9.0 && on >= 0.0)
+                        off = core.time();
+                }
+            }
+            test.check(on >= 0.0 && off - on > 2.85 && off - on < 3.25,
+                       QString("heard: the horn at its waiting point, on at %1 s, off %2 s later")
+                               .arg(on - t0, 0, 'f', 1).arg(off - on, 0, 'f', 1));
+        }
+        // A heard diesel with a dynamic brake: its engine above idle as it
+        // starts away (the throttle the AI's motion needs), its dynamic
+        // brake braking above 5 m/s.
+        {
+            writeUtf16(files.path() + "/heard-diesel.eng",
+                       dieselFile("\tDynamicBrakesMaximumForce ( 100kN )\n\tDynamicBrakesMinUsableSpeed ( 5 )\n"
+                                  "\tDynamicBrakesMaximumEffectiveSpeed ( 25 )\n"
+                                  "\tEngineControllers ( Brake_Dynamic ( 0 1 0.1 0 NumNotches ( 0 ) ) )\n"));
+            const Sim::Vehicle diesel = vehicle("heard-diesel.eng");
+            Sim::SimulationCore core(inputWith({planOn(0, 10, 10, {}, &diesel)}, -1));
+            core.hear({0});
+            double rpmMost = 0.0, dynamicMost = 0.0;
+            for (int i = 0; i < 3000; ++i) {
+                core.step(0.1);
+                const Sim::TrainState &st = core.trains()[0];
+                if (st.status != Sim::TrainStatus::Running)
+                    continue;
+                if (st.acceleration > 0.0f)
+                    rpmMost = std::max(rpmMost, valueOf(core, 0, -1, "engineRpm"));
+                if (st.acceleration < 0.0f && st.speed > 5.0f)
+                    dynamicMost = std::max(dynamicMost, valueOf(core, 0, -1, "dynamicBrake"));
+            }
+            test.check(rpmMost > 600.0 && dynamicMost > 0.0,
+                       QString("heard: a diesel starting away at %1 rpm (idle 315); braking, its dynamic brake at %2")
+                               .arg(rpmMost, 0, 'f', 0).arg(dynamicMost));
+        }
+        // A driven train beside a heard one: its run the same with or without
+        // the other heard (the shadows' scripts in a state of their own);
+        // the frames give the heard train's values, a new version each
+        // 0.1 s, not each 0.01 s step.
+        {
+            std::vector<double> runs[2];
+            int versions = 0;
+            bool framed = true;
+            for (int pass = 0; pass < 2; ++pass) {
+                Sim::SimulationCore core(inputWith({planOn(0, 10, 2), planOn(1, 11, 10)}, 0));
+                if (pass == 1)
+                    core.hear({0, 1});
+                core.step(0.01);
+                core.command(0, -1, {"throttle", 0.5});
+                std::shared_ptr<Sim::SimulationFrame> frame;
+                unsigned long long last = 0;
+                for (int i = 0; i < 3000; ++i) {
+                    core.step(0.01);
+                    runs[pass].push_back(core.trains()[0].front);
+                    runs[pass].push_back(core.trains()[0].speed);
+                    if (pass == 0 || i < 2000)
+                        continue;
+                    frame = Sim::MakeFrame(core, frame.get());
+                    framed = framed && frame->heard.size() == 1 && frame->heard[0].train == 1
+                            && frame->heard[0].values.size() == 11 && frame->heard[0].cab == 0;
+                    if (!frame->heard.empty() && frame->heard[0].version != last) {
+                        versions += last != 0 ? 1 : 0;
+                        last = frame->heard[0].version;
+                    }
+                }
+            }
+            test.check(runs[0] == runs[1] && framed && versions == 100,
+                       QString("heard: a driven train's run the same beside a heard one%1; the frames give the "
+                               "heard one's values%2 (not the driven one's), %3 new versions in 10 s of 0.01 s steps")
+                               .arg(runs[0] == runs[1] ? "" : " (NOT)", framed ? "" : " (NOT)").arg(versions));
+        }
+        // The cost of a heard train a shadow step: an electric and 40 wagons.
+        {
+            qint64 spent[2] = {0, 0};
+            for (int pass = 0; pass < 2; ++pass) {
+                Sim::SimulationCore core(inputWith({planOn(0, 10, 40)}, -1));
+                if (pass == 1)
+                    core.hear({0});
+                core.step(10.0);
+                QElapsedTimer timer;
+                timer.start();
+                core.step(60.0);
+                spent[pass] = timer.nsecsElapsed();
+            }
+            const double us = (spent[1] - spent[0]) / 1000.0 / 600.0;
+            test.check(us < 10000.0, QString("heard: an electric and 40 wagons, %1 µs a shadow step").arg(us, 0, 'f', 1));
+        }
+    }
     // The cost of a scripted loco a step: the electric, the diesel, the
     // steam loco (MSTS's Royal Scot, air braked).
     writeUtf16(files.path() + "/steam.eng",

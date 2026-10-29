@@ -3,7 +3,7 @@
 How the simulation, the vehicle models, the UI, the sounds and the cabs talk
 to each other.
 
-Source review: 2026-10-29, branch `feature/driving` (3338c007). This
+Source review: 2026-10-29, branch `feature/driving` (heard trains included). This
 describes what is built. Each part's design and history are in the task
 docs:
 - [simulation 01](../tasks/simulation/01-simulation-thread-and-train-motion.md):
@@ -25,12 +25,14 @@ docs:
 | Main | The trains' copies and their sounds | `src/tsre/trains/Consist`, `Eng`; `src/tsre/sound/` |
 | Simulation | The host: owns the core, paces it, publishes frames | `src/tsre/sim/SimulationHost` |
 | Simulation | The core: every train, signals, events | `src/tsre/sim/SimulationCore` |
-| Simulation | The driven train: its vehicle models, buses, couplers | `src/tsre/sim/SimulationDriving.cpp`, `VehicleModel`, `AirBrake`, `TrainPhysics` |
+| Simulation | The driven train: its vehicle models, buses, couplers; heard AI trains' shadows | `src/tsre/sim/SimulationDriving.cpp`, `VehicleModel`, `AirBrake`, `TrainPhysics` |
 | Simulation | Loco scripts: Lua, and the native module `tsre.steam` | `src/tsre/sim/LocoScript`, `src/tsre/sim/steam/`, `appdata/0.7/scripts/loco/` |
 
-Two Lua states never share anything:
-- **the simulation's**: no wall clock, random numbers from the run's seed,
-  so a run repeats;
+Three Lua states never share anything:
+- **the simulation's**, the driven train's scripts: no wall clock, random
+  numbers from the run's seed, so a run repeats;
+- **the heard trains' shadows'**, the same kind, seeded apart: which trains
+  are heard depends on the camera, so they must not touch the driven run;
 - **the UI's**: shared with the RmlUi documents.
 
 They talk only through the messages below.
@@ -58,14 +60,23 @@ loco.rml + loco.lua
                                                          the control line between its units
                                                          air brakes, brake pipe, main reservoir pipe
                                                          couplers and motion (TrainPhysics)
+                                                       each heard AI train, every 0.1 s: its shadow
+                                                         levers from the AI's motion
+                                                         its vehicles as the driven train's (no motion)
                                                        signals' aspects, activity events
+
+  updateSounds: the trains heard
+    -> SimulationController::sendHeard ---------->   SimulationHost::hear -> SimulationCore::hear
 
                                                      publish (each tick, after each command):
   frame() / viewFrame()  <------------------------     SimulationFrame: immutable, the newest
                                                          replacing the last (DrivenFrame: the
-                                                         driven train's values by vehicle)
+                                                         driven train's values by vehicle;
+                                                         HeardFrame: each heard train's)
   poll() every 100 ms    <------------------------     TrainEvent queue (at most 100,000)
-  takeDrivenMessages()   <------------------------     the driven train's messages (at most 10,000)
+  takeDrivenMessages()   <------------------------     TrainMessage queue (at most 10,000): the
+                                                         driven train's messages, the heard
+                                                         trains' sound triggers
 
 each view tick: pinViewFrame()
 each paint:
@@ -84,6 +95,7 @@ each paint:
     (`SimulationController::waitFor` waits on it in the tests).
   - Run commands: start, play, pause, speed, run to, stop, reset. Driving
     commands: drive, leave, and messages to the driven train's vehicles.
+    Sound: hear, the trains within earshot.
 - **State comes up in frames.**
   - A `SimulationFrame` is immutable once made. The newest replaces the one
     before.
@@ -108,8 +120,10 @@ each paint:
   - **The core's `TrainEvent`s:** arrivals, departures, waits, horns,
     activity events, driving started or ended, collisions. At most 100,000
     are kept; the oldest are dropped and counted.
-  - **The driven train's messages:** what its models `send()`, by vehicle.
-    At most 10,000 are kept; the oldest are dropped without a count.
+  - **The models' messages** (`TrainMessage`: train, vehicle, message):
+    what the driven train's models `send()`, and the heard trains' sound
+    triggers. At most 10,000 are kept; the oldest are dropped without a
+    count.
 
 **The simulation never waits for the main thread.** The main thread reads
 whatever is newest. A slow paint skips frames, but never messages or
@@ -144,6 +158,7 @@ The names the engine reads itself:
 | `throttle`, `brakeCylinder` | value, the cab's | the consist's stand-in sound controls |
 | `variable1`, `variable1_2`..., `variable2`, `variable2Booster`, `variable3`, `engineRpm`, `enginePower`, `engineTorque` (`engineRpm2`...), `backPressure`, `brakeCylinder`, `tractiveEffort`, `tractivePower` | value, each car's | the car's SMS sound controls (`Sim::carSoundInput`) |
 | `epBrake` | control line | the host: the EP wire's demand |
+| `brakeDemand` | a command, from the host | a heard train's train brake as a share of full service, whatever the lever's notches (`tsre/controls`, `tsre/brakes`) |
 
 The standard control names (`throttle`, `trainBrake`, `engineBrake`,
 `dynamicBrake`, `emergency`, `direction`, `pantograph1`/`2`,
@@ -187,17 +202,31 @@ takes:
 `VehicleModel`, which is a Lua loco script, the C++ stand-in engine or the
 C++ wagon, with the host's air brake beside it. It is not the 3D shape.
 
-**AI trains have no vehicle models.** Their vehicles' definitions (mass,
-force, power, Davis) are read, and their consists are drawn, but nothing
-steps each vehicle. The core plans each AI train's speed for the step
-(`advance`):
+**AI trains move with no vehicle models.** Their vehicles' definitions
+(mass, force, power, Davis) are read, and their consists are drawn. The
+core plans each AI train's speed for the step (`advance`):
 - Open Rails' AI rules: its states, bands and braking curves;
 - its acceleration limited by the ENG's force and power, the resistance and
   the grade.
 
-It is one mass, with no levers, brake pipe or couplers. So an AI train
-publishes no values or messages: its pantographs, lights and sounds come
-from stand-ins on the main thread (below).
+It is one mass, with no levers, brake pipe or couplers.
+
+**A heard AI train** (within earshot, task sound 02) also runs a shadow:
+its vehicles' models as the driven train's, every 0.1 s, its cars placed
+along the AI train at its speed and their forces unused, so the AI moves it
+as before. Its driver works from the AI's motion over the step:
+- the force needed (mass × acceleration, resistance, grade) as a share of
+  the full force at the speed: the throttle (a steam loco's regulator);
+- braking: the share of the AI's deceleration; the dynamic brake for the
+  first half where fitted, above 5 m/s; the train brake as `brakeDemand`;
+  standing, held at half of full service;
+- the levers in steps of 0.05, moved at most once a second;
+- steam: the reverser 75 % from a stand, 25 % from 20 m/s; the cylinder
+  cocks open for the first 30 m;
+- the horn at its horn waiting points.
+
+Its pantographs and lights stay the stand-ins'. An AI train not heard has
+no shadow and publishes nothing.
 
 **The driven train** (`advanceDriven`) runs one model per vehicle:
 - a Lua loco for each electric, diesel and steam engine;
@@ -274,12 +303,12 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
     into `events()` and emits `frameUpdated` and `eventsAdded`. The
     Timetable window, the event list and the map's message labels listen to
     those.
-- **Each paint**, while a train is driven:
-  - `takeDrivenMessages()` takes the driven train's messages. Each `sound`
-    goes to `Consist::soundEvent(vehicle, trigger)`, which fires that SMS
-    trigger on the car.
-  - `Ui::LocoControls::update` gets the cab's values, the speed and the
-    messages (next section).
+- **Each paint:**
+  - `takeDrivenMessages()` takes the messages. Each `sound`, the driven
+    train's or a heard train's, goes to `Consist::soundEvent(vehicle,
+    trigger)`, which fires that SMS trigger on the car.
+  - While a train is driven, `Ui::LocoControls::update` gets the cab's
+    values, the speed and the driven train's messages (next section).
 - **Placing the trains** (`placeTrains`, before the trains are drawn and
   their sounds updated), for each train on the track:
   - its cars' poses and wheels from the frame;
@@ -289,8 +318,12 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
     - each car's sound input from its own values (`Sim::carSoundInput` to
       `Eng::setSoundInput`);
     - the cab's sounds on the driven cab (`Consist::setSoundCab`);
-  - **an AI train:**
-    - pantograph 1 up on electric engines, as Open Rails does;
+  - **a heard AI train:** each car's sound input from its shadow's values,
+    given only when the frame's version for it changed (each 0.1 s); the
+    cab's sounds on its shadow's cab;
+  - **an AI train not heard:**
+    - pantograph 1 up on electric engines, as Open Rails does (a heard one
+      too);
     - the stand-in's throttle and brake, guessed from its speed and
       acceleration (`SoundControls`);
     - each engine's Variable1-3 from fixed formulas for its type.
@@ -298,7 +331,11 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
   - the listener rides the car the camera is in
     (`Consist::cameraVehicle`);
   - a train's sounds are updated within 1,500 m of the listener and
-    silenced beyond 2,000 m.
+    silenced beyond 2,000 m;
+  - `updateSounds` sends the trains within that (`sendHeard`) when they
+    change, none with sound off; the host gives them to the core while the
+    run runs or is paused, none while running to a time, and the core makes
+    none in the pre-run.
 - **The HUD** (`Ui::Hud`) has a path of its own: speed, distance, throttle
   and brake from the ridden consist.
 
@@ -344,12 +381,8 @@ view gets the mouse and keys.
 - **Keyboard:** not mapped to commands.
 - **External apps:** websockets, and the full-train link in the simulation
   thread, are designed only. The text form of a message is ready for them.
-- **AI trains' vehicle models:** decided 2026-10-29: their loco scripts
-  run as shadows for trains within earshot, fed with levers from the AI's
-  plan, their forces unused
-  ([sound 02](../tasks/sound/02-train-sounds-from-models.md)).
 - **A vehicle's own script** named in its ENG.
 - **Saving a run:** a model can save and restore its state
   (`VehicleModel::save`, `restore`), but runs aren't saved.
-- **More than one driven train.** Messages and `DrivenFrame` are for the
-  one driven train.
+- **More than one driven train.** Commands, `DrivenFrame` and the panel
+  are for the one driven train.

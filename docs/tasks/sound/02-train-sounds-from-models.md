@@ -2,7 +2,7 @@
 
 Status: steps 1-4 done 2026-10-29 on `feature/driving` (it needs the
 driving harness and the loco scripts there), not merged. AI trains: shadow
-scripts within earshot decided 2026-10-29 (below), not built.
+scripts within earshot decided and built 2026-10-29 (below), not merged.
 
 The user's (2026-10-29): "I would focus now on the sound system", then,
 after the gaps below: "Current AI train sound isn't great either. But lets
@@ -183,3 +183,137 @@ Within earshot: usually 2 to 6 locos, under 1 ms a second; a busy station's
 steam's exhaust beats come out bunched at 0.1 s.
 
 The message flow this builds on: [simulation messages](../../features/simulation-messages.md).
+
+### Agreed before building (the user's, 2026-10-29: "Fine, go ahead")
+
+1. **A shadow is the driven train's per-vehicle setup:** loco scripts, the
+   C++ wagons, the air brakes and the pipes. The AI's brake demand works
+   the brake lever, so each car's cylinder comes from the air brake. Only
+   motion stays the AI's: no couplers, no physics.
+2. **Sounds only:** AI trains' pantographs and lights stay as now.
+3. **A Lua state of its own** for the shadows. Which trains get one depends
+   on the camera, so a driven run must not share their random numbers.
+4. **The main thread names the trains heard** (`heard` in `updateSounds`,
+   1,500 m on, 2,000 m off) and sends the set when it changes. With sound
+   off, none.
+5. **When:** while the run runs, at any speed; not while running to a
+   time or in the pre-run; stepped at 0.1 s. Steam's exhaust beats
+   bunched at 0.1 s are to be reported, not fixed by a finer step unasked.
+6. **Messages:** a shadow's sound triggers go to its cars; nothing to the
+   panel; a script's error logged once.
+7. **The horn at the AI's horn waiting points:** 60010 + N for N seconds
+   (Open Rails' duration); 60021, the crossing horn, 3 s (the middle of
+   Open Rails' single blast, 2 to 5 s at random).
+8. **Frames:** each heard train's values, all of them, with a version; the
+   main thread converts a train's values to sound inputs only when its
+   version changed, if that stays clean.
+9. **Checks:** a suite without route content (levers from a planned run,
+   start and stop by earshot, a driven run unchanged by shadows), then a
+   capture near AI trains with the sound log, silent.
+
+**Plan:**
+- **The core** (`SimulationDriving.cpp`):
+  - the driven train's vehicles' step factored out (models, control line,
+    air brakes, pipes, the host's values), the same for a shadow;
+  - `hear(trains)`: shadows made for AI trains on the track, dropped for
+    the others; made again when a train's vehicles change; none for the
+    driven train;
+  - each shadow every 0.1 s: its cars placed along the AI train at its
+    speed; its levers from the AI's acceleration over the step; its
+    vehicles stepped; its sound triggers kept; its version raised;
+  - reversing: its cars, pipes and direction turned, as a driven train's;
+  - its own `LocoScripts` (a Lua state seeded apart).
+- **Levers** (sent only when they change, as a driver moves them):
+  - force needed F = m × a + resistance + grade (the AI's Performance);
+  - F > 0: throttle (or regulator) F over the full force at the speed, in
+    steps of 0.05, moved at most once a second;
+  - F < 0: the share b of the AI's deceleration; with a dynamic brake it
+    takes the first half (dynamicBrake 2b), the train brake the rest;
+    without one, trainBrake b; standing, the train brake held;
+  - steam: the reverser 75 % from a stand, notched up with speed to 25 %;
+    the cylinder cocks open for the first 30 m from a stand.
+- **The host:** `hear(trains, seq)`, kept and given to the core while
+  running (not while running to a time); the frame's `heard` list; every
+  message queued with its train.
+- **The controller:** the heard set sent when it changes (and emptied with
+  sound off); a heard train's cars get their sound inputs from its values
+  (converted when its version changes), its cab's throttle and brake
+  cylinder as the driven train's; its sound triggers played.
+
+### Heard trains: done (2026-10-29)
+
+As planned, with these differences:
+- **The train brake is a brake demand, not the lever.** MSTS's train brake
+  notches differ too much for a lever value to be a share of braking: the
+  Dash 9, GP38 and Genesis have Release at 0, Continuous Service at 0.9 and
+  Emergency at 0.95, so anything under 0.9 releases; the 310 and 380 lap
+  from 0.4; the 30000 and KIHA apply graduated EP from 0.35. So
+  `tsre/controls` takes a new command, `brakeDemand` (0 to 1 of full
+  service, or off), and `tsre/brakes` holds the equalising reservoir there
+  as a self-lapping valve would, whatever the lever's notches. The pipe,
+  the triple valves and the cylinders stay the air brake's. A driven loco
+  never gets it; `brakeDemand` is published only while set.
+- **The dynamic brake** is used where the cab's ENG has a `Brake_Dynamic`
+  controller with a step (as the scripts read one), and only above 5 m/s,
+  so a standing diesel does not go into dynamic braking.
+- **The capture harness** got `runFor` (and `runSpeed`): a view plays the
+  run at a pace for so many simulated seconds, as heard trains' shadows
+  step only then. `tests/renderer/sound-heard-trains.json` uses it.
+
+**Code:**
+- `SimulationDriving.cpp`:
+  - the driven train's setup and its vehicles' step factored out
+    (`setUpVehicles`, `stepVehicles`), shared by both;
+  - `Shadow`: a `Driven` plus the driver's state;
+  - `hear`, `stepShadows`, `stepShadow` (the driver), `shadowHorn`;
+  - `outputsOf`, `cabOf` and `takeMessages` cover heard trains too.
+- `SimulationCore`: `fullForce` (the AI's full force at a speed, now also
+  used by `fullAcceleration`); the horn hook; `TrainMessage`.
+- `SimulationHost`: `hear(trains, seq)`, applied on every mode change (none
+  while running to a time); the frame's `heard` (`HeardFrame`: train, cab,
+  version, values); every message queued with its train.
+- `SimulationController`: `sendHeard` from `updateSounds` (none with sound
+  off, cleared on a new run); a heard train's cars get sound inputs when
+  its version changes; every train's sound triggers played.
+- `appdata/0.7/scripts/loco/tsre/controls.lua`, `brakes.lua`:
+  `brakeDemand`.
+
+**Checks:**
+- **`driving` (59, 6 new):**
+  - an AI electric with 10 wagons run twice, heard the second time: the
+    same motion exactly; its shadow stepped each 0.1 s; the throttle up
+    starting; the brake demand up to full service stopping at its path's
+    end, a wagon's cylinder 21.9 psi;
+  - heard, not heard, heard again: made, gone, made anew;
+  - a horn waiting point 60013: the horn on, off 3.0 s later;
+  - a heard diesel with a dynamic brake: 900 rpm starting away (idle 315);
+    its dynamic brake at 0.5 braking;
+  - a driven train beside a heard one: its run the same as without; the
+    frames give the heard train's values, 100 new versions in 10 s of
+    0.01 s steps;
+  - the cost (Release): an electric and 40 wagons, 36 to 40 µs a shadow
+    step, about 0.4 ms a simulated second while heard.
+- **End to end** (`sound-heard-trains.json`, EUROPE1, riding AI train 3, a
+  steam loco; sound on, no device, `TSRE_SOUND_LOG`):
+  - braking into Long Marton from 15 m/s: the brake cylinder 9 to 15 psi;
+  - standing: held at 10 to 12 psi;
+  - starting away: the brakes off; Variable2 (cylinder pressure) 44 to 76;
+    tractive effort 129 to 146 kN; Variable1 rising with the speed.
+
+  Before this, run to a time, the same train gave the stand-in's values
+  (Variable1 19.4 from its formula, no tractive effort).
+- `ctest` 11/11; `steam` 9, `script` 32, `rmlui` 37, `sound` 95,
+  `vehicle-file` 38, and the simulation suites (core 89, host 19, ui 80,
+  coupling 24, events 44, work 25) pass.
+
+**Found, not changed (as agreed):** a steam shadow's exhaust pulses. The
+steam core sends at most one a step, as Open Rails does a frame; at 0.1 s
+that is at most 10 a second, and the core wants more above about 12 m/s
+(a 3-cylinder loco there: 11.5). Only Open Rails' pulse triggers (121 on)
+hear them, and none of the 1,752 local `.sms` files (MSTS, OR_PSK) uses
+them; MSTS steam sounds follow Variable1 and 2.
+
+**Left:**
+- AI trains' pantographs and lights from their shadows (decided against
+  for now: sounds only).
+- The environment sounds (task 01's step 6).

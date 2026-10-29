@@ -196,6 +196,8 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
 }
 
 void SimulationController::sendStart(std::shared_ptr<const SimulationInput> input) {
+    // A new run hears nothing until told.
+    heardSent.clear();
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
     QMetaObject::invokeMethod(host, [h, input, seq] { h->start(input, seq); }, Qt::QueuedConnection);
@@ -311,15 +313,27 @@ void SimulationController::command(const QString &name, const MessageValue &valu
 std::vector<std::pair<int, Sim::Message>> SimulationController::takeDrivenMessages() {
     if (!exists())
         return {};
-    std::vector<std::pair<int, Sim::Message>> taken = host->takeMessages();
-    // Its sound triggers on its cars (Open Rails' numbers, the SMS files').
+    // The sound triggers on their cars (Open Rails' numbers, the SMS
+    // files'); the driven train's messages for the UI.
     const int train = driven();
-    Consist *consist = train >= 0 ? consistOf(train) : nullptr;
-    if (consist != nullptr)
-        for (const auto &[vehicle, m] : taken)
-            if (m.name == QLatin1String("sound"))
-                consist->soundEvent(vehicle, int(m.number(-1.0)));
+    std::vector<std::pair<int, Sim::Message>> taken;
+    for (TrainMessage &m : host->takeMessages()) {
+        if (m.message.name == QLatin1String("sound"))
+            if (Consist *consist = consistOf(m.train))
+                consist->soundEvent(m.vehicle, int(m.message.number(-1.0)));
+        if (m.train == train)
+            taken.push_back({m.vehicle, std::move(m.message)});
+    }
     return taken;
+}
+
+void SimulationController::sendHeard(const std::vector<int> &trains) {
+    if (!exists() || trains == heardSent)
+        return;
+    heardSent = trains;
+    const unsigned long long seq = ++sequence;
+    SimulationHost *h = host;
+    QMetaObject::invokeMethod(host, [h, trains, seq] { h->hear(trains, seq); }, Qt::QueuedConnection);
 }
 
 void SimulationController::pause() {
@@ -1061,6 +1075,7 @@ void SimulationController::placeTrains() const {
         consists.resize(in->trains.size());
         consistVersions.resize(in->trains.size(), 0);
     }
+    heardVersions.resize(in->trains.size(), 0);
     for (size_t t = 0; t < in->trains.size(); ++t) {
         const TrainFrame *train = t < now->trains.size() ? &now->trains[t] : nullptr;
         if (train == nullptr || train->fronts.empty() || train->rears.size() != train->fronts.size()) {
@@ -1073,6 +1088,7 @@ void SimulationController::placeTrains() const {
             // The plan's vehicles: the core's version 0.
             consists[t] = copyConsist(plan);
             consistVersions[t] = 0;
+            heardVersions[t] = 0;
         }
         Consist *consist = consists[t].get();
         if (consist == nullptr)
@@ -1081,16 +1097,28 @@ void SimulationController::placeTrains() const {
         if (train->vehicles != nullptr && train->carsVersion != consistVersions[t]) {
             refit(*consist, *train->vehicles);
             consistVersions[t] = train->carsVersion;
+            heardVersions[t] = 0;
         }
         // Driven (task driving 02): its vehicles' values from its models.
+        // Heard (task sound 02): its shadow's, its cars given them when they
+        // change.
         const DrivenFrame *driven = now->drivenValues != nullptr && now->drivenValues->train == int(t)
                 ? now->drivenValues.get() : nullptr;
-        const auto valueOf = [driven](int vehicle, const QString &name, double otherwise) {
-            if (driven == nullptr || vehicle < 0 || size_t(vehicle) >= driven->values.size())
+        const HeardFrame *heardNow = nullptr;
+        for (const HeardFrame &h : now->heard)
+            if (h.train == int(t) && driven == nullptr)
+                heardNow = &h;
+        const bool heardChanged = heardNow != nullptr && heardNow->version != heardVersions[t];
+        heardVersions[t] = heardNow != nullptr ? heardNow->version : 0;
+        const std::vector<QHash<QString, MessageValue>> *modelled =
+                driven != nullptr ? &driven->values : heardNow != nullptr ? &heardNow->values : nullptr;
+        const int modelledCab = driven != nullptr ? driven->cab : heardNow != nullptr ? heardNow->cab : -1;
+        const auto valueOf = [modelled](int vehicle, const QString &name, double otherwise) {
+            if (modelled == nullptr || vehicle < 0 || size_t(vehicle) >= modelled->size())
                 return otherwise;
-            const auto found = driven->values[size_t(vehicle)].constFind(name);
-            return found == driven->values[size_t(vehicle)].cend() ? otherwise
-                                                                    : Sim::Message{QString(), *found}.number(otherwise);
+            const auto found = (*modelled)[size_t(vehicle)].constFind(name);
+            return found == (*modelled)[size_t(vehicle)].cend() ? otherwise
+                                                                : Sim::Message{QString(), *found}.number(otherwise);
         };
         // Each vehicle's two ends where the simulation has them, facing the
         // node's way where its front (as the consist lists it) does: the
@@ -1109,10 +1137,12 @@ void SimulationController::placeTrains() const {
             // shapes 12); a driven one's as its model has them.
             eng->setTravelled(train->drawnTravelled, reversed);
             // Its sounds from its model's values (task sound 02); a train
-            // nobody drives has the stand-in's.
-            if (driven != nullptr && size_t(v) < driven->values.size()) {
-                const CarSoundInput sound = Sim::carSoundInput(driven->values[size_t(v)]);
-                eng->setSoundInput(&sound);
+            // neither driven nor heard has the stand-in's.
+            if (modelled != nullptr && size_t(v) < modelled->size()) {
+                if (driven != nullptr || heardChanged) {
+                    const CarSoundInput sound = Sim::carSoundInput((*modelled)[size_t(v)]);
+                    eng->setSoundInput(&sound);
+                }
             } else {
                 eng->setSoundInput(nullptr);
             }
@@ -1127,14 +1157,15 @@ void SimulationController::placeTrains() const {
             }
         }
         applyDoors(t, *train, now->time);
-        consist->setSoundCab(driven != nullptr && driven->cab >= 0 ? driven->cab : 0);
+        consist->setSoundCab(modelledCab >= 0 ? modelledCab : 0);
         float throttle = 0.0f, brake = 1.0f;
-        if (driven != nullptr && driven->cab >= 0) {
+        if (modelledCab >= 0) {
             // Its cab's lever and its brake cylinder (Eng::updateSounds
-            // takes 50 psi as full); its headlight.
-            throttle = float(std::clamp(valueOf(driven->cab, "throttle", 0.0), 0.0, 1.0));
-            brake = float(std::clamp(valueOf(driven->cab, "brakeCylinder", 0.0) / (50.0 * 6894.757293168), 0.0, 1.0));
-            consist->setHeadlight(int(valueOf(driven->cab, "headlight", -1.0)));
+            // takes 50 psi as full); a driven one's headlight (a heard
+            // train's lights stay the AI's).
+            throttle = float(std::clamp(valueOf(modelledCab, "throttle", 0.0), 0.0, 1.0));
+            brake = float(std::clamp(valueOf(modelledCab, "brakeCylinder", 0.0) / (50.0 * 6894.757293168), 0.0, 1.0));
+            consist->setHeadlight(driven != nullptr ? int(valueOf(modelledCab, "headlight", -1.0)) : -1);
         } else {
             SoundControls(train->state.speed, train->state.acceleration, plan.acceleration, plan.deceleration,
                           throttle, brake);
@@ -1315,11 +1346,15 @@ void SimulationController::dropTrains() {
     placedFrame.reset();
     pinnedFrame.reset();
     heard.clear();
+    heardVersions.clear();
 }
 
 void SimulationController::updateSounds(float seconds, int tileX, int tileZ, const float *position) {
-    if (!exists() || in == nullptr || !Game::soundEnabled || !SoundSystem::running())
+    if (!exists() || in == nullptr || !Game::soundEnabled || !SoundSystem::running()) {
+        // No sound: no train's shadow.
+        sendHeard({});
         return;
+    }
     placeTrains();
     heard.resize(consists.size(), false);
     for (size_t t = 0; t < consists.size(); ++t) {
@@ -1344,6 +1379,12 @@ void SimulationController::updateSounds(float seconds, int tileX, int tileZ, con
             consist->silenceSounds();
         heard[t] = near;
     }
+    // The trains heard run their shadows (task sound 02).
+    std::vector<int> trains;
+    for (size_t t = 0; t < heard.size(); ++t)
+        if (heard[t])
+            trains.push_back(int(t));
+    sendHeard(trains);
 }
 
 void SimulationController::SoundControls(float speed, float acceleration, float maxAcceleration,

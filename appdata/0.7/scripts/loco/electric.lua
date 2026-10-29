@@ -23,7 +23,9 @@
 --       released (push buttons); circuitBreakerAuthorization: true/false;
 --   battery, masterKey: on/off; power: on/off (Open Rails' quick power
 --   on and off); headlight: 0, 1, 2, "+"/"-"; horn: on/off; bailOff:
---   true/false.
+--   true/false; brakeDemand: 0 to 1 of full service, or off, an automatic
+--   driver's train brake whatever the lever's notches (TSRE's heard AI
+--   trains).
 -- The cab's loco sends its throttle, direction, dynamic brake,
 -- pantographs, breaker, battery and master key commands to the train's
 -- other units on the control line.

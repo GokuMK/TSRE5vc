@@ -9,7 +9,16 @@
 namespace Sim {
 
 struct Driven;
+struct Shadow;
 class LocoScripts;
+
+// A message a train's vehicle's model sent: the driven train's (task
+// driving 02), a heard train's shadow's sound trigger (task sound 02).
+struct TrainMessage {
+    int train = -1;
+    int vehicle = -1;
+    Message message;
+};
 
 enum class TrainStatus { Waiting, Running, Stopped, Finished };
 // Why a train stands. Blocked: at the end of its authority, the track ahead
@@ -378,13 +387,25 @@ public:
     int drivenTrain() const { return driven; }
     // A message for a driven train's vehicle (-1: its cab's).
     void command(int train, int vehicle, const Message &message);
-    // A driven train's vehicle's last outputs (-1: its cab's), null for
-    // none; its cab (consist order), -1 none.
+    // A driven or heard train's vehicle's last outputs (-1: its cab's), null
+    // for none; its cab (consist order), -1 none.
     const VehicleOutputs *outputsOf(int train, int vehicle) const;
     int cabOf(int train) const;
-    // The messages a driven train's vehicles sent since last taken (vehicle,
-    // message).
+    // The messages a driven train's vehicles sent since last taken, a heard
+    // train's sound triggers (vehicle, message).
     std::vector<std::pair<int, Message>> takeMessages(int train);
+    // Heard trains (task sound 02): AI trains within earshot run their
+    // vehicles' models as shadows, as a driven train's (loco scripts in a Lua
+    // state of their own, air brakes, pipes), every ShadowStep. Their levers
+    // follow what the AI does; their forces are unused, so the AI moves them
+    // as before. None for the driven train, none in the pre-run.
+    static constexpr double ShadowStep = 0.1;
+    // The trains heard from now on, in any order: the others' shadows go.
+    void hear(const std::vector<int> &trains);
+    // The trains with a shadow now, in order; what changes each time a
+    // train's shadow steps (never the same twice in a run, 0 none).
+    std::vector<int> shadowed() const;
+    unsigned long long shadowVersion(int train) const;
     // A driven train run into another: the run ends (time < 0: none).
     struct Collision {
         double time = -1.0;
@@ -609,6 +630,8 @@ private:
         // Driven (task driving 02): its cars, models and outputs; null for
         // a train the AI drives.
         std::shared_ptr<Driven> drivenState;
+        // Heard (task sound 02): its shadow; null when not heard.
+        std::shared_ptr<Shadow> shadowState;
     };
     std::vector<Runtime> runtime;
     // Driving (task driving 02): the run's step, the driven train, a
@@ -622,6 +645,22 @@ private:
     // not on the track yet, or the run has not stepped): given to it then.
     std::vector<std::pair<int, Message>> drivenPending;
     void takeOver(int train);
+    // A train's vehicles' models, air brakes and pipes set up as it stands
+    // (driven or heard), its scripts' from `scripts`.
+    void setUpVehicles(int train, Driven &d, const std::shared_ptr<LocoScripts> &scripts);
+    // A driven or heard train's vehicles over `dt`: their models, the
+    // control line, the air brakes and the pipes, their cars as they are;
+    // the forces on each car in `d`.
+    void stepVehicles(int train, Driven &d, double dt);
+    // Heard trains: which (by train), their scripts, the last version given.
+    std::vector<char> heard;
+    std::shared_ptr<LocoScripts> shadowScripts;
+    unsigned long long shadowSerial = 0;
+    // The heard trains' shadows made, dropped and stepped at `t`.
+    void stepShadows(double t);
+    void stepShadow(int train, double t);
+    // A heard train passing a horn waiting point (its value) at `t`.
+    void shadowHorn(int train, int value, double t);
     // The run's step changed from now on (a train driven: DrivenStep; left:
     // its input's), its whole steps counted from now.
     void setStepLength(double seconds);
@@ -847,6 +886,8 @@ private:
     // engines' force, limited by their power, less the train's resistance
     // and the gradient under it), m/s².
     double fullAcceleration(int train, double v) const;
+    // Its engines' force at full power at speed `v` (N; 0 not known).
+    double fullForce(int train, double v) const;
     // Physics driving: the speed a train may have at the end of a step from
     // `v` over `dt` to stop at a target of kind `kind` `distance` ahead,
     // where its limit is `limit`.

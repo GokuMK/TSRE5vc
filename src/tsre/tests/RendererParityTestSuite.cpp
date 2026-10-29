@@ -183,6 +183,12 @@ struct ViewSpec {
     // after the file's "simulateTo"): what a train does a few seconds on,
     // such as doors opening at a stop.
     QString simulateTo;
+    // Then the run played at a pace for so many simulated seconds, the view
+    // ticking meanwhile (task sound 02: heard trains' shadows step only
+    // while a run runs, not while it runs to a time); simulated seconds a
+    // second.
+    double runFor = 0.0;
+    double runSpeed = 1.0;
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
     QVector<QPair<QString, QVariant>> commands;
@@ -494,6 +500,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.trainView = object.value("trainView").toString();
         view.trainVehicle = object.value("trainVehicle").toInt(-1);
         view.simulateTo = object.value("simulateTo").toString();
+        view.runFor = object.value("runFor").toDouble(0.0);
+        view.runSpeed = object.value("runSpeed").toDouble(1.0);
         for (const QJsonValue &command : object.value("commands").toArray()) {
             const QJsonArray pair = command.toArray();
             if (pair.size() == 2)
@@ -896,6 +904,35 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                     QThread::msleep(2);
                 }
                 qInfo().noquote() << CaptureLog << spec.name << "simulated to" << simulation->frame()->time
+                                  << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
+            }
+        }
+        if (spec.runFor > 0.0 && Sim::SimulationController::instance()->exists()) {
+            Sim::SimulationController *simulation = Sim::SimulationController::instance();
+            Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
+            const double until = simulation->frame()->time + spec.runFor;
+            simulation->setSpeed(spec.runSpeed);
+            QString error;
+            if (!simulation->play(activity, &error)) {
+                qWarning() << CaptureLog << spec.name << "no simulation to play" << error;
+            } else {
+                QElapsedTimer waited;
+                waited.start();
+                while (waited.elapsed() < 600000 && simulation->frame()->time < until - 1e-6) {
+                    QCoreApplication::processEvents();
+                    simulation->poll();
+                    QThread::msleep(2);
+                }
+                simulation->pause();
+                while (waited.elapsed() < 600000) {
+                    QCoreApplication::processEvents();
+                    simulation->poll();
+                    const auto frame = simulation->frame();
+                    if (frame->acknowledged >= simulation->lastCommand() && frame->mode == Sim::RunMode::Paused)
+                        break;
+                    QThread::msleep(2);
+                }
+                qInfo().noquote() << CaptureLog << spec.name << "ran to" << simulation->frame()->time
                                   << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
             }
         }

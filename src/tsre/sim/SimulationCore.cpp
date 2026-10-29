@@ -233,6 +233,8 @@ void SimulationCore::stepOnce() {
         else
             advance(int(i), now, next);
     }
+    // The heard trains' shadows (task sound 02).
+    stepShadows(next);
     now = next;
     ++ticks;
     ++stepCount;
@@ -892,6 +894,8 @@ void SimulationCore::advance(int train, double from, double to) {
             if (wait.part != s.part || wait.front > reached + 1e-6 || stops(wait))
                 break;
             record(arrival >= 0.0 ? arrival : t, train, TrainEvent::Horn, s.nextWait);
+            if (runtime[size_t(train)].shadowState)
+                shadowHorn(train, wait.value, arrival >= 0.0 ? arrival : t);
             ++s.nextWait;
         }
         if (arrival < 0.0)
@@ -1359,14 +1363,20 @@ double SimulationCore::brakingSpeed(double v, double dt, double d, double distan
     return disc > 0.0 ? std::max(0.0, 0.5 * (-b + std::sqrt(disc))) : 0.0;
 }
 
+double SimulationCore::fullForce(int train, double v) const {
+    const Performance &p = runtime[size_t(train)].performance;
+    double force = p.force > 0.0 ? p.force : p.power;
+    if (p.power > 0.0)
+        force = std::min(force, p.power / std::max(v, 1.0));
+    return force;
+}
+
 double SimulationCore::fullAcceleration(int train, double v) const {
     const TrainPlan &plan = in->trains[size_t(train)];
     const Performance &p = runtime[size_t(train)].performance;
     if (p.mass <= 0.0)
         return 0.0;
-    double force = p.force > 0.0 ? p.force : p.power;
-    if (p.power > 0.0)
-        force = std::min(force, p.power / std::max(v, 1.0));
+    const double force = fullForce(train, v);
     const double resistance = p.davisA + p.davisB * v + p.davisC * v * v;
     // The gradient: the rise from the train's rear to its front.
     double gradient = 0.0;

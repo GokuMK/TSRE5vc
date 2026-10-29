@@ -5,7 +5,8 @@
 -- In the state: s.throttle and s.trainBrake (levers, plain where the ENG
 -- has none), s.engineBrake and s.dynamicBrake (nil without one),
 -- s.direction (-1, 0, 1), s.emergencyButton, s.headlight (0 to 2), s.horn,
--- s.bailOff. Where the master key holds the headlights
+-- s.bailOff, s.brakeDemand (nil but for an automatic driver). Where the
+-- master key holds the headlights
 -- (s.config.keyHeadlights, tsre.supply), they follow it.
 
 local util = require "tsre.util"
@@ -151,10 +152,20 @@ function M.commands.bailOff(s, value)
     return value
 end
 
+-- An automatic driver's train brake (task sound 02: TSRE's heard AI
+-- trains): its equalising reservoir held at this share of full service, 0
+-- to 1, whatever the lever's notches (tsre.brakes); off gives the lever
+-- back.
+function M.commands.brakeDemand(s, value)
+    local x = tonumber(value)
+    s.brakeDemand = x and clamp(x, 0, 1) or nil
+end
+
 function M.values(s, o)
     o.throttle = s.throttle.value
     o.trainBrake = s.trainBrake.value
     o.trainBrakeNotch = levers.kind(s.trainBrake)
+    o.brakeDemand = s.brakeDemand
     o.engineBrake = s.engineBrake and s.engineBrake.value or 0
     o.dynamicBrake = s.dynamicBrake and s.dynamicBrake.value or 0
     o.direction = s.direction

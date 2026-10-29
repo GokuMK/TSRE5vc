@@ -47,6 +47,16 @@ struct DrivenFrame {
     std::vector<QHash<QString, MessageValue>> values;
 };
 
+// A heard train (task sound 02): an AI train whose vehicles' models run as
+// a shadow; its cab and each vehicle's values, as a driven train's, and
+// what changes each time they do (SimulationCore::shadowVersion).
+struct HeardFrame {
+    int train = -1;
+    int cab = -1;
+    unsigned long long version = 0;
+    std::vector<QHash<QString, MessageValue>> values;
+};
+
 // The simulation at one moment, as the host publishes it for the main
 // thread (task simulation 01, section 6): immutable once made, the latest
 // replacing the one before.
@@ -92,6 +102,8 @@ struct SimulationFrame {
     int driven = -1;
     std::shared_ptr<const DrivenFrame> drivenValues;
     SimulationCore::Collision collision;
+    // The heard trains' values (task sound 02), in train order.
+    std::vector<HeardFrame> heard;
 };
 
 // The core's state now, with its vehicles' poses; what has not changed

@@ -1,0 +1,19 @@
+{
+  "notes": "Heard AI trains (docs/tasks/sound/02-train-sounds-from-models.md): EUROPE1's lclsrvce from 09:03, riding AI train 3 (08:20's Local Service, a steam loco). Its shadow runs while the run plays at a pace (runFor), not while it runs to a time: braking into Long Marton, standing braked, starting away. Run with TSRE_SOUND_DEVICE=none TSRE_SOUND_LOG=1 --set core.system.soundEnabled=true: the log's riding lines give the shadow's Variable1-3, tractive effort and brake cylinder.",
+  "output": "build/renderer-sound-heard-trains",
+  "activity": "lclsrvce.act",
+  "aiTrains": "all",
+  "simulateTo": "09:03:00",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "approach", "train": 3, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9]},
+    {"name": "stopping", "train": 3, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9], "runFor": 45},
+    {"name": "starting", "train": 3, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9], "runFor": 45}
+  ]
+}
