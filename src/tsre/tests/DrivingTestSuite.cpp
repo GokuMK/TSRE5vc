@@ -1437,8 +1437,17 @@ int TsreTests::runDrivingSuite(bool verbose) {
                        QString("diesel.lua: its state saved (%1 bytes) and restored, the same steps after").arg(saved.size()));
         }
     }
-    // The cost of a scripted loco a step: the electric, the diesel.
-    for (const auto &[script, loco] : {std::pair{"electric.lua", electric}, std::pair{"diesel.lua", vehicle("diesel.eng")}}) {
+    // The cost of a scripted loco a step: the electric, the diesel, the
+    // steam loco (MSTS's Royal Scot, air braked).
+    writeUtf16(files.path() + "/steam.eng",
+               engineFile(AirBrakes)
+                       .replace("\tType ( Electric )\n\tMaxPower ( 5000kW )\n\tMaxForce ( 300kN )\n",
+                                "\tType ( Steam )\n\tWheelRadius ( 1.03m )\n\tNumWheels ( 1 )\n\tNumCylinders ( 3 )\n"
+                                "\tCylinderDiameter ( 18in )\n\tCylinderStroke ( 26in )\n\tMaxBoilerPressure ( 250 )\n"
+                                "\tBoilerVolume ( \"160*(ft^3)\" )\n\tSuperHeater ( 1.2 )\n\tInjectorTypes ( 0 1 )\n"
+                                "\tMaxTenderCoalMass ( 11200lb )\n\tMaxTenderWaterMass ( 40000lb )\n"));
+    for (const auto &[script, loco] : {std::pair{"electric.lua", electric}, std::pair{"diesel.lua", vehicle("diesel.eng")},
+                                       std::pair{"steam.lua", vehicle("steam.eng")}}) {
         if (!QFileInfo::exists(locoFolder + "/" + script))
             continue;
         Sim::LocoScripts lua(locoFolder);
@@ -1483,7 +1492,7 @@ int TsreTests::runDrivingCorpusSuite(bool verbose) {
         int count = 0, failed = 0, unpowered = 0, forceless = 0;
         qint64 ms = 0;
     };
-    Kind kinds[] = {{4, "electric", "electric.lua"}, {5, "diesel", "diesel.lua"}};
+    Kind kinds[] = {{4, "electric", "electric.lua"}, {5, "diesel", "diesel.lua"}, {6, "steam", "steam.lua"}};
     QStringList listed;
     for (const QString &path : files) {
         const QFileInfo info(path);

@@ -140,6 +140,7 @@ SafetyValves safetyValvesFor(double evaporationFt2, double pressurePsi) {
             break;
         }
     }
+    v.areaIn2 = area;
     v.maxDischargeLbps = v.count * area * (pressurePsi + 14.696) / 70.0;
     const double open[4] = {0.1, 2.0, 4.0, 6.0}, close[4] = {-4.0, -3.0, -2.0, -1.0};
     for (int k = 0; k < 4; ++k) {
@@ -193,6 +194,7 @@ std::shared_ptr<const Config> readConfig(const VehicleDefinition &definition) {
     const int mstsCylinders = std::max(0, int(r.si("engine(numcylinders", r.si("engine(numberofcylinders", 2.0))));
     EngineConfig base;
     base.cylinders = mstsCylinders != 0 ? mstsCylinders : 2;
+    c.mstsCylinders = base.cylinders;
     base.diameterIn = r.si("engine(cylinderdiameter", 0.0) / InchM;
     base.strokeIn = r.si("engine(cylinderstroke", 0.0) / InchM;
     if (base.diameterIn <= 0.0)
@@ -237,7 +239,12 @@ std::shared_ptr<const Config> readConfig(const VehicleDefinition &definition) {
     c.fuel = fuel == "Oil" ? Fuel::Oil : fuel == "Wood" ? Fuel::Wood : Fuel::Coal;
     c.fuelCalorificKJpKg = r.si("engine(ortsfuelcalorific", 33400.0e3) / 1000.0;
     c.boilerAngleRad = r.si("engine(ortsboilerangle", 0.0);
-    if (c.boilerAngleRad == 0.0 && r.text("engine(ortssteamlocomotiveboilerorientation") == "Sloping")
+    const QString orientation = r.text("engine(ortssteamlocomotiveboilerorientation");
+    c.orientation = orientation == "Sloping" ? BoilerOrientation::Sloping
+            : orientation == "CabForward" ? BoilerOrientation::CabForward
+            : orientation == "Vertical" || orientation == "CabCentre" ? BoilerOrientation::Vertical
+                                                                      : BoilerOrientation::Horizontal;
+    if (c.boilerAngleRad == 0.0 && c.orientation == BoilerOrientation::Sloping)
         c.boilerAngleRad = 5.0 * Pi / 180.0;
     c.cylinderExhaust = r.table("engine(ortscylindereventexhaust");
     if (c.cylinderExhaust.empty())

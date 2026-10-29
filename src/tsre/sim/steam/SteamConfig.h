@@ -13,6 +13,7 @@ enum class GearType { None, Fixed, Select };
 enum class EngineKind { Adhesion, Booster, Rack };
 enum class Fuel { Coal, Wood, Oil };
 enum class InjectorType { Live, Exhaust };
+enum class BoilerOrientation { Horizontal, CabForward, Vertical, Sloping };
 
 // One steam engine of a loco (its cylinders, Open Rails' SteamEngine): one
 // for an MSTS loco, several for a Mallet or Garratt, a booster.
@@ -38,6 +39,8 @@ struct EngineConfig {
 struct SafetyValves {
     int count = 0;
     double diameterIn = 0.0;
+    // One valve's effective area (in²).
+    double areaIn2 = 0.0;
     double maxDischargeLbps = 0.0;
     // Each valve's lift and reseat pressures.
     std::array<double, 4> openPsi{}, closePsi{};
@@ -53,6 +56,8 @@ struct Config {
     GearType gear = GearType::None;
     Fuel fuel = Fuel::Coal;
     std::vector<EngineConfig> engines;
+    // The MSTS cylinder count (the exhaust beats).
+    int mstsCylinders = 2;
 
     // The car.
     double massKg = 0.0, lengthM = 0.0, wheelRadiusM = 0.0;
@@ -72,6 +77,7 @@ struct Config {
     double maxBoilerOutputLbph = 0.0;
     double boilerLengthM = 0.0, boilerDiameterM = 0.0, crownHeightM = 0.0, crownCoverageM = 0.0, glassLengthM = 0.0;
     double boilerAngleRad = 0.0;
+    BoilerOrientation orientation = BoilerOrientation::Horizontal;
     // Water levels, fractions of the boiler's diameter from its bottom.
     double waterMinLevel = 0.0, waterGlassMaxLevel = 0.0, waterMaxLevel = 0.96, waterMaxLevelSafe = 0.95;
     double startWaterFraction = 0.0;

@@ -19,7 +19,9 @@ class LuaLoco;
 // each script file loaded once; its functions are shared, each loco has a
 // state table of its own. For now every electric engine runs TSRE's
 // electric.lua (the user's, 2026-10-28), every diesel diesel.lua (task
-// driving 03); a vehicle's own script comes later.
+// driving 03), every steam engine steam.lua (task driving 04, its
+// thermodynamics in the native module tsre.steam); a vehicle's own script
+// comes later.
 //
 // A script's functions, all optional but update:
 //   init(state, vehicle)        once, `vehicle` its file's keys in SI;

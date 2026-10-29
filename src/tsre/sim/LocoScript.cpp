@@ -5,6 +5,7 @@
 #include <limits>
 #include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
+#include <tsre/sim/steam/SteamModule.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehicleKeys.h>
 
@@ -577,6 +578,8 @@ Script::State &LocoScripts::lua() {
     if (!state) {
         state = std::make_shared<Script::State>(Script::State::Kind::Simulation, Script::Limits(), seed);
         state->setModuleRoots({folder});
+        // TSRE's native modules for its loco scripts.
+        state->addNativeModule("tsre.steam", Steam::openModule);
         lua_pushlightuserdata(state->lua(), this);
         lua_setfield(state->lua(), LUA_REGISTRYINDEX, HostKey);
         // send() and line() beside the libraries: every script and module
@@ -596,13 +599,16 @@ Script::State &LocoScripts::lua() {
 }
 
 QString LocoScripts::scriptFor(const VehicleDefinition &definition) const {
-    // An electric engine (the editors' kind 4) or a diesel (5).
+    // An electric engine (the editors' kind 4), a diesel (5) or a steam
+    // engine (6).
     if (folder.isEmpty())
         return QString();
     if (definition.wagonTypeId == 4)
         return folder + "/electric.lua";
     if (definition.wagonTypeId == 5)
         return folder + "/diesel.lua";
+    if (definition.wagonTypeId == 6)
+        return folder + "/steam.lua";
     return QString();
 }
 
