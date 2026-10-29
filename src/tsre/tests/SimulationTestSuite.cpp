@@ -2750,7 +2750,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
             const bool logging = log.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text);
             if (logging)
                 log.write("seconds,speed,travelled,throttle,trainBrake,equalising,brakePipe,brakeCylinder,force,"
-                          "lastBrakePipe,lastBrakeCylinder,auxiliary,control,mainPipe\n");
+                          "lastBrakePipe,lastBrakeCylinder,auxiliary,control,mainPipe,engineRpm,trainForce\n");
             Sim::SimulationCore driven(input);
             const double end = commands.empty() ? 0.0 : commands.back().at;
             size_t next = 0;
@@ -2768,13 +2768,19 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                 const auto lastValue = [last](const char *name) {
                     return last ? Sim::Message{QString(), last->values.value(name, 0.0)}.number() : 0.0;
                 };
+                // Every vehicle's force, each in its own frame (a turned loco's
+                // the other way).
+                double trainForce = 0.0;
+                for (int v = 0; v < vehicles; ++v)
+                    if (const Sim::VehicleOutputs *o = driven.outputsOf(player, v))
+                        trainForce += std::fabs(Sim::Message{QString(), o->values.value("force", 0.0)}.number());
                 if (logging)
-                    log.write(QString("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11,%12,%13,%14\n").arg(t).arg(state.speed)
+                    log.write(QString("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11,%12,%13,%14,%15,%16\n").arg(t).arg(state.speed)
                                       .arg(state.travelled).arg(value("throttle")).arg(value("trainBrake"))
                                       .arg(value("equalisingReservoir")).arg(value("brakePipe")).arg(value("brakeCylinder"))
                                       .arg(value("force")).arg(lastValue("brakePipe")).arg(lastValue("brakeCylinder"))
                                       .arg(value("auxiliaryReservoir")).arg(value("controlReservoir"))
-                                      .arg(value("mainPipe")).toUtf8());
+                                      .arg(value("mainPipe")).arg(value("engineRpm")).arg(trainForce).toUtf8());
                 driven.step(0.5);
             }
             for (const Sim::TrainEvent &event : driven.takeEvents())

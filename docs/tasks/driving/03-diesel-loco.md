@@ -1,6 +1,6 @@
 # Task 03 - The diesel loco
 
-Status: designed 2026-10-29; built on `feature/driving` after task 02 (steps 1 to 4 done).
+Status: designed 2026-10-29; built on `feature/driving` after task 02 (steps 1 to 5 done; open questions at the end).
 
 The user's request (2026-10-29), after task 02 split `electric.lua` into
 modules the loco scripts share: "if we have those modules, can we try
@@ -283,6 +283,53 @@ where it is now as Open Rails has it.
   - Stopped: 0 rpm, the relay open, power off, no force.
   - The freight starts moving (its service's `StartingSpeed`), so its
     engines start warm at the throttle's RPM (95 °C), as in Open Rails.
+
+## Step 5 done (2026-10-29): against Open Rails
+
+**The tools:**
+- **`scripts/orts-drive-run.sh`** records HUD pages too
+  (`ORTS_HUD_PAGES="2 6"`: the locomotives, the forces).
+- **`scripts/drive-compare.py`** adds the lead loco's force and RPM.
+- **TSRE's drive log** (`TSRE_SIM_DRIVE_LOG`) adds `engineRpm` and
+  `trainForce` (every vehicle's force).
+- **The runs:** `reports/or-driving-comparison.md`, its last two sections.
+
+**The diesel agrees with Open Rails:**
+- **USA2's Dash 9s at 25 %:** the same RPM (461) and engine power (1720 kW
+  available). Their force follows `MaxPower × t / v` and `MaxForce × t`.
+- **BNSF_SCENIC's ES44AC** (`ORTSDieselEngines`):
+  - the RPM within 5 rpm, rising and falling;
+  - 2.80 MW a loco at full throttle in both.
+
+**What else differs, all outside the diesel:**
+1. **TSRE reads MSTS's `Friction` wrong** (task 01, `resistanceOf`).
+   - It fits `C2 × v^(E2+1)` where Open Rails fits `C2 × v^E2`.
+   - On the ES44AC's train that gives 722 kN of resistance at 20 m/s,
+     against Open Rails' 90. TSRE's train tops out at 16.8 m/s, Open
+     Rails' at 20.8.
+   - With Open Rails' form (tried, not committed) TSRE's train follows Open
+     Rails' within a few percent: 10 m/s at 108.0 s against 108.6 s, top
+     speed 21.4 against 20.8 m/s.
+   - The same coefficients feed the AI's performance. With the fix, the AI
+     traces of USA2, BNSF_SCENIC and PRUDNIK change: trains a little faster,
+     the same events. The other five routes are unchanged.
+   - **Open question 1 below.**
+2. **Curve and wind resistance:**
+   - Open Rails adds them: 14 to 39 kN of curves and up to 38 kN of wind
+     over these trains.
+   - TSRE's driven train has only its Davis resistance, so USA2's freight
+     stands at 209 s in TSRE and at 188 s in Open Rails.
+3. **The brakes at a standing start:** Open Rails' train starts with its
+   brakes applied (15 psi) and releases them in 17 s; TSRE's starts
+   released.
+
+## Open questions
+
+1. **Fix MSTS's `Friction` reading** (task 01's code, in main)? It changes
+   the AI traces of three routes and the driven trains' resistance on stock
+   without ORTSDavis keys.
+2. **Curve and wind resistance** for the driven train: when?
+3. **Lua's watchdog on Windows:** task 02's open question 6.
 
 ## Not in this task
 

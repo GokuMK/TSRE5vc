@@ -9,6 +9,9 @@ Prints both every `step` seconds and how they differ: speed, the brake
 pipe and cylinder, distance (Open Rails': its speed integrated), and when
 each reached some speeds and stopped.
 
+With Open Rails' HUD locomotive page recorded and TSRE's engineRpm logged,
+also the lead loco's force and RPM.
+
 Usage: drive-compare.py <tsre.csv> <openrails-drive.jsonl> [step seconds]
 """
 import csv
@@ -58,6 +61,24 @@ def openrails(path):
                 prefix = "" if "brakeCylinder" not in row else "last"
                 row[prefix + ("brakeCylinder" if not prefix else "BrakeCylinder")] = number(cylinder[2:], {"psi": PSI, "bar": BAR})
                 row[prefix + ("brakePipe" if not prefix else "BrakePipe")] = number(pipe, {"psi": PSI, "bar": BAR})
+        # The lead loco from the HUD's locomotive page, where recorded
+        # (scripts/orts-drive-run.sh with ORTS_HUD_PAGES="2"): its force, RPM.
+        page = (sample.get("hud") or {}).get("2")
+        if page and page.get("extraTable"):
+            table = page["extraTable"]
+            columns, values = table["nCols"], table["values"]
+            header = False
+            for r in range(table["nRows"]):
+                cells = [(c or "").strip() for c in values[r * columns:(r + 1) * columns]]
+                # The first row under the header is the player's loco.
+                if cells and cells[0] == "Loco":
+                    header = True
+                elif header and cells and cells[0]:
+                    force = next((c for c in cells if re.fullmatch(r"-?\d+(\.\d+)?\s*k?N", c)), None)
+                    row["leadForce"] = number(force, {"kn": 1000.0, "n": 1.0}) if force else None
+                    rpm = next((c for c in cells if c.endswith("rpm")), None)
+                    row["leadRpm"] = number(rpm, {"rpm": 1.0}) if rpm else None
+                    break
         if row.get("speed") is not None:
             samples.append(row)
     # Distance: the speed integrated.
@@ -125,6 +146,17 @@ def main():
             fmt(at(ours, t, "lastBrakePipe"), PSI), fmt(at(theirs, t, "lastBrakePipe"), PSI),
             fmt(at(ours, t, "lastBrakeCylinder"), PSI), fmt(at(theirs, t, "lastBrakeCylinder"), PSI)))
         t += step
+    # The lead loco, where both have it.
+    if any("leadForce" in row for row in theirs) and "engineRpm" in ours[0]:
+        print()
+        print("| s | TSRE force kN | OR force kN | TSRE rpm | OR rpm |")
+        print("| --- | --- | --- | --- | --- |")
+        t = 0.0
+        while t <= end + 1e-9:
+            print("| %g | %s | %s | %s | %s |" % (
+                t, fmt(at(ours, t, "force"), 1000.0), fmt(at(theirs, t, "leadForce"), 1000.0),
+                fmt(at(ours, t, "engineRpm"), 1, 0), fmt(at(theirs, t, "leadRpm"), 1, 0)))
+            t += step
     print()
     def seconds(value):
         return "never" if value is None else "%.1f s" % value

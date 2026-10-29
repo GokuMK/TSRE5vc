@@ -6,7 +6,8 @@
 # start; throttle, trainBrake, engineBrake, dynamicBrake 0 to 1, direction
 # -1/0/1), posted to Open Rails' web server (/API/CABCONTROLS) at those game
 # times, and the driving display (/API/TRAINDRIVINGDISPLAY) read every half
-# second of wall time into <work-dir>/logs/<activity>-drive.jsonl.
+# second of wall time into <work-dir>/logs/<activity>-drive.jsonl, with the
+# HUD pages ORTS_HUD_PAGES names ("2 6": the locomotives, the forces).
 # scripts/drive-compare.py sets the two side by side.
 # Usage: scripts/orts-drive-run.sh <game-root> <route> <work-dir> <activity> <commands file>
 #
@@ -65,6 +66,7 @@ for line in open(commands_file):
     if len(words) >= 3 and not words[0].startswith("#") and words[1] in types:
         commands.append((float(words[0]), types[words[1]], float(words[2])))
 end = max(c[0] for c in commands)
+hud_pages = [int(p) for p in os.environ.get("ORTS_HUD_PAGES", "").split()]
 
 def get(path):
     with urllib.request.urlopen("http://localhost:2150/API/" + path, timeout=5) as r:
@@ -106,7 +108,13 @@ with open(samples_file, "w") as out:
             display = json.loads(get("TRAINDRIVINGDISPLAY?normalText=true"))
         except Exception:
             display = None
-        out.write(json.dumps({"seconds": game, "wall": time.time(), "display": display}) + "\n")
+        hud = {}
+        for page in hud_pages:
+            try:
+                hud[page] = json.loads(get("HUD/%d" % page))
+            except Exception:
+                pass
+        out.write(json.dumps({"seconds": game, "wall": time.time(), "display": display, "hud": hud}) + "\n")
         out.flush()
         if game > end:
             break

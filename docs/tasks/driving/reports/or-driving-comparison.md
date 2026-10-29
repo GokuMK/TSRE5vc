@@ -275,3 +275,107 @@ Both start at 6.7 m/s with the throttle at 25 % and climb to a stand; the Dash 9
 - reached 40 m/s: TSRE never, Open Rails never
 - top speed: TSRE 7.76 m/s, Open Rails 7.11 m/s
 - stopped: TSRE at 208.5 s after 911 m braking, Open Rails at 189.3 s after 710 m braking
+
+## The diesel (task 03): USA2's freight on diesel.lua
+
+The same freight (three Dash 9s, 38 cars) now driven by `diesel.lua`
+instead of the C++ stand-in, run again in Open Rails with its HUD's
+locomotive and force pages recorded (`ORTS_HUD_PAGES="2 6"`). Commands:
+
+```
+# USA2 nnmxdgds, three Dash 9s and 38 cars: released, climbing at 25 % to a stand (300 s).
+0 trainBrake 0
+300 trainBrake 0
+```
+
+**The lead loco:**
+
+| s | TSRE force kN | OR force kN | TSRE rpm | OR rpm |
+| --- | --- | --- | --- | --- |
+| 15 | 114.9 | 114.2 | 461 | 461 |
+| 30 | 115.5 | 116.3 | 461 | 461 |
+| 60 | 127.6 | 136.9 | 461 | 461 |
+| 90 | 153.5 | 162.7 | 461 | 461 |
+| 120 | 162.7 | 162.7 | 461 | 461 |
+| 300 | 162.7 | 162.7 | 461 | 461 |
+
+- **Both at 25 % throttle.** The engine is at 461 rpm, its throttle table's
+  RPM. Each loco gives `MaxPower × t / v` (816 kW: 116 kN at 7 m/s), held
+  to `MaxForce × t`, 162.7 kN, below 5 m/s.
+- **Open Rails' HUD agrees on the engine:** 461 rpm, 1720 kW available, 52
+  psi of oil, 95 °C.
+- **Where the forces differ, the speeds differ:** Open Rails' train is
+  slower, so its `P / v` is higher.
+
+**The train:**
+- It stops at 209 s in TSRE and 188 s in Open Rails, as with the stand-in
+  (208 s). So the diesel is not the difference.
+- **Open Rails' force page shows resistances TSRE does not model:**
+  - curves: 14 to 27 kN over the train;
+  - wind: up to 23 kN, a 41 km/h head wind.
+- **TSRE's driven train has only its Davis resistance.**
+
+## The diesel (task 03): BNSF_SCENIC's ES44AC
+
+`3_CanadianImports`: three ES44ACs (one turned), 54 cars, 6668 t. Their
+ENG has `ORTSDieselEngines` and force curves. Commands:
+
+```
+0 trainBrake 0
+0 direction 1
+10 throttle 0.5
+150 throttle 1
+300 throttle 0
+360 throttle 0
+```
+
+**The lead loco:**
+
+| s | TSRE force kN | OR force kN | TSRE rpm | OR rpm |
+| --- | --- | --- | --- | --- |
+| 30 | 282.9 | 358.7 | 593 | 588 |
+| 60 | 206.1 | 210.3 | 682 | 682 |
+| 90 | 159.3 | 156.3 | 682 | 682 |
+| 120 | 136.9 | 132.7 | 682 | 682 |
+| 150 | 123.5 | 118.0 | 682 | 682 |
+| 180 | 208.7 | 202.4 | 1050 | 1050 |
+| 210 | 190.7 | 176.4 | 1050 | 1050 |
+| 240 | 178.9 | 157.7 | 1050 | 1050 |
+| 270 | 173.0 | 145.3 | 1050 | 1050 |
+| 300 | 167.4 | 134.0 | 1050 | 1050 |
+| 330 | 0.0 | 0.0 | 622 | 623 |
+| 360 | 0.0 | 0.0 | 315 | 315 |
+
+- **The RPM agrees within 5 rpm,** rising and falling (the RPM law and the
+  throttle table).
+- **At full throttle each loco gives 2.80 MW in both:** 167.4 kN at
+  16.8 m/s, against 134.0 kN at 20.7 m/s. All three pull in both.
+- **At the start Open Rails' brakes are still releasing** (15 psi in the
+  cylinders, the pipe at 86 psi, for 17 s); TSRE's start released.
+
+**The train:** it reached 10 m/s at 113.0 s in TSRE and 108.6 s in Open
+Rails. TSRE's top speed is 16.8 m/s, Open Rails' 20.8 m/s.
+
+**Why: TSRE reads MSTS's `Friction` wrong** (task 01, `resistanceOf` in
+`VehicleDefinition.cpp`). These cars have no ORTSDavis keys, so the Davis
+coefficients come from the FCalc-style `Friction` block.
+- **Open Rails fits by least squares,** from the second speed to 80 mph:
+  `C1 × v1^E1 + C2 × v1 + C2 × v^E2`.
+- **TSRE fits `C2 × v^(E2+1)`,** one power of speed too many.
+- **The result:**
+  - TSRE: 144 kN of Davis resistance over the train at 10 m/s, 722 kN at
+    20 m/s;
+  - Open Rails' friction: about 90 kN at 20 m/s;
+  - the ES44AC's own coefficients come out as A 25.6 kN, B −7.7 kN/(m/s),
+    C 595 N/(m/s)².
+- **With Open Rails' form** (tried, not committed):
+
+  | | TSRE | Open Rails |
+  | --- | --- | --- |
+  | Reaches 10 m/s | 108.0 s | 108.6 s |
+  | Reaches 20 m/s | 272 s | 284 s |
+  | Top speed | 21.4 m/s | 20.8 m/s |
+
+  The small lead left fits TSRE's missing curve and wind resistance.
+- **The same coefficients feed the AI's performance** (`PerformanceOf`):
+  the fix changes AI traces too. The user's decision.
