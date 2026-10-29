@@ -100,9 +100,11 @@ jitter moves it.
 - **The editor's overlays** (track lines, markers, labels, the 3D
   pointer; `PASS_OVERLAY`) are **drawn after the resolve, unjittered**,
   as now. Through TAA a 1-pixel line jittered by up to half a pixel would
-  be averaged into a wider, fainter one (QRhi draws wide lines only where
-  the backend has them, `QRhi::WideLines`: not Direct3D or Metal), and the
-  moving pointer would trail. With TAA on, the overlay pass waits until
+  be averaged into a wider, fainter one, and the moving pointer would
+  trail. Wide lines (`core.rendering.defaultLineWidth`, items' own widths)
+  are drawn where the backend has them (`QRhi::WideLines`): Vulkan, TSRE's
+  QRhi backend, on the Steam Deck's AMD driver yes (the startup line says
+  so since 2026-10-29); Direct3D and Metal not, unused by TSRE. With TAA on, the overlay pass waits until
   after the transmission pass and the resolve, with this frame's
   unjittered projection; depth-tested against the jittered depth (half a
   pixel at occlusion edges). Overlays drawn under the water surface then
