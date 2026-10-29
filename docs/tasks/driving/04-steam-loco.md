@@ -194,7 +194,11 @@ all of it.
 1. **C++ and Lua** are split as the spec proposes.
 2. **Inputs:**
    - speed and gradient come from the host;
-   - the outside temperature is 15 °C (TSRE has no seasons yet);
+   - the outside temperature is 15 °C for now. TSRE's weather has the
+     air's temperature at each keyframe (set, generated with a daily
+     cycle, or imported for the date), but it doesn't reach the vehicle
+     models yet, and there is no default by season and place for weather
+     that sets none (the user's correction, 2026-10-29);
    - a tender is coupled;
    - there is no train heating, sander or scoop yet.
 3. **The force comes from the crank angles** for every steam loco, because
@@ -278,6 +282,9 @@ all of it.
   units or rows for them yet.
 - **The sound variables** (`variable1` to `variable3`) are published but
   not fed to the sound system yet, as with the diesel's RPM.
+- **The outside temperature** from TSRE's weather at the train, to
+  `inputs.outsideTemperature`, with a default by season and place where
+  the weather sets none.
 - **Vacuum brakes:** MSTS's Pendennis, Royal Scot and Scotsman run on
   TSRE's air brakes and draw compressor steam. The ejectors' steam waits
   for vacuum brakes.
