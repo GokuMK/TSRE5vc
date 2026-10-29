@@ -232,15 +232,19 @@ void RhiRenderer::drawDeferredOverlays() {
     if (!overlayProjectionValid || (queue.ordered.empty() && queue.grouped.empty()))
         return;
     // The scene band's projection without the jitter, its slice of the
-    // depth range; the frame's values (another band's, the UI's) after.
+    // depth range, its culling (the band has ended: without it every overlay
+    // gathered round the camera was drawn, 168 draws for 21, 1 to 2 ms of
+    // the processor's); the frame's values (another band's, the UI's) after.
     float savedProjection[16];
     std::copy(gluu->pMatrix, gluu->pMatrix + 16, savedProjection);
     const float savedRange[2] = {depthRange[0], depthRange[1]};
     const bool savedFogOverride = fogLodOverride;
     const float savedFogLod = fogLod;
+    const Frustum savedCull = cullFrustum;
     std::copy(overlayProjection, overlayProjection + 16, gluu->pMatrix);
     depthRange[0] = 0.0f;
     depthRange[1] = 0.98f;
+    setCullView(gluu->pMatrix);
     applyFrameUniforms();
     recordInstances(queue.ordered, PASS_OVERLAY, false);
     sortByTexture(queue.grouped);
@@ -249,6 +253,7 @@ void RhiRenderer::drawDeferredOverlays() {
     std::copy(savedProjection, savedProjection + 16, gluu->pMatrix);
     depthRange[0] = savedRange[0];
     depthRange[1] = savedRange[1];
+    cullFrustum = savedCull;
     applyFrameUniforms();
     if (savedFogOverride)
         setFogLod(savedFogLod);
