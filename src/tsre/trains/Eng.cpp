@@ -1333,8 +1333,11 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     // neither.
     const RenderQueue::Layer layer = queue.layer();
     const bool animated = queue.animatedEnabled();
+    const void *motionOwner = queue.motionOwnerNow();
     queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(!staticOnTrack);
+    // Its parts' last-frame matrices are its own (task renderer 38).
+    queue.setMotionOwner(this);
     // Seen from inside its 3D cab, the cab's shape in place of its body and
     // its loads (Open Rails draws the cab alone); the body until the cab has
     // loaded (pushed, a shape starts loading).
@@ -1379,6 +1382,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     }
     queue.setLayer(layer);
     queue.setAnimated(animated);
+    queue.setMotionOwner(motionOwner);
     if (selected && cab == nullptr)
         pushDrawBorder3d(queue);
     queue.popTransform();

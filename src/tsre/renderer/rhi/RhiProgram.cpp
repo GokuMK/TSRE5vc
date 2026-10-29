@@ -66,6 +66,10 @@ void reflect(RhiProgram &program) {
     for (int binding : bindings)
         program.samplers.push_back(samplers.value(binding));
     program.inputs = program.source->vertex.description().inputVariables();
+    program.writesVelocity = false;
+    for (const QShaderDescription::InOutVariable &output : program.source->fragment.description().outputVariables())
+        if (output.location == 3)
+            program.writesVelocity = true;
     program.block.assign(size_t(std::max(program.blockSize, 16)), 0);
 }
 

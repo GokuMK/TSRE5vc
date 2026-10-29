@@ -10,6 +10,7 @@
 
 #include "Camera.h"
 #include <math.h>
+#include <algorithm>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/Game.h>
@@ -114,6 +115,29 @@ void Camera::setCameraObject(GameObj* o){
     playerPos[0] = mount.position[0];
     playerPos[1] = mount.position[1];
     playerPos[2] = mount.position[2];
+}
+
+bool Camera::ridingPlacement(float out[8]) const {
+    if (cameraObject == NULL || pozT == NULL)
+        return false;
+    out[0] = pozT[0];
+    out[1] = pozT[1];
+    std::copy(relativePos, relativePos + 3, out + 2);
+    std::copy(relativeRot, relativeRot + 3, out + 5);
+    return true;
+}
+
+void Camera::viewAtPlacement(const float placement[8], float *view) {
+    float saved[8] = {pozT != NULL ? pozT[0] : 0.0f, pozT != NULL ? pozT[1] : 0.0f};
+    std::copy(relativePos, relativePos + 3, saved + 2);
+    std::copy(relativeRot, relativeRot + 3, saved + 5);
+    std::copy(placement + 2, placement + 5, relativePos);
+    std::copy(placement + 5, placement + 8, relativeRot);
+    const float *matrix = getMatrix();
+    std::copy(matrix, matrix + 16, view);
+    std::copy(saved + 2, saved + 5, relativePos);
+    std::copy(saved + 5, saved + 8, relativeRot);
+    getMatrix();
 }
 
 void Camera::releaseObject(){

@@ -61,6 +61,12 @@ public:
     // As fast as possible up to a time of day (seconds), then paused there;
     // a time before the simulation's is reached again from the start.
     bool runTo(Activity *activity, int timeOfDay, QString *error = nullptr);
+    // A run's time as runTo, in seconds with fractions (a capture's step
+    // between two frames, task renderer 38); false without a simulation.
+    bool runToSeconds(double time, QString *error = nullptr) { return runToTime(time, false, error); }
+    // The trains placed as the view's frame has them now (a capture's tick:
+    // a camera riding one follows it before the paint).
+    void placeViewTrains() const { placeTrains(); }
     // The simulation's time a run to a time of day goes to: the next day's
     // when it is before the run's start (an activity running past midnight).
     double timeOfRunTo(int timeOfDay) const;

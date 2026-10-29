@@ -84,6 +84,8 @@ void RenderQueue::resetQueueState() {
     shadowOnly = false;
     shadowDynamic = false;
     animated = false;
+    motionOwner = nullptr;
+    motionPart = 0;
     shadowSignatureSum = 0;
     sceneSignatureSum = 0;
     currentLightReach = 0.0f;

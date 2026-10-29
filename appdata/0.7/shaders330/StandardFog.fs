@@ -21,6 +21,12 @@ layout(location = 1) out vec4 ambientOut;
 // Emitted light in linear colour, the source of bloom: only what glows,
 // never what is merely bright.
 layout(location = 2) out vec4 glowOut;
+// The pixel's motion on screen since last frame (task 38), in half
+// normalized device units (times the view's size, pixels), -1 to 1 stored
+// as 0 to 1 (two 16-bit fractions).
+layout(location = 3) out vec4 velocityOut;
+in vec3 vCurrentClip;
+in vec3 vPreviousClip;
 // Set by pbrShade.
 vec4 pbrAmbientOut = vec4(0.0);
 vec4 pbrGlowOut = vec4(0.0);
@@ -171,6 +177,11 @@ vec3 mixedLight(vec3 sun, vec3 sky) {
 #endif
 
 void main() {
+#ifdef TSRE_RHI
+    velocityOut = vec4(clamp(vPreviousClip.z > 1e-4 && vCurrentClip.z > 1e-4
+            ? (vCurrentClip.xy / vCurrentClip.z - vPreviousClip.xy / vPreviousClip.z) * 0.5 : vec2(0.0), -1.0, 1.0)
+            * 0.5 + 0.5, 0.0, 0.0);
+#endif
 #ifdef TSRE_RHI
     if (vClipDistance < 0.0)
         discard;

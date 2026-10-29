@@ -35,6 +35,38 @@ const float *QueueRenderer::instanceMatrix(quint32 index) const{
     return instanceMatrices.data() + index * 16;
 }
 
+void QueueRenderer::beginMotionFrame(){
+    motionBefore.swap(motionNow);
+    motionNow.clear();
+    motionSeen.clear();
+    motionPrevious.clear();
+}
+
+void QueueRenderer::shiftMotion(float dx, float dz){
+    for(auto &entry : motionBefore){
+        entry.second[12] += dx;
+        entry.second[14] += dz;
+    }
+}
+
+quint32 QueueRenderer::motionOf(const RenderItem *packet, const float *matrix){
+    if(!animated || motionOwner == nullptr || !tracksMotion())
+        return 0;
+    MotionKey key{motionOwner, motionPart, packet, packet->msMatrix, 0};
+    key.occurrence = motionSeen[key]++;
+    std::array<float, 16> full;
+    if(packet->msMatrix != nullptr)
+        Mat4::multiply(full.data(), const_cast<float *>(matrix), packet->msMatrix);
+    else
+        std::copy(matrix, matrix + 16, full.begin());
+    motionNow[key] = full;
+    // New this frame (its shape loaded, it came into view): still, not the
+    // static world's motion.
+    const auto before = motionBefore.find(key);
+    motionPrevious.push_back(before != motionBefore.end() ? before->second : full);
+    return quint32(motionPrevious.size());
+}
+
 Renderer::RenderPass QueueRenderer::routePass(const RenderItem *packet,
                                                 SubmitOrder order) const{
     switch(currentLayer){
@@ -168,6 +200,8 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     // Overlays (trains, markers) and frame items change from frame to frame.
     instance.dynamicShadow = shadowDynamic || animated || owned || currentLayer != LAYER_SCENE;
     instance.animated = animated;
+    if(!owned)
+        instance.motion = motionOf(packet, instanceMatrix(instance.matrix));
     instance.lightReach = currentLightReach;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.

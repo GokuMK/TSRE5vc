@@ -360,6 +360,28 @@ public:
     virtual void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
                                         float minRadius = 0.0f) {}
     virtual void setSkyEnclosure(const SkyEnclosure &enclosure) {}
+    // The main view's motion between frames (task 38), for its velocity
+    // target and motion blur, as world-space matrices in this frame's space
+    // (a projection times this frame's view times one gives last frame's
+    // view-projection with that projection): `world` = this view's inverse
+    // times last frame's view, the camera's whole movement; `reference` =
+    // the same for the camera held still where it rides (the vehicle moved,
+    // the head did not), or not riding, held still in the world (identity).
+    // frameSeconds: the time between the two frames.
+    struct ViewMotion {
+        bool valid = false;
+        float world[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+        float reference[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+        float frameSeconds = 1.0f / 60.0f;
+        // The main view's view-projection (OpenGL's) and its planes.
+        float viewProjection[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+        float nearPlane = 0.2f;
+        float farPlane = 2000.0f;
+    };
+    virtual void setViewMotion(const ViewMotion &motion) { Q_UNUSED(motion); }
+    // Whether the renderer draws motion (task 38): the gather then keeps
+    // animated objects' matrices.
+    virtual bool tracksMotion() const { return false; }
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.

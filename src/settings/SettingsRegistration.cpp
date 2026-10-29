@@ -1126,6 +1126,22 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer."
                 QT_TRID_NOOP("settings.core.rendering.bloom.description")).withRange(0, 4, 0.05).inGroup("rendering").inSubgroup("image"),
         "bloomStrength", "Game::bloomStrength", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.motionBlur", 120)
+            .withNameId(
+                //% "Motion blur"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.name")).withDescriptionId(
+                //% "Blur of fast motion as a camera's exposure shows it: riding a train, the scenery streaks by its speed, while the cab and the train stay sharp; trains and cars passing a camera streak by their own speed. Moving or turning the camera yourself blurs nothing. The longer the exposure, the stronger. QRhi renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.0")}, {250,
+                //% "Light (1/250 s)"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.250")}, {120,
+                //% "Normal (1/120 s)"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.120")}, {60,
+                //% "Strong (1/60 s)"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.60")}})).inGroup("rendering").inSubgroup("image"),
+        "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::floating("core.rendering.localLights.exposure", 1.0)
             .withNameId(
                 //% "Lamp brightness"

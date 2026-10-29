@@ -43,6 +43,9 @@ struct RhiProgram {
     };
     std::vector<Sampler> samplers;
     QVector<QShaderDescription::InOutVariable> inputs;
+    // Whether the fragment shader writes the view's velocity (output 3,
+    // task 38); the pipelines of others leave that target as it is.
+    bool writesVelocity = false;
     // A resource set the pipelines are created against.
     QRhiShaderResourceBindings *layout = nullptr;
 

@@ -13,6 +13,8 @@
 
 #include <tsre/renderer/LightGrid.h>
 #include <tsre/renderer/Renderer.h>
+#include <array>
+#include <unordered_map>
 #include <vector>
 
 // The backend-neutral part of a renderer: it keeps the submitted work of a
@@ -64,11 +66,50 @@ public:
         bool dynamicShadow = false;
         // Animated (RenderQueue::setAnimated): no roof in the sky enclosure.
         bool animated = false;
+        // Its last frame's full matrix (task 38): motionMatrices()[motion -
+        // 1]; 0 none (still, or first seen this frame).
+        quint32 motion = 0;
         // Its object's light reach (m), 0 for the default.
         float lightReach = 0.0f;
     };
 
+    void beginMotionFrame() override;
+    void shiftMotion(float dx, float dz) override;
+    // This frame's instances' last-frame full matrices (instance times the
+    // packet's msMatrix), by motion index - 1.
+    const std::vector<std::array<float, 16>> &motionMatrices() const { return motionPrevious; }
+
 protected:
+    // An animated submission's place from frame to frame: its owner, the
+    // packet, the packet's part matrix, and which of their submissions this
+    // frame (a road car spawner sends one shape for many cars).
+    struct MotionKey {
+        const void *owner = nullptr;
+        quint32 ownerPart = 0;
+        const RenderItem *packet = nullptr;
+        const float *part = nullptr;
+        quint32 occurrence = 0;
+        bool operator==(const MotionKey &o) const {
+            return owner == o.owner && ownerPart == o.ownerPart && packet == o.packet && part == o.part
+                    && occurrence == o.occurrence;
+        }
+    };
+    struct MotionKeyHash {
+        size_t operator()(const MotionKey &k) const {
+            size_t h = std::hash<const void *>()(k.owner) * 31 + k.ownerPart;
+            h = h * 31 + std::hash<const void *>()(k.packet);
+            h = h * 31 + std::hash<const void *>()(k.part);
+            return h * 31 + k.occurrence;
+        }
+    };
+    // The instance's motion index (DrawInstance::motion), keeping its full
+    // matrix for next frame.
+    quint32 motionOf(const RenderItem *packet, const float *matrix);
+    std::unordered_map<MotionKey, std::array<float, 16>, MotionKeyHash> motionBefore;
+    std::unordered_map<MotionKey, std::array<float, 16>, MotionKeyHash> motionNow;
+    std::unordered_map<MotionKey, quint32, MotionKeyHash> motionSeen;
+    std::vector<std::array<float, 16>> motionPrevious;
+
     // Ordered work is drawn first, in submission order; grouped packets after.
     struct PassQueue {
         std::vector<DrawInstance> ordered;

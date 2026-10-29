@@ -31,6 +31,16 @@ uniform mat4 uPMatrix;
 uniform mat4 uFMatrix;
 uniform mat4 uMVMatrix;
 uniform mat4 uMSMatrix;
+#ifdef TSRE_RHI
+// The pixel's motion on screen (task 38): last frame's view-projection, and
+// moving instances' last-frame full matrices (instance times part, four
+// texels each, 256 to a row; the instance's index, 0 none).
+uniform mat4 uPrevPMatrix;
+uniform sampler2D motionMatrices;
+in vec4 instanceMotion;
+out vec3 vCurrentClip;
+out vec3 vPreviousClip;
+#endif
 #include "Instancing.glsl"
 uniform float fogDensity;
 // Geometry below this plane (submission space) is clipped where clip
@@ -135,6 +145,21 @@ void main() {
 #endif
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
     vLightPosition = shadowVertex.xyz;
+#ifdef TSRE_RHI
+    vec4 previousWorld = shadowVertex;
+    int motion = int(instanceMotion.x + 0.5);
+    if (motion > 0) {
+        int m = motion - 1;
+        ivec2 at = ivec2((m % 256) * 4, m / 256);
+        mat4 previous = mat4(texelFetch(motionMatrices, at, 0), texelFetch(motionMatrices, at + ivec2(1, 0), 0),
+                             texelFetch(motionMatrices, at + ivec2(2, 0), 0),
+                             texelFetch(motionMatrices, at + ivec2(3, 0), 0));
+        previousWorld = previous * renderVertex;
+    }
+    vec4 previousClip = uPrevPMatrix * previousWorld;
+    vCurrentClip = gl_Position.xyw;
+    vPreviousClip = previousClip.xyw;
+#endif
 #ifdef TSRE_RHI
     vClipDistance = dot(shadowVertex, clipPlane);
 #else
